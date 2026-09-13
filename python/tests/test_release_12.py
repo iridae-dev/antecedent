@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import antecedent as ac
@@ -12,10 +11,10 @@ from antecedent import artifacts
 from antecedent.estimation import PreparedAnalysis
 from antecedent.inference import decode_posterior_artifact, encode_posterior_artifact
 
-FIXTURE = json.loads(
-    (
-        Path(__file__).parents[2] / "conformance/bayesian/release_12_moments/expected.json"
-    ).read_text()
+from _repo_text import load_json
+
+FIXTURE = load_json(
+    Path(__file__).parents[2] / "conformance/bayesian/release_12_moments/expected.json"
 )
 
 
@@ -193,10 +192,8 @@ def test_mediation_validation_targets_and_prior_grid(accepted, suite, bayesian):
 @pytest.mark.parametrize("accepted", [False, True])
 @pytest.mark.parametrize("intervention", [False, True])
 def test_temporal_response_surface_artifact(accepted, intervention):
-    pin = json.loads(
-        (
-            Path(__file__).parents[2] / "conformance/bayesian/response_surfaces/expected.json"
-        ).read_text()
+    pin = load_json(
+        Path(__file__).parents[2] / "conformance/bayesian/response_surfaces/expected.json"
     )
     t = np.resize([0.0, 1.0, 0.0, -1.0], 1200)
     y = 1 + 2 * np.r_[0, t[:-1]] + 3 * np.r_[0, 0, t[:-2]]

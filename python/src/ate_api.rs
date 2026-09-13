@@ -2338,6 +2338,27 @@ pub(crate) fn ate_result_from_analysis(
     };
 
     Ok(AteAnalysisResult {
+        structural_weight_basis: result.structural_response.as_ref().map(|mixture| {
+            match mixture.weight_basis {
+                antecedent::result::StructuralWeightBasis::PosteriorProbability => {
+                    "posterior_probability"
+                }
+                antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior => {
+                    "caller_supplied_class_prior"
+                }
+                _ => "completion_enumeration",
+            }
+            .to_string()
+        }),
+        structural_identified_mass: result.structural_response.as_ref().map(|m| m.identified_mass),
+        structural_unidentified_mass: result
+            .structural_response
+            .as_ref()
+            .map(|m| m.unidentified_mass),
+        structural_unevaluable_mass: result
+            .structural_response
+            .as_ref()
+            .map(|m| m.unevaluable_mass),
         certificate_json,
         ate: result.estimate.ate,
         se_analytic: result.estimate.se_analytic,
@@ -2818,6 +2839,48 @@ fn structure_query(
             }
             Ok(CausalQuery::TemporalEffect(query))
         }
+        "temporal_response" => {
+            use antecedent_core::{
+                ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TemporalResponseSpec,
+            };
+            let mut query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: y_id,
+                treatment: ContinuousDomain::new(
+                    t_id,
+                    GridSpec::Values(std::sync::Arc::from([0.0, 1.0])),
+                ),
+            });
+            let temporal_policy =
+                crate::temporal_license::policy_at_lag(policy.unwrap_or("pulse"), treatment_lag)?;
+            query.temporal = Some(
+                TemporalResponseSpec::new(vec![horizon_steps.max(1)], temporal_policy, None)
+                    .map_err(|error| PyValueError::new_err(error.to_string()))?,
+            );
+            Ok(CausalQuery::Response(query))
+        }
+        "temporal_mediation" => {
+            use antecedent_core::{MediationContrast, MediationQuery};
+            let mediators = treatments
+                .unwrap_or_default()
+                .iter()
+                .map(|name| structure_var_id(names, name))
+                .collect::<PyResult<Vec<_>>>()?;
+            let contrast = match policy.unwrap_or("mediated") {
+                "total" => MediationContrast::Total,
+                "direct" => MediationContrast::Direct,
+                "mediated" | "indirect" => MediationContrast::Mediated,
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "unknown temporal mediation contrast {other}"
+                    )));
+                }
+            };
+            Ok(CausalQuery::Mediation(
+                MediationQuery::binary(t_id, y_id, mediators, contrast)
+                    .with_horizons([horizon_steps])
+                    .map_err(py_msg)?,
+            ))
+        }
         other => {
             Err(PyValueError::new_err(format!("identify_structure unknown query kind {other:?}")))
         }
@@ -2869,6 +2932,10 @@ fn identification_tuple(
     window=None,
     treatments=None,
     include_details=false,
+    horizons=None,
+    max_history_lag=None,
+    response_grid=None,
+    response_steps=None,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn identify_structure(
@@ -2886,6 +2953,10 @@ fn identify_structure(
     window: Option<(i32, i32)>,
     treatments: Option<Vec<String>>,
     include_details: bool,
+    horizons: Option<Vec<u32>>,
+    max_history_lag: Option<u32>,
+    response_grid: Option<Vec<f64>>,
+    response_steps: Option<Vec<(String, String, Vec<f64>)>>,
 ) -> PyResult<Py<PyAny>> {
     use pyo3::IntoPyObjectExt;
     let dag = graph.extract::<graphs::Dag>().ok();
@@ -2912,7 +2983,7 @@ fn identify_structure(
                 "identify_structure requires a Dag, Cpdag, Pag, TemporalDag, TemporalCpdag, or TemporalPag",
             ));
         };
-        let query = structure_query(
+        let mut query = structure_query(
             &query_kind,
             &names,
             &treatment,
@@ -2925,6 +2996,59 @@ fn identify_structure(
             window,
             treatments,
         )?;
+        match &mut query {
+            CausalQuery::Response(response) if response.temporal.is_some() => {
+                let temporal = response.temporal.as_mut().expect("temporal response");
+                if let Some(horizons) = horizons {
+                    *temporal = antecedent_core::TemporalResponseSpec::new(
+                        horizons,
+                        temporal.policy.clone(),
+                        max_history_lag,
+                    )
+                    .map_err(py_msg)?;
+                } else {
+                    temporal.max_history_lag = max_history_lag;
+                }
+                if let Some(grid) = response_grid {
+                    if let antecedent_core::ResponseFunctional::MeanCurve { treatment, .. } =
+                        &mut response.functional
+                    {
+                        treatment.grid = antecedent_core::GridSpec::Values(grid.into());
+                    }
+                }
+                if let Some(steps) = response_steps {
+                    let treatment_ids = steps
+                        .iter()
+                        .map(|(name, _, _)| structure_var_id(&names, name))
+                        .collect::<PyResult<Vec<_>>>()?;
+                    let kinds = steps.iter().map(|(_, kind, _)| kind.clone()).collect();
+                    let parameters = steps.into_iter().map(|(_, _, values)| values).collect();
+                    let functional = crate::response_api::build_functional(
+                        "intervention_response",
+                        &treatment_ids,
+                        &[structure_var_id(&names, &outcome)?],
+                        None,
+                        None,
+                        None,
+                        Some(kinds),
+                        Some(parameters),
+                        1,
+                        antecedent_core::DerivativeScale::Identity,
+                        antecedent_core::DerivativeWeighting::Observed,
+                    )?;
+                    response.functional = crate::response_api::wrap_temporal_sequence_steps(
+                        functional,
+                        temporal.treatment_offset().map_err(py_msg)?,
+                    )?;
+                }
+            }
+            CausalQuery::Mediation(mediation) => {
+                if let Some(horizons) = horizons {
+                    *mediation = mediation.clone().with_horizons(horizons).map_err(py_msg)?;
+                }
+            }
+            _ => {}
+        }
         let identification = if let Some(id) = identifier {
             let strategy = id
                 .parse::<antecedent::IdentifierId>()

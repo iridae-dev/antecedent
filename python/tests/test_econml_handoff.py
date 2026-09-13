@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
+
+from _repo_text import load_json
 
 antecedent = pytest.importorskip("antecedent")
 
@@ -47,13 +51,12 @@ def test_analyze_result_handoff_matches_identify() -> None:
 
 
 def test_partial_id_refuses() -> None:
-    pin = __import__("json").loads(
-        __import__("pathlib")
-        .Path(__file__)
-        .resolve()
-        .parents[2]
-        .joinpath("conformance", "estimate", "cpdag_ate_envelope", "expected.json")
-        .read_text()
+    pin = load_json(
+        Path(__file__).resolve().parents[2]
+        / "conformance"
+        / "estimate"
+        / "cpdag_ate_envelope"
+        / "expected.json"
     )
     graph = antecedent.Cpdag.from_directed_undirected(
         pin["columns"],

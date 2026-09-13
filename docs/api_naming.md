@@ -16,7 +16,9 @@ Every analysis is three verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 49 names as of 1.0** — it changes only by a later major: the three verbs
+The root namespace (`import antecedent`) is **frozen at 50 names as of 1.7**.
+Version 1.7 explicitly adds `ClassPrior` to the 49-name 1.0 contract so callers
+can supply structural mass alongside their inference selector. The set is: the three verbs
 above; the accepted-structure and result types (`AcceptedGraph`, `Identification`,
 `AnalysisResult`); the nine typed queries (`AverageEffect`, `PulseEffect`,
 `SustainedEffect`, `InterventionalDistribution`, `PathSpecificEffect`,
@@ -26,7 +28,8 @@ above; the accepted-structure and result types (`AcceptedGraph`, `Identification
 `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`,
 `InterventionResponse`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
 `TemporalDag`); the inference / identifier / estimator / latency / refute selectors
-(`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`); the two
+(`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`);
+the structural mass type `ClassPrior`; the two
 error names most callers catch (`CausalError`, `ReviewRequired`); the twelve stage
 modules themselves; and `__version__`.
 

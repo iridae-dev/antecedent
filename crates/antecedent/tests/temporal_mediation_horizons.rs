@@ -396,6 +396,77 @@ fn temporal_cpdag_mediation_cheap_and_full_run_per_completion() {
 }
 
 #[test]
+fn temporal_class_bayesian_mediation_returns_identified_sets() {
+    let (data, _) = confounded_mediation_series();
+    let mut graph = TemporalCpdag::empty();
+    let t0 = graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = graph.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let z0 = graph.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = graph.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
+    graph.insert_directed(z0, t0).unwrap();
+    graph.insert_directed(z1, y0).unwrap();
+    graph.insert_directed(z1, m0).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_directed(t1, m0).unwrap();
+    graph.insert_directed(m0, y0).unwrap();
+    let result = Study::series(data)
+        .graph(graph)
+        .query(CausalQuery::Mediation(query(&[1, 2])))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(31))
+        .unwrap();
+    let grid = result.mediation_grid.as_ref().expect("Bayesian class mediation grid");
+    assert_eq!(grid.slices.len(), 2);
+    assert!(grid.slices.iter().all(|slice| {
+        slice.identified_set.is_some_and(|set| set.lower.is_finite() && set.lower <= set.upper)
+    }));
+    assert!(result.estimate.ate.is_nan());
+}
+
+#[test]
+fn temporal_class_bayesian_mediation_cheap_and_full_run() {
+    let (data, _) = confounded_mediation_series();
+    let mut graph = TemporalCpdag::empty();
+    let t0 = graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = graph.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let z0 = graph.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = graph.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
+    graph.insert_directed(z0, t0).unwrap();
+    graph.insert_directed(z1, y0).unwrap();
+    graph.insert_directed(z1, m0).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_directed(t1, m0).unwrap();
+    graph.insert_directed(m0, y0).unwrap();
+    for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+        let result = Study::series(data.clone())
+            .graph(graph.clone())
+            .query(CausalQuery::Mediation(query(&[1])))
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)))
+            .refute(suite)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(33))
+            .unwrap();
+        assert!(
+            !result.refutations.is_empty(),
+            "Bayesian TemporalCpdag mediation {suite:?} must run per-completion refuters"
+        );
+        assert!(result.mediation_grid.as_ref().is_some_and(|grid| {
+            grid.slices.iter().all(|slice| slice.identified_set.is_some())
+        }));
+    }
+}
+
+#[test]
 fn temporal_pag_mediation_refuses_as_cross_world_theory_boundary() {
     let (data, _) = confounded_mediation_series();
     let mut graph = TemporalPag::empty();

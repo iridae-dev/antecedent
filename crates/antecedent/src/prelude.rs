@@ -12,6 +12,7 @@ pub use crate::analysis::{
     CellFamilyContrast, ComputeBudget, LatencyMode, PreparedBatch, PreparedStudy, RdConfig,
     RefuteSuite, SharedBatchDesign, Study, StudyBuilder,
 };
+pub use crate::class_prior::ClassPrior;
 pub use crate::error::CausalError;
 pub use crate::identify_api::{Identification, identify, identify_with};
 pub use crate::inference::{BayesianConfig, InferenceMode};

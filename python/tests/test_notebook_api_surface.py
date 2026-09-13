@@ -12,11 +12,12 @@ every `from antecedent[.…] import …` name appearing in the notebooks' code c
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
 import pytest
+
+from _repo_text import load_json
 
 pytest.importorskip("antecedent")
 import antecedent
@@ -33,7 +34,7 @@ _FROM = re.compile(
 
 
 def _code(nb: Path) -> str:
-    doc = json.loads(nb.read_text())
+    doc = load_json(nb)
     return "\n".join("".join(c["source"]) for c in doc["cells"] if c.get("cell_type") == "code")
 
 

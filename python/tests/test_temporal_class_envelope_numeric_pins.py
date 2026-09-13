@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-import json
 import pathlib
 
 import numpy as np
 import pytest
 
+from _repo_text import load_json
+
 antecedent = pytest.importorskip("antecedent")
 
 
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
-_PIN = json.loads(
-    (_ROOT / "conformance" / "estimate" / "temporal_class_envelope" / "expected.json").read_text()
-)
+_PIN = load_json(_ROOT / "conformance" / "estimate" / "temporal_class_envelope" / "expected.json")
 
 
 def _series(pin: dict) -> dict[str, np.ndarray]:
@@ -151,17 +150,32 @@ def test_temporal_class_single_step_sustained_matches_pulse(class_name: str, gra
 
 
 @pytest.mark.parametrize("class_name,graph_fn", [("cpdag", _cpdag), ("pag", _pag)])
-def test_temporal_class_bayesian_refuses_at_build(class_name: str, graph_fn) -> None:
+def test_temporal_class_bayesian_builds(class_name: str, graph_fn) -> None:
     data = _series(_PIN)
     graph = graph_fn(accepted=False)
-    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="1.7"):
-        antecedent.analyze(
-            data,
-            graph=graph,
-            query=_pulse(_PIN),
-            inference=antecedent.Bayesian(n_draws=16, backend="conjugate"),
-            refute=False,
-            bootstrap=0,
-            seed=1,
-        )
-    assert class_name in {"cpdag", "pag"}
+    if class_name == "pag":
+        with pytest.raises(antecedent.errors.CausalCompileError, match="no identified mass"):
+            antecedent.analyze(
+                data,
+                graph=graph,
+                query=_pulse(_PIN),
+                inference=antecedent.Bayesian(n_draws=16, backend="conjugate"),
+                refute=False,
+                bootstrap=0,
+                seed=1,
+            )
+        return
+    result = antecedent.analyze(
+        data,
+        graph=graph,
+        query=_pulse(_PIN),
+        inference=antecedent.Bayesian(n_draws=16, backend="conjugate"),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert result.structural_weight_basis == "completion_enumeration"
+    assert any(
+        "estimate.temporal_class.enumeration_not_probability" in diagnostic
+        for diagnostic in result.diagnostics
+    )

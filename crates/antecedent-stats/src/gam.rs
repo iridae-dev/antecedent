@@ -679,6 +679,7 @@ fn validate_knots(knots: &[f64], n_basis: usize) -> Result<(), StatsError> {
     Ok(())
 }
 
+#[allow(clippy::float_cmp)] // Only exactly constant data need an artificial knot domain.
 fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
     let mut sorted = x.to_vec();
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -688,8 +689,7 @@ fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
         return Err(StatsError::Shape { message: "non-finite predictor range" });
     }
     // Degenerate constant column: spread slightly so basis is defined.
-    let (xmin, xmax) =
-        if (xmax - xmin).abs() < 1e-15 { (xmin - 1.0, xmax + 1.0) } else { (xmin, xmax) };
+    let (xmin, xmax) = if xmax == xmin { (xmin - 1.0, xmax + 1.0) } else { (xmin, xmax) };
     let n_interior = n_basis.saturating_sub(CUBIC_ORDER);
     let mut knots = Vec::with_capacity(n_basis + CUBIC_ORDER);
     for _ in 0..CUBIC_ORDER {
@@ -716,17 +716,12 @@ fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
 /// Span-local Cox–de Boor evaluation: the knot span and the `CUBIC_ORDER`
 /// nonzero cubic basis values at `x` (all other basis functions are exactly 0).
 fn cubic_bspline_nonzeros(x: f64, knots: &[f64]) -> (usize, [f64; CUBIC_ORDER]) {
-    // Clamp to open interval of the interior so the last basis is hit at xmax.
-    let eps = 1e-14;
+    // Evaluate the boundary on the last span, including caller-supplied knot
+    // vectors that are not clamped. An absolute epsilon moves small-unit
+    // inputs outside their knot domain.
     let left = knots[CUBIC_DEGREE];
     let right = knots[knots.len() - CUBIC_ORDER];
-    let xx = if x >= right {
-        right - eps
-    } else if x < left {
-        left
-    } else {
-        x
-    };
+    let xx = x.max(left).min(right);
 
     // Find knot span.
     let mut span = CUBIC_DEGREE;
@@ -738,6 +733,15 @@ fn cubic_bspline_nonzeros(x: f64, knots: &[f64]) -> (usize, [f64; CUBIC_ORDER]) 
         if i == knots.len() - CUBIC_ORDER - 1 {
             span = i;
         }
+    }
+    if xx >= right {
+        // Quantile knots can repeat the boundary more than degree + 1 times
+        // for discrete covariates. Use the last nonempty interval; evaluating
+        // a zero-width trailing span would divide by zero.
+        span = (CUBIC_DEGREE..(knots.len() - CUBIC_ORDER))
+            .rev()
+            .find(|&i| knots[i] < right)
+            .unwrap_or(CUBIC_DEGREE);
     }
 
     // Basis of degree 0..3 on the local span (Piegl/Tiller style).
@@ -785,8 +789,8 @@ fn cubic_bspline_deriv_nonzeros(x: f64, knots: &[f64]) -> (usize, [f64; CUBIC_OR
         let dt1 = knots[i + CUBIC_ORDER] - knots[i + 1];
         let n2_i = if k == 0 { 0.0 } else { quadratic[k - 1] };
         let n2_ip1 = if k == CUBIC_DEGREE { 0.0 } else { quadratic[k] };
-        let t0 = if dt0.abs() <= f64::EPSILON { 0.0 } else { n2_i / dt0 };
-        let t1 = if dt1.abs() <= f64::EPSILON { 0.0 } else { n2_ip1 / dt1 };
+        let t0 = if dt0 == 0.0 { 0.0 } else { n2_i / dt0 };
+        let t1 = if dt1 == 0.0 { 0.0 } else { n2_ip1 / dt1 };
         ders[k] = (CUBIC_DEGREE as f64) * (t0 - t1);
     }
     (span, ders)
@@ -808,7 +812,7 @@ fn quadratic_nonzeros(x: f64, knots: &[f64], span: usize) -> [f64; CUBIC_ORDER] 
         let mut saved = 0.0;
         for r in 0..j {
             let denom = right[r + 1] + left[j - r];
-            let temp = if denom.abs() <= f64::EPSILON { 0.0 } else { ndu[r][j - 1] / denom };
+            let temp = if denom == 0.0 { 0.0 } else { ndu[r][j - 1] / denom };
             ndu[r][j] = saved + right[r + 1] * temp;
             saved = left[j - r] * temp;
         }
@@ -969,19 +973,7 @@ fn select_lambda_gcv(
     let mut best_lambda = GCV_LAMBDA_GRID[0];
     let mut best_gcv = f64::INFINITY;
     for &lambda in &GCV_LAMBDA_GRID {
-        let beta = roughness_basis_solve(basis, nrows, n_basis, y, lambda, gram, rhs)?;
-        let mut rss = 0.0;
-        for r in 0..nrows {
-            let mut pred = 0.0;
-            for b in 0..n_basis {
-                pred += basis[b * nrows + r] * beta[b];
-            }
-            let e = y[r] - pred;
-            rss += e * e;
-        }
-        let edf = roughness_edf(basis, nrows, n_basis, lambda, gram)?;
-        let denom = (nrows as f64 - edf).max(1e-8);
-        let gcv = (nrows as f64) * rss / (denom * denom);
+        let gcv = centered_smooth_gcv(basis, nrows, n_basis, y, lambda, gram, rhs)?;
         if gcv < best_gcv {
             best_gcv = gcv;
             best_lambda = lambda;
@@ -990,9 +982,77 @@ fn select_lambda_gcv(
     Ok(best_lambda)
 }
 
+/// GCV of the smoother actually applied in backfitting: centered `Bβ` with
+/// `edf = tr(S₁) − 1`. Uncentered RSS / `tr(S₁)` scores a different operator.
+fn centered_smooth_gcv(
+    basis: &[f64],
+    nrows: usize,
+    n_basis: usize,
+    y: &[f64],
+    lambda: f64,
+    gram: &mut [f64],
+    rhs: &mut [f64],
+) -> Result<f64, StatsError> {
+    let beta = roughness_basis_solve(basis, nrows, n_basis, y, lambda, gram, rhs)?;
+    let mut pred_sum = 0.0;
+    let mut preds = vec![0.0; nrows];
+    for r in 0..nrows {
+        let mut pred = 0.0;
+        for b in 0..n_basis {
+            pred += basis[b * nrows + r] * beta[b];
+        }
+        preds[r] = pred;
+        pred_sum += pred;
+    }
+    let pred_mean = pred_sum / nrows as f64;
+    let mut rss = 0.0;
+    for r in 0..nrows {
+        let e = y[r] - (preds[r] - pred_mean);
+        rss += e * e;
+    }
+    let edf = (roughness_edf(basis, nrows, n_basis, lambda, gram)? - 1.0).max(0.0);
+    let denom = (nrows as f64 - edf).max(1e-8);
+    Ok((nrows as f64) * rss / (denom * denom))
+}
+
 #[cfg(test)]
 #[allow(clippy::float_cmp)]
 mod tests {
+    #[test]
+    fn review_custom_unclamped_knots_preserve_boundary_basis() {
+        let knots: Vec<_> = (0..12).map(f64::from).collect();
+        let (_, actual) = cubic_bspline_nonzeros(8.0, &knots);
+        for (value, expected) in actual.iter().zip([0.0, 1.0 / 6.0, 2.0 / 3.0, 1.0 / 6.0]) {
+            assert!((value - expected).abs() < 1e-14);
+        }
+    }
+
+    #[test]
+    fn review_spline_basis_and_derivatives_respect_units() {
+        let x = linspace(30, -1.0, 1.0);
+        let (_, knots) = expand_bspline(&x, 8, None).unwrap();
+        for scale in [1e-20, 1.0, 1e20] {
+            let scaled_x: Vec<_> = x.iter().map(|v| v * scale).collect();
+            let (_, scaled_knots) = expand_bspline(&scaled_x, 8, None).unwrap();
+            for point in [-1.0, -0.3, 0.4, 1.0, 2.0] {
+                let (_, expected) = cubic_bspline_nonzeros(point, &knots);
+                let (_, actual) = cubic_bspline_nonzeros(point * scale, &scaled_knots);
+                let (_, expected_deriv) = cubic_bspline_deriv_nonzeros(point, &knots);
+                let (_, actual_deriv) = cubic_bspline_deriv_nonzeros(point * scale, &scaled_knots);
+                for i in 0..4 {
+                    assert!(
+                        (actual[i] - expected[i]).abs() < 1e-12,
+                        "basis scale={scale} point={point}"
+                    );
+                    assert!(
+                        (actual_deriv[i] * scale - expected_deriv[i]).abs() < 1e-11,
+                        "derivative scale={scale} point={point}"
+                    );
+                }
+            }
+        }
+    }
+
     use super::*;
     use crate::faer_backend::FaerBackend;
 
@@ -1438,6 +1498,60 @@ mod tests {
                 .unwrap();
         assert!(fit.smooths[0].lambda.is_finite() && fit.smooths[0].lambda > 0.0);
         assert!(fit.converged);
+    }
+
+    #[test]
+    fn review_gcv_minimizes_centered_smoother_score() {
+        let n = 80usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let y: Vec<f64> = x1
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| (2.0 * std::f64::consts::PI * v).sin() + 0.2 * (i as f64).sin())
+            .collect();
+        let y_mean = y.iter().sum::<f64>() / n as f64;
+        let centered: Vec<f64> = y.iter().map(|v| v - y_mean).collect();
+        let (basis, _) = expand_bspline(&x1, 10, None).unwrap();
+        let mut gram = vec![0.0; 10 * 10];
+        let mut rhs = vec![0.0; 10];
+        let chosen = select_lambda_gcv(&basis, n, 10, &centered, &mut gram, &mut rhs).unwrap();
+        let mut best_lambda = GCV_LAMBDA_GRID[0];
+        let mut best_gcv = f64::INFINITY;
+        let mut uncentered_winner = GCV_LAMBDA_GRID[0];
+        let mut best_uncentered_gcv = f64::INFINITY;
+        for &lambda in &GCV_LAMBDA_GRID {
+            let centered_gcv =
+                centered_smooth_gcv(&basis, n, 10, &centered, lambda, &mut gram, &mut rhs).unwrap();
+            if centered_gcv < best_gcv {
+                best_gcv = centered_gcv;
+                best_lambda = lambda;
+            }
+            let beta = roughness_basis_solve(&basis, n, 10, &centered, lambda, &mut gram, &mut rhs)
+                .unwrap();
+            let mut rss = 0.0;
+            for r in 0..n {
+                let mut pred = 0.0;
+                for b in 0..10 {
+                    pred += basis[b * n + r] * beta[b];
+                }
+                let e = centered[r] - pred;
+                rss += e * e;
+            }
+            let edf = roughness_edf(&basis, n, 10, lambda, &mut gram).unwrap();
+            let denom = (n as f64 - edf).max(1e-8);
+            let uncentered_gcv = (n as f64) * rss / (denom * denom);
+            if uncentered_gcv < best_uncentered_gcv {
+                best_uncentered_gcv = uncentered_gcv;
+                uncentered_winner = lambda;
+            }
+        }
+        assert_eq!(chosen, best_lambda);
+        if uncentered_winner != best_lambda {
+            assert_ne!(
+                chosen, uncentered_winner,
+                "centered GCV must not inherit the uncentered argmin"
+            );
+        }
     }
 
     #[test]

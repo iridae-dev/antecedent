@@ -89,6 +89,7 @@ pub(crate) fn analysis_to_json(
             | CausalQuery::ConditionalEffect(_)
             | CausalQuery::Response(_)
             | CausalQuery::TemporalEffect(_)
+            | CausalQuery::Mediation(_)
     ) {
         return Ok(None);
     }
@@ -122,7 +123,7 @@ pub(crate) fn to_json(
             serde_json::from_str(&text).map_err(error)
         })?,
         Identification::TemporalEnvelope { envelope: e, .. } => {
-            envelope(&e.envelope, &e.indexers, names, |g| match g {
+            let mut payload = envelope(&e.envelope, &e.indexers, names, |g| match g {
                 antecedent_identify::TemporalCompletionGraph::Dag(dag) => {
                     serde_json::to_value(antecedent_io::temporal_dag_to_wire(dag).map_err(error)?)
                         .map_err(error)
@@ -147,7 +148,16 @@ pub(crate) fn to_json(
                         json!({"kind":"temporal_mag","template_graph":graph,"template_coordinates":nodes}),
                     )
                 }
-            })?
+            })?;
+            if let Some(cases) = payload.get_mut("cases").and_then(|value| value.as_array_mut()) {
+                for (case, completion) in cases.iter_mut().zip(e.envelope.cases.iter()) {
+                    case["fingerprint"] = json!(completion.graph.fingerprint());
+                }
+            }
+            payload["completion_keys"] = json!(
+                e.envelope.cases.iter().map(|case| case.graph.fingerprint()).collect::<Vec<_>>()
+            );
+            payload
         }
         _ => return Err(error("unsupported identification payload")),
     };
@@ -169,14 +179,45 @@ pub(crate) fn to_json(
             TemporalNodeKey::contemporaneous(q.inner.outcome),
         ),
         CausalQuery::Response(q) => (
-            q.functional
-                .treatment_ids()
-                .into_iter()
-                .map(TemporalNodeKey::contemporaneous)
-                .collect(),
-            TemporalNodeKey::contemporaneous(
-                q.functional.primary_pair().ok_or_else(|| error("missing response outcome"))?.1,
-            ),
+            if let Some(temporal) = &q.temporal {
+                if let Some(overlays) = antecedent_estimate::plan_from_response_query(q)
+                    .map_err(error)?
+                    .and_then(|plan| plan.mechanism_overlays())
+                {
+                    overlays
+                        .iter()
+                        .map(|overlay| TemporalNodeKey {
+                            variable: overlay.node.variable,
+                            offset: overlay.node.offset,
+                        })
+                        .collect()
+                } else {
+                    let offsets = temporal.policy.active_offsets().map_err(error)?;
+                    q.functional
+                        .treatment_ids()
+                        .into_iter()
+                        .flat_map(|variable| {
+                            offsets.iter().map(move |&offset| TemporalNodeKey { variable, offset })
+                        })
+                        .collect()
+                }
+            } else {
+                q.functional
+                    .treatment_ids()
+                    .into_iter()
+                    .map(TemporalNodeKey::contemporaneous)
+                    .collect()
+            },
+            TemporalNodeKey {
+                variable: q
+                    .functional
+                    .primary_pair()
+                    .ok_or_else(|| error("missing response outcome"))?
+                    .1,
+                offset: q.temporal.as_ref().map_or(0, |temporal| {
+                    i32::try_from(temporal.horizons[0].saturating_sub(1)).unwrap_or(i32::MAX)
+                }),
+            },
         ),
         CausalQuery::TemporalEffect(q) => (
             q.policy
@@ -187,6 +228,27 @@ pub(crate) fn to_json(
                 .collect(),
             TemporalNodeKey { variable: q.outcome, offset: q.outcome_offset() },
         ),
+        CausalQuery::Mediation(q) => {
+            let temporal = matches!(
+                identification,
+                Identification::TemporalEnvelope { .. }
+                    | Identification::Point { temporal_indexer: Some(_), .. }
+            );
+            (
+                vec![TemporalNodeKey {
+                    variable: q.treatment,
+                    offset: if temporal { -1 } else { 0 },
+                }],
+                TemporalNodeKey {
+                    variable: q.outcome,
+                    offset: if temporal {
+                        i32::try_from(q.horizons[0].saturating_sub(1)).map_err(error)?
+                    } else {
+                        0
+                    },
+                },
+            )
+        }
         _ => return Err(error("query has no adjustment handoff coordinates")),
     };
     let named_key = |key: &TemporalNodeKey| -> PyResult<Value> {

@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Python tests load repository JSON and TOML as UTF-8. Windows wheels no
+  longer decode support-matrix cell names (`×`) through the locale encoding.
+
+## [1.7.0] — 2026-09-13
+
+### Added
+
+- Bayesian Pulse / Sustained on `TemporalCpdag` / `TemporalPag` without
+  collapsing the class. A caller-supplied `ClassPrior` mixes at draw level;
+  enumeration weights stay an identified set.
+- Multi-step Sustained, Sequence / Soft multiplicative / truncated-shift, and
+  licensed observation pairs on incomplete temporal classes. Bidirected MAG
+  completions stay unevaluable for sequential g-comp.
+- `StudyBuilder::max_completions` (and Python `max_completions=`) threads the
+  identifier search cap; a capped audit cannot claim class-wide identification
+  or publish a full-class mixture.
+- Mapped mechanism-prior transfer onto licensed TemporalCpdag Bayesian Pulse,
+  single-step Sustained, ResponseCurve, and mediation cells. Sequence transfer
+  stays refused.
+- Bayesian TemporalCpdag mediation identified sets; `identify()` on temporal
+  Response and TemporalCpdag mediation returns a temporal envelope with
+  completion fingerprints.
+
+### Fixed
+
+- Incomplete-class Frequentist observation adjustment retains the declared
+  observation claims on the response and identification assumptions, and
+  runs the same outer circular-block nuisance-refit TemporalDag uses. A
+  multi-completion identified set withholds the class band; complete-data
+  bands are not reused.
+- Class priors and stitched completion curves bind by completion fingerprint
+  across horizons; a horizon that enumerates a different class membership
+  refuses rather than misaligning masses positionally.
+- Sequence and mediation identification on bidirected MAG completions no
+  longer inherits the Pulse enumeration witness; the completion is
+  `GraphDependent` with an explicit diagnostic.
+- Prior-transfer conflict summaries are retained per completion posterior and
+  in result diagnostics whether or not a class prior licenses a mixture.
+- `bayesian.temporal.gcomp` is a registered `EstimatorId`. Bayesian Pulse and
+  single-step Sustained on `TemporalDag`, panel, DBN-posterior, and incomplete
+  temporal classes compile and report it instead of `temporal.linear.adjustment`
+  or `bayesian.gcomp`; Python reads the compiled plan rather than relabeling.
+- Frequentist multi-step class mixtures declare their missing between-atom SE
+  and carry atom assumptions; Frequentist class curves honor requested
+  replicates per completion atom; `exec.identify.cached` reports only full
+  cache coverage.
+- Class-prior response and Sequence surfaces withhold `conditional_on_identified`
+  when unidentified or unevaluable mass remains, matching the licensed
+  TemporalCpdag/TemporalPag contract instead of renormalizing over identified
+  atoms.
+- Shared numerical kernels are scale-invariant: midranks tie only equal
+  observations; QR rank is assessed on equilibrated columns; spline knots and
+  endpoints distinguish zero from small spacing; logistic and Gaussian
+  likelihood terms keep representable tails and requested variances; the
+  Bayesian CI independence mass, prior-sensitivity ratios, weighted Pearson and
+  multivariate leading correlations, and GAM GCV use the applied operators.
+  See [the shared mathematics review](docs/mathematical-review-2026-09-13.md).
+- `PredictiveCheckReport` gains `location_tails` and `dispersion_tails` so
+  predictive mixture checks retain tail direction; struct-literal constructors
+  must supply both arrays.
+
 ## [1.6.0] — 2026-09-12
 
 ### Added
@@ -1919,7 +1982,8 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/iridae-dev/antecedent/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/iridae-dev/antecedent/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/iridae-dev/antecedent/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/iridae-dev/antecedent/compare/v1.3.0...v1.4.0

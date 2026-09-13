@@ -42,6 +42,7 @@ const ESTIMATOR_NAMES: &[&str] = &[
     "bayesian.gcomp",
     "conditional.bayesian",
     "temporal.linear.adjustment",
+    "bayesian.temporal.gcomp",
     "temporal.sequential.gcomp",
     "functional.distribution",
     "functional.effect",
@@ -266,6 +267,8 @@ pub enum EstimatorId {
     BayesianConditional,
     /// Temporal linear adjustment.
     TemporalLinearAdjustment,
+    /// Bayesian g-computation on the lag-aligned temporal adjustment design.
+    BayesianTemporalGcomp,
     /// Sequential g-computation of a sustained treatment window.
     TemporalSequentialGcomp,
     /// Discrete plug-in evaluation of an identified interventional distribution.
@@ -429,6 +432,12 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "ols.faer.temporal",
             provenance: ("estimate.temporal_linear", "estimate.temporal_linear_adjustment"),
         },
+        EstimatorId::BayesianTemporalGcomp => EstimatorData {
+            name: "bayesian.temporal.gcomp",
+            parallel_task_dimension: "analysis",
+            kernel_label: "ols.faer.temporal",
+            provenance: ("estimate.bayesian_temporal_gcomp", "estimate.bayesian.temporal.gcomp"),
+        },
         EstimatorId::FunctionalDistribution => EstimatorData {
             name: "functional.distribution",
             parallel_task_dimension: "bootstrap.replicate",
@@ -548,6 +557,7 @@ impl EstimatorId {
         Self::BayesianGcomp,
         Self::BayesianConditional,
         Self::TemporalLinearAdjustment,
+        Self::BayesianTemporalGcomp,
         Self::TemporalSequentialGcomp,
         Self::FunctionalDistribution,
         Self::FunctionalEffect,
@@ -609,6 +619,7 @@ impl FromStr for EstimatorId {
             "bayesian.gcomp" => Ok(Self::BayesianGcomp),
             "conditional.bayesian" => Ok(Self::BayesianConditional),
             "temporal.linear.adjustment" => Ok(Self::TemporalLinearAdjustment),
+            "bayesian.temporal.gcomp" => Ok(Self::BayesianTemporalGcomp),
             "temporal.sequential.gcomp" => Ok(Self::TemporalSequentialGcomp),
             "functional.distribution" => Ok(Self::FunctionalDistribution),
             "functional.effect" => Ok(Self::FunctionalEffect),
@@ -915,7 +926,9 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         EstimatorId::FrontDoorTwoStage => matches!(method, EstimandMethod::FrontDoor),
         EstimatorId::IvWald | EstimatorId::Iv2Sls => matches!(method, EstimandMethod::Iv),
         EstimatorId::RdSharp => matches!(method, EstimandMethod::RdSharp),
-        EstimatorId::TemporalLinearAdjustment | EstimatorId::TemporalSequentialGcomp => {
+        EstimatorId::TemporalLinearAdjustment
+        | EstimatorId::BayesianTemporalGcomp
+        | EstimatorId::TemporalSequentialGcomp => {
             matches!(method, EstimandMethod::TemporalBackdoorUnfolded)
         }
         EstimatorId::TemporalResponseGcomp | EstimatorId::TemporalResponseBayesian => {

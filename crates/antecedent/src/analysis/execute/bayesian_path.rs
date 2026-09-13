@@ -485,6 +485,9 @@ impl super::Study {
                 )?;
                 if is_multi_step_sustained(q) {
                     logical.record.estimator = Some(Arc::from("temporal.sequential.gcomp"));
+                } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    logical.record.estimator =
+                        Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
                 }
                 logical.record.validation_suite = self.validation_suite_id();
                 logical.record.discovery_algorithm = Some(
@@ -1445,7 +1448,7 @@ impl super::Study {
                 &mut EstimationWorkspace::default(),
                 ctx,
                 self.refute,
-                "bayesian.temporal.gcomp",
+                EstimatorId::BayesianTemporalGcomp.as_str(),
                 &self.custom_validators,
                 Some(query),
                 self.split.as_ref(),
@@ -1479,7 +1482,7 @@ impl super::Study {
             estimator_id: if multi_step {
                 EstimatorId::TemporalSequentialGcomp
             } else {
-                EstimatorId::BayesianGcomp
+                EstimatorId::BayesianTemporalGcomp
             },
             treatment: query.treatment,
             outcome: query.outcome,
@@ -2339,7 +2342,7 @@ fn compose_temporal_mediation_for_atom(
         .map_err(CausalError::from)
 }
 
-fn envelope_draws_from_posterior(
+pub(super) fn envelope_draws_from_posterior(
     key: u64,
     posterior: &CausalPosterior,
 ) -> Result<GraphEffectDraws, CausalError> {

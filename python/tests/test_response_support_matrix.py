@@ -22,13 +22,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from _repo_text import load_toml
+
 pytest.importorskip("antecedent")
 import antecedent
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python < 3.11 fallback
-    import tomli as tomllib  # type: ignore[no-redef]
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SUPPORT_CLOSED_TOML = _REPO_ROOT / "parity" / "support_closed.toml"
@@ -50,7 +47,7 @@ _CURVE = antecedent.ResponseCurve("t", "y", grid=[0.5, 1.0, 1.5])
 
 def test_admg_response_literal_matches_support_closed_toml():
     """`handle_response`'s Admg refuse is a routing gate and must match the TOML."""
-    rules = tomllib.loads(_SUPPORT_CLOSED_TOML.read_text())["closed"]
+    rules = load_toml(_SUPPORT_CLOSED_TOML)["closed"]
     matches = [
         rule
         for rule in rules
@@ -122,7 +119,7 @@ def test_path_distribution_literals_match_support_closed_toml():
 
     import antecedent._analyze as _analyze
 
-    rules = tomllib.loads(_SUPPORT_CLOSED_TOML.read_text())["closed"]
+    rules = load_toml(_SUPPORT_CLOSED_TOML)["closed"]
     matches = [
         rule
         for rule in rules
@@ -177,7 +174,7 @@ def test_handle_response_bayesian_derivative_still_unsupported():
     from antecedent._analyze import handle_response
     from antecedent.errors import CausalUnsupportedError
 
-    with pytest.raises(CausalUnsupportedError, match="Bayesian derivatives remain 1.7"):
+    with pytest.raises(CausalUnsupportedError, match="Bayesian derivatives remain 1.8"):
         handle_response(
             _DATA,
             antecedent.AverageDerivative("t", "y"),

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import numpy as np
 import pytest
+
+from _repo_text import load_json
 
 pytest.importorskip("antecedent")
 import antecedent
@@ -15,11 +16,7 @@ from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Sequence, Set
 
 _ROOT = Path(__file__).resolve().parents[2]
-_PIN = json.loads(
-    (_ROOT / "conformance" / "bayesian" / "temporal_prior_transfer" / "expected.json").read_text(
-        encoding="utf-8"
-    )
-)
+_PIN = load_json(_ROOT / "conformance" / "bayesian" / "temporal_prior_transfer" / "expected.json")
 _PULSE_CELL = "PulseEffect \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none"
 _CURVE_CELL = "ResponseCurve \u00d7 TemporalDag \u00d7 explicit \u00d7 Bayesian \u00d7 none"
 _EDGES = [("pressure", 1, "defect", 0)]

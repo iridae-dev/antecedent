@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "case": "temporal_class_observation",
+  "notes": "Incomplete-class observation uses per-completion IPCW or observed-data Bayes, then the class-mass contract. Frequentist requested replicates run the outer circular-block that refits the observation nuisance and every horizon or Sequence overlay per completion. A multi-completion identified set withholds the class band; atoms retain their outer-block bands. Complete-data bands are not reused. Delayed entry, interval, and truncation stay refused.",
+  "licensed_pairs": [
+    "Selected x OutcomeIndependentGiven",
+    "RightCensored x IndependentGiven([])",
+    "LeftCensored x IndependentGiven([])",
+    "RightCensored x IndependentGiven([T])",
+    "LeftCensored x IndependentGiven([T])"
+  ],
+  "refused": ["delayed_entry", "interval", "truncation"],
+  "incomplete_class": "TemporalCpdag with an off-path undirected mark (Z@-1 — T@-1) plus the two-lag T→Y skeleton",
+  "graph_classes": ["TemporalCpdag", "TemporalPag"]
+}

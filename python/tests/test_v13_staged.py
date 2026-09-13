@@ -1,6 +1,5 @@
 """Numerical and artifact evidence for the 1.3 staged cells."""
 
-import json
 from pathlib import Path
 
 import antecedent as ac
@@ -10,6 +9,8 @@ from antecedent import artifacts
 from antecedent.errors import CausalUnsupportedError
 from antecedent.estimation import PreparedAnalysis
 from antecedent.identify import identify
+
+from _repo_text import load_json
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -33,9 +34,7 @@ def confounded_derivatives():
 
 
 def confounded_static():
-    pin = json.loads(
-        (ROOT / "conformance/estimate/staged_static_kinds/confounded.json").read_text()
-    )
+    pin = load_json(ROOT / "conformance/estimate/staged_static_kinds/confounded.json")
     i = np.arange(500, dtype=float)
     z = np.cos(i * 0.41)
     a = np.sin(i * 0.71) + 0.4 * z
@@ -54,7 +53,7 @@ def confounded_static():
 )
 @pytest.mark.parametrize("accepted", [False, True])
 def test_mediation_stages_and_artifacts(contrast, key, accepted):
-    pin = json.loads((ROOT / "conformance/estimate/staged_static_kinds/expected.json").read_text())
+    pin = load_json(ROOT / "conformance/estimate/staged_static_kinds/expected.json")
     data, dag = fixture()
     graph = ac.AcceptedGraph(dag) if accepted else dag
     q = ac.MediationEffect(
@@ -93,7 +92,7 @@ def test_mediation_stages_and_artifacts(contrast, key, accepted):
 
 
 def test_counterfactual_stages_and_artifact():
-    pin = json.loads((ROOT / "conformance/estimate/staged_static_kinds/expected.json").read_text())
+    pin = load_json(ROOT / "conformance/estimate/staged_static_kinds/expected.json")
     data, dag = fixture()
     q = ac.Counterfactual("a", "y", control_level=pin["control"], active_level=pin["active"])
     assert identify(graph=dag, query=q)
@@ -132,7 +131,7 @@ def test_counterfactual_stages_and_artifact():
 )
 @pytest.mark.parametrize("accepted", [False, True])
 def test_derivative_stages_and_artifacts(kind, pin_key, accepted):
-    pin = json.loads((ROOT / "conformance/response/staged_derivatives/expected.json").read_text())
+    pin = load_json(ROOT / "conformance/response/staged_derivatives/expected.json")
     i = np.arange(800, dtype=float)
     a = 2 + np.sin(i * 0.71) + 0.2 * np.cos(i * 0.13)
     b = np.cos(i * 1.13)
@@ -176,7 +175,7 @@ def test_derivative_stages_and_artifacts(kind, pin_key, accepted):
 def test_observation_pair_fixture(kind, accepted):
     from antecedent import observation as obs
 
-    pin = json.loads((ROOT / f"conformance/response/observation_pairs/{kind}.json").read_text())
+    pin = load_json(ROOT / f"conformance/response/observation_pairs/{kind}.json")
     rng = np.random.default_rng(pin["seed"])
     a = rng.uniform(-1, 1, pin["rows"])
     z = rng.uniform(-1, 1, pin["rows"])
@@ -224,7 +223,7 @@ def test_observation_pair_fixture(kind, accepted):
 def test_static_mediation_refuter_pin():
     from dataclasses import asdict
 
-    pin = json.loads((ROOT / "conformance/estimate/staged_static_kinds/refuters.json").read_text())
+    pin = load_json(ROOT / "conformance/estimate/staged_static_kinds/refuters.json")
     data, graph = fixture()
     query = ac.MediationEffect(
         "a", "y", mediators=["m"], contrast="natural_indirect", control_level=0.2, active_level=0.8
@@ -258,7 +257,7 @@ def test_new_derivative_boundaries():
 
 @pytest.mark.parametrize("kind,pin_key", [("point", "point"), ("average", "average")])
 def test_confounded_derivatives_are_not_the_observational_slope(kind, pin_key):
-    pin = json.loads((ROOT / "conformance/response/staged_derivatives/confounded.json").read_text())
+    pin = load_json(ROOT / "conformance/response/staged_derivatives/confounded.json")
     data, graph = confounded_derivatives()
     naive = np.linalg.lstsq(
         np.column_stack([np.ones(len(data["a"])), data["a"]]), data["y"], rcond=None
@@ -341,7 +340,7 @@ def test_static_artifact_rejects_wrong_family_payload():
 def test_python_consumes_cox_oracle(left):
     from antecedent import observation as obs
 
-    pin = json.loads((ROOT / "conformance/response/conditional_ipcw/expected.json").read_text())
+    pin = load_json(ROOT / "conformance/response/conditional_ipcw/expected.json")
     rows = pin["data"]
     sign = -1 if left else 1
     observed = np.array(rows["time"])
@@ -432,11 +431,11 @@ def test_v13_named_refusals():
     med = ac.MediationEffect("a", "y", mediators=["m"], contrast="natural_direct")
     with pytest.raises(CausalUnsupportedError, match="explicit Dag"):
         ac.analyze(data, graph=ac.AcceptedGraph(dag), query=cf, refute="none")
-    with pytest.raises(CausalUnsupportedError, match="Bayesian mediation estimator is 1.7"):
+    with pytest.raises(CausalUnsupportedError, match="Bayesian mediation estimator is 1.8"):
         ac.analyze(data, graph=dag, query=med, inference=ac.Bayesian(), refute="none")
-    with pytest.raises(CausalUnsupportedError, match="posterior over mechanisms is 1.7"):
+    with pytest.raises(CausalUnsupportedError, match="posterior over mechanisms is 1.8"):
         ac.analyze(data, graph=dag, query=cf, inference=ac.Bayesian(), refute="none")
-    with pytest.raises(CausalUnsupportedError, match="Bayesian derivatives remain 1.7"):
+    with pytest.raises(CausalUnsupportedError, match="Bayesian derivatives remain 1.8"):
         ac.analyze(
             data,
             graph=dag,
@@ -453,7 +452,7 @@ def test_v13_named_refusals():
             inference=ac.Bayesian(),
             refute="none",
         )
-    with pytest.raises(CausalUnsupportedError, match="Bayesian mediation estimator is 1.7"):
+    with pytest.raises(CausalUnsupportedError, match="Bayesian mediation estimator is 1.8"):
         ac.analyze(
             data,
             query=med,

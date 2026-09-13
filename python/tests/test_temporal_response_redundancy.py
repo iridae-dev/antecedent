@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
+
+from _repo_text import load_json
 
 pytest.importorskip("antecedent")
 import antecedent
@@ -15,11 +16,11 @@ from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Set
 
 _ROOT = Path(__file__).resolve().parents[2]
-_CONFOUNDED = json.loads(
-    (_ROOT / "conformance" / "response" / "temporal_confounded_pulse" / "expected.json").read_text()
+_CONFOUNDED = load_json(
+    _ROOT / "conformance" / "response" / "temporal_confounded_pulse" / "expected.json"
 )
-_SUPPORT = json.loads(
-    (_ROOT / "conformance" / "response" / "temporal_horizon_support" / "expected.json").read_text()
+_SUPPORT = load_json(
+    _ROOT / "conformance" / "response" / "temporal_horizon_support" / "expected.json"
 )
 
 _CONFOUNDED_EDGES = [("z", 0, "t", 0), ("z", 1, "y", 0), ("t", 1, "y", 0)]

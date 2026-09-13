@@ -39,6 +39,9 @@ pub enum StructuralWeightBasis {
     PosteriorProbability,
     /// Enumeration weights over CPDAG/PAG completions; not posterior probabilities.
     CompletionEnumeration,
+    /// Caller-declared mass over class members. Not a graph posterior and not
+    /// completion enumeration.
+    CallerSuppliedClassPrior,
 }
 
 /// One structural atom in a graph-dependent response.
@@ -52,6 +55,10 @@ pub struct StructuralResponseAtom {
     pub status: IdentificationStatus,
     /// Numerical response when identified and evaluable.
     pub value: Option<ResponseValue>,
+    /// Completion-conditional posterior, without assigning structural probabilities.
+    pub posterior: Option<CausalPosterior>,
+    /// Full function-valued atom, including its conditional sampling uncertainty.
+    pub response: Option<CausalResponse>,
 }
 
 /// Structural uncertainty retained separately from sampling uncertainty.
@@ -69,7 +76,8 @@ pub struct StructuralResponseMixture {
     pub unevaluable_mass: f64,
     /// Pointwise range over identified atom point responses.
     pub identified_set: Option<ResponseEnvelope>,
-    /// Probability-weighted summary, only meaningful for posterior probability weights.
+    /// Probability-weighted summary, only for posterior-probability or caller-
+    /// supplied class-prior weights when unidentified mass is zero.
     pub conditional_on_identified: Option<ResponseValue>,
     /// Whether reported mass covers the full class rather than a capped subset.
     pub full_mass_scope: bool,

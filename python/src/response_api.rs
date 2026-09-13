@@ -657,11 +657,23 @@ pub(crate) fn response_result(
     }
     let identified_set = structural.and_then(|mixture| mixture.identified_set.as_ref());
     let (points, values, scalar, matrix) = if let Some(envelope) = identified_set {
-        let legacy_values = structural
-            .and_then(structural_weighted_values)
-            .filter(|values| values.len() == envelope.lower.len())
-            .unwrap_or_else(|| envelope.lower.to_vec());
-        let scalar = (legacy_values.len() == 1).then_some(legacy_values[0]);
+        let conditional = structural
+            .and_then(|mixture| mixture.conditional_on_identified.as_ref())
+            .map(|value| response_value_flat(Some(value)));
+        let temporal_class = response.horizon_identification.as_ref().is_some_and(|horizons| {
+            horizons
+                .iter()
+                .any(|horizon| horizon.method.as_ref() == "temporal_class.completion_envelope")
+        });
+        let legacy_values = if temporal_class {
+            conditional.unwrap_or_default()
+        } else {
+            conditional
+                .or_else(|| structural.and_then(structural_weighted_values))
+                .filter(|values| values.len() == envelope.lower.len())
+                .unwrap_or_else(|| envelope.lower.to_vec())
+        };
+        let scalar = if legacy_values.len() == 1 { Some(legacy_values[0]) } else { None };
         (
             envelope.grid.chunks(envelope.dimension).map(<[f64]>::to_vec).collect(),
             legacy_values.into_iter().map(|value| vec![value]).collect(),
@@ -781,7 +793,10 @@ pub(crate) fn response_result(
             antecedent::result::StructuralWeightBasis::CompletionEnumeration => {
                 "completion_enumeration".into()
             }
-            _ => "unknown".into(),
+            antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior => {
+                "caller_supplied_class_prior".into()
+            }
+            _ => "completion_enumeration".into(),
         }),
         atom_keys: structural
             .map(|mixture| mixture.atoms.iter().map(|atom| atom.graph_key).collect())

@@ -96,9 +96,9 @@ impl super::Study {
             ctx,
             self.refute,
             if posterior.is_some() {
-                "bayesian.temporal.gcomp"
+                EstimatorId::BayesianTemporalGcomp.as_str()
             } else {
-                "temporal.linear.adjustment"
+                EstimatorId::TemporalLinearAdjustment.as_str()
             },
             &self.custom_validators,
             Some(temporal_ctx),
@@ -132,7 +132,11 @@ impl super::Study {
             estimand,
             estimate,
             identifier_id: IdentifierId::TemporalBackdoorUnfolded,
-            estimator_id: EstimatorId::TemporalLinearAdjustment,
+            estimator_id: if posterior.is_some() {
+                EstimatorId::BayesianTemporalGcomp
+            } else {
+                EstimatorId::TemporalLinearAdjustment
+            },
             treatment: query.treatment,
             outcome: query.outcome,
             identify_cached: false,

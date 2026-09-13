@@ -5,11 +5,12 @@ Fixture: conformance/gates/arrow_copy_fixture.json (shared with Rust).
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import numpy as np
 import pytest
+
+from _repo_text import load_json
 
 pytest.importorskip("antecedent")
 import antecedent
@@ -18,7 +19,7 @@ FIXTURE = Path(__file__).resolve().parents[2] / "conformance" / "gates" / "arrow
 
 
 def test_arrow_load_reports_measured_copy():
-    payload = json.loads(FIXTURE.read_text())
+    payload = load_json(FIXTURE)
     names = list(payload["column_names"])
     columns = [np.asarray(payload["columns"][name], dtype=np.float64) for name in names]
     info = antecedent.data.load_float64_columns(names, columns)

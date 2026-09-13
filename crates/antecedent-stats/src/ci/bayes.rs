@@ -79,11 +79,10 @@ impl ConditionalIndependenceTest for BayesFactorCi {
         let mut results = Vec::with_capacity(nq);
         for q in request.queries {
             let log_bf = log_bf10_full(request, *q)?;
-            let p_dep = logistic_from_log_bf(log_bf);
             let df = (n as f64) - 2.0 - (q.z_len as f64);
             results.push(CiResult {
                 statistic: log_bf,
-                p_value: (1.0 - p_dep).clamp(0.0, 1.0),
+                p_value: logistic_from_log_bf(-log_bf),
                 df,
                 ci: None,
             });
@@ -127,7 +126,7 @@ impl ConditionalIndependenceTest for PosteriorDependenceCi {
             let df = (n as f64) - 2.0 - (q.z_len as f64);
             results.push(CiResult {
                 statistic: p_dep.clamp(0.0, 1.0),
-                p_value: (1.0 - p_dep).clamp(0.0, 1.0),
+                p_value: logistic_from_log_bf(-log_bf),
                 df,
                 ci: None,
             });
@@ -538,8 +537,11 @@ fn pearson_abs(x: &[f64], y: &[f64]) -> Option<f64> {
         cyy += dy * dy;
         cxy += dx * dy;
     }
+    if !(cxx > 0.0 && cyy > 0.0) {
+        return Some(0.0);
+    }
     let denom = (cxx * cyy).sqrt();
-    if denom <= f64::EPSILON {
+    if !denom.is_finite() || denom == 0.0 {
         return Some(0.0);
     }
     Some((cxy / denom).abs())
@@ -682,6 +684,18 @@ mod tests {
     }
 
     #[test]
+    fn review_pearson_abs_is_scale_invariant() {
+        let x = [1.0, 1.0 + 1e-9, 1.0 + 2e-9];
+        let y = [2.0, 2.1, 2.2];
+        let r1 = pearson_abs(&x, &y).unwrap();
+        let scale = 1e-4;
+        let xs: Vec<f64> = x.iter().map(|v| v * scale).collect();
+        let ys: Vec<f64> = y.iter().map(|v| v * scale).collect();
+        let r2 = pearson_abs(&xs, &ys).unwrap();
+        assert!((r1 - r2).abs() < 1e-12, "r1={r1} r2={r2}");
+    }
+
+    #[test]
     fn logistic_from_log_bf_stays_finite_at_extremes() {
         let near_zero = logistic_from_log_bf(-1000.0);
         let half = logistic_from_log_bf(0.0);
@@ -709,6 +723,9 @@ mod tests {
         let out = BayesFactorCi::new().test_batch_adhoc(&req, &mut ws, &ctx).unwrap();
         assert!(out.results[0].statistic > 0.0, "log BF={}", out.results[0].statistic);
         assert!(out.results[0].p_value < 0.05);
+        let expected = (-out.results[0].statistic).exp();
+        assert!(expected > 0.0);
+        assert!((out.results[0].p_value / expected - 1.0).abs() < 1e-12);
     }
 
     #[test]

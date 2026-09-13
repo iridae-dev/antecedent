@@ -815,13 +815,15 @@ mod tests {
                     assert_eq!(status, CellStatus::Licensed, "{query}/{graph}/{structure}");
                     refuse_if_not_applicable(cell(query, graph, structure, "Frequentist", "none"))
                         .unwrap();
-                    let err =
-                        refuse_if_not_applicable(cell(query, graph, structure, "Bayesian", "none"))
-                            .unwrap_err();
-                    assert!(
-                        err.to_string().contains("Frequentist generalized-adjustment"),
-                        "{query}/{graph}: {err}"
-                    );
+                    for validation in ["none", "cheap", "full"] {
+                        assert_eq!(
+                            refuse_if_not_applicable(cell(
+                                query, graph, structure, "Bayesian", validation
+                            ))
+                            .unwrap(),
+                            CellStatus::Licensed,
+                        );
+                    }
                 }
             }
         }

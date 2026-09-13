@@ -150,6 +150,11 @@ jobs:
   python-wheels:
     name: Wheel ${{ matrix.os }} py${{ matrix.python }}
     runs-on: ${{ matrix.os }}
+    env:
+      # Windows locale encoding is cp1252. Repo pins use U+00D7; tests must
+      # still pass encoding="utf-8" explicitly — this is the process default.
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
     permissions:
       contents: read
     strategy:

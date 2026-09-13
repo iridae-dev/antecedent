@@ -47,6 +47,10 @@ pub struct PredictiveCheckReport {
     pub predictive_sd: f64,
     /// Two-sided tail probability of `observed` under the predictive distribution.
     pub p_value: f64,
+    /// Lower and upper inclusive Monte Carlo tails for the location statistic.
+    /// Retained separately because taking the smaller tail does not commute
+    /// with graph-mixture averaging.
+    pub location_tails: [f64; 2],
     /// Observed dispersion statistic: sample SD of the outcome across rows.
     pub observed_dispersion: f64,
     /// Mean, across simulations, of the per-simulation cross-observation SD of
@@ -55,6 +59,8 @@ pub struct PredictiveCheckReport {
     /// Two-sided Monte Carlo p-value of `observed_dispersion` under the
     /// simulated dispersion-statistic distribution.
     pub dispersion_p_value: f64,
+    /// Lower and upper inclusive Monte Carlo tails for dispersion.
+    pub dispersion_tails: [f64; 2],
     /// Number of predictive simulations.
     pub n_sims: u32,
 }
@@ -109,8 +115,9 @@ impl PredictiveCheckReport {
 
     /// Mixture-weighted aggregation of per-atom predictive checks of the same kind.
     ///
-    /// Weights are graph-posterior mass. Location, dispersion statistics, and tail
-    /// probabilities are weighted means; `n_sims` is the maximum across atoms.
+    /// Weights are graph-posterior mass. Location, dispersion statistics, and each
+    /// one-sided tail are weighted means. Two-sided probabilities are computed
+    /// from the mixed tails; `n_sims` is the maximum across atoms.
     ///
     /// `predictive_sd` is the SD of the *mixture* predictive distribution, so it uses
     /// the law of total variance — `sqrt(Σw σ² + Σw (μ − μ̄)²)`, the within-atom spread
@@ -122,48 +129,67 @@ impl PredictiveCheckReport {
     /// contributing atom, are dropped. Returns `None` when nothing contributes.
     #[must_use]
     pub fn mixture_weighted(items: &[(f64, &Self)]) -> Option<Self> {
-        let kind = items.iter().find(|(w, _)| *w > 0.0)?.1.kind;
-        let mut w_sum = 0.0;
-        let mut observed = 0.0;
-        let mut predictive_mean = 0.0;
-        let mut predictive_second = 0.0;
-        let mut p_value = 0.0;
-        let mut observed_dispersion = 0.0;
-        let mut predictive_dispersion_mean = 0.0;
-        let mut dispersion_p_value = 0.0;
-        let mut n_sims = 0u32;
-        for (w, report) in items {
-            if *w <= 0.0 || report.kind != kind {
-                continue;
-            }
-            w_sum += *w;
-            observed += *w * report.observed;
-            predictive_mean += *w * report.predictive_mean;
-            predictive_second += *w
-                * report
-                    .predictive_sd
-                    .mul_add(report.predictive_sd, report.predictive_mean * report.predictive_mean);
-            p_value += *w * report.p_value;
-            observed_dispersion += *w * report.observed_dispersion;
-            predictive_dispersion_mean += *w * report.predictive_dispersion_mean;
-            dispersion_p_value += *w * report.dispersion_p_value;
-            n_sims = n_sims.max(report.n_sims);
-        }
-        if w_sum <= 0.0 {
+        if items.iter().any(|(weight, _)| !weight.is_finite()) {
             return None;
         }
-        let predictive_mean = predictive_mean / w_sum;
-        let predictive_sd =
-            (predictive_second / w_sum - predictive_mean * predictive_mean).max(0.0).sqrt();
+        let kind = items.iter().find(|(w, _)| *w > 0.0)?.1.kind;
+        let atoms: Vec<_> =
+            items.iter().filter(|(w, report)| *w > 0.0 && report.kind == kind).collect();
+        let max_weight = atoms.iter().map(|(w, _)| *w).fold(0.0_f64, f64::max);
+        let total: f64 = atoms.iter().map(|(w, _)| w / max_weight).sum();
+        let mut observed = 0.0;
+        let mut predictive_mean = 0.0;
+        let mut location_tails = [0.0; 2];
+        let mut observed_dispersion = 0.0;
+        let mut predictive_dispersion_mean = 0.0;
+        let mut dispersion_tails = [0.0; 2];
+        let mut n_sims = 0u32;
+        for &&(w, report) in &atoms {
+            if !report.observed.is_finite()
+                || !report.predictive_mean.is_finite()
+                || !report.predictive_sd.is_finite()
+                || report.predictive_sd < 0.0
+                || !report.observed_dispersion.is_finite()
+                || !report.predictive_dispersion_mean.is_finite()
+                || report
+                    .location_tails
+                    .iter()
+                    .chain(&report.dispersion_tails)
+                    .any(|tail| !tail.is_finite() || !(0.0..=1.0).contains(tail))
+            {
+                return None;
+            }
+            let weight = (w / max_weight) / total;
+            observed += weight * report.observed;
+            predictive_mean += weight * report.predictive_mean;
+            observed_dispersion += weight * report.observed_dispersion;
+            predictive_dispersion_mean += weight * report.predictive_dispersion_mean;
+            for tail in 0..2 {
+                location_tails[tail] += weight * report.location_tails[tail];
+                dispersion_tails[tail] += weight * report.dispersion_tails[tail];
+            }
+            n_sims = n_sims.max(report.n_sims);
+        }
+        // Centered total variance retains small spread around large locations.
+        // Hypot also avoids squaring away representable tiny/large SDs.
+        let mut predictive_sd = 0.0_f64;
+        for &&(w, report) in &atoms {
+            let root_weight = ((w / max_weight) / total).sqrt();
+            predictive_sd = predictive_sd
+                .hypot(root_weight * report.predictive_sd)
+                .hypot(root_weight * (report.predictive_mean - predictive_mean));
+        }
         Some(Self {
             kind,
-            observed: observed / w_sum,
+            observed,
             predictive_mean,
             predictive_sd,
-            p_value: p_value / w_sum,
-            observed_dispersion: observed_dispersion / w_sum,
-            predictive_dispersion_mean: predictive_dispersion_mean / w_sum,
-            dispersion_p_value: dispersion_p_value / w_sum,
+            p_value: (2.0 * location_tails[0].min(location_tails[1])).min(1.0),
+            location_tails,
+            observed_dispersion,
+            predictive_dispersion_mean,
+            dispersion_p_value: (2.0 * dispersion_tails[0].min(dispersion_tails[1])).min(1.0),
+            dispersion_tails,
             n_sims,
         })
     }
@@ -548,15 +574,19 @@ impl PriorSensitivity {
     ) -> RefutationReport {
         let min = summary.effect_means.iter().copied().fold(f64::INFINITY, f64::min);
         let max = summary.effect_means.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-        let range = max - min;
-        let denom = summary
-            .effect_means
-            .iter()
-            .copied()
-            .map(f64::abs)
-            .fold(original_ate.abs(), f64::max)
-            .max(1e-8);
-        let relative = range / denom;
+        let denom =
+            summary.effect_means.iter().copied().map(f64::abs).fold(original_ate.abs(), f64::max);
+        let informative = !summary.effect_means.is_empty()
+            && original_ate.is_finite()
+            && summary.effect_means.iter().all(|mean| mean.is_finite());
+        let relative = if !informative {
+            f64::NAN
+        } else if denom == 0.0 {
+            0.0
+        } else {
+            // Divide before subtraction to avoid overflow for opposite signs.
+            max / denom - min / denom
+        };
         let passed = relative.is_finite() && relative <= self.max_relative_range;
         let kind =
             if summary.alphas.is_empty() { "prior_sensitivity" } else { "prior_sensitivity_alpha" };
@@ -565,7 +595,7 @@ impl PriorSensitivity {
             original_ate,
             refuted_ate: summary.effect_means.last().copied().unwrap_or(original_ate),
             comparison: relative,
-            informative: true,
+            informative,
             passed,
             failure_condition: if passed {
                 None
@@ -604,12 +634,14 @@ fn summarize_check(
         predictive_mean: mean,
         predictive_sd: sd,
         p_value: p,
+        location_tails: [p_lower, p_upper],
         // Populated by [`summarize_predictive_check`], the two-axis wrapper around this
         // function; callers of `summarize_check` directly (unit tests exercising the
         // Monte Carlo p-value formula) only care about the location axis above.
         observed_dispersion: 0.0,
         predictive_dispersion_mean: 0.0,
         dispersion_p_value: 1.0,
+        dispersion_tails: [1.0, 1.0],
         n_sims,
     }
 }
@@ -658,9 +690,11 @@ fn summarize_predictive_check(
         predictive_mean: mean_report.predictive_mean,
         predictive_sd: mean_report.predictive_sd,
         p_value: mean_report.p_value,
+        location_tails: mean_report.location_tails,
         observed_dispersion,
         predictive_dispersion_mean: disp_report.predictive_mean,
         dispersion_p_value: disp_report.p_value,
+        dispersion_tails: disp_report.location_tails,
         n_sims,
     }
 }
@@ -677,6 +711,23 @@ pub fn with_prior_sensitivity(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn review_prior_sensitivity_verdict_is_unit_invariant() {
+        let sensitivity =
+            PriorSensitivity { max_relative_range: 0.25, ..PriorSensitivity::default() };
+        for scale in [1e-100, 1.0, 1e100] {
+            let summary = PriorSensitivitySummary {
+                prior_scales: Arc::from([1.0, 10.0]),
+                alphas: Arc::from([]),
+                effect_means: Arc::from([scale, 2.0 * scale]),
+                effect_sds: Arc::from([scale, scale]),
+            };
+            let report = sensitivity.to_report(&summary, scale);
+            assert!((report.comparison - 0.5).abs() < 1e-12);
+            assert!(!report.passed);
+        }
+    }
+
     use super::*;
     use antecedent_core::{
         AverageEffectQuery, CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet,
@@ -690,6 +741,21 @@ mod tests {
     use antecedent_identify::IdentificationStatus;
     use antecedent_prob::{ExternalPriorWeight, GaussianCoefficientPrior, PriorSpec};
 
+    #[test]
+    fn review_predictive_mixture_retains_tail_direction_and_small_variance() {
+        let a = summarize_check(PredictiveCheckKind::Posterior, 0.0, &[-2.0; 99], 99);
+        let b = summarize_check(PredictiveCheckKind::Posterior, 0.0, &[2.0; 99], 99);
+        let mixed = PredictiveCheckReport::mixture_weighted(&[(0.5, &a), (0.5, &b)]).unwrap();
+        assert!((mixed.p_value - 1.0).abs() < 1e-12);
+        for weight in [1e-200, 1.0, 1e300] {
+            let a = report(PredictiveCheckKind::Posterior, 1e12, 1.0);
+            let b = report(PredictiveCheckKind::Posterior, 1e12 + 4.0, 1.0);
+            let mixed =
+                PredictiveCheckReport::mixture_weighted(&[(weight, &a), (weight, &b)]).unwrap();
+            assert!((mixed.predictive_sd - 5.0f64.sqrt()).abs() < 1e-12);
+        }
+    }
+
     fn report(kind: PredictiveCheckKind, mean: f64, sd: f64) -> PredictiveCheckReport {
         PredictiveCheckReport {
             kind,
@@ -697,9 +763,11 @@ mod tests {
             predictive_mean: mean,
             predictive_sd: sd,
             p_value: 0.4,
+            location_tails: [0.2, 0.8],
             observed_dispersion: 1.0,
             predictive_dispersion_mean: 1.0,
             dispersion_p_value: 0.4,
+            dispersion_tails: [0.2, 0.8],
             n_sims: 200,
         }
     }
