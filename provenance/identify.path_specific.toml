@@ -6,13 +6,14 @@ copied_comments = false
 copied_tests = false
 
 implementation_deviations = [
- "Does not emit the paper's edge-intervention or edge-g functional: it deletes treatment out-edges outside the selected paths and runs ordinary total-effect ID on the modified graph.",
+ "When every directed treatment-outcome path is selected, the effect is the total effect and is identified by deleting unselected treatment out-edges and running ordinary total-effect ID. When a complementary path exists, it emits the edge g-formula (Shpitser 2013) over the outcome's ancestors: P(v | pa(v)) factors with the treatment at the active level on edges that start a selected path and the control level elsewhere, minus the all-control g-formula. The district-level formula for latent confounding is not implemented: a bidirected edge on an outcome ancestor with a complementary path is refused as unsupported.",
  "The recanting-witness check is approximated by testing whether a node appears on both a selected and an unselected directed path; it does not implement the full conflicting edge-assignment criterion.",
  "Directed-path enumeration is bounded by query max_paths and max_len; truncation fails closed rather than deciding the paper's criterion.",
 ]
 
 papers = [
  { title = "Identifiability of Path-Specific Effects", sections = ["recanting witness criterion"] },
+ { title = "Counterfactual graphical models for longitudinal mediation analysis with unobserved confounding", sections = ["edge g-formula"] },
 ]
 
 upstream_implementations_observed = []
@@ -21,4 +22,5 @@ test_sources = [
  "frozen status and method-label cases for canonical mediation graphs (conformance/identify/path_specific)",
  "status and method-label fixture (conformance/identify/path_specific_natural)",
  "inline unit tests (crates/antecedent-identify/src/path_specific.rs)",
+ "two-path known-truth law with an independent structural reference (conformance/estimate/path_specific_edge_gformula)",
 ]
