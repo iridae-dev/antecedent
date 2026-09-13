@@ -739,7 +739,7 @@ fn estimate_sequential(
     let mut draws = Vec::new();
     let mut failed = 0u32;
     // Blocks are at least the unfolded span, and grow with sample size.
-    let block = (max_lag as usize + 1).max((n as f64).cbrt().ceil() as usize).min(n);
+    let block = antecedent_data::circular_block_length(max_lag as usize + 1, n);
     for replicate in 0..bootstrap_replicates {
         if ctx.cancellation.is_cancelled() {
             break;

@@ -623,6 +623,38 @@ pub fn fill_resample_weight_batch(
     Ok(())
 }
 
+/// Smallest integer `k` with `k³ ≥ n` (`0` for `n = 0`), without floating-point rounding.
+#[must_use]
+pub fn integer_cube_root_ceil(n: usize) -> usize {
+    if n <= 1 {
+        return n;
+    }
+    let (mut low, mut high) = (1usize, n);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if middle.saturating_mul(middle).saturating_mul(middle) >= n {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    low
+}
+
+/// Block length shared by every temporal circular-block bootstrap:
+/// `max(structural_span, ⌈n^{1/3}⌉)`, capped at `n` (and at least 1).
+///
+/// `structural_span` is the number of consecutive time slices one estimating
+/// row reads (the unfolded window, `history + horizon`, or `max_lag + 1` for a
+/// lagged design), so a block never splits a single row's lag window. The
+/// `⌈n^{1/3}⌉` floor is the MSE-rate block growth for the variance of a smooth
+/// mean (Hall, Horowitz & Jing 1995); it is a rule of thumb, not a data-driven
+/// choice, and it under-represents long-memory dependence at small `n`.
+#[must_use]
+pub fn circular_block_length(structural_span: usize, n: usize) -> usize {
+    structural_span.max(integer_cube_root_ceil(n)).min(n).max(1)
+}
+
 /// Apply a resampling plan to produce a new float64 time series.
 ///
 /// Index plans gather rows. [`ResamplingPlan::BayesianBootstrap`] keeps row
@@ -839,6 +871,21 @@ mod tests {
         .unwrap();
         assert_eq!(out.row_count(), 100);
         assert_eq!(idx.len(), 100);
+    }
+
+    #[test]
+    fn circular_block_length_rule() {
+        assert_eq!(integer_cube_root_ceil(0), 0);
+        assert_eq!(integer_cube_root_ceil(1), 1);
+        assert_eq!(integer_cube_root_ceil(64), 4);
+        assert_eq!(integer_cube_root_ceil(65), 5);
+        assert_eq!(integer_cube_root_ceil(1000), 10);
+        // ⌈160^{1/3}⌉ = 6 dominates a two-slice window; a wide window dominates.
+        assert_eq!(circular_block_length(2, 160), 6);
+        assert_eq!(circular_block_length(9, 160), 9);
+        // Capped at n, never zero.
+        assert_eq!(circular_block_length(50, 12), 12);
+        assert_eq!(circular_block_length(0, 0), 1);
     }
 
     #[test]

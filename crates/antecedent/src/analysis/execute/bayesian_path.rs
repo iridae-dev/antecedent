@@ -1096,7 +1096,7 @@ impl super::Study {
         let mut attempted = 0u32;
         let n = data.row_count();
         let block_length =
-            (gp.max_lag.unwrap_or(1) as usize + 1).max(integer_cube_root_ceil(n)).min(n);
+            antecedent_data::circular_block_length(gp.max_lag.unwrap_or(1) as usize + 1, n);
         let plan = antecedent_data::ResamplingPlan::CircularBlock { length: block_length };
         let mut index_scratch = Vec::with_capacity(n);
         for replicate in 0..self.bootstrap_replicates {

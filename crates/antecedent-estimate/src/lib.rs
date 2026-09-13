@@ -46,6 +46,7 @@ pub mod scores;
 pub mod se;
 pub mod serial_dependence;
 pub mod temporal_adjustment;
+pub mod temporal_block;
 pub mod temporal_mediation;
 pub mod temporal_observed_bayes;
 pub mod temporal_response;
@@ -126,13 +127,16 @@ pub use serial_dependence::{
     TemperingFactor, long_run_tempering_factor, tempering_kappa_from_notes,
 };
 pub use temporal_adjustment::{
-    TEMPORAL_COEF_LAG_MARKER, TemporalLinearAdjustment, is_temporal_coefficient_name,
-    temporal_coefficient_names,
+    TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe, TemporalLinearAdjustment,
+    is_temporal_coefficient_name, temporal_coefficient_names,
+};
+pub use temporal_block::{
+    MIN_EFFECTIVE_ROWS, RowBlockBootstrap, effective_rows, fixed_b_scale, row_block_bootstrap,
 };
 pub use temporal_mediation::{
-    MediationPosteriorSummary, TemporalEffectSurface, TemporalMediationEstimate,
-    TemporalMediationEstimator, TemporalMediationGrid, TemporalMediationIdentifiedSet,
-    TemporalMediationSlice, TemporalMediationUncertainty,
+    MediationPosteriorSummary, TemporalEffectSurface, TemporalMediationBlockSe,
+    TemporalMediationEstimate, TemporalMediationEstimator, TemporalMediationGrid,
+    TemporalMediationIdentifiedSet, TemporalMediationSlice, TemporalMediationUncertainty,
 };
 pub use temporal_response::{
     TemporalInterventionPlan, TemporalResponseEstimator, plan_from_response_query,

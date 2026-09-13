@@ -2330,6 +2330,10 @@ pub(crate) fn ate_result_from_analysis(
     {
         antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
             standard_error,
+        }
+        | antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+            requested: standard_error,
+            ..
         } => ("frequentist_pointwise".to_string(), *standard_error, None, None),
         antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
             requested, ..

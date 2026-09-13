@@ -1915,16 +1915,14 @@ fn analysis_result_from_run(
             .map(std::string::ToString::to_string),
         wall_time_ns: result.performance.wall_time_ns,
         bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,
-        // `bootstrap_replicates_ok` / `n_draws` (draw effort) / per-stage timings are
-        // genuinely never populated on any temporal path (every `AssembleArgs` literal
-        // sets `bootstrap_replicates_ok: None`, `n_draws: None`, `stage_timings_ns:
-        // Vec::new()`) — `None` / empty here is accurate, not a placeholder.
+        // `bootstrap_replicates_ok` is populated by the single-window Frequentist and
+        // temporal-mediation circular-block bootstraps and is `None` elsewhere;
+        // `n_draws` (draw effort) / per-stage timings are not populated on temporal paths.
         bootstrap_replicates_ok: result.performance.bootstrap_replicates_ok,
         n_draws: result.performance.n_draws,
-        // `execute_temporal`'s frequentist branch shares the same bootstrap machinery
-        // as the static path (`TemporalLinearAdjustment::inner: LinearAdjustmentAte`),
-        // so a bootstrap cancellation surfaces on `estimate.bootstrap_cancelled` here
-        // exactly as it does on the static DTO — OR it in the same way.
+        // `execute_temporal`'s frequentist branch runs a circular-block row bootstrap
+        // (`TemporalLinearAdjustment::fit_dependence_honest`); its cancellation surfaces
+        // on `estimate.bootstrap_cancelled` as on the static DTO — OR it in the same way.
         cancelled: result.performance.cancelled || result.estimate.bootstrap_cancelled,
         early_stopped: result.performance.early_stopped,
         stage_timings: result
@@ -1968,6 +1966,10 @@ fn analysis_result_from_run(
             match &slice.uncertainty {
                 antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
                     standard_error,
+                }
+                | antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+                    requested: standard_error,
+                    ..
                 } => {
                     mediation_uncertainty_kinds.push("frequentist_pointwise".to_string());
                     mediation_standard_deviations.push(*standard_error);

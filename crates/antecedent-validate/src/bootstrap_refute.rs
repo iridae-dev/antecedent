@@ -62,8 +62,12 @@ impl BootstrapRefute {
         })?;
         let series =
             antecedent_data::TimeSeriesData::try_new(problem.data.storage().clone(), time.clone())?;
-        let length =
-            (temporal.indexer.history() as usize + 1).max((n as f64).cbrt().ceil() as usize).min(n);
+        // Same block rule as the interval this refuter checks: the unfolded
+        // window (history + horizon slices) or ⌈n^{1/3}⌉, whichever is longer.
+        let length = antecedent_data::circular_block_length(
+            temporal.indexer.history() as usize + temporal.indexer.horizon() as usize,
+            n,
+        );
         let mut rng = ctx.rng.stream(0xA7E0_0009_0000_u64);
         let mut indices = Vec::new();
         let mut ates = Vec::new();
