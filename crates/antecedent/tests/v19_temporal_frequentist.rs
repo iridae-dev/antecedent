@@ -348,6 +348,8 @@ fn mediation_coverage(s: Scenario) -> (Vec<CoverageTally>, u32) {
         );
         let grid = result.mediation_grid.as_ref().expect("mediation grid");
         let slice = &grid.slices[0];
+        // No mediator-outcome confounder and an empty t -> y back-door set.
+        assert!(slice.adjustment.is_empty(), "unexpected adjustment {:?}", slice.adjustment);
         let TemporalMediationUncertainty::FrequentistBlockBootstrap { block, .. } =
             &slice.uncertainty
         else {
@@ -373,6 +375,72 @@ fn mediation_coverage(s: Scenario) -> (Vec<CoverageTally>, u32) {
         spread.report(&format!("temporal mediation {name} [{label}]"), truth);
     }
     (vec![total, direct, mediated], warned)
+}
+
+/// WP-F2: Total / Direct / Mediated coverage on the mediator-outcome-confounded
+/// DGP (`common::fixtures::mediation_series`, `kappa = 0.5`: `m <- z[t-1] ->
+/// w[t-1] -> y` confounds `m -> y` but not `t -> y`) at n = 160, iid. The
+/// intervals are only calibrated if the outcome model adjusts `{z[t-1],
+/// w[t-1]}` as well as the (empty) `t -> y` back-door set.
+fn confounded_mediation_coverage() -> Vec<CoverageTally> {
+    use common::fixtures;
+    const SEED: u64 = 600_000;
+    let label = "kappa=0.5 iid n=160";
+    let truths = [
+        ("Total", fixtures::mediation_total_truth()),
+        ("Direct", fixtures::mediation_direct_truth()),
+        ("Mediated", fixtures::mediation_truth()),
+    ];
+    let mut tallies: Vec<CoverageTally> = truths
+        .iter()
+        .map(|(name, _)| {
+            CoverageTally::new(format!("temporal mediation {name} confounded [{label}]"), 0.9)
+        })
+        .collect();
+    let mut spreads = [Spread::default(), Spread::default(), Spread::default()];
+    for rep in 0..n_sim() {
+        let seed = SEED + u64::from(rep);
+        let result = run(
+            fixtures::mediation_series(160, fixtures::MED_KAPPA, seed),
+            fixtures::mediation_dag(),
+            mediation_query(MediationContrast::Mediated),
+            BOOT,
+            seed,
+        );
+        let slice = &result.mediation_grid.as_ref().expect("mediation grid").slices[0];
+        let adjustment: Vec<(u32, i32)> =
+            slice.adjustment.iter().map(|k| (k.variable.raw(), k.offset)).collect();
+        assert_eq!(adjustment, vec![(3, -1), (4, -1)], "S(1) = {{z[t-1], w[t-1]}}");
+        let TemporalMediationUncertainty::FrequentistBlockBootstrap { block, .. } =
+            &slice.uncertainty
+        else {
+            panic!("temporal mediation must publish shared circular-block SEs");
+        };
+        let points = &slice.estimate;
+        for (i, (point, se)) in [
+            (points.total, block.total),
+            (points.direct, block.direct),
+            (points.mediated, block.mediated),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let point = point.unwrap();
+            tallies[i].record(normal_interval(point, se, Z90), truths[i].1);
+            spreads[i].push(point, se.unwrap_or(f64::NAN));
+        }
+    }
+    for (spread, (name, truth)) in spreads.iter().zip(truths) {
+        spread.report(&format!("temporal mediation {name} confounded [{label}]"), truth);
+    }
+    tallies
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage() {
+    let tallies = confounded_mediation_coverage();
+    assert_all(&tallies.iter().collect::<Vec<_>>());
 }
 
 macro_rules! effect_gate {

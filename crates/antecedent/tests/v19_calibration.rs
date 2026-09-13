@@ -837,6 +837,54 @@ fn bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage() {
     bayesian_cpdag_mediation_case("Bayesian TemporalCpdag mediation (kappa=0)", 0.0, 26_000);
 }
 
+/// Bayesian `TemporalDag` mediation on the mediator-outcome-confounded DGP
+/// (`kappa = 0.5`): the single-horizon composed posterior carries the Total,
+/// Direct and Mediated draw columns; each 90% equal-tail interval is scored
+/// against its path-product truth.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn bayesian_temporal_dag_mediation_confounded_nominal_90_coverage() {
+    let targets = [
+        ("Total", 1, fixtures::mediation_total_truth()),
+        ("Direct", 2, fixtures::mediation_direct_truth()),
+        ("Mediated", 3, fixtures::mediation_truth()),
+    ];
+    let mut tallies: Vec<CoverageTally> = targets
+        .iter()
+        .map(|(name, _, truth)| {
+            CoverageTally::new(
+                format!("Bayesian TemporalDag mediation {name} [kappa=0.5] (θ={truth:.3})"),
+                LEVEL,
+            )
+        })
+        .collect();
+    for s in 0..n_sim() {
+        let result = run_confounded_mediation(
+            N,
+            MediationContrast::Mediated,
+            bayes(),
+            0,
+            27_000 + u64::from(s),
+            u64::from(s),
+        );
+        let post = result.posterior.as_ref().expect("single-horizon mediation posterior");
+        for ((_, column, truth), tally) in targets.iter().zip(&mut tallies) {
+            let draws = post.draws.column(*column).expect("decomposition draws");
+            tally.record(quantile_interval(draws, LEVEL), *truth);
+        }
+    }
+    // Print every contrast's calibration line before failing on any of them.
+    let failures: Vec<String> = tallies
+        .iter()
+        .filter_map(|tally| {
+            std::panic::catch_unwind(|| tally.assert()).err().map(|e| {
+                e.downcast_ref::<String>().cloned().unwrap_or_else(|| "coverage failure".into())
+            })
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("; "));
+}
+
 // ---------------------------------------------------------------------------
 // Fixture truths that depend on enumeration order (pinned below)
 // ---------------------------------------------------------------------------
@@ -1021,7 +1069,8 @@ fn circle_pag_fixture_identifies_one_completion_and_retains_mass() {
 
 /// Two completions whose mediated effects necessarily agree (see
 /// `fixtures::mediation_cpdag_two`); each keeps its own composed posterior.
-/// Without mediator-outcome confounding the estimate is the path product.
+/// With or without mediator-outcome confounding the estimate is the path
+/// product: the mediation adjustment set blocks `m <- z[t-1] -> w[t-1] -> y`.
 #[test]
 fn mediation_cpdag_fixture_has_two_completions_with_own_posteriors() {
     for kappa in [0.0, fixtures::MED_KAPPA] {
@@ -1042,10 +1091,88 @@ fn mediation_cpdag_fixture_has_two_completions_with_own_posteriors() {
             })
             .collect();
         close("completions agree", values[0], values[1], 0.01);
-        if kappa == 0.0 {
-            close("mediation completion plim", values[0], fixtures::mediation_truth(), 0.02);
+        close(
+            &format!("mediation completion plim (kappa={kappa})"),
+            values[0],
+            fixtures::mediation_truth(),
+            0.02,
+        );
+    }
+}
+
+/// Mediation `Study` on `fixtures::mediation_dag` at `kappa != 0`.
+fn run_confounded_mediation(
+    n: usize,
+    contrast: MediationContrast,
+    inference: InferenceMode,
+    boot: u32,
+    data_seed: u64,
+    ctx_seed: u64,
+) -> StudyResult {
+    Study::series(mediation_series(n, fixtures::MED_KAPPA, data_seed))
+        .graph(fixtures::mediation_dag())
+        .query(CausalQuery::Mediation(
+            MediationQuery::binary(
+                VariableId::from_raw(0),
+                VariableId::from_raw(2),
+                [VariableId::from_raw(1)],
+                contrast,
+            )
+            .with_horizons(vec![1])
+            .unwrap(),
+        ))
+        .inference(inference)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(boot)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(ctx_seed))
+        .unwrap()
+}
+
+/// WP-F2: with the mediator-outcome confounder `w[t-1]` present (`kappa =
+/// 0.5`), a plain `TemporalDag` recovers Total, Direct and Mediated in both
+/// inference modes, for every requested contrast, and reports the adjustment
+/// set it used. Adjusting only the `t -> y` back-door set (empty) gave
+/// Mediated ≈ `mediation_backdoor_only_plim(0.5)` ≈ 0.519 against a truth of
+/// 0.300.
+#[test]
+fn confounded_mediation_recovers_total_direct_mediated_in_both_modes() {
+    let truths = [
+        (MediationContrast::Total, fixtures::mediation_total_truth()),
+        (MediationContrast::Direct, fixtures::mediation_direct_truth()),
+        (MediationContrast::Mediated, fixtures::mediation_truth()),
+    ];
+    for inference in [InferenceMode::Frequentist, bayes()] {
+        for (contrast, truth) in truths {
+            let label = format!("{inference:?} {contrast:?}");
+            let result = run_confounded_mediation(SANITY_N, contrast, inference.clone(), 0, 13, 41);
+            close(&label, result.estimate.ate, truth, 0.02);
+            let slice = &result.mediation_grid.as_ref().expect("mediation grid").slices[0];
+            let adjustment: Vec<(u32, i32)> =
+                slice.adjustment.iter().map(|k| (k.variable.raw(), k.offset)).collect();
+            assert_eq!(adjustment, vec![(3, -1), (4, -1)], "{label}: S(1) = {{z[t-1], w[t-1]}}");
+            let point = &slice.estimate;
+            close(&format!("{label} total"), point.total.unwrap(), truths[0].1, 0.02);
+            close(&format!("{label} direct"), point.direct.unwrap(), truths[1].1, 0.02);
+            close(&format!("{label} mediated"), point.mediated.unwrap(), truths[2].1, 0.02);
+            assert!(
+                result.identification.required_assumptions.entries.iter().any(|a| matches!(
+                    &a.assumption,
+                    antecedent_core::Assumption::Custom { id, description }
+                        if id.as_ref() == "temporal_mediation.adjustment_sets"
+                            && description.contains("S = {v3[t-1], v4[t-1]}")
+                )),
+                "{label}: the adjustment sets must be recorded as an assumption"
+            );
         }
     }
+    // Same fixture, the pre-fix plim: the gap the gate found.
+    assert!(
+        (fixtures::mediation_backdoor_only_plim(fixtures::MED_KAPPA) - fixtures::mediation_truth())
+            .abs()
+            > 0.2
+    );
 }
 
 #[test]
