@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Python tests load repository JSON and TOML as UTF-8. Windows wheels no
+  longer decode support-matrix cell names (`×`) through the locale encoding.
+
 ## [1.7.0] — 2026-09-13
 
 ### Added

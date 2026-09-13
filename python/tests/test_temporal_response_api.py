@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
+
+from _repo_text import load_json
 
 pytest.importorskip("antecedent")
 import antecedent
@@ -16,9 +17,7 @@ from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Sequence, Set, Soft
 
 _ROOT = Path(__file__).resolve().parents[2]
-_FIXTURE = json.loads(
-    (_ROOT / "conformance" / "response" / "temporal_dose_horizon" / "expected.json").read_text()
-)
+_FIXTURE = load_json(_ROOT / "conformance" / "response" / "temporal_dose_horizon" / "expected.json")
 
 
 def _fixture_data() -> dict[str, np.ndarray]:

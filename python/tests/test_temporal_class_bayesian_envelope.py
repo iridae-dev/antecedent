@@ -8,22 +8,18 @@ import pathlib
 import numpy as np
 import pytest
 
+from _repo_text import load_json
+
 antecedent = pytest.importorskip("antecedent")
 
 
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
-_PIN = json.loads(
-    (_ROOT / "conformance" / "bayesian" / "temporal_class_envelope" / "expected.json").read_text()
+_PIN = load_json(_ROOT / "conformance" / "bayesian" / "temporal_class_envelope" / "expected.json")
+_TRANSFER = load_json(
+    _ROOT / "conformance" / "bayesian" / "temporal_class_prior_transfer" / "expected.json"
 )
-_TRANSFER = json.loads(
-    (
-        _ROOT / "conformance" / "bayesian" / "temporal_class_prior_transfer" / "expected.json"
-    ).read_text()
-)
-_OBS = json.loads(
-    (
-        _ROOT / "conformance" / "response" / "temporal_class_observation" / "expected.json"
-    ).read_text()
+_OBS = load_json(
+    _ROOT / "conformance" / "response" / "temporal_class_observation" / "expected.json"
 )
 
 
@@ -134,15 +130,15 @@ def test_temporal_class_prior_transfer_fixture_names_filter() -> None:
     assert _TRANSFER["conflict_does_not_flip_identification"] is True
     assert (
         _TRANSFER["source_cells"]["same_design_pulse"]
-        == "PulseEffect × TemporalCpdag × explicit × Bayesian × none"
+        == "PulseEffect \u00d7 TemporalCpdag \u00d7 explicit \u00d7 Bayesian \u00d7 none"
     )
     assert (
         _TRANSFER["target_cells"]["mapped_coefficient_response_curve"]
-        == "ResponseCurve × TemporalCpdag × explicit × Bayesian × none"
+        == "ResponseCurve \u00d7 TemporalCpdag \u00d7 explicit \u00d7 Bayesian \u00d7 none"
     )
     assert (
         _TRANSFER["target_cells"]["mapped_mediation"]
-        == "TemporalMediationEffect × TemporalCpdag × explicit × Bayesian × none"
+        == "TemporalMediationEffect \u00d7 TemporalCpdag \u00d7 explicit \u00d7 Bayesian \u00d7 none"
     )
 
 
@@ -354,9 +350,7 @@ def test_capped_audit_does_not_publish_a_full_class_mixture() -> None:
 def test_two_completion_sequence_and_soft_match_fixtures() -> None:
     from antecedent.intervention import Sequence, Set, Soft
 
-    dose = json.loads(
-        (_ROOT / "conformance" / "response" / "temporal_dose_horizon" / "expected.json").read_text()
-    )
+    dose = load_json(_ROOT / "conformance" / "response" / "temporal_dose_horizon" / "expected.json")
     n = int(dose["generation"]["n"])
     t = np.array([0.0 if i % 4 in (0, 2) else (1.0 if i % 4 == 1 else -1.0) for i in range(n)])
     y = np.array(
@@ -396,10 +390,8 @@ def test_two_completion_sequence_and_soft_match_fixtures() -> None:
         values = np.asarray([row[0] for row in result.envelope.lower], dtype=float)
     np.testing.assert_allclose(values, expected, atol=float(dose["tolerance"]["atol"]))
 
-    soft = json.loads(
-        (
-            _ROOT / "conformance" / "response" / "temporal_soft_mean_mechanisms" / "expected.json"
-        ).read_text()
+    soft = load_json(
+        _ROOT / "conformance" / "response" / "temporal_soft_mean_mechanisms" / "expected.json"
     )
     n = int(soft["generation"]["n"])
     t = 1.0 + np.sin(np.arange(n) * 1.719)

@@ -1,6 +1,5 @@
 """Soft overlays act on propagated means, not clipped stochastic draws."""
 
-import json
 from pathlib import Path
 
 import antecedent
@@ -9,16 +8,16 @@ import pytest
 from antecedent.errors import CausalValueError
 from antecedent.intervention import Soft
 
+from _repo_text import load_json
+
 
 @pytest.mark.parametrize(
     "family,params", [("multiplicative", [2.0]), ("truncated_shift", [3.0, 0.0, 2.0])]
 )
 def test_extra_soft_families_consume_native_mean_dynamics(family, params):
-    fixture = json.loads(
-        (
-            Path(__file__).resolve().parents[2]
-            / "conformance/response/temporal_soft_mean_mechanisms/expected.json"
-        ).read_text()
+    fixture = load_json(
+        Path(__file__).resolve().parents[2]
+        / "conformance/response/temporal_soft_mean_mechanisms/expected.json"
     )
     n = fixture["generation"]["n"]
     t = 1.0 + np.sin(np.arange(n) * 1.719)

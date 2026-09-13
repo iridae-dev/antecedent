@@ -28,7 +28,7 @@ def summarize_expected(path: Path) -> str:
     if not path.exists():
         return "_No `expected.json`._"
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         return f"_Invalid JSON: {e}_"
     if isinstance(data, dict):
@@ -43,7 +43,7 @@ def summarize_expected(path: Path) -> str:
 def render_fixture(fix: Path) -> str:
     rel = fix.relative_to(CONF)
     readme = fix / "README.md"
-    body = readme.read_text().strip() if readme.exists() else f"# {fix.name}\n"
+    body = readme.read_text(encoding="utf-8").strip() if readme.exists() else f"# {fix.name}\n"
     # Drop leading H1 from README if present; we emit our own.
     lines = body.splitlines()
     if lines and lines[0].startswith("# "):
