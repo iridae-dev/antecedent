@@ -153,10 +153,10 @@ pub use temporal_mediation::{
 pub use temporal_response::{
     MaxDeviationBand, PreparedTemporalSurface, SIMULTANEOUS_BAND_CRITICAL, SIMULTANEOUS_BAND_LOWER,
     SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER, SIMULTANEOUS_BAND_WITHHELD,
-    TemporalInterventionPlan, TemporalResponseEstimator, block_dispersion_inflation,
-    circular_block_positions, clear_simultaneous_band, inflate_replicates, max_deviation_band,
-    max_deviation_band_columns, plan_from_response_query, plan_temporal_intervention,
-    publish_simultaneous_band, temporal_block_length,
+    TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC, TemporalInterventionPlan, TemporalResponseEstimator,
+    block_dispersion_inflation, circular_block_positions, clear_simultaneous_band,
+    inflate_replicates, max_deviation_band, max_deviation_band_columns, plan_from_response_query,
+    plan_temporal_intervention, publish_simultaneous_band, temporal_block_length,
 };
 pub use temporal_sequential::{
     SequentialContrastDesign, SequentialMechanismOverlay, SequentialNodeOverlay,

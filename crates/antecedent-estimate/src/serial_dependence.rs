@@ -20,6 +20,10 @@
 //! `√κ̂` (calibrated for the targeted combination), and heteroskedasticity or a
 //! misspecified mean are **not** corrected.
 //!
+//! With [`DependenceScope::Levels`] one fit targets several combinations (every grid
+//! cell of a temporal response at one horizon); `κ̂` is then the largest of their
+//! ratios.
+//!
 //! `κ̂` uses AR(1) prewhitening of the score (with the Kendall small-sample bias
 //! correction of `ρ̂`) followed by a Bartlett (Newey–West) kernel with the
 //! rule-of-thumb bandwidth `⌊4 (n/100)^{2/9}⌋`, then recolouring by
@@ -73,6 +77,12 @@ pub enum DependenceScope {
     /// `c` = the gradient of a composed contrast with respect to this mechanism's
     /// coefficients (sequential g-computation), in design-column order.
     Direction(Arc<[f64]>),
+    /// Several combinations sharing one fit, e.g. the g-computed level `w(a)'β` of every
+    /// grid cell of a temporal response at one horizon (`w(a)` = the design-column
+    /// averages with the treatment column at `a`). `κ̂` is the largest of their
+    /// long-run-variance ratios, so every cell's interval carries at least its own
+    /// correction.
+    Levels(Arc<[Arc<[f64]>]>),
 }
 
 impl DependenceScope {
@@ -80,6 +90,7 @@ impl DependenceScope {
         match self {
             Self::Treatment => "treatment",
             Self::Direction(_) => "contrast_gradient",
+            Self::Levels(_) => "response_levels",
         }
     }
 }
@@ -176,25 +187,36 @@ pub fn long_run_tempering_factor(
         capped: false,
         scope: scope.label(),
     };
-    let mut c = vec![0.0; p];
-    match scope {
+    let check_width = |direction: &[f64]| {
+        if direction.len() == p {
+            Ok(direction.to_vec())
+        } else {
+            Err(EstimationError::stats_msg(format!(
+                "long-run tempering direction has {} entries for {p} design columns",
+                direction.len()
+            )))
+        }
+    };
+    let directions: Vec<Vec<f64>> = match scope {
         DependenceScope::Treatment => {
             let t = design.treatment_column().ok_or_else(|| {
                 EstimationError::stats_msg("long-run tempering needs a treatment column")
             })?;
+            let mut c = vec![0.0; p];
             c[t] = 1.0;
+            vec![c]
         }
-        DependenceScope::Direction(direction) => {
-            if direction.len() != p {
-                return Err(EstimationError::stats_msg(format!(
-                    "long-run tempering direction has {} entries for {p} design columns",
-                    direction.len()
-                )));
-            }
-            c.copy_from_slice(direction);
+        DependenceScope::Direction(direction) => vec![check_width(direction)?],
+        DependenceScope::Levels(levels) => {
+            levels.iter().map(|direction| check_width(direction)).collect::<Result<_, _>>()?
         }
-    }
-    if n < MIN_ROWS.max(p + 2) || c.iter().all(|v| *v == 0.0 || !v.is_finite()) {
+    };
+    // A zero or non-finite combination carries no score; it neither tempers nor refuses.
+    let directions: Vec<Vec<f64>> = directions
+        .into_iter()
+        .filter(|c| c.iter().all(|v| v.is_finite()) && c.iter().any(|v| *v != 0.0))
+        .collect();
+    if n < MIN_ROWS.max(p + 2) || directions.is_empty() {
         return Ok(floor);
     }
     let x = &design.matrix[..n * p];
@@ -211,11 +233,19 @@ pub fn long_run_tempering_factor(
             xtx[b * p + a] = dot;
         }
     }
-    let v = solve_spd(&xtx, &c, p)
-        .ok_or_else(|| EstimationError::stats_msg("long-run tempering: singular X'X"))?;
-    let influence: Vec<f64> =
-        (0..n).map(|t| (0..p).map(|k| x[k * n + t] * v[k]).sum::<f64>() * residuals[t]).collect();
-    let raw_ratio = long_run_variance_ratio(&influence, bandwidth);
+    let mut raw_ratio = f64::NAN;
+    for c in &directions {
+        let v = solve_spd(&xtx, c, p)
+            .ok_or_else(|| EstimationError::stats_msg("long-run tempering: singular X'X"))?;
+        let influence: Vec<f64> = (0..n)
+            .map(|t| (0..p).map(|k| x[k * n + t] * v[k]).sum::<f64>() * residuals[t])
+            .collect();
+        let ratio = long_run_variance_ratio(&influence, bandwidth);
+        if ratio.is_finite() {
+            // `f64::max` ignores the initial NaN.
+            raw_ratio = raw_ratio.max(ratio);
+        }
+    }
     if !raw_ratio.is_finite() {
         return Ok(floor);
     }
@@ -354,6 +384,31 @@ mod tests {
             long_run_tempering_factor(&d, &DependenceScope::Direction(Arc::from([0.0, 1.0, 0.0])))
                 .unwrap();
         assert!((a.raw_ratio - b.raw_ratio).abs() < 1e-9);
+    }
+
+    #[test]
+    fn levels_scope_takes_the_largest_ratio_of_its_combinations() {
+        let d = design(800, 0.7, 11);
+        let slope = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
+        let intercept =
+            long_run_tempering_factor(&d, &DependenceScope::Direction(Arc::from([1.0, 0.0, 0.0])))
+                .unwrap();
+        let levels = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Levels(Arc::from([
+                Arc::from([0.0, 1.0, 0.0]),
+                Arc::from([1.0, 0.0, 0.0]),
+                Arc::from([0.0, 0.0, 0.0]),
+            ])),
+        )
+        .unwrap();
+        assert_eq!(levels.scope, "response_levels");
+        assert!((levels.raw_ratio - slope.raw_ratio.max(intercept.raw_ratio)).abs() < 1e-12);
+        let wrong_width = long_run_tempering_factor(
+            &d,
+            &DependenceScope::Levels(Arc::from([Arc::from([1.0, 0.0])])),
+        );
+        assert!(wrong_width.is_err());
     }
 
     #[test]

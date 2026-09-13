@@ -182,8 +182,13 @@ only; posterior draws are not mixed. The temporal posterior band in
 it (see [Temporal simultaneous bands](#temporal-simultaneous-bands)). Each
 horizon is a separate conjugate fit, so across horizons that band describes the
 product of per-horizon posteriors, not a joint horizon posterior. Both bands
-condition on the observed covariate (and, for shifts, treatment) average and on
-an independent-residual likelihood. Kennedy-DR regularity and row-influence
+condition on the observed covariate (and, for shifts, treatment) average. Each
+horizon's Gaussian likelihood is tempered by its long-run-variance ratio
+`κ̂_h ≥ 1` (a generalized power posterior, the same correction as the Bayesian
+Pulse / Sustained cells; support diagnostic
+`response.temporal_bayesian.tempering`): lag-aligned `h`-step residuals are
+MA(h−1) whenever the outcome or treatment is persistent, and serially dependent
+at every horizon under autocorrelated innovations. Kennedy-DR regularity and row-influence
 diagnostics below describe the Frequentist estimator, not these Bayesian
 posteriors.
 

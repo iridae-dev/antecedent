@@ -21,8 +21,8 @@
 //!
 //! Residual noise is iid (`rho = 0`) and AR(1) with `rho = 0.5`, `n = 160`. AR(1)
 //! residuals are inside the stated assumptions of the block-bootstrap Frequentist
-//! bands (asserted) and outside those of the independent-residual Bayesian likelihood
-//! (recorded as a misspecification probe, printed but not asserted). The zero-replicate
+//! bands and of the per-horizon long-run-tempered Bayesian posterior (both asserted;
+//! the class-atom Bayesian bands are asserted on iid residuals only). The zero-replicate
 //! analytic Frequentist band assumes independent lag-aligned rows, which no DGP here
 //! satisfies (neighbouring rows share lagged treatment or confounder terms), so its
 //! coverage is always recorded as a probe.
@@ -545,6 +545,11 @@ fn bayesian_intervention_coverage(rho: f64, seed_base: u64) -> Vec<CoverageTally
     );
     // Both horizon designs are [1, T] (no adjustment covariates), so the declared
     // conditional-on-covariates functional equals the population level 1 + BETA[h-1].
+    // At h = 2 the design omits T@-1, whose effect joins the residual; with iid T that
+    // residual stays serially uncorrelated, so the untempered interval was already about
+    // nominal in expectation (0.943-0.945 over 4000 fresh replicates: the 400-draw
+    // quantiles run about half a point short). The per-horizon long-run tempering is what
+    // keeps it nominal once the residual is serially dependent (the AR(1) cell below).
     let truth: Vec<f64> = BETA.iter().map(|b| 1.0 + b).collect();
     for s in 0..n_sim() {
         let seed = seed_base + u64::from(s);
@@ -563,6 +568,9 @@ fn bayesian_intervention_coverage(rho: f64, seed_base: u64) -> Vec<CoverageTally
         if s == 0 {
             let per_horizon = response.horizon_identification.as_ref().expect("I(h)");
             assert!(per_horizon.iter().all(|h| h.adjustment.is_empty()), "{per_horizon:?}");
+            let kappa = diagnostic(response, "response.temporal_bayesian.tempering")
+                .expect("per-horizon tempering factor");
+            assert!(kappa.len() == HORIZONS.len() && kappa.iter().all(|k| *k >= 1.0), "{kappa:?}");
         }
         tallies.record(response, &truth);
     }
@@ -575,13 +583,14 @@ fn bayesian_temporal_dag_intervention_response_iid_nominal_95_coverage() {
     assert_all(&bayesian_intervention_coverage(0.0, 194_000));
 }
 
-/// AR(1) residuals violate the declared independent-residual likelihood: recorded.
+/// AR(1) residuals: each horizon's likelihood is tempered by its long-run-variance ratio
+/// (`response.temporal_bayesian.tempering`), so serially dependent residuals are inside
+/// the cell's stated generalized-posterior assumption. Before the tempering this cell was
+/// a recorded misspecification probe.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn bayesian_temporal_dag_intervention_response_ar1_misspecification_probe() {
-    for tally in bayesian_intervention_coverage(RHO_AR1, 195_000) {
-        report_probe(&tally, LEVEL);
-    }
+fn bayesian_temporal_dag_intervention_response_ar1_nominal_95_coverage() {
+    assert_all(&bayesian_intervention_coverage(RHO_AR1, 195_000));
 }
 
 // ---------------------------------------------------------------------------

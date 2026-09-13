@@ -35,6 +35,9 @@ use antecedent_stats::{
 use crate::adjustment::{LinearAdjustmentAte, PreparedEstimationProblem};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
+use crate::serial_dependence::{
+    DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, tempering_kappa_from_notes,
+};
 use crate::temporal_adjustment::TemporalLinearAdjustment;
 use crate::temporal_sequential::{SequentialMechanismOverlay, SequentialNodeOverlay};
 use crate::util::{BOOTSTRAP_MAX_FAILURE_FRAC, range, sample_std};
@@ -513,6 +516,48 @@ fn block_bootstrap_assumption(block_length: usize, rows: usize, factor: f64) -> 
     }
 }
 
+/// Support diagnostic carrying the per-horizon tempering factor `κ̂_h` of
+/// `response.temporal.bayesian` (one value per requested horizon, in order).
+pub const TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC: &str = "response.temporal_bayesian.tempering";
+
+fn is_tempering_record(record: &AssumptionRecord) -> bool {
+    matches!(
+        &record.assumption,
+        Assumption::ParametricRestriction(p) if p.id.as_ref() == DEPENDENCE_ASSUMPTION_ID
+    )
+}
+
+/// One serial-dependence record for the whole surface (each horizon's fit records its own
+/// factor; only the first horizon's assumptions were ever forwarded).
+fn temporal_bayesian_tempering_assumption(horizons: &[u32], kappas: &[f64]) -> AssumptionRecord {
+    let per_horizon = horizons
+        .iter()
+        .zip(kappas)
+        .map(|(h, k)| format!("h={h}: {k:.4}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from(DEPENDENCE_ASSUMPTION_ID),
+            description: Arc::from(format!(
+                "generalized (power) posterior with a serial-dependence correction at every \
+                 horizon: each horizon's Gaussian likelihood on time-ordered lag-aligned rows is \
+                 tempered by 1/kappa_h, kappa_h = the largest AR(1)-prewhitened Newey-West \
+                 long-run-variance ratio of that horizon's grid-cell level scores, floored at 1 \
+                 ({per_horizon}). At h >= 2 the unfolded regression omits intermediate \
+                 treatments and innovations, so its residuals are MA(h-1) whenever the outcome \
+                 or treatment is persistent; the prior keeps full weight; heteroskedasticity and \
+                 mean misspecification are not corrected"
+            )),
+        }),
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("response.temporal.bayesian"),
+        },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    }
+}
+
 impl TemporalResponseEstimator {
     /// Defaults: explicit-override overlap, no bootstrap. Pointwise SEs come from the
     /// linear-functional variance `cbar(a)' Sigma cbar(a)` of the standardized mean,
@@ -691,6 +736,7 @@ impl TemporalResponseEstimator {
         let mut ranges = Vec::new();
         let mut horizons = Vec::new();
         let mut levels = Vec::new();
+        let mut tempering = Vec::new();
         for (h, (&horizon_steps, &(estimand, indexer))) in
             temporal.horizons.iter().zip(identifications).enumerate()
         {
@@ -724,9 +770,30 @@ impl TemporalResponseEstimator {
                 indexer,
                 identification_status,
             )?);
+            let mut weights = design_column_means(&prep.design);
+            let grid = if let Some((level, shift)) = intervention {
+                vec![level.unwrap_or(weights[1] + shift)]
+            } else {
+                doses.clone()
+            };
             let mut est = estimator.clone();
             est.seed = est.seed.wrapping_add(h as u64);
-            let bprep = crate::BayesianGComputationAte::from_prepared_estimation(&prep);
+            let mut bprep = crate::BayesianGComputationAte::from_prepared_estimation(&prep);
+            // Lag-aligned rows are time-ordered: at h ≥ 2 the unfolded regression omits the
+            // intermediate treatments and outcome innovations, so its residuals are MA(h−1)
+            // whenever the outcome or treatment is persistent, and serially dependent at every
+            // horizon under autocorrelated innovations. Each horizon's likelihood is tempered
+            // by the long-run-variance ratio of its grid-cell levels (floored at 1), the same
+            // generalized posterior as the Bayesian Pulse / Sustained cells.
+            bprep.serial_dependence = SerialDependence::LongRunTempering(DependenceScope::Levels(
+                grid.iter()
+                    .map(|&dose| {
+                        let mut direction = weights.clone();
+                        direction[TREATMENT_COL] = dose;
+                        Arc::from(direction)
+                    })
+                    .collect(),
+            ));
             let posterior = est.fit(
                 &bprep,
                 identification_status,
@@ -734,14 +801,16 @@ impl TemporalResponseEstimator {
                 ctx,
             )?;
             if h == 0 {
-                assumptions.entries.extend(posterior.assumptions.entries.clone());
+                assumptions.entries.extend(
+                    posterior
+                        .assumptions
+                        .entries
+                        .iter()
+                        .filter(|record| !is_tempering_record(record))
+                        .cloned(),
+                );
             }
-            let mut weights = design_column_means(&prep.design);
-            let grid = if let Some((level, shift)) = intervention {
-                vec![level.unwrap_or(weights[1] + shift)]
-            } else {
-                doses.clone()
-            };
+            tempering.push(tempering_kappa_from_notes(&posterior.diagnostics.notes).unwrap_or(1.0));
             if intervention.is_some() {
                 levels.push(grid[0]);
             }
@@ -794,13 +863,25 @@ impl TemporalResponseEstimator {
              whole grid around the posterior mean; doses at one horizon share each coefficient \
              draw, while horizons are separate fits whose independent draws are paired by index \
              (a product of per-horizon posteriors, not a joint horizon posterior); conditional \
-             on the observed adjustment distribution and the independent-residual likelihood",
+             on the observed adjustment distribution; each horizon's posterior is the \
+             long-run-tempered generalized posterior (support diagnostic \
+             response.temporal_bayesian.tempering)",
         );
+        support.diagnostics.push(SupportDiagnostic {
+            id: Arc::from(TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC),
+            values: Arc::from(tempering.clone()),
+            detail: Arc::from(
+                "per-horizon likelihood tempering factor kappa (rows weighted 1/kappa): the \
+                 largest AR(1)-prewhitened Newey-West long-run-variance ratio of the grid-cell \
+                 level scores at that horizon, floored at 1",
+            ),
+        });
         assumptions.push(AssumptionRecord {
             assumption: Assumption::ParametricRestriction(ParametricAssumption { id: Arc::from("bayesian.temporal_response.linear_additive"),
-                description: Arc::from("Gaussian linear-additive unfolded outcome model at each horizon, fit separately per horizon; independent (serially uncorrelated) residual likelihood. Pointwise posterior intervals and the simultaneous credible band (support diagnostics response.simultaneous_band.*) are conditional on the observed adjustment and treatment distribution: they describe the level at the sample covariate average, not the population average. The simultaneous band pairs independent per-horizon draws, so across horizons it is a product-posterior band, not a joint horizon posterior.") }),
+                description: Arc::from("Gaussian linear-additive unfolded outcome model at each horizon, fit separately per horizon. Pointwise posterior intervals and the simultaneous credible band (support diagnostics response.simultaneous_band.*) are conditional on the observed adjustment and treatment distribution: they describe the level at the sample covariate average, not the population average. The simultaneous band pairs independent per-horizon draws, so across horizons it is a product-posterior band, not a joint horizon posterior.") }),
             source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("response.temporal.bayesian") }, scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared,
         });
+        assumptions.push(temporal_bayesian_tempering_assumption(&temporal.horizons, &tempering));
         Ok(CausalResponse {
             estimand: query.functional.clone(),
             identification_status,

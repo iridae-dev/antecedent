@@ -331,7 +331,10 @@ fn temporal_class_bayesian_response_is_identified_set() {
     let graphs = [("cpdag", series(false)), ("pag", series(true))];
     let horizons = [1u32, 2];
     // Near-flat coefficient prior: each atom's posterior mean is its OLS g-computation
-    // up to Monte Carlo error of the draws.
+    // up to Monte Carlo error of the 400 draws. Each horizon's likelihood is tempered by
+    // its long-run-variance ratio, which is large on this deterministic, strongly
+    // autocorrelated series, so the tolerance scales with the published posterior SD
+    // (4 Monte Carlo SEs of the mean, SD read off the 95% band) above a 0.01 floor.
     let inference =
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(400).prior_scale(1000.0));
     for (class, data) in &graphs {
@@ -388,11 +391,18 @@ fn temporal_class_bayesian_response_is_identified_set() {
                     let Some(ResponseValue::Surface { mean, .. }) = atom.value.as_ref() else {
                         panic!("{label}: atom value is not a surface");
                     };
-                    for (got, &eval) in mean.iter().zip(evals) {
+                    let ResponseUncertainty::PointwiseBand { lower, upper, .. } =
+                        &response.uncertainty
+                    else {
+                        panic!("{label}: atom carries no pointwise credible band");
+                    };
+                    for (cell, (got, &eval)) in mean.iter().zip(evals).enumerate() {
                         let want = lagged_ols_level(&refs, 1, 0, -1, horizon, &adjustment, eval);
+                        let posterior_sd = (upper[cell] - lower[cell]) / (2.0 * 1.96);
+                        let tolerance = 0.01_f64.max(4.0 * posterior_sd / 400.0_f64.sqrt());
                         assert!(
-                            (got - want).abs() < 0.01,
-                            "{label} h={horizon} adj={adjustment:?}: posterior mean {got} vs OLS {want}"
+                            (got - want).abs() < tolerance,
+                            "{label} h={horizon} adj={adjustment:?}: posterior mean {got} vs OLS {want} (tolerance {tolerance})"
                         );
                     }
                     if h_index == 0 {
