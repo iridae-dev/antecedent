@@ -7,19 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- Class-prior response and Sequence surfaces withhold `conditional_on_identified`
-  when unidentified or unevaluable mass remains, matching the licensed
-  TemporalCpdag/TemporalPag contract instead of renormalizing over identified
-  atoms.
-- GAM auto-λ GCV scores the centered smoother actually applied in backfitting
-  (`edf = tr(S₁) − 1`), not the uncentered `Bβ` operator.
-- Weighted and Bayesian residual correlations refuse only non-positive
-  variance, so measurement units no longer hide a defined coefficient.
-- Multivariate partial correlation reports leading ρ from the same unregularized
-  Wilks whitening used for the p-value.
-
 ## [1.7.0] — 2026-09-13
 
 ### Added
@@ -63,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and carry atom assumptions; Frequentist class curves honor requested
   replicates per completion atom; `exec.identify.cached` reports only full
   cache coverage.
+- Class-prior response and Sequence surfaces withhold `conditional_on_identified`
+  when unidentified or unevaluable mass remains, matching the licensed
+  TemporalCpdag/TemporalPag contract instead of renormalizing over identified
+  atoms.
 - Shared numerical kernels are scale-invariant: midranks tie only equal
   observations; QR rank is assessed on equilibrated columns; spline knots and
   endpoints distinguish zero from small spacing; logistic and Gaussian
