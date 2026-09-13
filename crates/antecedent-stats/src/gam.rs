@@ -973,25 +973,46 @@ fn select_lambda_gcv(
     let mut best_lambda = GCV_LAMBDA_GRID[0];
     let mut best_gcv = f64::INFINITY;
     for &lambda in &GCV_LAMBDA_GRID {
-        let beta = roughness_basis_solve(basis, nrows, n_basis, y, lambda, gram, rhs)?;
-        let mut rss = 0.0;
-        for r in 0..nrows {
-            let mut pred = 0.0;
-            for b in 0..n_basis {
-                pred += basis[b * nrows + r] * beta[b];
-            }
-            let e = y[r] - pred;
-            rss += e * e;
-        }
-        let edf = roughness_edf(basis, nrows, n_basis, lambda, gram)?;
-        let denom = (nrows as f64 - edf).max(1e-8);
-        let gcv = (nrows as f64) * rss / (denom * denom);
+        let gcv = centered_smooth_gcv(basis, nrows, n_basis, y, lambda, gram, rhs)?;
         if gcv < best_gcv {
             best_gcv = gcv;
             best_lambda = lambda;
         }
     }
     Ok(best_lambda)
+}
+
+/// GCV of the smoother actually applied in backfitting: centered `Bβ` with
+/// `edf = tr(S₁) − 1`. Uncentered RSS / `tr(S₁)` scores a different operator.
+fn centered_smooth_gcv(
+    basis: &[f64],
+    nrows: usize,
+    n_basis: usize,
+    y: &[f64],
+    lambda: f64,
+    gram: &mut [f64],
+    rhs: &mut [f64],
+) -> Result<f64, StatsError> {
+    let beta = roughness_basis_solve(basis, nrows, n_basis, y, lambda, gram, rhs)?;
+    let mut pred_sum = 0.0;
+    let mut preds = vec![0.0; nrows];
+    for r in 0..nrows {
+        let mut pred = 0.0;
+        for b in 0..n_basis {
+            pred += basis[b * nrows + r] * beta[b];
+        }
+        preds[r] = pred;
+        pred_sum += pred;
+    }
+    let pred_mean = pred_sum / nrows as f64;
+    let mut rss = 0.0;
+    for r in 0..nrows {
+        let e = y[r] - (preds[r] - pred_mean);
+        rss += e * e;
+    }
+    let edf = (roughness_edf(basis, nrows, n_basis, lambda, gram)? - 1.0).max(0.0);
+    let denom = (nrows as f64 - edf).max(1e-8);
+    Ok((nrows as f64) * rss / (denom * denom))
 }
 
 #[cfg(test)]
@@ -1477,6 +1498,60 @@ mod tests {
                 .unwrap();
         assert!(fit.smooths[0].lambda.is_finite() && fit.smooths[0].lambda > 0.0);
         assert!(fit.converged);
+    }
+
+    #[test]
+    fn review_gcv_minimizes_centered_smoother_score() {
+        let n = 80usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let y: Vec<f64> = x1
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| (2.0 * std::f64::consts::PI * v).sin() + 0.2 * (i as f64).sin())
+            .collect();
+        let y_mean = y.iter().sum::<f64>() / n as f64;
+        let centered: Vec<f64> = y.iter().map(|v| v - y_mean).collect();
+        let (basis, _) = expand_bspline(&x1, 10, None).unwrap();
+        let mut gram = vec![0.0; 10 * 10];
+        let mut rhs = vec![0.0; 10];
+        let chosen = select_lambda_gcv(&basis, n, 10, &centered, &mut gram, &mut rhs).unwrap();
+        let mut best_lambda = GCV_LAMBDA_GRID[0];
+        let mut best_gcv = f64::INFINITY;
+        let mut uncentered_winner = GCV_LAMBDA_GRID[0];
+        let mut best_uncentered_gcv = f64::INFINITY;
+        for &lambda in &GCV_LAMBDA_GRID {
+            let centered_gcv =
+                centered_smooth_gcv(&basis, n, 10, &centered, lambda, &mut gram, &mut rhs).unwrap();
+            if centered_gcv < best_gcv {
+                best_gcv = centered_gcv;
+                best_lambda = lambda;
+            }
+            let beta = roughness_basis_solve(&basis, n, 10, &centered, lambda, &mut gram, &mut rhs)
+                .unwrap();
+            let mut rss = 0.0;
+            for r in 0..n {
+                let mut pred = 0.0;
+                for b in 0..10 {
+                    pred += basis[b * n + r] * beta[b];
+                }
+                let e = centered[r] - pred;
+                rss += e * e;
+            }
+            let edf = roughness_edf(&basis, n, 10, lambda, &mut gram).unwrap();
+            let denom = (n as f64 - edf).max(1e-8);
+            let uncentered_gcv = (n as f64) * rss / (denom * denom);
+            if uncentered_gcv < best_uncentered_gcv {
+                best_uncentered_gcv = uncentered_gcv;
+                uncentered_winner = lambda;
+            }
+        }
+        assert_eq!(chosen, best_lambda);
+        if uncentered_winner != best_lambda {
+            assert_ne!(
+                chosen, uncentered_winner,
+                "centered GCV must not inherit the uncentered argmin"
+            );
+        }
     }
 
     #[test]
