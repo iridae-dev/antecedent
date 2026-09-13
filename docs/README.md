@@ -14,7 +14,7 @@ explicit stage contracts. Package version **1.8.0**.
 | [Comparison](comparison.md) | Antecedent vs. DoWhy, EconML, Tigramite, causal-learn — and when to use each |
 | [Architecture](architecture.md) | Invariants, crates, analysis pipeline, execution model |
 | [Development](development.md) | CI vs local gates, tests, performance rules, versions |
-| [Artifacts](artifacts.md) | Wire format, migration, graph interchange (including response format 0.4) |
+| [Artifacts](artifacts.md) | Wire format, migration, graph interchange (format 0.5) |
 | [Prior bank](priors.md) | External prior catalog, compose, conflict, transport |
 | [API naming](api_naming.md) | Rust ↔ Python capability dictionary |
 | [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |

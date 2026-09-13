@@ -3757,6 +3757,10 @@ fn structural_response_wire(
                 upper: envelope.upper.to_vec(),
             }
         }),
+        identified_set_interval: mixture
+            .identified_set_interval
+            .as_ref()
+            .map(antecedent_io::identified_set_interval_to_wire),
         conditional_on_identified: mixture
             .conditional_on_identified
             .as_ref()

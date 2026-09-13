@@ -1,12 +1,13 @@
 # Artifact format
 
 Library package version is tracked independently from the durable artifact format.
-The durable format is **`FormatVersion { major: 0, minor: 4 }`**
-(`antecedent_io::STABLE_FORMAT`). Format 0.4 adds temporal response-query
-fields and dose × horizon response surfaces.
+The durable format is **`FormatVersion { major: 0, minor: 5 }`**
+(`antecedent_io::STABLE_FORMAT`). Format 0.5 adds the identified-set interval
+on structural-mixture analysis results (below); format 0.4 added temporal
+response-query fields and dose × horizon response surfaces.
 
-Format 0.4 is the durable-artifact wire freeze for package 1.0.0. A later wire
-change must advance the format and provide migration from prior stable versions;
+Format 0.4 was the durable-artifact wire freeze for package 1.0.0. A wire
+change advances the format and provides migration from prior stable versions;
 the package-version bump itself does not change artifact bytes.
 
 ## Package 1.5 payloads
@@ -125,7 +126,25 @@ Python exposes this container through `antecedent.artifacts.dumps` / `loads`.
 The returned mapping is the canonical Rust wire representation; the Python layer
 does not define or maintain a parallel JSON schema. Response, transport, and
 interference query/result artifacts therefore migrate and validate through the
-same format-0.4 reader as Rust artifacts.
+same format-0.5 reader as Rust artifacts.
+
+### Format 0.5 identified-set interval
+
+`StructuralResponseMixtureWire.identified_set_interval` is optional. It carries
+the Imbens–Manski interval published on class-aware temporal Pulse / Sustained
+effects (`StructuralResponseMixture::identified_set_interval`): it covers the
+true effect at `level` whenever that effect is one identified completion's
+effect. Fields: `level`, `lower`, `upper` (the interval), `bound_lower`,
+`bound_upper` (the estimated `min` / `max` over completions), `lower_se`,
+`upper_se`, `critical_value`, `width_retained`, `completions`, `replicates`,
+and `method` (`imbens_manski_shared_block` for the Frequentist shared
+circular-block replicates, `imbens_manski_posterior_draws` for the Bayesian
+per-completion draws). The field is omitted when no interval was computed.
+Readers refuse non-finite values, a level outside `(0, 1)`, inverted endpoints
+or bounds, negative SDs or critical value, zero completions, and fewer than two
+replicates. A format-0.4 analysis result has no such field and migrates with it
+absent; a 0.4 reader refuses a 0.5 artifact rather than silently dropping the
+interval.
 
 ## Exporting prepared results
 
@@ -141,16 +160,17 @@ A scalar posterior artifact retains draws, quantity names, identification
 status, mixture mass and backend summaries. It does not retain the complete
 analysis assumption or validation ledger; keep the analysis result alongside
 it. Response artifacts retain response-specific assumptions, identification,
-uncertainty and support. These exports use the existing format 0.4.
+uncertainty and support. These exports use the stable format 0.5.
 
 ## Migration
 
 `antecedent_io::migrate_artifact` / `read_and_migrate` / `migrate_from_seek` accept
-source formats `0.1`, `0.2`, `0.3`, and `0.4`. Formats `0.1`–`0.3` migrate to 0.4;
+source formats `0.1` through `0.5`. Formats `0.1`–`0.4` migrate to 0.5;
 format `0.1` skinny `SchemaWireV01 { variable_names }` is rewritten to full
 `SchemaWire` with Continuous defaults. Format `0.2` sections pass through unchanged.
 Format `0.3` response queries have no temporal field and therefore retain static
-response semantics.
+response semantics. Format `0.4` sections pass through unchanged; their
+structural-mixture results carry no identified-set interval.
 Unknown format
 versions fail with `IoError::UnsupportedFormat`. Breaking changes require
 migration from at least the previous two stable versions.

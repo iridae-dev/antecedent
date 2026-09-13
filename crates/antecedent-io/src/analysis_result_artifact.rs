@@ -127,6 +127,138 @@ pub struct StructuralResponseAtomWire {
     pub response: Option<crate::CausalResponseWire>,
 }
 
+/// Construction of an [`IdentifiedSetIntervalWire`].
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum IdentifiedSetIntervalMethodWire {
+    /// Frequentist Imbens–Manski interval from shared circular-block replicates.
+    ImbensManskiSharedBlock,
+    /// Bayesian analogue from per-completion posterior draws paired by draw index.
+    ImbensManskiPosteriorDraws,
+}
+
+/// Imbens–Manski interval for the identified set of a class-aware scalar effect:
+/// covers the true effect at `level` whenever it is one identified completion's
+/// effect. Mirrors [`antecedent_estimate::IdentifiedSetInterval`].
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct IdentifiedSetIntervalWire {
+    /// Nominal coverage of the true (completion-specific) effect.
+    pub level: f64,
+    /// Lower endpoint of the interval.
+    pub lower: f64,
+    /// Upper endpoint of the interval.
+    pub upper: f64,
+    /// Estimated lower bound `min_g θ̂_g`.
+    pub bound_lower: f64,
+    /// Estimated upper bound `max_g θ̂_g`.
+    pub bound_upper: f64,
+    /// Sampling (or posterior) SD of the estimated lower bound.
+    pub lower_se: f64,
+    /// Sampling (or posterior) SD of the estimated upper bound.
+    pub upper_se: f64,
+    /// Imbens–Manski critical value.
+    pub critical_value: f64,
+    /// Whether the estimated width passed the moment-selection threshold.
+    pub width_retained: bool,
+    /// Completions spanning the set.
+    pub completions: u64,
+    /// Replicates or posterior draws behind the SDs.
+    pub replicates: u64,
+    /// Construction.
+    pub method: IdentifiedSetIntervalMethodWire,
+}
+
+/// Encode an identified-set interval.
+#[must_use]
+pub fn identified_set_interval_to_wire(
+    interval: &antecedent_estimate::IdentifiedSetInterval,
+) -> IdentifiedSetIntervalWire {
+    IdentifiedSetIntervalWire {
+        level: interval.level,
+        lower: interval.lower,
+        upper: interval.upper,
+        bound_lower: interval.bound_lower,
+        bound_upper: interval.bound_upper,
+        lower_se: interval.lower_se,
+        upper_se: interval.upper_se,
+        critical_value: interval.critical_value,
+        width_retained: interval.width_retained,
+        completions: u64::try_from(interval.completions).unwrap_or(u64::MAX),
+        replicates: u64::try_from(interval.replicates).unwrap_or(u64::MAX),
+        method: match interval.method {
+            antecedent_estimate::IdentifiedSetIntervalMethod::ImbensManskiPosteriorDraws => {
+                IdentifiedSetIntervalMethodWire::ImbensManskiPosteriorDraws
+            }
+            // `IdentifiedSetIntervalMethod` is non-exhaustive; the shared block is the
+            // only Frequentist construction.
+            _ => IdentifiedSetIntervalMethodWire::ImbensManskiSharedBlock,
+        },
+    }
+}
+
+/// Decode and validate an identified-set interval.
+///
+/// # Errors
+///
+/// Non-finite values, a level outside `(0, 1)`, inverted endpoints or bounds,
+/// negative SDs or critical value, no completions, or fewer than two replicates.
+pub fn identified_set_interval_from_wire(
+    wire: &IdentifiedSetIntervalWire,
+) -> Result<antecedent_estimate::IdentifiedSetInterval, IoError> {
+    let finite = [
+        wire.level,
+        wire.lower,
+        wire.upper,
+        wire.bound_lower,
+        wire.bound_upper,
+        wire.lower_se,
+        wire.upper_se,
+        wire.critical_value,
+    ]
+    .iter()
+    .all(|v| v.is_finite());
+    if !(finite && wire.level > 0.0 && wire.level < 1.0)
+        || wire.lower > wire.upper
+        || wire.bound_lower > wire.bound_upper
+        || wire.lower_se < 0.0
+        || wire.upper_se < 0.0
+        || wire.critical_value < 0.0
+        || wire.completions == 0
+        || wire.replicates < 2
+    {
+        return Err(IoError::Convert(
+            "identified-set interval must be finite with level in (0, 1), ordered endpoints \
+             and bounds, nonnegative SDs, at least one completion and two replicates"
+                .into(),
+        ));
+    }
+    let count = |v: u64| {
+        usize::try_from(v)
+            .map_err(|_| IoError::Convert("identified-set interval count overflows".into()))
+    };
+    Ok(antecedent_estimate::IdentifiedSetInterval {
+        level: wire.level,
+        lower: wire.lower,
+        upper: wire.upper,
+        bound_lower: wire.bound_lower,
+        bound_upper: wire.bound_upper,
+        lower_se: wire.lower_se,
+        upper_se: wire.upper_se,
+        critical_value: wire.critical_value,
+        width_retained: wire.width_retained,
+        completions: count(wire.completions)?,
+        replicates: count(wire.replicates)?,
+        method: match wire.method {
+            IdentifiedSetIntervalMethodWire::ImbensManskiSharedBlock => {
+                antecedent_estimate::IdentifiedSetIntervalMethod::ImbensManskiSharedBlock
+            }
+            IdentifiedSetIntervalMethodWire::ImbensManskiPosteriorDraws => {
+                antecedent_estimate::IdentifiedSetIntervalMethod::ImbensManskiPosteriorDraws
+            }
+        },
+    })
+}
+
 /// Structural-mixture response metadata.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct StructuralResponseMixtureWire {
@@ -142,6 +274,10 @@ pub struct StructuralResponseMixtureWire {
     pub unevaluable_mass: f64,
     /// Pointwise identified set.
     pub identified_set: Option<crate::ResponseEnvelopeWire>,
+    /// Imbens–Manski interval for a scalar identified set (format 0.5). Absent on
+    /// format-0.4 artifacts and whenever no interval was computed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identified_set_interval: Option<IdentifiedSetIntervalWire>,
     /// Conditional summary, only for posterior-probability weights.
     pub conditional_on_identified: Option<crate::ResponseValueWire>,
     /// Whether masses cover the full structural support.
@@ -308,6 +444,9 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         crate::decode_causal_posterior_bytes(posterior)?;
     }
     if let Some(structural) = &result.structural_response {
+        if let Some(interval) = &structural.identified_set_interval {
+            identified_set_interval_from_wire(interval)?;
+        }
         for atom in &structural.atoms {
             if !atom.weight.is_finite() || atom.weight < 0.0 {
                 return Err(IoError::Convert(
@@ -447,6 +586,99 @@ mod tests {
         result.identification_variables = None;
         assert!(encode_analysis_result_artifact(&result, names, "missing").is_err());
     }
+    fn interval() -> antecedent_estimate::IdentifiedSetInterval {
+        antecedent_estimate::IdentifiedSetInterval {
+            level: 0.9,
+            lower: 0.41,
+            upper: 1.12,
+            bound_lower: 0.52,
+            bound_upper: 0.98,
+            lower_se: 0.061,
+            upper_se: 0.083,
+            critical_value: 1.31,
+            width_retained: true,
+            completions: 2,
+            replicates: 199,
+            method: antecedent_estimate::IdentifiedSetIntervalMethod::ImbensManskiSharedBlock,
+        }
+    }
+
+    fn with_structural(interval: Option<IdentifiedSetIntervalWire>) -> AnalysisResultWire {
+        let mut result = fixture();
+        result.structural_response = Some(StructuralResponseMixtureWire {
+            weight_basis: StructuralWeightBasisWire::CompletionEnumeration,
+            atoms: Vec::new(),
+            identified_mass: 1.0,
+            unidentified_mass: 0.0,
+            unevaluable_mass: 0.0,
+            identified_set: None,
+            identified_set_interval: interval,
+            conditional_on_identified: None,
+            full_mass_scope: true,
+            truncated_atoms: 0,
+        });
+        result
+    }
+
+    #[test]
+    fn identified_set_interval_round_trips_and_validates() {
+        let original = interval();
+        let wire = identified_set_interval_to_wire(&original);
+        assert_eq!(identified_set_interval_from_wire(&wire).unwrap(), original);
+        let result = with_structural(Some(wire.clone()));
+        let names = vec!["a".into(), "y".into()];
+        let artifact = encode_analysis_result_artifact(&result, names.clone(), "set").unwrap();
+        assert_eq!(artifact.manifest.format_version, STABLE_FORMAT);
+        let mut bytes = Vec::new();
+        artifact.write_to(&mut bytes).unwrap();
+        let (_, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
+        assert_eq!(decoded, result);
+        let restored = decoded.structural_response.unwrap().identified_set_interval.unwrap();
+        assert_eq!(identified_set_interval_from_wire(&restored).unwrap(), original);
+        let json = serde_json::to_value(&result).unwrap();
+        assert_eq!(
+            json["structural_response"]["identified_set_interval"]["method"],
+            "imbens_manski_shared_block"
+        );
+
+        for corrupt in [
+            IdentifiedSetIntervalWire { level: 1.0, ..wire.clone() },
+            IdentifiedSetIntervalWire { lower: 1.5, ..wire.clone() },
+            IdentifiedSetIntervalWire { upper_se: -0.1, ..wire.clone() },
+            IdentifiedSetIntervalWire { critical_value: f64::NAN, ..wire.clone() },
+            IdentifiedSetIntervalWire { replicates: 1, ..wire.clone() },
+            IdentifiedSetIntervalWire { completions: 0, ..wire.clone() },
+        ] {
+            assert!(identified_set_interval_from_wire(&corrupt).is_err());
+            assert!(
+                encode_analysis_result_artifact(
+                    &with_structural(Some(corrupt)),
+                    names.clone(),
+                    "bad"
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn format_0_4_structural_result_migrates_without_an_interval() {
+        // A 0.4 writer had no interval field: the body omits it entirely.
+        let result = with_structural(None);
+        let body = serde_json::to_value(&result).unwrap();
+        assert!(body["structural_response"].get("identified_set_interval").is_none());
+        let mut artifact =
+            encode_analysis_result_artifact(&result, vec!["a".into(), "y".into()], "old").unwrap();
+        artifact.manifest.format_version = crate::FormatVersion { major: 0, minor: 4 };
+        artifact.manifest.minimum_reader_version = crate::FormatVersion { major: 0, minor: 4 };
+        let mut bytes = Vec::new();
+        artifact.write_to(&mut bytes).unwrap();
+        let (migrated, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
+        assert_eq!(migrated.manifest.format_version, STABLE_FORMAT);
+        assert_eq!(decoded, result);
+        assert!(decoded.structural_response.unwrap().identified_set_interval.is_none());
+    }
+
     #[test]
     fn function_valued_result_has_no_scalar_and_survives_json_bridge() {
         let mut result = fixture();

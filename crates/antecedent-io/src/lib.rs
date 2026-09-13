@@ -41,11 +41,12 @@ pub mod transport_interference_wire;
 pub mod wire;
 
 pub use analysis_result_artifact::{
-    AnalysisResultHeader, AnalysisResultWire, MediationPosteriorSummaryWire,
-    StructuralResponseAtomWire, StructuralResponseMixtureWire, StructuralWeightBasisWire,
-    TemporalIdentificationWire, TemporalMediationGridWire, TemporalMediationSliceWire,
-    TemporalMediationUncertaintyWire, decode_analysis_result_artifact,
-    encode_analysis_result_artifact,
+    AnalysisResultHeader, AnalysisResultWire, IdentifiedSetIntervalMethodWire,
+    IdentifiedSetIntervalWire, MediationPosteriorSummaryWire, StructuralResponseAtomWire,
+    StructuralResponseMixtureWire, StructuralWeightBasisWire, TemporalIdentificationWire,
+    TemporalMediationGridWire, TemporalMediationSliceWire, TemporalMediationUncertaintyWire,
+    decode_analysis_result_artifact, encode_analysis_result_artifact,
+    identified_set_interval_from_wire, identified_set_interval_to_wire,
 };
 pub use analysis_wire::{
     DiagnosticWire, EffectEstimateWire, IdentificationResultWire, IdentifiedEstimandWire,
