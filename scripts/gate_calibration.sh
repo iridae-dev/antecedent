@@ -49,6 +49,17 @@ run_ignored_test bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage
 run_ignored_test dbn_mixture_functional_retains_unidentified_mass
 run_ignored_test class_prior_mixture_functional_nominal_90_coverage
 
+echo "== 1.9 static graph-posterior mixture coverage (antecedent) =="
+run_static_mixture_test() {
+  local filter="$1"
+  echo "== antecedent: ${filter} =="
+  cargo test -p antecedent --test v19_static_mixture_calibration "$filter" -- --ignored --nocapture
+}
+run_static_mixture_test static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage
+run_static_mixture_test static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage
+run_static_mixture_test static_graph_posterior_bayesian_ate_bma_nominal_90_coverage
+run_static_mixture_test static_graph_posterior_bayesian_cate_bma_nominal_90_coverage
+
 echo "== Bayesian posterior calibration (antecedent-validate) =="
 run_ignored antecedent-validate \
   bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform
