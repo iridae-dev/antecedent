@@ -278,9 +278,45 @@ pub fn fit_gam(
     y: &[f64],
     specs: &[SmoothSpec],
     options: &GamOptions,
+    backend: &impl DenseLinearAlgebra,
+    workspace: &mut GamWorkspace,
+) -> Result<GamFit, StatsError> {
+    fit_gam_weighted(x_colmajor, nrows, n_raw_cols, y, specs, options, None, backend, workspace)
+}
+
+/// Fit the same additive GAM with nonnegative observation weights.
+/// Weights are normalized to sum to nrows so the roughness penalty retains its scale.
+/// Knots remain selected on the original predictor support.
+///
+/// # Errors
+/// Invalid weights or any error from the unweighted GAM fit.
+pub fn fit_gam_weighted(
+    x_colmajor: &[f64],
+    nrows: usize,
+    n_raw_cols: usize,
+    y: &[f64],
+    specs: &[SmoothSpec],
+    options: &GamOptions,
+    weights: Option<&[f64]>,
     _backend: &impl DenseLinearAlgebra,
     workspace: &mut GamWorkspace,
 ) -> Result<GamFit, StatsError> {
+    let weights = match weights {
+        Some(w) => {
+            let sum: f64 = w.iter().sum();
+            if w.len() != nrows
+                || w.iter().any(|v| !v.is_finite() || *v < 0.0)
+                || !sum.is_finite()
+                || sum <= 0.0
+            {
+                return Err(StatsError::Shape { message: "invalid GAM observation weights" });
+            }
+            w.iter().map(|v| v * nrows as f64 / sum).collect::<Vec<_>>()
+        }
+        None => vec![1.0; nrows],
+    };
+    let weighted_mean =
+        |v: &[f64]| v.iter().zip(&weights).map(|(v, w)| v * w).sum::<f64>() / nrows as f64;
     if specs.is_empty() {
         return Err(StatsError::Shape { message: "GAM requires at least one smooth term" });
     }
@@ -327,11 +363,16 @@ pub fn fit_gam(
         col_cursor = end;
     }
 
+    let weighted_bases: Vec<Vec<f64>> = bases
+        .iter()
+        .map(|basis| basis.iter().enumerate().map(|(i, v)| v * weights[i % nrows].sqrt()).collect())
+        .collect();
+    let mut weighted_partial = vec![0.0; nrows];
     let mut coefficients = vec![0.0; total_coefs];
     // Per-smooth fitted contributions.
     let mut smooth_fits: Vec<Vec<f64>> = (0..specs.len()).map(|_| vec![0.0; nrows]).collect();
 
-    let y_mean = mean(y);
+    let y_mean = weighted_mean(y);
     let mut intercept = y_mean;
     workspace.fitted.fill(intercept);
     let mut converged = false;
@@ -355,12 +396,16 @@ pub fn fit_gam(
                 workspace.partial[r] = y[r] - other;
             }
             let basis = bases[j].as_ref();
+            let solve_basis = weighted_bases[j].as_slice();
+            for r in 0..nrows {
+                weighted_partial[r] = workspace.partial[r] * weights[r].sqrt();
+            }
             if !selected_lambda && spec.auto_lambda {
                 chosen_lambda[j] = select_lambda_gcv(
-                    basis,
+                    solve_basis,
                     nrows,
                     spec.n_basis,
-                    &workspace.partial[..nrows],
+                    &weighted_partial,
                     &mut workspace.gram,
                     &mut workspace.rhs,
                 )?;
@@ -368,10 +413,10 @@ pub fn fit_gam(
             }
             let lambda = chosen_lambda[j];
             let beta = roughness_basis_solve(
-                basis,
+                solve_basis,
                 nrows,
                 spec.n_basis,
-                &workspace.partial[..nrows],
+                &weighted_partial,
                 lambda,
                 &mut workspace.gram,
                 &mut workspace.rhs,
@@ -387,7 +432,7 @@ pub fn fit_gam(
                 }
                 workspace.smooth_fit[r] = pred;
             }
-            let f_mean = mean(&workspace.smooth_fit[..nrows]);
+            let f_mean = weighted_mean(&workspace.smooth_fit[..nrows]);
             for r in 0..nrows {
                 workspace.smooth_fit[r] -= f_mean;
                 max_delta = max_delta.max((workspace.smooth_fit[r] - smooth_fits[j][r]).abs());
@@ -403,7 +448,8 @@ pub fn fit_gam(
                 // freedom. Without the −1 the constant is counted twice (once here, once in
                 // the intercept) and edf_approx runs high by exactly one per smooth term.
                 edf_approx +=
-                    roughness_edf(basis, nrows, spec.n_basis, lambda, &mut workspace.gram)? - 1.0;
+                    roughness_edf(solve_basis, nrows, spec.n_basis, lambda, &mut workspace.gram)?
+                        - 1.0;
             }
         }
         selected_lambda = true;
@@ -414,7 +460,7 @@ pub fn fit_gam(
             for sf in &smooth_fits {
                 s += sf[r];
             }
-            sum += y[r] - s;
+            sum += weights[r] * (y[r] - s);
         }
         intercept = sum / nrows as f64;
 
@@ -426,7 +472,7 @@ pub fn fit_gam(
             }
             workspace.fitted[r] = pred;
             let e = y[r] - pred;
-            rss += e * e;
+            rss += weights[r] * e * e;
         }
 
         let fit_scale =
@@ -456,7 +502,7 @@ pub fn fit_gam(
             for b in 0..spec.n_basis {
                 pred += basis[b * nrows + r] * coefficients[off + b];
             }
-            sum += pred;
+            sum += weights[r] * pred;
         }
         centers[j] = sum / nrows as f64;
     }
@@ -655,13 +701,6 @@ fn validate_raw_layout(
 
 fn raw_column(x_colmajor: &[f64], nrows: usize, col: usize) -> &[f64] {
     &x_colmajor[col * nrows..(col + 1) * nrows]
-}
-
-fn mean(v: &[f64]) -> f64 {
-    if v.is_empty() {
-        return 0.0;
-    }
-    v.iter().sum::<f64>() / v.len() as f64
 }
 
 fn validate_knots(knots: &[f64], n_basis: usize) -> Result<(), StatsError> {
@@ -1164,7 +1203,7 @@ mod tests {
             .unwrap();
         assert!(fit.converged, "iterations={}", fit.iterations);
         let ss_res: f64 = fit.residuals.iter().map(|e| e * e).sum();
-        let y_bar = mean(&y);
+        let y_bar = y.iter().sum::<f64>() / y.len() as f64;
         let ss_tot: f64 = y
             .iter()
             .map(|yi| {
@@ -1655,5 +1694,60 @@ mod tests {
         let design = design.with_smooth_provenance(vec![smooth]);
         assert_eq!(design.smooths.len(), 1);
         assert_eq!(design.columns.get(1).and_then(|c| c.smooth_idx), Some(0));
+    }
+    #[test]
+    fn weighted_gam_matches_repeated_rows_with_fixed_knots() {
+        let n = 30;
+        let x: Vec<f64> = (0..n).map(|i| i as f64 / 10.0).collect();
+        let y: Vec<f64> = x.iter().map(|v| v.sin() + 0.2 * v * v).collect();
+        let (_, knots) = expand_bspline(&x, 5, None).unwrap();
+        let specs = [SmoothSpec::new(0, 5, 0.3).with_knots(knots)];
+        // Counts sum to n: penalty scale is identical in both fits.
+        let weights: Vec<f64> = (0..n).map(|i| (i % 3) as f64).collect();
+        let mut repeated_x = Vec::new();
+        let mut repeated_y = Vec::new();
+        for i in 0..n {
+            for _ in 0..i % 3 {
+                repeated_x.push(x[i]);
+                repeated_y.push(y[i]);
+            }
+        }
+        let options = GamOptions { max_iter: 500, tol: 1e-9 };
+        let weighted = fit_gam_weighted(
+            &x,
+            n,
+            1,
+            &y,
+            &specs,
+            &options,
+            Some(&weights),
+            &FaerBackend,
+            &mut GamWorkspace::default(),
+        )
+        .unwrap();
+        let repeated = fit_gam(
+            &repeated_x,
+            n,
+            1,
+            &repeated_y,
+            &specs,
+            &options,
+            &FaerBackend,
+            &mut GamWorkspace::default(),
+        )
+        .unwrap();
+        assert!(weighted.converged && repeated.converged);
+        for at in [0.2, 1.1, 2.4] {
+            assert!(
+                (weighted.predict_row(&[at]).unwrap() - repeated.predict_row(&[at]).unwrap()).abs()
+                    < 1e-7
+            );
+            assert!(
+                (weighted.smooth_derivative(0, at).unwrap()
+                    - repeated.smooth_derivative(0, at).unwrap())
+                .abs()
+                    < 1e-7
+            );
+        }
     }
 }

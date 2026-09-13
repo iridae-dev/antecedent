@@ -444,10 +444,18 @@ impl StudyBuilder {
     #[must_use]
     pub fn query(mut self, query: impl Into<CausalQuery>) -> Self {
         let q = query.into();
-        if matches!(q, CausalQuery::TemporalEffect(_)) {
-            // Bayesian inference must not force the static BayesianGcomp estimator on temporal.
-            if matches!(self.estimator, Some(EstimatorId::BayesianGcomp)) {
-                self.estimator = Some(EstimatorId::TemporalLinearAdjustment);
+        if self.estimator_spec.is_none()
+            && matches!(self.estimator, Some(EstimatorId::BayesianGcomp))
+        {
+            match &q {
+                CausalQuery::AverageEffect(_) => {}
+                CausalQuery::TemporalEffect(_) => {
+                    self.estimator = Some(EstimatorId::TemporalLinearAdjustment);
+                }
+                _ => {
+                    // Remainder cells keep their identifier-native estimators.
+                    self.estimator = None;
+                }
             }
         }
         self.query = Some(q);
@@ -592,16 +600,31 @@ impl StudyBuilder {
 
     /// Configure frequentist vs Bayesian inference.
     ///
-    /// For static ATE, [`InferenceMode::Bayesian`] selects estimator [`EstimatorId::BayesianGcomp`].
-    /// Temporal queries keep [`EstimatorId::TemporalLinearAdjustment`]; Bayesian mode is applied
-    /// at execute time on the lag-aligned design.
+    /// For static backdoor ATE, [`InferenceMode::Bayesian`] selects estimator
+    /// [`EstimatorId::BayesianGcomp`]. Other staged queries keep the identifier-native
+    /// estimator (`functional.effect`, `functional.distribution`, `mediation.linear`,
+    /// `gcm.fit`, Riesz/point derivatives); Bayesian mode is applied at execute time.
+    /// Temporal queries keep [`EstimatorId::TemporalLinearAdjustment`].
     #[must_use]
     pub fn inference(mut self, mode: InferenceMode) -> Self {
-        if matches!(mode, InferenceMode::Bayesian(_))
+        if matches!(mode, InferenceMode::Bayesian(_)) && self.estimator_spec.is_none() {
+            match &self.query {
+                None | Some(CausalQuery::AverageEffect(_)) => {
+                    self.estimator = Some(EstimatorId::BayesianGcomp);
+                }
+                Some(CausalQuery::TemporalEffect(_)) => {}
+                Some(_) => {
+                    if matches!(self.estimator, Some(EstimatorId::BayesianGcomp)) {
+                        self.estimator = None;
+                    }
+                }
+            }
+        }
+        if matches!(mode, InferenceMode::Frequentist)
             && self.estimator_spec.is_none()
-            && !matches!(self.query, Some(CausalQuery::TemporalEffect(_)))
+            && self.estimator == Some(EstimatorId::BayesianGcomp)
         {
-            self.estimator = Some(EstimatorId::BayesianGcomp);
+            self.estimator = None;
         }
         self.inference = mode;
         self
@@ -954,7 +977,15 @@ impl StudyBuilder {
                     } else {
                         EstimatorId::TemporalResponseGcomp
                     }
-                } else if bayesian {
+                } else if bayesian
+                    && !matches!(
+                        &q.functional,
+                        antecedent_core::ResponseFunctional::AverageDerivative { .. }
+                            | antecedent_core::ResponseFunctional::PointDerivative { .. }
+                            | antecedent_core::ResponseFunctional::DirectionalDerivative { .. }
+                            | antecedent_core::ResponseFunctional::Jacobian { .. }
+                    )
+                {
                     EstimatorId::ResponseBayesian
                 } else {
                     EstimatorId::default_for_response(&q.functional)

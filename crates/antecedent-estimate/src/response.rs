@@ -12,7 +12,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
+    clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
     clippy::many_single_char_names,
     clippy::similar_names,
     clippy::too_many_arguments,
@@ -23,7 +25,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, CausalResponse, DerivativeScale, DerivativeWeighting, Diagnostic,
+    AssumptionStatus, CausalResponse, CausalRng, DerivativeScale, DerivativeWeighting, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, IdentificationStatus, Intervention,
     MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec, ParametricAssumption, ResponseFunctional,
     ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
@@ -32,7 +34,7 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, GamOptions, GamWorkspace, LeastSquaresWorkspace,
-    LocalQuadraticWorkspace, SmoothSpec, StatsError, fit_gam, gaussian_density,
+    LocalQuadraticWorkspace, SmoothSpec, StatsError, fit_gam, fit_gam_weighted, gaussian_density,
     gaussian_local_quadratic_influence_prechecked, normal_ppf, silverman_bandwidth,
 };
 
@@ -287,6 +289,22 @@ impl ContinuousResponseEstimator {
         estimator: &crate::BayesianGComputationAte,
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<CausalResponse, EstimationError> {
+        if matches!(
+            &query.functional,
+            ResponseFunctional::AverageDerivative { .. }
+                | ResponseFunctional::PointDerivative { .. }
+                | ResponseFunctional::DirectionalDerivative { .. }
+                | ResponseFunctional::Jacobian { .. }
+        ) {
+            return self.estimate_bayesian_derivative(
+                data,
+                query,
+                identification_status,
+                assumptions,
+                estimator,
+                ctx,
+            );
+        }
         self.validate(query, identification_status)?;
         if estimator.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
             || self.options.simultaneous_replicates.is_some()
@@ -330,7 +348,7 @@ impl ContinuousResponseEstimator {
             }
             _ => {
                 return Err(EstimationError::unsupported(
-                    "Bayesian response supports MeanCurve and InterventionResponse",
+                    "Bayesian response supports MeanCurve, InterventionResponse, and derivative functionals",
                 ));
             }
         };
@@ -482,6 +500,318 @@ impl ContinuousResponseEstimator {
                 &query.functional,
                 ResponseFunctional::InterventionResponse { interventions, .. } if interventions.len() > 1
             ),
+        })
+    }
+
+    fn estimate_bayesian_derivative(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        identification_status: IdentificationStatus,
+        assumptions: AssumptionSet,
+        estimator: &crate::BayesianGComputationAte,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<CausalResponse, EstimationError> {
+        if estimator.prior.is_some() {
+            return Err(EstimationError::unsupported(
+                "coefficient priors require a mapping to the Riesz/local-polynomial/GAM parameterization; a linear response prior cannot be silently ignored",
+            ));
+        }
+        query.validate()?;
+        if !matches!(
+            identification_status,
+            IdentificationStatus::NonparametricallyIdentified
+                | IdentificationStatus::IdentifiedUnderParametricRestrictions
+        ) {
+            return Err(EstimationError::IncompatibleEstimand {
+                message: "Bayesian derivatives require point identification",
+            });
+        }
+        self.validate(query, identification_status)?;
+        let mut assumptions = with_estimation_assumptions(assumptions, &query.functional);
+        let level = self.options.confidence_level;
+        let draws_n = crate::require_bayesian_n_draws(estimator.n_draws)?;
+        let (value, uncertainty, support, assumption_id, assumption_text, provenance) = match &query
+            .functional
+        {
+            ResponseFunctional::AverageDerivative { outcome, treatment, weighting } => {
+                if !matches!(weighting, DerivativeWeighting::Observed) {
+                    return Err(EstimationError::unsupported(
+                        "Bayesian ADE currently supports observed-law weighting only",
+                    ));
+                }
+                let sample =
+                    CompleteSample::read(data, *outcome, &[*treatment], &self.adjustment_set)?;
+                let (_, _, support) =
+                    self.average_derivative(data, *outcome, *treatment, weighting)?;
+                let mut rng = ctx.rng.stream(0xADEB_0001);
+                let mut values = Vec::with_capacity(draws_n);
+                for _ in 0..draws_n {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(EstimationError::unsupported("Bayesian ADE cancelled"));
+                    }
+                    let weights = bootstrap_weights(sample.len(), &mut rng);
+                    values.push(self.weighted_plugin_ade(&sample, &weights)?);
+                }
+                let (mean, lo, hi, sd) = summarize_scalar_draws(&values, level)?;
+                (
+                    ResponseValue::Scalar(mean),
+                    scalar_uncertainty(sd, level, lo, hi),
+                    support,
+                    "bayesian.derivative.riesz_weighted_plugin",
+                    "Each Rubin Bayesian-bootstrap draw refits the additive-GAM outcome μ and Gaussian treatment law α under Dirichlet(1,...,1)/Exp(1) row weights, then evaluates the weighted Riesz ADE φ = ∂_a μ̂_w + α_w (Y − μ̂_w). This is not a frozen-score reweight of the first-fit φ_i. Estimator identity stays response.riesz_ade",
+                    "estimate.response.riesz_ade",
+                )
+            }
+            ResponseFunctional::PointDerivative { .. }
+            | ResponseFunctional::DirectionalDerivative { .. }
+            | ResponseFunctional::Jacobian { .. } => {
+                self.validate(query, identification_status)?;
+                let (point, _, mut support, provenance) = match &query.functional {
+                    ResponseFunctional::PointDerivative {
+                        outcome,
+                        treatment,
+                        at,
+                        order,
+                        scale,
+                    } => {
+                        let (value, uncertainty, support) =
+                            self.point_derivative(data, *outcome, *treatment, *at, *order, *scale)?;
+                        (value, uncertainty, support, "estimate.response.point_derivative")
+                    }
+                    ResponseFunctional::DirectionalDerivative {
+                        outcomes,
+                        treatments,
+                        at,
+                        direction,
+                    } => {
+                        let (value, uncertainty, support) =
+                            self.directional_derivative(data, outcomes, treatments, at, direction)?;
+                        (value, uncertainty, support, "estimate.response.gam_derivative")
+                    }
+                    ResponseFunctional::Jacobian { outcomes, treatments, at, scale } => {
+                        let (value, uncertainty, support) =
+                            self.jacobian(data, outcomes, treatments, at, *scale)?;
+                        (value, uncertainty, support, "estimate.response.gam_derivative")
+                    }
+                    _ => unreachable!(),
+                };
+                // This frequentist warning describes a withheld delta interval;
+                // the transformed posterior draws below supply an interval.
+                support.warnings.retain(|warning| {
+                    warning.code.as_ref() != "response.derivative_interval_withheld"
+                });
+                let mut rng = ctx.rng.stream(0xADEB_0002);
+                // Hold cross-fitted nuisances and bandwidth fixed for the point
+                // estimator, matching its existing uncertainty convention. GAM
+                // draws refit coefficients with continuous row weights.
+                let (samples, pseudo, bandwidth) = match &query.functional {
+                    ResponseFunctional::PointDerivative { outcome, treatment, .. } => {
+                        let sample = CompleteSample::read(
+                            data,
+                            *outcome,
+                            &[*treatment],
+                            &self.adjustment_set,
+                        )?;
+                        let pseudo = self.cross_fitted_pseudo_outcome(&sample)?.values;
+                        let bandwidth = self
+                            .options
+                            .bandwidth
+                            .unwrap_or(silverman_bandwidth(&sample.treatments)?);
+                        (vec![sample], pseudo, bandwidth)
+                    }
+                    ResponseFunctional::DirectionalDerivative { outcomes, treatments, .. }
+                    | ResponseFunctional::Jacobian { outcomes, treatments, .. } => (
+                        read_shared_complete_samples(
+                            data,
+                            outcomes,
+                            treatments,
+                            &self.adjustment_set,
+                        )?,
+                        Vec::new(),
+                        0.0,
+                    ),
+                    _ => unreachable!(),
+                };
+                let n = samples[0].len();
+                let mut scalars = Vec::with_capacity(draws_n);
+                let mut vectors: Vec<Vec<f64>> = Vec::with_capacity(draws_n);
+                for _ in 0..draws_n {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(EstimationError::unsupported("Bayesian derivative cancelled"));
+                    }
+                    let weights = bootstrap_weights(n, &mut rng);
+                    let draw = match &query.functional {
+                        ResponseFunctional::PointDerivative { at, order, scale, .. } => {
+                            let p = antecedent_stats::gaussian_local_quadratic_weighted(
+                                &samples[0].treatments,
+                                &pseudo,
+                                *at,
+                                bandwidth,
+                                &weights,
+                            )?;
+                            ResponseValue::Scalar(transform_point_derivative(
+                                p.value,
+                                p.first_derivative,
+                                p.second_derivative,
+                                *at,
+                                *order,
+                                *scale,
+                            )?)
+                        }
+                        ResponseFunctional::DirectionalDerivative { at, direction, .. } => {
+                            let mut values = Vec::with_capacity(samples.len());
+                            for sample in &samples {
+                                let (_, gradient) =
+                                    self.plugin_gradient_weighted(sample, at, Some(&weights))?;
+                                values.push(
+                                    gradient.iter().zip(direction.iter()).map(|(a, b)| a * b).sum(),
+                                );
+                            }
+                            ResponseValue::Vector(Arc::from(values))
+                        }
+                        ResponseFunctional::Jacobian { at, scale, treatments, outcomes } => {
+                            let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
+                            for sample in &samples {
+                                let (level, gradient) =
+                                    self.plugin_gradient_weighted(sample, at, Some(&weights))?;
+                                for (j, raw) in gradient.into_iter().enumerate() {
+                                    values.push(transform_derivative(raw, at[j], level, *scale)?);
+                                }
+                            }
+                            ResponseValue::Jacobian {
+                                outcomes: outcomes.len(),
+                                treatments: treatments.len(),
+                                values: Arc::from(values),
+                            }
+                        }
+                        _ => unreachable!(),
+                    };
+                    match &draw {
+                        ResponseValue::Scalar(v) => {
+                            scalars.push(*v);
+                        }
+                        ResponseValue::Vector(v) | ResponseValue::Jacobian { values: v, .. } => {
+                            vectors.push(v.to_vec());
+                        }
+                        _ => {
+                            return Err(EstimationError::stats_msg(
+                                "Bayesian derivative draw was not point-identified",
+                            ));
+                        }
+                    }
+                }
+                let (value, uncertainty) = if scalars.is_empty() {
+                    let dim = vectors.first().map_or(0, Vec::len);
+                    let mut means = vec![0.0; dim];
+                    let mut lower = vec![0.0; dim];
+                    let mut upper = vec![0.0; dim];
+                    for j in 0..dim {
+                        let col: Vec<f64> = vectors.iter().map(|row| row[j]).collect();
+                        let (mean, lo, hi, _) = summarize_scalar_draws(&col, level)?;
+                        means[j] = mean;
+                        lower[j] = lo;
+                        upper[j] = hi;
+                    }
+                    let value = match &point {
+                        ResponseValue::Jacobian { outcomes, treatments, .. } => {
+                            ResponseValue::Jacobian {
+                                outcomes: *outcomes,
+                                treatments: *treatments,
+                                values: Arc::from(means),
+                            }
+                        }
+                        _ => ResponseValue::Vector(Arc::from(means)),
+                    };
+                    (
+                        value,
+                        ResponseUncertainty::PointwiseBand {
+                            level,
+                            lower: Arc::from(lower),
+                            upper: Arc::from(upper),
+                        },
+                    )
+                } else {
+                    let (mean, lo, hi, sd) = summarize_scalar_draws(&scalars, level)?;
+                    (ResponseValue::Scalar(mean), scalar_uncertainty(sd, level, lo, hi))
+                };
+                (
+                    value,
+                    uncertainty,
+                    support,
+                    "bayesian.derivative.estimator_bootstrap",
+                    "Dirichlet row-weight posterior of the point/GAM derivative plugin; point draws condition on cross-fitted nuisances and bandwidth, GAM draws refit with fixed knots and penalty; excludes nuisance-selection and smoothing-bias uncertainty",
+                    provenance,
+                )
+            }
+            _ => {
+                return Err(EstimationError::unsupported("not a derivative functional"));
+            }
+        };
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::ParametricRestriction(ParametricAssumption {
+                id: Arc::from(assumption_id),
+                description: Arc::from(assumption_text),
+            }),
+            source: AssumptionSource::AlgorithmDefault {
+                algorithm: Arc::from("response.bayesian.derivative"),
+            },
+            scope: AssumptionScope::Estimation,
+            status: AssumptionStatus::Declared,
+        });
+        Ok(CausalResponse {
+            estimand: query.functional.clone(),
+            identification_status,
+            estimate: ResponseIdentification::PointIdentified(value),
+            uncertainty,
+            support,
+            assumptions,
+            provenance_id: Arc::from(provenance),
+            horizon_identification: None,
+            interaction_structurally_zero: false,
+        })
+    }
+
+    /// Linear Gaussian design used by Bayesian response and derivative transfer.
+    ///
+    /// # Errors
+    ///
+    /// Incomplete rows or a singular design.
+    pub fn prepare_linear_response_problem(
+        &self,
+        data: &TabularData,
+        outcome: VariableId,
+        treatments: &[VariableId],
+    ) -> Result<crate::PreparedBayesianProblem, EstimationError> {
+        let sample = CompleteSample::read(data, outcome, treatments, &self.adjustment_set)?;
+        let n = sample.len();
+        let mut covs: Vec<_> = treatments
+            .iter()
+            .enumerate()
+            .skip(1)
+            .map(|(i, &id)| (id, &sample.treatment_matrix[i * n..(i + 1) * n]))
+            .collect();
+        covs.extend(
+            self.adjustment_set
+                .iter()
+                .enumerate()
+                .map(|(i, &id)| (id, &sample.adjustment[i * n..(i + 1) * n])),
+        );
+        let design = antecedent_stats::CompiledDesign::linear_adjustment(
+            &sample.treatments,
+            &covs,
+            &sample.outcome,
+            &sample.keep,
+        )?;
+        Ok(crate::PreparedBayesianProblem {
+            design,
+            method: Arc::from("response.linear"),
+            adjustment_set: self.adjustment_set.clone(),
+            active: 1.0,
+            control: 0.0,
+            overlap: crate::OverlapPolicy::ExplicitOverride,
+            coef_names: None,
+            unit_ids: None,
         })
     }
 
@@ -1130,14 +1460,129 @@ impl ContinuousResponseEstimator {
         Ok(AverageDerivativeScores { scores, riesz_weights })
     }
 
+    /// Weighted-plugin ADE: refit outcome and treatment nuisances under
+    /// Dirichlet/Exp(1) row weights, then evaluate the weighted Riesz score
+    /// mean (derivative plus score times residual).
+    fn weighted_plugin_ade(
+        &self,
+        sample: &CompleteSample,
+        weights: &[f64],
+    ) -> Result<f64, EstimationError> {
+        if weights.len() != sample.len() {
+            return Err(EstimationError::stats_msg("ADE weights length must match complete rows"));
+        }
+        let mut gam_ws = GamWorkspace::default();
+        let outcome_fit = self.fit_outcome_weighted(sample, weights, &mut gam_ws)?;
+        let treatment_fit = self.fit_treatment_weighted(sample, weights, &mut gam_ws)?;
+        let sigma = treatment_sigma_weighted(sample, weights, treatment_fit.as_ref())?;
+        let treatment_mean_constant = weighted_mean(&sample.treatments, weights)?;
+        let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {
+            EstimationError::unsupported("outcome nuisance is missing its treatment smooth")
+        })?;
+        let mut row = vec![0.0; sample.raw_cols];
+        let mut adj_row = vec![0.0; sample.adjustment_cols];
+        let mut num = 0.0;
+        let mut den = 0.0;
+        for (i, &weight) in weights.iter().enumerate() {
+            sample.write_raw_row(i, &mut row);
+            let mu = predict_one(&outcome_fit, &row)?;
+            let derivative = outcome_fit.smooth_derivative(treat_smooth, sample.treatments[i])?;
+            let treatment_mean = match treatment_fit.as_ref() {
+                Some(fit) => {
+                    sample.write_adjustment_row(i, &mut adj_row);
+                    predict_one(fit, &adj_row)?
+                }
+                None => treatment_mean_constant,
+            };
+            let alpha = (sample.treatments[i] - treatment_mean) / (sigma * sigma);
+            let phi = derivative + alpha * (sample.outcome[i] - mu);
+            num += weight * phi;
+            den += weight;
+        }
+        if !den.is_finite() || den <= 0.0 || !num.is_finite() {
+            return Err(EstimationError::stats_msg("weighted ADE plugin was non-finite"));
+        }
+        Ok(num / den)
+    }
+
+    fn fit_outcome_weighted(
+        &self,
+        sample: &CompleteSample,
+        weights: &[f64],
+        workspace: &mut GamWorkspace,
+    ) -> Result<antecedent_stats::GamFit, EstimationError> {
+        let x = sample.raw_all();
+        fit_additive_weighted(
+            &x,
+            sample.len(),
+            sample.raw_cols,
+            &sample.outcome,
+            weights,
+            self.options.nuisance_basis,
+            self.options.nuisance_lambda,
+            workspace,
+        )
+    }
+
+    fn fit_treatment_weighted(
+        &self,
+        sample: &CompleteSample,
+        weights: &[f64],
+        workspace: &mut GamWorkspace,
+    ) -> Result<Option<antecedent_stats::GamFit>, EstimationError> {
+        if sample.adjustment_cols == 0 {
+            return Ok(None);
+        }
+        let x = sample.adjustment_all();
+        fit_additive_weighted(
+            &x,
+            sample.len(),
+            sample.adjustment_cols,
+            &sample.treatments,
+            weights,
+            self.options.nuisance_basis,
+            self.options.nuisance_lambda,
+            workspace,
+        )
+        .map(Some)
+    }
+
     fn plugin_gradient(
         &self,
         sample: &CompleteSample,
         at: &[f64],
     ) -> Result<(f64, Vec<f64>), EstimationError> {
+        self.plugin_gradient_weighted(sample, at, None)
+    }
+
+    fn plugin_gradient_weighted(
+        &self,
+        sample: &CompleteSample,
+        at: &[f64],
+        weights: Option<&[f64]>,
+    ) -> Result<(f64, Vec<f64>), EstimationError> {
         let rows: Vec<usize> = (0..sample.len()).collect();
         let mut gam_ws = GamWorkspace::default();
-        let fit = self.fit_outcome(sample, &rows, &mut gam_ws)?;
+        let x = sample.raw_subset(&rows);
+        let specs: Vec<_> = (0..sample.raw_cols)
+            .map(|col| {
+                SmoothSpec::new(col, self.options.nuisance_basis, self.options.nuisance_lambda)
+            })
+            .collect();
+        let fit = antecedent_stats::fit_gam_weighted(
+            &x,
+            sample.len(),
+            sample.raw_cols,
+            &sample.outcome,
+            &specs,
+            &GamOptions { max_iter: 500, tol: 1e-6 },
+            weights,
+            &FaerBackend,
+            &mut gam_ws,
+        )?;
+        if !fit.converged {
+            return Err(EstimationError::stats_msg("weighted GAM did not converge"));
+        }
         let mut treat_smooths = Vec::with_capacity(at.len());
         for j in 0..at.len() {
             treat_smooths.push(fit.smooth_for_raw_col(j).ok_or_else(|| {
@@ -1152,10 +1597,17 @@ impl ContinuousResponseEstimator {
         for i in 0..sample.len() {
             for (j, &smooth) in treat_smooths.iter().enumerate() {
                 let a_ij = sample.treatment_matrix[j * sample.len() + i];
-                observed_treat_partial += fit.smooth_partial(smooth, a_ij)?;
+                observed_treat_partial +=
+                    weights.map_or(1.0, |w| w[i]) * fit.smooth_partial(smooth, a_ij)?;
             }
         }
-        let fitted_mean = fit.fitted.iter().sum::<f64>() / n;
+        let fitted_mean = fit
+            .fitted
+            .iter()
+            .enumerate()
+            .map(|(i, v)| v * weights.map_or(1.0, |w| w[i]))
+            .sum::<f64>()
+            / n;
         let covariate_offset = fitted_mean - fit.intercept - observed_treat_partial / n;
         let mut treat_level = 0.0;
         let mut gradient = Vec::with_capacity(at.len());
@@ -1252,7 +1704,43 @@ fn with_estimation_assumptions(
     assumptions
 }
 
-#[derive(Clone, Debug)]
+fn bootstrap_weights(n: usize, rng: &mut CausalRng) -> Vec<f64> {
+    let mut weights: Vec<f64> =
+        (0..n).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+    let total: f64 = weights.iter().sum();
+    for w in &mut weights {
+        *w *= n as f64 / total;
+    }
+    weights
+}
+
+fn summarize_scalar_draws(
+    values: &[f64],
+    level: f64,
+) -> Result<(f64, f64, f64, f64), EstimationError> {
+    if values.len() < 2 || values.iter().any(|v| !v.is_finite()) {
+        return Err(EstimationError::stats_msg(
+            "derivative posterior needs at least two finite draws",
+        ));
+    }
+    let mean = values.iter().sum::<f64>() / values.len() as f64;
+    let sd =
+        (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (values.len() - 1) as f64).sqrt();
+    let mut sorted = values.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    let quantile = |p: f64| {
+        let x = p * (sorted.len() - 1) as f64;
+        let lo = x.floor() as usize;
+        let hi = x.ceil() as usize;
+        sorted[lo] + (sorted[hi] - sorted[lo]) * (x - lo as f64)
+    };
+    Ok((mean, quantile((1.0 - level) / 2.0), quantile((1.0 + level) / 2.0), sd))
+}
+
+fn scalar_uncertainty(sd: f64, level: f64, lo: f64, hi: f64) -> ResponseUncertainty {
+    ResponseUncertainty::Scalar { standard_error: sd, level, lower: lo, upper: hi }
+}
+
 struct CompleteSample {
     /// Original dataframe row index of each retained complete row.
     keep: Vec<usize>,
@@ -1409,6 +1897,17 @@ impl CompleteSample {
     fn treatment_column_range(&self, col: usize) -> (f64, f64) {
         range(&self.treatment_matrix[col * self.len()..(col + 1) * self.len()])
     }
+
+    fn raw_all(&self) -> Vec<f64> {
+        let mut out = Vec::with_capacity(self.len() * self.raw_cols);
+        out.extend_from_slice(&self.treatment_matrix);
+        out.extend_from_slice(&self.adjustment);
+        out
+    }
+
+    fn adjustment_all(&self) -> Vec<f64> {
+        self.adjustment.clone()
+    }
 }
 
 fn fit_additive(
@@ -1445,6 +1944,53 @@ fn fit_additive(
     Ok(fit)
 }
 
+fn fit_additive_weighted(
+    x: &[f64],
+    nrows: usize,
+    ncols: usize,
+    y: &[f64],
+    weights: &[f64],
+    basis: usize,
+    lambda: f64,
+    workspace: &mut GamWorkspace,
+) -> Result<antecedent_stats::GamFit, EstimationError> {
+    let specs: Vec<SmoothSpec> =
+        (0..ncols).map(|col| SmoothSpec::new(col, basis, lambda)).collect();
+    let fit = fit_gam_weighted(
+        x,
+        nrows,
+        ncols,
+        y,
+        &specs,
+        &GamOptions { max_iter: 500, tol: 1e-6 },
+        Some(weights),
+        &FaerBackend,
+        workspace,
+    )?;
+    if !fit.converged {
+        return Err(EstimationError::unsupported(
+            "weighted additive GAM nuisance did not converge; refuse rather than publish an unfinished fit",
+        ));
+    }
+    Ok(fit)
+}
+
+fn weighted_mean(values: &[f64], weights: &[f64]) -> Result<f64, EstimationError> {
+    if values.len() != weights.len() || values.is_empty() {
+        return Err(EstimationError::stats_msg("weighted mean requires matching nonempty slices"));
+    }
+    let mut num = 0.0;
+    let mut den = 0.0;
+    for (value, weight) in values.iter().zip(weights) {
+        num += *weight * *value;
+        den += *weight;
+    }
+    if !den.is_finite() || den <= 0.0 || !num.is_finite() {
+        return Err(EstimationError::stats_msg("weighted mean was non-finite"));
+    }
+    Ok(num / den)
+}
+
 fn predict_one(fit: &antecedent_stats::GamFit, raw_row: &[f64]) -> Result<f64, EstimationError> {
     Ok(fit.predict_row(raw_row)?)
 }
@@ -1471,6 +2017,39 @@ fn treatment_sigma(
     if !sigma.is_finite() || sigma <= f64::EPSILON {
         return Err(EstimationError::unsupported(
             "Gaussian treatment nuisance has degenerate residual variance",
+        ));
+    }
+    Ok(sigma)
+}
+
+fn treatment_sigma_weighted(
+    sample: &CompleteSample,
+    weights: &[f64],
+    fit: Option<&antecedent_stats::GamFit>,
+) -> Result<f64, EstimationError> {
+    let n_eff: f64 = weights.iter().sum();
+    let (rss, denominator) = if let Some(fit) = fit {
+        let rss = fit
+            .residuals
+            .iter()
+            .zip(weights)
+            .map(|(residual, weight)| weight * residual * residual)
+            .sum::<f64>();
+        (rss, (n_eff - fit.edf_approx).max(1.0))
+    } else {
+        let mean = weighted_mean(&sample.treatments, weights)?;
+        let rss = sample
+            .treatments
+            .iter()
+            .zip(weights)
+            .map(|(treatment, weight)| weight * (treatment - mean).powi(2))
+            .sum::<f64>();
+        (rss, (n_eff - 1.0).max(1.0))
+    };
+    let sigma = (rss / denominator).sqrt();
+    if !sigma.is_finite() || sigma <= f64::EPSILON {
+        return Err(EstimationError::unsupported(
+            "weighted Gaussian treatment nuisance has degenerate residual variance",
         ));
     }
     Ok(sigma)
@@ -2883,6 +3462,70 @@ mod tests {
                 .iter()
                 .any(|d| d.id.as_ref() == "response.outcome_tail_ratio")
         );
+    }
+
+    #[test]
+    fn bayesian_ade_refits_nuisances_not_frozen_scores() {
+        let (data, a, y, x) = confounded_curve(240);
+        let estimator = ContinuousResponseEstimator::new([x]);
+        let sample = CompleteSample::read(&data, y, &[a], &[x]).unwrap();
+        let frozen = estimator.cross_fitted_ade_scores(&sample).unwrap();
+        let mut weights = vec![1.0; sample.len()];
+        for (i, weight) in weights.iter_mut().enumerate() {
+            *weight = if i < sample.len() / 5 { 8.0 } else { 0.2 };
+        }
+        let plugin = estimator.weighted_plugin_ade(&sample, &weights).unwrap();
+        let frozen_mean =
+            frozen.scores.iter().zip(&weights).map(|(score, weight)| score * weight).sum::<f64>()
+                / weights.iter().sum::<f64>();
+        assert!(
+            (plugin - frozen_mean).abs() > 1e-3,
+            "weighted-plugin ADE must move with refitted μ,α; plugin={plugin} frozen={frozen_mean}"
+        );
+
+        let query = ResponseQuery::new(ResponseFunctional::AverageDerivative {
+            outcome: y,
+            treatment: a,
+            weighting: DerivativeWeighting::Observed,
+        });
+        let bayes = crate::BayesianGComputationAte::new().with_n_draws(8);
+        let response = estimator
+            .estimate_bayesian(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &bayes,
+                &antecedent_core::ExecutionContext::for_tests(18),
+            )
+            .unwrap();
+        assert_eq!(response.provenance_id.as_ref(), "estimate.response.riesz_ade");
+        assert!(
+            response.assumptions.entries.iter().any(|record| match &record.assumption {
+                Assumption::ParametricRestriction(restriction) =>
+                    restriction.description.contains("not a frozen-score reweight"),
+                _ => false,
+            }),
+            "Bayesian ADE must record the refit assumption: {:?}",
+            response.assumptions
+        );
+        for n_draws in [0, 1] {
+            let too_few = crate::BayesianGComputationAte::new().with_n_draws(n_draws);
+            let err = estimator
+                .estimate_bayesian(
+                    &data,
+                    &query,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    AssumptionSet::new(),
+                    &too_few,
+                    &antecedent_core::ExecutionContext::for_tests(18),
+                )
+                .unwrap_err();
+            assert!(
+                err.to_string().contains("n_draws >= 2"),
+                "n_draws={n_draws} must refuse: {err}"
+            );
+        }
     }
 
     #[test]

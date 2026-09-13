@@ -60,11 +60,12 @@ For example, consider an average treatment effect estimated with AIPW. The publi
 
 ## Project status and documentation
 
-The current package version is **1.7.0**.
-The release adds class-preserving Bayesian analyses on incomplete temporal
-graphs, plus multi-step Sustained, Sequence, observation, and prior transfer
-on `TemporalCpdag` / `TemporalPag`. The
-[1.7.0 release notes](docs/release-notes/v1.7.0.md), [support
+The current package version is **1.8.0**.
+The release licenses the Bayesian remainder of the staged handle: functional
+path, distribution, and ADMG ATE, static mediation, counterfactuals,
+derivatives, ConditionalEffect graph-posterior mixtures, and staged prior
+transfer. The
+[1.8.0 release notes](docs/release-notes/v1.8.0.md), [support
 matrix](docs/support-matrix.md), and [conformance index](docs/conformance/README.md)
 state the implemented scope and verification limits. The [1.5 Python
 walkthrough](docs/local-distributional-joint.md) remains the guide for

@@ -107,6 +107,12 @@ pub struct CausalPosterior {
     pub unidentified_mass: f64,
     /// Adaptive draw early-stop (Laplace / conjugate Gaussian redraw path).
     pub early_stopped: bool,
+    /// Source treatment contrast `active − control` used to form the effect.
+    ///
+    /// Recorded so EffectFunctional hydrate can map ATE → β_T as ATE/Δ.
+    /// `None` when the posterior is not an identity-link contrast (or the
+    /// contrast was not available at fit time).
+    pub treatment_contrast: Option<f64>,
 }
 
 impl CausalPosterior {
@@ -135,6 +141,48 @@ impl CausalPosterior {
 
 /// Minimum coefficient prior variance when hydrating from a posterior (numerical floor).
 const HYDRATE_VAR_FLOOR: f64 = 1e-12;
+/// Smallest |Δ| accepted for the identity-link ATE → β_T mapping.
+const HYDRATE_CONTRAST_FLOOR: f64 = 1e-12;
+
+/// Bayesian posteriors need at least two draws to form a finite SD / interval.
+///
+/// This is an API refuse, not a support-matrix cell refuse. Callers must not
+/// silently rewrite `0` or `1` to `2`.
+///
+/// # Errors
+///
+/// `n_draws < 2`.
+pub fn require_bayesian_n_draws(n_draws: usize) -> Result<usize, EstimationError> {
+    if n_draws < 2 {
+        return Err(EstimationError::stats_msg(format!(
+            "Bayesian inference requires n_draws >= 2; got {n_draws} (refusing silent rewrite)"
+        )));
+    }
+    Ok(n_draws)
+}
+
+fn identity_ate_to_slope(mean: f64, sd: f64, delta: f64) -> Result<(f64, f64), EstimationError> {
+    if !delta.is_finite() || delta.abs() <= HYDRATE_CONTRAST_FLOOR {
+        return Err(EstimationError::stats_msg(
+            "hydrate_prior: EffectFunctional identity-link ATE→β_T mapping requires a finite nonzero source contrast Δ (active − control)",
+        ));
+    }
+    Ok((mean / delta, sd / delta.abs()))
+}
+
+fn effect_functional_bind_col(
+    names: &[Arc<str>],
+    treatment_col: Option<usize>,
+) -> Result<usize, EstimationError> {
+    if let Some(idx) = names.iter().position(|n| n.as_ref() == "treatment_at_mean_modifier") {
+        return Ok(idx);
+    }
+    treatment_col.ok_or_else(|| {
+        EstimationError::stats_msg(
+            "hydrate_prior: EffectFunctional requires treatment_col, or a CATE `treatment_at_mean_modifier` coefficient",
+        )
+    })
+}
 
 /// Build a Gaussian coefficient [`PriorSet`] from posterior quantity summaries.
 ///
@@ -250,8 +298,11 @@ pub enum HydrateMapping {
 ///
 /// - [`HydrateMapping::IdenticalCoefficientSubspace`]: full coef hydrate; hard-errors
 ///   when source coef count ≠ baseline length.
-/// - [`HydrateMapping::EffectFunctional`]: maps source effect moments onto the
-///   treatment coefficient (identity-link ATE bridge); other dims keep `baseline`.
+/// - [`HydrateMapping::EffectFunctional`]: identity-link ATE → slope bridge
+///   `β ~ N(μ_ATE / Δ, (σ_ATE / Δ)²)` onto the treatment coefficient, or onto
+///   `treatment_at_mean_modifier` when that CATE coefficient is present.
+///   `source_contrast` is the source `active − control`. Missing or ~0 Δ is a
+///   typed refuse of the mapping. Other dims keep `baseline`.
 /// - [`HydrateMapping::NamedParameters`]: maps named source moments onto named
 ///   target coefficients; unmapped dims keep `baseline`.
 ///
@@ -260,7 +311,8 @@ pub enum HydrateMapping {
 ///
 /// # Errors
 ///
-/// Dimension mismatch, missing effect column, unknown names, or invalid baseline.
+/// Dimension mismatch, missing effect column, unknown names, missing/zero Δ,
+/// or invalid baseline.
 pub fn hydrate_prior(
     mapping: &HydrateMapping,
     quantities: &[PosteriorQuantityKind],
@@ -269,6 +321,7 @@ pub fn hydrate_prior(
     baseline: &PriorSet,
     target_coef_names: &[Arc<str>],
     treatment_col: Option<usize>,
+    source_contrast: Option<f64>,
 ) -> Result<PriorSet, EstimationError> {
     if mean.len() != quantities.len() || sd.len() != quantities.len() {
         return Err(EstimationError::stats_msg(
@@ -296,16 +349,20 @@ pub fn hydrate_prior(
             Ok(prior)
         }
         HydrateMapping::EffectFunctional { source_quantity } => {
-            let t_col = treatment_col.ok_or_else(|| {
-                EstimationError::stats_msg("hydrate_prior: EffectFunctional requires treatment_col")
-            })?;
+            let t_col = effect_functional_bind_col(target_coef_names, treatment_col)?;
             if t_col >= n_target {
                 return Err(EstimationError::stats_msg(format!(
                     "hydrate_prior: treatment_col {t_col} out of range for {n_target} coefs"
                 )));
             }
+            let delta = source_contrast.ok_or_else(|| {
+                EstimationError::stats_msg(
+                    "hydrate_prior: EffectFunctional identity-link ATE→β_T mapping requires a finite nonzero source contrast Δ (active − control)",
+                )
+            })?;
             let (m, s) = quantity_moments(quantities, mean, sd, source_quantity.as_str())?;
-            let effect = EffectPrior::new(m, s.max(HYDRATE_VAR_FLOOR.sqrt()))
+            let (slope_mean, slope_sd) = identity_ate_to_slope(m, s, delta)?;
+            let effect = EffectPrior::new(slope_mean, slope_sd.max(HYDRATE_VAR_FLOOR.sqrt()))
                 .map_err(EstimationError::from)?;
             let mut means: Vec<f64> = base_coef.mean.to_vec();
             let mut vars: Vec<f64> = base_coef.variance.to_vec();
@@ -314,6 +371,8 @@ pub fn hydrate_prior(
             let coef =
                 GaussianCoefficientPrior { mean: Arc::from(means), variance: Arc::from(vars) };
             coef.validate().map_err(EstimationError::from)?;
+            let target_name = target_coef_names[t_col].as_ref();
+            let implied = effect.mean * delta;
             let mut prior = PriorSet {
                 specs: vec![PriorSpec::GaussianCoefficients(coef)],
                 contrast: baseline.contrast,
@@ -321,7 +380,7 @@ pub fn hydrate_prior(
                 restrictions: vec![PriorAssumption {
                     id: Arc::from("external_effect_prior"),
                     description: Arc::from(format!(
-                        "external effect-functional prior from quantity `{source_quantity}` onto treatment coefficient"
+                        "external effect-functional prior: identity-link ATE→β via N(μ/Δ, (σ/Δ)²) from `{source_quantity}` (Δ={delta}) onto {target_name}; implied NDE/ATE mean {implied}"
                     )),
                 }],
             };
@@ -786,9 +845,10 @@ impl BayesianGComputationAte {
         // HMC publication (Ř≤1.01, ESS≥100) needs a longer schedule than the
         // Laplace/conjugate default of 1000 draws; floor so under-specified
         // callers still clear the gate rather than refuse with near-miss Ř.
+        let requested_draws = require_bayesian_n_draws(self.n_draws)?;
         let max_draws = match self.backend {
-            BayesianBackendKind::Hmc => self.n_draws.max(HMC_MIN_DRAWS),
-            _ => self.n_draws.max(1),
+            BayesianBackendKind::Hmc => requested_draws.max(HMC_MIN_DRAWS),
+            _ => requested_draws,
         };
         let adaptive = ctx.adaptive_draws;
         // Adaptive redraws append samples from the fitted Gaussian covariance. Unknown-variance
@@ -1023,6 +1083,7 @@ impl BayesianGComputationAte {
                 assumptions,
                 unidentified_mass: 0.0,
                 early_stopped,
+                treatment_contrast: Some(problem.active - problem.control),
             });
         }
 
@@ -1086,6 +1147,7 @@ impl BayesianGComputationAte {
             assumptions,
             unidentified_mass: 0.0,
             early_stopped: false,
+            treatment_contrast: Some(problem.active - problem.control),
         })
     }
 }
@@ -1567,6 +1629,7 @@ pub fn nonidentified_with_prior(
         assumptions,
         unidentified_mass: 1.0,
         early_stopped: false,
+        treatment_contrast: None,
     }
 }
 
@@ -2511,11 +2574,13 @@ mod tests {
             &baseline,
             &names,
             Some(1),
+            Some(0.5),
         )
         .unwrap();
         let coef = prior.gaussian_coefficients().unwrap();
-        assert!((coef.mean[1] - 2.0).abs() < 1e-12);
-        assert!((coef.variance[1] - 0.16).abs() < 1e-12);
+        // Identity ATE = Δ β_T, so β ~ N(2.0/0.5, (0.4/0.5)²).
+        assert!((coef.mean[1] - 4.0).abs() < 1e-12);
+        assert!((coef.variance[1] - 0.64).abs() < 1e-12);
         // Unmapped dims keep baseline (isotropic scale 10 → var 100).
         assert!((coef.mean[0] - 0.0).abs() < 1e-12);
         assert!((coef.variance[0] - 100.0).abs() < 1e-12);
@@ -2547,6 +2612,7 @@ mod tests {
                 &baseline3,
                 &names3,
                 None,
+                None,
             )
             .is_err()
         );
@@ -2560,6 +2626,34 @@ mod tests {
                 &baseline2,
                 &names2,
                 Some(1),
+                Some(1.0),
+            )
+            .is_err()
+        );
+
+        assert!(
+            hydrate_prior(
+                &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
+                &quantities,
+                &mean,
+                &sd,
+                &baseline2,
+                &names2,
+                Some(1),
+                None,
+            )
+            .is_err()
+        );
+        assert!(
+            hydrate_prior(
+                &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
+                &quantities,
+                &mean,
+                &sd,
+                &baseline2,
+                &names2,
+                Some(1),
+                Some(0.0),
             )
             .is_err()
         );
@@ -2574,6 +2668,7 @@ mod tests {
                 &sd,
                 &baseline2,
                 &names2,
+                None,
                 None,
             )
             .is_err()
@@ -2590,9 +2685,39 @@ mod tests {
                 &baseline2,
                 &names2,
                 None,
+                None,
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn hydrate_effect_functional_lands_on_cate_coefficient() {
+        let quantities = vec![PosteriorQuantityKind::Effect { name: Arc::from("ate") }];
+        let mean = vec![1.2];
+        let sd = vec![0.3];
+        let names: Vec<Arc<str>> = vec![
+            Arc::from("intercept"),
+            Arc::from("treatment_at_mean_modifier"),
+            Arc::from("modifier"),
+            Arc::from("treatment_centered_modifier"),
+        ];
+        let baseline = PriorSet::weakly_informative(4);
+        let prior = hydrate_prior(
+            &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
+            &quantities,
+            &mean,
+            &sd,
+            &baseline,
+            &names,
+            None,
+            Some(0.6),
+        )
+        .unwrap();
+        let coef = prior.gaussian_coefficients().unwrap();
+        assert!((coef.mean[1] - 2.0).abs() < 1e-12);
+        assert!((coef.variance[1] - 0.25).abs() < 1e-12);
+        assert!((coef.mean[3]).abs() < 1e-12);
     }
 
     #[test]
@@ -2613,6 +2738,7 @@ mod tests {
             &sd,
             &baseline,
             &names,
+            None,
             None,
         )
         .unwrap();

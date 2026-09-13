@@ -63,11 +63,12 @@ pub use fdr::{
 };
 pub use gam::{
     GamFit, GamOptions, GamWorkspace, SmoothSpec, compile_additive_design, expand_bspline, fit_gam,
-    fitted_from_gam, predict_gam,
+    fit_gam_weighted, fitted_from_gam, predict_gam,
 };
 pub use glm::{
     DEFAULT_RIDGE_ON_SEPARATION, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, MultinomialDesignRef,
     MultinomialFit, NbAlphaPolicy, fit_glm, fit_glm_ridge, fit_multinomial_logit,
+    fit_multinomial_logit_weighted,
 };
 pub use gram::{
     accumulate_xtx, accumulate_xtx_xty_row, chol_log_det, chol_solve, cholesky_spd, form_xtx,
@@ -97,7 +98,7 @@ pub use response::{
     LocalPolynomialInfluence, LocalPolynomialPoint, LocalQuadraticWorkspace, gaussian_density,
     gaussian_local_quadratic, gaussian_local_quadratic_influence,
     gaussian_local_quadratic_influence_prechecked, gaussian_local_quadratic_influence_with,
-    silverman_bandwidth,
+    gaussian_local_quadratic_weighted, silverman_bandwidth,
 };
 pub use special::{
     digamma, gamma_q, ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_ppf,

@@ -7,10 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-09-13
+
+### Added
+
+- Query-aware Bayesian inference: functional, GCM, mediation, and derivative
+  estimators keep their licensed identifiers instead of being rewritten to
+  `bayesian.gcomp`.
+- Bayesian PathSpecific, InterventionalDistribution, and ADMG front-door ATE
+  (`none`/`cheap`/`full`) via a shared identified-functional evaluator.
+- Bayesian static mediation (`cheap`/`full`) and counterfactuals (`none`).
+- Bayesian derivative family (`none`) on explicit/accepted Dag.
+- ConditionalEffect × Dag × graph_posterior for Frequentist and Bayesian.
+  Published moments are E[τ | identified]; unidentified mass is a separate
+  axis.
+- Staged prior transfer for static ATE/CATE, response mappings, and
+  EffectFunctional ATE/Δ hydrate onto the outcome-mechanism NDE slope;
+  fail-closed incompatible catalogs.
+
 ### Fixed
 
-- Python tests load repository JSON and TOML as UTF-8. Windows wheels no
-  longer decode support-matrix cell names (`×`) through the locale encoding.
+- Python prepare no longer refuses Bayesian path, distribution, mediation,
+  counterfactual, or derivative cells.
+- Identity-link EffectFunctional maps ATE → β via `/Δ`; mediation binds only
+  the outcome mechanism. Bayesian ADE refits μ and α each draw (Rubin
+  Dirichlet(1,…,1)/Exp(1) weights). `n_draws < 2` is a typed refuse.
 
 ## [1.7.0] — 2026-09-13
 
@@ -34,6 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Python tests load repository JSON and TOML as UTF-8. Windows wheels no
+  longer decode support-matrix cell names (`×`) through the locale encoding.
 - Incomplete-class Frequentist observation adjustment retains the declared
   observation claims on the response and identification assumptions, and
   runs the same outer circular-block nuisance-refit TemporalDag uses. A
@@ -1982,7 +2005,8 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/iridae-dev/antecedent/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/iridae-dev/antecedent/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/iridae-dev/antecedent/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/iridae-dev/antecedent/compare/v1.4.0...v1.5.0

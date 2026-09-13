@@ -353,9 +353,52 @@ pub fn resolve_bayesian_prior_with_conflict(
             &baseline,
             &names,
             treatment_col,
+            None,
         )?),
         None,
     ))
+}
+
+/// Decoded artifact summaries for mapped-prior hydrate.
+#[derive(Clone, Debug)]
+pub struct DecodedPriorHydrate {
+    /// Mapping declared on the Bayesian config.
+    pub mapping: HydrateMapping,
+    /// Source posterior quantity kinds.
+    pub quantities: Vec<PosteriorQuantityKind>,
+    /// Source posterior means.
+    pub mean: Vec<f64>,
+    /// Source posterior SDs.
+    pub sd: Vec<f64>,
+    /// Source treatment contrast `active − control` recorded on the artifact.
+    pub source_contrast: Option<f64>,
+}
+
+/// Decode a mapped prior artifact for mechanism hydrate.
+///
+/// Returns `None` when no artifact is set. A present artifact without a mapping
+/// is the caller's fail-closed case.
+///
+/// # Errors
+///
+/// Decode failures.
+pub fn decode_prior_hydrate_source(
+    cfg: &BayesianConfig,
+) -> Result<Option<DecodedPriorHydrate>, CausalError> {
+    let Some(bytes) = cfg.prior_artifact.as_ref() else {
+        return Ok(None);
+    };
+    let Some(mapping) = cfg.prior_mapping.as_ref() else {
+        return Ok(None);
+    };
+    let (wire, _) = decode_causal_posterior_bytes(bytes)?;
+    Ok(Some(DecodedPriorHydrate {
+        mapping: hydrate_mapping_from_io(mapping),
+        quantities: wire_quantities_to_kinds(&wire.quantities),
+        mean: wire.mean,
+        sd: wire.sd,
+        source_contrast: wire.treatment_contrast,
+    }))
 }
 
 /// Hydrate a [`PriorSet`] from posterior artifact bytes under a [`HydrateMapping`].
@@ -369,9 +412,11 @@ pub fn hydrate_prior_from_posterior_bytes(
     baseline: &PriorSet,
     target_coef_names: &[Arc<str>],
     treatment_col: Option<usize>,
+    fallback_contrast: Option<f64>,
 ) -> Result<PriorSet, CausalError> {
     let (wire, _) = decode_causal_posterior_bytes(bytes)?;
     let quantities = wire_quantities_to_kinds(&wire.quantities);
+    let source_contrast = wire.treatment_contrast.or(fallback_contrast);
     hydrate_prior(
         mapping,
         &quantities,
@@ -380,6 +425,7 @@ pub fn hydrate_prior_from_posterior_bytes(
         baseline,
         target_coef_names,
         treatment_col,
+        source_contrast,
     )
     .map_err(CausalError::from)
 }

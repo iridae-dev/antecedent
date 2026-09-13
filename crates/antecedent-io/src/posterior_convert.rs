@@ -128,6 +128,7 @@ pub fn encode_causal_posterior_with_payload(
         converged: posterior.diagnostics.converged,
         hessian_condition: posterior.diagnostics.hessian_condition,
         draws_encoding: draws_encoding.into(),
+        treatment_contrast: posterior.treatment_contrast,
     };
     encode_posterior_artifact(&meta, draws, artifact_id, VERSION)
 }
@@ -169,6 +170,7 @@ mod tests {
             converged: true,
             hessian_condition: 1.0,
             draws_encoding: "none".into(),
+            treatment_contrast: None,
         };
         let summary = encode_posterior_artifact(&meta, &[], "summary", VERSION).unwrap();
         let mut summary_bytes = Vec::new();

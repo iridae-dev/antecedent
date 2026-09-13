@@ -799,6 +799,9 @@ def _query_estimand(query: Any) -> EstimandFingerprint:
         "average": "ate",
         "pulse": "pulse",
         "sustained": "sustained",
+        "response_curve": "response",
+        "intervention_response": "response",
+        "conditional": "cate",
     }.get(kind, str(kind))
     treatment = getattr(query, "treatment", None)
     outcome = getattr(query, "outcome", None)

@@ -1262,6 +1262,12 @@ struct PosteriorArtifact {
     hessian_condition: f64,
     #[pyo3(get)]
     quantity_names: Vec<String>,
+    /// Source active minus control contrast for effect-to-slope hydration.
+    #[pyo3(get)]
+    treatment_contrast: Option<f64>,
+    // Preserve roles, indices, and names across decode/encode. Python getters
+    // return copies, so the decoded schema cannot drift from quantity_names.
+    quantity_schema: Option<Vec<PosteriorQuantityWire>>,
 }
 
 #[pymethods]
@@ -1280,6 +1286,7 @@ impl PosteriorArtifact {
         unidentified_mass=0.0,
         converged=true,
         hessian_condition=f64::NAN,
+        treatment_contrast=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -1295,6 +1302,7 @@ impl PosteriorArtifact {
         unidentified_mass: f64,
         converged: bool,
         hessian_condition: f64,
+        treatment_contrast: Option<f64>,
     ) -> Self {
         Self {
             n_draws,
@@ -1309,6 +1317,8 @@ impl PosteriorArtifact {
             converged,
             hessian_condition,
             quantity_names,
+            treatment_contrast,
+            quantity_schema: None,
         }
     }
 
@@ -1320,6 +1330,8 @@ impl PosteriorArtifact {
     /// were computed from; no samples are stored. `encode_posterior_artifact` emits
     /// `draws_encoding = "none"` for artifacts built this way, and
     /// `decode_posterior_artifact` round-trips them back with an empty `draws`.
+    /// Supply `treatment_contrast` (source active minus control) for an ATE
+    /// summary that will be mapped onto a target regression slope.
     #[staticmethod]
     #[pyo3(signature = (
         n_draws,
@@ -1333,6 +1345,7 @@ impl PosteriorArtifact {
         unidentified_mass=0.0,
         converged=true,
         hessian_condition=f64::NAN,
+        treatment_contrast=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn from_moments(
@@ -1347,6 +1360,7 @@ impl PosteriorArtifact {
         unidentified_mass: f64,
         converged: bool,
         hessian_condition: f64,
+        treatment_contrast: Option<f64>,
     ) -> Self {
         Self {
             n_draws,
@@ -1361,6 +1375,8 @@ impl PosteriorArtifact {
             converged,
             hessian_condition,
             quantity_names,
+            treatment_contrast,
+            quantity_schema: None,
         }
     }
 

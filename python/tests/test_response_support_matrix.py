@@ -170,15 +170,12 @@ def test_handle_response_bayesian_curve_uses_staged_path():
     assert np.isfinite(result.response.values).all()
 
 
-def test_handle_response_bayesian_derivative_still_unsupported():
+def test_handle_response_bayesian_derivative_is_licensed():
     from antecedent._analyze import handle_response
-    from antecedent.errors import CausalUnsupportedError
 
-    with pytest.raises(CausalUnsupportedError, match="Bayesian derivatives remain 1.8"):
-        handle_response(
-            _DATA,
-            antecedent.AverageDerivative("t", "y"),
-            **_handle_response_kwargs(
-                inference=antecedent.Bayesian(backend="conjugate", n_draws=32)
-            ),
-        )
+    result = handle_response(
+        _DATA,
+        antecedent.AverageDerivative("t", "y"),
+        **_handle_response_kwargs(inference=antecedent.Bayesian(backend="conjugate", n_draws=32)),
+    )
+    assert result is not None

@@ -326,8 +326,10 @@ class MediationEffect:
 class Counterfactual:
     """Two-world unit ITE ``Y(a) - Y(a0)`` via GCM abduction–action–prediction.
 
-    This is not a factual-versus-counterfactual residual. Sampling uncertainty
-    is unavailable. Nested, accepted, and Bayesian forms are refused.
+    This is not a factual-versus-counterfactual residual. Frequentist sampling
+    uncertainty is unavailable. Bayesian ``none`` publishes a mechanism
+    posterior and per-draw AAP unit effects. Nested and accepted forms stay
+    refused.
     """
 
     treatment: str

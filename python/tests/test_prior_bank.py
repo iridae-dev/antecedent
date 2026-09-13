@@ -70,6 +70,7 @@ def _summary_only_artifact_bytes(*, ate_mean: float = 2.0, ate_sd: float = 0.2) 
         backend_id="conjugate",
         identification="NonparametricallyIdentified",
         quantity_names=["coef_0", "coef_1", "ate"],
+        treatment_contrast=1.0,
     )
     assert list(art.draws) == []
     return bytes(antecedent.inference.encode_posterior_artifact(art))
@@ -258,6 +259,7 @@ def test_summary_only_artifact_round_trips_and_hydrates_prior():
     reencoded = bytes(antecedent.inference.encode_posterior_artifact(decoded))
     redecoded = antecedent.inference.decode_posterior_artifact(reencoded)
     assert list(redecoded.draws) == []
+    assert redecoded.treatment_contrast == decoded.treatment_contrast == 1.0
 
     rng = np.random.default_rng(31)
     n = 160
@@ -793,3 +795,47 @@ def test_gamma_from_mean_and_ess_rejects_nonpositive_mean():
 def test_gamma_from_mean_and_ess_rejects_negative_ess():
     with pytest.raises(ValueError, match="ess"):
         antecedent.priors.gamma_from_mean_and_ess(4.0, ess=-1.0)
+
+
+@pytest.mark.parametrize("contrast", [2.0, -2.0])
+def test_posterior_round_trip_preserves_named_schema_and_source_contrast(contrast):
+    data, edges = _confounded()
+    query = antecedent.AverageEffect("t", "y", control_level=0.0, active_level=contrast)
+    source = antecedent.analyze(
+        data,
+        graph=edges,
+        query=query,
+        inference=antecedent.Bayesian(n_draws=64, backend="conjugate"),
+        refute=False,
+        seed=13,
+        return_posterior_artifact=True,
+    )
+    original = source.posterior.artifact
+    decoded = antecedent.inference.decode_posterior_artifact(original)
+    assert decoded.treatment_contrast == contrast
+    reencoded = bytes(antecedent.inference.encode_posterior_artifact(decoded))
+    restored = antecedent.inference.decode_posterior_artifact(reencoded)
+    assert restored.quantity_names == decoded.quantity_names
+    assert restored.draws == decoded.draws
+    assert restored.treatment_contrast == contrast
+    for mapping in [
+        antecedent.priors.PriorMapping.identical(),
+        antecedent.priors.PriorMapping.effect_functional("ate"),
+    ]:
+        estimates = []
+        for artifact in [original, reencoded]:
+            result = antecedent.analyze(
+                data,
+                graph=edges,
+                query=antecedent.AverageEffect("t", "y"),
+                inference=antecedent.Bayesian(
+                    n_draws=64,
+                    backend="conjugate",
+                    prior_from=artifact,
+                    mapping=mapping,
+                ),
+                refute=False,
+                seed=17,
+            )
+            estimates.append(result.effect)
+        assert estimates[0] == estimates[1]

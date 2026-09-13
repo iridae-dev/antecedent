@@ -67,7 +67,7 @@ pub use bayesian::{
     BayesianTemporalGcomp, CausalPosterior, CompiledGCompAte, GCompAteEvaluator, HydrateMapping,
     PosteriorFunctionalEvaluator, PreparedBayesianProblem, coefficient_names_from_design,
     hydrate_prior, hydrate_prior_from_posterior, hydrate_prior_from_quantity_summaries,
-    nonidentified_with_prior,
+    nonidentified_with_prior, require_bayesian_n_draws,
 };
 pub use cell_aipw::{
     CellSaturatedAipw, ContinuousCellSpec, MAX_JOINT_BINARY, POINT_CDE_UNLICENSED,
@@ -140,4 +140,6 @@ pub use transport::{
 pub use util::BootstrapSeResult;
 
 mod static_mediation;
-pub use static_mediation::estimate_static_mediation;
+pub use static_mediation::{
+    MediationPriorBridge, estimate_static_mediation, estimate_static_mediation_bayesian,
+};
