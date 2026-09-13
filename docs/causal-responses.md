@@ -283,18 +283,25 @@ squares fit of the pseudo-outcomes: with `dx_i = a_i - g`,
 `r_i = phi_i - x_i' beta(g)`,
 
 ```
-psi[g, i] = w_i * [(X'WX)^{-1}]_{row 0} . x_i * r_i
+psi[g, i] = w_i * [(X'WX)^{-1}]_{row 0} . x_i * r_i  +  (c_i - mean(c)) / N
 ```
 
-— the WLS influence of row `i` on the fitted level, in outcome units. It is
-**not** the semiparametric efficient influence function of the Kennedy
-estimator: the pseudo-outcomes are treated as fixed data, so nuisance-estimation
-uncertainty is not inside these values, and neither is bandwidth selection.
+The first term is the WLS influence of row `i` on the fitted level, in outcome
+units. The second is the marginalization term of Kennedy et al. (2017,
+Theorem 3): the pseudo-outcome averages the outcome regression over every
+row's covariates, `∫ mu(a, x) dP_n(x)`, so each row also moves the level through
+its covariates. With the additive outcome nuisance this is the per-row
+constant `c_i = mu(a_i, x_i) - ∫ mu(a_i, x) dP_n(x) = h(x_i) - mean h(x)` from
+the row's own cross-fit fold, identical at every grid point. Without it the
+pointwise band measured 0.80–0.86 coverage at nominal 0.90 on a confounded
+linear law (`crates/antecedent/tests/v19_static_calibration.rs`). The values
+still condition on the fitted nuisances and bandwidth: second-order nuisance
+error and bandwidth selection are not inside them.
 
 **Centering and scaling.** At every grid point the influences sum to zero
-exactly (up to float roundoff) — this is the first WLS normal equation, not a
-convention applied afterwards. There is no `1/n` scaling: these are per-row
-contributions, sized so the identities below hold.
+exactly (up to float roundoff): the first term by the first WLS normal
+equation, the second by centering `c`. There is no `1/n` scaling of the sum:
+these are per-row contributions, sized so the identities below hold.
 
 **Exact relationship to reported uncertainty.** The reported pointwise standard
 error is `SE(g) = sqrt(sum_i psi[g, i]^2)`, and the pointwise band is

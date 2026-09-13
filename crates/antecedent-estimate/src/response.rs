@@ -83,6 +83,10 @@ const PLUGIN_TARGET_LAMBDA: f64 = 0.0;
 struct PseudoOutcome {
     values: Vec<f64>,
     density_floor_rows: usize,
+    /// Per-row covariate centering `μ̂(A_i, X_i) − ∫μ̂(A_i, x) dP_n(x)` from the
+    /// row's own cross-fit fold. The additive outcome nuisance makes this
+    /// `ĥ(X_i) − mean ĥ(X)`, constant in the treatment level.
+    covariate_centered: Vec<f64>,
 }
 
 /// Cross-fitted average-derivative scores with the Riesz representer that built them.
@@ -124,15 +128,16 @@ pub struct ContinuousResponseOptions {
     ///   `φ_i`, outcome units, aligned with `row_index`. Fold = retained-row
     ///   position mod `folds`; nuisances for row `i` exclude `i`'s fold.
     /// - `response.row_influence` — `G * N`, grid-major (`value[g*N + i]`):
-    ///   the local-WLS influence of row `i` on the fitted level at grid point
-    ///   `g`, `ψ = w_i · [(XᵀWX)⁻¹]₀ · x_i · (φ_i − x_iᵀβ̂)`. Sums to zero per
-    ///   grid point (WLS normal equation); reported pointwise
-    ///   `SE(g) = √(Σ_i ψ²)`, and both bands are `m̂ ± c·SE` with these values.
+    ///   the influence of row `i` on the fitted level at grid point `g`:
+    ///   the local-WLS term `w_i · [(XᵀWX)⁻¹]₀ · x_i · (φ_i − x_iᵀβ̂)` plus the
+    ///   covariate-marginalization term `(c_i − c̄)/N` (Kennedy et al. 2017,
+    ///   Thm. 3; `c_i = μ̂(A_i, X_i) − ∫μ̂(A_i, x) dP_n(x)`). Sums to zero per
+    ///   grid point; reported pointwise `SE(g) = √(Σ_i ψ²)`, and both bands
+    ///   are `m̂ ± c·SE` with these values.
     ///
-    /// These are diagnostics conditional on the estimator's construction: the
-    /// pseudo-outcomes are treated as fixed data, so nuisance and bandwidth
-    /// uncertainty are NOT inside the influences, and `ψ` is not the Kennedy
-    /// estimator's semiparametric efficient influence function. Channel ids,
+    /// These are diagnostics conditional on the fitted nuisances and bandwidth:
+    /// second-order nuisance error and bandwidth selection are NOT inside the
+    /// influences. Channel ids,
     /// alignment, and layout are stable; values may change when the internal
     /// construction changes. Full contract:
     /// `docs/causal-responses.md#row-diagnostic-export-contract`.
@@ -911,7 +916,7 @@ impl ContinuousResponseEstimator {
         EstimationError,
     > {
         let sample = CompleteSample::read(data, outcome, &[treatment], &self.adjustment_set)?;
-        let PseudoOutcome { values: pseudo, density_floor_rows } =
+        let PseudoOutcome { values: pseudo, density_floor_rows, covariate_centered } =
             self.cross_fitted_pseudo_outcome(&sample)?;
         let bandwidth = self.options.bandwidth.unwrap_or(silverman_bandwidth(&sample.treatments)?);
         let mut mean = Vec::with_capacity(grid.len());
@@ -927,6 +932,15 @@ impl ContinuousResponseEstimator {
                 StatsError::Shape { message: "local quadratic inputs must be finite" }.into()
             );
         }
+        // Per-row marginalization contribution `(c_i − c̄) / n` (see the loop).
+        // Centering over rows keeps every grid column summing to zero exactly,
+        // as the local WLS term does, because the cross-fit folds center `c`
+        // on their own training rows.
+        let covariate_term: Vec<f64> = {
+            let n_rows = sample.len() as f64;
+            let center = covariate_centered.iter().sum::<f64>() / n_rows;
+            covariate_centered.iter().map(|c| (c - center) / n_rows).collect()
+        };
         let mut local = LocalQuadraticWorkspace::default();
         for &at in grid {
             let fit = gaussian_local_quadratic_influence_prechecked(
@@ -938,19 +952,34 @@ impl ContinuousResponseEstimator {
             )?;
             let point = fit.point;
             mean.push(point.value);
+            // Kennedy et al. (2017, Thm. 3): the pseudo-outcome's marginalization
+            // `∫μ̂(a, x) dP_n(x)` averages every row's covariates, so each row also
+            // moves the fitted level through `e₀ᵀD⁻¹ P_n[g K {μ̂(·, X_i) − m̂(·)}]`.
+            // With an additive μ̂ that bracket is the constant `ĥ(X_i) − mean ĥ`
+            // and `P_n[g K] = D e₀`, so the term is exactly `covariate_term[i]`,
+            // the same at every grid point. Treating the pseudo-outcomes as fixed
+            // data drops it; the 1.9 calibration measured 0.80–0.86 pointwise
+            // coverage at nominal 0.90 without it.
+            let row_influences: Vec<f64> = fit
+                .influences
+                .iter()
+                .zip(&covariate_term)
+                .map(|(local, centered)| local + centered)
+                .collect();
+            let standard_error = row_influences.iter().map(|v| v * v).sum::<f64>().sqrt();
             // The pointwise band uses the same influence-based standard error the
             // simultaneous band standardizes by, so the two are nested by
             // construction rather than being two different variance estimates at
             // the same nominal level.
-            lower.push(point.value - z * fit.robust_standard_error);
-            upper.push(point.value + z * fit.robust_standard_error);
+            lower.push(point.value - z * standard_error);
+            upper.push(point.value + z * standard_error);
             ess.push(point.local_ess);
             density.push(
                 point.weight_sum
                     / (sample.len() as f64 * bandwidth * (2.0 * std::f64::consts::PI).sqrt()),
             );
-            influences.push(fit.influences);
-            robust_se.push(fit.robust_standard_error);
+            influences.push(row_influences);
+            robust_se.push(standard_error);
         }
         let mut support = support_report(
             grid,
@@ -1068,9 +1097,7 @@ impl ContinuousResponseEstimator {
             treatments.push(variable);
         }
         let sample = CompleteSample::read(data, outcome, &treatments, &self.adjustment_set)?;
-        let rows: Vec<usize> = (0..sample.len()).collect();
-        let mut gam_ws = GamWorkspace::default();
-        let fit = self.fit_outcome(&sample, &rows, &mut gam_ws)?;
+        let fit = self.fit_outcome_target(&sample)?;
         // Discrete policies (Set/Shift/Bernoulli/Categorical) are integrated exactly as a
         // finite mixture. Monte Carlo through a continuous spline would treat categorical
         // codes as ordered coordinates and approximate a sum that has a closed form.
@@ -1139,7 +1166,7 @@ impl ContinuousResponseEstimator {
                     "response.intervention_plugin_model_dependent",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Warning,
-                    "intervention response uses additive-GAM g-computation; SE includes fitted-coefficient and covariate-average influence conditional on the fitted spline knots and penalty; it excludes knot-selection, smoothing-bias, and policy-integration error",
+                    "intervention response uses additive-GAM g-computation with unpenalized treatment splines (the target) and penalized adjustment splines (nuisances); SE includes fitted-coefficient and covariate-average influence conditional on the fitted spline knots and adjustment penalty; it excludes knot-selection, sieve-approximation bias of a non-additive or rough outcome surface, and policy-integration error",
                 )],
                 point_status: None,
             },
@@ -1157,7 +1184,7 @@ impl ContinuousResponseEstimator {
         scale: DerivativeScale,
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
         let sample = CompleteSample::read(data, outcome, &[treatment], &self.adjustment_set)?;
-        let PseudoOutcome { values: pseudo, density_floor_rows } =
+        let PseudoOutcome { values: pseudo, density_floor_rows, .. } =
             self.cross_fitted_pseudo_outcome(&sample)?;
         let bandwidth = self.options.bandwidth.unwrap_or(silverman_bandwidth(&sample.treatments)?);
         let local = antecedent_stats::gaussian_local_quadratic_influence(
@@ -1403,6 +1430,7 @@ impl ContinuousResponseEstimator {
         }
         let row_weight = |i: usize| weights.map_or(1.0, |w| w[i]);
         let mut pseudo = vec![0.0; n];
+        let mut covariate_centered = vec![0.0; n];
         let mut density_floor_rows = 0usize;
         let mut gam_ws = GamWorkspace::default();
         let mut adj_row = vec![0.0; sample.adjustment_cols];
@@ -1533,9 +1561,10 @@ impl ContinuousResponseEstimator {
                     + outcome_fit.smooth_partial(treat_smooth, sample.treatment_matrix[i])?;
                 pseudo[i] = marginal_mu
                     + (sample.outcome[i] - mu_observed) * marginal_density / conditional_density;
+                covariate_centered[i] = mu_observed - marginal_mu;
             }
         }
-        Ok(PseudoOutcome { values: pseudo, density_floor_rows })
+        Ok(PseudoOutcome { values: pseudo, density_floor_rows, covariate_centered })
     }
 
     fn cross_fitted_ade_scores(
@@ -1675,6 +1704,52 @@ impl ContinuousResponseEstimator {
         at: &[f64],
     ) -> Result<(f64, Vec<f64>), EstimationError> {
         self.plugin_gradient_weighted(sample, at, None)
+    }
+
+    /// Full-sample outcome GAM whose treatment smooths are the plug-in *target*.
+    ///
+    /// Same split as [`Self::plugin_gradient_weighted`]: treatment smooths are
+    /// unpenalized cubic regression splines (a roughness penalty with quantile
+    /// knots shrinks even a linear dose effect, which biased the g-computation
+    /// level by about half its SE at every n in the 1.9 calibration), and
+    /// adjustment smooths keep `nuisance_lambda`.
+    fn fit_outcome_target(
+        &self,
+        sample: &CompleteSample,
+    ) -> Result<antecedent_stats::GamFit, EstimationError> {
+        let rows: Vec<usize> = (0..sample.len()).collect();
+        let x = sample.raw_subset(&rows);
+        let specs: Vec<_> = (0..sample.raw_cols)
+            .map(|col| {
+                let lambda = if col < sample.treatment_cols {
+                    PLUGIN_TARGET_LAMBDA
+                } else {
+                    self.options.nuisance_lambda
+                };
+                SmoothSpec::new(col, self.options.nuisance_basis, lambda)
+            })
+            .collect();
+        let mut gam_ws = GamWorkspace::default();
+        let target = fit_gam(
+            &x,
+            sample.len(),
+            sample.raw_cols,
+            &sample.outcome,
+            &specs,
+            &GamOptions { max_iter: 500, tol: 1e-6 },
+            &FaerBackend,
+            &mut gam_ws,
+        );
+        match target {
+            Ok(fit) if fit.converged => Ok(fit),
+            Ok(_) => Err(EstimationError::unsupported(
+                "additive GAM target did not converge; refuse rather than publish an unfinished fit",
+            )),
+            // A binary or low-cardinality treatment cannot support an unpenalized
+            // cubic basis (singular Gram); keep the penalized nuisance fit there,
+            // exactly as before 1.9.
+            Err(_) => self.fit_outcome(sample, &rows, &mut gam_ws),
+        }
     }
 
     fn plugin_gradient_weighted(
@@ -2297,7 +2372,11 @@ fn simultaneous_multiplier_band(
     {
         index += 1;
     }
-    let critical = maxima[index];
+    // The population max-|t| quantile is never below the marginal one, but the
+    // finite multiplier quantile can dip under it when grid columns are nearly
+    // collinear (the shared covariate-marginalization term makes them so); a
+    // simultaneous band narrower than the pointwise band would be incoherent.
+    let critical = maxima[index].max(normal_ppf(0.5 + level / 2.0));
     let lower = mean
         .iter()
         .zip(standard_errors)
