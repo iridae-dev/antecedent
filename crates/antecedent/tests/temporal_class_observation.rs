@@ -30,7 +30,9 @@ fn class_pin() -> serde_json::Value {
     .unwrap()
 }
 
-fn generate(pin: &serde_json::Value) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
+fn generate(
+    pin: &serde_json::Value,
+) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
     let n = usize::try_from(pin["rows"].as_u64().unwrap()).unwrap();
     let seed = pin["seed"].as_u64().unwrap();
     let stream = pin["stream"].as_u64().unwrap();
@@ -296,8 +298,7 @@ fn licensed_observation_pairs_run_on_temporal_cpdag_and_pag() {
         &c_ind_full[..n_cov],
         &c_cox_full[..n_cov],
     );
-    for (name, series, spec, assumption) in
-        licensed_pairs(&pin, t, latent, selected, c_ind, c_cox)
+    for (name, series, spec, assumption) in licensed_pairs(&pin, t, latent, selected, c_ind, c_cox)
     {
         assert!(pairs.iter().any(|listed| listed == name), "{name} missing from fixture");
         let query = curve_query(&pin, spec, assumption);
@@ -306,11 +307,11 @@ fn licensed_observation_pairs_run_on_temporal_cpdag_and_pag() {
             InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)),
         ] {
             for (graph_class, graph) in [
+                (antecedent::GraphClass::TemporalCpdag, incomplete_cpdag().into_graph_input().0),
                 (
-                    antecedent::GraphClass::TemporalCpdag,
-                    incomplete_cpdag().into_graph_input().0,
+                    antecedent::GraphClass::TemporalPag,
+                    antecedent::AcceptedGraph::from(incomplete_pag()),
                 ),
-                (antecedent::GraphClass::TemporalPag, antecedent::AcceptedGraph::from(incomplete_pag())),
             ] {
                 let result = run_pair(series.clone(), graph, query.clone(), inference.clone(), 0)
                     .unwrap_or_else(|error| {
@@ -327,12 +328,14 @@ fn licensed_observation_pairs_run_on_temporal_cpdag_and_pag() {
                     "{name} missing observation diagnostic"
                 );
                 assert!(carries_observation_claim(&result), "{name} dropped observation claims");
-                assert!(!matches!(
-                    result.response.as_ref().unwrap().uncertainty,
-                    ResponseUncertainty::PointwiseBand { .. }
-                ) || result.diagnostics.iter().any(|d| {
-                    d.code.as_ref() == "estimate.temporal_class.observation_no_complete_band"
-                }));
+                assert!(
+                    !matches!(
+                        result.response.as_ref().unwrap().uncertainty,
+                        ResponseUncertainty::PointwiseBand { .. }
+                    ) || result.diagnostics.iter().any(|d| {
+                        d.code.as_ref() == "estimate.temporal_class.observation_no_complete_band"
+                    })
+                );
             }
         }
     }
@@ -355,7 +358,8 @@ fn selected_incomplete_cpdag_matches_temporal_observation_surface() {
         },
         ObservationAssumption::OutcomeIndependentGiven(Arc::from([VariableId::from_raw(0)])),
     );
-    let result = run_pair(series, incomplete_cpdag(), query, InferenceMode::Frequentist, 0).unwrap();
+    let result =
+        run_pair(series, incomplete_cpdag(), query, InferenceMode::Frequentist, 0).unwrap();
     let structural = result.structural_response.as_ref().unwrap();
     let cells = pin["grid"].as_array().unwrap().len();
     let horizons = pin["horizons"].as_array().unwrap().len();
@@ -374,10 +378,7 @@ fn selected_incomplete_cpdag_matches_temporal_observation_surface() {
             .iter()
             .map(|slice| mean.iter().zip(slice).map(|(a, b)| (a - b).abs()).fold(0.0, f64::max))
             .fold(f64::INFINITY, f64::min);
-        assert!(
-            err <= atol + 0.15,
-            "selected class atom {mean:?} vs slices {slices:?} err={err}"
-        );
+        assert!(err <= atol + 0.15, "selected class atom {mean:?} vs slices {slices:?} err={err}");
         checked += 1;
     }
     assert!(checked >= 1, "selected pair missing per-horizon atom surfaces");
@@ -397,14 +398,9 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         },
         ObservationAssumption::OutcomeIndependentGiven(Arc::from([VariableId::from_raw(0)])),
     );
-    let incomplete = run_pair(
-        series.clone(),
-        incomplete_cpdag(),
-        query.clone(),
-        InferenceMode::Frequentist,
-        8,
-    )
-    .unwrap();
+    let incomplete =
+        run_pair(series.clone(), incomplete_cpdag(), query.clone(), InferenceMode::Frequentist, 8)
+            .unwrap();
     assert_eq!(
         incomplete.certificate.as_ref().expect("certificate").graph_class,
         antecedent::GraphClass::TemporalCpdag
@@ -423,21 +419,26 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         structural.atoms.iter().any(|atom| {
             atom.response.as_ref().is_some_and(|response| {
                 matches!(response.uncertainty, ResponseUncertainty::PointwiseBand { .. })
-                    || response.support.diagnostics.iter().any(|d| {
-                        d.id.as_ref() == "response.observation_block_bootstrap"
-                    })
+                    || response
+                        .support
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.id.as_ref() == "response.observation_block_bootstrap")
             })
         }),
         "requested replicates must produce an outer circular-block diagnostic on atoms"
     );
 
-    let oriented = run_pair(series, oriented_cpdag(), query, InferenceMode::Frequentist, 8).unwrap();
+    let oriented =
+        run_pair(series, oriented_cpdag(), query, InferenceMode::Frequentist, 8).unwrap();
     let response = oriented.response.as_ref().unwrap();
     assert!(
         matches!(response.uncertainty, ResponseUncertainty::PointwiseBand { .. })
-            || response.support.diagnostics.iter().any(|d| {
-                d.id.as_ref() == "response.observation_block_bootstrap"
-            }),
+            || response
+                .support
+                .diagnostics
+                .iter()
+                .any(|d| { d.id.as_ref() == "response.observation_block_bootstrap" }),
         "a one-completion class must publish the outer circular-block band"
     );
     assert!(!matches!(
@@ -469,13 +470,17 @@ fn sequence_overlay_rides_selected_observation_on_incomplete_class() {
         },
         [ObservationAssumption::OutcomeIndependentGiven(Arc::from([VariableId::from_raw(0)]))],
     );
-    let result = run_pair(series, incomplete_cpdag(), query, InferenceMode::Frequentist, 0).unwrap();
+    let result =
+        run_pair(series, incomplete_cpdag(), query, InferenceMode::Frequentist, 0).unwrap();
     assert!(
         result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.temporal.sequence_overlay")
     );
-    assert!(result.diagnostics.iter().any(|d| {
-        d.code.as_ref() == "estimate.temporal_class.observation_no_complete_band"
-    }));
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| { d.code.as_ref() == "estimate.temporal_class.observation_no_complete_band" })
+    );
     assert_eq!(
         result.certificate.as_ref().expect("certificate").graph_class,
         antecedent::GraphClass::TemporalCpdag

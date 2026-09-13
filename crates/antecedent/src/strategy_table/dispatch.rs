@@ -237,7 +237,7 @@ pub fn identify_temporal_cpdag(
     )
 }
 
-/// Class-aware TemporalCpdag identification with an explicit completion cap.
+/// Class-aware `TemporalCpdag` identification with an explicit completion cap.
 ///
 /// # Errors
 ///
@@ -276,7 +276,7 @@ pub fn identify_temporal_pag(
     identify_temporal_pag_configured(identifier, pag, query, GeneralizedAdjustmentConfig::default())
 }
 
-/// Class-aware TemporalPag identification with an explicit completion cap.
+/// Class-aware `TemporalPag` identification with an explicit completion cap.
 ///
 /// # Errors
 ///
