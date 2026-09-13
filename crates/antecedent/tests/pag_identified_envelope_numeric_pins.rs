@@ -23,7 +23,7 @@ use antecedent_data::TabularData;
 use antecedent_graph::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag};
 use antecedent_validate::PredictiveCheckKind;
 
-pub fn pin() -> serde_json::Value {
+fn pin() -> serde_json::Value {
     serde_json::from_str(include_str!(
         "../../../conformance/estimate/pag_ate_envelope_identified/expected.json"
     ))
@@ -34,7 +34,7 @@ fn columns(pin: &serde_json::Value) -> Vec<&str> {
     pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect()
 }
 
-pub fn expand_contingency(pin: &serde_json::Value) -> TabularData {
+fn expand_contingency(pin: &serde_json::Value) -> TabularData {
     let columns = columns(pin);
     let mut values: Vec<Vec<f64>> = vec![Vec::new(); columns.len()];
     for cell in pin["contingency_table"].as_array().unwrap() {
@@ -61,7 +61,7 @@ fn endpoint(mark: &str) -> Endpoint {
     }
 }
 
-pub fn pag_from_pin(pin: &serde_json::Value) -> Pag {
+fn pag_from_pin(pin: &serde_json::Value) -> Pag {
     let mut pag = Pag::with_variables(u32::try_from(columns(pin).len()).unwrap());
     for edge in pin["graph"]["marked_edges"].as_array().unwrap() {
         pag.insert_marked(MarkedEdge {
@@ -76,7 +76,7 @@ pub fn pag_from_pin(pin: &serde_json::Value) -> Pag {
     pag
 }
 
-pub fn ate_query(pin: &serde_json::Value) -> AverageEffectQuery {
+fn ate_query(pin: &serde_json::Value) -> AverageEffectQuery {
     AverageEffectQuery::with_levels(
         VariableId::from_raw(index(pin, pin["query"]["treatment"].as_str().unwrap())),
         VariableId::from_raw(index(pin, pin["query"]["outcome"].as_str().unwrap())),
@@ -85,7 +85,7 @@ pub fn ate_query(pin: &serde_json::Value) -> AverageEffectQuery {
     )
 }
 
-pub fn conditional_query(pin: &serde_json::Value) -> ConditionalEffectQuery {
+fn conditional_query(pin: &serde_json::Value) -> ConditionalEffectQuery {
     let modifier = index(pin, pin["conditional"]["modifier"].as_str().unwrap());
     ConditionalEffectQuery::try_new(
         ate_query(pin).with_effect_modifiers([VariableId::from_raw(modifier)]),

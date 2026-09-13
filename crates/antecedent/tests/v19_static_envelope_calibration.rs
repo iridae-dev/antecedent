@@ -18,7 +18,9 @@
     clippy::cast_possible_truncation,
     clippy::many_single_char_names,
     clippy::too_many_lines,
-    clippy::similar_names
+    clippy::similar_names,
+    clippy::doc_markdown,
+    clippy::too_many_arguments
 )]
 
 mod common;

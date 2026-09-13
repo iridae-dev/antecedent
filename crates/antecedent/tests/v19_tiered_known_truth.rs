@@ -8,7 +8,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::many_single_char_names, clippy::too_many_lines)]
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::many_single_char_names,
+    clippy::too_many_lines,
+    clippy::doc_markdown
+)]
 
 mod common;
 
@@ -25,7 +30,7 @@ use common::calibration::gaussian;
 /// `P(t = 1) = logistic(0.6 z − 0.4 u)`, `y = 2 t + z − 0.5 u + ε`.
 /// The outcome model is linear in `(t, z, u)`, so the closure functional
 /// `E[E[y | t=1, z, u] − E[y | t=0, z, u]]` is exactly 2.
-pub fn codetermined_data(n: usize, seed: u64) -> TabularData {
+fn codetermined_data(n: usize, seed: u64) -> TabularData {
     let mut g = gaussian(seed);
     let mut uniform_state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
     let mut uniform = move || {
@@ -51,7 +56,7 @@ pub fn codetermined_data(n: usize, seed: u64) -> TabularData {
 }
 
 /// Truth of the `CoDetermined` closure functional in [`codetermined_data`].
-pub const CODETERMINED_TRUTH: f64 = 2.0;
+const CODETERMINED_TRUTH: f64 = 2.0;
 
 /// `Unknown` tiers `{era} | {t, m} | {y}` from the true order `era → t → m → y`.
 ///
@@ -61,7 +66,7 @@ pub const CODETERMINED_TRUTH: f64 = 2.0;
 /// `−1 + 2·1 = 1`. Scenario 1 (treatment follows its peer) adjusts
 /// `{era, m}`: `y` is exactly linear in `(t, m, era)`, so the coefficient is
 /// the direct effect `−1`.
-pub fn unknown_data(n: usize, seed: u64) -> TabularData {
+fn unknown_data(n: usize, seed: u64) -> TabularData {
     let mut g = gaussian(seed);
     let (mut era, mut t, mut m, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
     for i in 0..n {
@@ -80,7 +85,7 @@ pub fn unknown_data(n: usize, seed: u64) -> TabularData {
 }
 
 /// Scenario truths `[pretreatment, closure]` for [`unknown_data`].
-pub const UNKNOWN_TRUTH: [f64; 2] = [1.0, -1.0];
+const UNKNOWN_TRUTH: [f64; 2] = [1.0, -1.0];
 
 fn codetermined_background(data: &TabularData) -> TieredBackground {
     TieredBackground::from_named(

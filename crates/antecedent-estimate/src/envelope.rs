@@ -4,6 +4,9 @@
 //! Published moments and draws are the identified-atom BMA (`P(τ | identified)`).
 //! Unidentified mass is a separate, non-renormalized axis on the result and is
 //! never redistributed into that effect posterior.
+//! [`aggregate_mixture_functional_envelope`] instead publishes the posterior of
+//! the frozen-weight mixture functional, for equivalence-class envelopes whose
+//! weights the data cannot update.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -351,6 +354,7 @@ pub fn aggregate_mixture_functional_envelope(
 /// # Errors
 ///
 /// Empty or ragged draws, or a correlation of the wrong size.
+#[allow(clippy::many_single_char_names)]
 pub fn couple_mixture_functional_draws(
     atoms: &[(f64, &[f64])],
     correlation: &[f64],
@@ -418,7 +422,7 @@ mod tests {
 
     #[test]
     fn coupled_mixture_keeps_marginals_and_tracks_correlation() {
-        let n = 4000;
+        let n: usize = 4000;
         let a: Vec<f64> = (0..n).map(|i| (i as f64 + 0.5) / n as f64 - 0.5).collect();
         let b: Vec<f64> = a.iter().map(|x| 3.0 * x + 1.0).collect();
         // Perfect coupling: the mixture is the quantile average.

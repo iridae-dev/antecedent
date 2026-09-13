@@ -178,6 +178,7 @@ fn functional_bayesian_path_distribution_and_admg() {
 /// Dirichlet posterior mean must sit within 0.02 of it, and the 90% credible
 /// interval must contain it.
 #[test]
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn admg_frontdoor_bayesian_all_structures_and_validation() {
     let admg_pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/admg_frontdoor_functional/expected.json"

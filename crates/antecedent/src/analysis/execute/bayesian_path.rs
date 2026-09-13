@@ -2599,7 +2599,7 @@ fn static_envelope_atom_correlation(
     }
     let k = ifs.len();
     let norms: Vec<f64> = ifs.iter().map(|f| f.iter().map(|v| v * v).sum::<f64>().sqrt()).collect();
-    if norms.iter().any(|n| !(*n > 0.0)) {
+    if norms.iter().any(|n| !n.is_finite() || *n <= 0.0) {
         return None;
     }
     let mut corr = vec![0.0; k * k];
