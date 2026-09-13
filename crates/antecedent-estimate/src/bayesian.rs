@@ -45,12 +45,19 @@ use crate::util::require_explicit_override;
 
 /// Posterior mean and equal-tail interval of a linear response level.
 /// `weights` is a design-row average after the intervention overlay.
-#[allow(clippy::cast_sign_loss)] // Quantile indices are bounded by [0, n-1].
 pub(crate) fn linear_response_summary(
     posterior: &CausalPosterior,
     weights: &[f64],
     level: f64,
 ) -> Result<(f64, f64, f64, f64), EstimationError> {
+    summarize_linear_response_draws(linear_response_draws(posterior, weights)?, level)
+}
+
+/// Posterior draws of the linear functional `weights' β`, one per retained draw.
+pub(crate) fn linear_response_draws(
+    posterior: &CausalPosterior,
+    weights: &[f64],
+) -> Result<Vec<f64>, EstimationError> {
     let mut values = vec![0.0; posterior.draws.n_draws];
     for (index, &weight) in weights.iter().enumerate() {
         let column = posterior
@@ -67,6 +74,15 @@ pub(crate) fn linear_response_summary(
             *value += weight * coefficient;
         }
     }
+    Ok(values)
+}
+
+/// `(mean, lower, upper, sd)` of linear-functional draws at an equal-tailed `level`.
+#[allow(clippy::cast_sign_loss)] // Quantile indices are bounded by [0, n-1].
+pub(crate) fn summarize_linear_response_draws(
+    mut values: Vec<f64>,
+    level: f64,
+) -> Result<(f64, f64, f64, f64), EstimationError> {
     if values.len() < 2 || values.iter().any(|v| !v.is_finite()) {
         return Err(EstimationError::stats_msg(
             "response posterior needs at least two finite draws",

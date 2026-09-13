@@ -353,6 +353,71 @@ impl ObservationMechanismEstimator {
         Ok((series, adjusted))
     }
 
+    /// Tuple-level replicate of [`Self::adjust_temporal_series`] for block bootstraps.
+    ///
+    /// `anchors` are outcome-time row indices of `data` (repeats allowed, in resample
+    /// order). Each anchor contributes its whole lag-aligned observation row — the
+    /// outcome and indicators at the anchor, the conditioning set at the policy treatment
+    /// offset — so no replicate row pairs values from different resampled blocks. The
+    /// observation nuisance is refit on exactly those rows; the returned pseudo-outcomes
+    /// align with `anchors`.
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`Self::adjust_temporal_series`], or an anchor whose lag-aligned
+    /// row does not exist.
+    pub fn adjust_temporal_anchors(
+        &self,
+        data: &TimeSeriesData,
+        query: &ResponseQuery,
+        adjustment: &[VariableId],
+        anchors: &[usize],
+    ) -> Result<Vec<f64>, EstimationError> {
+        query.validate()?;
+        query.require_licensed_temporal_observation()?;
+        if query.observation == ObservationSpec::Complete {
+            return Err(EstimationError::unsupported(
+                "complete outcomes do not require observation-mechanism correction",
+            ));
+        }
+        let temporal = query.temporal.as_ref().ok_or_else(|| {
+            EstimationError::unsupported(
+                "temporal observation correction requires ResponseQuery.temporal",
+            )
+        })?;
+        let offset = temporal.treatment_offset()?;
+        if offset > 0 {
+            return Err(EstimationError::unsupported(
+                "temporal observation conditioning cannot use a future treatment offset",
+            ));
+        }
+        let (treatment, _) = query.functional.primary_pair().ok_or_else(|| {
+            EstimationError::unsupported("response query has no treatment/outcome pair")
+        })?;
+        require_temporal_observation_containment(query, treatment, adjustment)?;
+        let conditioning = temporal_conditioning_ids(query)?;
+        let lag = if conditioning.is_empty() { 0 } else { offset.unsigned_abs() as usize };
+        let n = data.row_count();
+        if anchors.iter().any(|&anchor| anchor < lag || anchor >= n) {
+            return Err(EstimationError::unsupported(
+                "temporal observation anchor has no lag-aligned observation row",
+            ));
+        }
+        let schema = data.schema().clone();
+        let mut owned = Vec::with_capacity(schema.len());
+        for var in schema.variables() {
+            let full = data.float64_values(var.id)?;
+            let shift = if conditioning.contains(&var.id) { lag } else { 0 };
+            owned.push((var.name.clone(), anchors.iter().map(|&s| full[s - shift]).collect()));
+        }
+        let pairs: Vec<(&str, &[f64])> = owned
+            .iter()
+            .map(|(name, values): &(Arc<str>, Vec<f64>)| (name.as_ref(), values.as_slice()))
+            .collect();
+        let table = TabularData::try_from_schema_f64(schema, pairs)?;
+        Ok(self.adjusted_outcome(&table, query, None)?.values)
+    }
+
     /// Evaluate the opt-in Gaussian likelihood for the query's observation mechanism.
     ///
     /// The query must explicitly declare
