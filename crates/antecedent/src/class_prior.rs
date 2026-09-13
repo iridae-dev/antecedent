@@ -128,6 +128,77 @@ impl ClassPrior {
     }
 }
 
+/// A class prior bound to one temporal envelope and reused across horizons.
+///
+/// Multi-horizon analyses identify each horizon separately, and a PAG window
+/// can retain a different completion set or order per horizon. Binding once by
+/// completion fingerprint keeps ordered masses attached to the completions they
+/// were declared for instead of re-reading them positionally.
+#[derive(Clone, Debug)]
+pub(crate) struct ClassPriorBinding {
+    by_fingerprint: HashMap<u64, f64>,
+}
+
+impl ClassPriorBinding {
+    /// Bind `prior` to the completions of `envelope`.
+    ///
+    /// # Errors
+    ///
+    /// Any [`ClassPrior::masses_for_envelope`] refusal, or duplicate fingerprints.
+    pub(crate) fn bind(
+        prior: &ClassPrior,
+        envelope: &TemporalClassEnvelope,
+    ) -> Result<Self, CausalError> {
+        let masses = prior.masses_for_envelope(envelope)?;
+        let mut by_fingerprint = HashMap::with_capacity(masses.len());
+        for (case, mass) in envelope.envelope.cases.iter().zip(masses) {
+            if by_fingerprint.insert(case.graph.fingerprint(), mass).is_some() {
+                return Err(CausalError::Compile {
+                    message: "temporal class envelope repeats a completion fingerprint; a \
+                              class prior cannot be bound unambiguously"
+                        .into(),
+                });
+            }
+        }
+        Ok(Self { by_fingerprint })
+    }
+
+    /// Masses in `envelope` case order, summing to one.
+    ///
+    /// # Errors
+    ///
+    /// The horizon enumerated a different completion set than the one bound.
+    pub(crate) fn masses_for_envelope(
+        &self,
+        envelope: &TemporalClassEnvelope,
+    ) -> Result<Vec<f64>, CausalError> {
+        let cases = &envelope.envelope.cases;
+        if cases.len() != self.by_fingerprint.len() {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "class prior was bound to {} completions but this horizon enumerated {}; \
+                     class membership differs across horizons, so one class prior cannot be \
+                     applied to every horizon",
+                    self.by_fingerprint.len(),
+                    cases.len()
+                ),
+            });
+        }
+        cases
+            .iter()
+            .map(|case| {
+                let key = case.graph.fingerprint();
+                self.by_fingerprint.get(&key).copied().ok_or_else(|| CausalError::Compile {
+                    message: format!(
+                        "class prior has no mass for completion {key} enumerated at this \
+                         horizon; class membership differs across horizons"
+                    ),
+                })
+            })
+            .collect()
+    }
+}
+
 fn normalized(mut masses: Vec<f64>) -> Vec<f64> {
     let total: f64 = masses.iter().sum();
     for mass in &mut masses {
