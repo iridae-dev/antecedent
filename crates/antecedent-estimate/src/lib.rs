@@ -51,6 +51,7 @@ pub mod temporal_mediation;
 pub mod temporal_observed_bayes;
 pub mod temporal_response;
 pub mod temporal_sequential;
+pub mod temporal_sequential_tuples;
 pub mod transport;
 pub mod util;
 
@@ -152,6 +153,9 @@ pub use temporal_response::{
 pub use temporal_sequential::{
     SequentialMechanismOverlay, SequentialNodeOverlay, estimate_sequence_mechanisms,
     estimate_sequence_overlays, estimate_sustained_window,
+};
+pub use temporal_sequential_tuples::{
+    PreparedSequenceLevel, SequenceColumnReplacement, prepare_sequence_level,
 };
 pub use transport::{
     TransportEffectEstimate, TransportOverlapDiagnostic, TransportOverlapReport,
