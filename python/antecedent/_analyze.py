@@ -191,6 +191,7 @@ def _staged_prepared_result(
     structure_accepted: bool = False,
     identifier: str | None = None,
     estimator: str | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
     validators: Sequence[Any] | None = None,
     latency: Latency | None = None,
 ) -> Any:
@@ -207,6 +208,7 @@ def _staged_prepared_result(
         inference=inference,
         identifier=identifier,
         estimator=estimator,
+        estimator_config=estimator_config,
         refute=cast("bool | Literal['full', 'placebo', 'none', 'cheap']", refute),
         seed=seed,
         bootstrap=bootstrap,
@@ -470,11 +472,6 @@ def handle_response(
             )
         raise ValueError("response queries do not yet support discovery=")
     if isinstance(inference, Bayesian):
-        if not isinstance(query, (ResponseCurve, InterventionResponse)):
-            raise CausalUnsupportedError(
-                "refused: Licensed derivative cells are Frequentist explicit or accepted "
-                "Dag at validation none; Bayesian derivatives remain 1.8 work."
-            )
         if bootstrap_requested:
             raise CausalUnsupportedError(
                 "Bayesian responses use posterior intervals; bootstrap is unsupported"
@@ -486,6 +483,7 @@ def handle_response(
             inference=inference,
             identifier=identifier,
             estimator=estimator,
+            estimator_config=estimator_config,
             validators=validators,
             refute="none" if not refute_requested else refute,
             seed=seed,
@@ -1002,8 +1000,7 @@ def handle_mediation(
     del data, query, graph, refute, seed, bootstrap, threads
     if discovery is not None:
         raise CausalUnsupportedError(
-            "refused: Static natural mediation is Frequentist; a Bayesian mediation "
-            "estimator is 1.8 work."
+            "refused: graph-posterior path and mediation mixtures are not staged."
         )
     raise CausalUnsupportedError("refused: MediationEffect requires a supplied static Dag.")
 

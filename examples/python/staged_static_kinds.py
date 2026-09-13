@@ -11,7 +11,7 @@ regressions that omit Z are not those numbers.
 from __future__ import annotations
 
 import numpy as np
-from antecedent import Counterfactual, MediationEffect, analyze
+from antecedent import Bayesian, Counterfactual, MediationEffect, analyze
 
 
 def confounded_scm(n: int = 500) -> tuple[dict[str, np.ndarray], list[tuple[str, str]]]:
@@ -70,6 +70,36 @@ def main() -> None:
     assert abs(ite.mean_ite - 6.6) < 0.03, ite.mean_ite
     assert ite.estimate.estimator_id == "gcm.fit"
     assert len(ite.unit_effects) == len(data["a"])
+
+    bayes = analyze(
+        data,
+        graph=graph,
+        query=MediationEffect(
+            "a",
+            "y",
+            mediators=["m"],
+            contrast="natural_direct",
+            control_level=control,
+            active_level=active,
+        ),
+        inference=Bayesian(n_draws=64),
+        refute="none",
+        bootstrap=0,
+    )
+    print(f"bayesian_nde={bayes.effect:.4f} estimator={bayes.estimate.estimator_id}")
+    assert abs(bayes.effect - 1.8) < 0.2, bayes.effect
+    assert bayes.posterior is not None
+
+    bayes_cf = analyze(
+        data,
+        graph=graph,
+        query=Counterfactual("a", "y", control_level=control, active_level=active),
+        inference=Bayesian(n_draws=64),
+        refute="none",
+    )
+    print(f"bayesian_ite={bayes_cf.mean_ite:.4f} estimator={bayes_cf.estimate.estimator_id}")
+    assert abs(bayes_cf.mean_ite - 6.6) < 0.25, bayes_cf.mean_ite
+    assert bayes_cf.posterior is not None
 
 
 if __name__ == "__main__":

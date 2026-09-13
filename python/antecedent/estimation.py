@@ -690,6 +690,17 @@ def _prepared_inference_kwargs(inference: Frequentist | Bayesian | None) -> dict
     return {"inference": "frequentist"}
 
 
+def _prepared_transfer_inference_kwargs(
+    inference: Frequentist | Bayesian | None,
+) -> dict[str, Any]:
+    if isinstance(inference, Bayesian):
+        mode, options = _prepared_bayesian_args(inference, allow_prior_transfer=True)
+        return {"inference": mode, **options}
+    if inference is not None and not isinstance(inference, Frequentist):
+        raise CausalTypeError("inference must be Frequentist or Bayesian")
+    return {"inference": "frequentist"}
+
+
 def _prepared_bayesian_args(
     inference: Bayesian, *, allow_prior_transfer: bool = False
 ) -> tuple[str, dict[str, Any]]:
@@ -1746,7 +1757,9 @@ class PreparedAnalysis:
             bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
             pag_bayes_kw: dict[str, Any] = {}
             if isinstance(inference, Bayesian):
-                inference_mode, pag_bayes_kw = _prepared_bayesian_args(inference)
+                inference_mode, pag_bayes_kw = _prepared_bayesian_args(
+                    inference, allow_prior_transfer=True
+                )
             else:
                 inference_mode = "frequentist"
             native = _NativePreparedAnalysis.prepare_pag(
@@ -1762,6 +1775,9 @@ class PreparedAnalysis:
                 inference=inference_mode,
                 n_draws=int(pag_bayes_kw.get("n_draws", 1000)),
                 prior_scale=float(pag_bayes_kw.get("prior_scale", 10.0)),
+                prior_artifact=pag_bayes_kw.get("prior_artifact"),
+                prior_mapping=pag_bayes_kw.get("prior_mapping"),
+                composed_prior=pag_bayes_kw.get("composed_prior"),
                 refute=refute,
                 seed=seed,
                 bootstrap=bootstrap,
@@ -1776,7 +1792,9 @@ class PreparedAnalysis:
             bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
             cpdag_bayes_kw: dict[str, Any] = {}
             if isinstance(inference, Bayesian):
-                inference_mode, cpdag_bayes_kw = _prepared_bayesian_args(inference)
+                inference_mode, cpdag_bayes_kw = _prepared_bayesian_args(
+                    inference, allow_prior_transfer=True
+                )
             else:
                 inference_mode = "frequentist"
             native = _NativePreparedAnalysis.prepare_cpdag(
@@ -1792,6 +1810,9 @@ class PreparedAnalysis:
                 inference=inference_mode,
                 n_draws=int(cpdag_bayes_kw.get("n_draws", 1000)),
                 prior_scale=float(cpdag_bayes_kw.get("prior_scale", 10.0)),
+                prior_artifact=cpdag_bayes_kw.get("prior_artifact"),
+                prior_mapping=cpdag_bayes_kw.get("prior_mapping"),
+                composed_prior=cpdag_bayes_kw.get("composed_prior"),
                 refute=refute,
                 seed=seed,
                 bootstrap=bootstrap,
@@ -1946,16 +1967,8 @@ class PreparedAnalysis:
             )
         edges = _static_edges(graph)
         if isinstance(query, (MediationEffect, Counterfactual)):
-            if inference is not None and not isinstance(inference, Frequentist):
-                if isinstance(query, MediationEffect):
-                    raise CausalUnsupportedError(
-                        "refused: Static natural mediation is Frequentist; a Bayesian "
-                        "mediation estimator is 1.8 work."
-                    )
-                raise CausalUnsupportedError(
-                    "refused: Counterfactuals are Frequentist abduction-action-prediction; "
-                    "a posterior over mechanisms is 1.8 work."
-                )
+            if inference is not None and not isinstance(inference, (Frequentist, Bayesian)):
+                raise CausalTypeError("inference must be Frequentist or Bayesian")
             expected_id = (
                 "path_specific.natural" if isinstance(query, MediationEffect) else "gcm.parametric"
             )
@@ -1983,6 +1996,11 @@ class PreparedAnalysis:
                 if isinstance(query, Counterfactual)
                 else _resolve_latency_budget(latency, bootstrap, False)[0]
             )
+            inference_kw = (
+                _prepared_transfer_inference_kwargs(inference)
+                if isinstance(query, MediationEffect)
+                else _prepared_inference_kwargs(inference)
+            )
             native = _NativePreparedAnalysis.prepare_static_kind(
                 names,
                 columns,
@@ -1999,6 +2017,7 @@ class PreparedAnalysis:
                 accepted=structure_accepted,
                 seed=seed,
                 threads=threads,
+                **inference_kw,
             )
             return cls(native, kind="average", query=query)
         if isinstance(query, ConditionalEffect):
@@ -2028,7 +2047,7 @@ class PreparedAnalysis:
                 control_level=query.control_level,
                 active_level=query.active_level,
                 refute=refute,
-                **_prepared_inference_kwargs(inference),
+                **_prepared_transfer_inference_kwargs(inference),
                 seed=seed,
                 bootstrap=bootstrap,
                 threads=threads,
@@ -2040,10 +2059,8 @@ class PreparedAnalysis:
             )
             return cls(native, kind="average", query=query)
         if isinstance(query, PathSpecificEffect):
-            if inference is not None and not isinstance(inference, Frequentist):
-                raise CausalTypeError(
-                    "PreparedAnalysis PathSpecificEffect supports Frequentist only"
-                )
+            if inference is not None and not isinstance(inference, (Frequentist, Bayesian)):
+                raise CausalTypeError("inference must be Frequentist or Bayesian")
             resolved_bootstrap, _ = _resolve_latency_budget(latency, bootstrap, False)
             native = _NativePreparedAnalysis.prepare_path_specific(
                 names,
@@ -2062,13 +2079,12 @@ class PreparedAnalysis:
                 threads=threads,
                 latency=latency,
                 accepted=structure_accepted,
+                **_prepared_inference_kwargs(inference),
             )
             return cls(native, kind="average", query=query)
         if isinstance(query, InterventionalDistribution):
-            if inference is not None and not isinstance(inference, Frequentist):
-                raise CausalTypeError(
-                    "PreparedAnalysis InterventionalDistribution supports Frequentist only"
-                )
+            if inference is not None and not isinstance(inference, (Frequentist, Bayesian)):
+                raise CausalTypeError("inference must be Frequentist or Bayesian")
             native = _NativePreparedAnalysis.prepare_distribution(
                 names,
                 columns,
@@ -2081,6 +2097,7 @@ class PreparedAnalysis:
                 threads=threads,
                 latency=latency,
                 accepted=structure_accepted,
+                **_prepared_inference_kwargs(inference),
             )
             return cls(native, kind="average", query=query)
         if isinstance(
@@ -2096,11 +2113,8 @@ class PreparedAnalysis:
         ):
             from .observation import Complete
 
-            if inference is not None and not isinstance(inference, Frequentist):
-                raise CausalUnsupportedError(
-                    "refused: Licensed derivative cells are Frequentist explicit or "
-                    "accepted Dag at validation none; Bayesian derivatives remain 1.8 work."
-                )
+            if inference is not None and not isinstance(inference, (Frequentist, Bayesian)):
+                raise CausalTypeError("inference must be Frequentist or Bayesian")
             if refute not in (False, "none", Refute.NONE):
                 raise CausalUnsupportedError("not_applicable: derivatives require refute='none'")
             if getattr(query, "observation", None) is not None and not isinstance(
@@ -2173,6 +2187,7 @@ class PreparedAnalysis:
                 accepted=structure_accepted,
                 seed=seed,
                 threads=threads,
+                **_prepared_inference_kwargs(inference),
             )
             return cls(native, kind="response_curve", query=query)
         if isinstance(query, ResponseCurve):
@@ -2228,7 +2243,7 @@ class PreparedAnalysis:
                 list(query.grid),
                 identifier=identifier,
                 estimator=estimator,
-                **_prepared_inference_kwargs(inference),
+                **_prepared_transfer_inference_kwargs(inference),
                 seed=seed,
                 threads=threads,
                 latency=latency,
@@ -2334,7 +2349,9 @@ class PreparedAnalysis:
         bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
         average_bayes_kw: dict[str, Any] = {}
         if isinstance(inference, Bayesian):
-            inference_mode, average_bayes_kw = _prepared_bayesian_args(inference)
+            inference_mode, average_bayes_kw = _prepared_bayesian_args(
+                inference, allow_prior_transfer=True
+            )
         else:
             inference_mode = "frequentist"
         from .query import coerce_outcome_functional
@@ -2355,6 +2372,9 @@ class PreparedAnalysis:
             inference=inference_mode,
             n_draws=int(average_bayes_kw.get("n_draws", 1000)),
             prior_scale=float(average_bayes_kw.get("prior_scale", 10.0)),
+            prior_artifact=average_bayes_kw.get("prior_artifact"),
+            prior_mapping=average_bayes_kw.get("prior_mapping"),
+            composed_prior=average_bayes_kw.get("composed_prior"),
             refute=refute,
             seed=seed,
             bootstrap=bootstrap,
