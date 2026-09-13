@@ -369,6 +369,13 @@ graph-posterior retains unidentified mass as a separate axis. Staged
 prior transfer is fail-closed. Graph-posterior composed with transfer
 stays 1.10; calibration stays 1.9.
 
+## 1.9 — Calibration of licensed intervals
+
+In progress on branch `1.9.0`. Coverage and robustness of the 1.6–1.8
+licensed intervals; no new query kinds. Temporal class-envelope
+between-atom variance and DBN shared-block calibration are the owner
+item.
+
 ## 1.x — Compatible cells
 
 Minors add cells to the frozen matrix without new query kinds or new
