@@ -1,0 +1,112 @@
+{
+  "description": "Identified multi-completion TemporalPag: seven stationary MAG completions, six identified at two different lag-1 effects, one unidentified",
+  "columns": [
+    "t",
+    "y",
+    "z",
+    "m",
+    "v"
+  ],
+  "marked_edges": [
+    [
+      "v",
+      1,
+      "t",
+      1,
+      "circle",
+      "circle"
+    ],
+    [
+      "t",
+      1,
+      "z",
+      1,
+      "circle",
+      "circle"
+    ],
+    [
+      "z",
+      1,
+      "m",
+      1,
+      "circle",
+      "circle"
+    ],
+    [
+      "t",
+      1,
+      "y",
+      0,
+      "tail",
+      "arrow"
+    ],
+    [
+      "m",
+      1,
+      "y",
+      0,
+      "tail",
+      "arrow"
+    ]
+  ],
+  "n": 600,
+  "law": "i = 0..n-1; z_i = sin(0.37 i) + 0.5 cos(1.3 i); t_i = 0.6 z_i + 0.8 sin(0.23 i + 0.4); v_i = 0.5 t_i + cos(0.41 i); m_i = 0.7 z_i + 0.6 cos(0.29 i + 0.2); y_0 = 0; y_i = 1 + 2 t_(i-1) + 1.5 m_(i-1) + 0.3 sin(0.53 i)",
+  "query": {
+    "policy": "pulse(-1)",
+    "horizon_steps": 1,
+    "sustained": "sustained(-1, -1)"
+  },
+  "identification": {
+    "identifier": "generalized.adjustment",
+    "status": "GraphDependent",
+    "completion_count": 7,
+    "identified_mass": 6.0,
+    "unidentified_mass": 1.0
+  },
+  "identified_completions": [
+    {
+      "weight": 1.0,
+      "adjustment": [
+        "z"
+      ]
+    },
+    {
+      "weight": 1.0,
+      "adjustment": [
+        "z"
+      ]
+    },
+    {
+      "weight": 1.0,
+      "adjustment": []
+    },
+    {
+      "weight": 1.0,
+      "adjustment": []
+    },
+    {
+      "weight": 1.0,
+      "adjustment": [
+        "z"
+      ]
+    },
+    {
+      "weight": 1.0,
+      "adjustment": [
+        "z"
+      ]
+    }
+  ],
+  "pulse_ate": 2.214723444204995,
+  "absolute_tolerance": 1e-09,
+  "bootstrap_replicates": 32,
+  "reference": "conformance/estimate/temporal_class_envelope/identified_pag_reference.py",
+  "completion_effects": [
+    1.9618169375112833,
+    1.9618169375112833,
+    2.7205364575924174,
+    2.7205364575924174,
+    1.9618169375112833,
+    1.9618169375112833
+  ]
+}

@@ -269,12 +269,22 @@ impl ConditionalLinearAdjustment {
         // Marginal ATE at mean W: (β_T + β_{TW} * Ē[W]) * delta
         let point = (coef[1] + coef[3] * w_bar) * delta;
 
-        // Delta-method SE with g = δ·(e_T + w̄·e_{T×W}), treating w̄ as fixed.
+        // Delta-method SE with g = δ·(e_T + w̄·e_{T×W}) for the coefficients,
+        // plus the sampling variance of w̄ itself: the reported functional
+        // averages the CATE over the modifier distribution, so its IF carries
+        // δ·β_{T×W}·(w_i − w̄) (asymptotically uncorrelated with the OLS
+        // score term). Treating w̄ as fixed under-covers whenever β_{T×W} ≠ 0.
         let sigma2 = crate::util::ols_sigma2(&design, n, ncols, &y, &coef);
         let mut g = vec![0.0; ncols];
         g[1] = delta;
         g[3] = delta * w_bar;
-        let se_analytic = crate::util::delta_method_se(&inv, ncols, &g, sigma2);
+        let n_f = n as f64;
+        let modifier_term = delta * coef[3];
+        let w_var_of_mean =
+            w.iter().map(|wi| (wi - w_bar).powi(2)).sum::<f64>() / (n_f * (n_f - 1.0));
+        let se_coef = crate::util::delta_method_se(&inv, ncols, &g, sigma2);
+        let se_analytic =
+            (se_coef * se_coef + modifier_term * modifier_term * w_var_of_mean).sqrt();
 
         let mut residuals = vec![0.0; n];
         for i in 0..n {
@@ -284,7 +294,6 @@ impl ConditionalLinearAdjustment {
             }
             residuals[i] = y[i] - pred;
         }
-        let n_f = n as f64;
         let mut influence = vec![0.0; n];
         for i in 0..n {
             let mut g_inv_x = 0.0;
@@ -298,7 +307,7 @@ impl ConditionalLinearAdjustment {
                 }
                 g_inv_x += g[a] * inv_x;
             }
-            influence[i] = n_f * g_inv_x * residuals[i];
+            influence[i] = n_f * g_inv_x * residuals[i] + modifier_term * (w[i] - w_bar);
         }
 
         let _ = Arc::clone(&estimand.method);
@@ -685,10 +694,22 @@ mod tests {
             (actual.ate - fixture["reference"]["ate_at_modifier_mean"].as_f64().unwrap()).abs()
                 <= tolerance
         );
+        // The statsmodels oracle is the coefficient delta-method SE at the
+        // observed modifier mean (w̄ held fixed). The reported functional
+        // averages over the modifier distribution, so its SE adds the sampling
+        // variance of w̄, δ²·β_{T×W}²·Σ(w−w̄)²/(n(n−1)); remove it and compare.
+        let coefficients = fixture["reference"]["coefficients"].as_array().unwrap();
+        let b_tw = coefficients[3].as_f64().unwrap();
+        let w_bar = fixture["reference"]["modifier_mean"].as_f64().unwrap();
+        let w_var_of_mean = (0..n).map(|i| ((i % 7) as f64 - 3.0 - w_bar).powi(2)).sum::<f64>()
+            / (n as f64 * (n as f64 - 1.0));
+        let coefficient_part = (actual.se_analytic.powi(2) - b_tw * b_tw * w_var_of_mean).sqrt();
         assert!(
-            (actual.se_analytic - fixture["reference"]["analytic_se"].as_f64().unwrap()).abs()
-                <= tolerance
+            (coefficient_part - fixture["reference"]["analytic_se"].as_f64().unwrap()).abs()
+                <= tolerance,
+            "coefficient-part SE {coefficient_part} vs statsmodels oracle"
         );
+        assert!(actual.se_analytic > coefficient_part, "the modifier-mean term must be added");
     }
 
     #[test]
