@@ -20,9 +20,9 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{Dag, Pag};
 use antecedent_identify::{
     AutoIdentifier, BackdoorIdentifier, EfficientBackdoorIdentifier, FrontDoorIdentifier,
-    GeneralizedAdjustmentIdentifier, IdIdentifier, IdentificationEnvelope, IdentificationError,
-    IdentificationResult, IdentificationWorkspace, InstrumentalVariableIdentifier,
-    ResponseIdentifier, TemporalClassEnvelope,
+    GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, IdIdentifier,
+    IdentificationEnvelope, IdentificationError, IdentificationResult, IdentificationWorkspace,
+    InstrumentalVariableIdentifier, ResponseIdentifier, TemporalClassEnvelope,
 };
 
 use crate::error::CausalError;
@@ -229,9 +229,28 @@ pub fn identify_temporal_cpdag(
     cpdag: &antecedent_graph::TemporalCpdag,
     query: &TemporalEffectQuery,
 ) -> Result<TemporalClassEnvelope, CausalError> {
+    identify_temporal_cpdag_configured(
+        identifier,
+        cpdag,
+        query,
+        GeneralizedAdjustmentConfig::default(),
+    )
+}
+
+/// Class-aware TemporalCpdag identification with an explicit completion cap.
+///
+/// # Errors
+///
+/// Unsupported identifier or identification failure.
+pub fn identify_temporal_cpdag_configured(
+    identifier: IdentifierId,
+    cpdag: &antecedent_graph::TemporalCpdag,
+    query: &TemporalEffectQuery,
+    config: GeneralizedAdjustmentConfig,
+) -> Result<TemporalClassEnvelope, CausalError> {
     match identifier {
         IdentifierId::GeneralizedAdjustment => {
-            let id = GeneralizedAdjustmentIdentifier::new();
+            let id = GeneralizedAdjustmentIdentifier { config };
             id.identify_temporal_cpdag_envelope(cpdag, query).map_err(identify_err)
         }
         other if other.is_dag_only() => Err(CausalError::Compile {
@@ -254,9 +273,23 @@ pub fn identify_temporal_pag(
     pag: &antecedent_graph::TemporalPag,
     query: &TemporalEffectQuery,
 ) -> Result<TemporalClassEnvelope, CausalError> {
+    identify_temporal_pag_configured(identifier, pag, query, GeneralizedAdjustmentConfig::default())
+}
+
+/// Class-aware TemporalPag identification with an explicit completion cap.
+///
+/// # Errors
+///
+/// Unsupported identifier or identification failure.
+pub fn identify_temporal_pag_configured(
+    identifier: IdentifierId,
+    pag: &antecedent_graph::TemporalPag,
+    query: &TemporalEffectQuery,
+    config: GeneralizedAdjustmentConfig,
+) -> Result<TemporalClassEnvelope, CausalError> {
     match identifier {
         IdentifierId::GeneralizedAdjustment => {
-            let id = GeneralizedAdjustmentIdentifier::new();
+            let id = GeneralizedAdjustmentIdentifier { config };
             id.identify_temporal_pag_envelope(pag, query).map_err(identify_err)
         }
         other if other.is_dag_only() => Err(CausalError::Compile {

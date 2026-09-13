@@ -905,6 +905,7 @@ class PreparedAnalysis:
         class_graph: TemporalCpdag | TemporalPag | None = None,
         class_prior_ordered: list[float] | None = None,
         class_prior_pairs: list[tuple[int, float]] | None = None,
+        max_completions: int | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_temporal_effect(
@@ -954,6 +955,7 @@ class PreparedAnalysis:
         accepted: bool = False,
         class_prior_ordered: list[float] | None = None,
         class_prior_pairs: list[tuple[int, float]] | None = None,
+        max_completions: int | None = None,
         prior_artifact: bytes | None = None,
         prior_mapping: dict[str, Any] | None = None,
         composed_prior: dict[str, Any] | None = None,
@@ -981,6 +983,7 @@ class PreparedAnalysis:
         accepted: bool = False,
         class_prior_ordered: list[float] | None = None,
         class_prior_pairs: list[tuple[int, float]] | None = None,
+        max_completions: int | None = None,
         prior_artifact: bytes | None = None,
         prior_mapping: dict[str, Any] | None = None,
         composed_prior: dict[str, Any] | None = None,
@@ -1009,6 +1012,7 @@ class PreparedAnalysis:
         class_graph: TemporalCpdag | TemporalPag | None = None,
         class_prior_ordered: list[float] | None = None,
         class_prior_pairs: list[tuple[int, float]] | None = None,
+        max_completions: int | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_graph_posterior_ate(
@@ -1682,6 +1686,7 @@ def analyze_temporal_cpdag(
     prior_artifact: bytes | None = None,
     class_prior_ordered: list[float] | None = None,
     class_prior_pairs: list[tuple[int, float]] | None = None,
+    max_completions: int | None = None,
     refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
@@ -1706,6 +1711,7 @@ def analyze_temporal_pag(
     prior_artifact: bytes | None = None,
     class_prior_ordered: list[float] | None = None,
     class_prior_pairs: list[tuple[int, float]] | None = None,
+    max_completions: int | None = None,
     refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,

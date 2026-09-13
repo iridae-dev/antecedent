@@ -1184,6 +1184,7 @@ impl PyPreparedAnalysis {
         class_graph=None,
         class_prior_ordered=None,
         class_prior_pairs=None,
+        max_completions=None,
         observation_kind=None,
         latent=None,
         observed=None,
@@ -1224,6 +1225,7 @@ impl PyPreparedAnalysis {
         class_graph: Option<Bound<'_, PyAny>>,
         class_prior_ordered: Option<Vec<f64>>,
         class_prior_pairs: Option<Vec<(u64, f64)>>,
+        max_completions: Option<usize>,
         observation_kind: Option<String>,
         latent: Option<String>,
         observed: Option<String>,
@@ -1320,6 +1322,7 @@ impl PyPreparedAnalysis {
                 class_prior_ordered,
                 class_prior_pairs,
             )?;
+            builder = crate::temporal_api::apply_max_completions(builder, max_completions);
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
@@ -1462,6 +1465,7 @@ impl PyPreparedAnalysis {
         prior_scale=10.0,
         class_prior_ordered=None,
         class_prior_pairs=None,
+        max_completions=None,
         prior_artifact=None,
         prior_mapping=None,
         composed_prior=None,
@@ -1489,6 +1493,7 @@ impl PyPreparedAnalysis {
         prior_scale: f64,
         class_prior_ordered: Option<Vec<f64>>,
         class_prior_pairs: Option<Vec<(u64, f64)>>,
+        max_completions: Option<usize>,
         prior_artifact: Option<Vec<u8>>,
         prior_mapping: Option<&Bound<'_, PyDict>>,
         composed_prior: Option<&Bound<'_, PyDict>>,
@@ -1516,6 +1521,7 @@ impl PyPreparedAnalysis {
             prior_scale,
             class_prior_ordered,
             class_prior_pairs,
+            max_completions,
             prior_artifact,
             prior_mapping,
             composed_prior,
@@ -1546,6 +1552,7 @@ impl PyPreparedAnalysis {
         prior_scale=10.0,
         class_prior_ordered=None,
         class_prior_pairs=None,
+        max_completions=None,
         prior_artifact=None,
         prior_mapping=None,
         composed_prior=None,
@@ -1573,6 +1580,7 @@ impl PyPreparedAnalysis {
         prior_scale: f64,
         class_prior_ordered: Option<Vec<f64>>,
         class_prior_pairs: Option<Vec<(u64, f64)>>,
+        max_completions: Option<usize>,
         prior_artifact: Option<Vec<u8>>,
         prior_mapping: Option<&Bound<'_, PyDict>>,
         composed_prior: Option<&Bound<'_, PyDict>>,
@@ -1600,6 +1608,7 @@ impl PyPreparedAnalysis {
             prior_scale,
             class_prior_ordered,
             class_prior_pairs,
+            max_completions,
             prior_artifact,
             prior_mapping,
             composed_prior,
@@ -1636,6 +1645,7 @@ impl PyPreparedAnalysis {
         class_graph=None,
         class_prior_ordered=None,
         class_prior_pairs=None,
+        max_completions=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_temporal_mediation(
@@ -1661,6 +1671,7 @@ impl PyPreparedAnalysis {
         class_graph: Option<Bound<'_, PyAny>>,
         class_prior_ordered: Option<Vec<f64>>,
         class_prior_pairs: Option<Vec<(u64, f64)>>,
+        max_completions: Option<usize>,
     ) -> PyResult<Self> {
         let class_graph = extract_temporal_class(class_graph, &names)?;
         let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
@@ -1711,6 +1722,7 @@ impl PyPreparedAnalysis {
                 class_prior_ordered,
                 class_prior_pairs,
             )?;
+            builder = crate::temporal_api::apply_max_completions(builder, max_completions);
             let analysis = builder.build().map_err(py_err)?;
             let ctx = py_execution_context_ext(
                 seed,
@@ -3384,6 +3396,7 @@ fn prepare_temporal_class_effect(
     prior_scale: f64,
     class_prior_ordered: Option<Vec<f64>>,
     class_prior_pairs: Option<Vec<(u64, f64)>>,
+    max_completions: Option<usize>,
     prior_artifact: Option<Vec<u8>>,
     prior_mapping: Option<&Bound<'_, PyDict>>,
     composed_prior: Option<&Bound<'_, PyDict>>,
@@ -3435,6 +3448,7 @@ fn prepare_temporal_class_effect(
             class_prior_ordered,
             class_prior_pairs,
         )?;
+        builder = crate::temporal_api::apply_max_completions(builder, max_completions);
         let analysis = builder.build().map_err(py_err)?;
         let ctx = py_execution_context_ext(
             seed,

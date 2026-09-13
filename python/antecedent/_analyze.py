@@ -118,7 +118,13 @@ from .estimation import (
 )
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
-from .inference import Bayesian, ClassPrior, Frequentist, _class_prior_kwargs
+from .inference import (
+    Bayesian,
+    ClassPrior,
+    Frequentist,
+    _class_prior_kwargs,
+    _max_completions_kwargs,
+)
 from .observation import Complete as _ObservationComplete
 from .query import (
     AverageDerivative,
@@ -1546,6 +1552,7 @@ def handle_temporal_pulse(
     regimes: Sequence[int] | None,
     structure_accepted: bool = False,
     class_prior: ClassPrior | None = None,
+    max_completions: int | None = None,
 ) -> Any:
     from .estimation import (
         _discovery_algorithm,
@@ -1644,6 +1651,7 @@ def handle_temporal_pulse(
             threads=threads,
             accepted=structure_accepted,
             **_class_prior_kwargs(class_prior),
+            **_max_completions_kwargs(max_completions),
         )
         return _wrap_temporal(raw)
     if isinstance(graph, TemporalCpdag):
@@ -1665,6 +1673,7 @@ def handle_temporal_pulse(
             threads=threads,
             accepted=structure_accepted,
             **_class_prior_kwargs(class_prior),
+            **_max_completions_kwargs(max_completions),
         )
         return _wrap_temporal(raw)
     lagged = _lagged_edges(graph)
@@ -2183,6 +2192,7 @@ def analyze(
     on_stage: Any | None = None,
     return_posterior_artifact: bool = False,
     class_prior: ClassPrior | None = None,
+    max_completions: int | None = None,
 ) -> AnalysisResult | CausalResponseView:
     """Identify then estimate a causal effect.
 
@@ -2429,6 +2439,7 @@ def analyze(
             threads=threads,
             latency=latency,
             class_prior=class_prior,
+            max_completions=max_completions,
         )
         result = prepared.estimate(data, seed=seed, threads=threads)
         if return_posterior_artifact:
@@ -2567,6 +2578,7 @@ def analyze(
             structure_accepted=structure_accepted,
             regimes=regimes,
             class_prior=class_prior,
+            max_completions=max_completions,
         )
 
     raise TypeError(f"unsupported query type: {type(query)!r}")

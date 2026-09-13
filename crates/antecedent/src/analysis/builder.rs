@@ -228,6 +228,8 @@ pub struct StudyBuilder {
     graph_posterior: Option<GraphPosterior>,
     /// Caller-supplied mass over incomplete-temporal class members.
     class_prior: Option<crate::ClassPrior>,
+    /// Optional cap on TemporalCpdag / TemporalPag completion search.
+    max_completions: Option<usize>,
     /// Set by [`Self::graph`]: `Accepted` vs `Explicit`. Posterior overrides at build.
     structure_source: Option<crate::support::StructureSource>,
     query: Option<CausalQuery>,
@@ -279,6 +281,7 @@ impl std::fmt::Debug for StudyBuilder {
             .field("tiered", &self.tiered)
             .field("graph_posterior", &self.graph_posterior)
             .field("class_prior", &self.class_prior)
+            .field("max_completions", &self.max_completions)
             .field("structure_source", &self.structure_source)
             .field("query", &self.query.as_ref().map(|_| "<query>"))
             .field("refute", &self.refute)
@@ -312,6 +315,7 @@ impl StudyBuilder {
             graph: None,
             graph_posterior: None,
             class_prior: None,
+            max_completions: None,
             structure_source: None,
             query: None,
             refute: RefuteSuite::PlaceboAndRcc,
@@ -416,6 +420,16 @@ impl StudyBuilder {
     #[must_use]
     pub fn class_prior(mut self, prior: crate::ClassPrior) -> Self {
         self.class_prior = Some(prior);
+        self
+    }
+
+    /// Cap TemporalCpdag / TemporalPag completion search.
+    ///
+    /// A cap below the true class size cannot confer class-wide point
+    /// identification (`full_mass_scope`, `truncated_atoms`).
+    #[must_use]
+    pub fn max_completions(mut self, n: usize) -> Self {
+        self.max_completions = Some(n);
         self
     }
 
@@ -1062,6 +1076,7 @@ impl StudyBuilder {
             graph,
             graph_posterior,
             class_prior: self.class_prior,
+            max_completions: self.max_completions,
             structure_source: structure,
             support_status,
             query,
