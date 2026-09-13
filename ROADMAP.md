@@ -233,7 +233,7 @@ mixtures with shared outer-block replicates shipped in 1.6; TemporalCpdag /
 TemporalPag class-envelope between-atom variance remains 1.9 calibration.
 The temporal PAG mixed-graph implementation is verified, with finite-window
 audit limits explicit.
-Bayesian incomplete-class temporal cells stay 1.7.
+Bayesian incomplete-class temporal cells shipped in 1.7.
 
 ### Explicit ownership from the 1.4 completion review
 
@@ -348,8 +348,15 @@ Bayesian temporal observations use the Gaussian observed-data SEM and latent-tra
 posterior requires a shared dynamic parameter model; 1.6 reports honest
 pointwise posteriors. Latent-confounded PAG natural mediation remains outside
 the implemented identification theory. Incomplete-class DBN-posterior mixing
-and Bayesian TemporalCpdag/Pag envelopes remain 1.7 because they need a
-class-mass contract, not because 1.6 left the neighbor undocumented.
+stays closed.
+
+## 1.7 — Incomplete temporal graphs, Bayesian
+
+Released as [1.7.0](docs/release-notes/v1.7.0.md). See the
+[evidence ledger](docs/v1.7-evidence.md). Bayesian Pulse / Sustained,
+curves, Sequence, observation, and TemporalCpdag mediation run on
+`TemporalCpdag` / `TemporalPag` without collapsing the class. A caller-supplied
+`ClassPrior` is the only blended posterior; enumeration is not probability.
 
 ## 1.x — Compatible cells
 

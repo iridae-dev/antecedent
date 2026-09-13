@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml/badge.svg)](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/antecedent)](https://crates.io/crates/antecedent) [![PyPI](https://img.shields.io/pypi/v/antecedent)](https://pypi.org/project/antecedent/) [![GitHub Release](https://img.shields.io/github/v/release/iridae-dev/antecedent)](https://github.com/iridae-dev/antecedent/releases/latest) [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21556247-blue)](https://doi.org/10.5281/zenodo.21556247)
 
-Antecedent is an identification-first causal inference engine in Rust with a first-class Python API. It unifies causal discovery, structural uncertainty, identification, estimation, validation, interventions, temporal analysis, and durable artifacts in one typed workflow.
+Antecedent is designed for causal inference as a composable systems primitive, built to preserve the epistemic correctness of causal analysis. It unifies discovery, structural uncertainty, identification, estimation, validation, interventions, temporal analysis, and durable artifacts in one typed workflow.
 
-Give it data, a causal question, and a graph or discovery strategy. Antecedent determines what is identified, runs a compatible inference path, or refuses claims the available evidence does not warrant.
+Antecedent applies high-assurance engineering principles to causal inference: claims are explicitly scoped, unsupported combinations fail closed, evidence is classified, implementations are checked against independent oracles where available, and provenance and traceability are machine-audited.
 
-Results preserve assumptions, uncertainty, diagnostics, and provenance across scalar effects, response curves, interventional distributions, and temporal trajectories—so analyses can be reviewed, reused, and audited without changing their scientific meaning.
+Give it data, a causal question, and a graph or discovery strategy. Antecedent determines what is identified, runs only a licensed inference path, or refuses claims the available evidence does not warrant. Results preserve assumptions, uncertainty, diagnostics, and provenance across system boundaries, so analyses can be composed, reviewed, reused, and audited without losing their scientific meaning.
 
 ## Try it in Colab
 
@@ -60,11 +60,11 @@ For example, consider an average treatment effect estimated with AIPW. The publi
 
 ## Project status and documentation
 
-The current package version is **1.6.0**.
-The release adds per-horizon temporal identification, sequential policy
-overlays, licensed temporal observation correction, DBN-posterior temporal
-mixtures, and bounded prior transfer on supported temporal cells. The
-[1.6.0 release notes](docs/release-notes/v1.6.0.md), [support
+The current package version is **1.7.0**.
+The release adds class-preserving Bayesian analyses on incomplete temporal
+graphs, plus multi-step Sustained, Sequence, observation, and prior transfer
+on `TemporalCpdag` / `TemporalPag`. The
+[1.7.0 release notes](docs/release-notes/v1.7.0.md), [support
 matrix](docs/support-matrix.md), and [conformance index](docs/conformance/README.md)
 state the implemented scope and verification limits. The [1.5 Python
 walkthrough](docs/local-distributional-joint.md) remains the guide for
