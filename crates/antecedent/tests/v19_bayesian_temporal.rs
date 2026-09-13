@@ -290,3 +290,31 @@ fn bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage() {
     }
     tally.assert();
 }
+
+/// The composed Bayesian refitter resamples lag-aligned rows for
+/// `bootstrap.ci_coverage` instead of rebuilding lags on a block-resampled raw
+/// series (which pairs outcomes with regressors from unrelated blocks).
+#[test]
+fn bayesian_multi_step_bootstrap_refuter_resamples_aligned_rows() {
+    let result = Study::series(series_xy(Regime::RHO05_N160, 0, BETA2))
+        .graph(lag12_dag())
+        .query(CausalQuery::TemporalEffect(multi_sustained()))
+        .inference(bayes())
+        .refute(RefuteSuite::Full)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(3))
+        .unwrap();
+    let report = result
+        .refutations
+        .iter()
+        .find(|r| r.refuter.as_ref() == "bootstrap.ci_coverage")
+        .expect("the composed Bayesian contrast runs bootstrap.ci_coverage");
+    assert!(report.replicates > 0 && report.refuted_ate.is_finite(), "{report:?}");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code.as_ref() == "refute.validator.not_applicable"
+            && d.message.contains("bootstrap")),
+        "bootstrap.ci_coverage must not be skipped"
+    );
+}
