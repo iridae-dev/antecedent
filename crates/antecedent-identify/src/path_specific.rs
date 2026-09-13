@@ -1,16 +1,25 @@
 //! Path-restricted natural-effect identification (Avin, Shpitser & Pearl 2005).
 //!
-//! Enumerate directed paths π from treatment to outcome, reject recanting
-//! descendants, surgically delete treatment out-edges not on π, then run
-//! general ID for the active/control contrast on the modified ADMG.
+//! Enumerate directed paths π from treatment to outcome and reject recanting
+//! descendants. When every directed path is in π the path-specific effect is
+//! the total effect: surgically delete treatment out-edges not on any path and
+//! run general ID for the active/control contrast. When a complementary path
+//! exists, emit the edge g-formula (Shpitser 2013): the treatment enters each
+//! child's factor at the active level if that edge starts a path in π and at
+//! the control level otherwise, minus the all-control g-formula.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use antecedent_core::{AverageEffectQuery, CausalQuery, PathSpecificEffectQuery};
-use antecedent_expr::EstimandMethod;
+use antecedent_core::{
+    AverageEffectQuery, CausalQuery, PathSpecificEffectQuery, Value, VariableId,
+};
+use antecedent_expr::{
+    CausalExprArena, ContrastOp, DerivationMeta, DomainRef, EstimandMethod, ExprId, ExprNode,
+    IdentifiedEstimand, InterventionAssignment, OutcomeExprId,
+};
 use antecedent_graph::{Admg, Dag, DenseNodeId};
 
 use crate::error::IdentificationError;
@@ -200,6 +209,41 @@ impl PathSpecificIdentifier {
             }
         }
 
+        // A complementary path means the contrast is not the total effect: the
+        // treatment must reach the outcome at the active level along π and at the
+        // control level along every other path. General ID on the surgical graph
+        // cannot express that (its factors condition on the treatment as a
+        // predecessor, so one level would reach every factor), so use the edge
+        // g-formula instead.
+        if !complement_paths.is_empty() {
+            let (arena, functional) = edge_g_formula(prepared, q, t, y, &keep_out)?;
+            derivation.push(
+                "path_specific.edge_gformula",
+                format!(
+                    "{} complementary path(s): edge g-formula with the active level on {} \
+                     treatment out-edge(s) on π and the control level on the rest",
+                    complement_paths.len(),
+                    keep_out.len()
+                ),
+            );
+            let estimand = IdentifiedEstimand::new(
+                Arc::from(EstimandMethod::PathSpecificNatural.as_str()),
+                Arc::from([]),
+                Arc::from([]),
+                Arc::clone(&q.path_nodes),
+                functional,
+                None,
+            );
+            return Ok(IdentificationResult::identified(
+                query,
+                vec![estimand],
+                arena,
+                derivation,
+                prepared.declared_assumptions().clone(),
+                perf,
+            ));
+        }
+
         let surgical = surgical_admg(admg, t, &keep_out)?;
         let surgical_prep =
             PreparedAdmg::with_assumptions(surgical, prepared.declared_assumptions().clone())?;
@@ -269,6 +313,127 @@ fn recanting_descendant(
         }
     }
     on_pi.intersection(&on_comp).next().copied()
+}
+
+/// Edge g-formula for a path-specific natural effect (Avin, Shpitser & Pearl
+/// 2005; Shpitser 2013) on a graph without latent confounding among the
+/// outcome's ancestors.
+///
+/// With `V* = An(Y)` in the graph with the treatment's incoming edges removed,
+/// minus the treatment itself, each side of the contrast is
+///
+/// `E[Y] = Σ_{v* \ y} Π_{V ∈ V*} P(v | pa(v))`,
+///
+/// where a factor whose parents include the treatment `T` binds `T` to the
+/// active level if `T → V` starts a path in π (`keep_out`) and to the control
+/// level otherwise. The reference side binds every treatment edge to the
+/// control level (the ordinary g-formula for `do(T = control)`). The per-factor
+/// binding is carried as that factor's intervention set, so any evaluator of the
+/// expression IR (the discrete plug-in and its shared Dirichlet row law
+/// included) evaluates exactly this functional.
+///
+/// Callers must have ruled out a recanting witness: then every treatment child
+/// that is an ancestor of `Y` lies on π-paths only or on complementary paths
+/// only, so the edge assignment is well defined and equals the path-specific
+/// effect.
+fn edge_g_formula(
+    prepared: &PreparedAdmg,
+    q: &PathSpecificEffectQuery,
+    t: DenseNodeId,
+    y: DenseNodeId,
+    keep_out: &HashSet<DenseNodeId>,
+) -> Result<(CausalExprArena, ExprId), IdentificationError> {
+    let admg = prepared.admg();
+    // Ancestors of Y (Y included) reached without passing through T.
+    let mut v_star: HashSet<DenseNodeId> = HashSet::new();
+    let mut stack = vec![y];
+    while let Some(node) = stack.pop() {
+        if node == t || !v_star.insert(node) {
+            continue;
+        }
+        stack.extend(admg.parents(node).iter().copied());
+    }
+    // `P(v | pa(v))` is the district factor only when `v` is a singleton
+    // district; latent confounding would need Shpitser's district formula.
+    if v_star.iter().any(|&v| !admg.bidirected_neighbors(v).is_empty()) {
+        return Err(IdentificationError::unsupported(
+            "path-specific edge g-formula requires no bidirected edge on an ancestor of the \
+             outcome other than the treatment (the district-level formula for latent confounding \
+             is not implemented)",
+        ));
+    }
+
+    let t_var = prepared.dense_to_var(t)?;
+    let active = crate::intervention_support::require_set_value(&q.active, "path-specific")?;
+    let control = crate::intervention_support::require_set_value(&q.control, "path-specific")?;
+
+    let mut arena = CausalExprArena::new();
+    let empty_i = arena.empty_intervention_set();
+    let order: Vec<DenseNodeId> =
+        prepared.topo().iter().copied().filter(|v| v_star.contains(v)).collect();
+    let side = |edge_level: &dyn Fn(DenseNodeId) -> Value,
+                arena: &mut CausalExprArena|
+     -> Result<ExprId, IdentificationError> {
+        let mut factors = Vec::with_capacity(order.len());
+        for &vi in &order {
+            let parents = admg.parents(vi);
+            let cond: Vec<VariableId> =
+                parents.iter().map(|&p| prepared.dense_to_var(p)).collect::<Result<_, _>>()?;
+            let (intervention, domain) = if parents.contains(&t) {
+                let assignment = InterventionAssignment { variable: t_var, value: edge_level(vi) };
+                (arena.intern_intervention_assignments([assignment]), DomainRef::Interventional)
+            } else {
+                (empty_i, DomainRef::Observational)
+            };
+            let variables = arena.intern_var_set([prepared.dense_to_var(vi)?]);
+            let conditioned_on = arena.intern_var_set(cond);
+            factors.push(arena.intern(ExprNode::Distribution {
+                variables,
+                conditioned_on,
+                intervention,
+                domain,
+            }));
+        }
+        let body = if factors.len() == 1 {
+            factors[0]
+        } else {
+            let list = arena.intern_list(factors);
+            arena.intern(ExprNode::Product(list))
+        };
+        let summed: Vec<VariableId> = order
+            .iter()
+            .filter(|&&v| v != y)
+            .map(|&v| prepared.dense_to_var(v))
+            .collect::<Result<_, _>>()?;
+        let distribution = if summed.is_empty() {
+            body
+        } else {
+            let variables = arena.intern_var_set(summed);
+            arena.intern(ExprNode::SumOut { variables, expr: body })
+        };
+        Ok(arena.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(q.outcome),
+            distribution,
+        }))
+    };
+    let path_level = |vi: DenseNodeId| {
+        if keep_out.contains(&vi) { active.clone() } else { control.clone() }
+    };
+    let left = side(&path_level, &mut arena)?;
+    let right = side(&|_| control.clone(), &mut arena)?;
+    let contrast = arena.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
+    arena.set_derivation(
+        contrast,
+        DerivationMeta {
+            rule: Arc::from("path_specific.edge_gformula"),
+            note: Some(Arc::from(
+                "active level on treatment edges that start a selected path; control elsewhere",
+            )),
+        },
+    );
+    let functional =
+        arena.simplify(contrast).map_err(|e| IdentificationError::msg(e.to_string()))?;
+    Ok((arena, functional))
 }
 
 fn surgical_admg(
@@ -402,6 +567,77 @@ mod tests {
         );
     }
 
+    fn has_rule(res: &IdentificationResult, rule: &str) -> bool {
+        res.derivation.steps.iter().any(|s| s.rule.as_ref() == rule)
+    }
+
+    /// With a complementary direct path the functional is the edge g-formula:
+    /// the mediator factor binds the treatment to the active level and the
+    /// outcome factor binds it to the control level on the left side.
+    #[test]
+    fn complementary_path_uses_edge_g_formula_levels() {
+        let dag = chain_with_direct();
+        let id = PathSpecificIdentifier::new();
+        let prep = id.prepare_dag(&dag).unwrap();
+        let q = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
+            .with_path_nodes([VariableId::from_raw(1)]);
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &CausalQuery::PathSpecific(q), &mut ws).unwrap();
+        assert!(has_rule(&res, "path_specific.edge_gformula"), "{:?}", res.derivation.steps);
+
+        // Collect (factor variable, bound treatment level) over the contrast's left side.
+        let ExprNode::Contrast { left, right, .. } = res.arena.node(res.estimands[0].functional)
+        else {
+            panic!("expected a contrast");
+        };
+        let levels = |root: ExprId| {
+            let mut out = Vec::new();
+            let mut stack = vec![root];
+            while let Some(id) = stack.pop() {
+                match res.arena.node(id) {
+                    ExprNode::Distribution { variables, intervention, .. } => {
+                        for a in res.arena.intervention_assignments(*intervention) {
+                            out.push((
+                                res.arena.var_set(*variables)[0].raw(),
+                                a.value.as_f64().unwrap(),
+                            ));
+                        }
+                    }
+                    ExprNode::Product(list) => stack.extend(res.arena.list(*list)),
+                    ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
+                        stack.push(*expr);
+                    }
+                    ExprNode::Expectation { distribution, .. } => stack.push(*distribution),
+                    other => panic!("unexpected node {other:?}"),
+                }
+            }
+            out.sort_by(|a, b| a.0.cmp(&b.0));
+            out
+        };
+        assert_eq!(levels(*left), vec![(1, 1.0), (2, 0.0)], "M at active, Y at control");
+        assert_eq!(levels(*right), vec![(1, 0.0), (2, 0.0)], "reference side all control");
+    }
+
+    /// Latent confounding on an outcome ancestor needs the district formula,
+    /// which is not implemented: refuse rather than emit a node-wise product.
+    #[test]
+    fn edge_g_formula_refuses_bidirected_ancestor() {
+        let mut admg = Admg::with_variables(3);
+        let (t, m, y) =
+            (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
+        admg.insert_directed(t, m).unwrap();
+        admg.insert_directed(m, y).unwrap();
+        admg.insert_directed(t, y).unwrap();
+        admg.insert_bidirected(m, y).unwrap();
+        let id = PathSpecificIdentifier::new();
+        let prep = id.prepare(&admg).unwrap();
+        let q = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
+            .with_path_nodes([VariableId::from_raw(1)]);
+        let mut ws = IdentificationWorkspace::default();
+        let err = id.identify(&prep, &CausalQuery::PathSpecific(q), &mut ws).unwrap_err();
+        assert!(err.to_string().contains("bidirected"), "{err}");
+    }
+
     #[test]
     fn all_paths_identifies_total() {
         let dag = chain_with_direct();
@@ -412,6 +648,7 @@ mod tests {
         let mut ws = IdentificationWorkspace::default();
         let res = id.identify(&prep, &cq, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(!has_rule(&res, "path_specific.edge_gformula"), "no complement: total effect");
     }
 
     #[test]

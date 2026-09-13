@@ -874,13 +874,13 @@ fn mediation_confounded_mediator_probe() {
 /// Binary chain `t -> m -> y` (columns `t, m, y`): `t ~ Bern(1/2)`,
 /// `m | t ~ Bern(0.3 + 0.4t)`, `y | m ~ Bern(0.2 + 0.5m)`. The only directed
 /// path runs through `m`, so the path-specific effect is `0.4·0.5 = 0.2`.
-fn path_data(n: usize, direct: f64, seed: u64) -> TabularData {
+fn path_data(n: usize, seed: u64) -> TabularData {
     let mut u = uniform(seed);
     let (mut t, mut m, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
     for i in 0..n {
         t[i] = bernoulli(&mut u, 0.5);
         m[i] = bernoulli(&mut u, 0.3 + 0.4 * t[i]);
-        y[i] = bernoulli(&mut u, 0.2 + 0.5 * m[i] + direct * t[i]);
+        y[i] = bernoulli(&mut u, 0.2 + 0.5 * m[i]);
     }
     table(&[("t", &t), ("m", &m), ("y", &y)])
 }
@@ -905,16 +905,41 @@ fn run_path(
         .map_err(|e| e.to_string())
 }
 
-fn path_coverage(name: &str, bayesian: bool, seed: u64) {
+/// Two-path law with a confounder (columns `t, m, y, c`), the SCM of
+/// `conformance/estimate/path_specific_edge_gformula`: `c ~ Bern(0.4)`,
+/// `t | c ~ Bern(0.3 + 0.4c)`, `m | t, c ~ Bern(0.2 + 0.4t + 0.2c)`,
+/// `y | t, m, c ~ Bern(0.1 + 0.3m + 0.1t + 0.2mt + 0.2c)`. The path through `m`
+/// has effect `E[Y(0, M(1))] − E[Y(0, M(0))] = 0.4·0.3 = 0.12`; the total effect
+/// is 0.356 and the natural direct effect 0.156, so an evaluator that binds one
+/// treatment level everywhere cannot cover.
+fn two_path_data(n: usize, seed: u64) -> TabularData {
+    let mut u = uniform(seed);
+    let (mut t, mut m, mut y, mut c) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        c[i] = bernoulli(&mut u, 0.4);
+        t[i] = bernoulli(&mut u, 0.3 + 0.4 * c[i]);
+        m[i] = bernoulli(&mut u, 0.2 + 0.4 * t[i] + 0.2 * c[i]);
+        y[i] = bernoulli(&mut u, 0.1 + 0.3 * m[i] + 0.1 * t[i] + 0.2 * m[i] * t[i] + 0.2 * c[i]);
+    }
+    table(&[("t", &t), ("m", &m), ("y", &y), ("c", &c)])
+}
+
+fn two_path_graph() -> Dag {
+    dag(4, &[(3, 0), (3, 1), (3, 2), (0, 1), (0, 2), (1, 2)])
+}
+
+fn path_coverage(
+    name: &str,
+    bayesian: bool,
+    seed: u64,
+    truth: f64,
+    sample: impl Fn(u64) -> (TabularData, Dag),
+) {
     let mut tally = CoverageTally::new(name, LEVEL);
     for rep in 0..u64::from(n_sim()) {
         let inference = if bayesian { bayes() } else { InferenceMode::Frequentist };
-        let Ok(result) = run_path(
-            path_data(500, 0.0, seed + rep),
-            dag(3, &[(0, 1), (1, 2)]),
-            inference,
-            seed + rep,
-        ) else {
+        let (data, graph) = sample(seed + rep);
+        let Ok(result) = run_path(data, graph, inference, seed + rep) else {
             tally.skip();
             continue;
         };
@@ -923,34 +948,42 @@ fn path_coverage(name: &str, bayesian: bool, seed: u64) {
         } else {
             normal_interval(result.estimate.ate, result.estimate.se_bootstrap, Z90)
         };
-        tally.record(interval, 0.2);
+        tally.record(interval, truth);
     }
     tally.assert();
+}
+
+fn chain_sample(seed: u64) -> (TabularData, Dag) {
+    (path_data(500, seed), dag(3, &[(0, 1), (1, 2)]))
+}
+
+fn two_path_sample(seed: u64) -> (TabularData, Dag) {
+    (two_path_data(1_000, seed), two_path_graph())
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn path_specific_frequentist_nominal_90_coverage() {
-    path_coverage("path_specific_frequentist", false, 32_000);
+    path_coverage("path_specific_frequentist", false, 32_000, 0.2, chain_sample);
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn path_specific_bayesian_nominal_90_coverage() {
-    path_coverage("path_specific_bayesian", true, 32_500);
+    path_coverage("path_specific_bayesian", true, 32_500, 0.2, chain_sample);
 }
 
-/// With a direct `t -> y` edge the surgical-graph ID functional evaluates to
-/// the total effect, not the path through `m`; execution must refuse rather
-/// than publish it as the path-specific effect (see `execute_path_specific`).
+/// Edge g-formula: a direct `t -> y` path competes with the path through `m`.
 #[test]
-fn path_specific_with_complementary_path_refuses() {
-    let data = path_data(2_000, 0.3, 1);
-    let graph = dag(3, &[(0, 1), (1, 2), (0, 2)]);
-    for inference in [InferenceMode::Frequentist, bayes()] {
-        let err = run_path(data.clone(), graph.clone(), inference, 1).expect_err("must refuse");
-        assert!(err.contains("path-specific"), "{err}");
-    }
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn path_specific_two_path_frequentist_nominal_90_coverage() {
+    path_coverage("path_specific_two_path_frequentist", false, 33_000, 0.12, two_path_sample);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn path_specific_two_path_bayesian_nominal_90_coverage() {
+    path_coverage("path_specific_two_path_bayesian", true, 33_500, 0.12, two_path_sample);
 }
 
 // ======================================================================
