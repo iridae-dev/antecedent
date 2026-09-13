@@ -378,6 +378,40 @@ required = (
     "evidence_kind",
 )
 legal_q = set(all_queries)
+
+# Every staged licensed row names the executing test and test function that
+# carries its evidence. Rows licensed before this rule are frozen in
+# parity/_evidence_test_backlog.txt; the backlog only shrinks.
+missing_evidence: set[str] = set()
+
+
+def check_evidence_test(label: str, test_rel: str, assertion: str) -> None:
+    test_path = root / test_rel
+    try:
+        test_path.resolve().relative_to(root.resolve())
+    except ValueError:
+        fail.append(f"{label}: evidence_test must remain inside the repository")
+        return
+    if not test_path.is_file():
+        fail.append(f"{label}: evidence_test {test_rel!r} does not exist")
+        return
+    if test_path.suffix not in {".rs", ".py"}:
+        fail.append(f"{label}: evidence_test must be Rust or Python test code")
+        return
+    test_text = test_path.read_text(errors="ignore")
+    if test_path.suffix == ".rs":
+        # `#[test]`, optionally followed by further attributes (`#[ignore = ..]`).
+        test_pattern = re.compile(
+            rf"#\[test\][^\n]*\n(?:\s*#\[[^\n]*\n)*\s*fn\s+{re.escape(assertion)}\s*\(",
+            re.M,
+        )
+    else:
+        test_pattern = re.compile(rf"^\s*def\s+{re.escape(assertion)}\s*\(", re.M)
+    if not test_pattern.search(test_text):
+        fail.append(
+            f"{label}: evidence_assertion {assertion!r} is not an "
+            f"executing test function in {test_rel}"
+        )
 for i, row in enumerate(cells, 1):
     label = f"parity/support_licensed.toml cell #{i}"
     for key in required:
@@ -433,33 +467,17 @@ for i, row in enumerate(cells, 1):
             fail.append(f"{label}: internal_cross_check requires evidence_test")
         elif not isinstance(assertion, str) or not assertion.strip():
             fail.append(f"{label}: internal_cross_check requires evidence_assertion")
-        else:
-            test_path = root / test_rel
-            try:
-                test_path.resolve().relative_to(root.resolve())
-            except ValueError:
-                fail.append(f"{label}: evidence_test must remain inside the repository")
-            else:
-                if not test_path.is_file():
-                    fail.append(f"{label}: evidence_test {test_rel!r} does not exist")
-                elif test_path.suffix not in {".rs", ".py"}:
-                    fail.append(f"{label}: evidence_test must be Rust or Python test code")
-                else:
-                    test_text = test_path.read_text(errors="ignore")
-                    if test_path.suffix == ".rs":
-                        test_pattern = re.compile(
-                            rf"#\[test\][^\n]*\n\s*fn\s+{re.escape(assertion)}\s*\(",
-                            re.M,
-                        )
-                    else:
-                        test_pattern = re.compile(
-                            rf"^\s*def\s+{re.escape(assertion)}\s*\(", re.M
-                        )
-                    if not test_pattern.search(test_text):
-                        fail.append(
-                            f"{label}: evidence_assertion {assertion!r} is not an "
-                            f"executing test function in {test_rel}"
-                        )
+    # Every named test must be an executing test function, whatever the kind.
+    test_rel = row.get("evidence_test")
+    assertion = row.get("evidence_assertion")
+    has_test = isinstance(test_rel, str) and bool(test_rel.strip())
+    has_assertion = isinstance(assertion, str) and bool(assertion.strip())
+    if has_test != has_assertion:
+        fail.append(f"{label}: evidence_test and evidence_assertion must be set together")
+    elif has_test:
+        check_evidence_test(label, test_rel, assertion)
+    if row.get("staged") is True and not (has_test and has_assertion):
+        missing_evidence.add("|".join(str(x) for x in (q, g, s, inf, v)))
     key = (q, g, s, inf, v)
     if key in seen:
         fail.append(f"{label}: duplicate cell {key}")
@@ -479,6 +497,27 @@ for i, row in enumerate(cells, 1):
         )
     if all(cell.values()) and is_allowed(cell):
         fail.append(f"{label}: cell matches support_allowlist.toml; cannot license it")
+
+# --- evidence_test ratchet ---------------------------------------------------
+backlog_rel = "parity/_evidence_test_backlog.txt"
+backlog_path = root / backlog_rel
+evidence_backlog: set[str] = set()
+if backlog_path.is_file():
+    for line in backlog_path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            evidence_backlog.add(line)
+for key in sorted(missing_evidence - evidence_backlog):
+    fail.append(
+        f"licensed cell {key} is staged but has no evidence_test/evidence_assertion; "
+        "name the executing test file and test function (do not add rows to "
+        f"{backlog_rel} -- it is frozen)"
+    )
+for key in sorted(evidence_backlog - missing_evidence):
+    fail.append(
+        f"{backlog_rel} lists {key} but that row now names its evidence (or is no "
+        "longer licensed) -- delete the line in the same change (the list only shrinks)"
+    )
 
 # --- counts ------------------------------------------------------------------
 if all_queries and graph_classes and structures and inferences and validations:

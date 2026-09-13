@@ -477,7 +477,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/conditional_effect"
-limitations = "Frequentist linear interaction regression at the empirical mean of one modifier; AllObserved. cheap/full are licensed separately and run the effect-refuter suite on this scalar, refitting the interaction model. Bayesian inference uses a separate conditional.bayesian estimator."
+limitations = "Frequentist linear interaction regression reporting b_t + b_tx * mean(modifier), the effect averaged over one modifier's distribution; since 1.9 its SE includes the sampling variance of the modifier mean. AllObserved. 400-replicate 90% coverage 0.905, and 0.895 with a rare modifier level (8% of n=300) (v19_static_envelope_calibration::conditional_effect_dag_frequentist_*). cheap/full are licensed separately and run the effect-refuter suite on this scalar, refitting the interaction model. Bayesian inference uses a separate conditional.bayesian estimator."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -488,7 +488,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/conditional_effect"
-limitations = "Frequentist linear interaction regression at the empirical mean of one modifier; AllObserved. cheap/full are licensed separately and run the effect-refuter suite on this scalar, refitting the interaction model. Bayesian inference uses a separate conditional.bayesian estimator."
+limitations = "Frequentist linear interaction regression reporting b_t + b_tx * mean(modifier), the effect averaged over one modifier's distribution; since 1.9 its SE includes the sampling variance of the modifier mean. AllObserved. 400-replicate 90% coverage 0.905, and 0.895 with a rare modifier level (8% of n=300) (v19_static_envelope_calibration::conditional_effect_dag_frequentist_*). cheap/full are licensed separately and run the effect-refuter suite on this scalar, refitting the interaction model. Bayesian inference uses a separate conditional.bayesian estimator."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -499,7 +499,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/conditional_effect"
-limitations = "Frequentist linear interaction regression at the empirical mean of one modifier; AllObserved. Cheap is overlap + E-value on this scalar. Bayesian inference uses a separate conditional.bayesian estimator."
+limitations = "Frequentist linear interaction regression reporting b_t + b_tx * mean(modifier), the effect averaged over one modifier's distribution; since 1.9 its SE includes the sampling variance of the modifier mean. AllObserved. 400-replicate 90% coverage 0.905, and 0.895 with a rare modifier level (8% of n=300) (v19_static_envelope_calibration::conditional_effect_dag_frequentist_*). Cheap is overlap + E-value on this scalar. Bayesian inference uses a separate conditional.bayesian estimator."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -510,7 +510,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/conditional_effect"
-limitations = "Frequentist linear interaction regression at the empirical mean of one modifier; AllObserved. Full runs the effect-refuter suite by refitting the interaction model that produced the licensed scalar. Bayesian inference uses a separate conditional.bayesian estimator."
+limitations = "Frequentist linear interaction regression reporting b_t + b_tx * mean(modifier), the effect averaged over one modifier's distribution; since 1.9 its SE includes the sampling variance of the modifier mean. AllObserved. 400-replicate 90% coverage 0.905, and 0.895 with a rare modifier level (8% of n=300) (v19_static_envelope_calibration::conditional_effect_dag_frequentist_*). Full runs the effect-refuter suite by refitting the interaction model that produced the licensed scalar. Bayesian inference uses a separate conditional.bayesian estimator."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -521,7 +521,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/conditional_effect"
-limitations = "Frequentist linear interaction regression at the empirical mean of one modifier; AllObserved. Cheap is overlap + E-value on this scalar. Bayesian inference uses a separate conditional.bayesian estimator."
+limitations = "Frequentist linear interaction regression reporting b_t + b_tx * mean(modifier), the effect averaged over one modifier's distribution; since 1.9 its SE includes the sampling variance of the modifier mean. AllObserved. 400-replicate 90% coverage 0.905, and 0.895 with a rare modifier level (8% of n=300) (v19_static_envelope_calibration::conditional_effect_dag_frequentist_*). Cheap is overlap + E-value on this scalar. Bayesian inference uses a separate conditional.bayesian estimator."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -532,7 +532,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/conditional_effect"
-limitations = "Frequentist linear interaction regression at the empirical mean of one modifier; AllObserved. Full runs the effect-refuter suite by refitting the interaction model that produced the licensed scalar. Bayesian inference uses a separate conditional.bayesian estimator."
+limitations = "Frequentist linear interaction regression reporting b_t + b_tx * mean(modifier), the effect averaged over one modifier's distribution; since 1.9 its SE includes the sampling variance of the modifier mean. AllObserved. 400-replicate 90% coverage 0.905, and 0.895 with a rare modifier level (8% of n=300) (v19_static_envelope_calibration::conditional_effect_dag_frequentist_*). Full runs the effect-refuter suite by refitting the interaction model that produced the licensed scalar. Bayesian inference uses a separate conditional.bayesian estimator."
 
 [[cell]]
 query = "PathSpecificEffect"
@@ -921,6 +921,8 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_temporal_mediation_reuses_identification"
 limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Frequentist uncertainty: iid analytic SEs are NaN for Total, Direct and Mediated (TemporalMediationEstimator::allow_iid_sobel_se opts back in); requested replicates run one circular-block bootstrap over consecutive lag-aligned rows (block = max(deepest design lag + 1, ⌈n^{1/3}⌉) rows, capped at n) that refits all three mechanism regressions, so the three SEs share replicates; they are scaled by the Kiefer–Vogelsang fixed-b factor and published per contrast in mediation_grid (FrequentistBlockBootstrap), with the requested contrast as se_bootstrap. With zero replicates no SE is published. Below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series. Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs. No general mediation or calibrated refuter claim. cheap/full are licensed separately with placebo-mediator, RCC, and contiguous-window diagnostics."
 
 [[cell]]
@@ -932,6 +934,8 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_temporal_mediation_reuses_identification"
 limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Frequentist uncertainty: iid analytic SEs are NaN for Total, Direct and Mediated (TemporalMediationEstimator::allow_iid_sobel_se opts back in); requested replicates run one circular-block bootstrap over consecutive lag-aligned rows (block = max(deepest design lag + 1, ⌈n^{1/3}⌉) rows, capped at n) that refits all three mechanism regressions, so the three SEs share replicates; they are scaled by the Kiefer–Vogelsang fixed-b factor and published per contrast in mediation_grid (FrequentistBlockBootstrap), with the requested contrast as se_bootstrap. With zero replicates no SE is published. Below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series. Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs. No general mediation or calibrated refuter claim. cheap/full are licensed separately with placebo-mediator, RCC, and contiguous-window diagnostics."
 
 [[cell]]
@@ -975,8 +979,10 @@ inference = "Frequentist"
 validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "The frozen three-completion law pins the mass-weighted ATE on fresh and prepared paths. Prepared handles freeze and reuse the generalized-adjustment envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_average_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). The point is the equal-weight mixture over identified completions (0.37443451148801365 on the fixture); the SE is the joint influence-function SE of that mixture on shared rows (Frisch-Waugh IF per completion; 0.021664212100486056). Both are pinned against an independent numpy reference (reference.py) on fresh, prepared and refresh paths. The SE is for the mixture functional, not the spread of completion-specific effects. 1.9 calibration on a continuous DGP whose completions disagree: 400-replicate 90% coverage 0.890 (v19_static_envelope_calibration::static_pag_ate_envelope_frequentist_nominal_90_coverage; 0.840 before the residualized-IF fix). A PAG whose treatment edges are invisible in every completion is refused (conformance/estimate/pag_ate_envelope is kept as that negative evidence). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Pag"
@@ -985,8 +991,10 @@ inference = "Frequentist"
 validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "The frozen three-completion law pins the mass-weighted ATE on fresh and prepared paths. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_average_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). The point is the equal-weight mixture over identified completions (0.37443451148801365 on the fixture); the SE is the joint influence-function SE of that mixture on shared rows (Frisch-Waugh IF per completion; 0.021664212100486056). Both are pinned against an independent numpy reference (reference.py) on fresh, prepared and refresh paths. The SE is for the mixture functional, not the spread of completion-specific effects. 1.9 calibration on a continuous DGP whose completions disagree: 400-replicate 90% coverage 0.890 (v19_static_envelope_calibration::static_pag_ate_envelope_frequentist_nominal_90_coverage; 0.840 before the residualized-IF fix). A PAG whose treatment edges are invisible in every completion is refused (conformance/estimate/pag_ate_envelope is kept as that negative evidence). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Cheap adds overlap + E-value mixed across identified completions; those numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Pag"
@@ -995,8 +1003,10 @@ inference = "Frequentist"
 validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "The frozen three-completion law pins the mass-weighted ATE on fresh and prepared paths. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_average_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). The point is the equal-weight mixture over identified completions (0.37443451148801365 on the fixture); the SE is the joint influence-function SE of that mixture on shared rows (Frisch-Waugh IF per completion; 0.021664212100486056). Both are pinned against an independent numpy reference (reference.py) on fresh, prepared and refresh paths. The SE is for the mixture functional, not the spread of completion-specific effects. 1.9 calibration on a continuous DGP whose completions disagree: 400-replicate 90% coverage 0.890 (v19_static_envelope_calibration::static_pag_ate_envelope_frequentist_nominal_90_coverage; 0.840 before the residualized-IF fix). A PAG whose treatment edges are invisible in every completion is refused (conformance/estimate/pag_ate_envelope is kept as that negative evidence). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Full adds the ATE-shaped refuter suite mixed across identified completions; refuter numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Pag"
@@ -1005,8 +1015,10 @@ inference = "Frequentist"
 validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "Accepted PAG shares execute_pag and the same frozen three-completion mass-weighted ATE pin. Prepared handles freeze and reuse the generalized-adjustment envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_average_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). The point is the equal-weight mixture over identified completions (0.37443451148801365 on the fixture); the SE is the joint influence-function SE of that mixture on shared rows (Frisch-Waugh IF per completion; 0.021664212100486056). Both are pinned against an independent numpy reference (reference.py) on fresh, prepared and refresh paths. The SE is for the mixture functional, not the spread of completion-specific effects. 1.9 calibration on a continuous DGP whose completions disagree: 400-replicate 90% coverage 0.890 (v19_static_envelope_calibration::static_pag_ate_envelope_frequentist_nominal_90_coverage; 0.840 before the residualized-IF fix). A PAG whose treatment edges are invisible in every completion is refused (conformance/estimate/pag_ate_envelope is kept as that negative evidence). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Pag"
@@ -1015,8 +1027,10 @@ inference = "Frequentist"
 validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "Accepted PAG shares the frozen mass-weighted ATE pin. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_average_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). The point is the equal-weight mixture over identified completions (0.37443451148801365 on the fixture); the SE is the joint influence-function SE of that mixture on shared rows (Frisch-Waugh IF per completion; 0.021664212100486056). Both are pinned against an independent numpy reference (reference.py) on fresh, prepared and refresh paths. The SE is for the mixture functional, not the spread of completion-specific effects. 1.9 calibration on a continuous DGP whose completions disagree: 400-replicate 90% coverage 0.890 (v19_static_envelope_calibration::static_pag_ate_envelope_frequentist_nominal_90_coverage; 0.840 before the residualized-IF fix). A PAG whose treatment edges are invisible in every completion is refused (conformance/estimate/pag_ate_envelope is kept as that negative evidence). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Cheap adds overlap + E-value mixed across identified completions; those numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Pag"
@@ -1025,8 +1039,10 @@ inference = "Frequentist"
 validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "Accepted PAG shares the frozen mass-weighted ATE pin. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_average_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). The point is the equal-weight mixture over identified completions (0.37443451148801365 on the fixture); the SE is the joint influence-function SE of that mixture on shared rows (Frisch-Waugh IF per completion; 0.021664212100486056). Both are pinned against an independent numpy reference (reference.py) on fresh, prepared and refresh paths. The SE is for the mixture functional, not the spread of completion-specific effects. 1.9 calibration on a continuous DGP whose completions disagree: 400-replicate 90% coverage 0.890 (v19_static_envelope_calibration::static_pag_ate_envelope_frequentist_nominal_90_coverage; 0.840 before the residualized-IF fix). A PAG whose treatment edges are invisible in every completion is refused (conformance/estimate/pag_ate_envelope is kept as that negative evidence). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Full adds the ATE-shaped refuter suite mixed across identified completions; refuter numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Pag"
@@ -1035,8 +1051,10 @@ inference = "Bayesian"
 validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "The fixture pins the deterministic 64-draw conjugate envelope mean and zero unidentified mass on fresh and prepared paths. Prepared handles freeze and reuse the full per-completion generalized-adjustment envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_average_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Each identified completion keeps its own conjugate posterior; the published draws are the posterior of the frozen-weight mixture functional, with completions rank-coupled by their influence-function correlation on the shared rows (estimate.envelope.bayesian_mixture_functional). They are not a distribution over completion-specific effects: the earlier identified-atom BMA covered the mixture functional 99.8-100% of the time at nominal 90% and was replaced in 1.9. Seeded conjugate pins (64 draws, prior scale 10): mean 0.3755322225001672, SD 0.02183085569669244; unidentified mass 1/7 is reported on the posterior. 400-replicate 90% coverage 0.868 (v19_static_envelope_calibration::static_pag_ate_envelope_bayesian_nominal_90_coverage). A PAG whose treatment edges are invisible in every completion is refused (conformance/estimate/pag_ate_envelope is kept as that negative evidence). Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 
 [[cell]]
 query = "AverageEffect"
@@ -1046,8 +1064,10 @@ inference = "Bayesian"
 validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "The fixture pins the deterministic conjugate envelope mean and zero unidentified mass. Cheap adds overlap + E-value and mixture-weighted PPC; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_average_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Each identified completion keeps its own conjugate posterior; the published draws are the posterior of the frozen-weight mixture functional, with completions rank-coupled by their influence-function correlation on the shared rows (estimate.envelope.bayesian_mixture_functional). They are not a distribution over completion-specific effects: the earlier identified-atom BMA covered the mixture functional 99.8-100% of the time at nominal 90% and was replaced in 1.9. Seeded conjugate pins (64 draws, prior scale 10): mean 0.3755322225001672, SD 0.02183085569669244; unidentified mass 1/7 is reported on the posterior. 400-replicate 90% coverage 0.868 (v19_static_envelope_calibration::static_pag_ate_envelope_bayesian_nominal_90_coverage). A PAG whose treatment edges are invisible in every completion is refused (conformance/estimate/pag_ate_envelope is kept as that negative evidence). Cheap adds overlap + E-value and mixture-weighted PPC; those numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 
 [[cell]]
 query = "AverageEffect"
@@ -1057,8 +1077,10 @@ inference = "Bayesian"
 validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "The fixture pins the deterministic conjugate envelope mean and zero unidentified mass. Full adds mixture-weighted PPC, prior-sensitivity, and effect refuters run on each completion against its own posterior mean; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_average_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Each identified completion keeps its own conjugate posterior; the published draws are the posterior of the frozen-weight mixture functional, with completions rank-coupled by their influence-function correlation on the shared rows (estimate.envelope.bayesian_mixture_functional). They are not a distribution over completion-specific effects: the earlier identified-atom BMA covered the mixture functional 99.8-100% of the time at nominal 90% and was replaced in 1.9. Seeded conjugate pins (64 draws, prior scale 10): mean 0.3755322225001672, SD 0.02183085569669244; unidentified mass 1/7 is reported on the posterior. 400-replicate 90% coverage 0.868 (v19_static_envelope_calibration::static_pag_ate_envelope_bayesian_nominal_90_coverage). A PAG whose treatment edges are invisible in every completion is refused (conformance/estimate/pag_ate_envelope is kept as that negative evidence). Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare. Full adds mixture-weighted PPC, prior-sensitivity, and effect refuters run on each completion against its own posterior mean; those validation numbers are not pinned. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
 
 [[cell]]
 query = "AverageEffect"
@@ -1068,8 +1090,10 @@ inference = "Bayesian"
 validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "Accepted PAG shares execute_pag_bayesian and the deterministic conjugate envelope-mean/zero-unidentified-mass pin. Prepared handles freeze and reuse the full per-completion generalized-adjustment envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_average_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Each identified completion keeps its own conjugate posterior; the published draws are the posterior of the frozen-weight mixture functional, with completions rank-coupled by their influence-function correlation on the shared rows (estimate.envelope.bayesian_mixture_functional). They are not a distribution over completion-specific effects: the earlier identified-atom BMA covered the mixture functional 99.8-100% of the time at nominal 90% and was replaced in 1.9. Seeded conjugate pins (64 draws, prior scale 10): mean 0.3755322225001672, SD 0.02183085569669244; unidentified mass 1/7 is reported on the posterior. 400-replicate 90% coverage 0.868 (v19_static_envelope_calibration::static_pag_ate_envelope_bayesian_nominal_90_coverage). A PAG whose treatment edges are invisible in every completion is refused (conformance/estimate/pag_ate_envelope is kept as that negative evidence). Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 
 [[cell]]
 query = "AverageEffect"
@@ -1079,8 +1103,10 @@ inference = "Bayesian"
 validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "Accepted PAG shares the conjugate envelope-mean pin. Cheap adds overlap + E-value and mixture-weighted PPC; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_average_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Each identified completion keeps its own conjugate posterior; the published draws are the posterior of the frozen-weight mixture functional, with completions rank-coupled by their influence-function correlation on the shared rows (estimate.envelope.bayesian_mixture_functional). They are not a distribution over completion-specific effects: the earlier identified-atom BMA covered the mixture functional 99.8-100% of the time at nominal 90% and was replaced in 1.9. Seeded conjugate pins (64 draws, prior scale 10): mean 0.3755322225001672, SD 0.02183085569669244; unidentified mass 1/7 is reported on the posterior. 400-replicate 90% coverage 0.868 (v19_static_envelope_calibration::static_pag_ate_envelope_bayesian_nominal_90_coverage). A PAG whose treatment edges are invisible in every completion is refused (conformance/estimate/pag_ate_envelope is kept as that negative evidence). Cheap adds overlap + E-value and mixture-weighted PPC; those numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 
 [[cell]]
 query = "AverageEffect"
@@ -1090,8 +1116,10 @@ inference = "Bayesian"
 validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/pag_ate_envelope"
-limitations = "Accepted PAG shares the conjugate envelope-mean pin. Full adds mixture-weighted PPC, prior-sensitivity, and effect refuters run on each completion against its own posterior mean; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_average_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Each identified completion keeps its own conjugate posterior; the published draws are the posterior of the frozen-weight mixture functional, with completions rank-coupled by their influence-function correlation on the shared rows (estimate.envelope.bayesian_mixture_functional). They are not a distribution over completion-specific effects: the earlier identified-atom BMA covered the mixture functional 99.8-100% of the time at nominal 90% and was replaced in 1.9. Seeded conjugate pins (64 draws, prior scale 10): mean 0.3755322225001672, SD 0.02183085569669244; unidentified mass 1/7 is reported on the posterior. 400-replicate 90% coverage 0.868 (v19_static_envelope_calibration::static_pag_ate_envelope_bayesian_nominal_90_coverage). A PAG whose treatment edges are invisible in every completion is refused (conformance/estimate/pag_ate_envelope is kept as that negative evidence). Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare. Full adds mixture-weighted PPC, prior-sensitivity, and effect refuters run on each completion against its own posterior mean; those validation numbers are not pinned. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
 
 [[cell]]
 query = "AverageEffect"
@@ -1102,7 +1130,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Runtime class stays Cpdag. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
+evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Runtime class stays Cpdag. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights); on the fixture it is pinned at 0.0297936681639348 against an independent numpy reference (cpdag_ate_envelope/reference.py), and 400-replicate 90% coverage on a two-completion DGP whose completions disagree is 0.870 (v19_static_envelope_calibration::static_cpdag_ate_envelope_frequentist_nominal_90_coverage; 0.855 before the residualized-IF fix). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Cpdag"
@@ -1112,7 +1142,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
+evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights); on the fixture it is pinned at 0.0297936681639348 against an independent numpy reference (cpdag_ate_envelope/reference.py), and 400-replicate 90% coverage on a two-completion DGP whose completions disagree is 0.870 (v19_static_envelope_calibration::static_cpdag_ate_envelope_frequentist_nominal_90_coverage; 0.855 before the residualized-IF fix). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Cpdag"
@@ -1122,7 +1154,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
+evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+limitations = "The frozen two-completion MEC law pins the mass-weighted ATE on fresh and prepared paths. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights); on the fixture it is pinned at 0.0297936681639348 against an independent numpy reference (cpdag_ate_envelope/reference.py), and 400-replicate 90% coverage on a two-completion DGP whose completions disagree is 0.870 (v19_static_envelope_calibration::static_cpdag_ate_envelope_frequentist_nominal_90_coverage; 0.855 before the residualized-IF fix). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Cpdag"
@@ -1132,7 +1166,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted CPDAG shares execute_cpdag and the same frozen two-completion mass-weighted ATE pin. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
+evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+limitations = "Accepted CPDAG shares execute_cpdag and the same frozen two-completion mass-weighted ATE pin. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights); on the fixture it is pinned at 0.0297936681639348 against an independent numpy reference (cpdag_ate_envelope/reference.py), and 400-replicate 90% coverage on a two-completion DGP whose completions disagree is 0.870 (v19_static_envelope_calibration::static_cpdag_ate_envelope_frequentist_nominal_90_coverage; 0.855 before the residualized-IF fix). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Cpdag"
@@ -1142,7 +1178,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted CPDAG shares the frozen mass-weighted ATE pin. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
+evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+limitations = "Accepted CPDAG shares the frozen mass-weighted ATE pin. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights); on the fixture it is pinned at 0.0297936681639348 against an independent numpy reference (cpdag_ate_envelope/reference.py), and 400-replicate 90% coverage on a two-completion DGP whose completions disagree is 0.870 (v19_static_envelope_calibration::static_cpdag_ate_envelope_frequentist_nominal_90_coverage; 0.855 before the residualized-IF fix). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Cpdag"
@@ -1152,7 +1190,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted CPDAG shares the frozen mass-weighted ATE pin. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
+evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+limitations = "Accepted CPDAG shares the frozen mass-weighted ATE pin. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights); on the fixture it is pinned at 0.0297936681639348 against an independent numpy reference (cpdag_ate_envelope/reference.py), and 400-replicate 90% coverage on a two-completion DGP whose completions disagree is 0.870 (v19_static_envelope_calibration::static_cpdag_ate_envelope_frequentist_nominal_90_coverage; 0.855 before the residualized-IF fix). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Cpdag"
@@ -1162,7 +1202,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "The fixture pins the deterministic 64-draw conjugate envelope mean and zero unidentified mass on fresh and prepared paths. Completions are Cpdag-envelope atoms, not relabeled Dag posteriors. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare."
+evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
+evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+limitations = "The fixture pins the deterministic 64-draw conjugate envelope mean and zero unidentified mass on fresh and prepared paths. Completions are Cpdag-envelope atoms, not relabeled Dag posteriors. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Published draws are the posterior of the frozen-weight mixture functional (completions rank-coupled by their influence-function correlation on shared rows), not the identified-atom BMA, which covered the mixture functional 100% of the time at nominal 90%; 400-replicate 90% coverage is now 0.875 (v19_static_envelope_calibration::static_cpdag_ate_envelope_bayesian_nominal_90_coverage). The mean pin is unchanged."
 
 [[cell]]
 query = "AverageEffect"
@@ -1173,7 +1215,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "The fixture pins the deterministic conjugate envelope mean and zero unidentified mass. Cheap adds overlap + E-value and mixture-weighted PPC; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
+evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
+evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+limitations = "The fixture pins the deterministic conjugate envelope mean and zero unidentified mass. Cheap adds overlap + E-value and mixture-weighted PPC; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Published draws are the posterior of the frozen-weight mixture functional (completions rank-coupled by their influence-function correlation on shared rows), not the identified-atom BMA, which covered the mixture functional 100% of the time at nominal 90%; 400-replicate 90% coverage is now 0.875 (v19_static_envelope_calibration::static_cpdag_ate_envelope_bayesian_nominal_90_coverage). The mean pin is unchanged."
 
 [[cell]]
 query = "AverageEffect"
@@ -1184,7 +1228,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "The fixture pins the deterministic conjugate envelope mean and zero unidentified mass. Full adds mixture-weighted PPC, prior-sensitivity, and effect refuters run on each completion against its own posterior mean; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
+evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
+evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+limitations = "The fixture pins the deterministic conjugate envelope mean and zero unidentified mass. Full adds mixture-weighted PPC, prior-sensitivity, and effect refuters run on each completion against its own posterior mean; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Published draws are the posterior of the frozen-weight mixture functional (completions rank-coupled by their influence-function correlation on shared rows), not the identified-atom BMA, which covered the mixture functional 100% of the time at nominal 90%; 400-replicate 90% coverage is now 0.875 (v19_static_envelope_calibration::static_cpdag_ate_envelope_bayesian_nominal_90_coverage). The mean pin is unchanged. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
 
 [[cell]]
 query = "AverageEffect"
@@ -1195,7 +1241,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted CPDAG shares execute_pag_bayesian over Dag completions and the deterministic conjugate envelope-mean/zero-unidentified-mass pin. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare."
+evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
+evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+limitations = "Accepted CPDAG shares execute_pag_bayesian over Dag completions and the deterministic conjugate envelope-mean/zero-unidentified-mass pin. Prepared handles freeze and reuse the MEC envelope; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Published draws are the posterior of the frozen-weight mixture functional (completions rank-coupled by their influence-function correlation on shared rows), not the identified-atom BMA, which covered the mixture functional 100% of the time at nominal 90%; 400-replicate 90% coverage is now 0.875 (v19_static_envelope_calibration::static_cpdag_ate_envelope_bayesian_nominal_90_coverage). The mean pin is unchanged."
 
 [[cell]]
 query = "AverageEffect"
@@ -1206,7 +1254,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted CPDAG shares the conjugate envelope-mean pin. Cheap adds overlap + E-value and mixture-weighted PPC; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare."
+evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
+evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+limitations = "Accepted CPDAG shares the conjugate envelope-mean pin. Cheap adds overlap + E-value and mixture-weighted PPC; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Published draws are the posterior of the frozen-weight mixture functional (completions rank-coupled by their influence-function correlation on shared rows), not the identified-atom BMA, which covered the mixture functional 100% of the time at nominal 90%; 400-replicate 90% coverage is now 0.875 (v19_static_envelope_calibration::static_cpdag_ate_envelope_bayesian_nominal_90_coverage). The mean pin is unchanged."
 
 [[cell]]
 query = "AverageEffect"
@@ -1217,7 +1267,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted CPDAG shares the conjugate envelope-mean pin. Full adds mixture-weighted PPC, prior-sensitivity, and effect refuters run on each completion against its own posterior mean; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
+evidence_test = "crates/antecedent/tests/cpdag_ate_numeric_pins.rs"
+evidence_assertion = "cpdag_ate_envelope_numeric_pin"
+limitations = "Accepted CPDAG shares the conjugate envelope-mean pin. Full adds mixture-weighted PPC, prior-sensitivity, and effect refuters run on each completion against its own posterior mean; those validation numbers are not pinned. Prepared clicks reuse the frozen identification envelope and emit exec.identify.cached; a new graph or query requires a new prepare. Published draws are the posterior of the frozen-weight mixture functional (completions rank-coupled by their influence-function correlation on shared rows), not the identified-atom BMA, which covered the mixture functional 100% of the time at nominal 90%; 400-replicate 90% coverage is now 0.875 (v19_static_envelope_calibration::static_cpdag_ate_envelope_bayesian_nominal_90_coverage). The mean pin is unchanged. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
 
 [[cell]]
 query = "ResponseCurve"
@@ -1456,7 +1508,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Incomplete TemporalPag stays TemporalPag, including a fully oriented supplied graph. Circle marks refine to directed or bidirected MAG members; each is identified with temporal MAG adjustment after a visibility check, then mass-weighted. Finite-window equivalence is audited; a capped audit cannot confer class-wide point identification. Tail-tail selection edges refuse. Completing the graph yourself is still the TemporalDag coordinate. Prepared clicks reuse the frozen envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_pag_identified_multi_completion_pulse_and_sustained"
+limitations = "Incomplete TemporalPag stays TemporalPag, including a fully oriented supplied graph. Circle marks refine to directed or bidirected MAG members; each is identified with temporal MAG adjustment after a visibility check, then mass-weighted. Finite-window equivalence is audited; a capped audit cannot confer class-wide point identification. Tail-tail selection edges refuse. Completing the graph yourself is still the TemporalDag coordinate. Prepared clicks reuse the frozen envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Positive multi-completion evidence: temporal_class_envelope/identified_pag.json has seven stationary MAG completions, six identified at two different lag-1 effects (adjust z@-1: 1.9618; adjust nothing: 2.7205) and one unidentified (mass 1/7). The mixture 2.214723444204995 is pinned against a numpy reference for Pulse and single-step Sustained, fresh and prepared, explicit and accepted, none/cheap/full; with 32 replicates the shared circular-block SE is finite and positive and estimate.temporal_class.frequentist.shared_block is emitted. No repeated-sampling coverage test in this package exercises a multi-completion TemporalPag; the older three-variable graph is negative evidence only. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1466,7 +1520,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag uses the same mass-weighted completion envelope as explicit. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_pag_identified_multi_completion_pulse_and_sustained"
+limitations = "Accepted TemporalPag uses the same mass-weighted completion envelope as explicit. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Positive multi-completion evidence: temporal_class_envelope/identified_pag.json has seven stationary MAG completions, six identified at two different lag-1 effects (adjust z@-1: 1.9618; adjust nothing: 2.7205) and one unidentified (mass 1/7). The mixture 2.214723444204995 is pinned against a numpy reference for Pulse and single-step Sustained, fresh and prepared, explicit and accepted, none/cheap/full; with 32 replicates the shared circular-block SE is finite and positive and estimate.temporal_class.frequentist.shared_block is emitted. No repeated-sampling coverage test in this package exercises a multi-completion TemporalPag; the older three-variable graph is negative evidence only. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1476,7 +1532,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Cheap suite runs on each completion against its own pulse, mixed by completion mass. The fixture pins the pulse, not the E-value. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_pag_identified_multi_completion_pulse_and_sustained"
+limitations = "Cheap suite runs on each completion against its own pulse, mixed by completion mass. The fixture pins the pulse, not the E-value. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Positive multi-completion evidence: temporal_class_envelope/identified_pag.json has seven stationary MAG completions, six identified at two different lag-1 effects (adjust z@-1: 1.9618; adjust nothing: 2.7205) and one unidentified (mass 1/7). The mixture 2.214723444204995 is pinned against a numpy reference for Pulse and single-step Sustained, fresh and prepared, explicit and accepted, none/cheap/full; with 32 replicates the shared circular-block SE is finite and positive and estimate.temporal_class.frequentist.shared_block is emitted. No repeated-sampling coverage test in this package exercises a multi-completion TemporalPag; the older three-variable graph is negative evidence only. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1486,7 +1544,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Full suite runs on each completion against its own pulse, mixed by completion mass. The fixture pins the pulse point. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_pag_identified_multi_completion_pulse_and_sustained"
+limitations = "Full suite runs on each completion against its own pulse, mixed by completion mass. The fixture pins the pulse point. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Positive multi-completion evidence: temporal_class_envelope/identified_pag.json has seven stationary MAG completions, six identified at two different lag-1 effects (adjust z@-1: 1.9618; adjust nothing: 2.7205) and one unidentified (mass 1/7). The mixture 2.214723444204995 is pinned against a numpy reference for Pulse and single-step Sustained, fresh and prepared, explicit and accepted, none/cheap/full; with 32 replicates the shared circular-block SE is finite and positive and estimate.temporal_class.frequentist.shared_block is emitted. No repeated-sampling coverage test in this package exercises a multi-completion TemporalPag; the older three-variable graph is negative evidence only. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1496,7 +1556,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag cheap suite shares the explicit envelope estimator. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_pag_identified_multi_completion_pulse_and_sustained"
+limitations = "Accepted TemporalPag cheap suite shares the explicit envelope estimator. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Positive multi-completion evidence: temporal_class_envelope/identified_pag.json has seven stationary MAG completions, six identified at two different lag-1 effects (adjust z@-1: 1.9618; adjust nothing: 2.7205) and one unidentified (mass 1/7). The mixture 2.214723444204995 is pinned against a numpy reference for Pulse and single-step Sustained, fresh and prepared, explicit and accepted, none/cheap/full; with 32 replicates the shared circular-block SE is finite and positive and estimate.temporal_class.frequentist.shared_block is emitted. No repeated-sampling coverage test in this package exercises a multi-completion TemporalPag; the older three-variable graph is negative evidence only. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "PulseEffect"
 graph_class = "TemporalPag"
@@ -1506,7 +1568,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag full suite shares the explicit envelope estimator. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_pag_identified_multi_completion_pulse_and_sustained"
+limitations = "Accepted TemporalPag full suite shares the explicit envelope estimator. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Positive multi-completion evidence: temporal_class_envelope/identified_pag.json has seven stationary MAG completions, six identified at two different lag-1 effects (adjust z@-1: 1.9618; adjust nothing: 2.7205) and one unidentified (mass 1/7). The mixture 2.214723444204995 is pinned against a numpy reference for Pulse and single-step Sustained, fresh and prepared, explicit and accepted, none/cheap/full; with 32 replicates the shared circular-block SE is finite and positive and estimate.temporal_class.frequentist.shared_block is emitted. No repeated-sampling coverage test in this package exercises a multi-completion TemporalPag; the older three-variable graph is negative evidence only. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalCpdag"
@@ -1576,7 +1640,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Single-step Sustained shares the TemporalPag Pulse envelope. Multi-step Sustained identifies each completion, then sequential g-comp on directed members; bidirected MAG completions stay unevaluable. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_pag_identified_multi_completion_pulse_and_sustained"
+limitations = "Single-step Sustained shares the TemporalPag Pulse envelope. Multi-step Sustained identifies each completion, then sequential g-comp on directed members; bidirected MAG completions stay unevaluable. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Positive multi-completion evidence: temporal_class_envelope/identified_pag.json has seven stationary MAG completions, six identified at two different lag-1 effects (adjust z@-1: 1.9618; adjust nothing: 2.7205) and one unidentified (mass 1/7). The mixture 2.214723444204995 is pinned against a numpy reference for Pulse and single-step Sustained, fresh and prepared, explicit and accepted, none/cheap/full; with 32 replicates the shared circular-block SE is finite and positive and estimate.temporal_class.frequentist.shared_block is emitted. No repeated-sampling coverage test in this package exercises a multi-completion TemporalPag; the older three-variable graph is negative evidence only. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1586,7 +1652,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag single-step Sustained shares the explicit Pulse envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_pag_identified_multi_completion_pulse_and_sustained"
+limitations = "Accepted TemporalPag single-step Sustained shares the explicit Pulse envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Positive multi-completion evidence: temporal_class_envelope/identified_pag.json has seven stationary MAG completions, six identified at two different lag-1 effects (adjust z@-1: 1.9618; adjust nothing: 2.7205) and one unidentified (mass 1/7). The mixture 2.214723444204995 is pinned against a numpy reference for Pulse and single-step Sustained, fresh and prepared, explicit and accepted, none/cheap/full; with 32 replicates the shared circular-block SE is finite and positive and estimate.temporal_class.frequentist.shared_block is emitted. No repeated-sampling coverage test in this package exercises a multi-completion TemporalPag; the older three-variable graph is negative evidence only. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1596,7 +1664,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Cheap suite on each completion against its own single-step Sustained effect, mixed by completion mass. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_pag_identified_multi_completion_pulse_and_sustained"
+limitations = "Cheap suite on each completion against its own single-step Sustained effect, mixed by completion mass. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Positive multi-completion evidence: temporal_class_envelope/identified_pag.json has seven stationary MAG completions, six identified at two different lag-1 effects (adjust z@-1: 1.9618; adjust nothing: 2.7205) and one unidentified (mass 1/7). The mixture 2.214723444204995 is pinned against a numpy reference for Pulse and single-step Sustained, fresh and prepared, explicit and accepted, none/cheap/full; with 32 replicates the shared circular-block SE is finite and positive and estimate.temporal_class.frequentist.shared_block is emitted. No repeated-sampling coverage test in this package exercises a multi-completion TemporalPag; the older three-variable graph is negative evidence only. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1606,7 +1676,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Full suite on each completion against its own single-step Sustained effect, mixed by completion mass. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_pag_identified_multi_completion_pulse_and_sustained"
+limitations = "Full suite on each completion against its own single-step Sustained effect, mixed by completion mass. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Positive multi-completion evidence: temporal_class_envelope/identified_pag.json has seven stationary MAG completions, six identified at two different lag-1 effects (adjust z@-1: 1.9618; adjust nothing: 2.7205) and one unidentified (mass 1/7). The mixture 2.214723444204995 is pinned against a numpy reference for Pulse and single-step Sustained, fresh and prepared, explicit and accepted, none/cheap/full; with 32 replicates the shared circular-block SE is finite and positive and estimate.temporal_class.frequentist.shared_block is emitted. No repeated-sampling coverage test in this package exercises a multi-completion TemporalPag; the older three-variable graph is negative evidence only. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1616,7 +1688,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag cheap single-step Sustained shares the explicit envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_pag_identified_multi_completion_pulse_and_sustained"
+limitations = "Accepted TemporalPag cheap single-step Sustained shares the explicit envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Positive multi-completion evidence: temporal_class_envelope/identified_pag.json has seven stationary MAG completions, six identified at two different lag-1 effects (adjust z@-1: 1.9618; adjust nothing: 2.7205) and one unidentified (mass 1/7). The mixture 2.214723444204995 is pinned against a numpy reference for Pulse and single-step Sustained, fresh and prepared, explicit and accepted, none/cheap/full; with 32 replicates the shared circular-block SE is finite and positive and estimate.temporal_class.frequentist.shared_block is emitted. No repeated-sampling coverage test in this package exercises a multi-completion TemporalPag; the older three-variable graph is negative evidence only. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "SustainedEffect"
 graph_class = "TemporalPag"
@@ -1626,7 +1700,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_class_envelope"
-limitations = "Accepted TemporalPag full single-step Sustained shares the explicit envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
+evidence_test = "crates/antecedent/tests/temporal_class_envelope_numeric_pins.rs"
+evidence_assertion = "temporal_pag_identified_multi_completion_pulse_and_sustained"
+limitations = "Accepted TemporalPag full single-step Sustained shares the explicit envelope. Requested replicates share one circular-block resample across completions with frozen weights; unidentified mass is not mixed into the SE. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Positive multi-completion evidence: temporal_class_envelope/identified_pag.json has seven stationary MAG completions, six identified at two different lag-1 effects (adjust z@-1: 1.9618; adjust nothing: 2.7205) and one unidentified (mass 1/7). The mixture 2.214723444204995 is pinned against a numpy reference for Pulse and single-step Sustained, fresh and prepared, explicit and accepted, none/cheap/full; with 32 replicates the shared circular-block SE is finite and positive and estimate.temporal_class.frequentist.shared_block is emitted. No repeated-sampling coverage test in this package exercises a multi-completion TemporalPag; the older three-variable graph is negative evidence only. Where a circular-block bootstrap runs, blocks are max(span, ⌈n^{1/3}⌉) raw time steps, capped at the series length n (span = the unfolded history + horizon window; DBN-posterior mixtures use max lag + 1), and the replicate SD is published without fixed-b rescaling."
 [[cell]]
 query = "AverageEffect"
 graph_class = "Admg"
@@ -1636,7 +1712,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
-limitations = "The frozen binary front-door law pins the FunctionalEffect ATE on fresh and prepared paths. Prepared handles freeze and reuse the full general-ID result and selected functional estimand; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Bayesian remains refused."
+limitations = "The frozen binary front-door law pins the FunctionalEffect ATE on fresh and prepared paths. Prepared handles freeze and reuse the full general-ID result and selected functional estimand; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Bayesian inference on this ADMG is its own licensed cell (functional.effect Bayesian evaluator, licensed since 1.8)."
 
 [[cell]]
 query = "AverageEffect"
@@ -1647,7 +1723,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
-limitations = "The frozen binary front-door law pins the FunctionalEffect ATE. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen general-ID result and emit exec.identify.cached; a new graph or query requires a new prepare. Bayesian remains refused."
+limitations = "The frozen binary front-door law pins the FunctionalEffect ATE. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen general-ID result and emit exec.identify.cached; a new graph or query requires a new prepare. Bayesian inference on this ADMG is its own licensed cell (functional.effect Bayesian evaluator, licensed since 1.8)."
 
 [[cell]]
 query = "AverageEffect"
@@ -1658,7 +1734,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
-limitations = "The frozen binary front-door law pins the FunctionalEffect ATE. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen general-ID result and emit exec.identify.cached; a new graph or query requires a new prepare. Bayesian remains refused."
+limitations = "The frozen binary front-door law pins the FunctionalEffect ATE. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen general-ID result and emit exec.identify.cached; a new graph or query requires a new prepare. Bayesian inference on this ADMG is its own licensed cell (functional.effect Bayesian evaluator, licensed since 1.8)."
 
 [[cell]]
 query = "AverageEffect"
@@ -1669,7 +1745,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
-limitations = "Accepted ADMG shares execute_admg and the frozen FunctionalEffect ATE pin. Prepared handles freeze and reuse the full general-ID result and selected functional estimand; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Bayesian remains refused."
+limitations = "Accepted ADMG shares execute_admg and the frozen FunctionalEffect ATE pin. Prepared handles freeze and reuse the full general-ID result and selected functional estimand; estimate clicks emit exec.identify.cached. A new graph or query requires a new prepare. Bayesian inference on this ADMG is its own licensed cell (functional.effect Bayesian evaluator, licensed since 1.8)."
 
 [[cell]]
 query = "AverageEffect"
@@ -1680,7 +1756,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
-limitations = "Accepted ADMG shares the frozen FunctionalEffect ATE pin. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen general-ID result and emit exec.identify.cached; a new graph or query requires a new prepare. Bayesian remains refused."
+limitations = "Accepted ADMG shares the frozen FunctionalEffect ATE pin. Cheap adds overlap + E-value; those validation numbers are not pinned. Prepared clicks reuse the frozen general-ID result and emit exec.identify.cached; a new graph or query requires a new prepare. Bayesian inference on this ADMG is its own licensed cell (functional.effect Bayesian evaluator, licensed since 1.8)."
 
 [[cell]]
 query = "AverageEffect"
@@ -1691,7 +1767,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
-limitations = "Accepted ADMG shares the frozen FunctionalEffect ATE pin. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen general-ID result and emit exec.identify.cached; a new graph or query requires a new prepare. Bayesian remains refused."
+limitations = "Accepted ADMG shares the frozen FunctionalEffect ATE pin. Full adds the ATE-shaped refuter suite; those refuter numbers are not pinned. Prepared clicks reuse the frozen general-ID result and emit exec.identify.cached; a new graph or query requires a new prepare. Bayesian inference on this ADMG is its own licensed cell (functional.effect Bayesian evaluator, licensed since 1.8)."
 
 [[cell]]
 query = "AverageEffect"
@@ -1952,7 +2028,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
-limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. cheap/full are licensed separately: cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC; full adds prior sensitivity."
+limitations = "Gaussian linear interaction regression averaged over one modifier; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed covered 86.6% at nominal 90% over 2000 replicates). AllObserved. 400-replicate 90% coverage 0.895 (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. cheap/full are licensed separately: cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC; full adds prior sensitivity."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1963,7 +2039,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
-limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC."
+limitations = "Gaussian linear interaction regression averaged over one modifier; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed covered 86.6% at nominal 90% over 2000 replicates). AllObserved. 400-replicate 90% coverage 0.895 (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1974,7 +2050,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
-limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Full adds prior sensitivity to binary propensity overlap or continuous conditional residual-support assessment, E-value and PPC. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
+limitations = "Gaussian linear interaction regression averaged over one modifier; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed covered 86.6% at nominal 90% over 2000 replicates). AllObserved. 400-replicate 90% coverage 0.895 (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Full adds prior sensitivity to binary propensity overlap or continuous conditional residual-support assessment, E-value and PPC. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1985,7 +2061,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
-limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. cheap/full are licensed separately: cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC; full adds prior sensitivity."
+limitations = "Gaussian linear interaction regression averaged over one modifier; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed covered 86.6% at nominal 90% over 2000 replicates). AllObserved. 400-replicate 90% coverage 0.895 (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. cheap/full are licensed separately: cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC; full adds prior sensitivity."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -1996,7 +2072,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
-limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC."
+limitations = "Gaussian linear interaction regression averaged over one modifier; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed covered 86.6% at nominal 90% over 2000 replicates). AllObserved. 400-replicate 90% coverage 0.895 (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Cheap is binary propensity overlap or continuous conditional residual-support assessment, plus E-value and PPC."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -2007,7 +2083,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/conditional_effect"
-limitations = "Gaussian linear interaction regression at the empirical mean of one modifier; AllObserved complete rows fixed. Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Full adds prior sensitivity to binary propensity overlap or continuous conditional residual-support assessment, E-value and PPC. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
+limitations = "Gaussian linear interaction regression averaged over one modifier; since 1.9 each posterior draw adds Bayesian-bootstrap uncertainty in the modifier mean (holding it fixed covered 86.6% at nominal 90% over 2000 replicates). AllObserved. 400-replicate 90% coverage 0.895 (v19_static_envelope_calibration::conditional_effect_dag_bayesian_nominal_90_coverage). Bayesian mode fits an actual posterior with centered treatment-by-modifier interaction; no nonlinear link or conditional forest. Independent posterior moments at prior scales 0.1 and 10, artifact roundtrips, structural effect pin. Full adds prior sensitivity to binary propensity overlap or continuous conditional residual-support assessment, E-value and PPC. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
 
 
 [[cell]]
@@ -2019,7 +2095,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. none is the point estimate. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
+evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. none is the point estimate. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights); the conditional influence function includes the sampling variance of the modifier mean. 400-replicate 90% coverage with a separate outcome-only modifier and disagreeing completions: 0.905 (v19_static_envelope_calibration::conditional_effect_cpdag_frequentist_nominal_90_coverage). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Cpdag"
@@ -2029,7 +2107,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
+evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights); the conditional influence function includes the sampling variance of the modifier mean. 400-replicate 90% coverage with a separate outcome-only modifier and disagreeing completions: 0.905 (v19_static_envelope_calibration::conditional_effect_cpdag_frequentist_nominal_90_coverage). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Cpdag"
@@ -2039,7 +2119,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
+evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights); the conditional influence function includes the sampling variance of the modifier mean. 400-replicate 90% coverage with a separate outcome-only modifier and disagreeing completions: 0.905 (v19_static_envelope_calibration::conditional_effect_cpdag_frequentist_nominal_90_coverage). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Cpdag"
@@ -2049,7 +2131,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
+evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
+evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors (with Bayesian-bootstrap uncertainty in the modifier mean) are combined as the rank-coupled posterior of the frozen-weight mixture functional, not as a BMA over completion-specific effects; 400-replicate 90% coverage with an outcome-only modifier and disagreeing completions: 0.910 (v19_static_envelope_calibration::conditional_effect_cpdag_bayesian_nominal_90_coverage). none is the point estimate."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -2060,7 +2144,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE."
+evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
+evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors (with Bayesian-bootstrap uncertainty in the modifier mean) are combined as the rank-coupled posterior of the frozen-weight mixture functional, not as a BMA over completion-specific effects; 400-replicate 90% coverage with an outcome-only modifier and disagreeing completions: 0.910 (v19_static_envelope_calibration::conditional_effect_cpdag_bayesian_nominal_90_coverage). Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -2071,7 +2157,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
+evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
+evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+limitations = "Same MEC envelope as the Cpdag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Cpdag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors (with Bayesian-bootstrap uncertainty in the modifier mean) are combined as the rank-coupled posterior of the frozen-weight mixture functional, not as a BMA over completion-specific effects; 400-replicate 90% coverage with an outcome-only modifier and disagreeing completions: 0.910 (v19_static_envelope_calibration::conditional_effect_cpdag_bayesian_nominal_90_coverage). Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -2082,7 +2170,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. none is the point estimate. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
+evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. none is the point estimate. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights); the conditional influence function includes the sampling variance of the modifier mean. 400-replicate 90% coverage with a separate outcome-only modifier and disagreeing completions: 0.905 (v19_static_envelope_calibration::conditional_effect_cpdag_frequentist_nominal_90_coverage). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Cpdag"
@@ -2092,7 +2182,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
+evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights); the conditional influence function includes the sampling variance of the modifier mean. 400-replicate 90% coverage with a separate outcome-only modifier and disagreeing completions: 0.905 (v19_static_envelope_calibration::conditional_effect_cpdag_frequentist_nominal_90_coverage). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Cpdag"
@@ -2102,7 +2194,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
+evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights); the conditional influence function includes the sampling variance of the modifier mean. 400-replicate 90% coverage with a separate outcome-only modifier and disagreeing completions: 0.905 (v19_static_envelope_calibration::conditional_effect_cpdag_frequentist_nominal_90_coverage). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Cpdag"
@@ -2112,7 +2206,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
+evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
+evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors (with Bayesian-bootstrap uncertainty in the modifier mean) are combined as the rank-coupled posterior of the frozen-weight mixture functional, not as a BMA over completion-specific effects; 400-replicate 90% coverage with an outcome-only modifier and disagreeing completions: 0.910 (v19_static_envelope_calibration::conditional_effect_cpdag_bayesian_nominal_90_coverage). none is the point estimate."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -2123,7 +2219,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE."
+evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
+evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors (with Bayesian-bootstrap uncertainty in the modifier mean) are combined as the rank-coupled posterior of the frozen-weight mixture functional, not as a BMA over completion-specific effects; 400-replicate 90% coverage with an outcome-only modifier and disagreeing completions: 0.910 (v19_static_envelope_calibration::conditional_effect_cpdag_bayesian_nominal_90_coverage). Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -2134,7 +2232,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
+evidence_test = "crates/antecedent/tests/class_aware_conditional_numeric_pins.rs"
+evidence_assertion = "class_aware_conditional_pins_z_conditional_effect"
+limitations = "Accepted Cpdag uses the same modifier-in-model CATE envelope as explicit Cpdag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors (with Bayesian-bootstrap uncertainty in the modifier mean) are combined as the rank-coupled posterior of the frozen-weight mixture functional, not as a BMA over completion-specific effects; 400-replicate 90% coverage with an outcome-only modifier and disagreeing completions: 0.910 (v19_static_envelope_calibration::conditional_effect_cpdag_bayesian_nominal_90_coverage). Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -2144,8 +2244,10 @@ inference = "Frequentist"
 validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. none is the point estimate. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Modifier x affects only the outcome, so it is pre-treatment in every completion and the augmented conditioning set blocks back-door paths in the same six. Estimator conditional.linear.adjustment reports b_t + b_tx * mean(x) (the effect averaged over the modifier distribution); its influence function and analytic SE include the sampling variance of the modifier mean. Mixture 0.3743035897503231 and joint-IF SE 0.02138134948402955 are pinned against the numpy reference on fresh, prepared and refresh paths. 400-replicate 90% coverage 0.880 (v19_static_envelope_calibration::conditional_effect_pag_frequentist_nominal_90_coverage). Runtime class stays Pag; Admg ConditionalEffect stays refused. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Pag"
@@ -2154,8 +2256,10 @@ inference = "Frequentist"
 validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Modifier x affects only the outcome, so it is pre-treatment in every completion and the augmented conditioning set blocks back-door paths in the same six. Estimator conditional.linear.adjustment reports b_t + b_tx * mean(x) (the effect averaged over the modifier distribution); its influence function and analytic SE include the sampling variance of the modifier mean. Mixture 0.3743035897503231 and joint-IF SE 0.02138134948402955 are pinned against the numpy reference on fresh, prepared and refresh paths. 400-replicate 90% coverage 0.880 (v19_static_envelope_calibration::conditional_effect_pag_frequentist_nominal_90_coverage). Runtime class stays Pag; Admg ConditionalEffect stays refused. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Cheap adds overlap + E-value mixed across identified completions; those numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Pag"
@@ -2164,8 +2268,10 @@ inference = "Frequentist"
 validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Modifier x affects only the outcome, so it is pre-treatment in every completion and the augmented conditioning set blocks back-door paths in the same six. Estimator conditional.linear.adjustment reports b_t + b_tx * mean(x) (the effect averaged over the modifier distribution); its influence function and analytic SE include the sampling variance of the modifier mean. Mixture 0.3743035897503231 and joint-IF SE 0.02138134948402955 are pinned against the numpy reference on fresh, prepared and refresh paths. 400-replicate 90% coverage 0.880 (v19_static_envelope_calibration::conditional_effect_pag_frequentist_nominal_90_coverage). Runtime class stays Pag; Admg ConditionalEffect stays refused. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Full adds the effect-refuter suite mixed across identified completions; refuter numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Pag"
@@ -2174,8 +2280,10 @@ inference = "Bayesian"
 validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Modifier x affects only the outcome and is pre-treatment in every completion. Estimator conditional.bayesian: per-completion conjugate posteriors with a centred treatment-by-modifier interaction, plus Bayesian-bootstrap uncertainty in the modifier mean. Each identified completion keeps its own conjugate posterior; the published draws are the posterior of the frozen-weight mixture functional, with completions rank-coupled by their influence-function correlation on the shared rows (estimate.envelope.bayesian_mixture_functional). They are not a distribution over completion-specific effects: the earlier identified-atom BMA covered the mixture functional 99.8-100% of the time at nominal 90% and was replaced in 1.9. Seeded pins (64 draws): mean 0.37720213089058047, SD 0.02027592757333499. 400-replicate 90% coverage 0.907 (v19_static_envelope_calibration::conditional_effect_pag_bayesian_nominal_90_coverage). Runtime class stays Pag; Admg ConditionalEffect stays refused. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -2185,8 +2293,10 @@ inference = "Bayesian"
 validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Modifier x affects only the outcome and is pre-treatment in every completion. Estimator conditional.bayesian: per-completion conjugate posteriors with a centred treatment-by-modifier interaction, plus Bayesian-bootstrap uncertainty in the modifier mean. Each identified completion keeps its own conjugate posterior; the published draws are the posterior of the frozen-weight mixture functional, with completions rank-coupled by their influence-function correlation on the shared rows (estimate.envelope.bayesian_mixture_functional). They are not a distribution over completion-specific effects: the earlier identified-atom BMA covered the mixture functional 99.8-100% of the time at nominal 90% and was replaced in 1.9. Seeded pins (64 draws): mean 0.37720213089058047, SD 0.02027592757333499. 400-replicate 90% coverage 0.907 (v19_static_envelope_calibration::conditional_effect_pag_bayesian_nominal_90_coverage). Runtime class stays Pag; Admg ConditionalEffect stays refused. Cheap adds overlap + E-value and mixture-weighted PPC; those numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -2196,8 +2306,10 @@ inference = "Bayesian"
 validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Same MEC envelope as the Pag ATE cell. The modifier must be pre-treatment and the augmented conditioning set must block backdoor paths. The mediator completion retains unverified mass; the supported conditional effect is 0.40 and status is GraphDependent. Runtime class stays Pag. Admg stays refused. Prepared clicks reuse the frozen envelope and emit exec.identify.cached. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Modifier x affects only the outcome and is pre-treatment in every completion. Estimator conditional.bayesian: per-completion conjugate posteriors with a centred treatment-by-modifier interaction, plus Bayesian-bootstrap uncertainty in the modifier mean. Each identified completion keeps its own conjugate posterior; the published draws are the posterior of the frozen-weight mixture functional, with completions rank-coupled by their influence-function correlation on the shared rows (estimate.envelope.bayesian_mixture_functional). They are not a distribution over completion-specific effects: the earlier identified-atom BMA covered the mixture functional 99.8-100% of the time at nominal 90% and was replaced in 1.9. Seeded pins (64 draws): mean 0.37720213089058047, SD 0.02027592757333499. 400-replicate 90% coverage 0.907 (v19_static_envelope_calibration::conditional_effect_pag_bayesian_nominal_90_coverage). Runtime class stays Pag; Admg ConditionalEffect stays refused. Full adds mixture-weighted PPC, prior sensitivity and effect refuters; those numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -2207,8 +2319,10 @@ inference = "Frequentist"
 validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. none is the point estimate. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Modifier x affects only the outcome, so it is pre-treatment in every completion and the augmented conditioning set blocks back-door paths in the same six. Estimator conditional.linear.adjustment reports b_t + b_tx * mean(x) (the effect averaged over the modifier distribution); its influence function and analytic SE include the sampling variance of the modifier mean. Mixture 0.3743035897503231 and joint-IF SE 0.02138134948402955 are pinned against the numpy reference on fresh, prepared and refresh paths. 400-replicate 90% coverage 0.880 (v19_static_envelope_calibration::conditional_effect_pag_frequentist_nominal_90_coverage). Runtime class stays Pag; Admg ConditionalEffect stays refused. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Pag"
@@ -2217,8 +2331,10 @@ inference = "Frequentist"
 validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Modifier x affects only the outcome, so it is pre-treatment in every completion and the augmented conditioning set blocks back-door paths in the same six. Estimator conditional.linear.adjustment reports b_t + b_tx * mean(x) (the effect averaged over the modifier distribution); its influence function and analytic SE include the sampling variance of the modifier mean. Mixture 0.3743035897503231 and joint-IF SE 0.02138134948402955 are pinned against the numpy reference on fresh, prepared and refresh paths. 400-replicate 90% coverage 0.880 (v19_static_envelope_calibration::conditional_effect_pag_frequentist_nominal_90_coverage). Runtime class stays Pag; Admg ConditionalEffect stays refused. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Cheap adds overlap + E-value mixed across identified completions; those numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Pag"
@@ -2227,8 +2343,10 @@ inference = "Frequentist"
 validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.linear.adjustment. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Static multi-atom Frequentist SE uses joint influence-function covariance on shared rows (frozen completion weights). estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Modifier x affects only the outcome, so it is pre-treatment in every completion and the augmented conditioning set blocks back-door paths in the same six. Estimator conditional.linear.adjustment reports b_t + b_tx * mean(x) (the effect averaged over the modifier distribution); its influence function and analytic SE include the sampling variance of the modifier mean. Mixture 0.3743035897503231 and joint-IF SE 0.02138134948402955 are pinned against the numpy reference on fresh, prepared and refresh paths. 400-replicate 90% coverage 0.880 (v19_static_envelope_calibration::conditional_effect_pag_frequentist_nominal_90_coverage). Runtime class stays Pag; Admg ConditionalEffect stays refused. estimate.envelope.se_omits_between_atom_variance is emitted only when that SE is non-finite. Full adds the effect-refuter suite mixed across identified completions; refuter numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE."
 [[cell]]
 query = "ConditionalEffect"
 graph_class = "Pag"
@@ -2237,8 +2355,10 @@ inference = "Bayesian"
 validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. none is the point estimate."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Modifier x affects only the outcome and is pre-treatment in every completion. Estimator conditional.bayesian: per-completion conjugate posteriors with a centred treatment-by-modifier interaction, plus Bayesian-bootstrap uncertainty in the modifier mean. Each identified completion keeps its own conjugate posterior; the published draws are the posterior of the frozen-weight mixture functional, with completions rank-coupled by their influence-function correlation on the shared rows (estimate.envelope.bayesian_mixture_functional). They are not a distribution over completion-specific effects: the earlier identified-atom BMA covered the mixture functional 99.8-100% of the time at nominal 90% and was replaced in 1.9. Seeded pins (64 draws): mean 0.37720213089058047, SD 0.02027592757333499. 400-replicate 90% coverage 0.907 (v19_static_envelope_calibration::conditional_effect_pag_bayesian_nominal_90_coverage). Runtime class stays Pag; Admg ConditionalEffect stays refused. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -2248,8 +2368,10 @@ inference = "Bayesian"
 validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Modifier x affects only the outcome and is pre-treatment in every completion. Estimator conditional.bayesian: per-completion conjugate posteriors with a centred treatment-by-modifier interaction, plus Bayesian-bootstrap uncertainty in the modifier mean. Each identified completion keeps its own conjugate posterior; the published draws are the posterior of the frozen-weight mixture functional, with completions rank-coupled by their influence-function correlation on the shared rows (estimate.envelope.bayesian_mixture_functional). They are not a distribution over completion-specific effects: the earlier identified-atom BMA covered the mixture functional 99.8-100% of the time at nominal 90% and was replaced in 1.9. Seeded pins (64 draws): mean 0.37720213089058047, SD 0.02027592757333499. 400-replicate 90% coverage 0.907 (v19_static_envelope_calibration::conditional_effect_pag_bayesian_nominal_90_coverage). Runtime class stays Pag; Admg ConditionalEffect stays refused. Cheap adds overlap + E-value and mixture-weighted PPC; those numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare. Cheap mixes overlap + E-value across envelope atoms, each checked against its own CATE."
 
 [[cell]]
 query = "ConditionalEffect"
@@ -2259,8 +2381,10 @@ inference = "Bayesian"
 validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/estimate/cpdag_ate_envelope"
-limitations = "Accepted Pag uses the same modifier-in-model CATE envelope as explicit Pag. Only conditionally certified completions contribute; the pin is 0.40 with GraphDependent status. Estimator is conditional.bayesian; per-atom posteriors are mixed as means. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
+known_truth_fixture = "conformance/estimate/pag_ate_envelope_identified"
+evidence_test = "crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs"
+evidence_assertion = "pag_identified_envelope_conditional_effect_pins"
+limitations = "conformance/estimate/pag_ate_envelope_identified: seven MAG completions of the supplied PAG, six identified by generalized adjustment with visible edges out of the treatment at two different effects (adjust {z}: direct; adjust {}: total through z -> m -> y) and one unidentified (no arrowhead into the treatment; mass 1/7, reported, never mixed in; status GraphDependent). Modifier x affects only the outcome and is pre-treatment in every completion. Estimator conditional.bayesian: per-completion conjugate posteriors with a centred treatment-by-modifier interaction, plus Bayesian-bootstrap uncertainty in the modifier mean. Each identified completion keeps its own conjugate posterior; the published draws are the posterior of the frozen-weight mixture functional, with completions rank-coupled by their influence-function correlation on the shared rows (estimate.envelope.bayesian_mixture_functional). They are not a distribution over completion-specific effects: the earlier identified-atom BMA covered the mixture functional 99.8-100% of the time at nominal 90% and was replaced in 1.9. Seeded pins (64 draws): mean 0.37720213089058047, SD 0.02027592757333499. 400-replicate 90% coverage 0.907 (v19_static_envelope_calibration::conditional_effect_pag_bayesian_nominal_90_coverage). Runtime class stays Pag; Admg ConditionalEffect stays refused. Full adds mixture-weighted PPC, prior sensitivity and effect refuters; those numbers are not pinned. Prepared handles freeze and reuse the envelope; estimate clicks and same-schema refresh emit exec.identify.cached; a new graph or query requires a new prepare. Full mixes the effect-refuter suite across envelope atoms, each checked against its own CATE. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -2271,6 +2395,8 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_temporal_mediation_reuses_identification"
 limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable. Frequentist uncertainty: iid analytic SEs are NaN for Total, Direct and Mediated (TemporalMediationEstimator::allow_iid_sobel_se opts back in); requested replicates run one circular-block bootstrap over consecutive lag-aligned rows (block = max(deepest design lag + 1, ⌈n^{1/3}⌉) rows, capped at n) that refits all three mechanism regressions, so the three SEs share replicates; they are scaled by the Kiefer–Vogelsang fixed-b factor and published per contrast in mediation_grid (FrequentistBlockBootstrap), with the requested contrast as se_bootstrap. With zero replicates no SE is published. Below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series. Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs. No general mediation or calibrated refuter claim."
 
 [[cell]]
@@ -2282,6 +2408,8 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_temporal_mediation_reuses_identification"
 limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability to the cheap mediation refuters (placebo-mediator, RCC, empirical binary mediator-range overlap when applicable). Frequentist uncertainty: iid analytic SEs are NaN for Total, Direct and Mediated (TemporalMediationEstimator::allow_iid_sobel_se opts back in); requested replicates run one circular-block bootstrap over consecutive lag-aligned rows (block = max(deepest design lag + 1, ⌈n^{1/3}⌉) rows, capped at n) that refits all three mechanism regressions, so the three SEs share replicates; they are scaled by the Kiefer–Vogelsang fixed-b factor and published per contrast in mediation_grid (FrequentistBlockBootstrap), with the requested contrast as se_bootstrap. With zero replicates no SE is published. Below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series. Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs. No general mediation or calibrated refuter claim."
 
 [[cell]]
@@ -2293,6 +2421,8 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_temporal_mediation_reuses_identification"
 limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable. Frequentist uncertainty: iid analytic SEs are NaN for Total, Direct and Mediated (TemporalMediationEstimator::allow_iid_sobel_se opts back in); requested replicates run one circular-block bootstrap over consecutive lag-aligned rows (block = max(deepest design lag + 1, ⌈n^{1/3}⌉) rows, capped at n) that refits all three mechanism regressions, so the three SEs share replicates; they are scaled by the Kiefer–Vogelsang fixed-b factor and published per contrast in mediation_grid (FrequentistBlockBootstrap), with the requested contrast as se_bootstrap. With zero replicates no SE is published. Below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series. Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs. No general mediation or calibrated refuter claim."
 
 [[cell]]
@@ -2304,6 +2434,8 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_temporal_mediation_reuses_identification"
 limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability to the cheap mediation refuters (placebo-mediator, RCC, empirical binary mediator-range overlap when applicable). Frequentist uncertainty: iid analytic SEs are NaN for Total, Direct and Mediated (TemporalMediationEstimator::allow_iid_sobel_se opts back in); requested replicates run one circular-block bootstrap over consecutive lag-aligned rows (block = max(deepest design lag + 1, ⌈n^{1/3}⌉) rows, capped at n) that refits all three mechanism regressions, so the three SEs share replicates; they are scaled by the Kiefer–Vogelsang fixed-b factor and published per contrast in mediation_grid (FrequentistBlockBootstrap), with the requested contrast as se_bootstrap. With zero replicates no SE is published. Below 100 effective score rows the result warns estimate.temporal.circular_block_se.short_series. Coverage: crates/antecedent/tests/v19_temporal_frequentist.rs. No general mediation or calibrated refuter claim."
 
 [[cell]]
@@ -2359,6 +2491,8 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_mediation"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_temporal_mediation_reuses_identification"
 limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping. cheap/full are licensed separately with mediation refuters, mechanism PPC, and full contrast prior sensitivity."
 
 [[cell]]
@@ -2370,6 +2504,8 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_mediation"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_temporal_mediation_reuses_identification"
 limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable, plus mechanism PPC. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
 
 [[cell]]
@@ -2381,6 +2517,8 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_mediation"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_temporal_mediation_reuses_identification"
 limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability and contrast prior sensitivity to the cheap mediation refuters and mechanism PPC. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
 
 [[cell]]
@@ -2392,6 +2530,8 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_mediation"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_temporal_mediation_reuses_identification"
 limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping. cheap/full are licensed separately with mediation refuters, mechanism PPC, and full contrast prior sensitivity."
 
 [[cell]]
@@ -2403,6 +2543,8 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_mediation"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_temporal_mediation_reuses_identification"
 limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Cheap runs placebo-mediator and RCC contrast refits plus empirical binary mediator-range overlap when applicable, plus mechanism PPC. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
 
 [[cell]]
@@ -2414,6 +2556,8 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_mediation"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_temporal_mediation_reuses_identification"
 limitations = "One mediator, lag-one treatment, linear additive mechanisms without treatment-mediator interaction; graph-derived baseline parent adjustment is shared by both mechanisms and refuters. Treatment-induced intermediate covariates require a larger path model. Natural effects use the explicit no-interaction alias. Full adds contiguous-window stability and contrast prior sensitivity to the cheap mediation refuters and mechanism PPC. Bayesian mode composes independent Gaussian mechanism posteriors, retaining per-draw decomposition. Independent product-moment and artifact evidence; HMC composition is refused pending derived-contrast chain diagnostics; no correlated-innovation likelihood or external shared prior mapping."
 
 [[cell]]
@@ -2757,9 +2901,9 @@ inference = "Frequentist"
 validation = "none"
 staged = true
 evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/v15_numeric_pins.rs"
-evidence_assertion = "retarget_succeeds_on_codetermined_tiered_admg"
-limitations = "Binary ATE / ExceedanceGrid on the CoDetermined tier-closure ADMG. Certified Z is the O(p) closure, not a supplied Admg search. Cheap/full, Bayesian, accepted, and graph-posterior stay n/a."
+evidence_test = "crates/antecedent/tests/v19_tiered_known_truth.rs"
+evidence_assertion = "codetermined_average_effect_known_truth"
+limitations = "Binary ATE / ExceedanceGrid on the CoDetermined tier-closure ADMG. Certified Z is the O(p) closure on the background's own closure ADMG, not a supplied Admg search; a caller graph set alongside tiered_background (either order) is CausalError::Conflict, and identify_tiered_on runs the generalized back-door check against a supplied ADMG. Analytic known-truth pin (linear outcome, truth 2) for linear.adjustment.ate and AIPW on fresh and prepared paths; the ExceedanceGrid retarget cross-check stays in v15_numeric_pins.rs. 400-replicate 90% coverage of the AIPW closure interval 0.887 (v19_static_envelope_calibration::codetermined_aipw_closure_nominal_90_coverage). Cheap/full, Bayesian, accepted, and graph-posterior stay n/a."
 
 [[cell]]
 query = "AverageEffect"
@@ -2769,9 +2913,9 @@ inference = "Frequentist"
 validation = "none"
 staged = true
 evidence_kind = "internal_cross_check"
-evidence_test = "crates/antecedent/tests/v15_numeric_pins.rs"
-evidence_assertion = "unknown_tier_envelope_straddles_zero"
-limitations = "Two-scenario envelope (CoDetermined vs independent-within-tier). The headline ATE is NaN; scenario_effects / scenario_intervals hold the pair. Not a Pag ATE. Cheap/full, Bayesian, ConditionalEffect, and Response stay n/a."
+evidence_test = "crates/antecedent/tests/v19_tiered_known_truth.rs"
+evidence_assertion = "unknown_scenarios_known_truth"
+limitations = "Two declared orientation scenarios (treatment precedes every same-tier peer: pretreatment set; treatment follows every peer: tier closure), never collapsed. The headline ATE is NaN; scenario_effects / scenario_intervals hold the pair, and the intervals are a 95% simultaneous max-t band from the joint influence-function covariance. Analytic known-truth pin (linear DGP, scenario truths 1 and -1) on fresh and prepared paths; 400-replicate joint coverage of both truths 0.955 at nominal 95% (v19_static_envelope_calibration::unknown_two_scenario_joint_band_nominal_95_coverage). The scenarios are not exhaustive completions or bounds over the unknown class. Not a Pag ATE. Cheap/full, Bayesian, ConditionalEffect, and Response stay n/a."
 
 [[cell]]
 query = "PulseEffect"
@@ -3404,7 +3548,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
-limitations = "Functional Bayesian evaluator on general.id front-door ADMG. Estimator functional.effect, not bayesian.gcomp. Pins the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional. Cheap/full reuse functional / ATE-shaped overlap and refuters. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+evidence_test = "crates/antecedent/tests/v18_bayesian_remainder.rs"
+evidence_assertion = "admg_frontdoor_bayesian_all_structures_and_validation"
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
 
 [[cell]]
 query = "AverageEffect"
@@ -3415,7 +3561,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
-limitations = "Functional Bayesian evaluator on general.id front-door ADMG. Estimator functional.effect, not bayesian.gcomp. Pins the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional. Cheap/full reuse functional / ATE-shaped overlap and refuters. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+evidence_test = "crates/antecedent/tests/v18_bayesian_remainder.rs"
+evidence_assertion = "admg_frontdoor_bayesian_all_structures_and_validation"
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
 
 [[cell]]
 query = "AverageEffect"
@@ -3426,7 +3574,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
-limitations = "Functional Bayesian evaluator on general.id front-door ADMG. Estimator functional.effect, not bayesian.gcomp. Pins the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional. Cheap/full reuse functional / ATE-shaped overlap and refuters. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+evidence_test = "crates/antecedent/tests/v18_bayesian_remainder.rs"
+evidence_assertion = "admg_frontdoor_bayesian_all_structures_and_validation"
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
 
 [[cell]]
 query = "AverageEffect"
@@ -3437,7 +3587,9 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
-limitations = "Functional Bayesian evaluator on general.id front-door ADMG. Estimator functional.effect, not bayesian.gcomp. Pins the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional. Cheap/full reuse functional / ATE-shaped overlap and refuters. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+evidence_test = "crates/antecedent/tests/v18_bayesian_remainder.rs"
+evidence_assertion = "admg_frontdoor_bayesian_all_structures_and_validation"
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
 
 [[cell]]
 query = "AverageEffect"
@@ -3448,7 +3600,9 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
-limitations = "Functional Bayesian evaluator on general.id front-door ADMG. Estimator functional.effect, not bayesian.gcomp. Pins the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional. Cheap/full reuse functional / ATE-shaped overlap and refuters. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+evidence_test = "crates/antecedent/tests/v18_bayesian_remainder.rs"
+evidence_assertion = "admg_frontdoor_bayesian_all_structures_and_validation"
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
 
 [[cell]]
 query = "AverageEffect"
@@ -3459,7 +3613,9 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
-limitations = "Functional Bayesian evaluator on general.id front-door ADMG. Estimator functional.effect, not bayesian.gcomp. Pins the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional. Cheap/full reuse functional / ATE-shaped overlap and refuters. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+evidence_test = "crates/antecedent/tests/v18_bayesian_remainder.rs"
+evidence_assertion = "admg_frontdoor_bayesian_all_structures_and_validation"
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG (Rubin Bayesian-bootstrap Dirichlet row law over the identified CPT factors). Estimator functional.effect, not bayesian.gcomp. Explicit and accepted structure × none/cheap/full, fresh and prepared, pin the posterior mean within 0.02 of the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional and require the 90% credible interval to contain it. Cheap/full reuse functional / ATE-shaped overlap and refuters; refuter numbers are not pinned."
 
 [[cell]]
 query = "MediationEffect"

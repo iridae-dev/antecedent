@@ -908,7 +908,7 @@ fn prepared_temporal_mediation_reuses_identification() {
         expected_mediated
     );
     for accepted in [false, true] {
-        for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
             let builder = Study::series(data.clone());
             let builder = if accepted {
                 builder.graph(AcceptedGraph::temporal_dag(g.clone()))
@@ -925,7 +925,15 @@ fn prepared_temporal_mediation_reuses_identification() {
                 .estimate_series(&data, &ctx)
                 .unwrap();
             assert!((result.estimate.ate - expected_mediated).abs() < 1e-6);
-            assert_eq!(result.refutations.len(), if suite == RefuteSuite::Full { 3 } else { 2 });
+            let expected_reports = match suite {
+                RefuteSuite::Full => 3,
+                RefuteSuite::Cheap => 2,
+                _ => 0,
+            };
+            assert_eq!(result.refutations.len(), expected_reports);
+            if suite == RefuteSuite::None {
+                continue;
+            }
             assert!(result.refutations.iter().all(|r| r.refuter.starts_with("mediation.")));
             assert!(
                 result

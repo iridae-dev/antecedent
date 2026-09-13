@@ -135,29 +135,8 @@ fn functional_bayesian_path_distribution_and_admg() {
     ))
     .unwrap();
     let data = expand_contingency(&admg_pin);
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     let query =
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(2), 0.0, 1.0);
-    let result = Study::tabular(data.clone())
-        .graph(admg)
-        .query(query.clone())
-        .inference(bayes())
-        .refute(RefuteSuite::None)
-        .build()
-        .unwrap()
-        .prepare(&ctx)
-        .unwrap()
-        .estimate(&data, &ctx)
-        .unwrap();
-    assert_eq!(result.logical_plan.identifier.as_deref(), Some("general.id"));
-    assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
-    assert!(
-        (result.estimate.ate - admg_pin["frequentist"]["expected_ate"].as_f64().unwrap()).abs()
-            < 0.08
-    );
 
     // Dag + general.id must execute the functional evaluator (not bayesian.gcomp).
     // On the observed chain the ID functional is the g-formula, not the ADMG
@@ -191,6 +170,69 @@ fn functional_bayesian_path_distribution_and_admg() {
     assert_ne!(rider.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"));
     assert!(rider.posterior.is_some());
     assert!((rider.estimate.ate - freq.estimate.ate).abs() < 0.08);
+}
+
+/// Bayesian front-door ADMG ATE on every licensed coordinate: explicit and
+/// accepted structure × `none`/`cheap`/`full`, fresh and prepared. The frozen
+/// binary law has front-door effect 0.3 (`admg_frontdoor_functional`); the
+/// Dirichlet posterior mean must sit within 0.02 of it, and the 90% credible
+/// interval must contain it.
+#[test]
+fn admg_frontdoor_bayesian_all_structures_and_validation() {
+    let admg_pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/admg_frontdoor_functional/expected.json"
+    ))
+    .unwrap();
+    let truth = admg_pin["frequentist"]["expected_ate"].as_f64().unwrap();
+    let data = expand_contingency(&admg_pin);
+    let mut admg = Admg::with_variables(3);
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    admg.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(2), 0.0, 1.0);
+    let ctx = ExecutionContext::for_tests(18);
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            let builder = if accepted {
+                Study::tabular(data.clone()).graph(AcceptedGraph::from(admg.clone()))
+            } else {
+                Study::tabular(data.clone()).graph(admg.clone())
+            };
+            let study =
+                builder.query(query.clone()).inference(bayes()).refute(suite).build().unwrap();
+            let fresh = study.clone().run(&ctx).unwrap();
+            let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+            assert!(
+                click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+                "prepared ADMG click must reuse identification"
+            );
+            for result in [&fresh, &click] {
+                let label = format!("accepted={accepted} suite={suite:?}");
+                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                assert_eq!(result.logical_plan.identifier.as_deref(), Some("general.id"));
+                assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
+                let posterior = result.posterior.as_ref().expect("Bayesian ADMG posterior");
+                assert!(
+                    (result.estimate.ate - truth).abs() < 0.02,
+                    "{label}: posterior mean {} vs front-door truth {truth}",
+                    result.estimate.ate
+                );
+                let col = posterior.effect_column().expect("effect draws");
+                let mut draws = posterior.draws.column(col).unwrap().to_vec();
+                draws.sort_by(f64::total_cmp);
+                let at = |q: f64| draws[((draws.len() - 1) as f64 * q).round() as usize];
+                assert!(at(0.05) <= truth && truth <= at(0.95), "{label}: 90% interval");
+                match suite {
+                    RefuteSuite::None => {
+                        assert!(result.refutations.is_empty(), "{label}: none runs no refuter");
+                    }
+                    _ => assert!(!result.refutations.is_empty(), "{label}: refuters must run"),
+                }
+            }
+            assert!((fresh.estimate.ate - click.estimate.ate).abs() < 1e-12);
+        }
+    }
 }
 
 #[test]
