@@ -129,6 +129,15 @@ fn stub_accepted_graph_for(data: &DataInput, n_vars: usize) -> Result<AcceptedGr
     }
 }
 
+/// A caller graph and a tier background both describe the study structure.
+fn tiered_graph_conflict() -> CausalError {
+    CausalError::Conflict {
+        what: "graph",
+        detail: "both .graph(..) and .tiered_background(..) were set; the tier background \
+                 materializes its own closure ADMG / PAG, so supply exactly one structure input",
+    }
+}
+
 /// Borrow the schema backing `data`, regardless of modality.
 fn data_schema(data: &DataInput) -> &CausalSchema {
     match data {
@@ -262,6 +271,9 @@ pub struct StudyBuilder {
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     /// Optional tier-rule background (fast-path generalized adjustment).
     tiered: Option<antecedent_graph::TieredBackground>,
+    /// Whether [`Self::graph`] was called. A caller graph and a tier background
+    /// are two sources of truth for one structure; build refuses the pair.
+    graph_from_caller: bool,
     /// Refused at build: coarsened continuous coordinate is not a point CDE.
     continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
     /// Optional latency tier (maps to known-equivalent budgets unless overridden).
@@ -279,6 +291,7 @@ impl std::fmt::Debug for StudyBuilder {
             .field("data", &"<data>")
             .field("graph", &self.graph)
             .field("tiered", &self.tiered)
+            .field("graph_from_caller", &self.graph_from_caller)
             .field("graph_posterior", &self.graph_posterior)
             .field("class_prior", &self.class_prior)
             .field("max_completions", &self.max_completions)
@@ -336,6 +349,7 @@ impl StudyBuilder {
             population_registry: None,
             custom_validators: Vec::new(),
             tiered: None,
+            graph_from_caller: false,
             continuous_cell: None,
             latency_mode: None,
             compute_budget: ComputeBudget::new(),
@@ -353,11 +367,16 @@ impl StudyBuilder {
     /// until the class-preserving temporal identifier lands — use the fallible
     /// [`AcceptedGraph::temporal_cpdag`] first. [`antecedent_graph::TemporalPag`]
     /// is the same: use [`AcceptedGraph::temporal_pag`].
+    ///
+    /// Mutually exclusive with [`Self::tiered_background`], which materializes
+    /// its own structure: setting both, in either order, is refused
+    /// ([`CausalError::Conflict`]).
     #[must_use]
     pub fn graph(mut self, structure: impl crate::IntoGraphInput) -> Self {
         let (graph, source) = structure.into_graph_input();
         self.graph = Some(graph);
         self.structure_source = Some(source);
+        self.graph_from_caller = true;
         self
     }
 
@@ -367,13 +386,21 @@ impl StudyBuilder {
     /// `generalized.adjustment`. Unknown keeps two canonical sets as an
     /// envelope. Materializes the background as the study graph.
     ///
+    /// Mutually exclusive with [`Self::graph`]: the background *is* the study
+    /// structure, so a caller graph set before or after it is refused rather
+    /// than silently ignored by the tier route.
+    ///
     /// # Errors
     ///
-    /// Missing tabular schema or invalid tier geometry.
+    /// Missing tabular schema, invalid tier geometry, or
+    /// [`CausalError::Conflict`] when [`Self::graph`] was already called.
     pub fn tiered_background(
         mut self,
         background: antecedent_graph::TieredBackground,
     ) -> Result<Self, CausalError> {
+        if self.graph_from_caller {
+            return Err(tiered_graph_conflict());
+        }
         let schema = match &self.data {
             DataInput::Tabular(data) => data.schema().clone(),
             DataInput::Temporal(data) | DataInput::Event(data) => data.schema().clone(),
@@ -703,6 +730,9 @@ impl StudyBuilder {
                     });
                 }
             }
+        }
+        if self.graph_from_caller && self.tiered.is_some() {
+            return Err(tiered_graph_conflict());
         }
         let data = self.data;
         if self.class_prior.is_some() && self.graph_posterior.is_some() {
