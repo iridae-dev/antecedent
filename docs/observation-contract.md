@@ -81,12 +81,20 @@ the contemporaneous column: the Cox/AIPW design uses Z at
 Until a pair is licensed, `compile_logical_temporal_response` refuses
 non-`Complete` with `temporal response observation pair is not licensed`.
 Delayed entry, interval/truncation, cheap/full, and `TemporalCpdag` / `TemporalPag` observation rides stay refused. Bayesian temporal response uses the separate observed-data likelihood contract below.
-When bootstrap replicates are requested, observation-adjusted temporal
-surfaces — including Sequence overlays — report pointwise outer circular-block
-bootstrap intervals. Every replicate resamples the original series, refits the
-selected/KM/Cox observation nuisance, reconstructs the pseudo-outcome, and
-refits every horizon or sequential overlay. Complete-data analytic bands and
-Bayesian IPCW/KM/Cox bands are not substituted.
+When bootstrap replicates are requested, observation-adjusted temporal curves
+and single Set/Shift responses report pointwise outer circular-block bootstrap
+intervals. Every replicate resamples blocks of lag-aligned outcome-time tuples
+(each carrying its own lagged conditioning and design values, so no row pairs
+values across a block junction), refits the selected/KM/Cox observation
+nuisance on them, reconstructs the pseudo-outcome, and refits every horizon.
+Replicate deviations carry the block-count `t_ν/z` and HC1 inflation.
+Observation-adjusted Sequence overlays publish no interval
+(`response.observation_sequence_band_withheld`): their only replicate reorders
+the raw series, and it measured 31–81% coverage for a nominal 95% band. The same joint replicates give a
+simultaneous band over the whole surface (support diagnostics
+`response.simultaneous_band.*`; see
+[Temporal simultaneous bands](causal-responses.md#temporal-simultaneous-bands)).
+Complete-data analytic bands and Bayesian IPCW/KM/Cox bands are not substituted.
 
 
 ### Bayesian temporal observed-data likelihood
@@ -101,9 +109,12 @@ trajectory or censoring-bound trajectory: conditional on fully observed Z,
 that trajectory is independent of the latent outcome trajectory. Censoring
 event indicators are deterministic comparisons of outcomes with bounds and
 are not assumed independent of the outcome. Distinct observation/outcome
-priors permit the ignorable observation factor to be omitted. Intervals are
-pointwise posterior bands under the Gaussian mechanism model and this
-trajectory assumption, not a guarantee of repeated-sampling coverage.
+priors permit the ignorable observation factor to be omitted. The band in
+`uncertainty` is a pointwise posterior band; a simultaneous credible band from
+the same joint Gibbs draws is published as `response.simultaneous_band.*`.
+Both hold under the Gaussian mechanism model with independent innovations and
+this trajectory assumption; they are not a guarantee of repeated-sampling
+coverage.
 
 Consuming evidence: `crates/antecedent/tests/temporal_observed_bayesian.rs`;
 backend provenance: `provenance/estimate.temporal_observed_bayes.toml`.

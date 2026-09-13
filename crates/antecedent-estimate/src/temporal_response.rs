@@ -299,11 +299,7 @@ pub fn clear_simultaneous_band(support: &mut SupportReport) {
 /// `max(structural span, ceil(n^{1/3}))`, capped at `n`.
 #[must_use]
 pub fn temporal_block_length(structural_span: usize, n: usize) -> usize {
-    let mut root = 0usize;
-    while root.saturating_mul(root).saturating_mul(root) < n {
-        root += 1;
-    }
-    structural_span.max(root).min(n).max(1)
+    antecedent_data::circular_block_length(structural_span, n)
 }
 
 /// Small-sample inflation for circular-block bootstrap dispersion.

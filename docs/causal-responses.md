@@ -63,7 +63,9 @@ A response result deliberately keeps four judgments separate:
    refit nuisance models or claim unconditional coverage without the caller's
    bandwidth/regularity contract. An identified
    set is uncertainty about what the assumptions determine, not a confidence
-   interval.
+   interval. Temporal dose × horizon surfaces keep the pointwise band in
+   `uncertainty` and publish a simultaneous band next to it (see
+   [Temporal simultaneous bands](#temporal-simultaneous-bands)).
 4. `assumptions` and `provenance` record the claims and algorithm used. Do not
    infer an observation assumption merely from an observation-mechanism column.
 
@@ -175,10 +177,73 @@ Explicit and accepted DAGs, TemporalDAGs, CPDAGs, and PAGs are licensed for
 additive forms. Static responses use `response.bayesian`; temporal responses
 use `response.temporal.bayesian` and retain identification and support per
 horizon. Class-aware Cpdag/Pag Bayesian response mixes identified-mass means
-only; posterior draws are not mixed. These posterior intervals are pointwise,
-with no joint horizon posterior or simultaneous-band claim. Kennedy-DR
-regularity and row-influence diagnostics below describe the Frequentist
-estimator, not these Bayesian posteriors.
+only; posterior draws are not mixed. The temporal posterior band in
+`uncertainty` is pointwise; a simultaneous credible band is published next to
+it (see [Temporal simultaneous bands](#temporal-simultaneous-bands)). Each
+horizon is a separate conjugate fit, so across horizons that band describes the
+product of per-horizon posteriors, not a joint horizon posterior. Both bands
+condition on the observed covariate (and, for shifts, treatment) average and on
+an independent-residual likelihood. Kennedy-DR regularity and row-influence
+diagnostics below describe the Frequentist estimator, not these Bayesian
+posteriors.
+
+## Temporal simultaneous bands
+
+A pointwise band covers one (dose, horizon) cell at a time. Temporal
+`ResponseCurve` / `InterventionResponse` surfaces also publish a band that
+covers the whole grid at once, as three support diagnostics:
+
+| id | values |
+|----|--------|
+| `response.simultaneous_band.lower` | lower edge, same dose-major layout as the mean |
+| `response.simultaneous_band.upper` | upper edge, same layout |
+| `response.simultaneous_band.critical` | `[level, critical value c, joint replicates or draws]` |
+
+The construction is a max-studentized deviation (sup-t) from joint replicates
+of the whole surface, the replicate analogue of the Kennedy-DR multiplier band
+above. With cell scales `s_j` (the SD of the replicates of cell `j`) and
+`B` replicates, `c` is the `ceil(level·(B+1))`-th smallest of
+`max_j |θ*_j − θ̂_j| / s_j`, and the band is `θ̂_j ± c·s_j`. At least 40 joint
+replicates are required; otherwise `response.simultaneous_band_withheld`
+explains why no band was published.
+
+- **Frequentist complete data.** Requested bootstrap replicates run a joint
+  circular-block bootstrap: each replicate draws block starts on the series time
+  axis, resamples time-aligned blocks of every horizon's lag-aligned rows (block
+  length `max(unfolded span, ceil(n^(1/3)))`), refits every horizon, and
+  recomputes the covariate averages. Replicate deviations from `θ̂` are scaled
+  by `t_ν / z` with `ν = 1.5·(rows/block − 1)` (the batch-means correction for
+  a variance estimated from few blocks) and by the HC1 factor
+  `sqrt(rows/(rows − p))`. Pointwise SEs are the (scaled)
+  replicate SD and the pointwise band is `θ̂ ± 1.96·SE`; both target the
+  population level `E[Y_h | do(A)]`. With zero replicates the pointwise band is
+  analytic (homoskedastic OLS plus the iid variance of the covariate average).
+  It treats lag-aligned rows as independent, which temporal designs rarely
+  satisfy, and no simultaneous band is published.
+- **Frequentist observation-adjusted.** For curves and single Set/Shift
+  responses, each outer replicate resamples blocks of lag-aligned outcome-time
+  tuples, refits the observation nuisance on exactly those tuples, and refits
+  every horizon on them. No replicate row pairs values across a block junction.
+  The same dispersion scaling applies. These draws give both the pointwise
+  percentile band and the simultaneous band. Observation-adjusted Sequence
+  overlays publish no band (`response.observation_sequence_band_withheld`):
+  their only available replicate reorders the raw series, which rebuilds lags
+  across block junctions, and it measured 31–81% coverage for a nominal 95%
+  band.
+- **Bayesian.** The simultaneous credible band uses posterior draws of the
+  grid around the posterior mean: joint Gibbs draws for
+  `estimate.temporal_observed_bayes`, and index-paired independent per-horizon
+  draws (a product posterior) for `response.temporal.bayesian`.
+- **Not published.** Complete-data multi-step or joint Sequence overlays
+  (each horizon is bootstrapped or sampled separately; pointwise bands only),
+  observation-adjusted Sequence overlays (no band at all), and the class-level
+  TemporalCpdag/Pag identified set (no class band; each completion atom keeps
+  its own pointwise and simultaneous band, calibrated against that atom's own
+  probability limit).
+
+Coverage of these bands on linear-Gaussian DGPs with iid and AR(1) residuals
+is measured by `crates/antecedent/tests/v19_temporal_response_calibration.rs`
+(run via `scripts/gate_calibration.sh`).
 
 Prepared responses require complete observations and the AllObserved empirical
 population. Unsupported observation mechanisms, observation assumptions, or
