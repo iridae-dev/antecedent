@@ -12,7 +12,8 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, Intervention, TemporalEffectQuery, TemporalIndexer, Value,
+    AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity, Intervention,
+    TemporalEffectQuery, TemporalIndexer, Value,
 };
 use antecedent_graph::Pag;
 use antecedent_identify::{
@@ -500,6 +501,19 @@ pub(crate) fn refine_temporal_class_identification(
     }
     for (case, indexer) in envelope.envelope.cases.iter_mut().zip(&mut envelope.indexers) {
         let Some(dag) = case.graph.sequential_dag() else {
+            // The enumeration witness certified Pulse/Sustained adjustment, not the
+            // requested schedule or mediation functional. Those are certified only
+            // on directed completions; a bidirected member keeps its mass without
+            // inheriting a certificate for a functional nobody examined.
+            case.result.status = antecedent_core::IdentificationStatus::GraphDependent;
+            case.result.estimands.clear();
+            case.result.diagnostics.push(Diagnostic::new(
+                "identify.temporal_class.bidirected_completion_uncertified",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "completion has bidirected edges; the requested sequential schedule or \
+                 mediation functional is certified only on directed completions",
+            ));
             continue;
         };
         let identified = match query {
