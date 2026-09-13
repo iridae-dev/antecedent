@@ -152,9 +152,28 @@ pub fn quantile_interval(draws: &[f64], level: f64) -> Option<(f64, f64)> {
     Some((at(lo_p), at(1.0 - lo_p)))
 }
 
+/// SplitMix64 finalizer: decorrelates nearby integer seeds.
+#[must_use]
+pub fn mix_seed(seed: u64) -> u64 {
+    let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
+/// Uniform `[0, 1)` draw keyed by `seed` (e.g. to pick a structural atom per replicate).
+#[must_use]
+pub fn unit_uniform(seed: u64) -> f64 {
+    (mix_seed(seed) >> 11) as f64 / (1u64 << 53) as f64
+}
+
 /// Deterministic standard-normal generator (LCG + Box–Muller), stable across platforms.
+///
+/// The seed is scrambled before seeding the LCG: a bare `seed | 1` maps the
+/// consecutive replicate seeds `2k` and `2k + 1` to the same stream, which
+/// silently halves the number of independent calibration datasets.
 pub fn gaussian(seed: u64) -> impl FnMut() -> f64 {
-    let mut state = seed | 1;
+    let mut state = mix_seed(seed) | 1;
     move || {
         state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
         let u1 = ((state >> 33) as f64 / (1u64 << 31) as f64).clamp(1e-12, 1.0);
