@@ -351,8 +351,7 @@ impl super::Study {
                 let (reports, mix_diagnostics) = run_envelope_effect_refuters(
                     data,
                     query,
-                    &estimate,
-                    &envelope_refute_atoms(&atoms),
+                    &envelope_refute_atoms(&atoms)?,
                     &mut refute_ws,
                     ctx,
                     self.refute,
@@ -735,8 +734,7 @@ impl super::Study {
                 let (reports, mix_diagnostics) = run_envelope_effect_refuters(
                     data,
                     query,
-                    &estimate,
-                    &envelope_refute_atoms(&atoms),
+                    &envelope_refute_atoms(&atoms)?,
                     &mut refute_ws,
                     ctx,
                     self.refute,
@@ -854,6 +852,8 @@ impl super::Study {
 
         let mut weighted_ate = 0.0;
         let mut se_items = Vec::new();
+        let mut atom_ifs = Vec::new();
+        let mut atom_weights = Vec::new();
         let mut total_w = 0.0;
         let mut primary_estimand = None;
         let mut primary_identification = None;
@@ -891,6 +891,16 @@ impl super::Study {
             let w = identified_weight_for_key(&graphs, atom.key);
             weighted_ate += w * estimate.ate;
             se_items.push((w, estimate.se_analytic));
+            // Every atom is fit on the same rows; embed its IF in the original
+            // row universe so the mixture SE carries cross-atom covariance.
+            if let Some(inf) = estimate
+                .influence
+                .as_deref()
+                .and_then(|inf| static_aligned_influence(data, query, &atom.estimand, inf))
+            {
+                atom_ifs.push(inf);
+                atom_weights.push(w);
+            }
             total_w += w;
             if primary_estimand.is_none() {
                 primary_estimand = Some(atom.estimand.clone());
@@ -902,6 +912,7 @@ impl super::Study {
                 weight: w,
                 estimand: atom.estimand.clone(),
                 indexer: None,
+                original: estimate,
             });
         }
         if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
@@ -915,12 +926,29 @@ impl super::Study {
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "graph-posterior envelope: missing estimand".into(),
         })?;
-        let estimate = EffectEstimate::new(
+        // Joint influence-function covariance on shared rows with frozen graph
+        // weights (renormalized over contributing atoms). When any contributing
+        // atom cannot be IF-aligned to the shared row universe, the SE falls back
+        // to the single-atom rule: NaN for more than one atom, with a diagnostic.
+        // A single contributing atom keeps its own SE, as on a plain DAG.
+        let n_contributing = se_items.len();
+        let joint = n_contributing > 1 && atom_ifs.len() == n_contributing;
+        let se = if joint {
+            mix_static_envelope_se(&atom_ifs, &atom_weights)
+        } else {
+            mix_weighted_analytic_se(se_items)
+        };
+        let mut estimate = EffectEstimate::new(
             weighted_ate / total_w,
-            mix_weighted_analytic_se(se_items),
+            se,
             assumptions,
             OverlapPolicy::ExplicitOverride,
         );
+        if joint {
+            if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
+                estimate.influence = Some(inf);
+            }
+        }
         let unidentified_mass: f64 = graphs
             .weights
             .iter()
@@ -936,7 +964,21 @@ impl super::Study {
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.push(envelope_se_omits_between_atom_variance());
+        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
+        if joint && estimate.se_analytic.is_finite() {
+            diagnostics.push(Diagnostic::new(
+                "estimate.graph_posterior.joint_if_se",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "SE of E[τ | identified] from the joint influence-function covariance of \
+                     {n_contributing} atoms fit on shared rows, with frozen graph weights; \
+                     graph-weight uncertainty and unidentified mass are not in the SE; the \
+                     interval is for the reported aggregate, not a distribution over \
+                     graph-specific effects"
+                ),
+            ));
+        }
         diagnostics.push(Diagnostic::new(
             "estimate.graph_posterior.envelope",
             DiagnosticKind::Scientific,
@@ -951,7 +993,6 @@ impl super::Study {
         let (refutations, na_diagnostics) = run_envelope_effect_refuters(
             data,
             query,
-            &estimate,
             &refute_atoms,
             &mut refute_ws,
             ctx,
@@ -1025,6 +1066,7 @@ impl super::Study {
                 )
             };
         let mut contexts = Vec::new();
+        let mut atom_estimates = Vec::new();
         let mut point_sum = 0.0;
         let mut point_mass = 0.0;
         let mut primary = None;
@@ -1044,6 +1086,7 @@ impl super::Study {
                 ));
             }
             contexts.push((atom, weight));
+            atom_estimates.push(estimate);
         }
         let (estimand, mut identification, assumptions) =
             primary.ok_or_else(|| CausalError::Compile {
@@ -1111,11 +1154,13 @@ impl super::Study {
         );
         let refute_atoms = contexts
             .iter()
-            .map(|(atom, weight)| EnvelopeRefuteAtom {
+            .zip(&atom_estimates)
+            .map(|((atom, weight), original)| EnvelopeRefuteAtom {
                 key: atom.key,
                 weight: *weight,
                 estimand: atom.estimand.clone(),
                 indexer: Some(atom.indexer.clone()),
+                original: original.clone(),
             })
             .collect::<Vec<_>>();
         let tabular = TabularData::new(data.storage().clone());
@@ -1126,7 +1171,8 @@ impl super::Study {
             } else if is_multi_step_sustained(query) {
                 let validation_atoms = contexts
                     .iter()
-                    .map(|(atom, weight)| {
+                    .zip(&atom_estimates)
+                    .map(|((atom, weight), original)| {
                         Ok(SequentialValidationAtom {
                             weight: *weight,
                             graph: crate::analysis::prepared::temporal_dag_from_dbn_atom(
@@ -1135,7 +1181,7 @@ impl super::Study {
                             indexer: atom.indexer.clone(),
                             estimand: atom.estimand.clone(),
                             status: atom.identification.status,
-                            estimate: fit_frequentist_dbn_atom(data, gp, &vars, atom, query, ctx)?,
+                            estimate: original.clone(),
                             mechanisms: Vec::new(),
                         })
                     })
@@ -1156,7 +1202,6 @@ impl super::Study {
                 run_envelope_effect_refuters(
                     &tabular,
                     &ate_query,
-                    &estimate,
                     &refute_atoms,
                     &mut EstimationWorkspace::default(),
                     ctx,
@@ -1173,11 +1218,14 @@ impl super::Study {
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
             format!(
-                "fixed graph weights; identified_mass={}; unidentified_mass={}; shared \
-                 circular-block replicates={}; attempted={attempted}; bands require two successes and at most half failed attempts",
-                point_mass,
-                identified.graphs.unidentified_mass(),
-                bootstrap.len()
+                "{}; bands require two successes and at most half failed attempts",
+                shared_block_mixture_message(
+                    "fixed graph weights",
+                    point_mass,
+                    identified.graphs.unidentified_mass(),
+                    u32::try_from(bootstrap.len()).unwrap_or(u32::MAX),
+                    attempted,
+                )
             ),
         ));
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
@@ -1516,8 +1564,7 @@ impl super::Study {
             let (reports, notes) = run_envelope_effect_refuters(
                 &tabular,
                 &ate_query,
-                &estimate,
-                &envelope_refute_atoms(&atoms),
+                &envelope_refute_atoms(&atoms)?,
                 &mut EstimationWorkspace::default(),
                 ctx,
                 self.refute,
@@ -2009,7 +2056,6 @@ impl super::Study {
         if self.refute != RefuteSuite::None {
             let (reports, notes) = mix_dbn_mediation_refuters(
                 data,
-                &mediation,
                 &refute_atoms,
                 self.refute == RefuteSuite::Full,
                 ctx,
@@ -2238,9 +2284,24 @@ fn mix_dbn_mediation_estimate(
     }
 }
 
+/// This atom's own composed mediation summary: the refuters' reference value.
+fn dbn_mediation_atom_estimate(
+    atom: &DbnMediationAtom,
+) -> Result<TemporalMediationEstimate, CausalError> {
+    let means = &atom.composed.summaries.mean;
+    let component = |index: usize| (means.len() >= 4).then(|| means[index]);
+    Ok(TemporalMediationEstimate {
+        effect: effect_from_posterior(&atom.composed)?,
+        total: component(1),
+        direct: component(2),
+        mediated: component(3),
+    })
+}
+
+/// Mediation refuters per contributing atom, each against that atom's own
+/// composed estimate (not the pooled mixture), mixed by envelope mass.
 fn mix_dbn_mediation_refuters(
     data: &TimeSeriesData,
-    mediation: &TemporalMediationEstimate,
     atoms: &[DbnMediationAtom],
     full: bool,
     ctx: &ExecutionContext,
@@ -2254,11 +2315,12 @@ fn mix_dbn_mediation_refuters(
         if atom.weight <= 0.0 {
             continue;
         }
+        let original = dbn_mediation_atom_estimate(atom)?;
         let reports = antecedent_validate::mediation::refute_temporal_mediation_adjusted(
             data,
             &atom.estimand,
             &atom.query,
-            mediation,
+            &original,
             full,
             &atom.adjustment,
             ctx,
@@ -2293,7 +2355,9 @@ fn mix_dbn_mediation_refuters(
             DiagnosticSeverity::Info,
             format!(
                 "mediation refuters evaluated each contributing graph atom [{atom_keys}] against \
-                 the mixture effect using that atom's I(h); reports mix by envelope mass"
+                 that atom's own composed estimate using that atom's I(h), not the pooled \
+                 mixture; reports mix by envelope mass and pass only if every contributing atom \
+                 passes"
             ),
         )],
     ))

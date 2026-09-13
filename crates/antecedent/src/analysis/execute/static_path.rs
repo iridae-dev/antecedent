@@ -956,6 +956,7 @@ impl super::Study {
                 weight: w,
                 estimand,
                 indexer: None,
+                original: estimate,
             });
         }
         if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
@@ -1005,7 +1006,6 @@ impl super::Study {
         let (refutations, na_diagnostics) = run_envelope_effect_refuters(
             data,
             &query.inner,
-            &estimate,
             &refute_atoms,
             &mut refute_ws,
             ctx,
@@ -1018,9 +1018,7 @@ impl super::Study {
         )?;
         diagnostics.extend(na_diagnostics);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        if !estimate.se_analytic.is_finite() {
-            diagnostics.push(envelope_se_omits_between_atom_variance());
-        }
+        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,

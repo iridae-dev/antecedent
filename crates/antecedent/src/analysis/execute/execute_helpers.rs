@@ -428,27 +428,48 @@ pub(super) struct EnvelopeAtomFit {
     pub indexer: Option<TemporalIndexer>,
 }
 
-/// Estimand + mass needed to mix Frequentist or Bayesian envelope refuters.
+/// Estimand, mass, and the atom's own fitted effect needed to mix Frequentist or
+/// Bayesian envelope refuters.
+///
+/// `original` is this atom's own estimate (posterior mean / SD for Bayesian
+/// atoms). Refuters compare each atom's perturbation refits against it, never
+/// against the pooled mixture: a stable atom whose effect differs from the
+/// pooled value is not a refutation.
 pub(super) struct EnvelopeRefuteAtom {
     pub key: u64,
     pub weight: f64,
     pub estimand: IdentifiedEstimand,
     pub indexer: Option<TemporalIndexer>,
+    pub original: EffectEstimate,
 }
 
-impl From<&EnvelopeAtomFit> for EnvelopeRefuteAtom {
-    fn from(atom: &EnvelopeAtomFit) -> Self {
-        Self {
+impl EnvelopeRefuteAtom {
+    /// Refute atom for a Bayesian envelope fit; `original` is that atom's posterior summary.
+    pub(super) fn from_fit(atom: &EnvelopeAtomFit) -> Result<Self, CausalError> {
+        Ok(Self {
             key: atom.key,
             weight: atom.weight,
             estimand: atom.estimand.clone(),
             indexer: atom.indexer.clone(),
-        }
+            original: effect_from_posterior(&atom.posterior)?,
+        })
     }
 }
 
-pub(super) fn envelope_refute_atoms(fits: &[EnvelopeAtomFit]) -> Vec<EnvelopeRefuteAtom> {
-    fits.iter().map(EnvelopeRefuteAtom::from).collect()
+pub(super) fn envelope_refute_atoms(
+    fits: &[EnvelopeAtomFit],
+) -> Result<Vec<EnvelopeRefuteAtom>, CausalError> {
+    fits.iter().map(EnvelopeRefuteAtom::from_fit).collect()
+}
+
+/// Emit [`envelope_se_omits_between_atom_variance`] only when something was
+/// actually omitted: more than one atom contributes and no joint SE was formed.
+/// A single contributing atom keeps its own SE, so there is nothing to disclose.
+pub(super) fn envelope_se_omission_diagnostic(
+    contributing_atoms: usize,
+    se: f64,
+) -> Option<Diagnostic> {
+    (contributing_atoms > 1 && !se.is_finite()).then(envelope_se_omits_between_atom_variance)
 }
 
 /// The legacy diagnostic code is retained for downstream consumers.
@@ -533,14 +554,33 @@ pub(super) fn envelope_shared_block_diagnostic(
         "estimate.temporal_class.frequentist.shared_block",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
-        format!(
-            "frozen completion weights; identified_mass={identified_mass}; \
-             unidentified_mass={unidentified_mass}; shared circular-block \
-             replicates={completed}; attempted={attempted}; between-atom sampling \
-             variance included; unidentified mass is not mixed into the SE; \
-             the interval is for the reported aggregate, not a distribution \
-             over graph-specific effects"
+        shared_block_mixture_message(
+            "frozen completion weights",
+            identified_mass,
+            unidentified_mass,
+            completed,
+            attempted,
         ),
+    )
+}
+
+/// One message for every frozen-weight shared circular-block mixture SE
+/// (temporal class envelopes and DBN posteriors), so both carry the same
+/// statement of what the interval is for.
+pub(super) fn shared_block_mixture_message(
+    weight_basis: &str,
+    identified_mass: f64,
+    unidentified_mass: f64,
+    completed: u32,
+    attempted: u32,
+) -> String {
+    format!(
+        "{weight_basis}; identified_mass={identified_mass}; \
+         unidentified_mass={unidentified_mass}; shared circular-block \
+         replicates={completed}; attempted={attempted}; between-atom sampling \
+         variance included; unidentified mass is not mixed into the SE; \
+         the interval is for the reported aggregate, not a distribution \
+         over graph-specific effects"
     )
 }
 
@@ -1015,13 +1055,17 @@ pub(super) fn run_envelope_bayesian_full_validation(
 /// Run cheap/full effect refuters on every contributing envelope atom and mix.
 ///
 /// Each atom is validated on its own estimand (and lag indexer, for DBN atoms)
-/// against the mixture effect. Reports of the same refuter id are mixed by
-/// posterior mass. Validators that are `NotApplicable` on every contributing
-/// atom surface once; a check that applies to only a subset mixes that subset.
+/// against that atom's own estimate ([`EnvelopeRefuteAtom::original`]), so a
+/// stable atom whose effect differs from the pooled mixture is not reported as
+/// a refutation. Reports of the same refuter id are mixed by posterior mass;
+/// the mixed `original_ate` is therefore the mass-weighted mean of the per-atom
+/// estimates that were actually compared (over the atoms that produced that
+/// report), and the mixed check passes only if every contributing atom passes.
+/// Validators that are `NotApplicable` on every contributing atom surface once;
+/// a check that applies to only a subset mixes that subset.
 pub(super) fn run_envelope_effect_refuters(
     data: &TabularData,
     query: &AverageEffectQuery,
-    estimate: &EffectEstimate,
     atoms: &[EnvelopeRefuteAtom],
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
@@ -1066,7 +1110,7 @@ pub(super) fn run_envelope_effect_refuters(
             data,
             &atom.estimand,
             query,
-            estimate,
+            &atom.original,
             workspace,
             None,
             ctx,
@@ -1114,9 +1158,10 @@ pub(super) fn run_envelope_effect_refuters(
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         format!(
-            "effect refuters evaluated each contributing graph atom [{atom_keys}] against the \
-             mixture effect; reports mix by envelope mass and pass only if every contributing \
-             atom passes"
+            "effect refuters evaluated each contributing graph atom [{atom_keys}] against that \
+             atom's own estimate, not the pooled mixture; reports mix by envelope mass (the \
+             mixed original_ate is the mass-weighted mean of the per-atom estimates compared) \
+             and pass only if every contributing atom passes"
         ),
     ));
     Ok((reports, diagnostics))

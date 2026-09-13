@@ -268,6 +268,182 @@ mod envelope_se_tests {
 }
 
 #[cfg(test)]
+mod envelope_refuter_target_tests {
+    //! R-3: envelope refuters compare each atom with its own estimate.
+    use antecedent_discovery::set_edge;
+    use antecedent_prob::InferenceDiagnostics;
+
+    use super::*;
+
+    fn known_truth_data(n: usize) -> TabularData {
+        let (mut t, mut y, mut z) = (Vec::new(), Vec::new(), Vec::new());
+        for _ in 0..(n / 16) {
+            for (zv, tv, count) in [(0.0, 0.0, 6), (0.0, 1.0, 2), (1.0, 0.0, 2), (1.0, 1.0, 6)] {
+                for row in 0..count {
+                    let epsilon = if row % 2 == 0 { -0.2 } else { 0.2 };
+                    t.push(tv);
+                    z.push(zv);
+                    y.push(2.0 * tv + 2.0 * zv + epsilon);
+                }
+            }
+        }
+        TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap()
+    }
+
+    /// Two identified atoms fit on the same rows: unadjusted (effect 3) and
+    /// Z-adjusted (effect 2), at weights 0.5 / 0.3.
+    fn fitted_atoms(data: &TabularData, ctx: &ExecutionContext) -> Vec<EnvelopeRefuteAtom> {
+        let direct = set_edge(0, 3, 0, 1, true);
+        let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let gp = GraphPosterior::new(
+            3,
+            vec![0.5, 0.3],
+            vec![direct, adjusted],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            1.0,
+            InferenceDiagnostics::analytic("r3_refuter_targets"),
+            0,
+        )
+        .unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let identified =
+            crate::analysis::prepared::build_graph_posterior_identification_cache(&gp, &query, ctx)
+                .unwrap();
+        identified
+            .atoms
+            .iter()
+            .map(|atom| {
+                let original = crate::strategy_table::estimate_static_effect(
+                    &crate::estimator_spec::EstimatorSpec::Default(
+                        EstimatorId::LinearAdjustmentAte,
+                    ),
+                    data,
+                    &atom.estimand,
+                    &query,
+                    atom.identification.required_assumptions.clone(),
+                    0,
+                    None,
+                    None,
+                    ctx,
+                    &mut StaticEstimateWorkspaces::default(),
+                )
+                .unwrap();
+                EnvelopeRefuteAtom {
+                    key: atom.key,
+                    weight: identified_weight_for_key(&identified.graphs, atom.key),
+                    estimand: atom.estimand.clone(),
+                    indexer: None,
+                    original,
+                }
+            })
+            .collect()
+    }
+
+    fn data_subset(
+        data: &TabularData,
+        atoms: &[EnvelopeRefuteAtom],
+        ctx: &ExecutionContext,
+    ) -> antecedent_validate::RefutationReport {
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let (reports, _) = run_envelope_effect_refuters(
+            data,
+            &query,
+            atoms,
+            &mut EstimationWorkspace::default(),
+            ctx,
+            RefuteSuite::Full,
+            "linear.adjustment.ate",
+            &[],
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        reports.into_iter().find(|r| r.refuter.as_ref() == "data.subset").expect("data.subset")
+    }
+
+    #[test]
+    fn envelope_refuters_compare_each_atom_with_its_own_estimate() {
+        let ctx = ExecutionContext::for_tests(5);
+        let data = known_truth_data(320);
+        let atoms = fitted_atoms(&data, &ctx);
+        assert_eq!(atoms.len(), 2);
+        let effects: Vec<f64> = atoms.iter().map(|a| a.original.ate).collect();
+        assert!((effects[0] - effects[1]).abs() > 0.9, "atoms must disagree: {effects:?}");
+        let pooled = atoms.iter().map(|a| a.weight * a.original.ate).sum::<f64>()
+            / atoms.iter().map(|a| a.weight).sum::<f64>();
+        assert!((pooled - 2.625).abs() < 1e-8);
+
+        // Stable atoms with different effects pass against their own estimates;
+        // the mixed original_ate is the mass-weighted mean of what was compared.
+        let stable = data_subset(&data, &atoms, &ctx);
+        assert!(stable.passed, "stable heterogeneous atoms must pass: {stable:?}");
+        assert!((stable.original_ate - pooled).abs() < 1e-8);
+
+        // The pre-1.9 targeting (every atom against the pooled mixture) rejects
+        // the same stable atoms: this is the defect R-3 removes.
+        let mut pooled_target = fitted_atoms(&data, &ctx);
+        for atom in &mut pooled_target {
+            atom.original.ate = pooled;
+        }
+        assert!(!data_subset(&data, &pooled_target, &ctx).passed);
+
+        // An atom whose own refits do not reproduce its reported estimate is
+        // still refuted, and unanimity fails the mixture even though the other
+        // atom passes.
+        let mut unstable = fitted_atoms(&data, &ctx);
+        unstable[1].original.ate += 0.5;
+        let report = data_subset(&data, &unstable, &ctx);
+        assert!(!report.passed, "a refuted atom must fail the mixture: {report:?}");
+        assert!(report.failure_condition.is_some());
+        let alone = data_subset(&data, &unstable[..1], &ctx);
+        assert!(alone.passed, "the other atom passes on its own: {alone:?}");
+    }
+
+    #[test]
+    fn single_atom_graph_posterior_keeps_its_se_without_omission_diagnostic() {
+        // D-4: one contributing atom omits nothing, so the between-atom
+        // omission diagnostic must not fire.
+        let direct = set_edge(0, 3, 0, 1, true);
+        let gp = GraphPosterior::new(
+            3,
+            vec![1.0],
+            vec![direct],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            1.0,
+            InferenceDiagnostics::analytic("d4_single_atom"),
+            0,
+        )
+        .unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let result = Study::tabular(known_truth_data(160))
+            .graph_posterior(gp)
+            .query(query)
+            .refute(RefuteSuite::None)
+            .inference(InferenceMode::Frequentist)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(2))
+            .unwrap();
+        assert!(result.estimate.se_analytic.is_finite());
+        assert!(result.diagnostics.iter().all(|d| {
+            d.code.as_ref() != "estimate.envelope.se_omits_between_atom_variance"
+                && d.code.as_ref() != "estimate.graph_posterior.joint_if_se"
+        }));
+    }
+}
+
+#[cfg(test)]
 mod support_tests {
     use super::*;
 
@@ -765,11 +941,27 @@ mod identify_only_tests {
                 }),
                 "fresh Frequentist mixture must retain unidentified mass"
             );
+            // R-11 / C-1: both identified atoms are fit on the same rows, so the
+            // mixture SE comes from their joint influence-function covariance and
+            // nothing is omitted.
             assert!(
-                fresh.diagnostics.iter().any(|d| {
-                    d.code.as_ref() == "estimate.envelope.se_omits_between_atom_variance"
+                fresh.estimate.se_analytic.is_finite() && fresh.estimate.se_analytic > 0.0,
+                "Frequentist mixture SE must use joint IF covariance, got {}",
+                fresh.estimate.se_analytic
+            );
+            assert!((click.estimate.se_analytic - fresh.estimate.se_analytic).abs() < 1e-12);
+            assert!(
+                fresh
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code.as_ref() == "estimate.graph_posterior.joint_if_se"),
+                "joint-IF SE must be disclosed"
+            );
+            assert!(
+                fresh.diagnostics.iter().all(|d| {
+                    d.code.as_ref() != "estimate.envelope.se_omits_between_atom_variance"
                 }),
-                "Frequentist mixture SE must disclose omitted between-atom variance"
+                "nothing is omitted when every atom is IF-aligned"
             );
             assert_eq!(cached_count(&fresh), 0);
             assert_eq!(cached_count(&click), 1);
