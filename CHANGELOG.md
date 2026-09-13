@@ -21,6 +21,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Response and TemporalCpdag mediation returns a temporal envelope with
   completion fingerprints.
 
+### Fixed
+
+- Incomplete-class Frequentist observation adjustment retains the declared
+  observation claims on the response and identification assumptions.
+- Class priors and stitched completion curves bind by completion fingerprint
+  across horizons; a horizon that enumerates a different class membership
+  refuses rather than misaligning masses positionally.
+- Sequence and mediation identification on bidirected MAG completions no
+  longer inherits the Pulse enumeration witness; the completion is
+  `GraphDependent` with an explicit diagnostic.
+- Prior-transfer conflict summaries are retained per completion posterior and
+  in result diagnostics whether or not a class prior licenses a mixture.
+- `bayesian.temporal.gcomp` is a registered `EstimatorId`. Bayesian Pulse and
+  single-step Sustained on `TemporalDag`, panel, DBN-posterior, and incomplete
+  temporal classes compile and report it instead of `temporal.linear.adjustment`
+  or `bayesian.gcomp`; Python reads the compiled plan rather than relabeling.
+- Frequentist multi-step class mixtures declare their missing between-atom SE
+  and carry atom assumptions; Frequentist class curves honor requested
+  replicates per completion atom; `exec.identify.cached` reports only full
+  cache coverage.
+
 ## [1.6.0] — 2026-09-12
 
 ### Added
