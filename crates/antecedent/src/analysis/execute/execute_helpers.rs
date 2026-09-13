@@ -503,13 +503,40 @@ pub(super) fn shared_circular_block_mixture_se(
     replicates: u32,
     stream_base: u64,
     ctx: &ExecutionContext,
+    mix: impl FnMut(&TimeSeriesData) -> Option<f64>,
+) -> SharedCircularBlockSe {
+    let block_length = circular_block_length(structural_span, data.row_count());
+    shared_circular_block_mixture_se_with_length(
+        data,
+        block_length,
+        replicates,
+        stream_base,
+        ctx,
+        mix,
+    )
+}
+
+/// Block-length rule for the shared circular block: the structural lag span
+/// or `ceil(n^(1/3))`, whichever is longer, capped at `n`.
+pub(super) fn circular_block_length(structural_span: usize, n: usize) -> usize {
+    structural_span.max(integer_cube_root_ceil(n)).min(n).max(1)
+}
+
+/// [`shared_circular_block_mixture_se`] at an explicit block length (the
+/// block-length sensitivity check calls this directly; production callers use
+/// the rule).
+pub(super) fn shared_circular_block_mixture_se_with_length(
+    data: &TimeSeriesData,
+    block_length: usize,
+    replicates: u32,
+    stream_base: u64,
+    ctx: &ExecutionContext,
     mut mix: impl FnMut(&TimeSeriesData) -> Option<f64>,
 ) -> SharedCircularBlockSe {
     if replicates == 0 {
         return SharedCircularBlockSe { se: f64::NAN, completed: 0, attempted: 0 };
     }
     let n = data.row_count();
-    let block_length = structural_span.max(integer_cube_root_ceil(n)).min(n).max(1);
     let plan = antecedent_data::ResamplingPlan::CircularBlock { length: block_length };
     let mut index_scratch = Vec::with_capacity(n);
     let mut bootstrap = Vec::new();
