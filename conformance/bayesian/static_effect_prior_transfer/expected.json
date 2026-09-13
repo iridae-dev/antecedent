@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "n": 200,
+  "n_draws": 128,
+  "seed": 18,
+  "true_effect": 2.0,
+  "atol": 0.25,
+  "compatibility_filter": "PriorCatalog.filter_compatible",
+  "source_cell": "AverageEffect × Dag × explicit × Bayesian × none",
+  "target_cells": {
+    "same_design_ate": "AverageEffect × Dag × explicit × Bayesian × none",
+    "mapped_cate": "ConditionalEffect × Dag × explicit × Bayesian × none",
+    "class_envelope_ate": "AverageEffect × Cpdag × explicit × Bayesian × none",
+    "incompatible_catalog": "estimand_mismatch"
+  }
+}

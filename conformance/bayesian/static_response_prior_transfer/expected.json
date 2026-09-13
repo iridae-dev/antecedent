@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "n": 200,
+  "n_draws": 128,
+  "seed": 18,
+  "grid": [0.0, 1.0],
+  "true_level": 3.0,
+  "atol": 0.35,
+  "compatibility_filter": "PriorCatalog.filter_compatible",
+  "source_cell": "ResponseCurve × Dag × explicit × Bayesian × none",
+  "target_cells": {
+    "same_design_curve": "ResponseCurve × Dag × explicit × Bayesian × none",
+    "class_envelope_curve": "ResponseCurve × Cpdag × explicit × Bayesian × none",
+    "missing_mapping": "typed_refuse"
+  }
+}
