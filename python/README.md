@@ -50,6 +50,14 @@ mediation, counterfactuals, and root-cause attribution — see the
 examples and the [documentation](https://antecedent.readthedocs.io/) for the
 full API.
 
+## 1.8.0
+
+The
+[1.8.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.8.0.md)
+cover the Bayesian remainder of the staged handle: functional path,
+distribution, and ADMG ATE, static mediation, counterfactuals, derivatives,
+and ConditionalEffect graph-posterior mixtures.
+
 ## 1.7.0
 
 The

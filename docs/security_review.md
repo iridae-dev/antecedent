@@ -79,6 +79,15 @@ added. Class priors are validated (finite, nonnegative, positive total, no
 duplicate keys) before any arithmetic, and structural atoms reuse the existing
 checksummed, size-bounded posterior artifact container.
 
+The 1.8.0 diff adds query-aware Bayesian remainder execution (functional
+row-law evaluator, mechanism-posterior mediation, weighted GCM
+counterfactuals, Riesz/point/GAM derivatives, ConditionalEffect
+graph-posterior envelopes) and prior-transfer hydrate metadata
+(`treatment_contrast`). Lockfile changes are workspace version updates
+only; no external dependency, unsafe block, artifact decoder, or workflow
+permission was added. Mapped priors fail closed without a declared
+mapping; `n_draws < 2` is a typed refuse.
+
 ## Unsafe code policy
 
 | Crate | Policy | Notes |

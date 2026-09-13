@@ -20,6 +20,10 @@ explicit stage contracts. Package version **1.8.0**.
 | [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
 | [Security review](security_review.md) | Unsafe, deps, licensing evidence |
+| [1.8.0 release notes](release-notes/v1.8.0.md) | Bayesian remainder: functional path/distribution/ADMG, mediation, CF, derivatives, CATE mixtures |
+| [1.8 evidence ledger](v1.8-evidence.md) | Query-aware inference, Rubin row-law functionals, mapped NDE hydrate, identified-conditional envelopes |
+| [1.7.0 release notes](release-notes/v1.7.0.md) | Class-preserving Bayesian incomplete-temporal Pulse, Sustained, curves, Sequence, mediation |
+| [1.7 evidence ledger](v1.7-evidence.md) | Class priors, per-completion transfer, observation bands, MAG unevaluable Sequence |
 | [1.6.0 release notes](release-notes/v1.6.0.md) | Per-horizon temporal ID, Sequence overlays, observation correction, DBN mixtures, prior transfer |
 | [1.6 evidence ledger](v1.6-evidence.md) | Multi-horizon mediation, structural mixtures, block bootstrap, composite artifacts |
 | [1.5.0 release notes](release-notes/v1.5.0.md) | Retargetable plans, exceedance, cell AIPW, tier background, static joint-IF SEs |
