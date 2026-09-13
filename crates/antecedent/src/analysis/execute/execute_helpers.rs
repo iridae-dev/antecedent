@@ -1678,8 +1678,10 @@ pub(super) fn posterior_note_diagnostics<'a>(
             format!(
                 "generalized (power) posterior with a serial-dependence correction: each \
                  Gaussian likelihood on time-ordered rows is tempered by 1/kappa, kappa = the \
-                 AR(1)-prewhitened Newey-West long-run-variance ratio of the targeted slope \
-                 score, floored at 1 (kappa = [{list}] over {} fit(s)); this corrects serial \
+                 larger of the AR(1)-prewhitened Newey-West long-run-variance ratio of the \
+                 targeted slope score (scaled by its squared fixed-b factor) and the \
+                 AR(1)-residual variance ratio given the design, floored at 1 \
+                 (kappa = [{list}] over {} fit(s)); this corrects serial \
                  dependence in the outcome residual, not heteroskedasticity or a misspecified mean",
                 kappas.len()
             ),

@@ -819,7 +819,8 @@ fn temporal_sustained_accepted_full_completes_with_data_subset_refuter() {
 ///
 /// 1.9: the Bayesian temporal likelihood is tempered by the serial-dependence
 /// long-run-variance ratio (R-9); on this iid-noise fixture κ̂ is just above 1, which
-/// moved `original_ate` by ~1.5e-6 and the p-value by ~3.5e-4.
+/// moved `original_ate` by ~1.5e-6 and the p-value by ~3.5e-4. Combining the
+/// fixed-b-scaled HAC ratio with the AR(1)-residual ratio moved it another ~2.1e-6 and the p-value by ~5.1e-4.
 fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::StudyResult) {
     let subset = result
         .refutations
@@ -827,7 +828,7 @@ fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::StudyResult) {
         .find(|r| r.refuter.as_ref() == "data.subset")
         .expect("data.subset refuter must have run under RefuteSuite::Full");
     assert!(
-        (subset.original_ate - 0.703_920_779_578_986_1).abs() < 1e-9,
+        (subset.original_ate - 0.703_922_914_697_184_9).abs() < 1e-9,
         "unexpected original_ate: {}",
         subset.original_ate
     );
@@ -839,7 +840,7 @@ fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::StudyResult) {
         subset.refuted_ate
     );
     assert!(
-        (subset.comparison - 0.850_354_498_946_052_3).abs() < 1e-6,
+        (subset.comparison - 0.850_863_428_093_965_4).abs() < 1e-6,
         "expected a large p-value: with real additive noise the replicate spread across \
          contiguous windows is on the order of the estimator's own standard error, so the \
          ~6.2e-4 shift between original and subset ATE is unremarkable; got {}",
