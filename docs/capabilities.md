@@ -262,6 +262,45 @@ outcome moments. Unlike the three cases above, it reports
 not demote `evidence_status` or `support.status`. See
 [causal-responses.md](causal-responses.md#least-squares-kennedy-dr-regularity).
 
+#### Serially dependent rows: circular-block uncertainty
+
+Lag-aligned rows of one time series are not independent, so temporal
+Frequentist intervals do not use the iid OLS standard error or an iid row
+bootstrap. Every temporal circular-block bootstrap uses one block rule
+(`antecedent_data::circular_block_length`):
+
+```text
+block = min(n, max(span, ceil(n^(1/3))))
+```
+
+`span` keeps each estimating row's lag window inside one block. It is the
+unfolded `history + horizon` window for temporal-backdoor designs, the deepest
+design lag + 1 for temporal mediation and multi-step sequential g-computation,
+and the DBN max lag + 1 for DBN-posterior mixtures. `ceil(n^(1/3))` is a
+rate-of-growth rule of thumb, not a data-driven block choice.
+
+* **TemporalDag Pulse / single-step Sustained and temporal mediation.** These
+  resample circular blocks of consecutive lag-aligned rows, so every replicate
+  row keeps its own lag window, and refit the design on each replicate.
+  Mediation refits Total, Direct, and Mediated on the same replicate. The
+  replicate SD is multiplied by the Kiefer–Vogelsang fixed-b factor
+  `cv(block/n) / 1.96`, so `estimate ± z·SE` uses the fixed-b critical
+  value. No analytic SE is published (`se_analytic` is NaN). With zero
+  replicates there is no SE. The `estimate.temporal.circular_block_se`
+  diagnostic records the block length, row count, fixed-b factor, and the
+  estimating score's effective rows `n(1 − r₁)/(1 + r₁)`. Below 100 effective
+  rows, `estimate.temporal.circular_block_se.short_series` warns that the
+  interval may under-cover. In the 1.9 calibration
+  (`crates/antecedent/tests/v19_temporal_frequentist.rs`), nominal-90%
+  intervals covered 0.86–0.93 under iid and AR(1) residuals (ρ = 0.5 at
+  n = 60 and 160; ρ = 0.9 at n = 400). With ρ = 0.9 at n = 60 and 160, below
+  the effective-row floor where the warning fires, Pulse covered 0.835–0.855
+  and mediation Total 0.845–0.853.
+* **Multi-atom temporal mixtures** (class envelopes, DBN posteriors, and the
+  observation-adjusted outer bootstrap) resample the raw series, because
+  their atoms use different lagged designs. They refit every atom on the same
+  replicate, and the replicate SD is published without fixed-b rescaling.
+
 ### Bayesian
 
 * Bayesian g-computation;
