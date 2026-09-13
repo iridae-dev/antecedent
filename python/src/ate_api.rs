@@ -350,20 +350,20 @@ fn posterior_summary_from_result(
     include_artifact: bool,
 ) -> PyResult<PosteriorSummary> {
     if let Some(post) = result.posterior.as_ref() {
-        let eq = post.effect_column().unwrap_or(0);
+        let eq = post.effect_column();
         let artifact = if include_artifact {
             Some(encode_causal_posterior_bytes(post, "ate-analysis").map_err(py_err)?)
         } else {
             None
         };
-        let p_below = post.probability_below(0.0).map_err(py_err)?;
+        let p_below = eq.map(|_| post.probability_below(0.0)).transpose().map_err(py_err)?;
         Ok((
-            Some(post.summaries.mean[eq]),
-            Some(post.summaries.sd[eq]),
-            Some(post.summaries.q025[eq]),
-            Some(post.summaries.q975[eq]),
+            eq.map(|i| post.summaries.mean[i]),
+            eq.map(|i| post.summaries.sd[i]),
+            eq.map(|i| post.summaries.q025[i]),
+            eq.map(|i| post.summaries.q975[i]),
             Some(post.draws.n_draws),
-            Some(p_below),
+            p_below,
             Some(post.diagnostics.backend_id.to_string()),
             artifact,
         ))

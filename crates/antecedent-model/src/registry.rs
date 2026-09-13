@@ -23,7 +23,7 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
-    MultinomialDesignRef, fit_glm_ridge, fit_multinomial_logit,
+    MultinomialDesignRef, fit_glm_ridge,
 };
 #[cfg(feature = "gaussian-process")]
 use antecedent_stats::{chol_log_det, chol_solve, cholesky_spd};
@@ -167,6 +167,65 @@ impl MechanismRegistry {
             MechanismFamily::Constant,
         ];
         Self { continuous: Arc::from(continuous), discrete: Arc::from(discrete) }
+    }
+
+    /// Refit standard mechanisms under continuous row weights, conditional on
+    /// the originally selected families. This preserves the original units and
+    /// discrete support instead of drawing a second random data set.
+    ///
+    /// # Errors
+    /// Invalid weights, nonstandard assignments, or weighted fitting failures.
+    pub fn refit_weighted(
+        &self,
+        model: &CompiledCausalModel,
+        data: &TabularData,
+        assignments: &[MechanismAssignment],
+        weights: &[f64],
+    ) -> Result<CompiledMechanismStore, ModelError> {
+        let total: f64 = weights.iter().sum();
+        if weights.len() != data.row_count()
+            || weights.iter().any(|w| !w.is_finite() || *w <= 0.0)
+            || !total.is_finite()
+            || total <= 0.0
+            || assignments.len() != model.n_nodes()
+        {
+            return Err(ModelError::Shape {
+                message: "invalid mechanism weights or assignments".into(),
+            });
+        }
+        let weights: Vec<f64> =
+            weights.iter().map(|w| w * data.row_count() as f64 / total).collect();
+        let mut slots = vec![MechanismSlot::Vacant; model.n_nodes()];
+        let mut ws = LeastSquaresWorkspace::default();
+        for gather in model.parent_gathers.iter() {
+            let assignment =
+                assignments.iter().find(|a| a.node == gather.child).ok_or_else(|| {
+                    ModelError::Shape { message: "missing mechanism assignment".into() }
+                })?;
+            if !matches!(
+                assignment.selected,
+                MechanismFamily::Constant
+                    | MechanismFamily::LinearGaussian
+                    | MechanismFamily::Discrete
+            ) {
+                return Err(ModelError::Unsupported {
+                    message: "weighted refit requires standard mechanisms".into(),
+                });
+            }
+            let var = model.output_layout.variables[gather.child.as_usize()];
+            let y = data.float64_cow(var)?;
+            slots[gather.child.as_usize()] = fit_family_weighted(
+                assignment.selected,
+                gather,
+                model,
+                data,
+                &y,
+                FaerBackend,
+                &mut ws,
+                Some(&weights),
+            )?;
+        }
+        Ok(CompiledMechanismStore { slots: Arc::from(slots) })
     }
 
     /// Assign and fit all nodes. Requires an explicit selection policy.
@@ -429,23 +488,39 @@ fn fit_family(
     backend: FaerBackend,
     ls_ws: &mut LeastSquaresWorkspace,
 ) -> Result<MechanismSlot, ModelError> {
+    fit_family_weighted(family, gather, model, data, y, backend, ls_ws, None)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn fit_family_weighted(
+    family: MechanismFamily,
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    y: &[f64],
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+    weights: Option<&[f64]>,
+) -> Result<MechanismSlot, ModelError> {
     let n = y.len();
     match family {
         MechanismFamily::Constant => {
-            let mean = y.iter().sum::<f64>() / n.max(1) as f64;
+            let mean =
+                y.iter().enumerate().map(|(i, v)| v * weights.map_or(1.0, |w| w[i])).sum::<f64>()
+                    / weights.map_or(n.max(1) as f64, |w| w.iter().sum());
             Ok(MechanismSlot::Constant { value: mean })
         }
         MechanismFamily::Discrete => {
-            let mut pairs: Vec<(i64, f64, usize)> = Vec::new();
-            for &yi in y {
+            let mut pairs: Vec<(i64, f64, f64)> = Vec::new();
+            for (r, &yi) in y.iter().enumerate() {
                 if !yi.is_finite() {
                     continue;
                 }
                 let key = (yi * 1e6).round() as i64;
                 if let Some(e) = pairs.iter_mut().find(|(k, _, _)| *k == key) {
-                    e.2 += 1;
+                    e.2 += weights.map_or(1.0, |w| w[r]);
                 } else {
-                    pairs.push((key, yi, 1));
+                    pairs.push((key, yi, weights.map_or(1.0, |w| w[r])));
                 }
             }
             if pairs.is_empty() {
@@ -455,9 +530,9 @@ fn fit_family(
             }
             // Stable support order → stable baseline-category reference (index 0).
             pairs.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-            let total = pairs.iter().map(|(_, _, c)| *c).sum::<usize>() as f64;
+            let total = pairs.iter().map(|(_, _, c)| *c).sum::<f64>();
             let support: Vec<f64> = pairs.iter().map(|(_, v, _)| *v).collect();
-            let probs: Vec<f64> = pairs.iter().map(|(_, _, c)| *c as f64 / total).collect();
+            let probs: Vec<f64> = pairs.iter().map(|(_, _, c)| *c / total).collect();
             let k = support.len();
             let p = gather.n_parents();
             if p == 0 {
@@ -491,7 +566,7 @@ fn fit_family(
                     message: "too many discrete categories".into(),
                 })?;
             }
-            let fit = fit_multinomial_logit(
+            let fit = antecedent_stats::fit_multinomial_logit_weighted(
                 MultinomialDesignRef {
                     x_colmajor: &x,
                     nrows: n,
@@ -499,6 +574,7 @@ fn fit_family(
                     y_category: &y_cat,
                     n_categories: k,
                 },
+                weights,
                 &backend,
                 ls_ws,
                 &GlmOptions::default(),
@@ -520,7 +596,7 @@ fn fit_family(
             })
         }
         MechanismFamily::LinearGaussian => {
-            fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)
+            fit_linear_gaussian_weighted(gather, model, data, y, backend, ls_ws, 0.0, weights)
         }
         MechanismFamily::HierarchicalLinear => {
             fit_hierarchical_linear(gather, model, data, y, backend, ls_ws)
@@ -925,6 +1001,20 @@ fn fit_linear_gaussian(
     ls_ws: &mut LeastSquaresWorkspace,
     ridge: f64,
 ) -> Result<MechanismSlot, ModelError> {
+    fit_linear_gaussian_weighted(gather, model, data, y, backend, ls_ws, ridge, None)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn fit_linear_gaussian_weighted(
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    y: &[f64],
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+    ridge: f64,
+    weights: Option<&[f64]>,
+) -> Result<MechanismSlot, ModelError> {
     let n = y.len();
     let p = gather.n_parents();
     let ncols = 1 + p;
@@ -938,6 +1028,18 @@ fn fit_linear_gaussian(
         let base = (1 + pi) * n;
         x[base..base + n].copy_from_slice(&col[..n]);
     }
+    let weighted_y;
+    let y = if let Some(weights) = weights {
+        weighted_y = y.iter().zip(weights).map(|(v, w)| v * w.sqrt()).collect::<Vec<_>>();
+        for c in 0..ncols {
+            for r in 0..n {
+                x[c * n + r] *= weights[r].sqrt();
+            }
+        }
+        weighted_y.as_slice()
+    } else {
+        y
+    };
     if ridge > 0.0 {
         // Augment with ridge rows for coefficients (not intercept).
         let extra = p;

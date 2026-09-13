@@ -64,6 +64,10 @@ pub struct CausalPosteriorWire {
     pub hessian_condition: f64,
     /// Draw encoding: `f64_le_colmajor` in section `posterior.draws`.
     pub draws_encoding: String,
+    /// Source treatment contrast `active − control`, when the posterior is an
+    /// identity-link effect. Used by effect-functional hydrate (`ATE / Δ`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub treatment_contrast: Option<f64>,
 }
 
 fn validate_posterior_meta(
@@ -296,6 +300,7 @@ mod tests {
             converged: true,
             hessian_condition: 10.0,
             draws_encoding: "f64_le_colmajor".into(),
+            treatment_contrast: None,
         }
     }
 
@@ -344,6 +349,7 @@ mod tests {
             converged: true,
             hessian_condition: 1.0,
             draws_encoding: "f64_le_colmajor".into(),
+            treatment_contrast: None,
         };
         let draws = vec![0.5f64; 8192];
         let art = encode_posterior_artifact(&meta, &draws, "meta-only", "0.1.0").unwrap();

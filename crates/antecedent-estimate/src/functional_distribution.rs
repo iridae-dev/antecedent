@@ -6,8 +6,10 @@
 #![allow(
     clippy::cast_possible_truncation,
     clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
     clippy::manual_flatten,
     clippy::needless_pass_by_value,
+    clippy::too_many_arguments,
     clippy::type_complexity,
     clippy::zero_sized_map_values
 )]
@@ -16,15 +18,18 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext, Intervention,
-    InterventionalDistributionQuery, SupportDiagnostic, SupportRegion, SupportReport,
-    SupportStatus, TargetPopulation, Value, VariableId,
+    AssumptionSet, CausalRng, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
+    IdentificationStatus, Intervention, InterventionalDistributionQuery, SupportDiagnostic,
+    SupportRegion, SupportReport, SupportStatus, TargetPopulation, Value, VariableId,
 };
 use antecedent_data::{ColumnView, TableView, TabularData};
 use antecedent_expr::{
     Assignment, CausalExprArena, CompiledEvaluator, DistributionProvider, DomainRef,
     EmpiricalTableProvider, EstimandMethod, EvalContext, EvalError, ExprId, ExprNode, FactorSpec,
     IdentifiedEstimand, InterventionAssignment,
+};
+use antecedent_prob::{
+    InferenceDiagnostics, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema,
 };
 
 use crate::error::EstimationError;
@@ -50,11 +55,14 @@ pub struct DistributionAtom {
 /// Estimated interventional distribution P(Y | do(X)[, Z]).
 #[derive(Clone, Debug)]
 pub struct InterventionalDistributionEstimate {
-    /// Probability atoms over the outcome support.
+    /// Probability atoms over the outcome support. Bayesian estimates publish
+    /// posterior mean probabilities, aligned with the posterior atom columns.
     pub atoms: Arc<[DistributionAtom]>,
-    /// Interventional mean of the first numeric outcome when defined; otherwise NaN.
+    /// Interventional mean for one numeric outcome and one conditioning assignment;
+    /// otherwise NaN.
     pub mean: f64,
-    /// Analytic SE is not defined for the discrete plug-in (multinomial delta-method out of scope).
+    /// Posterior SD of the mean in Bayesian mode. Analytic SE is not defined for
+    /// the frequentist discrete plug-in (multinomial delta-method out of scope).
     pub se_analytic: f64,
     /// Bootstrap SE of the interventional mean when requested.
     pub se_bootstrap: Option<f64>,
@@ -261,6 +269,7 @@ impl FunctionalDistribution {
                 idx.len(),
                 &prepared.bootstrap_factors,
                 &prepared.bootstrap_signatures,
+                None,
             )?;
             let mut prep = prepared.clone();
             prep.provider = provider;
@@ -384,6 +393,102 @@ impl FunctionalDistribution {
             overlap: self.overlap,
             retained_memory_bytes: None,
         })
+    }
+
+    /// Bayesian-bootstrap posterior over the identified interventional
+    /// distribution: all CPT factors share one Rubin Dirichlet(1, ..., 1)
+    /// row-law draw. Published atoms are posterior mean probabilities, with
+    /// joint draws stored as `probability_atom_{i}` scalars in atom order.
+    /// A scalar mean effect is included only for a single numeric outcome at
+    /// one conditioning assignment; joint and conditional tables need no scalar.
+    ///
+    /// # Errors
+    ///
+    /// Evaluation failure or a non-finite posterior draw.
+    pub fn estimate_bayesian(
+        &self,
+        prepared: &PreparedFunctionalDistribution,
+        conditioning_values: &[(VariableId, Value)],
+        n_draws: usize,
+        identification: IdentificationStatus,
+        ctx: &ExecutionContext,
+    ) -> Result<(InterventionalDistributionEstimate, crate::CausalPosterior), EstimationError> {
+        let mut ws = FunctionalDistributionWorkspace::default();
+        let point = self.estimate_point(prepared, conditioning_values, &mut ws)?;
+        let n = prepared.bootstrap_columns.values().next().map_or(0, Vec::len);
+        if n == 0 {
+            return Err(EstimationError::data_msg(
+                "functional Bayesian requires complete discrete rows",
+            ));
+        }
+        let draws = crate::require_bayesian_n_draws(n_draws)?;
+        let has_mean = point.mean.is_finite();
+        let atom_offset = usize::from(has_mean);
+        let mut quantities = Vec::with_capacity(atom_offset + point.atoms.len());
+        if has_mean {
+            quantities.push(PosteriorQuantityKind::Effect { name: Arc::from("functional") });
+        }
+        quantities.extend((0..point.atoms.len()).map(|i| PosteriorQuantityKind::Scalar {
+            name: Arc::from(format!("probability_atom_{i}")),
+        }));
+        let mut values = vec![0.0; draws * quantities.len()];
+        let mut rng = ctx.rng.stream(0xF01E_u64);
+        let mut draw_prepared = prepared.clone();
+        let mut draw_ws = FunctionalDistributionWorkspace::default();
+        for draw in 0..draws {
+            if ctx.cancellation.is_cancelled() {
+                return Err(EstimationError::unsupported("functional Bayesian cancelled"));
+            }
+            let provider = provider_from_bayesian_bootstrap(
+                &prepared.bootstrap_columns,
+                n,
+                &prepared.bootstrap_factors,
+                &prepared.bootstrap_signatures,
+                &mut rng,
+            )?;
+            draw_prepared.provider = provider;
+            let est = self.estimate_point(&draw_prepared, conditioning_values, &mut draw_ws)?;
+            if has_mean {
+                if !est.mean.is_finite() {
+                    return Err(EstimationError::stats_msg(
+                        "functional Bayesian mean was non-finite",
+                    ));
+                }
+                values[draw] = est.mean;
+            }
+            if est.atoms.len() != point.atoms.len() {
+                return Err(EstimationError::stats_msg("functional Bayesian atom support changed"));
+            }
+            for (i, (atom, expected)) in est.atoms.iter().zip(point.atoms.iter()).enumerate() {
+                if atom.outcomes != expected.outcomes
+                    || atom.conditioning != expected.conditioning
+                    || !atom.probability.is_finite()
+                {
+                    return Err(EstimationError::stats_msg("functional Bayesian atom was invalid"));
+                }
+                values[(atom_offset + i) * draws + draw] = atom.probability;
+            }
+        }
+        let draws = PosteriorDraws::from_column_major(
+            PosteriorSchema { quantities: Arc::from(quantities) },
+            draws,
+            Arc::<[f64]>::from(values),
+        )
+        .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+        let posterior =
+            functional_posterior_from_draws(draws, prepared.assumptions.clone(), identification);
+        let mut out = point;
+        out.assumptions = posterior.assumptions.clone();
+        // Expectation is linear in the final probability table: averaging its
+        // cells preserves normalization and agrees with the scalar mean draws.
+        for (i, atom) in Arc::make_mut(&mut out.atoms).iter_mut().enumerate() {
+            atom.probability = posterior.summaries.mean[atom_offset + i];
+        }
+        if has_mean {
+            out.mean = posterior.summaries.mean[0];
+            out.se_analytic = posterior.summaries.sd[0];
+        }
+        Ok((out, posterior))
     }
 }
 
@@ -511,6 +616,7 @@ impl FunctionalEffect {
                     idx.len(),
                     &prepared.bootstrap_factors,
                     &prepared.bootstrap_signatures,
+                    None,
                 )?;
                 match prepared.compiled.evaluate(
                     &prepared.arena,
@@ -530,6 +636,54 @@ impl FunctionalEffect {
             self.overlap,
         )
         .with_bootstrap(boot))
+    }
+
+    /// Bayesian bootstrap of the identified functional. All CPT factors are
+    /// derived from a shared Rubin (1981) Dirichlet(1, ..., 1) draw over
+    /// empirical rows.
+    /// Unobserved joint cells retain zero mass; this is an empirical-support
+    /// posterior, not a positive pseudocount prior over unobserved categories.
+    ///
+    /// # Errors
+    ///
+    /// Evaluation / missing CPT entries, or a non-finite posterior.
+    pub fn estimate_bayesian(
+        &self,
+        prepared: &PreparedFunctionalEffect,
+        n_draws: usize,
+        identification: antecedent_core::IdentificationStatus,
+        ctx: &ExecutionContext,
+    ) -> Result<crate::CausalPosterior, EstimationError> {
+        let n = prepared.bootstrap_columns.values().next().map_or(0, Vec::len);
+        if n == 0 {
+            return Err(EstimationError::data_msg(
+                "functional Bayesian requires complete discrete rows",
+            ));
+        }
+        let draws = crate::require_bayesian_n_draws(n_draws)?;
+        let mut values = Vec::with_capacity(draws);
+        let mut rng = ctx.rng.stream(0xF02E_u64);
+        for _ in 0..draws {
+            if ctx.cancellation.is_cancelled() {
+                return Err(EstimationError::unsupported("functional Bayesian cancelled"));
+            }
+            let provider = provider_from_bayesian_bootstrap(
+                &prepared.bootstrap_columns,
+                n,
+                &prepared.bootstrap_factors,
+                &prepared.bootstrap_signatures,
+                &mut rng,
+            )?;
+            let value = prepared
+                .compiled
+                .evaluate(&prepared.arena, &provider, &EvalContext::default())
+                .map_err(eval_err)?;
+            if !value.is_finite() {
+                return Err(EstimationError::stats_msg("functional Bayesian draw was non-finite"));
+            }
+            values.push(value);
+        }
+        functional_posterior(values, prepared.assumptions.clone(), identification)
     }
 }
 
@@ -714,7 +868,17 @@ fn build_empirical_provider(
         columns.insert(id, col);
     }
 
-    let provider = provider_from_columns(&columns, n, factors, signatures)?;
+    // A functional's factors must describe the same complete-case law. Using
+    // a different retained sample for each factor can violate the chain rule.
+    let complete: Vec<_> =
+        (0..n).filter(|&row| columns.values().all(|col| col[row].is_some())).collect();
+    if complete.is_empty() {
+        return Err(EstimationError::data_msg(
+            "no jointly complete rows for functional evaluation",
+        ));
+    }
+    let columns = gather_columns(&columns, &complete);
+    let provider = provider_from_columns(&columns, complete.len(), factors, signatures, None)?;
     Ok((provider, columns))
 }
 
@@ -732,6 +896,60 @@ fn gather_columns(
         .collect()
 }
 
+fn unidentified_mass_from_status(status: IdentificationStatus) -> f64 {
+    match status {
+        IdentificationStatus::NotIdentified => 1.0,
+        IdentificationStatus::NonparametricallyIdentified
+        | IdentificationStatus::IdentifiedUnderParametricRestrictions
+        | IdentificationStatus::IdentifiedUnderPriorRestrictions
+        | IdentificationStatus::PartiallyIdentified
+        | IdentificationStatus::GraphDependent => 0.0,
+    }
+}
+
+fn functional_posterior(
+    values: Vec<f64>,
+    assumptions: AssumptionSet,
+    identification: IdentificationStatus,
+) -> Result<crate::CausalPosterior, EstimationError> {
+    let n = values.len();
+    let schema = PosteriorSchema {
+        quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("functional") }]),
+    };
+    let draws = PosteriorDraws::from_column_major(schema, n, Arc::<[f64]>::from(values))
+        .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
+    Ok(functional_posterior_from_draws(draws, assumptions, identification))
+}
+
+fn functional_posterior_from_draws(
+    draws: PosteriorDraws,
+    mut assumptions: AssumptionSet,
+    identification: IdentificationStatus,
+) -> crate::CausalPosterior {
+    assumptions.push(antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
+            id: Arc::from("functional.empirical_support_prior"),
+            description: Arc::from("Rubin Bayesian bootstrap of one observational row law; all factors share Dirichlet(1, ..., 1) row masses. Unobserved joint cells have zero posterior mass; coefficient prior_scale and backend selection do not define this nonparametric posterior."),
+        }),
+        source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from("functional.dirichlet") },
+        scope: antecedent_core::AssumptionScope::Estimation,
+        status: antecedent_core::AssumptionStatus::Declared,
+    });
+    let summaries = draws.summarize();
+    crate::CausalPosterior {
+        draws,
+        summaries,
+        identification,
+        prior_sensitivity: None,
+        conflict_summary: None,
+        diagnostics: InferenceDiagnostics::analytic("functional.dirichlet"),
+        assumptions,
+        unidentified_mass: unidentified_mass_from_status(identification),
+        early_stopped: false,
+        treatment_contrast: None,
+    }
+}
+
 fn provider_from_columns(
     columns: &HashMap<VariableId, Vec<Option<Value>>>,
     n: usize,
@@ -742,6 +960,7 @@ fn provider_from_columns(
         Arc<[InterventionAssignment]>,
         DomainRef,
     )],
+    weights: Option<&[f64]>,
 ) -> Result<EmpiricalTableProvider, EstimationError> {
     let mut domains: HashMap<VariableId, Vec<Value>> = HashMap::new();
     for (&id, col) in columns {
@@ -776,7 +995,7 @@ fn provider_from_columns(
             continue;
         }
         // Observational CPT.
-        insert_cpt(&mut provider, columns, n, vars, cond, &[], DomainRef::Observational)?;
+        insert_cpt(&mut provider, columns, n, vars, cond, &[], DomainRef::Observational, weights)?;
         // Duplicate under every interventional signature with the same (vars, cond).
         for (s_vars, s_cond, interv, domain) in signatures {
             if s_vars.as_ref() != vars.as_ref() || s_cond.as_ref() != cond.as_ref() {
@@ -790,7 +1009,16 @@ fn provider_from_columns(
             let intervened_in_vars: Vec<_> =
                 interv.iter().filter(|a| vars.iter().any(|&v| v == a.variable)).cloned().collect();
             if intervened_in_vars.is_empty() {
-                insert_cpt(&mut provider, columns, n, vars, cond, interv.as_ref(), *domain)?;
+                insert_cpt(
+                    &mut provider,
+                    columns,
+                    n,
+                    vars,
+                    cond,
+                    interv.as_ref(),
+                    *domain,
+                    weights,
+                )?;
             } else {
                 insert_dirac_intervened(
                     &mut provider,
@@ -806,6 +1034,25 @@ fn provider_from_columns(
     }
 
     Ok(provider)
+}
+
+// One random observational law per draw. All marginal/conditional factors and
+// interventional aliases are derived from the same row masses, preserving
+// probability identities even when the compiled expression reuses a kernel.
+fn provider_from_bayesian_bootstrap(
+    columns: &HashMap<VariableId, Vec<Option<Value>>>,
+    n: usize,
+    factors: &[(Arc<[VariableId]>, Arc<[VariableId]>)],
+    signatures: &[(
+        Arc<[VariableId]>,
+        Arc<[VariableId]>,
+        Arc<[InterventionAssignment]>,
+        DomainRef,
+    )],
+    rng: &mut CausalRng,
+) -> Result<EmpiricalTableProvider, EstimationError> {
+    let weights: Vec<f64> = (0..n).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+    provider_from_columns(columns, n, factors, signatures, Some(&weights))
 }
 
 fn insert_dirac_intervened(
@@ -886,12 +1133,17 @@ fn insert_cpt(
     cond: &[VariableId],
     intervention: &[InterventionAssignment],
     domain: DomainRef,
+    weights: Option<&[f64]>,
 ) -> Result<(), EstimationError> {
     // Count (vars, cond) joint and cond marginal among complete cases.
-    let mut joint: HashMap<Vec<Value>, u64> = HashMap::new();
-    let mut marg: HashMap<Vec<Value>, u64> = HashMap::new();
+    let mut joint: HashMap<Vec<Value>, f64> = HashMap::new();
+    let mut marg: HashMap<Vec<Value>, f64> = HashMap::new();
 
     for row in 0..n {
+        let weight = weights.map_or(1.0, |w| w.get(row).copied().unwrap_or(0.0));
+        if weight <= 0.0 {
+            continue;
+        }
         let mut ok = true;
         let mut cond_vals = Vec::with_capacity(cond.len());
         for &v in cond {
@@ -917,43 +1169,41 @@ fn insert_cpt(
         if !ok {
             continue;
         }
-        *marg.entry(cond_vals.clone()).or_insert(0) += 1;
+        *marg.entry(cond_vals.clone()).or_insert(0.0) += weight;
         let mut key = var_vals;
         key.extend(cond_vals);
-        *joint.entry(key).or_insert(0) += 1;
+        *joint.entry(key).or_insert(0.0) += weight;
     }
 
     if cond.is_empty() {
-        let total: u64 = joint.values().sum();
-        if total == 0 {
+        let total: f64 = joint.values().sum();
+        if total <= 0.0 {
             return Err(EstimationError::data_msg("no complete cases for CPT"));
         }
         let var_rows = cartesian_domain(&domains_for_insert(columns, vars)?, vars)?;
         for var_vals in &var_rows {
             let key = var_vals.clone();
-            let count = joint.get(&key).copied().unwrap_or(0);
+            let count = joint.get(&key).copied().unwrap_or(0.0);
             let assign = Assignment::from_pairs(vars.iter().copied().zip(var_vals.iter().cloned()));
             let spec = FactorSpec { variables: vars, conditioned_on: cond, intervention, domain };
-            provider
-                .insert_probability(&spec, &assign, count as f64 / total as f64)
-                .map_err(eval_err)?;
+            provider.insert_probability(&spec, &assign, count / total).map_err(eval_err)?;
         }
     } else {
         let var_rows = cartesian_domain(&domains_for_insert(columns, vars)?, vars)?;
         let cond_rows = cartesian_domain(&domains_for_insert(columns, cond)?, cond)?;
         for cond_vals in &cond_rows {
-            let cond_count = marg.get(cond_vals).copied().unwrap_or(0);
+            let cond_count = marg.get(cond_vals).copied().unwrap_or(0.0);
             // An unobserved conditioning cell is not P=0. Leave it absent so
             // `probability()` returns `MissingTableEntry` — the evaluator's
             // existing "can I evaluate this cell?" contract.
-            if cond_count == 0 {
+            if cond_count <= 0.0 {
                 continue;
             }
             for var_vals in &var_rows {
                 let mut key = var_vals.clone();
                 key.extend(cond_vals.iter().cloned());
-                let count = joint.get(&key).copied().unwrap_or(0);
-                let p = count as f64 / cond_count as f64;
+                let count = joint.get(&key).copied().unwrap_or(0.0);
+                let p = count / cond_count;
                 let assign = Assignment::from_pairs(
                     vars.iter()
                         .copied()
@@ -1330,5 +1580,108 @@ mod tests {
         let support = support_from_functional_eval(Some(&eval_err)).unwrap();
         assert_eq!(support.status, SupportStatus::OutsideEmpiricalSupport);
         assert_eq!(support_from_functional_eval(None).unwrap().status, SupportStatus::Supported);
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)] // Exact aliases and structural zeros are the contract.
+    fn joint_dirichlet_preserves_probability_identities_and_beta_moments() {
+        use antecedent_expr::DistributionProvider;
+        let x = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let columns = HashMap::from([
+            (x, vec![Some(f(0.0)), Some(f(0.0)), Some(f(1.0)), Some(f(1.0))]),
+            (y, vec![Some(f(0.0)), Some(f(0.0)), Some(f(0.0)), Some(f(1.0))]),
+        ]);
+        let factors: Vec<(Arc<[VariableId]>, Arc<[VariableId]>)> = vec![
+            (Arc::from([x]), Arc::from([])),
+            (Arc::from([y]), Arc::from([x])),
+            (Arc::from([x, y]), Arc::from([])),
+            (Arc::from([y]), Arc::from([])),
+        ];
+        let interventions: Arc<[InterventionAssignment]> =
+            Arc::from([InterventionAssignment { variable: x, value: f(1.0) }]);
+        let signatures =
+            vec![(Arc::from([y]), Arc::from([x]), interventions.clone(), DomainRef::Observational)];
+        let mut rng = ExecutionContext::for_tests(42).rng.stream(1);
+        let mut draws = Vec::new();
+        for _ in 0..4000 {
+            let p = provider_from_bayesian_bootstrap(&columns, 4, &factors, &signatures, &mut rng)
+                .unwrap();
+            let assignment = Assignment::from_pairs([(x, f(1.0)), (y, f(1.0))]);
+            let prob = |vars: &[VariableId],
+                        cond: &[VariableId],
+                        intervention: &[InterventionAssignment]| {
+                p.probability(
+                    &FactorSpec {
+                        variables: vars,
+                        conditioned_on: cond,
+                        intervention,
+                        domain: DomainRef::Observational,
+                    },
+                    &assignment,
+                    &EvalContext::default(),
+                )
+                .unwrap()
+            };
+            assert!(
+                (prob(&[x, y], &[], &[]) - prob(&[x], &[], &[]) * prob(&[y], &[x], &[])).abs()
+                    < 1e-12
+            );
+            assert_eq!(prob(&[y], &[x], &[]), prob(&[y], &[x], &interventions));
+            draws.push(prob(&[y], &[], &[]));
+            let zero = Assignment::from_pairs([(x, f(0.0)), (y, f(1.0))]);
+            assert_eq!(
+                p.probability(
+                    &FactorSpec {
+                        variables: &[x, y],
+                        conditioned_on: &[],
+                        intervention: &[],
+                        domain: DomainRef::Observational
+                    },
+                    &zero,
+                    &EvalContext::default()
+                )
+                .unwrap(),
+                0.0
+            );
+        }
+        // One success among four rows: Beta(1,3), var = 3/(16*5).
+        let mean = draws.iter().sum::<f64>() / draws.len() as f64;
+        let variance = draws.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / draws.len() as f64;
+        assert!((mean - 0.25).abs() < 0.012);
+        assert!((variance - 0.0375).abs() < 0.004);
+    }
+    #[test]
+    fn functional_factors_share_complete_cases() {
+        let x = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        let schema = TabularData::from_f64_columns([
+            ("x", &[0.0, 1.0, 1.0][..]),
+            ("y", &[0.0, 1.0, 0.0][..]),
+        ])
+        .unwrap()
+        .schema()
+        .clone();
+        let columns = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(x, Arc::from([0.0, 1.0, 1.0]), ValidityBitmap::all_valid(3))
+                    .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    y,
+                    Arc::from([0.0, 1.0, 0.0]),
+                    ValidityBitmap::from_bytes(vec![3_u8], 3).unwrap(),
+                )
+                .unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap());
+        let factors = vec![(Arc::from([x]), Arc::from([])), (Arc::from([y]), Arc::from([x]))];
+        let (_, retained) =
+            build_empirical_provider(&data, &HashSet::from([x, y]), &factors, &[]).unwrap();
+        assert_eq!(retained[&x], vec![Some(f(0.0)), Some(f(1.0))]);
+        assert_eq!(retained[&y], vec![Some(f(0.0)), Some(f(1.0))]);
     }
 }

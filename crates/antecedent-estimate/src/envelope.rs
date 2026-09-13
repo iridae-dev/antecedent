@@ -1,7 +1,9 @@
 //! Graph-weighted effect envelopes.
 //!
 //! Aggregates per-graph effect posteriors using [`WeightedGraphSamples`].
-//! Unidentified mass is preserved by default and is never silently renormalized.
+//! Published moments and draws are the identified-atom BMA (`P(τ | identified)`).
+//! Unidentified mass is a separate, non-renormalized axis on the result and is
+//! never redistributed into that effect posterior.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -18,7 +20,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, IdentificationStatus};
+use antecedent_core::{
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+    AssumptionStatus, CausalRng, IdentificationStatus, ParametricAssumption,
+};
 use antecedent_prob::{
     GraphIdentFlag, InferenceDiagnostics, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema,
     WeightedGraphSamples,
@@ -30,9 +35,10 @@ use crate::error::EstimationError;
 /// Options for envelope aggregation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct EnvelopeOptions {
-    /// When true, refuse rather than silently drop unidentified mass.
-    /// Default false: unidentified mass is retained on the result.
-    /// Setting this with unidentified_mass > 0 is an error (constraint 4).
+    /// Request to publish a full-support mixture after dropping unidentified
+    /// mass. That claim is refused when unidentified mass is present: the
+    /// published effect stays `P(τ | identified)` and unidentified mass remains
+    /// a separate axis. Default `false` keeps that honest split.
     pub renormalize_identified_only: bool,
 }
 
@@ -95,8 +101,9 @@ pub fn aggregate_effect_envelope(
     }
     if options.renormalize_identified_only && unidentified_mass > 0.0 {
         return Err(EstimationError::stats_msg(
-            "renormalize_identified_only refuses to zero unidentified graph-posterior mass; \
-             unidentified mass is preserved (constraint 4)",
+            "renormalize_identified_only refuses to publish a 100% mixture after dropping \
+             unidentified mass; E[τ] and draws stay P(τ | identified) and unidentified mass \
+             is retained as a separate axis",
         ));
     }
     let retained_unidentified = unidentified_mass / total;
@@ -212,6 +219,23 @@ pub fn aggregate_effect_envelope(
         IdentificationStatus::NotIdentified
     };
 
+    let mut assumptions = AssumptionSet::new();
+    assumptions.push(AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from("envelope.conditional_on_identification"),
+            description: Arc::from(
+                "Published effect moments and draws are E[τ | identified] (identified-atom BMA). \
+                 Unidentified mass is retained as a separate, non-renormalized axis and is not \
+                 redistributed into the effect mixture. This is not a full-support posterior.",
+            ),
+        }),
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("estimate.aggregate_effect_envelope"),
+        },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    });
+
     Ok(CausalPosterior {
         draws,
         summaries,
@@ -219,9 +243,10 @@ pub fn aggregate_effect_envelope(
         prior_sensitivity: None,
         conflict_summary: None,
         diagnostics,
-        assumptions: antecedent_core::AssumptionSet::new(),
+        assumptions,
         unidentified_mass: retained_unidentified,
         early_stopped: false,
+        treatment_contrast: None,
     })
 }
 
@@ -353,6 +378,13 @@ mod tests {
         // E[τ | identified] = (0.5*1 + 0.2*3) / 0.7 is a mixture functional.
         let mean = env.summaries.mean[0];
         assert!((mean - 1.1 / 0.7).abs() < 1e-12);
+        assert!(env.assumptions.entries.iter().any(|a| {
+            matches!(
+                &a.assumption,
+                antecedent_core::Assumption::ParametricRestriction(p)
+                    if p.id.as_ref() == "envelope.conditional_on_identification"
+            )
+        }));
     }
 
     #[test]
@@ -422,7 +454,7 @@ mod tests {
     }
 
     #[test]
-    fn renormalize_drops_unidentified_mass() {
+    fn renormalize_identified_only_refuses_to_drop_mass() {
         let graphs = WeightedGraphSamples::new(
             vec![0.5, 0.3, 0.2],
             vec![

@@ -316,6 +316,85 @@ pub(super) fn resolve_envelope_prior_anchor(
     resolve_bayesian_prior_with_conflict(cfg, prep, Some(ctx))
 }
 
+pub(super) fn response_functional_is_derivative(
+    functional: &antecedent_core::ResponseFunctional,
+) -> bool {
+    matches!(
+        functional,
+        antecedent_core::ResponseFunctional::AverageDerivative { .. }
+            | antecedent_core::ResponseFunctional::PointDerivative { .. }
+            | antecedent_core::ResponseFunctional::DirectionalDerivative { .. }
+            | antecedent_core::ResponseFunctional::Jacobian { .. }
+    )
+}
+
+pub(super) fn bayesian_draw_count(inference: &InferenceMode) -> Result<usize, CausalError> {
+    match inference {
+        InferenceMode::Bayesian(cfg) => {
+            if cfg.n_draws < 2 {
+                return Err(CausalError::Unsupported {
+                    message: "Bayesian inference requires n_draws >= 2; refusing silent rewrite of 0 or 1",
+                });
+            }
+            Ok(cfg.n_draws)
+        }
+        InferenceMode::Frequentist => Ok(0),
+    }
+}
+
+impl super::Study {
+    pub(super) fn estimate_functional_effect(
+        &self,
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+        identification: &IdentificationResult,
+        extra: &[VariableId],
+        ctx: &ExecutionContext,
+    ) -> Result<(EffectEstimate, Option<antecedent_estimate::CausalPosterior>), CausalError> {
+        let est = FunctionalEffect {
+            bootstrap_replicates: self.bootstrap_replicates,
+            ..FunctionalEffect::new()
+        };
+        let prepared = est
+            .prepare(
+                data,
+                estimand,
+                &identification.arena,
+                identification.required_assumptions.clone(),
+                extra,
+            )
+            .map_err(CausalError::from)?;
+        if let InferenceMode::Bayesian(_) = &self.inference {
+            if let Some(cfg) = match &self.inference {
+                InferenceMode::Bayesian(c) => Some(c),
+                InferenceMode::Frequentist => None,
+            } {
+                if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() || cfg.prior.is_some() {
+                    return Err(CausalError::Unsupported {
+                        message: "functional Bayesian prior transfer requires a declared \
+                                  functional mapping; a backdoor coefficient artifact cannot \
+                                  be applied as an isotropic CPT prior",
+                    });
+                }
+            }
+            let posterior = est
+                .estimate_bayesian(
+                    &prepared,
+                    bayesian_draw_count(&self.inference)?,
+                    identification.status,
+                    ctx,
+                )
+                .map_err(CausalError::from)?;
+            let estimate = effect_from_posterior(&posterior)?;
+            Ok((estimate, Some(posterior)))
+        } else {
+            let mut ws = FunctionalDistributionWorkspace::default();
+            let estimate = est.estimate(&prepared, &mut ws, ctx).map_err(CausalError::from)?;
+            Ok((estimate, None))
+        }
+    }
+}
+
 pub(super) fn is_multi_step_sustained(query: &TemporalEffectQuery) -> bool {
     matches!(
         query.policy,
@@ -1460,4 +1539,23 @@ impl super::Study {
 /// replicates as fitting failures.
 pub(super) fn bootstrap_has_enough_successes(completed: usize, attempted: usize) -> bool {
     completed >= 2 && completed >= attempted.saturating_sub(completed)
+}
+
+// Aggregation consumes only effect draws. Keep each contributing model's
+// prior/estimation restrictions on the resulting mixture as well.
+pub(super) fn retain_envelope_assumptions(posterior: &mut CausalPosterior, atoms: &[EnvelopeAtomFit]) {
+    for atom in atoms {
+        posterior.assumptions.entries.extend(atom.posterior.assumptions.entries.iter().cloned().map(|mut record| {
+            match &mut record.assumption {
+                antecedent_core::Assumption::PriorRestriction(prior) => {
+                    prior.description = Arc::from(format!("graph atom {}: {}", atom.key, prior.description));
+                }
+                antecedent_core::Assumption::ParametricRestriction(model) => {
+                    model.description = Arc::from(format!("graph atom {}: {}", atom.key, model.description));
+                }
+                _ => {}
+            }
+            record
+        }));
+    }
 }

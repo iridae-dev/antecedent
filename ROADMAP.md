@@ -247,8 +247,9 @@ Temporal PAG completion retains directed/bidirected MAGs; finite-window audit
 limits remain explicit. Each item
 requires consuming numerical or contract evidence and the PR gates.
 
-1.8 owns response-specific prior transfer for static Bayesian response cells,
-including class envelopes and explicit source/target compatibility.
+1.8 shipped the Bayesian remainder of the staged handle, including
+response-specific prior transfer for static Bayesian response cells,
+class envelopes, and explicit source/target compatibility.
 
 1.5 owns implementation and calibration of covariance-aware sampling
 uncertainty for existing static multi-atom Frequentist aggregates, including
@@ -357,6 +358,16 @@ Released as [1.7.0](docs/release-notes/v1.7.0.md). See the
 curves, Sequence, observation, and TemporalCpdag mediation run on
 `TemporalCpdag` / `TemporalPag` without collapsing the class. A caller-supplied
 `ClassPrior` is the only blended posterior; enumeration is not probability.
+
+## 1.8 — Bayesian remainder of the handle
+
+Released as [1.8.0](docs/release-notes/v1.8.0.md). See the
+[evidence ledger](docs/v1.8-evidence.md). Path, distribution, ADMG ATE,
+static mediation, counterfactuals, and derivatives read inference mode
+instead of being rewritten to `bayesian.gcomp`. ConditionalEffect × Dag ×
+graph-posterior retains unidentified mass as a separate axis. Staged
+prior transfer is fail-closed. Graph-posterior composed with transfer
+stays 1.10; calibration stays 1.9.
 
 ## 1.x — Compatible cells
 

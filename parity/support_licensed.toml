@@ -3230,3 +3230,478 @@ evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_class_bayesian_mediation_cheap_and_full_run"
 limitations = "Per completion × horizon: existing TemporalMediationIdentifier + Bayesian mediation compose. Per-horizon I(h) identified sets; primary scalar is non-authoritative without a ClassPrior. TemporalPag mediation stays closed. cheap/full run per-completion mediation refuters. Pins consume crates/antecedent/tests/temporal_class_bayesian_envelope.rs. Accepted structure shares the explicit per-completion evaluator."
+
+# -- 1.8.0 Bayesian remainder
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/functional_validation"
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG. Estimator functional.effect, not bayesian.gcomp. Pins the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional. Cheap/full reuse functional / ATE-shaped overlap and refuters. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG. Estimator functional.effect, not bayesian.gcomp. Pins the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional. Cheap/full reuse functional / ATE-shaped overlap and refuters. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG. Estimator functional.effect, not bayesian.gcomp. Pins the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional. Cheap/full reuse functional / ATE-shaped overlap and refuters. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG. Estimator functional.effect, not bayesian.gcomp. Pins the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional. Cheap/full reuse functional / ATE-shaped overlap and refuters. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG. Estimator functional.effect, not bayesian.gcomp. Pins the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional. Cheap/full reuse functional / ATE-shaped overlap and refuters. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+limitations = "Functional Bayesian evaluator on general.id front-door ADMG. Estimator functional.effect, not bayesian.gcomp. Pins the front-door effect 0.3 from conformance/estimate/admg_frontdoor_functional. Cheap/full reuse functional / ATE-shaped overlap and refuters. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "MediationEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Bayesian linear natural effects: mechanism posterior then natural-effect product. Identifier path_specific.natural, estimator mediation.linear. Pins NDE=1.8 / NIE=4.8 from conformance/estimate/staged_static_kinds. Cheap/full run refute_static_mediation. A shared coefficient prior assigned to both mechanisms is refused. EffectFunctional maps ATE/Δ onto the outcome-mechanism NDE slope only; other mechanisms keep isotropic prior_scale (conformance/bayesian/static_mediation_prior_transfer). Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "MediationEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Bayesian linear natural effects: mechanism posterior then natural-effect product. Identifier path_specific.natural, estimator mediation.linear. Pins NDE=1.8 / NIE=4.8 from conformance/estimate/staged_static_kinds. Cheap/full run refute_static_mediation. A shared coefficient prior assigned to both mechanisms is refused. EffectFunctional maps ATE/Δ onto the outcome-mechanism NDE slope only; other mechanisms keep isotropic prior_scale (conformance/bayesian/static_mediation_prior_transfer). Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "MediationEffect"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Bayesian linear natural effects: mechanism posterior then natural-effect product. Identifier path_specific.natural, estimator mediation.linear. Pins NDE=1.8 / NIE=4.8 from conformance/estimate/staged_static_kinds. Cheap/full run refute_static_mediation. A shared coefficient prior assigned to both mechanisms is refused. EffectFunctional maps ATE/Δ onto the outcome-mechanism NDE slope only; other mechanisms keep isotropic prior_scale (conformance/bayesian/static_mediation_prior_transfer). Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "MediationEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Bayesian linear natural effects: mechanism posterior then natural-effect product. Identifier path_specific.natural, estimator mediation.linear. Pins NDE=1.8 / NIE=4.8 from conformance/estimate/staged_static_kinds. Cheap/full run refute_static_mediation. A shared coefficient prior assigned to both mechanisms is refused. EffectFunctional maps ATE/Δ onto the outcome-mechanism NDE slope only; other mechanisms keep isotropic prior_scale (conformance/bayesian/static_mediation_prior_transfer). Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "MediationEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Bayesian linear natural effects: mechanism posterior then natural-effect product. Identifier path_specific.natural, estimator mediation.linear. Pins NDE=1.8 / NIE=4.8 from conformance/estimate/staged_static_kinds. Cheap/full run refute_static_mediation. A shared coefficient prior assigned to both mechanisms is refused. EffectFunctional maps ATE/Δ onto the outcome-mechanism NDE slope only; other mechanisms keep isotropic prior_scale (conformance/bayesian/static_mediation_prior_transfer). Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "MediationEffect"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Bayesian linear natural effects: mechanism posterior then natural-effect product. Identifier path_specific.natural, estimator mediation.linear. Pins NDE=1.8 / NIE=4.8 from conformance/estimate/staged_static_kinds. Cheap/full run refute_static_mediation. A shared coefficient prior assigned to both mechanisms is refused. EffectFunctional maps ATE/Δ onto the outcome-mechanism NDE slope only; other mechanisms keep isotropic prior_scale (conformance/bayesian/static_mediation_prior_transfer). Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_static_kinds"
+limitations = "Bayesian bootstrap over fitted GCM mechanisms, then abduction-action-prediction on the original units for every draw. Identifier gcm.parametric, estimator gcm.fit. Pins mean ITE 6.6 from conformance/estimate/staged_static_kinds. Four axes published; unit_effects are the posterior mean of the per-draw unit ITEs. Accepted, graph-posterior, cheap/full, nested, and temporal stay refused. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Bayesian inference on the licensed derivative estimator: each ADE draw refits μ and α under Rubin Dirichlet(1,...,1)/Exp(1) row weights then evaluates the weighted Riesz ADE (not a frozen-score reweight); point/GAM paths use weighted plugins. Estimator ids stay Riesz/point/GAM; inference mode is not rewritten to bayesian.gcomp or response.bayesian. Pins conformance/response/staged_derivatives. Graph-posterior derivative mixtures stay refused. Transfer without a declared mapping fails closed. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Bayesian inference on the licensed derivative estimator: each ADE draw refits μ and α under Rubin Dirichlet(1,...,1)/Exp(1) row weights then evaluates the weighted Riesz ADE (not a frozen-score reweight); point/GAM paths use weighted plugins. Estimator ids stay Riesz/point/GAM; inference mode is not rewritten to bayesian.gcomp or response.bayesian. Pins conformance/response/staged_derivatives. Graph-posterior derivative mixtures stay refused. Transfer without a declared mapping fails closed. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Bayesian inference on the licensed derivative estimator: each ADE draw refits μ and α under Rubin Dirichlet(1,...,1)/Exp(1) row weights then evaluates the weighted Riesz ADE (not a frozen-score reweight); point/GAM paths use weighted plugins. Estimator ids stay Riesz/point/GAM; inference mode is not rewritten to bayesian.gcomp or response.bayesian. Pins conformance/response/staged_derivatives. Graph-posterior derivative mixtures stay refused. Transfer without a declared mapping fails closed. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Bayesian inference on the licensed derivative estimator: each ADE draw refits μ and α under Rubin Dirichlet(1,...,1)/Exp(1) row weights then evaluates the weighted Riesz ADE (not a frozen-score reweight); point/GAM paths use weighted plugins. Estimator ids stay Riesz/point/GAM; inference mode is not rewritten to bayesian.gcomp or response.bayesian. Pins conformance/response/staged_derivatives. Graph-posterior derivative mixtures stay refused. Transfer without a declared mapping fails closed. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "Elasticity"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Bayesian inference on the licensed derivative estimator: each ADE draw refits μ and α under Rubin Dirichlet(1,...,1)/Exp(1) row weights then evaluates the weighted Riesz ADE (not a frozen-score reweight); point/GAM paths use weighted plugins. Estimator ids stay Riesz/point/GAM; inference mode is not rewritten to bayesian.gcomp or response.bayesian. Pins conformance/response/staged_derivatives. Graph-posterior derivative mixtures stay refused. Transfer without a declared mapping fails closed. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "Elasticity"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Bayesian inference on the licensed derivative estimator: each ADE draw refits μ and α under Rubin Dirichlet(1,...,1)/Exp(1) row weights then evaluates the weighted Riesz ADE (not a frozen-score reweight); point/GAM paths use weighted plugins. Estimator ids stay Riesz/point/GAM; inference mode is not rewritten to bayesian.gcomp or response.bayesian. Pins conformance/response/staged_derivatives. Graph-posterior derivative mixtures stay refused. Transfer without a declared mapping fails closed. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Bayesian inference on the licensed derivative estimator: each ADE draw refits μ and α under Rubin Dirichlet(1,...,1)/Exp(1) row weights then evaluates the weighted Riesz ADE (not a frozen-score reweight); point/GAM paths use weighted plugins. Estimator ids stay Riesz/point/GAM; inference mode is not rewritten to bayesian.gcomp or response.bayesian. Pins conformance/response/staged_derivatives. Graph-posterior derivative mixtures stay refused. Transfer without a declared mapping fails closed. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Bayesian inference on the licensed derivative estimator: each ADE draw refits μ and α under Rubin Dirichlet(1,...,1)/Exp(1) row weights then evaluates the weighted Riesz ADE (not a frozen-score reweight); point/GAM paths use weighted plugins. Estimator ids stay Riesz/point/GAM; inference mode is not rewritten to bayesian.gcomp or response.bayesian. Pins conformance/response/staged_derivatives. Graph-posterior derivative mixtures stay refused. Transfer without a declared mapping fails closed. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Bayesian inference on the licensed derivative estimator: each ADE draw refits μ and α under Rubin Dirichlet(1,...,1)/Exp(1) row weights then evaluates the weighted Riesz ADE (not a frozen-score reweight); point/GAM paths use weighted plugins. Estimator ids stay Riesz/point/GAM; inference mode is not rewritten to bayesian.gcomp or response.bayesian. Pins conformance/response/staged_derivatives. Graph-posterior derivative mixtures stay refused. Transfer without a declared mapping fails closed. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Bayesian inference on the licensed derivative estimator: each ADE draw refits μ and α under Rubin Dirichlet(1,...,1)/Exp(1) row weights then evaluates the weighted Riesz ADE (not a frozen-score reweight); point/GAM paths use weighted plugins. Estimator ids stay Riesz/point/GAM; inference mode is not rewritten to bayesian.gcomp or response.bayesian. Pins conformance/response/staged_derivatives. Graph-posterior derivative mixtures stay refused. Transfer without a declared mapping fails closed. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Bayesian inference on the licensed derivative estimator: each ADE draw refits μ and α under Rubin Dirichlet(1,...,1)/Exp(1) row weights then evaluates the weighted Riesz ADE (not a frozen-score reweight); point/GAM paths use weighted plugins. Estimator ids stay Riesz/point/GAM; inference mode is not rewritten to bayesian.gcomp or response.bayesian. Pins conformance/response/staged_derivatives. Graph-posterior derivative mixtures stay refused. Transfer without a declared mapping fails closed. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "Dag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/staged_derivatives"
+limitations = "Bayesian inference on the licensed derivative estimator: each ADE draw refits μ and α under Rubin Dirichlet(1,...,1)/Exp(1) row weights then evaluates the weighted Riesz ADE (not a frozen-score reweight); point/GAM paths use weighted plugins. Estimator ids stay Riesz/point/GAM; inference mode is not rewritten to bayesian.gcomp or response.bayesian. Pins conformance/response/staged_derivatives. Graph-posterior derivative mixtures stay refused. Transfer without a declared mapping fails closed. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+limitations = "Per-atom conditional identification on DAG graph-posterior atoms. Published moments are E[τ | identified] (identified-atom BMA); unidentified mass is a separate non-renormalized axis (assumption envelope.conditional_on_identification). Frequentist uses conditional.linear.adjustment; Bayesian uses conditional.bayesian and is not a silent Frequentist reuse. Cheap/full run on the mixed contrast. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs and conformance/bayesian/known_truth_mixtures."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+limitations = "Per-atom conditional identification on DAG graph-posterior atoms. Published moments are E[τ | identified] (identified-atom BMA); unidentified mass is a separate non-renormalized axis (assumption envelope.conditional_on_identification). Frequentist uses conditional.linear.adjustment; Bayesian uses conditional.bayesian and is not a silent Frequentist reuse. Cheap/full run on the mixed contrast. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs and conformance/bayesian/known_truth_mixtures."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+limitations = "Per-atom conditional identification on DAG graph-posterior atoms. Published moments are E[τ | identified] (identified-atom BMA); unidentified mass is a separate non-renormalized axis (assumption envelope.conditional_on_identification). Frequentist uses conditional.linear.adjustment; Bayesian uses conditional.bayesian and is not a silent Frequentist reuse. Cheap/full run on the mixed contrast. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs and conformance/bayesian/known_truth_mixtures."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+limitations = "Per-atom conditional identification on DAG graph-posterior atoms. Published moments are E[τ | identified] (identified-atom BMA); unidentified mass is a separate non-renormalized axis (assumption envelope.conditional_on_identification). Frequentist uses conditional.linear.adjustment; Bayesian uses conditional.bayesian and is not a silent Frequentist reuse. Cheap/full run on the mixed contrast. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs and conformance/bayesian/known_truth_mixtures."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+limitations = "Per-atom conditional identification on DAG graph-posterior atoms. Published moments are E[τ | identified] (identified-atom BMA); unidentified mass is a separate non-renormalized axis (assumption envelope.conditional_on_identification). Frequentist uses conditional.linear.adjustment; Bayesian uses conditional.bayesian and is not a silent Frequentist reuse. Cheap/full run on the mixed contrast. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs and conformance/bayesian/known_truth_mixtures."
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Dag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+limitations = "Per-atom conditional identification on DAG graph-posterior atoms. Published moments are E[τ | identified] (identified-atom BMA); unidentified mass is a separate non-renormalized axis (assumption envelope.conditional_on_identification). Frequentist uses conditional.linear.adjustment; Bayesian uses conditional.bayesian and is not a silent Frequentist reuse. Cheap/full run on the mixed contrast. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs and conformance/bayesian/known_truth_mixtures."

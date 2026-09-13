@@ -81,7 +81,6 @@ reason = "execute_dbn_posterior_bayesian is TemporalDag-shaped; TemporalCpdag po
 [[closed]]
 queries = [
   "AverageDerivative",
-  "ConditionalEffect",
   "Counterfactual",
   "DirectionalDerivative",
   "Elasticity",
@@ -97,7 +96,7 @@ queries = [
 graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]
 inferences = ["Frequentist"]
-reason = "Frequentist graph-posterior mixing on DAG atoms is licensed for AverageEffect and static ResponseCurve/one-coordinate InterventionResponse. The listed static families remain unsupported."
+reason = "Frequentist graph-posterior mixing on DAG atoms is licensed for AverageEffect, ConditionalEffect, and static ResponseCurve/one-coordinate InterventionResponse. The listed static families remain unsupported."
 
 [[closed]]
 queries = ["AverageEffect"]
@@ -124,32 +123,11 @@ reason = "Frequentist DBN-posterior Pulse/Sustained effects are licensed with sh
 # 0.9; parity/support_allowlist.toml is now required to remain empty.
 
 [[closed]]
-queries = ["AverageEffect"]
-graph_classes = ["Admg"]
-structures = ["explicit", "accepted"]
-inferences = ["Bayesian"]
-reason = "General ID (identifier general.id, the only identifier compile.rs wires for a bidirected ADMG) is not compatible with estimator bayesian.gcomp; forcing Bayesian inference on a bidirected ADMG refuses at compile before any estimate is produced, confirmed on an identifiable front-door-shaped ADMG fixture (Study::build/run)."
-
-[[closed]]
 queries = ["ConditionalEffect"]
-graph_classes = ["Dag", "Cpdag", "Pag"]
+graph_classes = ["Cpdag", "Pag"]
 structures = ["graph_posterior"]
 inferences = ["Bayesian"]
-reason = "compile_graph_posterior (analysis/execute/bayesian_path.rs) wires only AverageEffect and TemporalEffect queries against a graph posterior; ConditionalEffect hits its wildcard Unsupported arm, confirmed via Study::build/run."
-
-[[closed]]
-queries = ["InterventionalDistribution"]
-graph_classes = ["Dag"]
-structures = ["explicit"]
-inferences = ["Bayesian"]
-reason = "Distribution requires identifier general.id (or auto) paired with estimator functional.distribution; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run."
-
-[[closed]]
-queries = ["PathSpecificEffect"]
-graph_classes = ["Dag"]
-structures = ["explicit"]
-inferences = ["Bayesian"]
-reason = "PathSpecific requires identifier path_specific.natural (or auto) paired with estimator functional.effect; forcing Bayesian inference selects estimator bayesian.gcomp, an incompatible pair refused at compile before any estimate, confirmed via Study::build/run."
+reason = "ConditionalEffect graph-posterior mixing is licensed only for DAG atoms. Cpdag/Pag posterior atoms remain refused."
 
 # -- 0.9.0: n/a re-file (contract / identifier gap, not typed impossibility).
 
@@ -195,29 +173,7 @@ validations = ["cheap", "full"]
 reason = "Query-native functional validation requires a Dag."
 
 
-[[closed]]
-queries = ["PathSpecificEffect", "InterventionalDistribution"]
-graph_classes = ["Dag"]
-structures = ["accepted"]
-inferences = ["Bayesian"]
-reason = "Identified discrete path and distribution functionals have no Bayesian evaluator; accepted structure does not supply a posterior estimator."
-
 # -- 1.3.0: remaining Dag coordinates after licensing Frequentist staged cells.
-
-[[closed]]
-queries = [
-  "AverageDerivative",
-  "DirectionalDerivative",
-  "Elasticity",
-  "PointDerivative",
-  "ResponseJacobian",
-  "SemiElasticity",
-]
-graph_classes = ["Dag"]
-structures = ["explicit", "accepted"]
-inferences = ["Bayesian"]
-validations = ["none"]
-reason = "Licensed derivative cells are Frequentist explicit or accepted Dag at validation none; Bayesian derivatives remain 1.8 work."
 
 [[closed]]
 queries = [
@@ -231,25 +187,13 @@ queries = [
 graph_classes = ["Dag"]
 structures = ["graph_posterior"]
 inferences = ["Bayesian"]
-reason = "Graph-posterior derivative mixtures are not staged; the licensed derivative cells are Frequentist explicit or accepted Dag at validation none."
-
-[[closed]]
-queries = ["MediationEffect"]
-graph_classes = ["Dag"]
-inferences = ["Bayesian"]
-reason = "Static natural mediation is Frequentist; a Bayesian mediation estimator is 1.8 work."
+reason = "Graph-posterior derivative mixtures are not staged; the licensed derivative cells are Frequentist or Bayesian explicit or accepted Dag at validation none."
 
 [[closed]]
 queries = ["Counterfactual"]
 graph_classes = ["Dag"]
 structures = ["accepted", "graph_posterior"]
 reason = "Staged counterfactuals require an explicit Dag; accepted and graph-posterior structures are refused."
-
-[[closed]]
-queries = ["Counterfactual"]
-graph_classes = ["Dag"]
-inferences = ["Bayesian"]
-reason = "Counterfactuals are Frequentist abduction-action-prediction; a posterior over mechanisms is 1.8 work."
 
 [[closed]]
 queries = ["Counterfactual"]

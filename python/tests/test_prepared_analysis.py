@@ -71,16 +71,17 @@ def test_oneshot_analyze_result_cannot_refresh():
         result.refresh(data)
 
 
-def test_prepared_rejects_bayesian_prior_options_it_cannot_apply():
+def test_prepared_prior_transfer_validates_artifact_at_estimation():
     data, edges = _confounded_scm(n=80, seed=7)
-    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="prior transfer"):
-        antecedent.estimation.PreparedAnalysis.prepare(
-            data,
-            graph=edges,
-            query=antecedent.AverageEffect(treatment="t", outcome="y"),
-            inference=antecedent.Bayesian(prior_from=b"not-used"),
-            refute=False,
-        )
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        graph=edges,
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        inference=antecedent.Bayesian(prior_from=b"not-used"),
+        refute=False,
+    )
+    with pytest.raises(antecedent.errors.CausalSerializationError, match="bad artifact magic"):
+        prepared.estimate(data)
 
 
 def test_prepared_second_shot_reuses_identification():

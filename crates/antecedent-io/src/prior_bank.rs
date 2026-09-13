@@ -831,6 +831,7 @@ mod tests {
             converged: true,
             hessian_condition: 1.0,
             draws_encoding: "f64_le_colmajor".into(),
+            treatment_contrast: None,
         };
         let draws = vec![0.0f64; n_q * 2];
         encode_posterior_artifact(&meta, &draws, artifact_id, "0.1.0").unwrap()

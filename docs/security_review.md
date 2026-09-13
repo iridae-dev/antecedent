@@ -1,8 +1,22 @@
 # Security, licensing, unsafe-code, and dependency review
 
 Date: 2026-09-13
-Scope: workspace crates + `python` extension (package version **1.7.0**)
+Scope: workspace crates + `python` extension (package version **1.8.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
+
+The 1.8.0 source diff adds Bayesian functional evaluation, weighted statistical
+fits, mechanism composition, and prior-transfer arguments to existing prepared
+entry points. Review of this diff found no new external dependency, unsafe
+block, workflow permission, or artifact decoder. Artifact input continues
+through the existing bounded posterior decoder. Weighted numerical APIs
+validate shape, finiteness, and weight totals; posterior loops retain
+cancellation checks. This source review does not constitute a fresh advisory
+refresh or a new CodeQL run; dated tool results below retain their original scope.
+The 1.8.0 offline cargo-deny check passed advisories, bans, licenses, and
+sources using the unchanged policy and a writable copy of the cached advisory
+database. The standard release wrapper cannot acquire a lock in the read-only
+default advisory-cache directory in this environment.
+
 
 This review was re-run against the 0.9.1 cut, including the workspace unsafe-
 code policy, the current lockfile's advisory/license/source rules, default
@@ -64,6 +78,15 @@ external dependency, unsafe block, artifact decoder, or workflow permission was
 added. Class priors are validated (finite, nonnegative, positive total, no
 duplicate keys) before any arithmetic, and structural atoms reuse the existing
 checksummed, size-bounded posterior artifact container.
+
+The 1.8.0 diff adds query-aware Bayesian remainder execution (functional
+row-law evaluator, mechanism-posterior mediation, weighted GCM
+counterfactuals, Riesz/point/GAM derivatives, ConditionalEffect
+graph-posterior envelopes) and prior-transfer hydrate metadata
+(`treatment_contrast`). Lockfile changes are workspace version updates
+only; no external dependency, unsafe block, artifact decoder, or workflow
+permission was added. Mapped priors fail closed without a declared
+mapping; `n_draws < 2` is a typed refuse.
 
 ## Unsafe code policy
 

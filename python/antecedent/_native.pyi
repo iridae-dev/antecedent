@@ -425,6 +425,23 @@ class PosteriorArtifact:
     converged: bool
     hessian_condition: float
     quantity_names: list[str]
+    treatment_contrast: float | None
+    def __init__(
+        self,
+        n_draws: int,
+        mean: list[float],
+        sd: list[float],
+        q025: list[float],
+        q975: list[float],
+        draws: list[float],
+        backend_id: str,
+        identification: str,
+        quantity_names: list[str],
+        unidentified_mass: float = 0.0,
+        converged: bool = True,
+        hessian_condition: float = ...,
+        treatment_contrast: float | None = None,
+    ) -> None: ...
     def __array__(
         self,
         dtype: Any = None,
@@ -443,6 +460,7 @@ class PosteriorArtifact:
         unidentified_mass: float = 0.0,
         converged: bool = True,
         hessian_condition: float = ...,
+        treatment_contrast: float | None = None,
     ) -> PosteriorArtifact: ...
 
 class DiscoveredLink:
@@ -609,6 +627,9 @@ class PreparedAnalysis:
         accepted: bool = False,
         seed: int = 1,
         threads: int = 1,
+        inference: str | None = None,
+        n_draws: int = 256,
+        prior_scale: float = 10.0,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_static_kind(
@@ -628,6 +649,12 @@ class PreparedAnalysis:
         accepted: bool = False,
         seed: int = 1,
         threads: int = 1,
+        inference: str | None = None,
+        n_draws: int = 256,
+        prior_scale: float = 10.0,
+        prior_artifact: bytes | None = None,
+        prior_mapping: dict[str, Any] | None = None,
+        composed_prior: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def identify_existing(
@@ -662,6 +689,9 @@ class PreparedAnalysis:
         inference: str | None = None,
         n_draws: int = 1000,
         prior_scale: float = 10.0,
+        prior_artifact: bytes | None = None,
+        prior_mapping: dict[str, Any] | None = None,
+        composed_prior: dict[str, Any] | None = None,
         refute: bool | str | None = None,
         seed: int = 1,
         bootstrap: int | None = 50,
@@ -704,6 +734,9 @@ class PreparedAnalysis:
         inference: str | None = None,
         n_draws: int = 1000,
         prior_scale: float = 10.0,
+        prior_artifact: bytes | None = None,
+        prior_mapping: dict[str, Any] | None = None,
+        composed_prior: dict[str, Any] | None = None,
         refute: bool | str | None = None,
         seed: int = 1,
         bootstrap: int = 50,
@@ -726,6 +759,9 @@ class PreparedAnalysis:
         inference: str | None = None,
         n_draws: int = 1000,
         prior_scale: float = 10.0,
+        prior_artifact: bytes | None = None,
+        prior_mapping: dict[str, Any] | None = None,
+        composed_prior: dict[str, Any] | None = None,
         refute: bool | str | None = None,
         seed: int = 1,
         bootstrap: int = 50,
@@ -861,6 +897,9 @@ class PreparedAnalysis:
         inference: str | None = None,
         n_draws: int = 1000,
         prior_scale: float = 10.0,
+        prior_artifact: bytes | None = None,
+        prior_mapping: dict[str, Any] | None = None,
+        composed_prior: dict[str, Any] | None = None,
         seed: int = 1,
         threads: int = 1,
         latency: str | None = None,
@@ -1097,6 +1136,9 @@ class PreparedAnalysis:
         inference: str | None = None,
         n_draws: int = 1000,
         prior_scale: float = 10.0,
+        prior_artifact: bytes | None = None,
+        prior_mapping: dict[str, Any] | None = None,
+        composed_prior: dict[str, Any] | None = None,
         seed: int = 1,
         bootstrap: int = 50,
         threads: int = 1,
@@ -1123,6 +1165,9 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
+        inference: str | None = None,
+        n_draws: int = 256,
+        prior_scale: float = 10.0,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_tiered_intervention_response(
@@ -1176,6 +1221,9 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
+        inference: str | None = None,
+        n_draws: int = 256,
+        prior_scale: float = 10.0,
     ) -> PreparedAnalysis: ...
     def export_artifact(
         self, *, artifact_id: str = "prepared-result", payload: str = "result"
