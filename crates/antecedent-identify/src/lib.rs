@@ -83,8 +83,9 @@ pub use temporal_backdoor::{TemporalBackdoorIdentifier, TemporalIdentificationRe
 pub use temporal_generalized::{TemporalClassEnvelope, TemporalCompletionGraph};
 pub use temporal_mediation::TemporalMediationIdentifier;
 pub use tiered::{
-    NO_LATENT_TO_OUTCOME, TIERED_JOINT_ADJUSTMENT_REFUSE, TIERED_JOINT_UNKNOWN_REFUSE,
-    identify_tiered, identify_tiered_envelope, identify_tiered_joint, identify_tiered_joint_on,
+    NO_LATENT_TO_OUTCOME, TIERED_ADJUSTMENT_REFUSE, TIERED_JOINT_ADJUSTMENT_REFUSE,
+    TIERED_JOINT_UNKNOWN_REFUSE, identify_tiered, identify_tiered_joint, identify_tiered_joint_on,
+    identify_tiered_on,
 };
 pub use transport::{
     NonTransportableCertificate, PopulationFactor, TransportCertificate, TransportFormula,
