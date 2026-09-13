@@ -13,7 +13,8 @@
 //!
 //! The block length comes from [`antecedent_data::circular_block_length`]:
 //! `max(structural_span, ⌈n^{1/3}⌉)`, capped at `n`; [`dependence_block_length`]
-//! lengthens it when an estimating score is persistently dependent.
+//! lengthens it when an estimating score — of the target or of any nuisance
+//! coefficient ([`normal_equation_scores`]) — is persistently dependent.
 //!
 //! Several designs on one series (the atoms of a temporal class / DBN mixture)
 //! share one replicate through [`aligned_block_bootstrap`]: blocks of consecutive
@@ -35,9 +36,14 @@ use crate::util::{BootstrapSeResult, finalize_bootstrap_se_ex};
 /// measured coverage of nominal-90% intervals fell below the calibration band
 /// only in designs whose [`effective_rows`] sat under this floor (AR(1) ρ = 0.9
 /// residuals at n = 60 and 160: Pulse 0.835–0.855, mediation Total
-/// 0.845–0.853); every measured design above it stayed in band. The floor is conservative: ρ = 0.5 series at n = 60 also sit below it
-/// and measured 0.86–0.91 (see `crates/antecedent/tests/v19_temporal_frequentist.rs`).
-/// Results below it carry a `short_series` warning.
+/// 0.845–0.853). Since blocks are sized on every normal-equation score
+/// ([`dependence_block_length`]) those `TemporalDag` designs measure 0.90–0.93,
+/// ρ = 0.5 series at n = 60 (also below the floor) 0.87–0.91 (see
+/// `crates/antecedent/tests/v19_temporal_frequentist.rs`), and the six-completion
+/// class-envelope mixtures at ρ = 0.9, n = 400 0.855–0.890. The floor is kept:
+/// the class-envelope boundary still sits at the band's edge, and nothing below
+/// it has been measured beyond these AR(1) designs. Results below it carry a
+/// `short_series` warning.
 pub const MIN_EFFECTIVE_ROWS: f64 = 100.0;
 
 /// Effective rows of an estimating-score series, `n·(1 − r₁)/(1 + r₁)`, with `r₁`
@@ -131,8 +137,9 @@ pub fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
 /// lag-aligned rows: `max(rule, ⌈b_PW · rows^{1/6}⌉)`, capped at `rows / 3` (and
 /// never below the rule), where the rule is [`circular_block_length`] and `b_PW`
 /// is the largest [`politis_white_block_length`] over `scores` (each an
-/// estimating-score series on the same rows: every atom's influence, and their
-/// weighted sum).
+/// estimating-score series on the same rows: every atom's or contrast's
+/// influence, their weighted sum, and every fitted regression's
+/// [`normal_equation_scores`]).
 ///
 /// Politis–White is MSE-optimal for the variance estimate (rate `n^{1/3}`). An
 /// interval is judged by coverage, and with fixed-b critical values the
@@ -143,6 +150,9 @@ pub fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
 /// dependence (persistent regressor × persistent residual). In the 1.9
 /// calibration (AR(1) ρ = 0.9, n = 400) the `⌈n^{1/3}⌉` rule gave SE/SD 0.82–0.93
 /// and coverage 0.81–0.85 on multi-atom mixtures; this length restored SE/SD ≈ 1.
+/// The nuisance scores matter for the same reason: a short-memory slope
+/// influence over a persistent residual (the intercept's score) left SE/SD at
+/// 0.94 on a horizon-2 Pulse until the residual sized the blocks.
 /// Weakly dependent scores keep the rule.
 #[must_use]
 pub fn dependence_block_length(structural_span: usize, rows: usize, scores: &[&[f64]]) -> usize {
@@ -150,6 +160,52 @@ pub fn dependence_block_length(structural_span: usize, rows: usize, scores: &[&[
     let pw = scores.iter().filter_map(|s| politis_white_block_length(s)).max().unwrap_or(0);
     let testing = (pw as f64 * (rows as f64).powf(1.0 / 6.0)).ceil() as usize;
     rule.max(testing.min(rows / 3)).min(rows.max(1))
+}
+
+/// OLS normal-equation scores `x_{tj} · ê_t` of a column-major `rows × cols`
+/// design, one series per column (an intercept column contributes the residual
+/// series itself); `None` when the least-squares fit fails.
+///
+/// These are the estimating equations of *every* fitted coefficient, nuisance
+/// ones included, for [`dependence_block_length`]. The targeted coefficient's
+/// influence can be nearly uncorrelated lag by lag while the residual — the
+/// intercept's score — is strongly persistent. The replicate slope then depends
+/// on how well a block reproduces the persistent residual level: in the 1.9
+/// calibration (AR(1) ρ = 0.9 residual, n = 400, a short-memory regressor) blocks
+/// sized on the slope influence alone gave SE/SD 0.94–0.96 and coverage
+/// 0.850–0.873.
+#[must_use]
+pub fn normal_equation_scores(
+    matrix: &[f64],
+    rows: usize,
+    cols: usize,
+    outcome: &[f64],
+) -> Option<Vec<Vec<f64>>> {
+    use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+    if rows == 0 || cols == 0 || matrix.len() < rows * cols || outcome.len() != rows {
+        return None;
+    }
+    let fit = FaerBackend
+        .least_squares(
+            &matrix[..rows * cols],
+            rows,
+            cols,
+            outcome,
+            &mut LeastSquaresWorkspace::default(),
+        )
+        .ok()?;
+    let residuals = fit.residuals;
+    Some(
+        (0..cols)
+            .map(|j| {
+                matrix[j * rows..(j + 1) * rows]
+                    .iter()
+                    .zip(&residuals)
+                    .map(|(x, e)| x * e)
+                    .collect()
+            })
+            .collect(),
+    )
 }
 
 /// Outcome of a shared circular-block bootstrap of `K` scalar targets.
@@ -487,6 +543,43 @@ mod tests {
         let long = dependence_block_length(2, 400, &[&iid, &persistent]);
         assert!(long > rule && long <= 400 / 3, "persistent score must lengthen blocks: {long}");
         assert!(politis_white_block_length(&[1.0; 4]).is_none());
+    }
+
+    #[test]
+    fn normal_equation_scores_carry_the_persistent_residual_into_the_block_length() {
+        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut uniform = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 11) as f64 / (1u64 << 53) as f64 - 0.5
+        };
+        let n = 400;
+        // Short-memory regressor, strongly persistent residual.
+        let x: Vec<f64> = (0..n).map(|_| uniform()).collect();
+        let mut level = 0.0;
+        let e: Vec<f64> = (0..n)
+            .map(|_| {
+                level = 0.95 * level + uniform();
+                level
+            })
+            .collect();
+        let y: Vec<f64> = x.iter().zip(&e).map(|(x, e)| 0.8 * x + e).collect();
+        let mut matrix = vec![1.0; n];
+        matrix.extend_from_slice(&x);
+        let scores = normal_equation_scores(&matrix, n, 2, &y).unwrap();
+        assert_eq!(scores.len(), 2);
+        // Intercept column: the residuals themselves, which sum to zero.
+        assert!(scores[0].iter().sum::<f64>().abs() < 1e-8);
+        // Normal equations: every column's score sums to zero at the OLS fit.
+        assert!(scores[1].iter().sum::<f64>().abs() < 1e-8);
+        let slope_only = dependence_block_length(2, n, &[&scores[1]]);
+        let with_residual = dependence_block_length(2, n, &[&scores[1], &scores[0]]);
+        assert!(
+            with_residual > slope_only,
+            "the persistent residual must lengthen blocks: {slope_only} -> {with_residual}"
+        );
+        assert!(normal_equation_scores(&matrix, n, 2, &y[..10]).is_none());
     }
 
     #[test]

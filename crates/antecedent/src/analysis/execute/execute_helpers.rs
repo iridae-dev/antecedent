@@ -605,6 +605,21 @@ impl TemporalAtomDesign {
             Self::Sequential(design) => design.influence(),
         }
     }
+
+    /// OLS normal-equation scores of every regression the atom fits, on its own
+    /// aligned rows ([`antecedent_estimate::normal_equation_scores`]).
+    fn normal_equation_scores(&self) -> Vec<Vec<f64>> {
+        match self {
+            Self::Linear { prep, .. } => antecedent_estimate::normal_equation_scores(
+                &prep.design.matrix,
+                prep.design.nrows,
+                prep.design.ncols,
+                &prep.design.outcome,
+            )
+            .unwrap_or_default(),
+            Self::Sequential(design) => design.normal_equation_scores(),
+        }
+    }
 }
 
 /// Shared circular-block SE of a frozen-weight mixture over temporal atoms.
@@ -643,9 +658,22 @@ pub(super) fn shared_circular_block_mixture_se(
         })
         .collect();
     let score = influences.as_deref().and_then(|scores| mixture_score(scores, weights, len));
+    // Nuisance estimating equations (each atom's residual and covariate scores)
+    // size the blocks too: a persistent residual level moves every replicate slope.
+    let normal_scores: Vec<Vec<f64>> = atoms
+        .iter()
+        .zip(&designs)
+        .flat_map(|(atom, design)| {
+            let offset = start - design.first_time;
+            atom.normal_equation_scores()
+                .into_iter()
+                .filter_map(move |s| s.get(offset..offset + len).map(<[f64]>::to_vec))
+        })
+        .collect();
     let mut scores: Vec<&[f64]> =
         influences.iter().flatten().map(Vec::as_slice).collect();
     scores.extend(score.as_deref());
+    scores.extend(normal_scores.iter().map(Vec::as_slice));
     let block_length = antecedent_estimate::dependence_block_length(structural_span, len, &scores);
     let mut workspace = EstimationWorkspace::default();
     let mut out = shared_circular_block_mixture_se_with_length(

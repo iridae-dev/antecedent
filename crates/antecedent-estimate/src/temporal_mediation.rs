@@ -65,7 +65,7 @@ pub enum TemporalMediationUncertainty {
     },
     /// Shared circular-block bootstrap SEs for every contrast at this horizon.
     ///
-    /// One raw-series circular-block replicate refits all three mechanism
+    /// One circular-block replicate of lag-aligned rows refits all three mechanism
     /// regressions, so Total, Direct and Mediated SEs are mutually consistent.
     /// `requested` repeats the requested contrast's SE.
     FrequentistBlockBootstrap {
@@ -301,10 +301,14 @@ impl TemporalMediationEstimator {
     /// and Mediated.
     ///
     /// Each replicate resamples circular blocks of consecutive lag-aligned rows
-    /// ([`crate::temporal_block::row_block_bootstrap`], block length
-    /// [`antecedent_data::circular_block_length`] with structural span = deepest
-    /// design lag + 1) and refits all three mechanism regressions on it, so the
-    /// three contrast SEs come from the same replicates.
+    /// ([`crate::temporal_block::row_block_bootstrap_vec`]) and refits all three
+    /// mechanism regressions on it, so the three contrast SEs come from the same
+    /// replicates. The block length is
+    /// [`crate::temporal_block::dependence_block_length`] over the Total, Direct
+    /// and Mediated estimating scores (structural span = deepest design lag + 1),
+    /// the rule the single-window Pulse / Sustained and class-envelope paths use,
+    /// and every SE carries the [`crate::temporal_block::fixed_b_scale`] of that
+    /// length.
     /// `effect.se_bootstrap` is the requested contrast's SE; iid analytic SEs keep
     /// the [`Self::allow_iid_sobel_se`] gate.
     ///
@@ -327,27 +331,54 @@ impl TemporalMediationEstimator {
         let point = self.fit_design(&design, None, delta)?;
         let mut estimate = self.estimate_from_fit(query, &point);
         let structural_span = mediation_design_max_lag(query, adjustment) as usize + 1;
+        let scores = design.contrast_scores(self.backend, &point);
+        // Every mechanism's normal-equation scores (intercept = residual series)
+        // join the contrast scores, as on the single-window effect path.
+        let (m, y) = (design.column(1), design.column(2));
+        let normal_scores: Vec<Vec<f64>> = point
+            .designs
+            .iter()
+            .zip([m, y, y])
+            .filter_map(|(matrix, outcome)| {
+                crate::temporal_block::normal_equation_scores(
+                    matrix,
+                    design.n,
+                    matrix.len() / design.n,
+                    outcome,
+                )
+            })
+            .flatten()
+            .collect();
+        let score_refs: Vec<&[f64]> = scores
+            .iter()
+            .flat_map(|s| s.iter().map(Vec::as_slice))
+            .chain(normal_scores.iter().map(Vec::as_slice))
+            .collect();
         let mut block = TemporalMediationBlockSe {
             total: None,
             direct: None,
             mediated: None,
             replicates_ok: 0,
             replicates_attempted: 0,
-            block_length: antecedent_data::circular_block_length(structural_span, design.n),
+            block_length: crate::temporal_block::dependence_block_length(
+                structural_span,
+                design.n,
+                &score_refs,
+            ),
             rows: design.n,
-            effective_rows: design.score_effective_rows(self.backend, &point),
+            effective_rows: scores_effective_rows(scores.as_ref()),
         };
         if replicates > 0 {
-            let boot = crate::temporal_block::row_block_bootstrap::<3>(
+            let boot = crate::temporal_block::row_block_bootstrap_vec(
                 design.n,
-                structural_span,
+                block.block_length,
                 replicates,
                 stream_base,
                 ctx,
                 |rows| {
                     self.fit_design(&design, Some(rows), delta)
                         .ok()
-                        .map(|fit| [fit.total, fit.direct, fit.mediated])
+                        .map(|fit| vec![fit.total, fit.direct, fit.mediated])
                 },
             );
             let [total, direct, mediated] = [0, 1, 2].map(|k| boot.se_result(k));
@@ -499,10 +530,10 @@ impl MediationDesign {
         &self.columns[c * self.n..(c + 1) * self.n]
     }
 
-    /// Smallest [`crate::temporal_block::effective_rows`] over the Total, Direct and
-    /// Mediated estimating scores (residual × centered regressor; delta method for
-    /// the product), used to flag series too dependent for the block rule.
-    fn score_effective_rows(&self, backend: FaerBackend, fit: &ContrastFit) -> f64 {
+    /// Estimating scores of the Total, Direct and Mediated contrasts on the
+    /// lag-aligned rows (residual × centered regressor; delta method for the
+    /// product), or `None` when a mechanism regression fails.
+    fn contrast_scores(&self, backend: FaerBackend, fit: &ContrastFit) -> Option<[Vec<f64>; 3]> {
         let (t, m, y) = (self.column(0), self.column(1), self.column(2));
         let extras: Vec<&[f64]> = (0..self.n_extra).map(|i| self.column(3 + i)).collect();
         let residuals = |regressors: &[&[f64]], outcome: &[f64]| -> Option<Vec<f64>> {
@@ -521,11 +552,9 @@ impl MediationDesign {
                     .collect(),
             )
         };
-        let (Some(r_a), Some(r_b), Some(r_c)) =
-            (residuals(&[t], m), residuals(&[t, m], y), residuals(&[t], y))
-        else {
-            return f64::NAN;
-        };
+        let r_a = residuals(&[t], m)?;
+        let r_b = residuals(&[t, m], y)?;
+        let r_c = residuals(&[t], y)?;
         let centered = |x: &[f64]| {
             let mean = x.iter().sum::<f64>() / x.len() as f64;
             x.iter().map(|v| v - mean).collect::<Vec<f64>>()
@@ -535,11 +564,19 @@ impl MediationDesign {
         let direct: Vec<f64> = r_b.iter().zip(&tc).map(|(e, x)| e * x).collect();
         let mediated: Vec<f64> =
             (0..self.n).map(|r| fit.b * r_a[r] * tc[r] + fit.a * r_b[r] * mc[r]).collect();
-        [total, direct, mediated]
-            .iter()
-            .map(|scores| crate::temporal_block::effective_rows(scores))
-            .fold(f64::INFINITY, f64::min)
+        Some([total, direct, mediated])
     }
+}
+
+/// Smallest [`crate::temporal_block::effective_rows`] over the contrast scores,
+/// used to flag series too dependent for the block rule (`NaN` without scores).
+fn scores_effective_rows(scores: Option<&[Vec<f64>; 3]>) -> f64 {
+    scores.map_or(f64::NAN, |scores| {
+        scores
+            .iter()
+            .map(|s| crate::temporal_block::effective_rows(s))
+            .fold(f64::INFINITY, f64::min)
+    })
 }
 
 /// Shared circular-block SEs for one temporal mediation horizon.
@@ -555,7 +592,7 @@ pub struct TemporalMediationBlockSe {
     pub replicates_ok: u32,
     /// Replicates evaluated.
     pub replicates_attempted: u32,
-    /// Circular-block length in lag-aligned rows.
+    /// Circular-block length in lag-aligned rows ([`crate::temporal_block::dependence_block_length`]).
     pub block_length: usize,
     /// Lag-aligned rows resampled.
     pub rows: usize,
