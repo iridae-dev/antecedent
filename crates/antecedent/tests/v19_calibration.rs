@@ -5,11 +5,15 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
     clippy::cast_precision_loss,
     clippy::float_cmp,
     clippy::too_many_lines,
     clippy::many_single_char_names
 )]
+
+mod common;
 
 use std::sync::Arc;
 
