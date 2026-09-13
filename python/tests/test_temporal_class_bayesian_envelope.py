@@ -71,6 +71,7 @@ def test_temporal_class_bayesian_pulse_without_prior_is_identified_set() -> None
     )
     assert result.posterior is None or result.posterior.n_draws is None
     assert result.ate is None or not np.isfinite(result.ate)
+    assert result.estimate.estimator_id == "bayesian.temporal.gcomp"
     assert result.structural_weight_basis == "completion_enumeration"
     assert any(
         "estimate.temporal_class.enumeration_not_probability" in diagnostic
