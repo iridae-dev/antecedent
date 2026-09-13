@@ -65,7 +65,7 @@ The other ten are left off because they're a narrower surface than the twelve st
 modules — each one owns a single specialized concern that most callers never touch
 directly:
 
-- ``antecedent.artifacts`` — durable format-0.4 artifact encode/decode, an advanced
+- ``antecedent.artifacts`` — durable format-0.5 artifact encode/decode, an advanced
   serialization surface, not part of the day-1 workflow.
 - ``antecedent.counterfactual`` — GCM counterfactual helpers (`fit_gcm`,
   `counterfactual_ite`), distinct from the root `Counterfactual` query type.

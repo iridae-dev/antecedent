@@ -116,7 +116,7 @@ Gate fails if a forbid-crate loses `forbid(unsafe_code)`, or if data/io lose `de
 | `paste` (transitive via `gemm`) | faer build-time macro | Unmaintained (`RUSTSEC-2024-0436`); ignored in `deny.toml` with reason — no runtime use; revisit when faer drops it |
 | `arrow-array` / `arrow-schema` / `arrow-buffer` | Tabular / IPC sections | Feature-gated where needed; no algorithm duplication in Python |
 | `pyo3` 0.29 / `numpy` 0.29 | Python boundary | Current Python bindings; the lockfile passes the advisory policy in `deny.toml` |
-| `blake3` / `ciborium` / `serde` | Artifact container | CBOR + checksums under the format-0.4 artifact contract |
+| `blake3` / `ciborium` / `serde` | Artifact container | CBOR + checksums under the format-0.5 artifact contract |
 | `thiserror` | Error types | No runtime concerns |
 
 `cargo deny check` passed on 2026-09-07: advisories, bans, licenses, and
