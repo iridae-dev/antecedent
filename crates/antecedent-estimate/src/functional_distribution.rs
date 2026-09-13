@@ -1684,4 +1684,136 @@ mod tests {
         assert_eq!(retained[&x], vec![Some(f(0.0)), Some(f(1.0))]);
         assert_eq!(retained[&y], vec![Some(f(0.0)), Some(f(1.0))]);
     }
+
+    /// Frozen two-path table (`t, m, y, c`) from
+    /// `conformance/estimate/path_specific_edge_gformula`.
+    fn edge_gformula_table() -> (TabularData, serde_json::Value) {
+        let pin: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/estimate/path_specific_edge_gformula/expected.json"
+        ))
+        .unwrap();
+        let names = ["t", "m", "y", "c"];
+        let mut cols: Vec<Vec<f64>> = vec![Vec::new(); names.len()];
+        for cell in pin["contingency_table"].as_array().unwrap() {
+            let count = cell["count"].as_u64().unwrap() as usize;
+            for (i, name) in names.iter().enumerate() {
+                cols[i].extend(std::iter::repeat_n(cell[*name].as_f64().unwrap(), count));
+            }
+        }
+        let pairs: Vec<(&str, &[f64])> =
+            names.iter().zip(cols.iter()).map(|(n, c)| (*n, c.as_slice())).collect();
+        (TabularData::from_f64_columns(pairs).unwrap(), pin)
+    }
+
+    fn edge_gformula_identification() -> antecedent_identify::IdentificationResult {
+        // c -> t, c -> m, c -> y, t -> m, t -> y, m -> y; selected path through m.
+        let mut dag = Dag::with_variables(4);
+        for (a, b) in [(3, 0), (3, 1), (3, 2), (0, 1), (0, 2), (1, 2)] {
+            dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let id = antecedent_identify::PathSpecificIdentifier::new();
+        let prep = id.prepare_dag(&dag).unwrap();
+        let query = antecedent_core::PathSpecificEffectQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+        )
+        .with_path_nodes([VariableId::from_raw(1)]);
+        let res = id
+            .identify(
+                &prep,
+                &antecedent_core::CausalQuery::PathSpecific(query),
+                &mut IdentificationWorkspace::default(),
+            )
+            .unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        res
+    }
+
+    /// The path-specific functional with a complementary direct path is the edge
+    /// g-formula (0.12 on the frozen law), not the total effect (0.356).
+    #[test]
+    fn path_specific_edge_g_formula_plug_in_matches_reference() {
+        let (data, pin) = edge_gformula_table();
+        let res = edge_gformula_identification();
+        let est = FunctionalEffect::new().with_bootstrap_replicates(20);
+        let prepared = est
+            .prepare(
+                &data,
+                &res.estimands[0],
+                &res.arena,
+                res.required_assumptions.clone(),
+                &[VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)],
+            )
+            .unwrap();
+        let out = est
+            .estimate(
+                &prepared,
+                &mut FunctionalDistributionWorkspace::default(),
+                &ExecutionContext::for_tests(3),
+            )
+            .unwrap();
+        let truth = pin["truth"]["path_specific_effect"].as_f64().unwrap();
+        assert!((out.ate - truth).abs() < 1e-9, "ate={} truth={truth}", out.ate);
+        assert!(out.se_bootstrap.is_some_and(|s| s.is_finite() && s > 0.0));
+    }
+
+    /// Each Bayesian draw evaluates the edge g-formula on one reweighted row law:
+    /// recompute it by hand from the same weights.
+    #[test]
+    #[allow(clippy::float_cmp, clippy::many_single_char_names)] // exact binary levels
+    fn path_specific_edge_g_formula_uses_one_row_law_per_draw() {
+        let (data, _) = edge_gformula_table();
+        let res = edge_gformula_identification();
+        let est = FunctionalEffect::new();
+        let prepared = est
+            .prepare(
+                &data,
+                &res.estimands[0],
+                &res.arena,
+                res.required_assumptions.clone(),
+                &[VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)],
+            )
+            .unwrap();
+        let n = data.row_count();
+        let weights: Vec<f64> = (0..n).map(|i| 0.25 + ((i * 7919) % 13) as f64).collect();
+        let provider = provider_from_columns(
+            &prepared.bootstrap_columns,
+            n,
+            &prepared.bootstrap_factors,
+            &prepared.bootstrap_signatures,
+            Some(&weights),
+        )
+        .unwrap();
+        let value = prepared
+            .compiled
+            .evaluate(&prepared.arena, &provider, &EvalContext::default())
+            .unwrap();
+
+        let col = |j: u32| -> Vec<f64> {
+            prepared.bootstrap_columns[&VariableId::from_raw(j)]
+                .iter()
+                .map(|v| v.as_ref().unwrap().as_f64().unwrap())
+                .collect()
+        };
+        let (t, m, y, c) = (col(0), col(1), col(2), col(3));
+        let wsum = |pred: &dyn Fn(usize) -> bool, val: &dyn Fn(usize) -> f64| -> f64 {
+            (0..n).filter(|&i| pred(i)).map(|i| weights[i] * val(i)).sum()
+        };
+        let g = |t_m: f64, t_y: f64| -> f64 {
+            let mut total = 0.0;
+            for cv in [0.0, 1.0] {
+                let pc = wsum(&|i| c[i] == cv, &|_| 1.0) / wsum(&|_| true, &|_| 1.0);
+                for mv in [0.0, 1.0] {
+                    let pm = wsum(&|i| t[i] == t_m && c[i] == cv && m[i] == mv, &|_| 1.0)
+                        / wsum(&|i| t[i] == t_m && c[i] == cv, &|_| 1.0);
+                    let ey = wsum(&|i| t[i] == t_y && m[i] == mv && c[i] == cv, &|i| y[i])
+                        / wsum(&|i| t[i] == t_y && m[i] == mv && c[i] == cv, &|_| 1.0);
+                    total += pc * pm * ey;
+                }
+            }
+            total
+        };
+        let by_hand = g(1.0, 0.0) - g(0.0, 0.0);
+        assert!((value - by_hand).abs() < 1e-12, "draw {value} vs by-hand {by_hand}");
+    }
 }

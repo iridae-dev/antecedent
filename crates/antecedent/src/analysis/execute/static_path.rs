@@ -426,45 +426,6 @@ impl super::Study {
         }))
     }
 
-    /// Refuse a path-specific plug-in when some directed treatment → outcome path
-    /// falls outside the requested path set.
-    ///
-    /// `path_specific.natural` deletes the complementary treatment out-edges and
-    /// runs general ID on the surgical graph. Its factorization conditions the
-    /// outcome on the treatment as a predecessor, so `functional.effect` binds the
-    /// treatment to the active level in every factor and evaluates the *total*
-    /// effect, not the path-restricted natural effect (an edge g-formula would set
-    /// the complementary edges to the control level). With no complementary path
-    /// the two coincide, which is the only case evaluated here.
-    fn refuse_path_specific_with_complementary_paths(
-        graph: &Dag,
-        query: &antecedent_core::PathSpecificEffectQuery,
-    ) -> Result<(), CausalError> {
-        if query.path_nodes.is_empty() {
-            return Ok(());
-        }
-        let (paths, truncated) = graph.directed_paths_with_budget(
-            DenseNodeId::from_raw(query.treatment.raw()),
-            DenseNodeId::from_raw(query.outcome.raw()),
-            query.max_paths,
-            query.max_len,
-        )?;
-        let on_requested_paths = |path: &Vec<DenseNodeId>| {
-            let intermediates = &path[1..path.len().saturating_sub(1)];
-            query.path_nodes.iter().all(|node| intermediates.iter().any(|n| n.raw() == node.raw()))
-        };
-        if truncated || !paths.iter().all(on_requested_paths) {
-            return Err(CausalError::Unsupported {
-                message: "path-specific plug-in refused: a directed treatment-to-outcome path \
-                          avoids the requested path nodes, and the surgical-graph \
-                          functional.effect evaluates the total effect rather than the \
-                          path-restricted natural effect in that case (edge g-formula not yet \
-                          implemented)",
-            });
-        }
-        Ok(())
-    }
-
     /// Identify + plug-in estimate for a path-specific natural effect.
     pub(super) fn execute_path_specific(
         &self,
@@ -500,7 +461,6 @@ impl super::Study {
                 Ok((identification, estimand))
             })?;
 
-        Self::refuse_path_specific_with_complementary_paths(graph, query)?;
         let mut extra = vec![query.treatment, query.outcome];
         extra.extend(query.path_nodes.iter().copied());
         let (estimate, posterior) =
