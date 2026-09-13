@@ -63,6 +63,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and carry atom assumptions; Frequentist class curves honor requested
   replicates per completion atom; `exec.identify.cached` reports only full
   cache coverage.
+- Shared numerical kernels are scale-invariant: midranks tie only equal
+  observations; QR rank is assessed on equilibrated columns; spline knots and
+  endpoints distinguish zero from small spacing; logistic and Gaussian
+  likelihood terms keep representable tails and requested variances; the
+  Bayesian CI independence mass, prior-sensitivity ratios, weighted Pearson and
+  multivariate leading correlations, and GAM GCV use the applied operators.
+  See [the shared mathematics review](docs/mathematical-review-2026-09-13.md).
+- `PredictiveCheckReport` gains `location_tails` and `dispersion_tails` so
+  predictive mixture checks retain tail direction; struct-literal constructors
+  must supply both arrays.
 
 ## [1.6.0] — 2026-09-12
 
