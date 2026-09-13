@@ -957,10 +957,10 @@ impl BayesianGComputationAte {
                     },
                 ),
                 source: AssumptionSource::AlgorithmDefault {
-                    algorithm: Arc::from(if factor.scope == "treatment" {
-                        "bayesian_temporal_gcomp"
-                    } else {
-                        "temporal.sequential.gcomp"
+                    algorithm: Arc::from(match factor.scope {
+                        "treatment" => "bayesian_temporal_gcomp",
+                        "response_levels" => "response.temporal.bayesian",
+                        _ => "temporal.sequential.gcomp",
                     }),
                 },
                 scope: AssumptionScope::Estimation,
@@ -1526,7 +1526,8 @@ pub struct PreparedBayesianProblem {
     /// Optional unit / cluster ids aligned to design rows (panel Bayesian GLS).
     pub unit_ids: Option<Vec<u32>>,
     /// Row-dependence model. [`SerialDependence::Iid`] for exchangeable rows; temporal
-    /// Pulse / Sustained designs use [`SerialDependence::LongRunTempering`].
+    /// Pulse / Sustained designs and every horizon of a temporal response use
+    /// [`SerialDependence::LongRunTempering`].
     pub serial_dependence: SerialDependence,
 }
 
