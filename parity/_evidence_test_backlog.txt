@@ -24,7 +24,6 @@ AverageEffect|Dag|accepted|Frequentist|full
 AverageEffect|Dag|accepted|Frequentist|none
 AverageEffect|Dag|explicit|Bayesian|cheap
 AverageEffect|Dag|explicit|Bayesian|full
-AverageEffect|Dag|explicit|Bayesian|none
 AverageEffect|Dag|explicit|Frequentist|cheap
 AverageEffect|Dag|explicit|Frequentist|full
 AverageEffect|Dag|explicit|Frequentist|none
@@ -46,7 +45,6 @@ ConditionalEffect|Dag|graph_posterior|Bayesian|none
 ConditionalEffect|Dag|graph_posterior|Frequentist|cheap
 ConditionalEffect|Dag|graph_posterior|Frequentist|full
 ConditionalEffect|Dag|graph_posterior|Frequentist|none
-Counterfactual|Dag|explicit|Bayesian|none
 Counterfactual|Dag|explicit|Frequentist|none
 InterventionResponse|Cpdag|accepted|Bayesian|none
 InterventionResponse|Cpdag|accepted|Frequentist|none
@@ -54,8 +52,6 @@ InterventionResponse|Cpdag|explicit|Bayesian|none
 InterventionResponse|Cpdag|explicit|Frequentist|none
 InterventionResponse|Dag|accepted|Bayesian|none
 InterventionResponse|Dag|accepted|Frequentist|none
-InterventionResponse|Dag|explicit|Bayesian|none
-InterventionResponse|Dag|explicit|Frequentist|none
 InterventionResponse|Pag|accepted|Bayesian|none
 InterventionResponse|Pag|accepted|Frequentist|none
 InterventionResponse|Pag|explicit|Bayesian|none
@@ -72,7 +68,6 @@ InterventionalDistribution|Dag|accepted|Frequentist|full
 InterventionalDistribution|Dag|accepted|Frequentist|none
 InterventionalDistribution|Dag|explicit|Bayesian|cheap
 InterventionalDistribution|Dag|explicit|Bayesian|full
-InterventionalDistribution|Dag|explicit|Bayesian|none
 InterventionalDistribution|Dag|explicit|Frequentist|cheap
 InterventionalDistribution|Dag|explicit|Frequentist|full
 InterventionalDistribution|Dag|explicit|Frequentist|none
@@ -84,10 +79,8 @@ MediationEffect|Dag|accepted|Frequentist|full
 MediationEffect|Dag|accepted|Frequentist|none
 MediationEffect|Dag|explicit|Bayesian|cheap
 MediationEffect|Dag|explicit|Bayesian|full
-MediationEffect|Dag|explicit|Bayesian|none
 MediationEffect|Dag|explicit|Frequentist|cheap
 MediationEffect|Dag|explicit|Frequentist|full
-MediationEffect|Dag|explicit|Frequentist|none
 PathSpecificEffect|Dag|accepted|Bayesian|cheap
 PathSpecificEffect|Dag|accepted|Bayesian|full
 PathSpecificEffect|Dag|accepted|Bayesian|none
@@ -96,10 +89,8 @@ PathSpecificEffect|Dag|accepted|Frequentist|full
 PathSpecificEffect|Dag|accepted|Frequentist|none
 PathSpecificEffect|Dag|explicit|Bayesian|cheap
 PathSpecificEffect|Dag|explicit|Bayesian|full
-PathSpecificEffect|Dag|explicit|Bayesian|none
 PathSpecificEffect|Dag|explicit|Frequentist|cheap
 PathSpecificEffect|Dag|explicit|Frequentist|full
-PathSpecificEffect|Dag|explicit|Frequentist|none
 PulseEffect|TemporalCpdag|accepted|Frequentist|cheap
 PulseEffect|TemporalCpdag|accepted|Frequentist|full
 PulseEffect|TemporalCpdag|accepted|Frequentist|none
@@ -126,8 +117,6 @@ ResponseCurve|Cpdag|explicit|Bayesian|none
 ResponseCurve|Cpdag|explicit|Frequentist|none
 ResponseCurve|Dag|accepted|Bayesian|none
 ResponseCurve|Dag|accepted|Frequentist|none
-ResponseCurve|Dag|explicit|Bayesian|none
-ResponseCurve|Dag|explicit|Frequentist|none
 ResponseCurve|Pag|accepted|Bayesian|none
 ResponseCurve|Pag|accepted|Frequentist|none
 ResponseCurve|Pag|explicit|Bayesian|none
