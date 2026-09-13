@@ -60,3 +60,16 @@ two new arrays.
 Counts reflect the shared working tree during concurrent development. Ignored
 tests, broader calibration studies, and cross-platform builds were not exercised
 by this pass.
+
+## Follow-up corrections (same day)
+
+A second pass on the temporal-class surface and the shared kernels found four
+remaining defects. Licensed cells were kept; the implementations were corrected
+so those cells earn their existing contracts.
+
+| Finding | Implemented correction | Regression evidence |
+| --- | --- | --- |
+| Class-prior response / Sequence / mediation published `conditional_on_identified` whenever a prior bound, including when `unidentified_mass > 0`. The mean renormalized over identified atoms. | `temporal_class_response_mean` withholds the summary unless the class is fully identified and evaluable. | Mixed-ID TemporalPag curve with a `ClassPrior` retains unidentified mass and omits the conditional surface. |
+| GAM auto-λ used uncentered `Bβ` in RSS and `tr(S₁)` in GCV, while the fit applies the centered smoother with `tr(S₁) − 1`. | GCV scores centered predictions and `edf = tr(S₁) − 1`. | Selected λ is the argmin of that centered score. |
+| Weighted Pearson (and Bayesian residual \|r\|) treated `sqrt(cxx cyy) ≤ ε` as undefined, so a unit change could hide a defined coefficient. | Degeneracy is a non-positive variance, not an absolute product floor. | `[1, 1+1e-9, 1+2e-9]` keeps the same r at scale `1e-4`. |
+| Multivariate leading ρ came from a ridged CCA path; Wilks Λ used unregularized whitening. | ρ₁ is the leading Gram eigenvalue from the Wilks whitening. | For `px=1`, `ρ = sqrt(1 − Λ)` holds to working precision. |
