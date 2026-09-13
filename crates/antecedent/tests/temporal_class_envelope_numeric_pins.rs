@@ -343,3 +343,209 @@ fn temporal_class_single_step_sustained_matches_pulse() {
         );
     }
 }
+
+fn identified_pag_pin() -> serde_json::Value {
+    serde_json::from_str(include_str!(
+        "../../../conformance/estimate/temporal_class_envelope/identified_pag.json"
+    ))
+    .unwrap()
+}
+
+/// Deterministic series of `identified_pag.json` (`law`), rebuilt exactly by
+/// `identified_pag_reference.py`.
+fn identified_pag_series(pin: &serde_json::Value) -> TimeSeriesData {
+    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+    let names: Vec<&str> =
+        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+    let mut cols = vec![vec![0.0; n]; names.len()];
+    let [t, y, z, m, v] = [0, 1, 2, 3, 4];
+    for i in 0..n {
+        let x = i as f64;
+        cols[z][i] = (0.37 * x).sin() + 0.5 * (1.3 * x).cos();
+        cols[t][i] = 0.6 * cols[z][i] + 0.8 * (0.23 * x + 0.4).sin();
+        cols[v][i] = 0.5 * cols[t][i] + (0.41 * x).cos();
+        cols[m][i] = 0.7 * cols[z][i] + 0.6 * (0.29 * x + 0.2).cos();
+        if i > 0 {
+            cols[y][i] = 1.0 + 2.0 * cols[t][i - 1] + 1.5 * cols[m][i - 1] + 0.3 * (0.53 * x).sin();
+        }
+    }
+    let mut builder = CausalSchemaBuilder::new();
+    for name in &names {
+        builder
+            .add_variable(
+                *name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+    }
+    let schema = builder.build().unwrap();
+    let columns = cols
+        .into_iter()
+        .enumerate()
+        .map(|(k, values)| {
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(u32::try_from(k).unwrap()),
+                    Arc::from(values),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            )
+        })
+        .collect();
+    let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
+    TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap()
+}
+
+fn identified_pag(pin: &serde_json::Value) -> TemporalPag {
+    use antecedent_graph::{Endpoint, MarkedEdge, MiddleMark};
+    let names: Vec<&str> =
+        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+    let mark = |m: &str| match m {
+        "tail" => Endpoint::Tail,
+        "arrow" => Endpoint::Arrow,
+        "circle" => Endpoint::Circle,
+        other => panic!("unknown endpoint {other}"),
+    };
+    let node = |g: &mut TemporalPag, name: &str, lag: &serde_json::Value| {
+        let var = u32::try_from(names.iter().position(|c| *c == name).unwrap()).unwrap();
+        let lag = Lag::from_raw(u32::try_from(lag.as_u64().unwrap()).unwrap());
+        g.add_lagged(VariableId::from_raw(var), lag).unwrap()
+    };
+    let mut g = TemporalPag::empty();
+    for edge in pin["marked_edges"].as_array().unwrap() {
+        let a = node(&mut g, edge[0].as_str().unwrap(), &edge[1]);
+        let b = node(&mut g, edge[2].as_str().unwrap(), &edge[3]);
+        g.insert_marked(MarkedEdge {
+            a,
+            b,
+            at_a: mark(edge[4].as_str().unwrap()),
+            at_b: mark(edge[5].as_str().unwrap()),
+            middle: MiddleMark::Empty,
+        })
+        .unwrap();
+    }
+    g
+}
+
+/// R-10: positive multi-completion TemporalPag evidence for Frequentist Pulse
+/// and single-step Sustained. Six of seven stationary MAG completions identify
+/// at two different lag-1 effects (adjust `z@-1`: 1.96; adjust nothing: 2.72);
+/// the reported point is their equal-weight mixture, pinned against the numpy
+/// reference. With replicates the mixture SE is the shared circular-block SE
+/// (every completion refit on the same resample), finite and positive.
+#[test]
+fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
+    let pin = identified_pag_pin();
+    let data = identified_pag_series(&pin);
+    let pag = identified_pag(&pin);
+    let expected = pin["pulse_ate"].as_f64().unwrap();
+    let tol = pin["absolute_tolerance"].as_f64().unwrap();
+    let replicates = u32::try_from(pin["bootstrap_replicates"].as_u64().unwrap()).unwrap();
+    let id = &pin["identification"];
+    let masses = format!(
+        "identified_mass={}, unidentified_mass={}",
+        id["identified_mass"].as_f64().unwrap(),
+        id["unidentified_mass"].as_f64().unwrap()
+    );
+    let horizon = u32::try_from(pin["query"]["horizon_steps"].as_u64().unwrap()).unwrap();
+    let mut pulse =
+        TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0);
+    pulse.policy = TemporalPolicy::pulse(-1);
+    pulse.horizon_steps = horizon;
+    let mut sustained =
+        TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), 0, 1.0);
+    sustained.policy = TemporalPolicy::sustained(-1, -1);
+    sustained.horizon_steps = horizon;
+    for (label, query) in [
+        ("pulse", CausalQuery::TemporalEffect(pulse)),
+        ("sustained", CausalQuery::TemporalEffect(sustained)),
+    ] {
+        for accepted in [false, true] {
+            for (suite, boot) in [
+                (RefuteSuite::None, 0),
+                (RefuteSuite::None, replicates),
+                (RefuteSuite::Cheap, replicates),
+                (RefuteSuite::Full, 0),
+            ] {
+                let builder = Study::series(data.clone());
+                let builder = if accepted {
+                    builder.graph(AcceptedGraph::from(pag.clone()))
+                } else {
+                    builder.graph(pag.clone())
+                };
+                let study = builder
+                    .query(query.clone())
+                    .refute(suite)
+                    .bootstrap_replicates(boot)
+                    .build()
+                    .unwrap();
+                let (ctx, sink) = recording_ctx(1);
+                let fresh = study.clone().run(&ctx).unwrap();
+                let prepared: PreparedStudy = study.prepare(&ctx).unwrap();
+                let click = prepared.estimate_series(&data, &ctx).unwrap();
+                assert_eq!(identify_computations(&sink), 2, "click must reuse the envelope");
+                assert!(
+                    click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached")
+                );
+                for result in [&fresh, &click] {
+                    let tag = format!("{label} accepted={accepted} {suite:?} boot={boot}");
+                    assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{tag}");
+                    assert_eq!(
+                        format!("{:?}", result.identification.status),
+                        id["status"].as_str().unwrap(),
+                        "{tag}"
+                    );
+                    assert!(
+                        result.diagnostics.iter().any(|d| {
+                            d.code.as_ref() == "identify.temporal_pag.envelope"
+                                && d.message.contains(&masses)
+                        }),
+                        "{tag}: envelope masses {masses}: {:?}",
+                        result.diagnostics
+                    );
+                    assert!(
+                        (result.estimate.ate - expected).abs() < tol,
+                        "{tag}: mixture {} vs numpy reference {expected}",
+                        result.estimate.ate
+                    );
+                    let shared_block = result.diagnostics.iter().any(|d| {
+                        d.code.as_ref() == "estimate.temporal_class.frequentist.shared_block"
+                    });
+                    let omitted = result.diagnostics.iter().any(|d| {
+                        d.code.as_ref() == "estimate.envelope.se_omits_between_atom_variance"
+                    });
+                    if boot > 0 {
+                        let se = result.estimate.se_bootstrap.expect("shared-block mixture SE");
+                        assert!(se.is_finite() && se > 0.0, "{tag}: SE {se}");
+                        assert!(shared_block, "{tag}: shared circular-block diagnostic");
+                        assert!(!omitted, "{tag}: finite SE must not claim omitted variance");
+                    } else {
+                        assert!(omitted, "{tag}: zero replicates must disclose the missing SE");
+                    }
+                    if suite == RefuteSuite::None {
+                        assert!(result.refutations.is_empty(), "{tag}");
+                    } else {
+                        assert!(!result.refutations.is_empty(), "{tag}: refuters must run");
+                        assert!(
+                            result
+                                .diagnostics
+                                .iter()
+                                .any(|d| { d.code.as_ref() == "refute.envelope.effect_mixture" }),
+                            "{tag}: refuters mix across completions"
+                        );
+                    }
+                }
+                assert!((fresh.estimate.ate - click.estimate.ate).abs() < 1e-12);
+            }
+        }
+    }
+}
