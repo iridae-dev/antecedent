@@ -50,8 +50,11 @@ mediation, counterfactuals, and root-cause attribution — see the
 examples and the [documentation](https://antecedent.readthedocs.io/) for the
 full API.
 
-## 1.6.0
+## 1.7.0
 
+The
+[1.7.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.7.0.md)
+cover class-preserving Bayesian analyses on incomplete temporal graphs.
 The
 [1.6.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.6.0.md)
 cover per-horizon temporal identification, sequential overlays, and

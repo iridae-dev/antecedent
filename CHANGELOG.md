@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-09-13
+
+### Added
+
+- Bayesian Pulse / Sustained on `TemporalCpdag` / `TemporalPag` without
+  collapsing the class. A caller-supplied `ClassPrior` mixes at draw level;
+  enumeration weights stay an identified set.
+- Multi-step Sustained, Sequence / Soft, and licensed observation pairs on
+  incomplete temporal classes. Bidirected MAG completions stay unevaluable
+  for sequential g-comp.
+- Bayesian TemporalCpdag mediation identified sets; `identify()` on temporal
+  Response and TemporalCpdag mediation returns a temporal envelope with
+  completion fingerprints.
+
 ## [1.6.0] — 2026-09-12
 
 ### Added
@@ -1919,7 +1933,8 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/iridae-dev/antecedent/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/iridae-dev/antecedent/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/iridae-dev/antecedent/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/iridae-dev/antecedent/compare/v1.3.0...v1.4.0
