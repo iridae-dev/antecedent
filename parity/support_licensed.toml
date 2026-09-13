@@ -3242,7 +3242,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/functional_validation"
-limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are the empirical point-estimate law; the scalar posterior is E[functional(p)]. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
 
 [[cell]]
 query = "PathSpecificEffect"
@@ -3253,7 +3253,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/functional_validation"
-limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are the empirical point-estimate law; the scalar posterior is E[functional(p)]. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
 
 [[cell]]
 query = "PathSpecificEffect"
@@ -3264,7 +3264,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/functional_validation"
-limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are the empirical point-estimate law; the scalar posterior is E[functional(p)]. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
 
 [[cell]]
 query = "PathSpecificEffect"
@@ -3275,7 +3275,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/functional_validation"
-limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are the empirical point-estimate law; the scalar posterior is E[functional(p)]. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
 
 [[cell]]
 query = "PathSpecificEffect"
@@ -3286,7 +3286,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/functional_validation"
-limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are the empirical point-estimate law; the scalar posterior is E[functional(p)]. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
 
 [[cell]]
 query = "PathSpecificEffect"
@@ -3297,7 +3297,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/functional_validation"
-limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are the empirical point-estimate law; the scalar posterior is E[functional(p)]. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
 
 [[cell]]
 query = "InterventionalDistribution"
@@ -3308,7 +3308,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/functional_validation"
-limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are the empirical point-estimate law; the scalar posterior is E[functional(p)]. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
 
 [[cell]]
 query = "InterventionalDistribution"
@@ -3319,7 +3319,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/functional_validation"
-limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are the empirical point-estimate law; the scalar posterior is E[functional(p)]. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
 
 [[cell]]
 query = "InterventionalDistribution"
@@ -3330,7 +3330,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/functional_validation"
-limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are the empirical point-estimate law; the scalar posterior is E[functional(p)]. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
 
 [[cell]]
 query = "InterventionalDistribution"
@@ -3341,7 +3341,7 @@ validation = "none"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/functional_validation"
-limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are the empirical point-estimate law; the scalar posterior is E[functional(p)]. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
 
 [[cell]]
 query = "InterventionalDistribution"
@@ -3352,7 +3352,7 @@ validation = "cheap"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/functional_validation"
-limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are the empirical point-estimate law; the scalar posterior is E[functional(p)]. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
 
 [[cell]]
 query = "InterventionalDistribution"
@@ -3363,7 +3363,7 @@ validation = "full"
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/functional_validation"
-limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are the empirical point-estimate law; the scalar posterior is E[functional(p)]. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
+limitations = "Functional Bayesian evaluator (one shared Rubin Bayesian-bootstrap Dirichlet(1,...,1)/Exp(1) row law for all identified CPT factors, then the compiled functional). Published distribution atoms are posterior mean probabilities with joint atom draws; a scalar mean posterior is included only when defined. Joint outcomes and full conditional tables retain probability uncertainty without inventing a scalar effect. Identifier stays path_specific.natural or general.id; estimator is functional.effect / functional.distribution, not bayesian.gcomp. Cheap/full reuse the 1.2 path/distribution subset-stability suites. Evidence: conformance/estimate/functional_validation and crates/antecedent/tests/v18_bayesian_remainder.rs."
 
 [[cell]]
 query = "AverageEffect"
