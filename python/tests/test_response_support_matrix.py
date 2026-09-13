@@ -177,7 +177,7 @@ def test_handle_response_bayesian_derivative_still_unsupported():
     from antecedent._analyze import handle_response
     from antecedent.errors import CausalUnsupportedError
 
-    with pytest.raises(CausalUnsupportedError, match="Bayesian derivatives remain 1.7"):
+    with pytest.raises(CausalUnsupportedError, match="Bayesian derivatives remain 1.8"):
         handle_response(
             _DATA,
             antecedent.AverageDerivative("t", "y"),
