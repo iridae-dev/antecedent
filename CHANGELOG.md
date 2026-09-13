@@ -9,9 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- 1.9 calibration and robustness of licensed 1.6–1.8 cells (temporal
-  class-envelope and DBN mixture intervals, Bayesian coverage, mixture
-  functionals). See TODO §1.9.
+- Frequentist TemporalCpdag / TemporalPag Pulse and Sustained envelopes
+  now compute between-atom sampling variance with a shared circular-block
+  bootstrap and frozen completion weights. Unidentified mass is not mixed
+  into the SE. `estimate.envelope.se_omits_between_atom_variance` is
+  emitted only when that SE is non-finite.
+- Ignored nominal-90% coverage tests for Frequentist DBN shared-block
+  intervals, class-envelope intervals, Bayesian multi-step / curve /
+  class-prior envelopes, and mixture functionals (unidentified mass not
+  renormalized). Wired in `scripts/gate_calibration.sh`.
+- Bayesian `full` temporal Pulse surfaces PPC on `predictive_checks` and
+  pins a numeric posterior PPC summary. Per-horizon
+  `temporal_horizon_support` on Bayesian temporal curves matches the
+  Frequentist geometry.
 
 ## [1.8.0] — 2026-09-13
 

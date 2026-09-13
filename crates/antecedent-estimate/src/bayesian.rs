@@ -2355,6 +2355,64 @@ mod tests {
         );
     }
 
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn bayesian_sustained_multi_step_conjugate_nominal_90_coverage() {
+        use crate::temporal_sequential::estimate_sustained_window;
+        use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
+        use antecedent_identify::TemporalBackdoorIdentifier;
+
+        let n_sim = 80u32;
+        let n = 160usize;
+        let mut covered = 0u32;
+        let g = pulse_graph();
+        let q = TemporalEffectQuery::sustained(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            -2,
+            1.0,
+        )
+        .with_policy(TemporalPolicy::sustained(-2, -1))
+        .with_horizon_steps(1)
+        .with_max_history_lag(Some(2));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
+        let estimand = id_res.result.estimands.first().unwrap();
+        let bayes = BayesianGComputationAte {
+            backend: BayesianBackendKind::ConjugateGaussian,
+            n_draws: 240,
+            seed: 23,
+            prior_scale: 8.0,
+            ..BayesianGComputationAte::new()
+        };
+        for s in 0..n_sim {
+            let data = noisy_lag1_pulse_series(n, 13_000 + u64::from(s));
+            let (_, posterior) = estimate_sustained_window(
+                &data,
+                &g,
+                &id_res.indexer,
+                estimand,
+                &q,
+                IdentificationStatus::NonparametricallyIdentified,
+                antecedent_core::AssumptionSet::default(),
+                0,
+                Some(&bayes),
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+            if interval_covers(posterior.as_ref().unwrap(), 0.8, 0.9) {
+                covered += 1;
+            }
+        }
+        let rate = f64::from(covered) / f64::from(n_sim);
+        let se = (0.9 * 0.1 / f64::from(n_sim)).sqrt();
+        let lo = (0.9 - 4.0 * se).max(0.70);
+        let hi = (0.9 + 4.0 * se).min(1.0);
+        assert!(
+            rate >= lo && rate <= hi,
+            "bayesian multi-step sustained 90% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({covered}/{n_sim})"
+        );
+    }
+
     fn noisy_lag1_pulse_series_with_unit(
         n: usize,
         seed: u64,

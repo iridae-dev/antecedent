@@ -209,8 +209,35 @@ fn temporal_class_pulse_pins_and_reuses_envelope() {
                 fresh.diagnostics.iter().any(|d| {
                     d.code.as_ref() == "estimate.envelope.se_omits_between_atom_variance"
                 }),
-                "{class} must disclose envelope SE limitation"
+                "{class} with zero replicates must disclose envelope SE limitation"
             );
+            let bootstrapped = match &graph {
+                ClassGraph::Cpdag(g) => Study::series(data.clone()).graph(g.clone()),
+                ClassGraph::Pag(g) => Study::series(data.clone()).graph(g.clone()),
+            }
+            .query(query.clone())
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(16)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(1))
+            .unwrap();
+            let se =
+                bootstrapped.estimate.se_bootstrap.unwrap_or_else(|| panic!("{class} mixture SE"));
+            assert!(se.is_finite() && se > 0.0, "{class} mixture SE {se}");
+            assert!(
+                bootstrapped.diagnostics.iter().any(|d| {
+                    d.code.as_ref() == "estimate.temporal_class.frequentist.shared_block"
+                }),
+                "{class} must publish shared circular-block SE"
+            );
+            assert!(
+                bootstrapped.diagnostics.iter().all(|d| {
+                    d.code.as_ref() != "estimate.envelope.se_omits_between_atom_variance"
+                }),
+                "{class} must not omit between-atom variance when atoms align"
+            );
+            assert!((bootstrapped.estimate.ate - expected).abs() < tol);
         }
         let cheap = match &graph {
             ClassGraph::Cpdag(g) => Study::series(data.clone()).graph(g.clone()),

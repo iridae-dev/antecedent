@@ -717,16 +717,8 @@ fn temporal_sustained_accepted_none() {
 ///
 /// **Known gap** (found while earning this cell, not fixed here — this test
 /// file cannot touch `execute/temporal_path.rs`): unlike the static Bayesian
-/// path (`execute_bayesian`, which pushes into both `refutations` *and*
-/// `result.predictive_checks`), `execute_temporal` folds the prior/posterior
-/// predictive checks into `refutations` only (as `RefutationReport`s named
-/// `"prior_predictive"` / `"posterior_predictive"`) and never populates
-/// `StudyResult::predictive_checks`. The PPC computation itself genuinely
-/// runs (this is not the `execute_pag_bayesian`-style "claims a check it
-/// skips" bug) — the check's *result* is just not surfaced through the field
-/// callers would normally read it from. Assert against `refutations`, and
-/// assert the gap explicitly so a future fix is visible as a test change
-/// here, not a silent pass.
+/// path (`execute_bayesian`). Temporal Pulse / single-step Sustained now
+/// surfaces the same reports on `StudyResult::predictive_checks`.
 #[test]
 fn temporal_sustained_explicit_cheap() {
     let result = run_staged_sustained(false, RefuteSuite::Cheap).expect("staged estimate_series");
@@ -742,11 +734,13 @@ fn temporal_sustained_explicit_cheap() {
         result.refutations
     );
     assert!(result.refutations.iter().all(|r| r.comparison.is_finite()));
-    // Gap: `execute_temporal` never populates `predictive_checks` (see doc comment above).
     assert!(
-        result.predictive_checks.is_empty(),
-        "if this starts failing, execute_temporal now populates predictive_checks — \
-         update this test to assert on it instead of refutations and drop this comment"
+        result.predictive_checks.iter().any(|c| c.kind == FacadeKind::Prior),
+        "temporal cheap must surface prior PPC on predictive_checks"
+    );
+    assert!(
+        result.predictive_checks.iter().any(|c| c.kind == FacadeKind::Posterior),
+        "temporal cheap must surface posterior PPC on predictive_checks"
     );
     // Prior sensitivity is Full-only; cheap must not add it.
     assert!(
@@ -763,7 +757,8 @@ fn temporal_sustained_accepted_cheap() {
     assert!(result.refutations.iter().any(|r| r.refuter.as_ref() == "prior_predictive"));
     assert!(result.refutations.iter().any(|r| r.refuter.as_ref() == "posterior_predictive"));
     assert!(result.refutations.iter().all(|r| r.comparison.is_finite()));
-    assert!(result.predictive_checks.is_empty());
+    assert!(result.predictive_checks.iter().any(|c| c.kind == FacadeKind::Prior));
+    assert!(result.predictive_checks.iter().any(|c| c.kind == FacadeKind::Posterior));
 }
 
 /// `RefuteSuite::Full` now completes for Bayesian `TemporalDag` effect queries
