@@ -62,6 +62,7 @@ run_ignored_test bayesian_temporal_pag_pulse_nominal_90_coverage
 run_ignored_test bayesian_dbn_posterior_pulse_nominal_90_coverage
 run_ignored_test bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage
 run_ignored_test bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage
+run_ignored_test bayesian_temporal_dag_mediation_confounded_nominal_90_coverage
 
 echo "== 1.9 shared circular-block length sensitivity (x0.5 / x1 / x2 of the rule) =="
 run_ignored antecedent analysis::execute::block_length_tests::shared_block_length_sensitivity
@@ -119,7 +120,7 @@ echo "== 1.9 dependence-honest Frequentist TemporalDag SEs (R-1, R-2) =="
 run_temporal_frequentist() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  cargo test -p antecedent --test v19_temporal_frequentist "$filter" -- --ignored --exact --nocapture
+  cargo test --release -p antecedent --test v19_temporal_frequentist "$filter" -- --ignored --exact --nocapture
 }
 run_temporal_frequentist temporal_dag_pulse_iid_n160_nominal_90_coverage
 run_temporal_frequentist temporal_dag_pulse_ar05_n160_nominal_90_coverage
@@ -137,6 +138,7 @@ run_temporal_frequentist temporal_dag_mediation_iid_n160_nominal_90_coverage
 run_temporal_frequentist temporal_dag_mediation_ar05_n160_nominal_90_coverage
 run_temporal_frequentist temporal_dag_mediation_ar09_n400_nominal_90_coverage
 run_temporal_frequentist temporal_dag_mediation_ar05_n60_nominal_90_coverage
+run_temporal_frequentist temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage
 # Below the effective-sample floor: warning enforced, coverage recorded, not gated.
 run_temporal_frequentist temporal_dag_pulse_ar09_n160_short_series_boundary
 run_temporal_frequentist temporal_dag_mediation_ar09_n160_short_series_boundary

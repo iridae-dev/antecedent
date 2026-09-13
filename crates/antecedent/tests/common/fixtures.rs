@@ -427,18 +427,55 @@ pub fn mediation_cpdag_two() -> TemporalCpdag {
     g
 }
 
-/// Mediated-effect truth of every completion of [`mediation_cpdag_two`]: the
-/// completions are correct for the DGP, so the identified mediated effect is
-/// the path product `MED_ALPHA·MED_DELTA` for every `kappa`.
+/// The DGP's own graph: [`mediation_cpdag_two`] with `z@1 -> w@1` oriented.
+///
+/// Its mediation adjustment set is `{z[t-1], w[t-1]}`: the `t -> y` back-door
+/// set is empty, and the two lagged parents of `m` / `y` block
+/// `m <- z[t-1] -> w[t-1] -> y`.
+#[must_use]
+pub fn mediation_dag() -> TemporalDag {
+    let mut g = TemporalDag::empty();
+    let t1 = g.add_lagged(var(0), Lag::from_raw(1)).unwrap();
+    let m0 = g.add_lagged(var(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = g.add_lagged(var(2), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = g.add_lagged(var(3), Lag::from_raw(1)).unwrap();
+    let w1 = g.add_lagged(var(4), Lag::from_raw(1)).unwrap();
+    g.insert_directed(t1, m0).unwrap();
+    g.insert_directed(t1, y0).unwrap();
+    g.insert_directed(m0, y0).unwrap();
+    g.insert_directed(z1, m0).unwrap();
+    g.insert_directed(w1, y0).unwrap();
+    g.insert_directed(z1, w1).unwrap();
+    g
+}
+
+/// Mediated-effect truth of [`mediation_dag`] and of every completion of
+/// [`mediation_cpdag_two`]: the graphs are correct for the DGP, so the
+/// identified mediated effect is the path product `MED_ALPHA·MED_DELTA` for
+/// every `kappa` (the mediation adjustment set blocks the `w` path).
 #[must_use]
 pub fn mediation_truth() -> f64 {
     MED_ALPHA * MED_DELTA
 }
 
+/// Direct-effect truth (`t[t-1] -> y[t]`), for every `kappa`.
+#[must_use]
+pub fn mediation_direct_truth() -> f64 {
+    MED_BETA
+}
+
+/// Total-effect truth: direct plus mediated, for every `kappa` (`w` does not
+/// confound `t -> y`).
+#[must_use]
+pub fn mediation_total_truth() -> f64 {
+    MED_BETA + MED_ALPHA * MED_DELTA
+}
+
 /// Probability limit of an estimator that adjusts only the `t -> y` backdoor
 /// set (empty here) and so omits the mediator-outcome confounder: the outcome
 /// coefficient on `m` absorbs `kappa·Cov(w[t-1], m | t) / Var(m | t)` with
-/// `Cov = 0.6·MED_ETA` and `Var = MED_ETA² + 0.4²`. Recorded for diagnosis only.
+/// `Cov = 0.6·MED_ETA` and `Var = MED_ETA² + 0.4²`. This was the pre-1.9
+/// behaviour (≈0.519 at `kappa = 0.5`); recorded for diagnosis only.
 #[must_use]
 pub fn mediation_backdoor_only_plim(kappa: f64) -> f64 {
     MED_ALPHA * (MED_DELTA + kappa * 0.6 * MED_ETA / (MED_ETA * MED_ETA + 0.16))
