@@ -112,7 +112,9 @@ pub struct TemporalMediationSlice {
     pub identification_status: IdentificationStatus,
     /// Identifier/estimand method.
     pub method: Arc<str>,
-    /// Horizon-specific unfolded adjustment set `I(h)`.
+    /// Horizon-specific unfolded adjustment set `S(h)` shared by the mediator,
+    /// outcome and reduced-form regressions: the `T→Y` back-door set `I(h)` plus
+    /// the mediator/outcome parents that confound `M→Y` (unfolded-window keys).
     pub adjustment: Arc<[TemporalNodeKey]>,
     /// Requested effect and decomposition.
     pub estimate: TemporalMediationEstimate,

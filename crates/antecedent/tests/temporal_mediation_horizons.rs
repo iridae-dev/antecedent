@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::cast_precision_loss, clippy::float_cmp)]
+#![allow(clippy::cast_precision_loss, clippy::float_cmp, clippy::too_many_lines)]
 
 use std::sync::Arc;
 
@@ -217,7 +217,17 @@ fn temporal_mediation_i1_not_equal_i2_on_confounded_pulse() {
             .collect::<Vec<_>>(),
         vec![(3, -1)]
     );
-    assert!(grid.slices[1].adjustment.is_empty());
+    // I(2) is empty, but the h=2 mechanisms still need the mediator/outcome
+    // parents that do not descend from t[t-2]: t[t-1] (a parent of both m and
+    // y at h=2) and z[t-1]. Keys are unfolded-window offsets (outcome at 1).
+    assert_eq!(
+        grid.slices[1]
+            .adjustment
+            .iter()
+            .map(|key| (key.variable.raw(), key.offset))
+            .collect::<Vec<_>>(),
+        vec![(0, 0), (3, 0)]
+    );
     assert!(multi.estimate.ate.is_nan(), "multi-horizon results have no scalar representative");
     assert!(multi.mediation.is_none());
 

@@ -324,9 +324,23 @@ impl super::Study {
             allow_natural_controlled_alias: true,
             ..TemporalMediationIdentifier::new()
         };
-        let (_, temporal) =
+        let (identification, temporal) =
             ider.identify_with_horizon(graph, query, horizon).map_err(CausalError::from)?;
-        Ok(lagged_adjustment_from_temporal(&temporal))
+        // The mediation estimand carries the shared set S(h) = I(h) plus the
+        // mediator/outcome confounders, not the bare T→Y back-door set I(h).
+        let estimand = identification.estimands.first().ok_or_else(|| CausalError::Compile {
+            message: format!("temporal mediation identified no estimand at horizon {horizon}"),
+        })?;
+        let outcome_offset = i32::try_from(horizon.saturating_sub(1)).unwrap_or(0);
+        Ok(estimand
+            .adjustment_set
+            .iter()
+            .filter_map(|&dense| {
+                let key = temporal.indexer.key_of(dense.raw()).ok()?;
+                lagged_column_relative_to_outcome(key, outcome_offset)
+            })
+            .collect::<Vec<_>>()
+            .into())
     }
 
     pub(super) fn execute_temporal(
@@ -711,8 +725,9 @@ impl super::Study {
                 "identify.temporal_mediation.horizon_dependent",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "adjustment sets differ across requested horizons; each contrast uses I(h) \
-                 identified for that horizon, not a shared max-horizon set",
+                "adjustment sets differ across requested horizons; each contrast uses S(h) = I(h) \
+                 plus mediator-outcome confounders identified for that horizon, not a shared \
+                 max-horizon set",
             ));
         }
         let est = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
@@ -923,8 +938,9 @@ impl super::Study {
                 "identify.temporal_mediation.horizon_dependent",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "adjustment sets differ across requested horizons; each contrast uses I(h) \
-                 identified for that horizon, not a shared max-horizon set",
+                "adjustment sets differ across requested horizons; each contrast uses S(h) = I(h) \
+                 plus mediator-outcome confounders identified for that horizon, not a shared \
+                 max-horizon set",
             ));
         }
         let estimator = bayesian_gcomp(cfg, ctx);
@@ -3940,32 +3956,6 @@ fn mediation_click_adjustment_keys(
         .collect::<Vec<_>>();
     keys.sort();
     Arc::from(keys)
-}
-
-fn lagged_adjustment_from_temporal(
-    temporal: &antecedent_identify::TemporalIdentificationResult,
-) -> Arc<[antecedent_data::LaggedColumn]> {
-    let outcome_offset = match &temporal.result.query {
-        CausalQuery::TemporalEffect(q) => q.outcome_offset(),
-        CausalQuery::Mediation(q) => {
-            i32::try_from(q.horizons.first().copied().unwrap_or(1).saturating_sub(1)).unwrap_or(0)
-        }
-        _ => 0,
-    };
-    temporal.result.estimands.first().map_or_else(
-        || Arc::from([]),
-        |estimand| {
-            estimand
-                .adjustment_set
-                .iter()
-                .filter_map(|&dense| {
-                    let key = temporal.indexer.key_of(dense.raw()).ok()?;
-                    lagged_column_relative_to_outcome(key, outcome_offset)
-                })
-                .collect::<Vec<_>>()
-                .into()
-        },
-    )
 }
 
 fn horizon_adjustment_sets_differ(
