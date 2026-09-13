@@ -299,6 +299,26 @@ pub fn pag_series(n: usize, seed: u64) -> TimeSeriesData {
     series(&[("t", &t[BURN..]), ("y", &y[BURN..]), ("z", &z[BURN..]), ("r", &r[BURN..])])
 }
 
+/// [`pag_series`] with every exogenous innovation AR(1)(`rho`) at the same
+/// marginal SD, so contemporaneous covariances (and the identified atom's plim
+/// `B1`) do not depend on `rho`. A separate stream from [`pag_series`].
+#[must_use]
+pub fn pag_series_ar1(n: usize, rho: f64, seed: u64) -> TimeSeriesData {
+    let total = n + BURN;
+    let r = ar1_noise(total, rho, 1.0, seed ^ 0x9A61);
+    let et = ar1_noise(total, rho, PAG_SD_T, seed ^ 0x9A62);
+    let ez = ar1_noise(total, rho, 0.5, seed ^ 0x9A63);
+    let u = ar1_noise(total, rho, SD_Y, seed ^ 0x9A64);
+    let t: Vec<f64> = r.iter().zip(&et).map(|(r, e)| PAG_A_RT * r + e).collect();
+    let z: Vec<f64> =
+        t.iter().zip(&r).zip(&ez).map(|((t, r), e)| PAG_B_TZ * t + PAG_C_RZ * r + e).collect();
+    let mut y = vec![0.0; total];
+    for s in 1..total {
+        y[s] = B1 * t[s - 1] + GAMMA * z[s - 1] + u[s];
+    }
+    series(&[("t", &t[BURN..]), ("y", &y[BURN..]), ("z", &z[BURN..]), ("r", &r[BURN..])])
+}
+
 /// Contemporaneous `r -> t`, `r -> z`, `t o-> z`; lagged `t@1 -> y`, `z@1 -> y`.
 ///
 /// `r` makes `t -> y` visible (it points into `t` and is not adjacent to `y`)
@@ -350,6 +370,89 @@ pub fn pag_completion_truths() -> [Option<f64>; 2] {
 
 /// Enumeration mass of the unidentified PAG completion.
 pub const PAG_UNIDENTIFIED_MASS: f64 = 0.5;
+
+// ---------------------------------------------------------------------------
+// TemporalPag with several identified completions that disagree.
+// ---------------------------------------------------------------------------
+
+/// `z -> t` loading in the chain-PAG DGP (`CHAIN_A² + CHAIN_SD_T² = 1`).
+pub const CHAIN_A: f64 = 0.6;
+/// Treatment innovation SD in the chain-PAG DGP.
+pub const CHAIN_SD_T: f64 = 0.8;
+/// `z -> m` loading.
+pub const CHAIN_C: f64 = 0.7;
+/// Effect of `m[t-1]` on `y[t]`.
+pub const CHAIN_D: f64 = 0.6;
+
+/// Stochastic version of `conformance/estimate/temporal_class_envelope/identified_pag.json`:
+/// `z` AR(1)(`rho`), `t = CHAIN_A z + CHAIN_SD_T e`, `v = 0.5 t + e`,
+/// `m = CHAIN_C z + 0.6 e`, `y[t] = B1 t[t-1] + CHAIN_D m[t-1] + u[t]` with `u`
+/// AR(1)(`rho`, SD `SD_Y`); the other innovations are AR(1)(`rho`) too, so
+/// every contemporaneous covariance is `rho`-free.
+///
+/// Columns: `t` (0), `y` (1), `z` (2), `m` (3), `v` (4). The generating DAG
+/// (`z -> t`, `z -> m`, `t -> v`) is a completion of [`chain_pag`].
+#[must_use]
+pub fn chain_pag_series(n: usize, rho: f64, seed: u64) -> TimeSeriesData {
+    let total = n + BURN;
+    let z = ar1_noise(total, rho, 1.0, seed ^ 0xC4A1);
+    let et = ar1_noise(total, rho, CHAIN_SD_T, seed ^ 0xC4A2);
+    let ev = ar1_noise(total, rho, 1.0, seed ^ 0xC4A3);
+    let em = ar1_noise(total, rho, 0.6, seed ^ 0xC4A4);
+    let u = ar1_noise(total, rho, SD_Y, seed ^ 0xC4A5);
+    let t: Vec<f64> = z.iter().zip(&et).map(|(z, e)| CHAIN_A * z + e).collect();
+    let v: Vec<f64> = t.iter().zip(&ev).map(|(t, e)| 0.5 * t + e).collect();
+    let m: Vec<f64> = z.iter().zip(&em).map(|(z, e)| CHAIN_C * z + e).collect();
+    let mut y = vec![0.0; total];
+    for s in 1..total {
+        y[s] = B1 * t[s - 1] + CHAIN_D * m[s - 1] + u[s];
+    }
+    series(&[
+        ("t", &t[BURN..]),
+        ("y", &y[BURN..]),
+        ("z", &z[BURN..]),
+        ("m", &m[BURN..]),
+        ("v", &v[BURN..]),
+    ])
+}
+
+/// The `identified_pag.json` structure: lag-1 circle chain
+/// `v o-o t o-o z o-o m` and `t@1 -> y`, `m@1 -> y`.
+///
+/// Seven stationary MAG completions; six identify `t@1 -> y`, at two effects:
+/// completions where `z` points into `t` adjust `z[t-1]` and recover `B1`;
+/// completions where `t` points into `z` make `m[t-1]` a treatment descendant,
+/// adjust nothing, and recover `B1 + CHAIN_D·CHAIN_C·CHAIN_A`. The generating
+/// DAG is one of the adjusting completions, so the causal effect is `B1`, the
+/// lower end of the identified set.
+#[must_use]
+pub fn chain_pag() -> TemporalPag {
+    let mut g = TemporalPag::empty();
+    let t1 = g.add_lagged(var(0), Lag::from_raw(1)).unwrap();
+    let y0 = g.add_lagged(var(1), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = g.add_lagged(var(2), Lag::from_raw(1)).unwrap();
+    let m1 = g.add_lagged(var(3), Lag::from_raw(1)).unwrap();
+    let v1 = g.add_lagged(var(4), Lag::from_raw(1)).unwrap();
+    let circle = |a, b| MarkedEdge {
+        a,
+        b,
+        at_a: Endpoint::Circle,
+        at_b: Endpoint::Circle,
+        middle: MiddleMark::Empty,
+    };
+    g.insert_marked(circle(v1, t1)).unwrap();
+    g.insert_marked(circle(t1, z1)).unwrap();
+    g.insert_marked(circle(z1, m1)).unwrap();
+    g.insert_directed(t1, y0).unwrap();
+    g.insert_directed(m1, y0).unwrap();
+    g
+}
+
+/// The two identified effects of [`chain_pag`]: `(adjust z, adjust nothing)`.
+#[must_use]
+pub fn chain_pag_effects() -> (f64, f64) {
+    (B1, B1 + CHAIN_D * CHAIN_C * CHAIN_A)
+}
 
 // ---------------------------------------------------------------------------
 // TemporalCpdag mediation graph with two completions.

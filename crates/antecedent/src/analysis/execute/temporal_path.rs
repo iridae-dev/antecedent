@@ -268,6 +268,7 @@ impl super::Study {
             unidentified_mass: (1.0 - identified_mass).max(0.0),
             unevaluable_mass: 0.0,
             identified_set: Some(response_envelope),
+            identified_set_interval: None,
             conditional_on_identified: conditional,
             full_mass_scope,
             truncated_atoms,
@@ -2254,6 +2255,7 @@ impl super::Study {
                     unidentified_mass,
                     unevaluable_mass,
                     identified_set: Some(response_envelope),
+                    identified_set_interval: None,
                     conditional_on_identified: conditional,
                     full_mass_scope,
                     truncated_atoms,
@@ -2635,6 +2637,7 @@ impl super::Study {
                     unidentified_mass,
                     unevaluable_mass,
                     identified_set: Some(response_envelope),
+                    identified_set_interval: None,
                     conditional_on_identified: conditional,
                     full_mass_scope,
                     truncated_atoms,
@@ -2728,9 +2731,16 @@ impl super::Study {
             }
             fitted_atoms.push(ClassPulseAtom {
                 weight: w,
-                estimand: estimand.clone(),
+                point: estimate.ate,
                 indexer: indexer.clone(),
-                assumptions: case.result.required_assumptions.clone(),
+                design: TemporalAtomDesign::linear(
+                    data,
+                    &estimand,
+                    query,
+                    indexer,
+                    self.split.as_ref(),
+                    ctx,
+                )?,
             });
             refute_atoms.push(EnvelopeRefuteAtom {
                 key: i as u64,
@@ -2748,30 +2758,19 @@ impl super::Study {
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "temporal class-aware envelope missing estimand".into(),
         })?;
+        let (designs, weights): (Vec<_>, Vec<_>) =
+            fitted_atoms.iter().map(|atom| (&atom.design, atom.weight)).unzip();
         let block = shared_circular_block_mixture_se(
-            data,
+            &designs,
+            &weights,
             temporal_class_block_span(fitted_atoms.iter().map(|atom| &atom.indexer)),
             self.bootstrap_replicates,
             0xC1A5_5E00,
             ctx,
-            |sampled| {
-                let mut sum = 0.0;
-                for atom in &fitted_atoms {
-                    let estimate = fit_frequentist_class_pulse_atom(
-                        sampled,
-                        query,
-                        &atom.estimand,
-                        &atom.indexer,
-                        atom.assumptions.clone(),
-                        self.split.as_ref(),
-                        ctx,
-                    )
-                    .ok()?;
-                    sum += atom.weight * estimate.ate;
-                }
-                Some(sum / total_w)
-            },
         );
+        let points: Vec<f64> = fitted_atoms.iter().map(|atom| atom.point).collect();
+        let identified_set_interval =
+            block.identified_set_interval(&points, IDENTIFIED_SET_INTERVAL_LEVEL);
         let se_analytic = mix_weighted_analytic_se(se_items);
         let se_bootstrap = block.se.is_finite().then_some(block.se);
         let estimate = EffectEstimate::from_parts(
@@ -2810,18 +2809,26 @@ impl super::Study {
         )?;
         diagnostics.extend(na_diagnostics);
         if se_bootstrap.is_some() {
-            diagnostics.push(envelope_shared_block_diagnostic(
+            diagnostics.extend(envelope_shared_block_diagnostics(
                 total_w,
                 envelope.unidentified_weight.0,
-                block.completed,
-                block.attempted,
+                &block,
             ));
         } else if fitted_atoms.len() > 1 {
             diagnostics.push(envelope_se_omits_between_atom_variance());
         }
+        diagnostics
+            .extend(identified_set_interval.as_ref().map(identified_set_interval_diagnostic));
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
+        let mut structural = temporal_class_structural_mixture(
+            envelope,
+            crate::result::StructuralWeightBasis::CompletionEnumeration,
+            None,
+            &atom_values,
+        );
+        structural.identified_set_interval = identified_set_interval;
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -2846,12 +2853,7 @@ impl super::Study {
                     strategy: identifier_id,
                     structure_version: self.graph.version(),
                 }),
-                structural_response: Some(temporal_class_structural_mixture(
-                    envelope,
-                    crate::result::StructuralWeightBasis::CompletionEnumeration,
-                    None,
-                    &atom_values,
-                )),
+                structural_response: Some(structural),
                 diagnostics: Some(diagnostics),
                 ..Default::default()
             },
@@ -3042,6 +3044,13 @@ impl super::Study {
         } else {
             crate::result::StructuralWeightBasis::CompletionEnumeration
         };
+        let mut identified_set_interval = None;
+        if bayes.is_some() {
+            identified_set_interval = posterior_identified_set_interval(
+                seq_atom_keys.iter().filter_map(|key| atom_posteriors.get(key)),
+                data.row_count(),
+            );
+        }
         let (estimate, mut posterior) = if matches!(self.inference, InferenceMode::Bayesian(_)) {
             if class_masses.is_some()
                 && envelope.truncated_completions == 0
@@ -3068,44 +3077,41 @@ impl super::Study {
                 (nan_effect(), None)
             }
         } else if total_w > 0.0 {
+            let designs = seq_atoms
+                .iter()
+                .map(|atom| {
+                    TemporalAtomDesign::sequential(
+                        data,
+                        &atom.graph,
+                        &atom.indexer,
+                        &atom.estimand,
+                        query,
+                        atom.status,
+                        ctx,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let weights: Vec<f64> = seq_atoms.iter().map(|atom| atom.weight).collect();
             let block = shared_circular_block_mixture_se(
-                data,
+                &designs.iter().collect::<Vec<_>>(),
+                &weights,
                 temporal_class_block_span(seq_atoms.iter().map(|atom| &atom.indexer)),
                 self.bootstrap_replicates,
                 0x5E0C_1A55,
                 ctx,
-                |sampled| {
-                    let mut sum = 0.0;
-                    for atom in &seq_atoms {
-                        let (estimate, _) =
-                            antecedent_estimate::temporal_sequential::estimate_sustained_window(
-                                sampled,
-                                &atom.graph,
-                                &atom.indexer,
-                                &atom.estimand,
-                                query,
-                                atom.status,
-                                atom.estimate.assumptions.clone(),
-                                0,
-                                None,
-                                ctx,
-                            )
-                            .ok()?;
-                        sum += atom.weight * estimate.ate;
-                    }
-                    Some(sum / total_w)
-                },
             );
+            let points: Vec<f64> = seq_atoms.iter().map(|atom| atom.estimate.ate).collect();
+            identified_set_interval =
+                block.identified_set_interval(&points, IDENTIFIED_SET_INTERVAL_LEVEL);
             let se_analytic = mix_weighted_analytic_se(
                 seq_atoms.iter().map(|atom| (atom.weight, atom.estimate.se_analytic)),
             );
             let se_bootstrap = block.se.is_finite().then_some(block.se);
             if se_bootstrap.is_some() {
-                diagnostics.push(envelope_shared_block_diagnostic(
+                diagnostics.extend(envelope_shared_block_diagnostics(
                     total_w,
                     envelope.unidentified_weight.0,
-                    block.completed,
-                    block.attempted,
+                    &block,
                 ));
             } else if seq_atoms.len() > 1 {
                 diagnostics.push(envelope_se_omits_between_atom_variance());
@@ -3169,6 +3175,8 @@ impl super::Study {
             (reports, extra, checks)
         };
         diagnostics.extend(extra_diagnostics);
+        diagnostics
+            .extend(identified_set_interval.as_ref().map(identified_set_interval_diagnostic));
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
@@ -3178,6 +3186,7 @@ impl super::Study {
             class_masses.as_deref(),
             &atom_values,
         );
+        structural.identified_set_interval = identified_set_interval;
         for atom in &mut structural.atoms {
             atom.posterior = atom_posteriors.remove(&atom.graph_key);
         }
@@ -3434,6 +3443,16 @@ impl super::Study {
             atom.posterior =
                 atoms.iter().find(|fit| fit.key == atom.graph_key).map(|fit| fit.posterior.clone());
         }
+        structural_response.identified_set_interval = posterior_identified_set_interval(
+            atoms.iter().map(|fit| &fit.posterior),
+            data.row_count(),
+        );
+        diagnostics.extend(
+            structural_response
+                .identified_set_interval
+                .as_ref()
+                .map(identified_set_interval_diagnostic),
+        );
         let tabular = TabularData::new(data.storage().clone());
         let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
         let mut refute_ws = EstimationWorkspace::default();
@@ -3835,6 +3854,7 @@ fn temporal_class_structural_mixture(
         unidentified_mass: unidentified_weight / total,
         unevaluable_mass: 0.0,
         identified_set,
+        identified_set_interval: None,
         conditional_on_identified: None,
         full_mass_scope: envelope.truncated_completions == 0,
         truncated_atoms: envelope.truncated_completions,
@@ -4194,9 +4214,82 @@ enum ClassObservationKind {
 
 struct ClassPulseAtom {
     weight: f64,
-    estimand: IdentifiedEstimand,
+    point: f64,
     indexer: TemporalIndexer,
-    assumptions: antecedent_core::AssumptionSet,
+    design: TemporalAtomDesign,
+}
+
+/// Nominal level of the identified-set interval published on class structural mixtures.
+const IDENTIFIED_SET_INTERVAL_LEVEL: f64 = 0.9;
+
+/// Bayesian identified-set interval from identified completions' effect draws
+/// (K-2: the no-`ClassPrior` path publishes per-completion posteriors only).
+fn posterior_identified_set_interval<'a>(
+    posteriors: impl Iterator<Item = &'a CausalPosterior>,
+    rows: usize,
+) -> Option<antecedent_estimate::IdentifiedSetInterval> {
+    let mut means: Vec<f64> = Vec::new();
+    let mut draws = Vec::new();
+    for posterior in posteriors {
+        let column = posterior.effect_column()?;
+        let values = posterior.draws.column(column).ok()?;
+        if values.is_empty() {
+            return None;
+        }
+        let mean = values.iter().sum::<f64>() / values.len() as f64;
+        // Completions with the same estimand fit the same posterior on the same
+        // rows; their draws are independent copies of one distribution, and a
+        // per-draw min / max over copies would widen the bounds spuriously.
+        if means.iter().any(|m| (m - mean).abs() <= 1e-9 * mean.abs().max(1.0)) {
+            continue;
+        }
+        means.push(mean);
+        draws.push(values);
+    }
+    antecedent_estimate::imbens_manski_posterior_draws(
+        &means,
+        &draws,
+        rows,
+        IDENTIFIED_SET_INTERVAL_LEVEL,
+    )
+}
+
+fn identified_set_interval_diagnostic(
+    interval: &antecedent_estimate::IdentifiedSetInterval,
+) -> Diagnostic {
+    let source = match interval.method {
+        antecedent_estimate::IdentifiedSetIntervalMethod::ImbensManskiPosteriorDraws => {
+            "per-completion posterior draws paired by index (endpoint quantiles of the \
+             per-draw min / max)"
+        }
+        _ => "shared circular-block replicates refitting every completion on the same resample",
+    };
+    Diagnostic::new(
+        "estimate.temporal_class.identified_set_interval",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "Imbens-Manski {:.0}% interval [{:.6}, {:.6}] for the identified set [{:.6}, {:.6}] \
+             over {} identified completions; bound SDs {:.6} / {:.6} from {}; critical value \
+             {:.4} ({}); covers the true effect whenever it is one completion's effect; \
+             conservative when completions nearly agree",
+            interval.level * 100.0,
+            interval.lower,
+            interval.upper,
+            interval.bound_lower,
+            interval.bound_upper,
+            interval.completions,
+            interval.lower_se,
+            interval.upper_se,
+            source,
+            interval.critical_value,
+            if interval.width_retained {
+                "set width retained"
+            } else {
+                "set width within noise: two-sided"
+            },
+        ),
+    )
 }
 
 fn fit_frequentist_class_pulse_atom(
@@ -5115,19 +5208,6 @@ fn temporal_dependence_se_diagnostics(
              score effective rows {effective_rows:.0}; {detail}"
         ),
     )];
-    if effective_rows.is_nan() || effective_rows < antecedent_estimate::MIN_EFFECTIVE_ROWS {
-        out.push(Diagnostic::new(
-            "estimate.temporal.circular_block_se.short_series",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Warning,
-            format!(
-                "estimating-score effective rows {effective_rows:.0} < {}: the series may be \
-                 too short for its serial dependence under the ceil(n^(1/3)) block rule, and \
-                 the circular-block interval may under-cover (the 1.9 calibration measured \
-                 down to 0.835 at nominal 0.90 below this floor)",
-                antecedent_estimate::MIN_EFFECTIVE_ROWS
-            ),
-        ));
-    }
+    out.extend(short_series_warning(effective_rows));
     out
 }

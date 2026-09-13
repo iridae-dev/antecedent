@@ -73,6 +73,9 @@ class AteAnalysisResult:
     structural_identified_mass: float | None
     structural_unidentified_mass: float | None
     structural_unevaluable_mass: float | None
+    structural_identified_set: tuple[float, float] | None
+    structural_identified_set_interval: tuple[float, float] | None
+    structural_identified_set_interval_level: float | None
     certificate_json: str | None
     unit_effects: list[float] | None
     assumptions: list[str]
@@ -607,6 +610,9 @@ class AnalysisResult:
     structural_identified_mass: float | None
     structural_unidentified_mass: float | None
     structural_unevaluable_mass: float | None
+    structural_identified_set: tuple[float, float] | None
+    structural_identified_set_interval: tuple[float, float] | None
+    structural_identified_set_interval_level: float | None
 
 TemporalAnalysisResult = AnalysisResult
 

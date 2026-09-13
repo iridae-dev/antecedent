@@ -787,6 +787,9 @@ impl LinearAdjustmentAte {
 
     /// [`Self::ate_on_row_indices`] using caller-owned gather buffers.
     ///
+    /// Here `row_src` may be shorter than the design (a sub-window resample); the
+    /// buffers must hold `row_src.len()` rows (`x_boot`: `row_src.len() · ncols`).
+    ///
     /// # Errors
     ///
     /// Shape mismatch, out-of-range source row, or fit failure.
@@ -814,18 +817,21 @@ impl LinearAdjustmentAte {
         x_boot: &mut [f64],
         y_boot: &mut [f64],
     ) -> Result<Vec<f64>, EstimationError> {
-        let n = problem.design.nrows;
+        let rows = problem.design.nrows;
         let p = problem.design.ncols;
-        if row_src.len() != n || y_boot.len() != n || x_boot.len() != n * p {
-            return Err(EstimationError::data_msg("row resample buffers must match the design"));
+        // Output rows follow the row map, which may be a sub-window of the design
+        // (a multi-design shared time window); every source row must exist.
+        let n = row_src.len();
+        if y_boot.len() != n || x_boot.len() != n * p {
+            return Err(EstimationError::data_msg("row resample buffers must match the row map"));
         }
         for (r, &src) in row_src.iter().enumerate() {
-            if src >= n {
+            if src >= rows {
                 return Err(EstimationError::data_msg("row resample index out of range"));
             }
             y_boot[r] = problem.design.outcome[src];
             for c in 0..p {
-                x_boot[c * n + r] = problem.design.matrix[c * n + src];
+                x_boot[c * n + r] = problem.design.matrix[c * rows + src];
             }
         }
         match self.fit_kind {

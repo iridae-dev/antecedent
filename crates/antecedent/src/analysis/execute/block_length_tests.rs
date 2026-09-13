@@ -2,13 +2,12 @@
 //!
 //! Block length is not caller-configurable, so the check runs at the helper:
 //! [`shared_circular_block_mixture_se_with_length`] at ×0.5, ×1 and ×2 of the
-//! rule [`circular_block_length`] (`max(span, ceil(n^(1/3)))`, capped at `n`),
-//! with the same "resample the series, rebuild the lagged design" refit the
-//! temporal class / DBN atoms use. The lagged estimator is the Pulse atom of
-//! `y[t] = B·x[t-1] + u[t]` (OLS slope with intercept).
-//!
-//! For contrast an `info` line reports the same circular block applied to the
-//! lag-aligned `(y[t], x[t-1])` rows, which keeps every lag pair intact.
+//! rule [`circular_block_length`] (`max(span, ceil(m^(1/3)))`, capped at `m`),
+//! with the construction the temporal class / DBN atoms use: blocks of
+//! consecutive series times over the lag-aligned rows, each row keeping its
+//! original lag window, and the replicate SD scaled by the fixed-b factor. The
+//! atom is the Pulse regression of `y[t] = B·x[t-1] + u[t]` (OLS slope with
+//! intercept) on its lag-aligned `(x[t-1], y[t])` rows, `t = 1..n`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -16,6 +15,7 @@
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{ColumnView, TableView, TimeSeriesData};
+use antecedent_estimate::AlignedRows;
 
 use super::{circular_block_length, shared_circular_block_mixture_se_with_length};
 
@@ -92,39 +92,11 @@ fn slope(pairs: impl Iterator<Item = (f64, f64)>) -> Option<f64> {
     (n > 2.0 && den.abs() > 1e-12).then(|| (n * sxy - sx * sy) / den)
 }
 
-/// The Pulse atom refit on a (possibly resampled) series: lags rebuilt from rows.
-fn lagged_slope(data: &TimeSeriesData) -> Option<f64> {
+/// Lag-aligned `(x[t-1], y[t])` rows, `t = 1..n` (design row `r` is time `r + 1`).
+fn aligned_pairs(data: &TimeSeriesData) -> Vec<(f64, f64)> {
     let x = column(data, 0);
     let y = column(data, 1);
-    slope((1..x.len()).map(|t| (x[t - 1], y[t])))
-}
-
-/// Circular block over the lag-aligned pairs (reference only).
-fn aligned_pair_se(data: &TimeSeriesData, block: usize, seed: u64) -> f64 {
-    let x = column(data, 0);
-    let y = column(data, 1);
-    let pairs: Vec<(f64, f64)> = (1..x.len()).map(|t| (x[t - 1], y[t])).collect();
-    let m = pairs.len();
-    let mut draws = Vec::with_capacity(REPLICATES as usize);
-    for r in 0..REPLICATES {
-        let mut state = mix_seed(seed ^ (u64::from(r) << 20));
-        let mut idx = Vec::with_capacity(m);
-        while idx.len() < m {
-            state = mix_seed(state);
-            let start = (state % m as u64) as usize;
-            for k in 0..block {
-                if idx.len() == m {
-                    break;
-                }
-                idx.push((start + k) % m);
-            }
-        }
-        if let Some(b) = slope(idx.iter().map(|&i| pairs[i])) {
-            draws.push(b);
-        }
-    }
-    let mean = draws.iter().sum::<f64>() / draws.len() as f64;
-    (draws.iter().map(|d| (d - mean).powi(2)).sum::<f64>() / (draws.len() - 1) as f64).sqrt()
+    (1..x.len()).map(|t| (x[t - 1], y[t])).collect()
 }
 
 struct Tally {
@@ -159,36 +131,33 @@ impl Tally {
 }
 
 fn sensitivity(label: &str, rho: f64, n: usize, seed_base: u64) {
-    // Pulse at lag 1, horizon 1: history + horizon = 2, as `temporal_class_block_span`.
-    let rule = circular_block_length(2, n);
-    let lengths = [(0.5, (rule / 2).max(1)), (1.0, rule), (2.0, (2 * rule).min(n))];
+    // Pulse at lag 1, horizon 1: history + horizon = 2, as `temporal_class_block_span`,
+    // over the n - 1 lag-aligned rows.
+    let rows = n - 1;
+    let rule = circular_block_length(2, rows);
+    let lengths = [(0.5, (rule / 2).max(1)), (1.0, rule), (2.0, (2 * rule).min(rows))];
     let mut tallies = [Tally::new(), Tally::new(), Tally::new()];
-    let mut aligned = Tally::new();
+    let design = [AlignedRows { first_time: 1, rows }];
     for s in 0..n_sim() {
         // Fresh resampling stream per replicate, so bootstrap noise averages out.
         let ctx = ExecutionContext::for_tests(seed_base + u64::from(s));
         let data = series(n, rho, seed_base + u64::from(s));
-        let est = lagged_slope(&data).unwrap();
+        let pairs = aligned_pairs(&data);
+        let est = slope(pairs.iter().copied()).unwrap();
         for ((_, length), tally) in lengths.iter().zip(&mut tallies) {
             let block = shared_circular_block_mixture_se_with_length(
-                &data,
+                &design,
+                &[1.0],
                 *length,
                 REPLICATES,
                 0xB10C_0000,
                 &ctx,
-                lagged_slope,
+                |_, rows| slope(rows.iter().map(|&r| pairs[r])),
             );
             tally.record(est, block.se);
         }
-        aligned.record(est, aligned_pair_se(&data, rule, seed_base + u64::from(s)));
     }
     let (lo, hi) = tallies[1].band();
-    eprintln!(
-        "info {label} aligned-pair circular block L={rule}: coverage={:.3} mean_length={:.4} \
-         (reference, not asserted)",
-        aligned.rate(),
-        aligned.length / f64::from(aligned.scored)
-    );
     let mut failures = Vec::new();
     for ((factor, length), tally) in lengths.iter().zip(&tallies) {
         let rate = tally.rate();

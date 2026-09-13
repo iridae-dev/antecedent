@@ -265,6 +265,15 @@ pub(crate) struct AnalysisResult {
     pub(crate) structural_unidentified_mass: Option<f64>,
     #[pyo3(get)]
     pub(crate) structural_unevaluable_mass: Option<f64>,
+    /// Scalar identified set `(lower, upper)` over identified completions.
+    #[pyo3(get)]
+    pub(crate) structural_identified_set: Option<(f64, f64)>,
+    /// Imbens–Manski interval for the identified set (covers the true
+    /// completion's effect at `structural_identified_set_interval_level`).
+    #[pyo3(get)]
+    pub(crate) structural_identified_set_interval: Option<(f64, f64)>,
+    #[pyo3(get)]
+    pub(crate) structural_identified_set_interval_level: Option<f64>,
 }
 
 /// Run temporal effect analysis with a supplied lagged edge list.
@@ -1995,6 +2004,7 @@ fn analysis_result_from_run(
         }
     }
 
+    let identified_set = crate::identified_set_fields(&result);
     Ok(AnalysisResult {
         certificate_json,
         ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
@@ -2102,6 +2112,9 @@ fn analysis_result_from_run(
             .structural_response
             .as_ref()
             .map(|mixture| mixture.unevaluable_mass),
+        structural_identified_set: identified_set.0,
+        structural_identified_set_interval: identified_set.1,
+        structural_identified_set_interval_level: identified_set.2,
     })
 }
 

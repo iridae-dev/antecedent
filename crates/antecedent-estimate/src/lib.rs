@@ -30,6 +30,7 @@ pub mod frontdoor;
 pub mod functional_distribution;
 pub mod gcomp;
 pub mod glm_adjustment;
+pub mod identified_set;
 pub mod interference;
 pub mod iv;
 pub mod joint_if;
@@ -96,6 +97,10 @@ pub use functional_distribution::{
     functional_cell_unevaluable, support_from_functional_eval,
 };
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
+pub use identified_set::{
+    IdentifiedSetInterval, IdentifiedSetIntervalMethod, imbens_manski_critical_value,
+    imbens_manski_posterior_draws, imbens_manski_shared_replicates,
+};
 pub use interference::{InterferenceEstimate, estimate_interference, own_treatment_level};
 pub use iv::{PreparedIvProblem, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};
 pub use joint_if::{
@@ -135,7 +140,9 @@ pub use temporal_adjustment::{
     is_temporal_coefficient_name, temporal_coefficient_names,
 };
 pub use temporal_block::{
-    MIN_EFFECTIVE_ROWS, RowBlockBootstrap, effective_rows, fixed_b_scale, row_block_bootstrap,
+    AlignedRows, MIN_EFFECTIVE_ROWS, RowBlockBootstrap, RowBlockDraws, aligned_block_bootstrap,
+    common_time_window, dependence_block_length, effective_rows, fixed_b_scale,
+    politis_white_block_length, row_block_bootstrap, row_block_bootstrap_vec,
 };
 pub use temporal_mediation::{
     MediationPosteriorSummary, TemporalEffectSurface, TemporalMediationBlockSe,
@@ -151,8 +158,8 @@ pub use temporal_response::{
     publish_simultaneous_band, temporal_block_length,
 };
 pub use temporal_sequential::{
-    SequentialMechanismOverlay, SequentialNodeOverlay, estimate_sequence_mechanisms,
-    estimate_sequence_overlays, estimate_sustained_window,
+    SequentialContrastDesign, SequentialMechanismOverlay, SequentialNodeOverlay,
+    estimate_sequence_mechanisms, estimate_sequence_overlays, estimate_sustained_window,
 };
 pub use temporal_sequential_tuples::{
     PreparedSequenceLevel, SequenceColumnReplacement, prepare_sequence_level,

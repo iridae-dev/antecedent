@@ -113,6 +113,52 @@ impl TemporalLinearAdjustment {
         policy: &antecedent_core::KernelPolicy,
         extra_contemporaneous: &[VariableId],
     ) -> Result<PreparedEstimationProblem, EstimationError> {
+        self.prepare_aligned_with_extras(
+            data,
+            estimand,
+            query,
+            indexer,
+            split,
+            policy,
+            extra_contemporaneous,
+        )
+        .map(|(prep, _)| prep)
+    }
+
+    /// Like [`Self::prepare`], also returning which series times the design rows
+    /// read: design row `r` is the lag window ending at series time
+    /// `rows.first_time + r`. Multi-design bootstraps use this to refit every
+    /// design on the same resampled times
+    /// ([`crate::temporal_block::aligned_block_bootstrap`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`].
+    pub fn prepare_aligned(
+        &self,
+        data: &TimeSeriesData,
+        estimand: &IdentifiedEstimand,
+        query: &TemporalEffectQuery,
+        indexer: &TemporalIndexer,
+        split: Option<&DiscoveryEstimationSplit>,
+        policy: &antecedent_core::KernelPolicy,
+    ) -> Result<(PreparedEstimationProblem, crate::temporal_block::AlignedRows), EstimationError>
+    {
+        self.prepare_aligned_with_extras(data, estimand, query, indexer, split, policy, &[])
+    }
+
+    #[allow(clippy::too_many_lines, clippy::trivially_copy_pass_by_ref)]
+    fn prepare_aligned_with_extras(
+        &self,
+        data: &TimeSeriesData,
+        estimand: &IdentifiedEstimand,
+        query: &TemporalEffectQuery,
+        indexer: &TemporalIndexer,
+        split: Option<&DiscoveryEstimationSplit>,
+        policy: &antecedent_core::KernelPolicy,
+        extra_contemporaneous: &[VariableId],
+    ) -> Result<(PreparedEstimationProblem, crate::temporal_block::AlignedRows), EstimationError>
+    {
         if self.inner.overlap != OverlapPolicy::ExplicitOverride {
             return Err(EstimationError::Overlap {
                 message: "temporal linear adjustment requires ExplicitOverride overlap policy",
@@ -210,17 +256,24 @@ impl TemporalLinearAdjustment {
             ));
         }
 
-        Ok(PreparedEstimationProblem {
-            design,
-            method: Arc::from("temporal.linear.adjustment"),
-            adjustment_set: Arc::from(adj_keys),
-            overlap: self.inner.overlap,
-            treatment_delta,
-            target_population: TargetPopulation::AllObserved,
-            treatment: Arc::from(t),
-            active,
-            control,
-        })
+        let aligned = crate::temporal_block::AlignedRows {
+            first_time: max_lag as usize + row_start,
+            rows: nrows,
+        };
+        Ok((
+            PreparedEstimationProblem {
+                design,
+                method: Arc::from("temporal.linear.adjustment"),
+                adjustment_set: Arc::from(adj_keys),
+                overlap: self.inner.overlap,
+                treatment_delta,
+                target_population: TargetPopulation::AllObserved,
+                treatment: Arc::from(t),
+                active,
+                control,
+            },
+            aligned,
+        ))
     }
 
     /// Prepare a stacked panel design (no cross-unit lag windows) with unit cluster ids

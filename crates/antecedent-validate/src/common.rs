@@ -168,6 +168,42 @@ pub trait EffectRefit: std::fmt::Debug {
         extra_contemporaneous: &[VariableId],
         ctx: &ExecutionContext,
     ) -> Result<EffectEstimate, ValidationError>;
+
+    /// Prepare the composed estimator once on the original series so resampling
+    /// checks can refit it on lag-aligned rows (each row keeping its original lag
+    /// window) instead of rebuilding lags on a resampled raw series. `None` when
+    /// this refitter has no aligned-row evaluation.
+    fn prepare_aligned(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Option<Result<AlignedRefit, ValidationError>> {
+        let _ = (data, ctx);
+        None
+    }
+}
+
+/// Refit of a composed estimator on a row map of its lag-aligned rows
+/// (`None` when the fit fails).
+pub type AlignedRowEstimate = Box<dyn FnMut(&[usize]) -> Option<f64>>;
+
+/// A composed temporal estimator prepared for evaluation on lag-aligned rows.
+pub struct AlignedRefit {
+    /// Lag-aligned rows of the prepared design.
+    pub rows: usize,
+    /// Consecutive series times one row reads (the unfolded window span).
+    pub structural_span: usize,
+    /// Refit on the aligned rows of a row map.
+    pub estimate: AlignedRowEstimate,
+}
+
+impl std::fmt::Debug for AlignedRefit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AlignedRefit")
+            .field("rows", &self.rows)
+            .field("structural_span", &self.structural_span)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Inputs shared by effect refuters.
