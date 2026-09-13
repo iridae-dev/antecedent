@@ -1169,6 +1169,14 @@ impl BayesianGComputationAte {
             if let Some(names) = problem.coef_names.as_ref() {
                 apply_coefficient_names(&mut quantities, names);
             }
+            add_modifier_mean_uncertainty(
+                problem,
+                &quantities,
+                &mut values,
+                n_draws,
+                effect_idx,
+                self.seed,
+            );
             let draws = PosteriorDraws::from_column_major(
                 PosteriorSchema { quantities: Arc::from(quantities) },
                 n_draws,
@@ -1230,6 +1238,14 @@ impl BayesianGComputationAte {
         if let Some(names) = problem.coef_names.as_ref() {
             apply_coefficient_names(&mut quantities, names);
         }
+        add_modifier_mean_uncertainty(
+            problem,
+            &quantities,
+            &mut values,
+            n_draws,
+            effect_idx,
+            self.seed,
+        );
 
         let draws = PosteriorDraws::from_column_major(
             PosteriorSchema { quantities: Arc::from(quantities) },
@@ -1330,6 +1346,57 @@ pub fn coefficient_names_from_design(
         })
         .collect();
     Arc::from(names)
+}
+
+/// Modifier-mean uncertainty for [`BayesianGComputationAte::prepare_conditional`].
+///
+/// The conditional design centres the interaction at the observed modifier
+/// mean `w̄`, so g-computation over the observed rows returns `δ·β_T` per draw:
+/// the CATE averaged over the *empirical* modifier distribution, held fixed.
+/// The reported functional averages over the population modifier
+/// distribution, so each draw adds `δ·β_{T×W}·(μ_w − w̄)` with `μ_w` a Rubin
+/// Bayesian-bootstrap draw of the modifier mean (`Σ ω_i w_i`,
+/// `ω ~ Dirichlet(1, …, 1)`). Without it the interval under-covers whenever
+/// `β_{T×W} ≠ 0`. Non-conditional designs are left untouched.
+fn add_modifier_mean_uncertainty(
+    problem: &PreparedBayesianProblem,
+    quantities: &[PosteriorQuantityKind],
+    values: &mut [f64],
+    n_draws: usize,
+    effect_idx: usize,
+    seed: u64,
+) {
+    let conditional = problem.coef_names.as_deref().is_some_and(|names| {
+        names.get(3).is_some_and(|n| n.as_ref() == "treatment_centered_modifier")
+    });
+    if !conditional || n_draws == 0 {
+        return;
+    }
+    let Some(interaction) = quantities
+        .iter()
+        .position(|q| matches!(q, PosteriorQuantityKind::Coefficient { index: 3, .. }))
+    else {
+        return;
+    };
+    let nrows = problem.design.nrows;
+    if nrows == 0 || problem.design.ncols < 4 {
+        return;
+    }
+    let w = &problem.design.matrix[2 * nrows..3 * nrows];
+    let w_bar = w.iter().sum::<f64>() / nrows as f64;
+    let delta = problem.active - problem.control;
+    let mut rng = antecedent_core::CausalRng::from_seed(seed ^ 0x4D4F_4449_4649_4552);
+    for d in 0..n_draws {
+        let mut total = 0.0;
+        let mut weighted = 0.0;
+        for &wi in w {
+            let e = -rng.next_f64().max(f64::MIN_POSITIVE).ln();
+            total += e;
+            weighted += e * (wi - w_bar);
+        }
+        let beta_tw = values[interaction * n_draws + d];
+        values[effect_idx * n_draws + d] += delta * beta_tw * (weighted / total);
+    }
 }
 
 /// Apply durable names onto coefficient quantities (in place).

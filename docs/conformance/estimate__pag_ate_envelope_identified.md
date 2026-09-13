@@ -51,9 +51,15 @@ frozen-weight mixture on the shared rows. It pins:
   includes the sampling variation of the modifier mean).
 
 The Bayesian values are seeded output pins (conjugate, 64 draws, prior scale
-10, seed 1): the envelope mean and SD of the draw-level mixture of
-per-completion posteriors. That SD includes between-completion spread, so it
-exceeds the Frequentist SE of the mixture functional.
+10, seed 1): mean `0.3755322225001672` and SD `0.02183085569669244` for the
+ATE, `0.37720213089058047` / `0.02027592757333499` for the ConditionalEffect.
+The draws are the posterior of the frozen-weight mixture functional: each
+completion's own posterior, rank-coupled across completions by their
+influence-function correlation on the shared rows. The SD is therefore
+comparable to the Frequentist joint-IF SE; it is not the spread of
+completion-specific effects (a completion-picking BMA over-covered the
+mixture functional at 99.8–100% in the 1.9 calibration). ConditionalEffect
+draws also carry Bayesian-bootstrap uncertainty in the modifier mean.
 
 Consumer: `crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs`
 (explicit and accepted PAG × `none`/`cheap`/`full`, Frequentist and Bayesian,

@@ -82,7 +82,10 @@ pub use crossfit_aipw::{
     crossfit_binary_scores, thresholds_of, weighted_support,
 };
 pub use design_compile::{CovariateSpec, compile_adjustment_design};
-pub use envelope::{EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope};
+pub use envelope::{
+    EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope,
+    aggregate_mixture_functional_envelope, couple_mixture_functional_draws,
+};
 pub use error::EstimationError;
 pub use estimator::{Estimator, TabularAteEstimator};
 pub use frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem};

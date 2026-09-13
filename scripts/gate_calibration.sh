@@ -143,6 +143,27 @@ run_temporal_frequentist temporal_dag_mediation_ar09_n160_short_series_boundary
 run_temporal_frequentist temporal_dag_pulse_ar09_n60_short_series_boundary
 run_temporal_frequentist temporal_dag_mediation_ar09_n60_short_series_boundary
 
+echo "== 1.9 static envelope / tier coverage (antecedent, release) =="
+run_static_envelope() {
+  local filter="$1"
+  echo "== antecedent: ${filter} =="
+  cargo test --release -p antecedent --test v19_static_envelope_calibration "$filter" \
+    -- --ignored --nocapture --exact
+}
+run_static_envelope static_cpdag_ate_envelope_frequentist_nominal_90_coverage
+run_static_envelope static_cpdag_ate_envelope_bayesian_nominal_90_coverage
+run_static_envelope static_pag_ate_envelope_frequentist_nominal_90_coverage
+run_static_envelope static_pag_ate_envelope_bayesian_nominal_90_coverage
+run_static_envelope conditional_effect_dag_frequentist_nominal_90_coverage
+run_static_envelope conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage
+run_static_envelope conditional_effect_dag_bayesian_nominal_90_coverage
+run_static_envelope conditional_effect_cpdag_frequentist_nominal_90_coverage
+run_static_envelope conditional_effect_cpdag_bayesian_nominal_90_coverage
+run_static_envelope conditional_effect_pag_frequentist_nominal_90_coverage
+run_static_envelope conditional_effect_pag_bayesian_nominal_90_coverage
+run_static_envelope codetermined_aipw_closure_nominal_90_coverage
+run_static_envelope unknown_two_scenario_joint_band_nominal_95_coverage
+
 echo "== Bayesian posterior calibration (antecedent-validate) =="
 run_ignored antecedent-validate \
   bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform

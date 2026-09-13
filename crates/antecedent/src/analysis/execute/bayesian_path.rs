@@ -310,12 +310,28 @@ impl super::Study {
                 prior: est.prior.clone(),
             });
         }
-        let mut posterior = aggregate_effect_envelope(
-            &graphs,
-            &per_graph,
-            InferenceDiagnostics::analytic(format!("{class_tag}_envelope")),
-            EnvelopeOptions::default(),
-        )
+        // Completion weights here are a frozen enumeration of an equivalence
+        // class, not data-updated graph probabilities, and the reported number
+        // is the frozen-weight mixture functional. Publish its posterior (atoms
+        // coupled by their sampling correlation on the shared rows) rather than
+        // the BMA spread over completion-specific effects, which over-covers
+        // the mixture functional whenever completions disagree.
+        let coupling =
+            static_envelope_atom_correlation(data, query, conditional, &atoms, &self.query, ctx);
+        let mut posterior = match &coupling {
+            Some(correlation) => antecedent_estimate::aggregate_mixture_functional_envelope(
+                &graphs,
+                &per_graph,
+                correlation,
+                InferenceDiagnostics::analytic(format!("{class_tag}_envelope")),
+            ),
+            None => aggregate_effect_envelope(
+                &graphs,
+                &per_graph,
+                InferenceDiagnostics::analytic(format!("{class_tag}_envelope")),
+                EnvelopeOptions::default(),
+            ),
+        }
         .map_err(CausalError::from)?;
         retain_envelope_assumptions(&mut posterior, &atoms);
         if let Some(summary) = envelope_conflict {
@@ -330,6 +346,26 @@ impl super::Study {
 
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(envelope_diagnostic);
+        diagnostics.push(if coupling.is_some() {
+            Diagnostic::new(
+                "estimate.envelope.bayesian_mixture_functional",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "posterior draws describe the frozen-weight mixture functional over identified \
+                 completions (each completion's posterior, rank-coupled by the completions' \
+                 sampling correlation on shared rows); they are not a distribution over \
+                 completion-specific effects",
+            )
+        } else {
+            Diagnostic::new(
+                "estimate.envelope.bayesian_mixture_coupling_unavailable",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                "completion influence functions could not be aligned on shared rows; posterior \
+                 draws are the identified-completion BMA, whose spread includes between-completion \
+                 disagreement and is not an interval for the mixture functional",
+            )
+        });
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.push(Diagnostic::new(
@@ -2509,4 +2545,69 @@ pub(super) fn envelope_draws_from_posterior(
     let draws =
         posterior.draws.column(col).map_err(|e| CausalError::Compile { message: e.to_string() })?;
     Ok(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws.to_vec()) })
+}
+
+/// Sampling correlation of static envelope atoms on their shared rows.
+///
+/// Each atom's Frequentist influence function (linear adjustment for the ATE,
+/// the conditional linear functional for ConditionalEffect) is aligned to the
+/// original rows; the correlation of those IFs couples the atoms' Bayesian
+/// posteriors in [`antecedent_estimate::aggregate_mixture_functional_envelope`].
+/// `None` when any atom lacks an aligned IF (the caller then keeps the BMA and
+/// says so).
+fn static_envelope_atom_correlation(
+    data: &TabularData,
+    query: &AverageEffectQuery,
+    conditional: bool,
+    atoms: &[EnvelopeAtomFit],
+    full_query: &CausalQuery,
+    ctx: &ExecutionContext,
+) -> Option<Vec<f64>> {
+    let mut ifs = Vec::with_capacity(atoms.len());
+    for atom in atoms {
+        let estimate = if conditional {
+            let CausalQuery::ConditionalEffect(cq) = full_query else {
+                return None;
+            };
+            let mut mean_query = cq.clone();
+            mean_query.inner.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
+            ConditionalLinearAdjustment::new()
+                .estimate(data, &atom.estimand, &mean_query, ctx)
+                .ok()?
+        } else {
+            let mut ws = StaticEstimateWorkspaces::default();
+            estimate_static_effect(
+                &crate::estimator_spec::EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
+                data,
+                &atom.estimand,
+                query,
+                antecedent_core::AssumptionSet::default(),
+                0,
+                None,
+                None,
+                ctx,
+                &mut ws,
+            )
+            .ok()?
+        };
+        let aligned =
+            static_aligned_influence(data, query, &atom.estimand, estimate.influence.as_deref()?)?;
+        if aligned.iter().any(|v| !v.is_finite()) {
+            return None;
+        }
+        ifs.push(aligned);
+    }
+    let k = ifs.len();
+    let norms: Vec<f64> = ifs.iter().map(|f| f.iter().map(|v| v * v).sum::<f64>().sqrt()).collect();
+    if norms.iter().any(|n| !(*n > 0.0)) {
+        return None;
+    }
+    let mut corr = vec![0.0; k * k];
+    for a in 0..k {
+        for b in 0..k {
+            let dot: f64 = ifs[a].iter().zip(&ifs[b]).map(|(x, y)| x * y).sum();
+            corr[a * k + b] = (dot / (norms[a] * norms[b])).clamp(-1.0, 1.0);
+        }
+    }
+    Some(corr)
 }
