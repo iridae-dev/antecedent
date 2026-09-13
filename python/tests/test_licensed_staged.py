@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import math
 import pathlib
 
 import numpy as np
 import pytest
+
+from _repo_text import load_json
 
 pytest.importorskip("antecedent")
 import antecedent
@@ -174,10 +175,8 @@ _IR = antecedent.InterventionResponse(
 # unlike most fixtures in this file this coordinate has a real known-truth value to
 # compare against, not just self-consistency between `analyze()` and `PreparedAnalysis`.
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-_IR_FIXTURE = json.loads(
-    (
-        _REPO_ROOT / "conformance" / "response" / "intervention_response" / "expected.json"
-    ).read_text()
+_IR_FIXTURE = load_json(
+    _REPO_ROOT / "conformance" / "response" / "intervention_response" / "expected.json"
 )
 _IR_TRUE_RESPONSE = _IR_FIXTURE["contract"]["true_response"]
 _IR_TOLERANCE = _IR_FIXTURE["tolerance"]["truth_absolute"]

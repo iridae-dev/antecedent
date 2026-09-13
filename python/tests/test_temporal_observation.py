@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import numpy as np
 import pytest
+
+from _repo_text import load_json
 
 pytest.importorskip("antecedent")
 import antecedent
@@ -16,9 +17,7 @@ from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Set
 
 _ROOT = Path(__file__).resolve().parents[2]
-_PIN = json.loads(
-    (_ROOT / "conformance" / "response" / "temporal_observation" / "expected.json").read_text()
-)
+_PIN = load_json(_ROOT / "conformance" / "response" / "temporal_observation" / "expected.json")
 _EDGES = [("t", 1, "y", 0), ("t", 2, "y", 0)]
 _TRUTH = np.asarray(_PIN["surface"]["mean"], dtype=float)
 _ATOL = float(_PIN["atol"])

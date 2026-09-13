@@ -27,6 +27,8 @@ from typing import Any
 
 import pytest
 
+from _repo_text import read_text
+
 pytest.importorskip("antecedent")
 from antecedent import _native
 
@@ -42,7 +44,7 @@ _STUB_ONLY = {
 
 
 def _stub_toplevel_names() -> set[str]:
-    tree = ast.parse(_STUB.read_text())
+    tree = ast.parse(read_text(_STUB))
     names: set[str] = set()
     for node in tree.body:
         if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -176,7 +178,7 @@ _MUST_BE_CHECKED = (
 
 
 def _stub_functions() -> dict[str, ast.FunctionDef]:
-    tree = ast.parse(_STUB.read_text())
+    tree = ast.parse(read_text(_STUB))
     return {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
 
 

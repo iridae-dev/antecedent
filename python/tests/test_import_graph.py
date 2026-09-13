@@ -28,6 +28,8 @@ from pathlib import Path
 
 import pytest
 
+from _repo_text import read_text
+
 # Deliberately no `importorskip("antecedent")`: these checks are pure AST and subprocess
 # work, and the acyclicity guard is most valuable exactly when the package has become
 # unimportable. Requiring the import here would turn its explanatory failure into a bare
@@ -73,7 +75,7 @@ def _module_scope_edges() -> dict[str, set[str]]:
 
     for path in sorted(PKG.glob("*.py")):
         visitor = Visitor()
-        visitor.visit(ast.parse(path.read_text()))
+        visitor.visit(ast.parse(read_text(path)))
         edges[path.stem] = visitor.found
     return edges
 

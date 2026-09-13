@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-import json
 import pathlib
 
 import numpy as np
 import pytest
 
+from _repo_text import load_json
+
 antecedent = pytest.importorskip("antecedent")
 
 
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
-_PIN = json.loads(
-    (_ROOT / "conformance" / "estimate" / "temporal_class_envelope" / "expected.json").read_text()
-)
+_PIN = load_json(_ROOT / "conformance" / "estimate" / "temporal_class_envelope" / "expected.json")
 
 
 def _series(pin: dict) -> dict[str, np.ndarray]:

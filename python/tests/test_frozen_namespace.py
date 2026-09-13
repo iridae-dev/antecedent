@@ -22,6 +22,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from _repo_text import read_text
+
 pytest.importorskip("antecedent")
 import antecedent
 
@@ -307,7 +309,7 @@ def test_all_has_no_duplicates():
 
 
 def test_api_naming_counts_match_the_frozen_surfaces():
-    text = (Path(__file__).resolve().parents[2] / "docs" / "api_naming.md").read_text()
+    text = read_text(Path(__file__).resolve().parents[2] / "docs" / "api_naming.md")
     assert f"frozen at {len(antecedent.__all__)} names" in text
     assert f"**{len(_EXPECTED_UNLISTED_BUT_REACHABLE)}** further modules" in text
 
@@ -343,7 +345,7 @@ def _deliberate_unlisted_reachable_imports_from_init_py() -> set[str]:
     matching update here, fails this test instead of silently drifting.
     """
 
-    source = Path(antecedent.__file__).read_text()
+    source = read_text(Path(antecedent.__file__))
     tree = ast.parse(source, filename=antecedent.__file__)
     names: set[str] = set()
     for node in ast.walk(tree):

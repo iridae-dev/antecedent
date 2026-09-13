@@ -2,23 +2,20 @@
 
 from __future__ import annotations
 
-import json
 import pathlib
 from typing import Any
 
 import numpy as np
 import pytest
 
+from _repo_text import load_json
+
 antecedent = pytest.importorskip("antecedent")
 
 
 _ROOT = pathlib.Path(__file__).resolve().parents[2]
-_ATE = json.loads(
-    (_ROOT / "conformance" / "estimate" / "cpdag_ate_envelope" / "expected.json").read_text()
-)
-_CLASS = json.loads(
-    (_ROOT / "conformance" / "response" / "class_aware_envelope" / "expected.json").read_text()
-)
+_ATE = load_json(_ROOT / "conformance" / "estimate" / "cpdag_ate_envelope" / "expected.json")
+_CLASS = load_json(_ROOT / "conformance" / "response" / "class_aware_envelope" / "expected.json")
 
 
 def _expand_contingency(pin: dict[str, Any]) -> dict[str, np.ndarray]:
