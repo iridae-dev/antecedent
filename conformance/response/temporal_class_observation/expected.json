@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "case": "temporal_class_observation",
+  "notes": "Incomplete-class observation uses per-completion IPCW or observed-data Bayes. Complete-data bands are not reused.",
+  "licensed_pairs": ["Selected x OutcomeIndependentGiven"],
+  "refused": ["delayed_entry", "interval", "truncation"]
+}
