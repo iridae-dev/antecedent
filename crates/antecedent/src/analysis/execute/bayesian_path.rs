@@ -1692,7 +1692,8 @@ impl super::Study {
 
     /// Mix a DBN posterior into a Bayesian temporal-mediation envelope.
     ///
-    /// Each atom uses that atom's per-horizon `I(h)` cache. Unidentified atoms
+    /// Each atom uses that atom's per-horizon mediation set `S(h)` (its `I(h)`
+    /// plus mediator/outcome confounders). Unidentified atoms
     /// keep their mass. Priors do not upgrade identification.
     pub(super) fn execute_dbn_posterior_mediation(
         &self,
@@ -2087,8 +2088,9 @@ impl super::Study {
                 "identify.temporal_mediation.horizon_dependent",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "adjustment sets differ across requested horizons; each contrast uses I(h) \
-                 identified for that horizon, not a shared max-horizon set",
+                "adjustment sets differ across requested horizons; each contrast uses S(h) = I(h) \
+                 plus mediator-outcome confounders identified for that horizon, not a shared \
+                 max-horizon set",
             ));
         }
         if distinct_z {

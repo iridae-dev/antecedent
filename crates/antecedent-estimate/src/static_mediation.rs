@@ -605,3 +605,92 @@ fn compose_linear_natural(
     }
     Ok((total[query.outcome.as_usize()], direct[query.outcome.as_usize()]))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use antecedent_core::{Intervention, Value};
+
+    /// `w`, `t` independent; `m = 0.6 t + 0.5 w + e`, `y = 0.4 t + 0.5 m + 0.7 w + e`.
+    /// `w` confounds the mediator-outcome relation but not `t -> y`.
+    #[allow(clippy::many_single_char_names)]
+    fn confounded_mediator(n: usize) -> TabularData {
+        let mut rng = ExecutionContext::for_tests(5).rng.stream(0x0057_A71C);
+        let mut draw = || rng.next_f64() - 0.5;
+        let (mut t, mut m, mut y, mut w) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+        for i in 0..n {
+            w[i] = draw();
+            t[i] = draw();
+            m[i] = 0.6 * t[i] + 0.5 * w[i] + 0.3 * draw();
+            y[i] = 0.4 * t[i] + 0.5 * m[i] + 0.7 * w[i] + 0.3 * draw();
+        }
+        TabularData::from_f64_columns([("t", &t[..]), ("m", &m[..]), ("y", &y[..]), ("w", &w[..])])
+            .unwrap()
+    }
+
+    fn graph(with_confounder: bool) -> Dag {
+        let mut dag = Dag::with_variables(4);
+        let [t, m, y, w] = [0, 1, 2, 3].map(DenseNodeId::from_raw);
+        dag.insert_directed(t, m).unwrap();
+        dag.insert_directed(t, y).unwrap();
+        dag.insert_directed(m, y).unwrap();
+        if with_confounder {
+            dag.insert_directed(w, m).unwrap();
+            dag.insert_directed(w, y).unwrap();
+        }
+        dag
+    }
+
+    /// The static path regresses every node on its full graph parent set, so a
+    /// mediator-outcome confounder that is a graph parent of `m` and `y` is
+    /// adjusted in both inference modes (the omission fixed on the temporal
+    /// path in 1.9 does not exist here). Dropping the `w` edges from the graph
+    /// reproduces the omitted-confounder bias, so the check is sensitive.
+    #[test]
+    fn mediator_outcome_confounder_is_adjusted_in_both_modes() {
+        let data = confounded_mediator(20_000);
+        let ctx = ExecutionContext::for_tests(3);
+        let truths = [0.4 + 0.6 * 0.5, 0.4, 0.6 * 0.5];
+        let mut q = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::NaturalIndirect,
+        );
+        q.control = Intervention::set(q.treatment, Value::f64(0.0));
+        q.active = Intervention::set(q.treatment, Value::f64(1.0));
+        let freq =
+            estimate_static_mediation(&data, &graph(true), &q, AssumptionSet::new(), 0, &[], &ctx)
+                .unwrap();
+        let bayes = estimate_static_mediation_bayesian(
+            &data,
+            &graph(true),
+            &q,
+            AssumptionSet::new(),
+            &[],
+            &crate::BayesianGComputationAte::conjugate(),
+            antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            None,
+            &ctx,
+        )
+        .unwrap()
+        .0;
+        for (label, est) in [("frequentist", &freq), ("bayesian", &bayes)] {
+            for (name, got, want) in [
+                ("total", est.total.unwrap(), truths[0]),
+                ("direct", est.direct.unwrap(), truths[1]),
+                ("mediated", est.mediated.unwrap(), truths[2]),
+            ] {
+                assert!((got - want).abs() < 0.02, "{label} {name}: {got} vs {want}");
+            }
+        }
+        let omitted =
+            estimate_static_mediation(&data, &graph(false), &q, AssumptionSet::new(), 0, &[], &ctx)
+                .unwrap();
+        assert!(
+            (omitted.mediated.unwrap() - truths[2]).abs() > 0.1,
+            "omitting w must bias the mediated effect, got {}",
+            omitted.mediated.unwrap()
+        );
+    }
+}
