@@ -123,20 +123,21 @@ pub fn estimate_static_mediation(
         MediationContrast::Mediated | MediationContrast::NaturalIndirect => total - direct,
     };
     let (total, direct) = fit(&rows)?;
-    let mut draws = Vec::new();
-    for rep in 0..replicates {
-        let mut rng = ctx.rng.stream(0x1300_1000 + u64::from(rep));
-        let sample: Vec<_> = (0..rows.len())
-            .map(|_| rows[(rng.next_f64() * rows.len() as f64) as usize % rows.len()])
-            .collect();
-        draws.push(contrast(fit(&sample)?));
-    }
-    let se = if draws.len() > 1 {
-        let mean = draws.iter().sum::<f64>() / draws.len() as f64;
-        (draws.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (draws.len() - 1) as f64).sqrt()
-    } else {
-        f64::NAN
-    };
+    // Shared tolerant bootstrap: a singular or under-determined replicate is a
+    // soft failure (counted, the loop continues), cancellation aborts, and more
+    // than half failed withholds the SE. Replicate accounting is the real count.
+    let mut sample = Vec::with_capacity(rows.len());
+    let boot = crate::util::bootstrap_se(replicates, ctx, 0x1300_1000, rows.len(), |idx| {
+        sample.clear();
+        sample.extend(idx.iter().map(|&i| rows[i]));
+        match fit(&sample) {
+            Ok(fitted) => Ok(Some(contrast(fitted))),
+            Err(_) if ctx.cancellation.is_cancelled() => {
+                Err(EstimationError::unsupported("static mediation cancelled"))
+            }
+            Err(_) => Ok(None),
+        }
+    })?;
     assumptions.push(AssumptionRecord {
         assumption:Assumption::ParametricRestriction(ParametricAssumption {
             id:Arc::from("mediation.additive_linear"),
@@ -144,15 +145,13 @@ pub fn estimate_static_mediation(
         }), source:AssumptionSource::AlgorithmDefault{algorithm:Arc::from("estimate.mediation.linear")},
         scope:AssumptionScope::Estimation,status:AssumptionStatus::Declared,
     });
-    let mut effect = EffectEstimate::new(
+    let effect = EffectEstimate::new(
         contrast((total, direct)),
         f64::NAN,
         assumptions,
         OverlapPolicy::ExplicitOverride,
-    );
-    effect.se_bootstrap = se.is_finite().then_some(se);
-    effect.bootstrap_replicates_ok = (replicates > 0).then_some(replicates);
-    effect.bootstrap_replicates_failed = (replicates > 0).then_some(0);
+    )
+    .with_bootstrap((replicates > 0).then_some(boot));
     Ok(TemporalMediationEstimate {
         effect,
         total: Some(total),
@@ -692,5 +691,46 @@ mod tests {
             "omitting w must bias the mediated effect, got {}",
             omitted.mediated.unwrap()
         );
+    }
+
+    /// A rare binary mediator makes some pairs resamples singular (the mediator
+    /// is constant); those replicates are counted as failures and the rest still
+    /// publish an SE, instead of the first singular replicate aborting the run.
+    #[test]
+    fn singular_bootstrap_replicates_are_counted_not_fatal() {
+        let n = 14u32;
+        let t: Vec<f64> = (0..n).map(|i| f64::from(i) / 7.0 - 1.0).collect();
+        let m: Vec<f64> = (0..n).map(|i| f64::from(u8::from(i == 3 || i == 10))).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| {
+                let r = i as usize;
+                0.5 * t[r] + 2.0 * m[r] + 0.1 * (f64::from(i) * 1.7).sin()
+            })
+            .collect();
+        let data = TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("m", m.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap();
+        let mut graph = Dag::with_variables(3);
+        for (a, b) in [(0, 1), (0, 2), (1, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            Arc::from([VariableId::from_raw(1)]),
+            MediationContrast::NaturalDirect,
+        );
+        let ctx = ExecutionContext::for_tests(5);
+        let out =
+            estimate_static_mediation(&data, &graph, &query, AssumptionSet::new(), 60, &[], &ctx)
+                .unwrap();
+        let ok = out.effect.bootstrap_replicates_ok.unwrap();
+        let failed = out.effect.bootstrap_replicates_failed.unwrap();
+        assert_eq!(ok + failed, 60);
+        assert!(failed > 0, "a constant-mediator resample must be counted as failed");
+        assert!(out.effect.se_bootstrap.is_some_and(f64::is_finite));
     }
 }
