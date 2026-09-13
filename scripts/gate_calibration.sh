@@ -164,6 +164,12 @@ run_static_envelope conditional_effect_pag_bayesian_nominal_90_coverage
 run_static_envelope codetermined_aipw_closure_nominal_90_coverage
 run_static_envelope unknown_two_scenario_joint_band_nominal_95_coverage
 
+echo "== 1.9 temporal response surfaces: pointwise + simultaneous bands (antecedent) =="
+# One invocation runs every ignored test in the file (Frequentist / Bayesian
+# TemporalDag surfaces, observation-adjusted pairs, horizon-dependent I(h), and
+# TemporalCpdag / TemporalPag completion atoms, iid and AR(1) residuals).
+cargo test --release -p antecedent --test v19_temporal_response_calibration -- --ignored --nocapture
+
 echo "== Bayesian posterior calibration (antecedent-validate) =="
 run_ignored antecedent-validate \
   bayesian_checks::tests::calibration_gate::sbc_conjugate_gaussian_ranks_are_uniform
