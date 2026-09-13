@@ -1340,7 +1340,12 @@ impl super::Study {
         if !estimate.se_analytic.is_finite() {
             diagnostics.push(envelope_se_omits_between_atom_variance());
         }
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        // Disclose only when the envelope actually dropped per-completion
+        // posterior uncertainty; a single contributing completion keeps its own
+        // band and nothing is omitted.
+        let atom_uncertainty_dropped = matches!(mixed.uncertainty, ResponseUncertainty::None)
+            && weighted.iter().any(|(_, _, r)| !matches!(r.uncertainty, ResponseUncertainty::None));
+        if matches!(self.inference, InferenceMode::Bayesian(_)) && atom_uncertainty_dropped {
             diagnostics.push(Diagnostic::new(
                 "estimate.envelope.response_posterior_not_mixed",
                 DiagnosticKind::Scientific,

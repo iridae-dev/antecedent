@@ -2627,6 +2627,7 @@ impl super::Study {
                 weight: w,
                 estimand,
                 indexer: Some(indexer.clone()),
+                original: estimate,
             });
         }
         if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
@@ -2687,7 +2688,6 @@ impl super::Study {
         let (refutations, na_diagnostics) = run_envelope_effect_refuters(
             &tabular,
             &ate_q,
-            &estimate,
             &refute_atoms,
             &mut refute_ws,
             ctx,
@@ -3324,13 +3324,13 @@ impl super::Study {
         let mut refutations = Vec::new();
         let mut predictive_checks = Vec::new();
         for atom in &atoms {
-            let atom_estimate = effect_from_posterior(&atom.posterior)?;
+            let refute_atom = EnvelopeRefuteAtom::from_fit(atom)?;
+            let atom_ate = refute_atom.original.ate;
             let start = refutations.len();
             let (reports, na_diagnostics) = run_envelope_effect_refuters(
                 &tabular,
                 &ate_q,
-                &atom_estimate,
-                &[EnvelopeRefuteAtom::from(atom)],
+                std::slice::from_ref(&refute_atom),
                 &mut refute_ws,
                 ctx,
                 self.refute,
@@ -3351,7 +3351,7 @@ impl super::Study {
                 &atom_estimator,
                 std::slice::from_ref(atom),
                 &mut atom_posterior,
-                atom_estimate.ate,
+                atom_ate,
                 ctx,
                 &mut refutations,
                 &mut diagnostics,

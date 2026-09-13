@@ -401,6 +401,11 @@ fn manufacturing_dbn_posterior_frequentist_shared_block_bootstrap() {
     assert!(result.diagnostics.iter().any(|diagnostic| {
         diagnostic.code.as_ref() == "estimate.dbn_posterior.frequentist"
             && diagnostic.message.contains("shared circular-block")
+            // I-5: same aggregate-interval statement as the class-envelope diagnostic.
+            && diagnostic.message.contains(
+                "the interval is for the reported aggregate, not a distribution over \
+                 graph-specific effects",
+            )
     }));
 }
 
