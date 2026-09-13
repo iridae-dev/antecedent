@@ -74,6 +74,11 @@ const PSEUDO_OUTCOME_WINSOR_SHIFT_BOUND: f64 = 0.25;
 /// binary or small-categorical variables stay well inside it.
 const MAX_EXACT_MIXTURE_COMBINATIONS: usize = 4096;
 
+/// Roughness penalty for the additive-GAM plug-in *target* (Jacobian /
+/// directional derivative). Zero: an unpenalized regression spline, so the
+/// published gradient carries only sieve-approximation bias, not shrinkage.
+const PLUGIN_TARGET_LAMBDA: f64 = 0.0;
+
 /// Cross-fitted Kennedy pseudo-outcome with its positivity accounting.
 struct PseudoOutcome {
     values: Vec<f64>,
@@ -596,16 +601,27 @@ impl ContinuousResponseEstimator {
                     }
                     _ => unreachable!(),
                 };
-                // This frequentist warning describes a withheld delta interval;
-                // the transformed posterior draws below supply an interval.
+                // The Frequentist withheld / bias-corrected notes describe the
+                // analytic interval; the draws below supply their own interval and
+                // their own disclosure.
                 support.warnings.retain(|warning| {
-                    warning.code.as_ref() != "response.derivative_interval_withheld"
+                    !matches!(
+                        warning.code.as_ref(),
+                        "response.derivative_interval_withheld"
+                            | "response.derivative_interval_bias_corrected"
+                    )
                 });
+                let point_derivative =
+                    matches!(query.functional, ResponseFunctional::PointDerivative { .. });
+                if point_derivative {
+                    support.warnings.push(bias_corrected_interval_note(true));
+                }
                 let mut rng = ctx.rng.stream(0xADEB_0002);
-                // Hold cross-fitted nuisances and bandwidth fixed for the point
-                // estimator, matching its existing uncertainty convention. GAM
-                // draws refit coefficients with continuous row weights.
-                let (samples, pseudo, bandwidth) = match &query.functional {
+                // Every draw refits its nuisances: point draws rebuild the
+                // cross-fitted Kennedy pseudo-outcome under the draw's row weights
+                // (the bandwidth is the caller's fixed value, never data-selected);
+                // GAM draws refit coefficients with the same continuous weights.
+                let (samples, bandwidth) = match &query.functional {
                     ResponseFunctional::PointDerivative { outcome, treatment, .. } => {
                         let sample = CompleteSample::read(
                             data,
@@ -613,12 +629,11 @@ impl ContinuousResponseEstimator {
                             &[*treatment],
                             &self.adjustment_set,
                         )?;
-                        let pseudo = self.cross_fitted_pseudo_outcome(&sample)?.values;
                         let bandwidth = self
                             .options
                             .bandwidth
                             .unwrap_or(silverman_bandwidth(&sample.treatments)?);
-                        (vec![sample], pseudo, bandwidth)
+                        (vec![sample], bandwidth)
                     }
                     ResponseFunctional::DirectionalDerivative { outcomes, treatments, .. }
                     | ResponseFunctional::Jacobian { outcomes, treatments, .. } => (
@@ -628,21 +643,25 @@ impl ContinuousResponseEstimator {
                             treatments,
                             &self.adjustment_set,
                         )?,
-                        Vec::new(),
                         0.0,
                     ),
                     _ => unreachable!(),
                 };
                 let n = samples[0].len();
+                // Point draws: (local-quadratic coordinate, bias-corrected coordinate).
                 let mut scalars = Vec::with_capacity(draws_n);
+                let mut corrected_scalars = Vec::with_capacity(draws_n);
                 let mut vectors: Vec<Vec<f64>> = Vec::with_capacity(draws_n);
                 for _ in 0..draws_n {
                     if ctx.cancellation.is_cancelled() {
                         return Err(EstimationError::unsupported("Bayesian derivative cancelled"));
                     }
                     let weights = bootstrap_weights(n, &mut rng);
-                    let draw = match &query.functional {
+                    match &query.functional {
                         ResponseFunctional::PointDerivative { at, order, scale, .. } => {
+                            let pseudo = self
+                                .cross_fitted_pseudo_outcome_weighted(&samples[0], Some(&weights))?
+                                .values;
                             let p = antecedent_stats::gaussian_local_quadratic_weighted(
                                 &samples[0].treatments,
                                 &pseudo,
@@ -650,14 +669,29 @@ impl ContinuousResponseEstimator {
                                 bandwidth,
                                 &weights,
                             )?;
-                            ResponseValue::Scalar(transform_point_derivative(
+                            scalars.push(transform_point_derivative(
                                 p.value,
                                 p.first_derivative,
                                 p.second_derivative,
                                 *at,
                                 *order,
                                 *scale,
-                            )?)
+                            )?);
+                            let c = antecedent_stats::gaussian_local_quadratic_bias_corrected(
+                                &samples[0].treatments,
+                                &pseudo,
+                                *at,
+                                bandwidth,
+                                Some(&weights),
+                            )?;
+                            corrected_scalars.push(transform_point_derivative(
+                                c.value,
+                                c.first_derivative,
+                                c.second_derivative,
+                                *at,
+                                *order,
+                                *scale,
+                            )?);
                         }
                         ResponseFunctional::DirectionalDerivative { at, direction, .. } => {
                             let mut values = Vec::with_capacity(samples.len());
@@ -668,7 +702,7 @@ impl ContinuousResponseEstimator {
                                     gradient.iter().zip(direction.iter()).map(|(a, b)| a * b).sum(),
                                 );
                             }
-                            ResponseValue::Vector(Arc::from(values))
+                            vectors.push(values);
                         }
                         ResponseFunctional::Jacobian { at, scale, treatments, outcomes } => {
                             let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
@@ -679,29 +713,18 @@ impl ContinuousResponseEstimator {
                                     values.push(transform_derivative(raw, at[j], level, *scale)?);
                                 }
                             }
-                            ResponseValue::Jacobian {
-                                outcomes: outcomes.len(),
-                                treatments: treatments.len(),
-                                values: Arc::from(values),
-                            }
+                            vectors.push(values);
                         }
                         _ => unreachable!(),
-                    };
-                    match &draw {
-                        ResponseValue::Scalar(v) => {
-                            scalars.push(*v);
-                        }
-                        ResponseValue::Vector(v) | ResponseValue::Jacobian { values: v, .. } => {
-                            vectors.push(v.to_vec());
-                        }
-                        _ => {
-                            return Err(EstimationError::stats_msg(
-                                "Bayesian derivative draw was not point-identified",
-                            ));
-                        }
                     }
                 }
-                let (value, uncertainty) = if scalars.is_empty() {
+                let (value, uncertainty) = if point_derivative {
+                    // Reported value: posterior mean of the local-quadratic estimator.
+                    // Interval and SD: the bias-corrected draws on the same weights.
+                    let (mean, _, _, _) = summarize_scalar_draws(&scalars, level)?;
+                    let (_, lo, hi, sd) = summarize_scalar_draws(&corrected_scalars, level)?;
+                    (ResponseValue::Scalar(mean), scalar_uncertainty(sd, level, lo, hi))
+                } else {
                     let dim = vectors.first().map_or(0, Vec::len);
                     let mut means = vec![0.0; dim];
                     let mut lower = vec![0.0; dim];
@@ -731,16 +754,17 @@ impl ContinuousResponseEstimator {
                             upper: Arc::from(upper),
                         },
                     )
-                } else {
-                    let (mean, lo, hi, sd) = summarize_scalar_draws(&scalars, level)?;
-                    (ResponseValue::Scalar(mean), scalar_uncertainty(sd, level, lo, hi))
                 };
                 (
                     value,
                     uncertainty,
                     support,
                     "bayesian.derivative.estimator_bootstrap",
-                    "Dirichlet row-weight posterior of the point/GAM derivative plugin; point draws condition on cross-fitted nuisances and bandwidth, GAM draws refit with fixed knots and penalty; excludes nuisance-selection and smoothing-bias uncertainty",
+                    if point_derivative {
+                        "Dirichlet(1,...,1)/Exp(1) row-weight posterior of the Kennedy-DR point derivative: every draw refits the cross-fitted additive-GAM outcome and Gaussian treatment nuisances on its weighted training folds, rebuilds the pseudo-outcome, and evaluates the weighted local quadratic (posterior mean = reported value) and its robust bias-corrected local cubic at the same caller-fixed bandwidth (quantiles = credible interval, SD = standard_error). Held fixed: the caller bandwidth, fold assignment, spline knots, and penalty. Not a frozen-pseudo-outcome reweight. Estimator identity stays estimate.response.point_derivative"
+                    } else {
+                        "Dirichlet(1,...,1)/Exp(1) row-weight posterior of the additive-GAM plug-in gradient: every draw refits the GAM coefficients under the draw's row weights with fixed knots and penalty; pointwise quantile bands. The band inherits the additive-surface restriction and any penalized-spline smoothing bias at the evaluation point; no nuisance-selection uncertainty"
+                    },
                     provenance,
                 )
             }
@@ -1149,10 +1173,30 @@ impl ContinuousResponseEstimator {
             order,
             scale,
         )?;
+        // The published interval is robust bias-corrected (CCT, pilot bandwidth
+        // = h): centered at the local-cubic coordinate and studentized by its own
+        // sandwich. The conventional local-quadratic interval ignores the
+        // O(h²·m''') smoothing bias of m̂' and under-covers the true derivative
+        // at an MSE-sized bandwidth (tests/v19_derivative_calibration.rs).
+        let corrected = antecedent_stats::gaussian_local_quadratic_bias_corrected(
+            &sample.treatments,
+            &pseudo,
+            at,
+            bandwidth,
+            None,
+        )?;
+        let corrected_estimate = transform_point_derivative(
+            corrected.value,
+            corrected.first_derivative,
+            corrected.second_derivative,
+            at,
+            order,
+            scale,
+        )?;
         let derivative_se = if order == 1 {
-            local.robust_first_derivative_standard_error
+            corrected.robust_first_derivative_standard_error
         } else {
-            local.robust_second_derivative_standard_error
+            corrected.robust_second_derivative_standard_error
         };
         let standard_error = match (order, scale) {
             (1 | 2, DerivativeScale::Identity) => derivative_se,
@@ -1184,12 +1228,13 @@ impl ContinuousResponseEstimator {
             ));
         }
         let uncertainty = if standard_error.is_finite() {
+            support.warnings.push(bias_corrected_interval_note(false));
             let z = normal_ppf(0.5 + self.options.confidence_level / 2.0);
             ResponseUncertainty::Scalar {
                 standard_error,
                 level: self.options.confidence_level,
-                lower: estimate - z * standard_error,
-                upper: estimate + z * standard_error,
+                lower: corrected_estimate - z * standard_error,
+                upper: corrected_estimate + z * standard_error,
             }
         } else {
             ResponseUncertainty::None
@@ -1333,8 +1378,28 @@ impl ContinuousResponseEstimator {
         &self,
         sample: &CompleteSample,
     ) -> Result<PseudoOutcome, EstimationError> {
+        self.cross_fitted_pseudo_outcome_weighted(sample, None)
+    }
+
+    /// Cross-fitted Kennedy pseudo-outcome, optionally under row weights.
+    ///
+    /// With `weights`, every fold refits the outcome and treatment nuisances on
+    /// its weighted training rows, and the treatment scale, marginal density, and
+    /// covariate offset become weighted training-row averages. This is one
+    /// Bayesian-bootstrap draw of the whole nuisance stage, not a reweight of the
+    /// first-fit pseudo-outcome. `None` is the unweighted estimator (weights of
+    /// one, bit-identical).
+    fn cross_fitted_pseudo_outcome_weighted(
+        &self,
+        sample: &CompleteSample,
+        weights: Option<&[f64]>,
+    ) -> Result<PseudoOutcome, EstimationError> {
         let n = sample.len();
         ensure_crossfit_size(n, self.options.folds, self.options.nuisance_basis)?;
+        if weights.is_some_and(|w| w.len() != n) {
+            return Err(EstimationError::stats_msg("pseudo-outcome weights must match rows"));
+        }
+        let row_weight = |i: usize| weights.map_or(1.0, |w| w[i]);
         let mut pseudo = vec![0.0; n];
         let mut density_floor_rows = 0usize;
         let mut gam_ws = GamWorkspace::default();
@@ -1343,12 +1408,63 @@ impl ContinuousResponseEstimator {
         for fold in 0..self.options.folds {
             let train: Vec<usize> = (0..n).filter(|i| i % self.options.folds != fold).collect();
             let valid: Vec<usize> = (0..n).filter(|i| i % self.options.folds == fold).collect();
-            let outcome_fit = self.fit_outcome(sample, &train, &mut gam_ws)?;
-            let treatment_fit = self.fit_treatment(sample, &train, &mut gam_ws)?;
-            let sigma = treatment_sigma(sample, &train, treatment_fit.as_ref())?;
+            let train_weights: Option<Vec<f64>> =
+                weights.map(|_| train.iter().map(|&i| row_weight(i)).collect());
+            let train_weight_sum = match &train_weights {
+                Some(w) => w.iter().sum::<f64>(),
+                None => train.len() as f64,
+            };
+            if !train_weight_sum.is_finite() || train_weight_sum <= 0.0 {
+                return Err(EstimationError::stats_msg("fold training weights are degenerate"));
+            }
+            let (outcome_fit, treatment_fit, sigma) = match &train_weights {
+                None => {
+                    let outcome_fit = self.fit_outcome(sample, &train, &mut gam_ws)?;
+                    let treatment_fit = self.fit_treatment(sample, &train, &mut gam_ws)?;
+                    let sigma = treatment_sigma(sample, &train, treatment_fit.as_ref())?;
+                    (outcome_fit, treatment_fit, sigma)
+                }
+                Some(w) => {
+                    let y: Vec<f64> = train.iter().map(|&i| sample.outcome[i]).collect();
+                    let outcome_fit = fit_additive_weighted(
+                        &sample.raw_subset(&train),
+                        train.len(),
+                        sample.raw_cols,
+                        &y,
+                        w,
+                        self.options.nuisance_basis,
+                        self.options.nuisance_lambda,
+                        &mut gam_ws,
+                    )?;
+                    let treatment_fit = if sample.adjustment_cols == 0 {
+                        None
+                    } else {
+                        let a: Vec<f64> = train.iter().map(|&i| sample.treatments[i]).collect();
+                        Some(fit_additive_weighted(
+                            &sample.adjustment_subset(&train),
+                            train.len(),
+                            sample.adjustment_cols,
+                            &a,
+                            w,
+                            self.options.nuisance_basis,
+                            self.options.nuisance_lambda,
+                            &mut gam_ws,
+                        )?)
+                    };
+                    let sigma =
+                        treatment_sigma_train_weighted(sample, &train, w, treatment_fit.as_ref())?;
+                    (outcome_fit, treatment_fit, sigma)
+                }
+            };
             // The training-row treatment means do not depend on the validation row;
             // computing them once per fold avoids |valid| x |train| spline expansions.
-            let constant_treatment_mean = sample.train_treatment_mean(&train);
+            let constant_treatment_mean = match &train_weights {
+                None => sample.train_treatment_mean(&train),
+                Some(w) => {
+                    train.iter().zip(w).map(|(&i, wi)| wi * sample.treatments[i]).sum::<f64>()
+                        / train_weight_sum
+                }
+            };
             let train_treatment_means: Vec<f64> = match treatment_fit.as_ref() {
                 Some(fit) => {
                     let mut means = Vec::with_capacity(train.len());
@@ -1369,13 +1485,17 @@ impl ContinuousResponseEstimator {
             let treat_smooth = outcome_fit.smooth_for_raw_col(0).ok_or_else(|| {
                 EstimationError::unsupported("outcome nuisance is missing its treatment smooth")
             })?;
+            // Unit weights multiply exactly, so the unweighted path is unchanged.
+            let train_weight =
+                |position: usize| train_weights.as_ref().map_or(1.0, |w| w[position]);
             let mut covariate_offset = 0.0;
             for (position, &j) in train.iter().enumerate() {
                 let treat_partial =
                     outcome_fit.smooth_partial(treat_smooth, sample.treatments[j])?;
-                covariate_offset += outcome_fit.fitted[position] - treat_partial;
+                covariate_offset +=
+                    train_weight(position) * (outcome_fit.fitted[position] - treat_partial);
             }
-            covariate_offset /= train.len() as f64;
+            covariate_offset /= train_weight_sum;
             for &i in &valid {
                 sample.write_raw_row(i, &mut raw_row);
                 let mu_observed = predict_one(&outcome_fit, &raw_row)?;
@@ -1401,11 +1521,11 @@ impl ContinuousResponseEstimator {
                         sigma,
                     );
                 } else {
-                    for &train_mean in &train_treatment_means {
-                        marginal_density +=
-                            gaussian_density(sample.treatment_matrix[i], train_mean, sigma);
+                    for (position, &train_mean) in train_treatment_means.iter().enumerate() {
+                        marginal_density += train_weight(position)
+                            * gaussian_density(sample.treatment_matrix[i], train_mean, sigma);
                     }
-                    marginal_density /= train.len() as f64;
+                    marginal_density /= train_weight_sum;
                 }
                 let marginal_mu = covariate_offset
                     + outcome_fit.smooth_partial(treat_smooth, sample.treatment_matrix[i])?;
@@ -1564,9 +1684,21 @@ impl ContinuousResponseEstimator {
         let rows: Vec<usize> = (0..sample.len()).collect();
         let mut gam_ws = GamWorkspace::default();
         let x = sample.raw_subset(&rows);
+        // The treatment smooths define the published gradient, so they are the
+        // target, not nuisances: a roughness penalty biases them at first order
+        // (with quantile knots even a linear component sits outside the
+        // second-difference null space). Fit them as unpenalized cubic
+        // regression splines. Adjustment smooths keep `nuisance_lambda`, which
+        // also keeps low-cardinality covariates (where an unpenalized basis is
+        // singular) estimable.
         let specs: Vec<_> = (0..sample.raw_cols)
             .map(|col| {
-                SmoothSpec::new(col, self.options.nuisance_basis, self.options.nuisance_lambda)
+                let lambda = if col < sample.treatment_cols {
+                    PLUGIN_TARGET_LAMBDA
+                } else {
+                    self.options.nuisance_lambda
+                };
+                SmoothSpec::new(col, self.options.nuisance_basis, lambda)
             })
             .collect();
         let fit = antecedent_stats::fit_gam_weighted(
@@ -1673,7 +1805,7 @@ fn with_estimation_assumptions(
         ),
         ResponseFunctional::PointDerivative { .. } => (
             "response.kennedy_dr.nuisance_regularity",
-            "Kennedy response estimation uses an additive-GAM outcome nuisance and a homoskedastic Gaussian treatment-density nuisance. Consistency requires at least one nuisance family to be adequate plus continuous-treatment differentiability/positivity; the local-polynomial derivative interval conditions on the fitted nuisances and caller-selected bandwidth.",
+            "Kennedy response estimation uses an additive-GAM outcome nuisance and a homoskedastic Gaussian treatment-density nuisance. Consistency requires at least one nuisance family to be adequate plus continuous-treatment differentiability/positivity. The point value is the local-quadratic slope; the derivative interval is robust bias-corrected (local cubic at the caller bandwidth), targets the true derivative, and conditions on the fitted nuisances and that bandwidth.",
             "estimate.response.point_derivative",
         ),
         ResponseFunctional::AverageDerivative { .. } => (
@@ -2045,6 +2177,49 @@ fn treatment_sigma_weighted(
             .map(|(treatment, weight)| weight * (treatment - mean).powi(2))
             .sum::<f64>();
         (rss, (n_eff - 1.0).max(1.0))
+    };
+    let sigma = (rss / denominator).sqrt();
+    if !sigma.is_finite() || sigma <= f64::EPSILON {
+        return Err(EstimationError::unsupported(
+            "weighted Gaussian treatment nuisance has degenerate residual variance",
+        ));
+    }
+    Ok(sigma)
+}
+
+/// Weighted residual scale of a fold's treatment nuisance: `Σ w r² / (Σ w − edf)`
+/// over the training rows, with weights rescaled to sum to the row count (the
+/// normalization `fit_gam_weighted` applies to the penalty).
+fn treatment_sigma_train_weighted(
+    sample: &CompleteSample,
+    train: &[usize],
+    train_weights: &[f64],
+    fit: Option<&antecedent_stats::GamFit>,
+) -> Result<f64, EstimationError> {
+    let total: f64 = train_weights.iter().sum();
+    let rows = train.len() as f64;
+    if train_weights.len() != train.len() || !total.is_finite() || total <= 0.0 {
+        return Err(EstimationError::stats_msg("fold training weights are degenerate"));
+    }
+    let scaled = |w: f64| w * rows / total;
+    let (rss, denominator) = if let Some(fit) = fit {
+        let rss = fit
+            .residuals
+            .iter()
+            .zip(train_weights)
+            .map(|(residual, &w)| scaled(w) * residual * residual)
+            .sum::<f64>();
+        (rss, (rows - fit.edf_approx).max(1.0))
+    } else {
+        let mean =
+            train.iter().zip(train_weights).map(|(&i, &w)| w * sample.treatments[i]).sum::<f64>()
+                / total;
+        let rss = train
+            .iter()
+            .zip(train_weights)
+            .map(|(&i, &w)| scaled(w) * (sample.treatments[i] - mean).powi(2))
+            .sum::<f64>();
+        (rss, (rows - 1.0).max(1.0))
     };
     let sigma = (rss / denominator).sqrt();
     if !sigma.is_finite() || sigma <= f64::EPSILON {
@@ -2567,6 +2742,20 @@ fn transform_derivative(
     Ok(value)
 }
 
+/// Runtime disclosure attached whenever a point-derivative interval is published.
+fn bias_corrected_interval_note(bayesian: bool) -> Diagnostic {
+    Diagnostic::new(
+        "response.derivative_interval_bias_corrected",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        if bayesian {
+            "the derivative credible interval is robust bias-corrected: every Dirichlet row-weight draw refits the cross-fitted outcome and Gaussian treatment nuisances, rebuilds the Kennedy pseudo-outcome, and evaluates both the local-quadratic coordinate (averaged into the reported value) and its local-cubic bias-corrected coordinate (Calonico-Cattaneo-Titiunik, pilot bandwidth equal to the caller bandwidth; its quantiles give the interval and its SD the standard_error); the interval targets the true derivative and holds only the caller-fixed bandwidth, fold assignment, spline knots, and penalty fixed"
+        } else {
+            "the derivative interval is robust bias-corrected (Calonico-Cattaneo-Titiunik, pilot bandwidth equal to the caller bandwidth): it is centered at the local-cubic bias-corrected coordinate rather than at the reported local-quadratic point estimate, and standard_error is the bias-corrected standard error; it targets the true derivative, conditions on the caller-fixed bandwidth, and treats the cross-fitted pseudo-outcome as data"
+        },
+    )
+}
+
 fn transform_point_derivative(
     response: f64,
     first: f64,
@@ -2888,6 +3077,69 @@ mod tests {
     use antecedent_data::{TableView, TabularData};
 
     use super::*;
+
+    #[test]
+    fn bayesian_point_derivative_refits_nuisances_per_draw() {
+        let (data, a, y, x) = confounded_curve(240);
+        let mut estimator = ContinuousResponseEstimator::new([x]);
+        estimator.options.bandwidth = Some(0.35);
+        let sample = CompleteSample::read(&data, y, &[a], &[x]).unwrap();
+        let frozen = estimator.cross_fitted_pseudo_outcome(&sample).unwrap().values;
+        let ones = vec![1.0; sample.len()];
+        let unit = estimator.cross_fitted_pseudo_outcome_weighted(&sample, Some(&ones)).unwrap();
+        let unit_gap =
+            frozen.iter().zip(&unit.values).map(|(f, u)| (f - u).abs()).fold(0.0, f64::max);
+        assert!(unit_gap < 1e-9, "unit weights must reproduce the unweighted pseudo-outcome");
+        let weights: Vec<f64> =
+            (0..sample.len()).map(|i| if i % 3 == 0 { 2.2 } else { 0.4 }).collect();
+        let refit =
+            estimator.cross_fitted_pseudo_outcome_weighted(&sample, Some(&weights)).unwrap();
+        let refit_gap =
+            frozen.iter().zip(&refit.values).map(|(f, r)| (f - r).abs()).fold(0.0, f64::max);
+        assert!(refit_gap > 1e-6, "weighted draws must refit the nuisance stage, not reuse φ");
+
+        let bayes = crate::BayesianGComputationAte::new().with_n_draws(8);
+        for scale in [DerivativeScale::Identity, DerivativeScale::LogLog] {
+            let query = ResponseQuery::new(ResponseFunctional::PointDerivative {
+                outcome: y,
+                treatment: a,
+                at: 0.2,
+                order: 1,
+                scale,
+            });
+            let response = estimator
+                .estimate_bayesian(
+                    &data,
+                    &query,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    AssumptionSet::new(),
+                    &bayes,
+                    &antecedent_core::ExecutionContext::for_tests(18),
+                )
+                .unwrap();
+            assert_eq!(response.provenance_id.as_ref(), "estimate.response.point_derivative");
+            assert!(matches!(response.uncertainty, ResponseUncertainty::Scalar { .. }));
+            assert!(response.assumptions.entries.iter().any(|record| match &record.assumption {
+                Assumption::ParametricRestriction(restriction) =>
+                    restriction.description.contains("Not a frozen-pseudo-outcome reweight"),
+                _ => false,
+            }));
+            let codes: Vec<_> =
+                response.support.warnings.iter().map(|w| w.code.as_ref().to_owned()).collect();
+            assert!(
+                codes.iter().any(|c| c == "response.derivative_interval_bias_corrected"),
+                "{codes:?}"
+            );
+            assert!(!codes.iter().any(|c| c == "response.derivative_interval_withheld"));
+            let note = response
+                .support
+                .warnings
+                .iter()
+                .find(|w| w.code.as_ref() == "response.derivative_interval_bias_corrected")
+                .unwrap();
+            assert!(note.message.contains("refits the cross-fitted"), "{}", note.message);
+        }
+    }
 
     fn confounded_curve(n: usize) -> (TabularData, VariableId, VariableId, VariableId) {
         let mut a = Vec::with_capacity(n);
@@ -3650,7 +3902,7 @@ mod tests {
     }
 
     #[test]
-    fn point_derivative_reports_the_robust_influence_se() {
+    fn point_derivative_interval_is_robust_bias_corrected() {
         let (data, a, y, x) = confounded_curve(500);
         let at = 0.2;
         let bandwidth = 0.35;
@@ -3673,6 +3925,14 @@ mod tests {
             bandwidth,
         )
         .unwrap();
+        let corrected = antecedent_stats::gaussian_local_quadratic_bias_corrected(
+            &sample.treatments,
+            &pseudo,
+            at,
+            bandwidth,
+            None,
+        )
+        .unwrap();
         let response = estimator
             .estimate_identified(
                 &data,
@@ -3681,13 +3941,35 @@ mod tests {
                 AssumptionSet::new(),
             )
             .unwrap();
-        let ResponseUncertainty::Scalar { standard_error, .. } = response.uncertainty else {
+        // The point value stays the local-quadratic coordinate.
+        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
+            response.estimate
+        else {
+            panic!("expected a scalar derivative");
+        };
+        assert!((value - local.point.first_derivative).abs() < 1e-12);
+        // The interval is the RBC interval: the bias-corrected coordinate ± z·its
+        // own robust SE, not the conventional local-quadratic interval.
+        let ResponseUncertainty::Scalar { standard_error, lower, upper, level } =
+            response.uncertainty
+        else {
             panic!("expected scalar uncertainty");
         };
-        assert!((standard_error - local.robust_first_derivative_standard_error).abs() < 1e-12);
+        let z = normal_ppf(0.5 + level / 2.0);
+        assert!((standard_error - corrected.robust_first_derivative_standard_error).abs() < 1e-12);
+        assert!((0.5 * (lower + upper) - corrected.first_derivative).abs() < 1e-10);
+        assert!((upper - lower - 2.0 * z * standard_error).abs() < 1e-10);
         assert!(
-            (standard_error - local.point.first_derivative_standard_error).abs() > 1e-8,
-            "fixture must distinguish robust and common-sigma derivative SEs"
+            standard_error > local.robust_first_derivative_standard_error,
+            "the bias-corrected SE pays for the bias estimate's variance"
+        );
+        assert!(
+            response
+                .support
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == "response.derivative_interval_bias_corrected"),
+            "a published derivative interval must say it is bias-corrected"
         );
     }
 
