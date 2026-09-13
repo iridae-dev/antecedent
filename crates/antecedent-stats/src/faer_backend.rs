@@ -34,8 +34,19 @@ impl DenseLinearAlgebra for FaerBackend {
         }
         workspace.prepare(nrows, ncols);
 
-        // Column-pivoted QR on X (not normal equations — ).
-        let a = Mat::<f64>::from_fn(nrows, ncols, |r, c| x_colmajor[c * nrows + r]);
+        // Equilibrate columns before QR so predictor units do not determine
+        // numerical rank. Solve in these coordinates, then restore coefficients.
+        let scales: Vec<_> = (0..ncols)
+            .map(|c| {
+                let scale = x_colmajor[c * nrows..(c + 1) * nrows]
+                    .iter()
+                    .copied()
+                    .map(f64::abs)
+                    .fold(0.0_f64, f64::max);
+                if scale == 0.0 { 1.0 } else { scale }
+            })
+            .collect();
+        let a = Mat::<f64>::from_fn(nrows, ncols, |r, c| x_colmajor[c * nrows + r] / scales[c]);
         let qr = ColPivQr::new(a.as_ref());
 
         // Rank from |R_ii| relative to the largest pivot.
@@ -50,7 +61,7 @@ impl DenseLinearAlgebra for FaerBackend {
                 min_diag = min_diag.min(d);
             }
         }
-        let tol = (nrows as f64).sqrt() * f64::EPSILON * max_diag.max(1.0);
+        let tol = (nrows as f64).sqrt() * f64::EPSILON * max_diag;
         let mut rank = 0usize;
         for i in 0..size {
             if r_factor[(i, i)].abs() > tol {
@@ -69,7 +80,7 @@ impl DenseLinearAlgebra for FaerBackend {
 
         let mut coefficients = vec![0.0; ncols];
         for i in 0..ncols {
-            coefficients[i] = rhs[(i, 0)];
+            coefficients[i] = rhs[(i, 0)] / scales[i];
         }
 
         let residuals = &mut workspace.residuals[..nrows];
@@ -95,6 +106,25 @@ impl DenseLinearAlgebra for FaerBackend {
 #[cfg(test)]
 #[allow(clippy::float_cmp, clippy::cast_precision_loss)]
 mod tests {
+    #[test]
+    fn review_qr_rank_is_invariant_to_design_units() {
+        for scale in [1e-30, 1.0, 1e30] {
+            let x = [scale, scale, scale, scale, 0.0, scale, 2.0 * scale, 3.0 * scale];
+            let y = [3.0, 7.0, 11.0, 15.0];
+            let fit = FaerBackend
+                .least_squares(&x, 4, 2, &y, &mut LeastSquaresWorkspace::default())
+                .unwrap();
+            assert!((fit.coefficients[0] * scale - 3.0).abs() < 1e-12);
+            assert!((fit.coefficients[1] * scale - 4.0).abs() < 1e-12);
+            let independent_units = [1.0, 1.0, 1.0, 1.0, 0.0, scale, 2.0 * scale, 3.0 * scale];
+            let fit = FaerBackend
+                .least_squares(&independent_units, 4, 2, &y, &mut LeastSquaresWorkspace::default())
+                .unwrap();
+            assert!((fit.coefficients[0] - 3.0).abs() < 1e-12);
+            assert!((fit.coefficients[1] * scale - 4.0).abs() < 1e-12);
+        }
+    }
+
     use super::*;
 
     #[test]
