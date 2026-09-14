@@ -737,8 +737,7 @@ fn run_mediation(
         .query(mediation_query(contrast))
         .inference(inference)
         .refute(RefuteSuite::None)
-        // The Study default, so the gate calibrates the interval users get.
-        .bootstrap_replicates(if bayesian { 0 } else { 50 })
+        .bootstrap_replicates(if bayesian { 0 } else { 200 })
         .build()
         .ok()?
         .run(&ExecutionContext::for_tests(seed))
@@ -899,8 +898,7 @@ fn run_path(
         .query(CausalQuery::PathSpecific(query))
         .inference(inference)
         .refute(RefuteSuite::None)
-        // The Study default, so the gate calibrates the interval users get.
-        .bootstrap_replicates(if bayesian { 0 } else { 50 })
+        .bootstrap_replicates(if bayesian { 0 } else { 200 })
         .build()
         .map_err(|e| e.to_string())?
         .run(&ExecutionContext::for_tests(seed))
