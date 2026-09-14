@@ -13,9 +13,10 @@ use crate::error::DataError;
 
 /// Packed validity bitmap (`1` = valid), LSB-first.
 ///
-/// The bitmap is authoritative for missingness. [`Float64Column`] additionally
-/// stores `NaN` under every invalid row so value-only readers cannot mistake a
-/// missing cell for an observation.
+/// The bitmap is authoritative for missingness. [`Float64Column`] keeps it in
+/// lockstep with its values: a row is invalid exactly when it holds `NaN`, so
+/// neither value-only nor bitmap-only readers can mistake a missing cell for an
+/// observation.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ValidityBitmap {
     bytes: Arc<[u8]>,
@@ -175,14 +176,17 @@ impl ValidityBitmap {
 
 /// Float64 column (owned or foreign-backed values).
 ///
-/// Invariant: every invalid row holds `NaN` in `values`. Borrowed readers
-/// ([`crate::TableView::float64_slice`]) hand the buffer out without
-/// consulting validity, so a missing cell must never read as a finite value.
+/// Invariant: a row is invalid exactly when its value is `NaN`. `NaN` is the
+/// missing-value sentinel for `f64` data (as it is for `NumPy` input), never an
+/// observation. Borrowed readers ([`crate::TableView::float64_slice`]) hand the
+/// buffer out without consulting validity, so a missing cell must never read
+/// as a finite value; and bitmap readers (complete-case selection) must never
+/// keep a `NaN` row as observed.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Float64Column {
     /// Variable id.
     pub id: VariableId,
-    /// Values; `NaN` under every invalid row.
+    /// Values; `NaN` exactly under the invalid rows.
     pub values: F64Buffer,
     /// Validity bitmap (authoritative for missingness).
     pub validity: ValidityBitmap,
@@ -191,10 +195,11 @@ pub struct Float64Column {
 impl Float64Column {
     /// Construct a column; lengths must match.
     ///
-    /// Any invalid row whose value is not already `NaN` is rewritten to `NaN`
+    /// The stored validity is `validity` with every `NaN` row cleared, and any
+    /// invalid row whose value is not already `NaN` is rewritten to `NaN`
     /// (copying the buffer, including a foreign one, only when a rewrite is
-    /// needed), so the missing-means-`NaN` invariant holds for every
-    /// construction path.
+    /// needed), so invalid ⇔ `NaN` holds for every construction path. When the
+    /// values hold no `NaN` the bitmap is kept as given (no allocation).
     ///
     /// # Errors
     ///
@@ -212,6 +217,7 @@ impl Float64Column {
                 context: "float64 validity",
             });
         }
+        let validity = invalidate_nan_rows(values.as_slice(), validity)?;
         let values = nan_under_invalid(values, &validity)?;
         Ok(Self { id, values, validity })
     }
@@ -243,6 +249,30 @@ pub(crate) fn invalid_rows_are_nan(values: &[f64], validity: &ValidityBitmap) ->
     validity
         .as_mask_view()
         .is_ok_and(|mask| values.iter().enumerate().all(|(i, v)| mask.get(i) || v.is_nan()))
+}
+
+/// Whether any value is `NaN` (branch-free per chunk so the common all-finite
+/// scan vectorizes; stops at the first chunk holding a `NaN`).
+fn contains_nan(values: &[f64]) -> bool {
+    values.chunks(64).any(|chunk| chunk.iter().fold(false, |acc, v| acc | v.is_nan()))
+}
+
+/// Clear the validity bit of every `NaN` row; returns `validity` untouched
+/// (no allocation) when no value is `NaN`.
+fn invalidate_nan_rows(
+    values: &[f64],
+    validity: ValidityBitmap,
+) -> Result<ValidityBitmap, DataError> {
+    if !contains_nan(values) {
+        return Ok(validity);
+    }
+    let mut bytes = validity.bytes[..values.len().div_ceil(8)].to_vec();
+    for (i, v) in values.iter().enumerate() {
+        if v.is_nan() {
+            bytes[i / 8] &= !(1 << (i % 8));
+        }
+    }
+    ValidityBitmap::from_bytes(bytes, values.len())
 }
 
 /// Rewrite invalid rows to `NaN`, returning `values` untouched when they already are.
@@ -656,14 +686,29 @@ mod tests {
             Float64Column::new(VariableId::from_raw(0), Arc::clone(&values), validity).unwrap();
         assert_eq!(col.values.as_slice().as_ptr(), ptr, "no copy when nulls already hold NaN");
 
-        // A NaN under a valid bit is data, not missingness; it is left alone.
-        let col = Float64Column::new(
-            VariableId::from_raw(0),
-            vec![f64::NAN, 2.0],
-            ValidityBitmap::all_valid(2),
-        )
-        .unwrap();
-        assert!(col.validity.is_valid(0));
-        assert!(col.values[0].is_nan());
+        // Without NaN values the given bitmap is kept as is.
+        let validity = ValidityBitmap::all_valid(3);
+        let bits = validity.bytes.as_ptr();
+        let col =
+            Float64Column::new(VariableId::from_raw(0), vec![1.0, 2.0, 3.0], validity).unwrap();
+        assert_eq!(col.validity.bytes.as_ptr(), bits, "no bitmap copy without NaN values");
+    }
+
+    #[test]
+    fn float64_column_marks_nan_rows_invalid() {
+        // A NaN under a valid bit is a missing cell, not an observation.
+        let n = 70_usize;
+        let mut values: Vec<f64> = (0..70_u32).map(f64::from).collect();
+        values[3] = f64::NAN;
+        values[66] = f64::NAN;
+        let mut bytes = vec![0xFFu8; 9];
+        bytes[1] &= !(1 << 2); // row 10 invalid through the bitmap
+        let validity = ValidityBitmap::from_bytes(bytes, n).unwrap();
+        let col = Float64Column::new(VariableId::from_raw(0), values, validity).unwrap();
+        for i in 0..n {
+            let missing = matches!(i, 3 | 10 | 66);
+            assert_eq!(col.validity.is_valid(i), !missing, "row {i}");
+            assert_eq!(col.values[i].is_nan(), missing, "row {i}");
+        }
     }
 }

@@ -89,7 +89,7 @@ impl TabularData {
 
     /// Replace one float64 column; preserve other columns, analysis mask, and weights.
     ///
-    /// The replacement column is marked all-valid (caller supplies a complete vector).
+    /// The replacement column is valid everywhere except its `NaN` rows.
     ///
     /// # Errors
     ///
@@ -108,8 +108,8 @@ impl TabularData {
     /// [`Self::with_replaced_float`]).
     ///
     /// Replacements apply in order against the same column set (ids are expected to be
-    /// distinct; a repeated id keeps the last entry). Each replacement column is marked
-    /// all-valid (callers supply complete vectors).
+    /// distinct; a repeated id keeps the last entry). Each replacement column is valid
+    /// everywhere except its `NaN` rows.
     ///
     /// # Errors
     ///
