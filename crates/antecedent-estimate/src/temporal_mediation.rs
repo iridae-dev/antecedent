@@ -354,19 +354,22 @@ impl TemporalMediationEstimator {
             .flat_map(|s| s.iter().map(Vec::as_slice))
             .chain(normal_scores.iter().map(Vec::as_slice))
             .collect();
+        let block_length =
+            crate::temporal_block::dependence_block_length(structural_span, design.n, &score_refs);
+        let contrast_scores: Vec<&[f64]> =
+            scores.iter().flat_map(|s| s.iter().map(Vec::as_slice)).collect();
         let mut block = TemporalMediationBlockSe {
             total: None,
             direct: None,
             mediated: None,
             replicates_ok: 0,
             replicates_attempted: 0,
-            block_length: crate::temporal_block::dependence_block_length(
-                structural_span,
-                design.n,
-                &score_refs,
-            ),
+            block_length,
             rows: design.n,
-            effective_rows: scores_effective_rows(scores.as_ref()),
+            effective_rows: crate::temporal_block::score_effective_rows(
+                &contrast_scores,
+                block_length,
+            ),
         };
         if replicates > 0 {
             let boot = crate::temporal_block::row_block_bootstrap_vec(
@@ -568,17 +571,6 @@ impl MediationDesign {
     }
 }
 
-/// Smallest [`crate::temporal_block::effective_rows`] over the contrast scores,
-/// used to flag series too dependent for the block rule (`NaN` without scores).
-fn scores_effective_rows(scores: Option<&[Vec<f64>; 3]>) -> f64 {
-    scores.map_or(f64::NAN, |scores| {
-        scores
-            .iter()
-            .map(|s| crate::temporal_block::effective_rows(s))
-            .fold(f64::INFINITY, f64::min)
-    })
-}
-
 /// Shared circular-block SEs for one temporal mediation horizon.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TemporalMediationBlockSe {
@@ -596,8 +588,9 @@ pub struct TemporalMediationBlockSe {
     pub block_length: usize,
     /// Lag-aligned rows resampled.
     pub rows: usize,
-    /// Smallest effective row count over the three contrasts' estimating scores
-    /// ([`crate::temporal_block::effective_rows`]).
+    /// Effective rows of the three contrasts' estimating scores at
+    /// [`Self::block_length`] (the smallest,
+    /// [`crate::temporal_block::score_effective_rows`]; `NaN` without scores).
     pub effective_rows: f64,
 }
 

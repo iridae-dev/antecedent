@@ -1268,7 +1268,10 @@ impl super::Study {
             ),
         ));
         if se.is_finite() {
-            diagnostics.extend(short_series_warning(block.effective_rows));
+            diagnostics.extend(short_series_warning(
+                block.effective_rows,
+                antecedent_estimate::CircularBlockFamily::Mixture,
+            ));
         }
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,

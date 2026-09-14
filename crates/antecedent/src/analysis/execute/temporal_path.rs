@@ -432,7 +432,7 @@ impl super::Study {
                 estimate: estimate.clone(),
                 mechanisms,
             };
-            let (refutations, diagnostics, predictive_checks) =
+            let (refutations, mut diagnostics, predictive_checks) =
                 super::sequential_validation::validate_sequential(
                     data,
                     query,
@@ -446,16 +446,47 @@ impl super::Study {
                 )?;
             let bootstrap_replicates_ok = estimate.bootstrap_replicates_ok;
             let cancelled = estimate.bootstrap_cancelled;
+            // The validation diagnostics are the prebuilt list, so estimator
+            // provenance joins them (extra_diagnostics are not merged into it).
+            diagnostics.push(Diagnostic::new("estimate.temporal.sustained_window", DiagnosticKind::Scientific, DiagnosticSeverity::Info,
+                "the contrast propagates through all intervened times in topological order; no one-node collapse; no analytic SE is asserted for the frequentist sequential fit"));
+            if bayes.is_none() {
+                diagnostics.extend(sequential_dependence_se_diagnostics(
+                    data,
+                    graph,
+                    &indexer,
+                    &estimand,
+                    query,
+                    identification.status,
+                    &estimate,
+                    self.bootstrap_replicates,
+                    ctx,
+                ));
+            }
             return Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
-                physical, identification, estimand, estimate,
-                identifier_id: IdentifierId::TemporalBackdoorUnfolded, estimator_id: EstimatorId::TemporalSequentialGcomp,
-                treatment: query.treatment, outcome: query.outcome, identify_cached,
-                extra_diagnostics: vec![Diagnostic::new("estimate.temporal.sustained_window", DiagnosticKind::Scientific, DiagnosticSeverity::Info,
-                    "the contrast propagates through all intervened times in topological order; no one-node collapse; no analytic SE is asserted for the frequentist sequential fit")],
-                refutations, distribution: None, mediation: None,
+                physical,
+                identification,
+                estimand,
+                estimate,
+                identifier_id: IdentifierId::TemporalBackdoorUnfolded,
+                estimator_id: EstimatorId::TemporalSequentialGcomp,
+                treatment: query.treatment,
+                outcome: query.outcome,
+                identify_cached,
+                extra_diagnostics: Vec::new(),
+                refutations,
+                distribution: None,
+                mediation: None,
                 wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-                bootstrap_replicates_ok, cancelled, early_stopped: false,
-                extras: IdentifiedExecuteExtras { posterior, diagnostics: Some(diagnostics), predictive_checks, ..Default::default() },
+                bootstrap_replicates_ok,
+                cancelled,
+                early_stopped: false,
+                extras: IdentifiedExecuteExtras {
+                    posterior,
+                    diagnostics: Some(diagnostics),
+                    predictive_checks,
+                    ..Default::default()
+                },
             }));
         }
 
@@ -526,6 +557,7 @@ impl super::Study {
         }
         if let Some(info) = dependence_se.as_ref() {
             diagnostics.extend(temporal_dependence_se_diagnostics(
+                antecedent_estimate::CircularBlockFamily::SingleWindow,
                 info.block_length,
                 info.rows,
                 info.effective_rows,
@@ -762,6 +794,7 @@ impl super::Study {
             let horizon_label =
                 if single_horizon { String::new() } else { format!("horizon {}: ", click.horizon) };
             extra_diagnostics.extend(temporal_dependence_se_diagnostics(
+                antecedent_estimate::CircularBlockFamily::Mediation,
                 block.block_length,
                 block.rows,
                 block.effective_rows,
@@ -5261,9 +5294,56 @@ mod observation_bootstrap_tests {
 /// RNG stream base for the temporal mediation shared circular-block bootstrap.
 const MEDIATION_BLOCK_STREAM: u64 = 0x3ED1_B10C_0000;
 
+/// [`temporal_dependence_se_diagnostics`] for a Frequentist multi-step Sustained
+/// fit on one `TemporalDag`: the contrast is prepared once more on the same
+/// aligned rows for its block length and its estimating score's effective rows
+/// (the same quantities the sequential circular-block bootstrap used). A design
+/// that cannot be prepared again reports NaN effective rows, which warns.
+#[allow(clippy::too_many_arguments)]
+fn sequential_dependence_se_diagnostics(
+    data: &TimeSeriesData,
+    graph: &TemporalDag,
+    indexer: &TemporalIndexer,
+    estimand: &IdentifiedEstimand,
+    query: &TemporalEffectQuery,
+    status: IdentificationStatus,
+    estimate: &EffectEstimate,
+    replicates: u32,
+    ctx: &ExecutionContext,
+) -> Vec<Diagnostic> {
+    let design = antecedent_estimate::SequentialContrastDesign::prepare(
+        data, graph, indexer, estimand, query, status, ctx,
+    )
+    .ok();
+    let (block_length, rows, effective_rows) = design.as_ref().map_or((0, 0, f64::NAN), |design| {
+        let block_length = design.block_length();
+        let influence = design.influence();
+        let scores: Vec<&[f64]> = influence.as_deref().into_iter().collect();
+        (
+            block_length,
+            design.aligned_rows().rows,
+            antecedent_estimate::score_effective_rows(&scores, block_length),
+        )
+    });
+    temporal_dependence_se_diagnostics(
+        antecedent_estimate::CircularBlockFamily::Sequential,
+        block_length,
+        rows,
+        effective_rows,
+        &format!(
+            "se_bootstrap refits every mechanism of the sequential g-computation on the \
+             same circular blocks of consecutive lag-aligned rows ({}/{replicates} \
+             replicates){}",
+            estimate.bootstrap_replicates_ok.unwrap_or(0),
+            if replicates == 0 { "; request bootstrap_replicates > 0 for an interval" } else { "" },
+        ),
+    )
+}
+
 /// Provenance for a one-series circular-block interval, plus a warning when the
-/// estimating score is too dependent for the block rule to be trusted.
+/// estimating score is too dependent for its SE family's threshold.
 fn temporal_dependence_se_diagnostics(
+    family: antecedent_estimate::CircularBlockFamily,
     block_length: usize,
     rows: usize,
     effective_rows: f64,
@@ -5280,9 +5360,10 @@ fn temporal_dependence_se_diagnostics(
              persistently dependent estimating score), \
              n={rows} lag-aligned rows; \
              replicate SD scaled by the Kiefer-Vogelsang fixed-b factor {scale:.4}; \
-             score effective rows {effective_rows:.0}; {detail}"
+             score effective rows {effective_rows:.1} (the smaller of the lag-1 and \
+             block-length readings); {detail}"
         ),
     )];
-    out.extend(short_series_warning(effective_rows));
+    out.extend(short_series_warning(effective_rows, family));
     out
 }

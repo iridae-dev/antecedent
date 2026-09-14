@@ -43,8 +43,8 @@ pub struct TemporalDependenceSe {
     pub block_length: usize,
     /// Lag-aligned rows in the fitted (and resampled) design.
     pub rows: usize,
-    /// Effective rows of the treatment-coefficient score
-    /// ([`crate::temporal_block::effective_rows`]).
+    /// Effective rows of the treatment-coefficient score at [`Self::block_length`]
+    /// ([`crate::temporal_block::score_effective_rows`]).
     pub effective_rows: f64,
     /// Bootstrap replicates evaluated (0 when none were requested).
     pub replicates_attempted: u32,
@@ -452,10 +452,10 @@ impl TemporalLinearAdjustment {
         let info = TemporalDependenceSe {
             block_length,
             rows,
-            effective_rows: point
-                .influence
-                .as_deref()
-                .map_or(f64::NAN, crate::temporal_block::effective_rows),
+            effective_rows: crate::temporal_block::score_effective_rows(
+                &point.influence.as_deref().into_iter().collect::<Vec<_>>(),
+                block_length,
+            ),
             replicates_attempted: boot.as_ref().map_or(0, |b| b.attempted),
         };
         Ok((point.with_bootstrap(boot.map(|b| b.se_result(0))), info))
