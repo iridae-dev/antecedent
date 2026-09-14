@@ -964,6 +964,7 @@ def handle_response(
             raw.truncated_completions,
             raw.enumeration_capped,
             cast(Literal["full_class", "examined_completions"], raw.mass_scope),
+            unevaluable_mass=float(getattr(raw, "unevaluable_mass", None) or 0.0),
         )
     identification_operation = (
         "identify.generalized_adjustment" if isinstance(graph, Pag) else "identify.response"

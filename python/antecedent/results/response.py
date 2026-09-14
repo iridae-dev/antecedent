@@ -84,6 +84,9 @@ class ResponseEnvelopeView:
     atom_weights: Sequence[float] = ()
     atom_statuses: Sequence[str] = ()
     atom_values: Sequence[Sequence[float]] = ()
+    #: Mass identified in theory whose estimation failed. It is not
+    #: unidentified mass and is not mixed into the published value.
+    unevaluable_mass: float = 0.0
 
     def __post_init__(self) -> None:
         if len(self.points) != len(self.lower) or len(self.points) != len(self.upper):
@@ -92,8 +95,11 @@ class ResponseEnvelopeView:
             raise CausalValueError("identified_mass must be in [0, 1]")
         if not 0.0 <= self.unidentified_mass <= 1.0:
             raise CausalValueError("unidentified_mass must be in [0, 1]")
-        if abs(self.identified_mass + self.unidentified_mass - 1.0) > 1e-9:
-            raise CausalValueError("identified and unidentified mass must sum to one")
+        if not 0.0 <= self.unevaluable_mass <= 1.0:
+            raise CausalValueError("unevaluable_mass must be in [0, 1]")
+        total = self.identified_mass + self.unidentified_mass + self.unevaluable_mass
+        if abs(total - 1.0) > 1e-9:
+            raise CausalValueError("identified, unidentified, and unevaluable mass must sum to one")
         if (
             self.completion_count < 1
             or not 0 <= self.truncated_completions <= self.completion_count
