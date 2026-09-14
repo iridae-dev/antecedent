@@ -220,16 +220,21 @@ fn frequentist_chain_pag_case(what: &str, query: &TemporalEffectQuery, design: D
     chain_pag_tally(what, query, design, seed).assert();
 }
 
-/// Boundary record, as in `v19_temporal_frequentist`: the design sits below the
-/// effective-row floor, so the short-series warning must fire on at least three
-/// quarters of replicates; coverage is measured and printed, not gated.
+/// Boundary record, as in `v19_temporal_frequentist`: the six-completion
+/// mixture's score effective rows sit below the mixture threshold.
 fn frequentist_chain_pag_boundary(
     what: &str,
     query: &TemporalEffectQuery,
     design: Design,
     seed: u64,
 ) {
-    let tally = chain_pag_tally(what, query, design, seed);
+    boundary(&chain_pag_tally(what, query, design, seed));
+}
+
+/// Boundary record: coverage is measured and printed, not gated, and the
+/// short-series warning must fire on at least 95% of replicates (the statistic
+/// is estimated per series, so a few draws land above the mixture threshold).
+fn boundary(tally: &FreqTally) {
     tally.report();
     let (lo, hi) = common::calibration::coverage_band(n_sim(), LEVEL);
     eprintln!(
@@ -242,7 +247,7 @@ fn frequentist_chain_pag_boundary(
         n_sim()
     );
     assert!(
-        tally.warned * 4 >= n_sim() * 3,
+        tally.warned * 20 >= n_sim() * 19,
         "boundary design must carry the short-series warning: {}/{}",
         tally.warned,
         n_sim()
@@ -347,8 +352,11 @@ frequentist_pag_gate!(
     AR05_160,
     65_000
 );
-/// Below the effective-row floor on every replicate (the six-completion mixture
-/// score at ρ = 0.9, n = 400): measured, warned, not gated.
+/// Below the mixture threshold on (nearly) every replicate: the six-completion
+/// mixture at ρ = 0.9, n = 400 (every atom's score is close to AR(1)(0.81);
+/// score effective rows ≈ 45 against 155). Coverage sits at the band's edge
+/// (0.888 at 2000 replicates in `v19_short_series_measurement`): measured,
+/// warned, not gated.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_pag_pulse_ar1_rho09_n400_short_series_boundary() {
@@ -359,6 +367,35 @@ fn frequentist_temporal_pag_pulse_ar1_rho09_n400_short_series_boundary() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_pag_sustained_ar1_rho09_n400_short_series_boundary() {
     frequentist_chain_pag_boundary("single-step Sustained", &single_sustained(), AR09_400, 69_000);
+}
+
+/// The two-completion `TemporalCpdag` Pulse at ρ = 0.95, n = 160: the non-causal
+/// completion omits the persistent confounder `z[t-1]`, and its finite-sample
+/// bias (−0.4 SD) — not the SE — drives coverage to 0.81 (2000 replicates). No
+/// block bootstrap removes a bias; the runtime warns (that completion's score
+/// has a weak, slowly decaying component the block-length reading sees), and
+/// coverage is recorded.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_cpdag_pulse_ar1_rho095_n160_short_series_boundary() {
+    const RHO: f64 = 0.95;
+    let mut tally = FreqTally::new(
+        "frequentist TemporalCpdag Pulse [AR(1) rho=0.95 n=160 (boundary)]",
+        cpdag_mixture_truth(RHO),
+    );
+    for s in 0..n_sim() {
+        let result = run(
+            confounded_series(160, 0.0, RHO, 90_000 + u64::from(s)),
+            confounded_cpdag(),
+            &pulse_query(),
+            InferenceMode::Frequentist,
+            None,
+            BOOT,
+            u64::from(s),
+        );
+        tally.record(&result);
+    }
+    boundary(&tally);
 }
 frequentist_pag_gate!(
     frequentist_temporal_pag_pulse_ar1_rho05_n60_nominal_90_coverage,
@@ -752,4 +789,41 @@ fn confounded_cpdag_multistep_composes_each_completion() {
     }
     let _ = B1;
     let _ = quantile_interval(&[0.0, 1.0], LEVEL);
+}
+
+/// The mixture short-series threshold on fixed series: the printed score
+/// effective rows decide the warning, and the six-completion `chain_pag`
+/// envelope warns at ρ = 0.9 and stays quiet at ρ = 0.5 (n = 400).
+#[test]
+fn short_series_mixture_threshold() {
+    use antecedent_estimate::CircularBlockFamily;
+    const KEY: &str = "score effective rows ";
+    let threshold = CircularBlockFamily::Mixture.min_effective_rows();
+    for (rho, expect_warning) in [(0.9, true), (0.5, false)] {
+        let result = run(
+            chain_pag_series(400, rho, 23),
+            chain_pag(),
+            &pulse_query(),
+            InferenceMode::Frequentist,
+            None,
+            8,
+            23,
+        );
+        let message = &result
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "estimate.temporal_class.frequentist.shared_block")
+            .expect("shared-block provenance")
+            .message;
+        let rest = &message[message.find(KEY).expect("effective rows") + KEY.len()..];
+        let end = rest.find(|c: char| !(c.is_ascii_digit() || c == '.')).unwrap_or(rest.len());
+        let effective_rows: f64 = rest[..end].parse().unwrap();
+        let warned = has_diagnostic(&result, SHORT_SERIES);
+        assert_eq!(
+            warned,
+            effective_rows < threshold,
+            "rho={rho}: {effective_rows} vs {threshold}"
+        );
+        assert_eq!(warned, expect_warning, "rho={rho}: effective rows {effective_rows}");
+    }
 }

@@ -2,25 +2,18 @@
 //!
 //! Plain TemporalDag Pulse / single-step Sustained and temporal mediation
 //! (Total, Direct, Mediated) are calibrated under iid noise and under AR(1)
-//! outcome residuals. The treatment is persistent through an observed driver
-//! `z` (`x_t = Σ_k W[k]·z_{t-k} + u_t`, a graph-certified MA(3)), so the
-//! regression scores `x_{t-h}·e_t` are serially correlated whenever the residual
-//! is: an iid SE or iid row bootstrap under-covers on these DGPs. No lagged
-//! outcome enters the adjustment set, so the residual autocorrelation is not
-//! absorbed. (A treatment self-loop would make persistence explicit, but
-//! temporal backdoor identification cannot certify a self-looped treatment over
-//! a finite window.)
-//!
-//! Truths are the population values of the reported estimands (linear-Gaussian):
-//! Pulse h=1 and single-step Sustained `BETA` (`y_t = BETA·x_{t-1} + e_t`);
-//! Pulse h=2 `ALPHA·DELTA`, propagated through an intermediate
-//! `w_t = ALPHA·x_{t-1} + ν_t` into `y_t = DELTA·w_{t-1} + e_t`, so the h=2
-//! regression residual `DELTA·ν_{t-1} + e_t` carries the intermediate shock;
-//! mediation Total `C + A·B`, Direct `C`, Mediated `A·B`. Every graph yields a
-//! single temporal-backdoor estimand with an empty adjustment set.
+//! outcome residuals on the driven-treatment DGPs of `common::driven_dgp`
+//! (MA(3) treatment through an observed driver, so the regression scores are
+//! serially correlated whenever the residual is; truths are the population
+//! values of the reported estimands, documented there). Multi-step Sustained
+//! (sequential g-computation) is calibrated on `fixtures::confounded_series`.
+//! Boundary records use an AR(1)-persistent treatment (`common::persistent_dgp`)
+//! where the series is too short for the score's memory: the short-series
+//! warning must fire, and coverage is recorded.
 //!
 //! Ignored coverage tests run via `scripts/gate_calibration.sh`. The
-//! non-ignored tests pin that the circular-block path is the one taken.
+//! non-ignored tests pin that the circular-block path is the one taken and the
+//! short-series threshold of each one-series family on fixed series.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -37,37 +30,20 @@ mod common;
 use antecedent::estimate::TemporalMediationUncertainty;
 use antecedent::{InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
-    CausalQuery, DiagnosticSeverity, ExecutionContext, Lag, MediationContrast, MediationQuery,
-    TemporalEffectQuery, TemporalPolicy, VariableId,
+    CausalQuery, DiagnosticSeverity, ExecutionContext, MediationContrast, TemporalEffectQuery,
 };
 use antecedent_data::TimeSeriesData;
-use antecedent_graph::{TemporalDag, ensure_lagged};
-use common::calibration::{CoverageTally, Z90, ar1_noise, gaussian, n_sim, normal_interval};
+use antecedent_estimate::CircularBlockFamily;
+use antecedent_graph::TemporalDag;
+use common::calibration::{CoverageTally, Z90, n_sim, normal_interval};
+use common::driven_dgp::{
+    A, ALPHA, B, BETA, C, DELTA, Scenario, mediation_dag, mediation_query, mediation_series, pulse,
+    pulse_dag, pulse_series, single_sustained,
+};
+use common::{fixtures, persistent_dgp};
 
-/// Driver weights: `x_t = Σ_k W[k]·z_{t-k} + U_SD·u_t` (lag-1 autocorrelation ≈ 0.5).
-const W: [f64; 4] = [0.75, 0.375, 0.1875, 0.094];
-const U_SD: f64 = 0.35;
-/// Effect of `x_{t-1}` on `y_t` (one-step design).
-const BETA: f64 = 0.8;
-/// Two-step design: `x_{t-1} → w_t` and `w_{t-1} → y_t`.
-const ALPHA: f64 = 0.8;
-const DELTA: f64 = 0.7;
-/// Mediation: `m_t = A·t_{t-1} + …`, `y_t = C·t_{t-1} + B·m_t + e_t`.
-const A: f64 = 0.6;
-const B: f64 = 0.5;
-const C: f64 = 0.4;
 /// Bootstrap replicates per fit.
 const BOOT: u32 = 100;
-/// Burn-in rows discarded so every lag is populated.
-const BURN: usize = 8;
-
-#[derive(Clone, Copy)]
-struct Scenario {
-    label: &'static str,
-    rho: f64,
-    n: usize,
-    seed: u64,
-}
 
 const IID_160: Scenario = Scenario { label: "iid n=160", rho: 0.0, n: 160, seed: 100_000 };
 const AR05_160: Scenario =
@@ -75,126 +51,6 @@ const AR05_160: Scenario =
 const AR09_400: Scenario =
     Scenario { label: "AR(1) rho=0.9 n=400", rho: 0.9, n: 400, seed: 300_000 };
 const AR05_60: Scenario = Scenario { label: "AR(1) rho=0.5 n=60", rho: 0.5, n: 60, seed: 400_000 };
-
-/// `(z, x)`: iid `z`, and the persistent treatment driven by it.
-fn driven_treatment(total: usize, seed: u64) -> (Vec<f64>, Vec<f64>) {
-    let mut g = gaussian(seed);
-    let z: Vec<f64> = (0..total).map(|_| g()).collect();
-    let mut x = vec![0.0; total];
-    for t in 0..total {
-        let driven: f64 =
-            W.iter().enumerate().filter(|(k, _)| *k <= t).map(|(k, w)| w * z[t - k]).sum();
-        x[t] = driven + U_SD * g();
-    }
-    (z, x)
-}
-
-/// One-step (`two_step = false`): `y_t = BETA·x_{t-1} + e_t`.
-/// Two-step: `w_t = ALPHA·x_{t-1} + 0.6·ν_t`, `y_t = DELTA·w_{t-1} + e_t`.
-/// `e` is AR(1)(`rho`) with SD 1. Columns: `x, y, z, w`.
-fn pulse_series(s: Scenario, rep: u32, two_step: bool) -> TimeSeriesData {
-    let seed = s.seed + u64::from(rep);
-    let total = s.n + BURN;
-    let (z, x) = driven_treatment(total, seed.wrapping_mul(7919));
-    let e = ar1_noise(total, s.rho, 1.0, seed.wrapping_mul(104_729) ^ 0x5A5A);
-    let mut g = gaussian(seed.wrapping_mul(15_485_863) ^ 0x3333);
-    let mut w = vec![0.0; total];
-    let mut y = vec![0.0; total];
-    for t in 1..total {
-        w[t] = ALPHA * x[t - 1] + 0.6 * g();
-        y[t] = if two_step { DELTA * w[t - 1] } else { BETA * x[t - 1] } + e[t];
-    }
-    TimeSeriesData::from_f64_columns(
-        [("x", &x[BURN..]), ("y", &y[BURN..]), ("z", &z[BURN..]), ("w", &w[BURN..])],
-        1,
-    )
-    .unwrap()
-}
-
-/// `m_t = A·t_{t-1} + 0.5·ε`, `y_t = C·t_{t-1} + B·m_t + e_t`, `e` AR(1)(`rho`) with SD 0.5.
-fn mediation_series(s: Scenario, rep: u32) -> TimeSeriesData {
-    let seed = s.seed + u64::from(rep);
-    let total = s.n + BURN;
-    let (z, t) = driven_treatment(total, seed.wrapping_mul(7919) ^ 0x1111);
-    let mut g = gaussian(seed.wrapping_mul(15_485_863));
-    let e = ar1_noise(total, s.rho, 0.5, seed.wrapping_mul(104_729) ^ 0x2222);
-    let mut m = vec![0.0; total];
-    let mut y = vec![0.0; total];
-    for i in 1..total {
-        m[i] = A * t[i - 1] + 0.5 * g();
-        y[i] = C * t[i - 1] + B * m[i] + e[i];
-    }
-    TimeSeriesData::from_f64_columns(
-        [("t", &t[BURN..]), ("m", &m[BURN..]), ("y", &y[BURN..]), ("z", &z[BURN..])],
-        1,
-    )
-    .unwrap()
-}
-
-/// Attach `z_{t-k} → x_t` for every driver lag.
-fn add_driver(g: &mut TemporalDag, x: VariableId, z: VariableId) {
-    let x0 = ensure_lagged(g, x, Lag::CONTEMPORANEOUS).unwrap();
-    for k in 0..W.len() {
-        let zk = ensure_lagged(g, z, Lag::from_raw(k as u32)).unwrap();
-        g.insert_directed(zk, x0).unwrap();
-    }
-}
-
-/// `z_{t-k} → x_t`, then `x_{t-1} → y_t` (one-step) or
-/// `x_{t-1} → w_t`, `w_{t-1} → y_t` (two-step).
-fn pulse_dag(two_step: bool) -> TemporalDag {
-    let mut g = TemporalDag::empty();
-    add_driver(&mut g, VariableId::from_raw(0), VariableId::from_raw(2));
-    let x1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
-    let y0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
-    if two_step {
-        let w0 = ensure_lagged(&mut g, VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
-        let w1 = ensure_lagged(&mut g, VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
-        g.insert_directed(x1, w0).unwrap();
-        g.insert_directed(w1, y0).unwrap();
-    } else {
-        g.insert_directed(x1, y0).unwrap();
-    }
-    g
-}
-
-/// `z_{t-k} → t_t`, `t_{t-1} → m_t`, `t_{t-1} → y_t`, `m_t → y_t`.
-fn mediation_dag() -> TemporalDag {
-    let mut g = TemporalDag::empty();
-    add_driver(&mut g, VariableId::from_raw(0), VariableId::from_raw(3));
-    let t1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
-    let m0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
-    let y0 = ensure_lagged(&mut g, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
-    g.insert_directed(t1, m0).unwrap();
-    g.insert_directed(t1, y0).unwrap();
-    g.insert_directed(m0, y0).unwrap();
-    g
-}
-
-fn pulse(horizon: u32) -> TemporalEffectQuery {
-    TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
-        .with_policy(TemporalPolicy::pulse(-1))
-        .with_horizon_steps(horizon)
-}
-
-fn single_sustained() -> TemporalEffectQuery {
-    TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), -1, 1.0)
-        .with_policy(TemporalPolicy::sustained(-1, -1))
-        .with_horizon_steps(1)
-}
-
-fn mediation_query(contrast: MediationContrast) -> CausalQuery {
-    CausalQuery::Mediation(
-        MediationQuery::binary(
-            VariableId::from_raw(0),
-            VariableId::from_raw(2),
-            [VariableId::from_raw(1)],
-            contrast,
-        )
-        .with_horizons(vec![1])
-        .unwrap(),
-    )
-}
 
 fn run(
     data: TimeSeriesData,
@@ -266,11 +122,11 @@ fn gate((tallies, warned): (Vec<CoverageTally>, u32)) {
     assert_all(&tallies.iter().collect::<Vec<_>>());
 }
 
-/// Boundary record: the design sits below the effective-sample floor, so the
-/// short-series warning must fire on at least three quarters of replicates (the
-/// floor is checked against an estimated lag-1 score autocorrelation, so a
-/// minority of draws land above it); coverage is measured and reported, not
-/// gated.
+/// Boundary record: a design whose interval under-covers because the series is
+/// short for its serial dependence. The runtime must say so — the short-series
+/// warning fires on at least 95% of replicates (the statistic is estimated per
+/// series, so a few draws land above the family threshold) — and coverage is
+/// measured and reported, not gated.
 fn boundary((tallies, warned): (Vec<CoverageTally>, u32)) {
     for tally in &tallies {
         let (lo, hi) = common::calibration::coverage_band(n_sim(), 0.9);
@@ -283,10 +139,43 @@ fn boundary((tallies, warned): (Vec<CoverageTally>, u32)) {
         );
     }
     assert!(
-        warned * 4 >= n_sim() * 3,
+        warned * 20 >= n_sim() * 19,
         "boundary design must carry the short-series warning: {warned}/{}",
         n_sim()
     );
+}
+
+/// Coverage of the headline interval of a design given by its data and graph
+/// (`data(seed)` draws one series), plus the short-series warning count.
+fn headline_coverage(
+    what: &str,
+    label: &str,
+    seed: u64,
+    data: impl Fn(u64) -> TimeSeriesData,
+    graph: impl Fn() -> TemporalDag,
+    query: &TemporalEffectQuery,
+    truth: f64,
+) -> (Vec<CoverageTally>, u32) {
+    let mut boot = CoverageTally::new(format!("{what} [{label}] circular-block se_bootstrap"), 0.9);
+    let mut spread = Spread::default();
+    let mut warned = 0;
+    for rep in 0..n_sim() {
+        let rep_seed = seed + u64::from(rep);
+        let result = run(
+            data(rep_seed),
+            graph(),
+            CausalQuery::TemporalEffect(query.clone()),
+            BOOT,
+            rep_seed,
+        );
+        let est = &result.estimate;
+        assert!(est.se_analytic.is_nan(), "{what}: no analytic SE is calibrated");
+        boot.record(normal_interval(est.ate, est.se_bootstrap, Z90), truth);
+        spread.push(est.ate, est.se_bootstrap.unwrap_or(f64::NAN));
+        warned += u32::from(has_diagnostic(&result, SHORT_SERIES));
+    }
+    spread.report(&format!("{what} [{label}]"), truth);
+    (vec![boot], warned)
 }
 
 /// Print every tally's calibration line before failing on any of them.
@@ -332,7 +221,17 @@ impl Spread {
 
 /// Coverage of all three contrasts from the shared block replicate of one run.
 fn mediation_coverage(s: Scenario) -> (Vec<CoverageTally>, u32) {
-    let label = s.label;
+    mediation_coverage_on(s.label, s.seed, |rep| mediation_series(s, rep), mediation_dag)
+}
+
+/// [`mediation_coverage`] on any one-mediator design with an empty adjustment
+/// set (`data(rep)` draws replicate `rep`; the run seed is `seed + rep`).
+fn mediation_coverage_on(
+    label: &str,
+    seed: u64,
+    data: impl Fn(u32) -> TimeSeriesData,
+    graph: fn() -> TemporalDag,
+) -> (Vec<CoverageTally>, u32) {
     let mut total = CoverageTally::new(format!("temporal mediation Total [{label}]"), 0.9);
     let mut direct = CoverageTally::new(format!("temporal mediation Direct [{label}]"), 0.9);
     let mut mediated = CoverageTally::new(format!("temporal mediation Mediated [{label}]"), 0.9);
@@ -340,11 +239,11 @@ fn mediation_coverage(s: Scenario) -> (Vec<CoverageTally>, u32) {
     let mut warned = 0;
     for rep in 0..n_sim() {
         let result = run(
-            mediation_series(s, rep),
-            mediation_dag(),
+            data(rep),
+            graph(),
             mediation_query(MediationContrast::Mediated),
             BOOT,
-            s.seed + u64::from(rep),
+            seed + u64::from(rep),
         );
         let grid = result.mediation_grid.as_ref().expect("mediation grid");
         let slice = &grid.slices[0];
@@ -567,35 +466,108 @@ mediation_gate!(temporal_dag_mediation_ar05_n160_nominal_90_coverage, AR05_160);
 mediation_gate!(temporal_dag_mediation_ar09_n400_nominal_90_coverage, AR09_400);
 mediation_gate!(temporal_dag_mediation_ar05_n60_nominal_90_coverage, AR05_60);
 
-/// Below the effective-sample floor (AR(1) ρ = 0.9 at n = 60 and 160): measured,
-/// warned, not gated. The in-assumption gates above carry the nominal claim.
+/// AR(1) ρ = 0.9 residuals at n = 60 and 160 on the MA(3)-treatment designs:
+/// short, strongly autocorrelated series whose estimating score still forgets
+/// within a few lags. Coverage is nominal (`v19_short_series_measurement`), so
+/// these are gated; the short-series warning fires on part of the n = 60
+/// replicates (the single-window and mediation thresholds sit above their
+/// effective rows) and on almost none at n = 160, and its rate is reported.
 const AR09_160: Scenario =
-    Scenario { label: "AR(1) rho=0.9 n=160 (boundary)", rho: 0.9, n: 160, seed: 510_000 };
-const AR09_60: Scenario =
-    Scenario { label: "AR(1) rho=0.9 n=60 (boundary)", rho: 0.9, n: 60, seed: 500_000 };
+    Scenario { label: "AR(1) rho=0.9 n=160", rho: 0.9, n: 160, seed: 510_000 };
+const AR09_60: Scenario = Scenario { label: "AR(1) rho=0.9 n=60", rho: 0.9, n: 60, seed: 500_000 };
 
-#[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn temporal_dag_pulse_ar09_n60_short_series_boundary() {
-    boundary(effect_coverage(AR09_60, "TemporalDag Pulse h=1", &pulse(1), BETA, 0));
+effect_gate!(
+    temporal_dag_pulse_ar09_n60_nominal_90_coverage,
+    AR09_60,
+    "TemporalDag Pulse h=1",
+    pulse(1),
+    BETA,
+    0
+);
+effect_gate!(
+    temporal_dag_pulse_ar09_n160_nominal_90_coverage,
+    AR09_160,
+    "TemporalDag Pulse h=1",
+    pulse(1),
+    BETA,
+    0
+);
+mediation_gate!(temporal_dag_mediation_ar09_n60_nominal_90_coverage, AR09_60);
+mediation_gate!(temporal_dag_mediation_ar09_n160_nominal_90_coverage, AR09_160);
+
+/// Multi-step Sustained over lags 2..=1 on `fixtures::confounded_series` with its
+/// generating DAG (`fixtures::confounded_dag`, truth `B1 + B2`): sequential
+/// g-computation refits every mechanism on each circular-block replicate.
+fn sequential_coverage(label: &str, rho: f64, n: usize, seed: u64) -> (Vec<CoverageTally>, u32) {
+    headline_coverage(
+        "TemporalDag multi-step Sustained",
+        label,
+        seed,
+        |s| fixtures::confounded_series(n, fixtures::B2, rho, s),
+        fixtures::confounded_dag,
+        &persistent_dgp::multi_sustained(),
+        fixtures::B1 + fixtures::B2,
+    )
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn temporal_dag_mediation_ar09_n60_short_series_boundary() {
-    boundary(mediation_coverage(AR09_60));
+fn temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage() {
+    gate(sequential_coverage("AR(1) rho=0.5 n=160", 0.5, 160, 700_000));
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn temporal_dag_pulse_ar09_n160_short_series_boundary() {
-    boundary(effect_coverage(AR09_160, "TemporalDag Pulse h=1", &pulse(1), BETA, 0));
+fn temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage() {
+    gate(sequential_coverage("AR(1) rho=0.9 n=400", 0.9, 400, 710_000));
+}
+
+// Boundary records: an AR(1) treatment as well as residual at n = 60 (ρ = 0.9;
+// ρ = 0.95 for multi-step Sustained, whose two-lag contrast averages over more
+// of the memory), so the estimating score is itself close to AR(1)(ρ²) and the
+// series holds only a handful of its memory spans. No block length or fixed-b
+// correction reaches nominal coverage there (0.76-0.83 measured at 2000
+// replicates); the runtime warns on (nearly) every replicate, and coverage is
+// recorded.
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary() {
+    boundary(headline_coverage(
+        "TemporalDag Pulse h=1, AR(1) treatment",
+        "AR(1) rho=0.9 n=60 (boundary)",
+        800_000,
+        |s| fixtures::chain_pag_series(60, 0.9, s),
+        persistent_dgp::chain_pulse_dag,
+        &persistent_dgp::pulse(),
+        fixtures::B1,
+    ));
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn temporal_dag_mediation_ar09_n160_short_series_boundary() {
-    boundary(mediation_coverage(AR09_160));
+fn temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary() {
+    const SEED: u64 = 810_000;
+    boundary(mediation_coverage_on(
+        "AR(1) treatment, AR(1) rho=0.9 n=60 (boundary)",
+        SEED,
+        |rep| persistent_dgp::mediation_series(60, 0.9, SEED + u64::from(rep)),
+        persistent_dgp::mediation_dag,
+    ));
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary() {
+    boundary(headline_coverage(
+        "TemporalDag multi-step Sustained, AR(1) treatment",
+        "AR(1) rho=0.95 n=60 (boundary)",
+        820_000,
+        |s| persistent_dgp::sequential_series(60, 0.95, s),
+        fixtures::two_lag_dag,
+        &persistent_dgp::multi_sustained(),
+        fixtures::B1 + fixtures::B2,
+    ));
 }
 
 #[test]
@@ -680,20 +652,113 @@ fn temporal_mediation_shares_one_block_replicate_across_contrasts() {
     ));
 }
 
+/// The effective rows printed by the `estimate.temporal.circular_block_se`
+/// provenance, and whether the short-series warning fired.
+fn short_series_state(result: &StudyResult) -> (f64, bool) {
+    const KEY: &str = "score effective rows ";
+    let message = &result
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "estimate.temporal.circular_block_se")
+        .expect("circular-block provenance")
+        .message;
+    let rest = &message[message.find(KEY).expect("effective rows") + KEY.len()..];
+    let end = rest.find(|c: char| !(c.is_ascii_digit() || c == '.')).unwrap_or(rest.len());
+    (rest[..end].parse().expect("a number"), has_diagnostic(result, SHORT_SERIES))
+}
+
+/// The warning fires exactly below the family threshold, and on this fixed
+/// series it does (`expect_warning`) or does not.
+fn assert_threshold(result: &StudyResult, family: CircularBlockFamily, expect_warning: bool) {
+    let (effective_rows, warned) = short_series_state(result);
+    let threshold = family.min_effective_rows();
+    assert_eq!(
+        warned,
+        effective_rows < threshold,
+        "{family:?}: warning must fire exactly below {threshold} (effective rows {effective_rows})"
+    );
+    assert_eq!(
+        warned, expect_warning,
+        "{family:?}: effective rows {effective_rows} against threshold {threshold}"
+    );
+    if warned {
+        let warning = result.diagnostics.iter().find(|d| d.code.as_ref() == SHORT_SERIES).unwrap();
+        assert_eq!(warning.severity, DiagnosticSeverity::Warning);
+        assert!(warning.message.contains(family.label()), "{}", warning.message);
+    }
+}
+
 #[test]
-fn short_series_warns_below_the_block_floor() {
+fn short_series_single_window_threshold() {
     let short = Scenario { label: "short", rho: 0.5, n: 30, seed: 9 };
-    let result = run(
+    let thirty_rows = run(
         pulse_series(short, 0, false),
         pulse_dag(false),
         CausalQuery::TemporalEffect(pulse(1)),
         8,
         9,
     );
-    let warning = result
-        .diagnostics
-        .iter()
-        .find(|d| d.code.as_ref() == "estimate.temporal.circular_block_se.short_series")
-        .expect("a 30-row series must carry the short-series warning");
-    assert_eq!(warning.severity, DiagnosticSeverity::Warning);
+    assert_threshold(&thirty_rows, CircularBlockFamily::SingleWindow, true);
+    // AR(1) treatment and residual at ρ = 0.9, n = 60: coverage 0.79 measured.
+    let persistent = run(
+        fixtures::chain_pag_series(60, 0.9, 12),
+        persistent_dgp::chain_pulse_dag(),
+        CausalQuery::TemporalEffect(persistent_dgp::pulse()),
+        8,
+        11,
+    );
+    assert_threshold(&persistent, CircularBlockFamily::SingleWindow, true);
+    // MA(3) treatment, AR(1) ρ = 0.9 residual, n = 160: nominal, quiet.
+    let short_memory = run(
+        pulse_series(AR09_160, 0, false),
+        pulse_dag(false),
+        CausalQuery::TemporalEffect(pulse(1)),
+        8,
+        13,
+    );
+    assert_threshold(&short_memory, CircularBlockFamily::SingleWindow, false);
+}
+
+#[test]
+fn short_series_mediation_threshold() {
+    let persistent = run(
+        persistent_dgp::mediation_series(60, 0.9, 15),
+        persistent_dgp::mediation_dag(),
+        mediation_query(MediationContrast::Mediated),
+        8,
+        15,
+    );
+    assert_threshold(&persistent, CircularBlockFamily::Mediation, true);
+    let short_memory = run(
+        mediation_series(AR09_160, 0),
+        mediation_dag(),
+        mediation_query(MediationContrast::Mediated),
+        8,
+        17,
+    );
+    assert_threshold(&short_memory, CircularBlockFamily::Mediation, false);
+}
+
+#[test]
+fn short_series_sequential_threshold() {
+    let persistent = run(
+        persistent_dgp::sequential_series(60, 0.9, 19),
+        fixtures::two_lag_dag(),
+        CausalQuery::TemporalEffect(persistent_dgp::multi_sustained()),
+        8,
+        19,
+    );
+    assert_threshold(&persistent, CircularBlockFamily::Sequential, true);
+    let long = run(
+        fixtures::confounded_series(400, fixtures::B2, 0.5, 21),
+        fixtures::confounded_dag(),
+        CausalQuery::TemporalEffect(persistent_dgp::multi_sustained()),
+        8,
+        21,
+    );
+    assert_threshold(&long, CircularBlockFamily::Sequential, false);
+    assert!(
+        has_diagnostic(&long, "estimate.temporal.sustained_window"),
+        "the multi-step provenance must reach the result"
+    );
 }
