@@ -365,13 +365,22 @@ to n = 400); no block length removes a bias, and the warning is the boundary.
 Temporal response surfaces and observation / Sequence tuple bands use their own
 block rule, `max(max(span, ceil(sqrt(n))), min(ceil(b_PW·n^(1/6)), n/3))` with
 `b_PW` read from the level's normal-equation scores and centered covariate
-columns (recorded as `response.temporal.block_length`), and the same
-circular-Bartlett factor. Their 400-replicate coverage at nominal 0.95 is gated
-for iid and AR(1) ρ = 0.5 residuals and for the dose curve under an AR(1)
-φ = 0.9 treatment; AR(1) ρ = 0.9 residuals (0.883–0.943 pointwise, 0.873
-simultaneous) and a shift response under the φ = 0.9 treatment (0.910 / 0.912)
-are boundary records, disclosed on every band as
-`response.temporal.block.persistence_boundary`.
+columns (recorded as `response.temporal.block_length`), the same
+circular-Bartlett factor, and a per-cell kernel-bias factor `1/sqrt(f)`
+(`response.temporal.kernel_bias_factor`): `f` is the share of the long-run
+variance of the autoregression fitted to that cell's influence (Kendall AR(1),
+or the BIC-selected AR(q ≤ 4) when larger) that the block's Bartlett kernel
+keeps. `response.temporal.effective_rows` carries each cell's effective rows and
+`response.temporal.block.short_series` warns below 15. Their 400-replicate
+coverage at nominal 0.95 is gated for iid and AR(1) ρ = 0.5 residuals and, under
+an AR(1) φ = 0.9 treatment, for both the dose curve (0.945–0.948 / 0.948) and
+the shift response (0.943 / 0.948; 0.910 / 0.912 before the factor). AR(1)
+ρ = 0.9 residuals (0.887–0.943 pointwise, 0.877 simultaneous at n = 160;
+0.900–0.922 / 0.895 at n = 400; 0.902–0.943 / 0.905 at n = 1000) remain a
+boundary record, disclosed on every band as
+`response.temporal.block.persistence_boundary`: the persistent part is 15% of
+the residual (lag-1 autocorrelation 0.13) and its long-run ratio is not
+estimable at these n by any block length or fitted autoregression.
 
 ### Bayesian
 
