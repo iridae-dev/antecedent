@@ -1400,6 +1400,8 @@ impl super::Study {
         // draws. Prior anchors on the first successful prepare.
         let mut per_graph = Vec::new();
         let mut sequential_atoms = Vec::new();
+        // Graph key of each sequential validation atom, for the Interactive subsample.
+        let mut sequential_keys = Vec::new();
         let mut ws = BayesianGCompWorkspace::default();
         let mut prepare_demoted = 0usize;
         let mut fit_demoted = 0usize;
@@ -1456,6 +1458,7 @@ impl super::Study {
                     continue;
                 };
                 if let Ok(draws) = envelope_draws_from_posterior(key, &posterior) {
+                    sequential_keys.push(key);
                     sequential_atoms.push(SequentialValidationAtom {
                         weight: identified_weight_for_key(&identified.graphs, key),
                         graph,
@@ -1571,6 +1574,16 @@ impl super::Study {
         for atom in &mut atoms {
             atom.weight = identified_weight_for_key(&graphs, atom.key);
         }
+        // Validation refits only the atoms the mixture kept, at their kept weights.
+        let sequential_atoms: Vec<SequentialValidationAtom> = sequential_atoms
+            .into_iter()
+            .zip(sequential_keys)
+            .filter(|(_, key)| keep.contains(key))
+            .map(|(mut atom, key)| {
+                atom.weight = identified_weight_for_key(&graphs, key);
+                atom
+            })
+            .collect();
         let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
