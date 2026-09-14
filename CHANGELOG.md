@@ -107,9 +107,9 @@ was not available, published as boundary records with a runtime disclosure.
   `StructuralResponseMixture` is not `#[non_exhaustive]`, so code that builds
   it as a struct literal must add the field.
 - The support-matrix gate fails a staged licensed row without a named
-  evidence test. Rows licensed before the rule are exempt through a frozen,
-  shrink-only list (`parity/_evidence_test_backlog.txt`, 122 of 337 licensed
-  rows).
+  evidence test. The frozen, shrink-only exemption list for rows licensed
+  before the rule (`parity/_evidence_test_backlog.txt`) is empty: all 337
+  licensed rows name the test that executes them.
 
 ### Changed
 
