@@ -11,9 +11,9 @@ of what exists in the codebase; it does not license a cell.
 See [ADR 0020](https://github.com/iridae-dev/antecedent/blob/main/adr/0020-support-matrix-and-prepared-workflow.md).
 
 The Cartesian product (query × graph class × structure source × inference ×
-validation) is **3078** cells. That denominator is not a feature count.
-Of those cells, **1799** are typed impossibilities and
-**1279** are meaningful combinations.
+validation) is **3402** cells. That denominator is not a feature count.
+Of those cells, **1979** are typed impossibilities and
+**1423** are meaningful combinations.
 
 Every cell is in exactly **one of three runtime states**: **licensed** (a
 result), **n/a** (the coordinate does not denote — a typed impossibility),
@@ -27,15 +27,15 @@ wire value, but 0.9 has no active allowlist entries.
 
 | Status | Count | How to read it |
 |---|---|---|
-| Cartesian product | 3078 | Axis product, not a coverage score |
-| n/a | 1799 | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
-| Meaningful remainder | 1279 | Combinations that could in principle be a claim |
-| Licensed | 337 | Staged path plus the row's recorded evidence contract and limitations |
+| Cartesian product | 3402 | Axis product, not a coverage score |
+| n/a | 1979 | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
+| Meaningful remainder | 1423 | Combinations that could in principle be a claim |
+| Licensed | 341 | Staged path plus the row's recorded evidence contract and limitations |
 | `allowed_unlicensed` compatibility entries | 0 | Retained wire value; 0.9 requires this count to remain zero |
-| Refused — reason on file | 933 | Same runtime outcome as any other refused cell; documented in legacy-named `support_closed.toml`, including mislabeled-inference laundering |
+| Refused — reason on file | 1073 | Same runtime outcome as any other refused cell; documented in legacy-named `support_closed.toml`, including mislabeled-inference laundering |
 | Refused — no reason on file yet | 9 | Same runtime outcome; no rule in `support_closed.toml` names it yet |
 
-Do not read "337 / 3078" as coverage. Read: **337 cells
+Do not read "341 / 3402" as coverage. Read: **341 cells
 carry their recorded evidence contracts**; no cells run through the retained
 `allowed_unlicensed` compatibility path; the rest are n/a or refused.
 
@@ -55,8 +55,10 @@ older artifacts and clients, but no 0.9 matrix cell can produce it.
 
 **Queries** (root `__all__`):
 
+- `AnomalyAttribution`
 - `AverageDerivative`
 - `AverageEffect`
+- `ChangeAttribution`
 - `ConditionalEffect`
 - `Counterfactual`
 - `DirectionalDerivative`
@@ -99,15 +101,15 @@ older artifacts and clients, but no 0.9 matrix cell can produce it.
 ## n/a
 
 - queries ∈ {PulseEffect, SustainedEffect, TemporalMediationEffect} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag, CoDetermined, Unknown} — Temporal contrast queries require a temporal graph class.
-- queries ∈ {AverageDerivative, AverageEffect, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, MediationEffect, PathSpecificEffect, PointDerivative, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — Static queries are not a temporal-graph cell; use PulseEffect, SustainedEffect, or a temporal ResponseCurve/InterventionResponse attachment.
+- queries ∈ {AnomalyAttribution, AverageDerivative, AverageEffect, ChangeAttribution, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, MediationEffect, PathSpecificEffect, PointDerivative, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — Static queries are not a temporal-graph cell; use PulseEffect, SustainedEffect, or a temporal ResponseCurve/InterventionResponse attachment.
 - queries ∈ {TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {TemporalDag, TemporalCpdag, TemporalPag} — TransportQuery and InterferenceQuery are typed against static graphs; they do not denote on a temporal graph class.
 - queries ∈ {ResponseCurve} ∧ graph_classes ∈ {Dag, TemporalDag, Cpdag, Pag, TemporalCpdag, TemporalPag} ∧ structures ∈ {explicit, accepted} ∧ validations ∈ {cheap, full} — cheap and full denote the ATE-shaped scalar refuter suite; a function-valued curve has no such state.
 - queries ∈ {ResponseCurve} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {graph_posterior} ∧ validations ∈ {cheap, full} — cheap and full denote the ATE-shaped scalar refuter suite; a graph-posterior response remains function-valued or atom-mixed with no licensed scalar-refuter state.
 - queries ∈ {InterventionResponse} ∧ graph_classes ∈ {TemporalDag, Cpdag, Pag, TemporalCpdag, TemporalPag} ∧ structures ∈ {explicit, accepted} ∧ validations ∈ {cheap, full} — cheap and full denote the ATE-shaped scalar refuter suite; temporal and class-aware InterventionResponse remain function-valued or envelope-mixed surfaces with no licensed scalar-refuter state.
 - queries ∈ {InterventionResponse} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit, accepted, graph_posterior} ∧ inferences ∈ {Bayesian} ∧ validations ∈ {cheap, full} — Bayesian InterventionResponse has no licensed scalar-refuter state; cheap/full name the Frequentist ATE-shaped suite.
 - queries ∈ {PointDerivative, Elasticity, SemiElasticity, AverageDerivative, DirectionalDerivative, ResponseJacobian} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {explicit, accepted} ∧ validations ∈ {cheap, full} — Derivative-native validation is not implemented; ATE refuters do not apply.
-- queries ∈ {AverageDerivative, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, InterventionResponse, MediationEffect, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity, TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {Unknown} — Unknown-tier cells license the two-scenario AverageEffect envelope only.
-- queries ∈ {AverageDerivative, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, MediationEffect, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity, TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {CoDetermined} — CoDetermined cells license AverageEffect and joint InterventionResponse only.
+- queries ∈ {AnomalyAttribution, AverageDerivative, ChangeAttribution, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, InterventionResponse, MediationEffect, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity, TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {Unknown} — Unknown-tier cells license the two-scenario AverageEffect envelope only.
+- queries ∈ {AnomalyAttribution, AverageDerivative, ChangeAttribution, ConditionalEffect, Counterfactual, DirectionalDerivative, Elasticity, InterventionalDistribution, MediationEffect, PathSpecificEffect, PointDerivative, ResponseCurve, ResponseJacobian, SemiElasticity, TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {CoDetermined} — CoDetermined cells license AverageEffect and joint InterventionResponse only.
 - graph_classes ∈ {CoDetermined, Unknown} ∧ structures ∈ {accepted, graph_posterior} — Tier-rule backgrounds are an explicit structure source.
 - graph_classes ∈ {CoDetermined, Unknown} ∧ inferences ∈ {Bayesian} — Tier-rule cells are Frequentist (cell.aipw joint / two-scenario envelope).
 - queries ∈ {AverageEffect, InterventionResponse} ∧ graph_classes ∈ {CoDetermined, Unknown} ∧ validations ∈ {cheap, full} — cheap and full name the ATE-shaped scalar refuter suite; CoDetermined joint IR and the Unknown envelope have no licensed scalar-refuter state.
@@ -127,7 +129,20 @@ row here yet.
 - queries ∈ {PathSpecificEffect} ∧ graph_classes ∈ {Admg, Cpdag, Pag} ∧ structures ∈ {accepted} — Accepted path queries require a Dag.
 - queries ∈ {InterventionalDistribution} ∧ graph_classes ∈ {Cpdag, Pag} ∧ structures ∈ {accepted} — Accepted InterventionalDistribution is licensed on Dag and Admg; Cpdag/Pag remain refused.
 - queries ∈ {MediationEffect} ∧ graph_classes ∈ {Admg, Cpdag, Pag} — MediationEffect requires a supplied static Dag.
-- queries ∈ {TransportQuery, InterferenceQuery} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag} — Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified.
+- queries ∈ {AnomalyAttribution, ChangeAttribution} ∧ graph_classes ∈ {Admg, Cpdag, Pag} — AnomalyAttribution and ChangeAttribution require a supplied static Dag.
+- queries ∈ {AnomalyAttribution, ChangeAttribution} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {accepted, graph_posterior} — Attribution is licensed only for an explicit Dag at validation none.
+- queries ∈ {AnomalyAttribution, ChangeAttribution} ∧ graph_classes ∈ {Dag} ∧ inferences ∈ {Bayesian} — Attribution has no Bayesian draw path; the licensed cells are Frequentist.
+- queries ∈ {AnomalyAttribution, ChangeAttribution} ∧ graph_classes ∈ {Dag} ∧ validations ∈ {cheap, full} — Attribution has no native refuter suite; ATE refuters do not apply.
+- queries ∈ {TransportQuery} ∧ graph_classes ∈ {Dag, Cpdag, Pag} — Licensed TransportQuery is Admg-only; selection diagrams are ADMGs. Recursive sID outside the implemented subset is NotCertified.
+- queries ∈ {TransportQuery} ∧ graph_classes ∈ {Admg} ∧ structures ∈ {accepted} — TransportQuery is licensed only for an explicit Admg at validation none.
+- queries ∈ {TransportQuery} ∧ graph_classes ∈ {Admg} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — TransportQuery graph-posterior mixtures are not staged.
+- queries ∈ {TransportQuery} ∧ graph_classes ∈ {Admg} ∧ inferences ∈ {Bayesian} — TransportQuery has no Bayesian trial-to-target estimator.
+- queries ∈ {TransportQuery} ∧ graph_classes ∈ {Admg} ∧ validations ∈ {cheap, full} — TransportQuery has no native refuter suite; ATE refuters do not apply.
+- queries ∈ {InterferenceQuery} ∧ graph_classes ∈ {Admg, Cpdag, Pag} — Licensed InterferenceQuery is Dag-only; the graph binds schema/outcome, it does not identify the contrast.
+- queries ∈ {InterferenceQuery} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {accepted} — InterferenceQuery is licensed only for an explicit Dag at validation none.
+- queries ∈ {InterferenceQuery} ∧ graph_classes ∈ {Dag} ∧ structures ∈ {graph_posterior} ∧ inferences ∈ {Bayesian} — InterferenceQuery graph-posterior mixtures are not staged.
+- queries ∈ {InterferenceQuery} ∧ graph_classes ∈ {Dag} ∧ inferences ∈ {Bayesian} — InterferenceQuery is design-based Frequentist; there is no Bayesian randomization estimator.
+- queries ∈ {InterferenceQuery} ∧ graph_classes ∈ {Dag} ∧ validations ∈ {cheap, full} — InterferenceQuery has no native refuter suite; ATE refuters do not apply.
 - queries ∈ {ConditionalEffect} ∧ graph_classes ∈ {Admg} — ConditionalEffect on Admg has no compile arm; Dag, Cpdag, and Pag are licensed.
 - queries ∈ {PathSpecificEffect} ∧ graph_classes ∈ {Admg, Pag} ∧ structures ∈ {explicit} — Path-specific queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above).
 - queries ∈ {InterventionalDistribution} ∧ graph_classes ∈ {Pag} ∧ structures ∈ {explicit} — Path and distribution queries execute only on a supplied static Dag or Admg; a directly supplied Pag hits the static-Dag/Admg requirement.
@@ -499,3 +514,7 @@ _None._
 | `InterventionalDistribution` | `Admg` | `explicit` | `Bayesian` | `none` | internal_known_truth (`conformance/estimate/admg_frontdoor_distribution`) | Same ID functional as Frequentist; Bayesian uses the existing FunctionalDistribution CPT path. No transferred prior. Validation none only. Same SCM truth: the Bayesian-bootstrap posterior mean (500 draws) is within 0.02 of it and its 95% credible interval is finite, inside (0, 1) and brackets the posterior mean; a numeric pin, not a coverage claim. Rust Study API only: the Python distribution entry points take DAG edges and refuse an Admg. |
 | `InterventionalDistribution` | `Admg` | `accepted` | `Bayesian` | `none` | internal_known_truth (`conformance/estimate/admg_frontdoor_distribution`) | Same evaluator as explicit Bayesian Admg; acceptance does not add identification. Same SCM truth: the Bayesian-bootstrap posterior mean (500 draws) is within 0.02 of it and its 95% credible interval is finite, inside (0, 1) and brackets the posterior mean; a numeric pin, not a coverage claim. Rust Study API only: the Python distribution entry points take DAG edges and refuse an Admg. |
 | `TemporalMediationEffect` | `TemporalDag` | `graph_posterior` | `Frequentist` | `none` | internal_known_truth (`conformance/bayesian/known_truth_mixtures`) | Single horizon only; multi-horizon grids are refused (fresh and prepared). Frozen posterior weights. Each identified atom uses its own S(h) (its I(h) plus mediator-outcome confounders); sets are not unioned. Total, Direct and Mediated are fixed-weight means over evaluable atoms. When replicates are requested, one shared circular-block replicate over the lag-aligned series times every atom can evaluate refits every atom's three mechanism regressions and mixes them with the frozen weights inside the replicate, so the three SEs are for the reported aggregate and include between-atom covariance; the block length is dependence-aware (at least max(span, ⌈m^{1/3}⌉), lengthened on persistent contrast or normal-equation scores) and the replicate SD carries the circular-Bartlett fixed-b factor; estimate.temporal.circular_block_se.short_series warns below the temporal mediation threshold (one atom) or the mixture threshold. With one identified atom this is that atom's own block bootstrap. Without usable replicates the aggregate SE is withheld (estimate.dbn_posterior.mediation.uncertainty_withheld); no iid SE is substituted. Identified/unidentified/unevaluable mass, atom values and the atom range are in structural_response (posterior_probability weights); unidentified or unevaluable mass makes the status GraphDependent. Failed estimation is unevaluable, not unidentified. The SE is checked as finite and positive, not calibrated for coverage. Python: analyze() and PreparedAnalysis.prepare(discovery=DbnPosterior(...) or GraphPosterior(...)) with Frequentist() reach this cell; without an explicit bootstrap the replicate count follows the latency tier (interactive 0, standard 199, report 200; 199 without a tier). cheap/full are not licensed. Class-valued posterior atoms remain refused. |
+| `AnomalyAttribution` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/staged_attribution`) | GCM anomaly scores on a supplied explicit Dag. Identification is parametric (gcm.parametric); estimator gcm.fit. Not an average treatment effect. Sampling uncertainty is unavailable. cheap/full, Bayesian, accepted, graph-posterior, and non-Dag graphs remain refused. Rust Study API only. |
+| `ChangeAttribution` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/staged_attribution`) | GCM distribution-change Shapley on a supplied explicit Dag, two time-range populations. Identification is parametric (gcm.parametric); estimator gcm.fit. Pins total_change from conformance/estimate/staged_attribution (same two-period intercept-shift chain as conformance/attribution/distribution_change_y_shift). cheap/full, Bayesian, accepted, graph-posterior, and non-Dag graphs remain refused. Rust Study API only. |
+| `TransportQuery` | `Admg` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/estimate/staged_transport`) | Single-source selection diagram on an explicit Admg. Identification is the implemented sID subset (Direct or S-admissible standardize). This cell estimates the binary trial-to-target ATE via Dahabreh IPW from caller-supplied trial membership and known selection/treatment probabilities; the inner ResponseCurve names treatment/outcome only and is not a dose-response estimate. RecursiveFactorization and NotCertified refuse. cheap/full, Bayesian, accepted, graph-posterior, and non-Admg graphs remain refused. Selection diagram and trial columns freeze at prepare. Rust Study API only. |
+| `InterferenceQuery` | `Dag` | `explicit` | `Frequentist` | `none` | internal_known_truth (`conformance/response/randomized_interference`) | Design-based Horvitz–Thompson / Hájek exposure contrast. The Dag binds schema/outcome; it does not identify the contrast. Licensed mapping is NeighborCount under Bernoulli assignment on a caller-supplied fixed network. Variance is the conservative Young bound, not Aronow–Samii. cheap/full, Bayesian, accepted, graph-posterior, cluster/custom mappings, and non-Dag graphs remain refused. Network and assignment freeze at prepare. Rust Study API only. |

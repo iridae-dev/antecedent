@@ -687,6 +687,14 @@ impl super::Study {
                     self.require_execute_dag("UnitChange execute requires a supplied static DAG")?;
                 self.execute_unit_change(data, graph, q, physical, ctx)
             }
+            AnalysisRoute::Transport => {
+                let CausalQuery::Transport(q) = &self.query else { unreachable!() };
+                self.execute_transport(data, q, physical, ctx)
+            }
+            AnalysisRoute::Interference => {
+                let CausalQuery::Interference(q) = &self.query else { unreachable!() };
+                self.execute_interference(q, physical, ctx)
+            }
             AnalysisRoute::TemporalMediation
             | AnalysisRoute::TemporalEffect
             | AnalysisRoute::TemporalResponse

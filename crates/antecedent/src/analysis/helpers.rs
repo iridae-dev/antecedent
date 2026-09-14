@@ -98,6 +98,8 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         change_attribution: args.change_attribution,
         mechanism_change: args.mechanism_change,
         unit_change: args.unit_change,
+        transport: None,
+        interference: None,
         refutations: args.refutations,
         predictive_checks: Vec::new(),
         diagnostics: args.diagnostics,

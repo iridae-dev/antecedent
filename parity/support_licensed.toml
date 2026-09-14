@@ -4288,3 +4288,55 @@ known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
 evidence_assertion = "manufacturing_dbn_posterior_frequentist_mediation_envelope"
 limitations = "Single horizon only; multi-horizon grids are refused (fresh and prepared). Frozen posterior weights. Each identified atom uses its own S(h) (its I(h) plus mediator-outcome confounders); sets are not unioned. Total, Direct and Mediated are fixed-weight means over evaluable atoms. When replicates are requested, one shared circular-block replicate over the lag-aligned series times every atom can evaluate refits every atom's three mechanism regressions and mixes them with the frozen weights inside the replicate, so the three SEs are for the reported aggregate and include between-atom covariance; the block length is dependence-aware (at least max(span, ⌈m^{1/3}⌉), lengthened on persistent contrast or normal-equation scores) and the replicate SD carries the circular-Bartlett fixed-b factor; estimate.temporal.circular_block_se.short_series warns below the temporal mediation threshold (one atom) or the mixture threshold. With one identified atom this is that atom's own block bootstrap. Without usable replicates the aggregate SE is withheld (estimate.dbn_posterior.mediation.uncertainty_withheld); no iid SE is substituted. Identified/unidentified/unevaluable mass, atom values and the atom range are in structural_response (posterior_probability weights); unidentified or unevaluable mass makes the status GraphDependent. Failed estimation is unevaluable, not unidentified. The SE is checked as finite and positive, not calibrated for coverage. Python: analyze() and PreparedAnalysis.prepare(discovery=DbnPosterior(...) or GraphPosterior(...)) with Frequentist() reach this cell; without an explicit bootstrap the replicate count follows the latency tier (interactive 0, standard 199, report 200; 199 without a tier). cheap/full are not licensed. Class-valued posterior atoms remain refused."
+
+[[cell]]
+query = "AnomalyAttribution"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_attribution"
+evidence_test = "crates/antecedent/tests/staged_attribution_transport_interference.rs"
+evidence_assertion = "anomaly_attribution_known_truth"
+limitations = "GCM anomaly scores on a supplied explicit Dag. Identification is parametric (gcm.parametric); estimator gcm.fit. Not an average treatment effect. Sampling uncertainty is unavailable. cheap/full, Bayesian, accepted, graph-posterior, and non-Dag graphs remain refused. Rust Study API only."
+
+[[cell]]
+query = "ChangeAttribution"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_attribution"
+evidence_test = "crates/antecedent/tests/staged_attribution_transport_interference.rs"
+evidence_assertion = "change_attribution_known_truth"
+limitations = "GCM distribution-change Shapley on a supplied explicit Dag, two time-range populations. Identification is parametric (gcm.parametric); estimator gcm.fit. Pins total_change from conformance/estimate/staged_attribution (same two-period intercept-shift chain as conformance/attribution/distribution_change_y_shift). cheap/full, Bayesian, accepted, graph-posterior, and non-Dag graphs remain refused. Rust Study API only."
+
+[[cell]]
+query = "TransportQuery"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_transport"
+evidence_test = "crates/antecedent/tests/staged_attribution_transport_interference.rs"
+evidence_assertion = "transport_direct_trial_ipw_known_truth"
+limitations = "Single-source selection diagram on an explicit Admg. Identification is the implemented sID subset (Direct or S-admissible standardize). This cell estimates the binary trial-to-target ATE via Dahabreh IPW from caller-supplied trial membership and known selection/treatment probabilities; the inner ResponseCurve names treatment/outcome only and is not a dose-response estimate. RecursiveFactorization and NotCertified refuse. cheap/full, Bayesian, accepted, graph-posterior, and non-Admg graphs remain refused. Selection diagram and trial columns freeze at prepare. Rust Study API only."
+
+[[cell]]
+query = "InterferenceQuery"
+graph_class = "Dag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/response/randomized_interference"
+evidence_test = "crates/antecedent/tests/staged_attribution_transport_interference.rs"
+evidence_assertion = "interference_bernoulli_neighbor_count_known_truth"
+limitations = "Design-based Horvitz–Thompson / Hájek exposure contrast. The Dag binds schema/outcome; it does not identify the contrast. Licensed mapping is NeighborCount under Bernoulli assignment on a caller-supplied fixed network. Variance is the conservative Young bound, not Aronow–Samii. cheap/full, Bayesian, accepted, graph-posterior, cluster/custom mappings, and non-Dag graphs remain refused. Network and assignment freeze at prepare. Rust Study API only."

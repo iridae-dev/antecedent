@@ -427,7 +427,12 @@ composition remains refused. See the [1.2 evidence ledger](v1.2-evidence.md).
 ## Observation, transport, and interference
 
 These are stage modules. They change what identifies the estimand and are not
-hidden behind an ordinary `target_population` flag.
+hidden behind an ordinary `target_population` flag. 1.9 licenses three
+staged cells at validation `none` (Rust `Study` only): `TransportQuery` ×
+`Admg` × explicit × Frequentist (Direct / S-admissible sID plus binary
+trial-to-target IPW), `InterferenceQuery` × `Dag` × explicit × Frequentist
+(NeighborCount HT/Hájek, Young variance), and — on the GCM path —
+`AnomalyAttribution` / `ChangeAttribution` × `Dag` × explicit × Frequentist.
 
 * **Observation** (`antecedent.observation`): complete, right/left/interval-
   censored, truncated, and selected mechanisms. Assumptions are declared
@@ -499,6 +504,11 @@ Antecedent can analyze:
 * arrow strength;
 * feature relevance;
 * root-cause rankings.
+
+1.9 licenses `AnomalyAttribution` and `ChangeAttribution` on an explicit Dag
+at Frequentist validation `none` (Rust `Study` only). Mechanism-change,
+unit-change, cheap/full, Bayesian, accepted, and graph-posterior stay
+refused. The public license is the [support matrix](support-matrix.md).
 
 Implemented techniques:
 

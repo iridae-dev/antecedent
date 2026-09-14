@@ -16,9 +16,11 @@ Every analysis is three verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 50 names as of 1.7**.
-Version 1.7 explicitly adds `ClassPrior` to the 49-name 1.0 contract so callers
-can supply structural mass alongside their inference selector. The set is: the three verbs
+The root namespace (`import antecedent`) is **frozen at 52 names as of 1.9**.
+Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 adds
+`AnomalyAttribution` and `ChangeAttribution` so the query axis and root
+`__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
+them — the licensed cells are Rust `Study` only. The set is: the three verbs
 above; the accepted-structure and result types (`AcceptedGraph`, `Identification`,
 `AnalysisResult`); the nine typed queries (`AverageEffect`, `PulseEffect`,
 `SustainedEffect`, `InterventionalDistribution`, `PathSpecificEffect`,
@@ -26,7 +28,8 @@ above; the accepted-structure and result types (`AcceptedGraph`, `Identification
 `TemporalMediationEffect`) plus the eight response-family queries
 (`ResponseCurve`, `AverageDerivative`, `PointDerivative`, `Elasticity`,
 `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`,
-`InterventionResponse`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
+`InterventionResponse`) plus the two attribution queries
+(`AnomalyAttribution`, `ChangeAttribution`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
 `TemporalDag`); the inference / identifier / estimator / latency / refute selectors
 (`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`);
 the structural mass type `ClassPrior`; the two
@@ -44,7 +47,7 @@ the module path rather than importing it flat:
 ``antecedent.priors``, ``antecedent.state``, ``antecedent.validation``.
 
 Each of those twelve modules has an explicit, separately frozen `__all__`
-surface. The 49-name count is only the package-root contract; it does not add
+surface. The 52-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
 **15** further modules are reachable as ``antecedent.<name>`` (nothing stops
@@ -132,6 +135,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Mediation (static) | `MediationQuery` | `MediationEffect` |
 | Mediation (temporal) | `MediationQuery` + temporal data | `TemporalMediationEffect` |
 | Counterfactual ITE | `CausalQuery::Counterfactual` / `gcm::counterfactual_ite` | `Counterfactual` on `analyze` / `FittedGcm.counterfactual_ite` |
+| Anomaly / change attribution | `CausalQuery::AnomalyAttribution` / `ChangeAttribution` | `AnomalyAttribution` / `ChangeAttribution` types exist; licensed on the Rust `Study` path only |
 | Identifier strategy | `IdentifierId::BackdoorAdjustment` | `Identifier.BACKDOOR_ADJUSTMENT` / `"backdoor.adjustment"` |
 | Estimator strategy | `EstimatorId::LinearAdjustmentAte` | `Estimator.LINEAR_ADJUSTMENT_ATE` / `"linear.adjustment.ate"` |
 | Per-estimator tuning | `EstimatorSpec::LinearAdjustmentAte { .. }` (builder setters) | `analyze(..., estimator_config={...})` — one table-driven dict kwarg; see `python/src/estimator_config.rs` for the estimator-id → valid-keys table |

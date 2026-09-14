@@ -263,7 +263,9 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
         }
         CausalQuery::Transport(_) => Some("TransportQuery"),
         CausalQuery::Interference(_) => Some("InterferenceQuery"),
-        // Attribution queries and any later `CausalQuery` variant stay off the axis.
+        CausalQuery::AnomalyAttribution(_) => Some("AnomalyAttribution"),
+        CausalQuery::ChangeAttribution(_) => Some("ChangeAttribution"),
+        // Mechanism/unit-change and any later CausalQuery variant stay off the axis.
         _ => None,
     }
 }
@@ -749,6 +751,22 @@ mod tests {
         );
         assert_eq!(
             classify(cell("Counterfactual", "Dag", "accepted", "Bayesian", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("AnomalyAttribution", "Dag", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("ChangeAttribution", "Dag", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("TransportQuery", "Admg", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("InterferenceQuery", "Dag", "explicit", "Frequentist", "none")),
             CellStatus::Licensed
         );
     }

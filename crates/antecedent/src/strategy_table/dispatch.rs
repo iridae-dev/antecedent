@@ -56,6 +56,32 @@ pub fn identify_static_query(
     identify_static_query_with_rd(identifier, graph, query, None)
 }
 
+const fn static_identifier_refusal(identifier: IdentifierId) -> &'static str {
+    match identifier {
+        IdentifierId::GeneralizedAdjustment => {
+            "identifier \"generalized.adjustment\" requires a PAG \
+             (supply AcceptedGraph::pag(..) / FCI / RFCI output, not a static DAG)"
+        }
+        IdentifierId::RdSharp => {
+            "identifier \"rd.sharp\" is not a graph-based static identifier; \
+             select estimator \"rd.sharp\" with builder.rd_config(...)"
+        }
+        IdentifierId::TemporalBackdoorUnfolded => {
+            "identifier \"temporal.backdoor.unfolded\" requires a temporal graph \
+             and TemporalEffect query"
+        }
+        IdentifierId::TransportSid => {
+            "identifier \"transport.sid\" requires a TransportQuery, selection \
+             diagram, and the staged transport path"
+        }
+        IdentifierId::InterferenceDesign => {
+            "identifier \"interference.design\" requires an InterferenceQuery and \
+             the staged interference path"
+        }
+        _ => "identifier is not a static DAG identifier",
+    }
+}
+
 /// Like [`identify_static_query`], optionally attaching sharp-RD design config for Auto.
 ///
 /// # Errors
@@ -146,22 +172,13 @@ pub fn identify_static_query_with_rd(
             let prepared = id.prepare(graph).map_err(identify_err)?;
             id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
         }
-        IdentifierId::GeneralizedAdjustment => {
+        IdentifierId::GeneralizedAdjustment
+        | IdentifierId::RdSharp
+        | IdentifierId::TemporalBackdoorUnfolded
+        | IdentifierId::TransportSid
+        | IdentifierId::InterferenceDesign => {
             return Err(CausalError::Unsupported {
-                message: "identifier \"generalized.adjustment\" requires a PAG \
-                     (supply AcceptedGraph::pag(..) / FCI / RFCI output, not a static DAG)",
-            });
-        }
-        IdentifierId::RdSharp => {
-            return Err(CausalError::Unsupported {
-                message: "identifier \"rd.sharp\" is not a graph-based static identifier; \
-                     select estimator \"rd.sharp\" with builder.rd_config(...)",
-            });
-        }
-        IdentifierId::TemporalBackdoorUnfolded => {
-            return Err(CausalError::Unsupported {
-                message: "identifier \"temporal.backdoor.unfolded\" requires a temporal graph \
-                     and TemporalEffect query",
+                message: static_identifier_refusal(identifier),
             });
         }
     };

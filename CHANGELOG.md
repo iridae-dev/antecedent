@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-09-15
+
 Every licensed cell was reviewed for mathematical correctness and for claims
 that exceed the code or the evidence
 ([review](docs/v1.9-cell-review.md)). Licensed intervals are now checked by
@@ -36,7 +38,7 @@ was not available, published as boundary records with a runtime disclosure.
   DBN posteriors, temporal class envelopes, temporal mediation and temporal
   responses. Cells measured outside their gated scope are recorded as
   boundary records and disclosed at runtime, not gated.
-- Newly licensed cells (330 → 337):
+- Newly licensed cells (330 → 341):
   - `Counterfactual` × `Dag` × accepted, Frequentist and Bayesian, `none`:
     the explicit-Dag estimator on an `AcceptedGraph`, cross-checked equal to
     the explicit result.
@@ -54,6 +56,20 @@ was not available, published as boundary records with a runtime disclosure.
     replicate, so the SEs describe the aggregate. Without usable replicates
     the SE is withheld (`estimate.dbn_posterior.mediation.uncertainty_withheld`).
     cheap/full stay refused.
+  - `AnomalyAttribution` and `ChangeAttribution` × `Dag` × explicit ×
+    Frequentist × `none`: GCM scores / distribution-change Shapley on a
+    supplied Dag. Identification is parametric (`gcm.parametric`); estimator
+    `gcm.fit`. Sampling uncertainty is unavailable. Rust Study API only.
+  - `TransportQuery` × `Admg` × explicit × Frequentist × `none`: implemented
+    sID subset (Direct / S-admissible) plus binary trial-to-target IPW.
+    RecursiveFactorization and NotCertified refuse. Rust Study API only.
+  - `InterferenceQuery` × `Dag` × explicit × Frequentist × `none`:
+    design-based HT/Hájek NeighborCount under Bernoulli assignment. Variance
+    is the Young bound, not Aronow–Samii. The Dag binds schema/outcome; it
+    does not identify the contrast. Rust Study API only.
+- Python root `__all__` is 52 names: `AnomalyAttribution` and
+  `ChangeAttribution` are exported for the query axis. `analyze()` refuses
+  both; `TransportQuery` / `InterferenceQuery` stay stage modules.
 - Prepared panel Pulse/Sustained on an explicit or accepted `TemporalDag`
   prepares once and refreshes with new panel data; panel `ResponseCurve` /
   `InterventionResponse` stays refused because scalar panel SEs do not license
@@ -117,7 +133,7 @@ was not available, published as boundary records with a runtime disclosure.
   only under `scripts/gate_calibration.sh`, so they are cited in `limitations`
   as weekly-gate coverage, never as `evidence_test`). The frozen, shrink-only
   exemption list for rows licensed before the rule
-  (`parity/_evidence_test_backlog.txt`) is empty: all 337 licensed rows name a
+  (`parity/_evidence_test_backlog.txt`) is empty: all 341 licensed rows name a
   test that `cargo test` executes.
 
 ### Removed
@@ -2371,7 +2387,8 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/iridae-dev/antecedent/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/iridae-dev/antecedent/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/iridae-dev/antecedent/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/iridae-dev/antecedent/compare/v1.5.0...v1.6.0

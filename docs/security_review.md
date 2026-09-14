@@ -8,7 +8,10 @@ The 1.9.0 source diff (against the 1.8.0 cut) changes estimators, calibration
 tests, the Python facade, and the artifact format (0.5 adds an optional
 identified-set interval on structural-mixture analysis results; 0.4 artifacts
 migrate unchanged through the existing bounded decoder). Review of the diff
-found no new `unsafe` block and no workflow change. Its only manifest change
+found no new `unsafe` block and no workflow change. The later 1.9
+cell-license slice (staged attribution / transport / interference) likewise
+adds no `unsafe` block, no dependency, and no workflow change. The earlier
+1.9 calibration diff's only manifest change
 adds `arrow-array` and `arrow-schema`, already workspace dependencies, as
 dev-dependencies of the `antecedent` crate; the lockfile gains no package. The
 Arrow C Data Interface import now borrows a Float64 column with nulls only when

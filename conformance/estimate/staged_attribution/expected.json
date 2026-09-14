@@ -1,0 +1,13 @@
+{
+  "anomaly": {
+    "top_row": 19,
+    "score_min": 1.0,
+    "notes": "Linear chain x→y with y=2x except the last row (y=200). GCM IT score ranks that unit first."
+  },
+  "change": {
+    "total_change": 5.0,
+    "tolerance": 0.25,
+    "total_change_min": 3.0,
+    "notes": "Two-period intercept-shift chain (same as conformance/attribution/distribution_change_y_shift). Study uses DistributionChangeOptions::default() (MeanDiff, 2000 samples, seed 0)."
+  }
+}

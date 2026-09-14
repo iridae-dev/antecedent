@@ -375,9 +375,11 @@ Version 1.9.0. Every licensed cell was reviewed
 ([review](docs/v1.9-cell-review.md)) and its intervals checked by a
 two-sided, 400-replicate coverage gate that runs weekly and on dispatch.
 Intervals that missed were fixed, or published as disclosed boundary records
-where no fix was available. No new query kinds; seven cells were licensed on
-existing query kinds (ADMG interventional distributions, accepted-Dag
-counterfactuals, Frequentist DBN-posterior mediation). Temporal class-envelope
+where no fix was available. Eleven cells were licensed on existing
+implementations (ADMG interventional distributions, accepted-Dag
+counterfactuals, Frequentist DBN-posterior mediation, and staged
+`AnomalyAttribution` / `ChangeAttribution` / `TransportQuery` /
+`InterferenceQuery` at validation `none`). Temporal class-envelope
 between-atom variance and DBN shared-block calibration, the owner item, are
 gated. Every licensed row names its executing test; the exemption list
 (`parity/_evidence_test_backlog.txt`) is empty.

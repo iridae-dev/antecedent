@@ -92,6 +92,10 @@ pub enum IdentifierId {
     ResponseBackdoor,
     /// Structural-mechanism identification for staged counterfactuals.
     GcmParametric,
+    /// Conservative single-source sID (direct / S-admissible / singleton c-component).
+    TransportSid,
+    /// Design-based interference: assignment design identifies the exposure contrast.
+    InterferenceDesign,
     /// `AutoIdentifier` — all applicable estimands, no silent estimator choice.
     Auto,
 }
@@ -161,6 +165,16 @@ pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
             name: "gcm.parametric",
             is_dag_only: true,
             provenance: ("counterfactual.aap", "counterfactual.aap"),
+        },
+        IdentifierId::TransportSid => IdentifierData {
+            name: "transport.sid",
+            is_dag_only: false,
+            provenance: ("identify.transport.sid", "identify.transport.sid"),
+        },
+        IdentifierId::InterferenceDesign => IdentifierData {
+            name: "interference.design",
+            is_dag_only: true,
+            provenance: ("identify.interference.design", "identify.interference.design"),
         },
         IdentifierId::ResponseBackdoor => IdentifierData {
             name: "response.backdoor",
@@ -275,6 +289,10 @@ pub enum EstimatorId {
     TemporalResponseGcomp,
     /// Fitted additive GCM mechanisms with abduction–action–prediction ITE.
     GcmFit,
+    /// Dahabreh trial-to-target IPW (Direct / S-admissible standardize only).
+    TransportTrialIpw,
+    /// Horvitz–Thompson / Hájek exposure contrast under a known assignment design.
+    InterferenceHtHajek,
 }
 all_doc = "Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).";
 }
@@ -512,6 +530,18 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             parallel_task_dimension: "analysis",
             kernel_label: "gcm.aap",
             provenance: ("estimate.gcm.fit", "estimate.gcm.fit"),
+        },
+        EstimatorId::TransportTrialIpw => EstimatorData {
+            name: "transport.trial_ipw",
+            parallel_task_dimension: "analysis",
+            kernel_label: "transport.trial_ipw",
+            provenance: ("estimate.transport.trial_ipw", "estimate.transport.trial_ipw"),
+        },
+        EstimatorId::InterferenceHtHajek => EstimatorData {
+            name: "interference.ht_hajek",
+            parallel_task_dimension: "analysis",
+            kernel_label: "interference.ht_hajek",
+            provenance: ("estimate.interference.ht_hajek", "estimate.interference.ht_hajek"),
         },
     }
 }
@@ -849,7 +879,9 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         EstimatorId::FunctionalEffect => {
             matches!(method, EstimandMethod::PathSpecificNatural | EstimandMethod::GeneralId)
         }
-        EstimatorId::GcmFit => false,
+        EstimatorId::GcmFit | EstimatorId::TransportTrialIpw | EstimatorId::InterferenceHtHajek => {
+            false
+        }
     }
 }
 

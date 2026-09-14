@@ -140,17 +140,17 @@ impl Regime {
 /// Stationary ARMA(φ, θ) noise with marginal SD `sd` (500-step burn-in): the
 /// unit-innovation process is scaled by `1 / sqrt(Σ ψ_k²)` of its MA(∞) weights.
 fn arma_noise(n: usize, phi: &[f64], theta: &[f64], sd: f64, seed: u64) -> Vec<f64> {
-    let mut psi = vec![1.0];
+    let mut ma_inf = vec![1.0];
     for k in 1..2_000 {
         let mut v = theta.get(k - 1).copied().unwrap_or(0.0);
         for (j, f) in phi.iter().enumerate() {
             if k > j {
-                v += f * psi[k - 1 - j];
+                v += f * ma_inf[k - 1 - j];
             }
         }
-        psi.push(v);
+        ma_inf.push(v);
     }
-    let scale = sd / psi.iter().map(|w| w * w).sum::<f64>().sqrt();
+    let scale = sd / ma_inf.iter().map(|w| w * w).sum::<f64>().sqrt();
     let mut z = common::calibration::gaussian(seed);
     let burn = 500;
     let mut innovations = Vec::with_capacity(n + burn);

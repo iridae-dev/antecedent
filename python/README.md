@@ -57,7 +57,9 @@ The
 cover the calibration of licensed intervals (a two-sided repeated-sampling
 coverage gate, with boundary records disclosed at runtime), ADMG
 interventional distributions (Rust Study API only), accepted-Dag
-counterfactuals, and Frequentist DBN-posterior mediation. Behaviour changes:
+counterfactuals, Frequentist DBN-posterior mediation, and staged
+attribution / transport / interference cells (Rust Study API only).
+Behaviour changes:
 `rd.sharp` defaults to the HC1 SE, NaN and null float cells are missing
 values, and the default bootstrap count is 199.
 
@@ -135,9 +137,11 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace remains frozen at 49 names. Temporal response
-attachments and 1.3 staged kinds reuse existing query types without adding
-root exports.
+The root namespace is frozen at 52 names as of 1.9 (the 50-name 1.7
+contract plus `AnomalyAttribution` and `ChangeAttribution`). Those two
+types exist for the query axis; `analyze()` refuses them — the licensed
+cells are Rust `Study` only. `TransportQuery` / `InterferenceQuery` stay
+stage modules (`antecedent.transport`, `antecedent.interference`).
 Everything else is reached through a stage module (`antecedent.discovery`, `antecedent.priors`, `antecedent.errors`, …).
 
 Also exposed:
@@ -150,10 +154,11 @@ Also exposed:
   `InterventionalDistribution`, `PathSpecificEffect`, `ConditionalEffect`,
   `TemporalMediationEffect`, `InterventionResponse`, plus the response family
   (`ResponseCurve`, `AverageDerivative`, `PointDerivative`, `Elasticity`,
-  `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`). Temporal
-  dose × horizon uses the same `ResponseCurve` / `InterventionResponse` types
-  with keyword-only `horizons`, `policy`, and `treatment_lag` (see
-  `examples/python/temporal_response_curve.py`).
+  `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`), plus
+  `AnomalyAttribution` / `ChangeAttribution` (root types; `analyze()`
+  refuses). Temporal dose × horizon uses the same `ResponseCurve` /
+  `InterventionResponse` types with keyword-only `horizons`, `policy`, and
+  `treatment_lag` (see `examples/python/temporal_response_curve.py`).
 - `antecedent.discovery` — PC, GES, LiNGAM, NOTEARS, FCI/RFCI, PCMCI family, Bayesian posteriors
 - `antecedent.validation.validate_pcmci_*` — discovery stability (block bootstrap, FPR, grids, …)
 - `antecedent.model` / `antecedent.counterfactual` — `FittedGcm`, `sample_do`, `counterfactual_ite`
