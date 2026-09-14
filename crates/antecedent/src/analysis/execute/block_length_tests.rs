@@ -1,13 +1,16 @@
-//! Block-length sensitivity of the shared circular-block SE (1.9, R-17 / C-5).
+//! Block-length sensitivity of the shared circular-block SE.
 //!
 //! Block length is not caller-configurable, so the check runs at the helper:
 //! [`shared_circular_block_mixture_se_with_length`] at ×0.5, ×1 and ×2 of the
-//! rule [`circular_block_length`] (`max(span, ceil(m^(1/3)))`, capped at `m`),
-//! with the construction the temporal class / DBN atoms use: blocks of
-//! consecutive series times over the lag-aligned rows, each row keeping its
-//! original lag window, and the replicate SD scaled by the fixed-b factor. The
-//! atom is the Pulse regression of `y[t] = B·x[t-1] + u[t]` (OLS slope with
-//! intercept) on its lag-aligned `(x[t-1], y[t])` rows, `t = 1..n`.
+//! length production uses on each replicate — [`mixture_block_length`] over
+//! the atom's influence, the (single-atom) mixture score and the regression's
+//! normal-equation scores, at least the rule [`circular_block_length`]
+//! (`max(span, ceil(m^(1/3)))`, capped at `m`) — with the construction the
+//! temporal class / DBN atoms use: blocks of consecutive series times over the
+//! lag-aligned rows, each row keeping its original lag window, and the
+//! replicate SD scaled by the fixed-b factor. The atom is the Pulse regression
+//! of `y[t] = B·x[t-1] + u[t]` (OLS slope with intercept) on its lag-aligned
+//! `(x[t-1], y[t])` rows, `t = 1..n`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -17,7 +20,9 @@ use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::{ColumnView, TableView, TimeSeriesData};
 use antecedent_estimate::AlignedRows;
 
-use super::{circular_block_length, shared_circular_block_mixture_se_with_length};
+use super::{
+    circular_block_length, mixture_block_length, shared_circular_block_mixture_se_with_length,
+};
 
 const B: f64 = 0.8;
 const Z90: f64 = 1.644_853_626_951_472_2;
@@ -99,20 +104,41 @@ fn aligned_pairs(data: &TimeSeriesData) -> Vec<(f64, f64)> {
     (1..x.len()).map(|t| (x[t - 1], y[t])).collect()
 }
 
+/// The block length production uses for this atom on `pairs`:
+/// [`mixture_block_length`] over the slope's Frisch–Waugh influence
+/// (`(x − x̄)·e`, up to a scale the length does not depend on), the single-atom
+/// mixture score (the same series) and the `[1, x]` regression's
+/// normal-equation scores.
+fn production_block_length(pairs: &[(f64, f64)], structural_span: usize) -> usize {
+    let rows = pairs.len();
+    let mut matrix = vec![1.0; rows];
+    matrix.extend(pairs.iter().map(|p| p.0));
+    let outcome: Vec<f64> = pairs.iter().map(|p| p.1).collect();
+    let normal = antecedent_estimate::normal_equation_scores(&matrix, rows, 2, &outcome).unwrap();
+    // normal[0] is the residual series (the intercept's score).
+    let x_mean = pairs.iter().map(|p| p.0).sum::<f64>() / rows as f64;
+    let influence: Vec<f64> =
+        pairs.iter().zip(&normal[0]).map(|(p, e)| (p.0 - x_mean) * e).collect();
+    let normal_refs: Vec<&[f64]> = normal.iter().map(Vec::as_slice).collect();
+    mixture_block_length(structural_span, rows, &[&influence], Some(&influence), &normal_refs)
+}
+
 struct Tally {
     covered: u32,
     scored: u32,
+    with_interval: u32,
     length: f64,
 }
 
 impl Tally {
     const fn new() -> Self {
-        Self { covered: 0, scored: 0, length: 0.0 }
+        Self { covered: 0, scored: 0, with_interval: 0, length: 0.0 }
     }
 
     fn record(&mut self, est: f64, se: f64) {
         self.scored += 1;
         if est.is_finite() && se.is_finite() && se > 0.0 {
+            self.with_interval += 1;
             self.length += 2.0 * Z90 * se;
             if (est - B).abs() <= Z90 * se {
                 self.covered += 1;
@@ -122,6 +148,11 @@ impl Tally {
 
     fn rate(&self) -> f64 {
         f64::from(self.covered) / f64::from(self.scored)
+    }
+
+    /// Mean interval length over replicates that produced an interval.
+    fn mean_length(&self) -> f64 {
+        if self.with_interval == 0 { f64::NAN } else { self.length / f64::from(self.with_interval) }
     }
 
     fn band(&self) -> (f64, f64) {
@@ -135,8 +166,9 @@ fn sensitivity(label: &str, rho: f64, n: usize, seed_base: u64) {
     // over the n - 1 lag-aligned rows.
     let rows = n - 1;
     let rule = circular_block_length(2, rows);
-    let lengths = [(0.5, (rule / 2).max(1)), (1.0, rule), (2.0, (2 * rule).min(rows))];
+    let factors = [0.5, 1.0, 2.0];
     let mut tallies = [Tally::new(), Tally::new(), Tally::new()];
+    let mut production = Vec::new();
     let design = [AlignedRows { first_time: 1, rows }];
     for s in 0..n_sim() {
         // Fresh resampling stream per replicate, so bootstrap noise averages out.
@@ -144,11 +176,14 @@ fn sensitivity(label: &str, rho: f64, n: usize, seed_base: u64) {
         let data = series(n, rho, seed_base + u64::from(s));
         let pairs = aligned_pairs(&data);
         let est = slope(pairs.iter().copied()).unwrap();
-        for ((_, length), tally) in lengths.iter().zip(&mut tallies) {
+        let length = production_block_length(&pairs, 2);
+        production.push(length);
+        for (factor, tally) in factors.iter().zip(&mut tallies) {
+            let scaled = ((length as f64 * factor).round() as usize).clamp(1, rows);
             let block = shared_circular_block_mixture_se_with_length(
                 &design,
                 &[1.0],
-                *length,
+                scaled,
                 REPLICATES,
                 0xB10C_0000,
                 &ctx,
@@ -157,14 +192,18 @@ fn sensitivity(label: &str, rho: f64, n: usize, seed_base: u64) {
             tally.record(est, block.se);
         }
     }
+    production.sort_unstable();
+    let (min, median, max) =
+        (production[0], production[production.len() / 2], production[production.len() - 1]);
     let (lo, hi) = tallies[1].band();
     let mut failures = Vec::new();
-    for ((factor, length), tally) in lengths.iter().zip(&tallies) {
+    for (factor, tally) in factors.iter().zip(&tallies) {
         let rate = tally.rate();
         eprintln!(
-            "calibration {label} block x{factor} (L={length}, rule={rule}): nominal=0.90 \
+            "calibration {label} block x{factor} of the production length \
+             (production L min/median/max = {min}/{median}/{max}, rule={rule}): nominal=0.90 \
              coverage={rate:.3} band=[{lo:.3}, {hi:.3}] mean_length={:.4} ({}/{} covered)",
-            tally.length / f64::from(tally.scored),
+            tally.mean_length(),
             tally.covered,
             tally.scored
         );
