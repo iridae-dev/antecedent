@@ -74,9 +74,7 @@ def test_temporal_class_bayesian_pulse_without_prior_is_identified_set() -> None
         for diagnostic in result.diagnostics
     )
     assert result.structural_identified_set_interval is not None
-    assert (
-        result.structural_identified_set_interval_method == "product_posterior_envelope_quantile"
-    )
+    assert result.structural_identified_set_interval_method == "product_posterior_envelope_quantile"
     assert result.structural_identified_set_interval_truncated is False
 
 
