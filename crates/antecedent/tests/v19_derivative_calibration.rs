@@ -11,6 +11,11 @@
 //! Before 1.9 that interval covered 0.820 here; it is now robust
 //! bias-corrected (local cubic at the caller bandwidth).
 //!
+//! The order-2 point derivative (`m''(0.5) = -2 sin 0.5`, `m''''(0.5) ≠ 0`) is
+//! scored at a wider bandwidth sized for the curvature. There the leading
+//! second-derivative bias is `h²·m''''`, which a local cubic does not remove;
+//! the interval is bias-corrected by a local quartic instead.
+//!
 //! The Jacobian / directional DGP is additive with a quadratic component. Only
 //! the Bayesian result publishes a band for these (the Frequentist result
 //! withholds it, asserted below). A roughness-penalized plug-in target shrank
@@ -57,6 +62,9 @@ const N_GAM: usize = 1000;
 /// user would pick, and the one the known-truth fixture uses.
 const BANDWIDTH: f64 = 0.35;
 const AT: f64 = 0.5;
+/// Caller bandwidth for the order-2 point derivative: wide enough that the
+/// curvature's smoothing bias is comparable to its standard error at `N_POINT`.
+const SECOND_ORDER_BANDWIDTH: f64 = 0.7;
 const DRAWS: usize = 200;
 
 fn vid(raw: u32) -> VariableId {
@@ -76,6 +84,10 @@ fn mu(a: f64) -> f64 {
 
 fn mu_prime(a: f64) -> f64 {
     2.0 * a.cos()
+}
+
+fn mu_second(a: f64) -> f64 {
+    -2.0 * a.sin()
 }
 
 /// Columns `a`(0), `x`(1), `y`(2): X ~ N(0,1); A = 0.5X + N(0,1);
@@ -389,6 +401,46 @@ fn point_derivative_bayesian_curvature_nominal_90_coverage() {
         Some(BANDWIDTH),
         true,
         mu_prime(AT),
+    )
+    .assert();
+}
+
+fn second_order_query() -> F {
+    F::PointDerivative {
+        outcome: vid(2),
+        treatment: vid(0),
+        at: AT,
+        order: 2,
+        scale: DerivativeScale::Identity,
+    }
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn point_derivative_order_2_frequentist_curvature_nominal_90_coverage() {
+    scalar_coverage(
+        "point_derivative_order_2_frequentist_curvature",
+        point_data,
+        N_POINT,
+        &second_order_query(),
+        Some(SECOND_ORDER_BANDWIDTH),
+        false,
+        mu_second(AT),
+    )
+    .assert();
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn point_derivative_order_2_bayesian_curvature_nominal_90_coverage() {
+    scalar_coverage(
+        "point_derivative_order_2_bayesian_curvature",
+        point_data,
+        N_POINT,
+        &second_order_query(),
+        Some(SECOND_ORDER_BANDWIDTH),
+        true,
+        mu_second(AT),
     )
     .assert();
 }
