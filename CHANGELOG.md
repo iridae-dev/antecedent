@@ -91,6 +91,16 @@ repeated-sampling coverage; intervals that missed were fixed, not footnoted.
 - Static graph-posterior Frequentist ATE/CATE SEs use joint
   influence-function covariance across atoms instead of NaN.
 - Supplying `.graph()` together with `.tiered_background()` is a conflict.
+- Frequentist interventional distributions publish a bounded 95% interval
+  for every atom probability, formed on the logit scale from that atom's
+  bootstrap SE, instead of only a bootstrap SE of the mean. A symmetric
+  `mean ± z·se` could leave `[0, 1]` near 0 and 1. A binary outcome's mean
+  carries its `Y = 1` atom's interval. A plug-in probability of exactly 0 or
+  1 publishes no interval and warns `estimate.distribution.interval_unavailable`.
+  400-replicate coverage is 0.932–0.958 at 0.035, 0.465 and 0.965. Rust:
+  `InterventionalDistributionEstimate::atom_uncertainty` / `mean_interval`;
+  Python: `EstimateView.distribution` / `mean_interval`, and result reprs
+  print the interval instead of `± se` for these cells.
 
 ### Fixed
 

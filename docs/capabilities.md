@@ -262,6 +262,18 @@ outcome moments. Unlike the three cases above, it reports
 not demote `evidence_status` or `support.status`. See
 [causal-responses.md](causal-responses.md#least-squares-kennedy-dr-regularity).
 
+Frequentist interventional distributions (`functional.distribution`) publish
+every atom probability with a 95% interval formed on the logit scale from that
+atom's bootstrap SE, `expit(logit p̂ ± z·se / (p̂(1 − p̂)))`, so both bounds lie
+in `[0, 1]`. A binary `{0, 1}` outcome's interventional mean is `P(Y = 1 | do(x))`
+and carries the same interval. Rust reads them from
+`InterventionalDistributionEstimate::atom_uncertainty` and `mean_interval`;
+Python from `EstimateView.distribution` and `EstimateView.mean_interval`. The
+mean's `se_bootstrap` is unchanged, but `mean ± z·se` is not the published
+interval and can leave `[0, 1]` near the boundary. A plug-in probability of
+exactly 0 or 1 has no sampling spread, so it publishes no interval and the
+`estimate.distribution.interval_unavailable` warning names the atom.
+
 #### Serially dependent rows: circular-block uncertainty
 
 Lag-aligned rows of one time series are not independent, so temporal
