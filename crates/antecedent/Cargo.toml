@@ -105,3 +105,7 @@ harness = false
 [[bench]]
 name = "dbn_posterior_pulse"
 harness = false
+
+[[bench]]
+name = "temporal_zero_replicates"
+harness = false
