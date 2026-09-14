@@ -1304,6 +1304,16 @@ impl FittedSurface {
         replicates: u32,
     ) -> AssumptionSet {
         support.warnings.extend(self.se_provenance.warning(replicates));
+        if cells.draws.is_some() {
+            support.warnings.push(Diagnostic::new(
+                "response.temporal.block.sqrt_n_rate",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                "circular-block length is max(span, ceil(sqrt(n))) without Politis–White \
+                 lengthening; licensed coverage is iid and AR(1) ρ=0.5. AR(1) ρ=0.9 is \
+                 disclosed, not a gated claim",
+            ));
+        }
         if let Some(draws) = &cells.draws {
             assumptions.push(block_bootstrap_assumption(
                 self.block_length,
