@@ -653,7 +653,7 @@ fn right_censored_series(pin: &serde_json::Value) -> (TimeSeriesData, Observatio
     )
 }
 
-/// An observation-adjusted curve (ResponseCurve / InterventionResponse, not a Sequence)
+/// An observation-adjusted curve (`ResponseCurve` / `InterventionResponse`, not a Sequence)
 /// cannot carry a lagged outcome in its adjustment set. A lagged outcome is only a
 /// backdoor covariate when it is an ancestor of the treatment or the outcome; with the
 /// treatment affecting the outcome, stationarity then repeats that ancestry at every
