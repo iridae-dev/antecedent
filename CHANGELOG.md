@@ -111,6 +111,11 @@ was not available, published as boundary records with a runtime disclosure.
   before the rule (`parity/_evidence_test_backlog.txt`) is empty: all 337
   licensed rows name the test that executes them.
 
+### Removed
+
+- `antecedent_identify::identify_tiered_envelope`: a caller graph alongside a
+  tier background is refused at build, so the path had no callers.
+
 ### Changed
 
 - Serially dependent rows: Frequentist temporal SEs for plain TemporalDag
