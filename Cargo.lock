@@ -67,6 +67,8 @@ dependencies = [
  "antecedent-state",
  "antecedent-stats",
  "antecedent-validate",
+ "arrow-array",
+ "arrow-schema",
  "criterion",
  "serde_json",
  "thiserror 2.0.19",
