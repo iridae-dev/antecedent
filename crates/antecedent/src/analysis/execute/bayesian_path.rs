@@ -614,9 +614,7 @@ impl super::Study {
                 logical.compile_physical(ctx)
             }
             _ => Err(CausalError::Unsupported {
-                message: "graph-posterior analysis supports tabular average-effect, \
-                          tabular conditional-effect, temporal-effect, or temporal-mediation \
-                          queries only",
+                message: super::dispatch::GRAPH_POSTERIOR_QUERY_REFUSAL,
             }),
         }
     }
