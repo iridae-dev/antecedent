@@ -144,8 +144,9 @@ roughly the square of the current cost.
 | `frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band` | 0.879 | same mechanism on the DBN Pulse mixture (bias/SD −0.24; SE/SD 1.07) |
 | `temporal_dag_sustained_ar05_n160_boundary_within_band` | 0.874 (0.889, 0.895 on other seed streams) | replicate-SD variability at 16 blocks (cv 0.22); SE/SD 0.97–1.03 |
 | `temporal_dag_pulse_h2_ar05_n60_boundary_within_band` | 0.885 | replicate-SD variability at 58 rows in blocks of 4–6; SE/SD 1.04 |
-| `response_jacobian_bayesian_boundary_within_band` | 0.871 (coordinate 0) | see the test: the Dirichlet-weight band of the unpenalized additive-GAM gradient |
-| `directional_derivative_bayesian_boundary_within_band` | 0.880 (coordinate 0) | same band, same coordinate |
+| `response_jacobian_bayesian_boundary_within_band` | 0.871 / 0.883 / 0.894 / 0.878 per coordinate | Dirichlet-weight band of the unpenalized additive-GAM gradient: centred (bias/SD within ±0.03), band SE 4–5% under the Monte-Carlo SD on every coordinate (an HC0-type row-weight spread with many spline coefficients, plus the inward bias of 200-draw quantiles) |
+| `directional_derivative_bayesian_boundary_within_band` | 0.880 / 0.878 per coordinate | same band (band SE / SD 0.96) |
+| `point_derivative_order_2_bayesian_curvature_boundary_within_band` | 0.885 | Dirichlet-weight interval of the local-quartic curvature at the caller bandwidth; 0.2 points under the floor, of which the inward bias of 200-draw quantiles is about half a point |
 
 The mixture threshold is set by a different failure. Its SE-driven cells (the
 six-completion TemporalPag envelope at ρ ≥ 0.9, n ≤ 160, and the DBN mixture at
