@@ -79,6 +79,11 @@ def tempering(x, y, c):
     rows, cols = x.shape
     bandwidth = int(np.floor(4 * (rows / 100) ** (2 / 9)))
     resid = y - x @ np.linalg.lstsq(x, y, rcond=None)[0]
+    if resid @ resid <= 1e-20 * ((y - y.mean()) @ (y - y.mean())):
+        # Exact fit: the residuals are rounding error, kappa stays 1.
+        return {'rows': rows, 'kappa': 1.0, 'raw_ratio': 1.0, 'hac_ratio': 1.0, 'fixed_b': 1.0,
+                'ar_ratio': 1.0, 'bandwidth': bandwidth, 'score_ar_order': 0,
+                'residual_ar_order': 0}
     weight = x @ np.linalg.solve(x.T @ x, c)  # row weights of c'beta_hat
     score = weight * resid
     # AR(1)-prewhitened Bartlett long-run variance, recoloured by 1/(1 - rho)^2.

@@ -59,7 +59,10 @@
 //! iid regimes unchanged. Short series with higher-order dependence stay
 //! under-covered (≈ 0.81 at n = 60), because BIC rarely selects the order.
 //! `κ̂` is floored at `1` (the correction never narrows the iid posterior) and
-//! capped so at least `ncols + 2` effective rows remain.
+//! capped so at least `ncols + 2` effective rows remain. An exact fit (residual
+//! sum of squares at most `1e-20` of the outcome's centred sum of squares) keeps
+//! `κ̂ = 1`: the residuals are rounding error, whose apparent autocorrelation
+//! would otherwise drive `κ̂` to the cap.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -87,6 +90,10 @@ const MAX_PREWHITEN_RHO: f64 = 0.97;
 
 /// Fewest rows on which a long-run variance is estimated; shorter designs keep `κ = 1`.
 const MIN_ROWS: usize = 8;
+
+/// Residual sum of squares, relative to the outcome's centred sum of squares, at or
+/// below which the fit is exact and `κ̂` stays at `1`.
+const EXACT_FIT_RELATIVE_SS: f64 = 1e-20;
 
 /// Largest autoregressive order the BIC search considers for the AR(q) terms.
 const MAX_AR_ORDER: usize = 4;
@@ -338,6 +345,14 @@ pub fn long_run_tempering_factor(
     let residuals = FaerBackend
         .least_squares(x, n, p, &design.outcome, &mut LeastSquaresWorkspace::default())?
         .residuals;
+    // An exact fit leaves only rounding error, whose autocorrelation is an artefact of the
+    // arithmetic: there is no residual dependence to correct.
+    let outcome_mean = design.outcome.iter().sum::<f64>() / n as f64;
+    let centred_ss: f64 = design.outcome.iter().map(|y| (y - outcome_mean).powi(2)).sum();
+    let residual_ss: f64 = residuals.iter().map(|e| e * e).sum();
+    if residual_ss <= EXACT_FIT_RELATIVE_SS * centred_ss {
+        return Ok(floor);
+    }
     // w = X (X'X)⁻¹ c: row influence weights of c'β̂.
     let mut xtx = vec![0.0; p * p];
     for a in 0..p {
@@ -811,5 +826,29 @@ mod tests {
         let f = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
         assert!(f.residual_ar_order >= 2, "{f:?}");
         assert!(f.kappa < 2.0, "the bounded AR(q) term must not blow kappa up: {f:?}");
+    }
+
+    #[test]
+    fn an_exact_fit_keeps_kappa_at_one() {
+        // Noise-free outcome on a slowly drifting treatment: the residuals are rounding
+        // error, whose structure must not be read as serial dependence.
+        let n = 800;
+        let t: Vec<f64> = (0..n + 1)
+            .map(|i| 0.3 + 0.4 * (i % 2) as f64 + 0.05 * (0.017 * i as f64).sin())
+            .collect();
+        let x: Vec<f64> = t[1..].to_vec();
+        let lag: Vec<f64> = t[..n].to_vec();
+        let y: Vec<f64> = x.iter().zip(&lag).map(|(a, b)| 1.0 + 2.0 * a + 3.0 * b).collect();
+        let d = CompiledDesign::linear_adjustment(
+            &x,
+            &[(VariableId::from_raw(2), lag.as_slice())],
+            &y,
+            &[],
+        )
+        .unwrap();
+        let f =
+            long_run_tempering_factor(&d, &DependenceScope::Direction(Arc::from([0.0, 1.0, 1.0])))
+                .unwrap();
+        assert!((f.kappa - 1.0).abs() < f64::EPSILON, "{f:?}");
     }
 }
