@@ -880,11 +880,15 @@ def test_identified_set_interval_survives_export_and_reencode() -> None:
     )
     result = prepared.estimate(data, seed=5)
     assert result.structural_identified_set_interval is not None
+    assert result.structural_identified_set_interval_method == "imbens_manski_shared_block"
+    assert result.structural_identified_set_interval_truncated is False
 
     decoded = artifacts.loads(prepared.export_artifact())
     assert decoded.format_version == (0, 5)
     interval = decoded.payload["structural_response"]["identified_set_interval"]
     assert interval["method"] == "imbens_manski_shared_block"
+    # A complete CPDAG enumeration: the truncation flag is omitted (false).
+    assert "truncated" not in interval
     assert (interval["lower"], interval["upper"]) == pytest.approx(
         result.structural_identified_set_interval
     )

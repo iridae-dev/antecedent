@@ -566,10 +566,19 @@ class AnalysisResult:
     structural_unevaluable_mass: float | None = None
     #: Scalar identified set ``(lower, upper)`` over identified class completions.
     structural_identified_set: tuple[float, float] | None = None
-    #: Imbens–Manski interval for the identified set: covers the true completion's
-    #: effect at ``structural_identified_set_interval_level`` (1.9, C-3).
+    #: Interval for the identified set at ``structural_identified_set_interval_level``
+    #: (1.9, C-3). With method ``"imbens_manski_shared_block"`` (Frequentist) it covers
+    #: the true effect with asymptotic probability at least the level whenever that
+    #: is one retained identified completion's effect; with
+    #: ``"product_posterior_envelope_quantile"`` (Bayesian) every retained
+    #: completion's posterior puts at most ``1 - Φ(c)`` of its mass outside each
+    #: endpoint.
     structural_identified_set_interval: tuple[float, float] | None = None
     structural_identified_set_interval_level: float | None = None
+    structural_identified_set_interval_method: str | None = None
+    #: ``True`` when the completion enumeration (or its equivalence audit) was
+    #: capped: the set spans retained completions only.
+    structural_identified_set_interval_truncated: bool | None = None
     _raw: Any = None
     _prepared: Any = None
     query: Any = None
