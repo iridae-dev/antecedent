@@ -32,9 +32,11 @@ repeated-sampling coverage; intervals that missed were fixed, not footnoted.
   Python reads them as `CausalResponseView.simultaneous_band`.
 - Python `bootstrap=` on Frequentist temporal `ResponseCurve` /
   `InterventionResponse`, through `analyze()` and `PreparedAnalysis.prepare()`.
-  Omitted, the Study default of 50 replicates publishes the circular-block
-  pointwise and simultaneous bands; `bootstrap=0` returns the point surface
-  and the `estimate.temporal_response.band_withheld` warning.
+  Omitted, it follows the latency tier as Pulse / Sustained do (`analyze()`
+  without a tier runs 50 replicates and publishes the circular-block pointwise
+  and simultaneous bands); `bootstrap=0` returns the point surface and the
+  `estimate.temporal_response.band_withheld` warning. Response routes that do
+  not use bootstrap replicates refuse `bootstrap=` instead of ignoring it.
 - Identified-set confidence intervals (Imbens–Manski) on temporal class
   structural mixtures, including the no-`ClassPrior` path
   (`identified_set_interval`; Python `structural_identified_set_interval`).
