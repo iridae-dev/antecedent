@@ -1015,7 +1015,7 @@ fn run_distribution(data: TabularData, inference: InferenceMode, seed: u64) -> O
         .inference(inference)
         .refute(RefuteSuite::None)
         // The Study default, so the gate calibrates the interval users get.
-        .bootstrap_replicates(if bayesian { 0 } else { 50 })
+        .bootstrap_replicates(if bayesian { 0 } else { 199 })
         .build()
         .ok()?
         .run(&ExecutionContext::for_tests(seed))
