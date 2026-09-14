@@ -343,14 +343,16 @@ fn draw_nig(
     Ok(Arc::from(values))
 }
 
-fn sample_inv_gamma(shape: f64, scale: f64, rng: &mut CausalRng) -> f64 {
-    // InvGamma(α, β) = 1 / Gamma(α, rate=β); mean β/(α-1) for α>1
+/// One draw from `InvGamma(shape, scale)` (`1 / Gamma(shape, rate = scale)`; mean
+/// `scale / (shape − 1)` for `shape > 1`).
+pub fn sample_inv_gamma(shape: f64, scale: f64, rng: &mut CausalRng) -> f64 {
     let g = sample_gamma(shape, scale, rng);
     1.0 / g.max(f64::MIN_POSITIVE)
 }
 
-fn sample_gamma(shape: f64, rate: f64, rng: &mut CausalRng) -> f64 {
-    // Marsaglia–Tsang for shape >= 1; boost for shape < 1
+/// One draw from `Gamma(shape, rate)` (Marsaglia–Tsang; shape < 1 via the
+/// `U^{1/shape}` boost).
+pub fn sample_gamma(shape: f64, rate: f64, rng: &mut CausalRng) -> f64 {
     if shape < 1.0 {
         let u = rng.next_f64().max(f64::EPSILON);
         return sample_gamma(shape + 1.0, rate, rng) * u.powf(1.0 / shape);

@@ -123,17 +123,13 @@ impl super::Study {
         if !matches!(self.refute, RefuteSuite::None) {
             const PPC_ALPHA: f64 = 0.05;
             let ppc_prior = est.prior_in_force(prep.design.ncols);
-            let prior_rep = PriorPredictiveCheck {
-                n_sims: 200,
-                seed: ctx.rng.master_seed(),
-                ..PriorPredictiveCheck::new()
-            }
-            .check_with_prior(&prep, &ppc_prior, ctx)
-            .map_err(CausalError::from)?;
+            let prior_rep = PriorPredictiveCheck::for_estimator(&est, ctx)
+                .check_with_prior(&prep, &ppc_prior, ctx)
+                .map_err(CausalError::from)?;
             refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
             predictive_checks.push(prior_rep);
 
-            let post_rep = PosteriorPredictiveCheck::new()
+            let post_rep = PosteriorPredictiveCheck::for_estimator(&est, ctx)
                 .check(&prep, &posterior)
                 .map_err(CausalError::from)?;
             refutations.push(post_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
@@ -2409,11 +2405,12 @@ fn run_dbn_mediation_bayesian_validation(
                 )];
                 prior
             });
-            let prior_rep = PriorPredictiveCheck::new()
+            let prior_rep = PriorPredictiveCheck::for_estimator(estimator, ctx)
                 .check_with_prior(prep, &prior, ctx)
                 .map_err(CausalError::from)?;
-            let post_rep =
-                PosteriorPredictiveCheck::new().check(prep, post).map_err(CausalError::from)?;
+            let post_rep = PosteriorPredictiveCheck::for_estimator(estimator, ctx)
+                .check(prep, post)
+                .map_err(CausalError::from)?;
             prior_items.push((atom.weight, i, prior_rep));
             post_items.push((atom.weight, i, post_rep));
         }

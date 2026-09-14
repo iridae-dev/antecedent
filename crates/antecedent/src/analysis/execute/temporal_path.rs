@@ -622,25 +622,18 @@ impl super::Study {
         if !matches!(self.refute, RefuteSuite::None) {
             if let (Some((bayes, bprep)), Some(post)) = (bayes_fit.as_ref(), posterior.as_ref()) {
                 const PPC_ALPHA: f64 = 0.05;
-                let prior_rep = PriorPredictiveCheck {
-                    n_sims: 200,
-                    seed: ctx.rng.master_seed(),
-                    ..PriorPredictiveCheck::new()
-                }
-                .check_with_prior(bprep, &bayes.inner.prior_in_force(bprep.design.ncols), ctx)
-                .map_err(CausalError::from)?;
+                let prior_rep = PriorPredictiveCheck::for_estimator(&bayes.inner, ctx)
+                    .check_with_prior(bprep, &bayes.inner.prior_in_force(bprep.design.ncols), ctx)
+                    .map_err(CausalError::from)?;
                 refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
                 predictive_checks.push(prior_rep);
 
                 // `full` adds the lag-1 residual-autocorrelation discrepancy (C-4).
+                let post_check = PosteriorPredictiveCheck::for_estimator(&bayes.inner, ctx);
                 let post_rep = if matches!(self.refute, RefuteSuite::Full) {
-                    PosteriorPredictiveCheck::new().check_temporal(
-                        bprep,
-                        post,
-                        ctx.rng.master_seed(),
-                    )
+                    post_check.check_temporal(bprep, post, ctx.rng.master_seed())
                 } else {
-                    PosteriorPredictiveCheck::new().check(bprep, post)
+                    post_check.check(bprep, post)
                 }
                 .map_err(CausalError::from)?;
                 refutations.push(post_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
@@ -1046,10 +1039,10 @@ impl super::Study {
                     // Mediation refuses prior transfer, so the isotropic mechanism
                     // prior is the prior in force.
                     let prior = estimator.prior_in_force(prep.design.ncols);
-                    let prior_rep = PriorPredictiveCheck::new()
+                    let prior_rep = PriorPredictiveCheck::for_estimator(&estimator, ctx)
                         .check_with_prior(prep, &prior, ctx)
                         .map_err(CausalError::from)?;
-                    let post_rep = PosteriorPredictiveCheck::new()
+                    let post_rep = PosteriorPredictiveCheck::for_estimator(&estimator, ctx)
                         .check(prep, post)
                         .map_err(CausalError::from)?;
                     for report in [prior_rep, post_rep] {

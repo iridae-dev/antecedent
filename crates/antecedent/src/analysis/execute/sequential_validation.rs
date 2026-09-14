@@ -275,23 +275,22 @@ pub(super) fn validate_sequential(
             }
             for mechanism in &atom.mechanisms {
                 let prior = estimator.prior_in_force(mechanism.prepared.design.ncols);
-                let prior = PriorPredictiveCheck {
-                    n_sims: 200,
-                    seed: ctx.rng.master_seed(),
-                    ..PriorPredictiveCheck::new()
-                }
-                .check_with_prior(&mechanism.prepared, &prior, ctx)?;
+                let prior = PriorPredictiveCheck::for_estimator(estimator, ctx).check_with_prior(
+                    &mechanism.prepared,
+                    &prior,
+                    ctx,
+                )?;
                 // Mechanism rows are time-ordered: `full` adds the lag-1 residual
                 // autocorrelation discrepancy (C-4).
+                let post_check = PosteriorPredictiveCheck::for_estimator(estimator, ctx);
                 let post = if suite == RefuteSuite::Full {
-                    PosteriorPredictiveCheck::new().check_temporal(
+                    post_check.check_temporal(
                         &mechanism.prepared,
                         &mechanism.posterior,
                         ctx.rng.master_seed(),
                     )?
                 } else {
-                    PosteriorPredictiveCheck::new()
-                        .check(&mechanism.prepared, &mechanism.posterior)?
+                    post_check.check(&mechanism.prepared, &mechanism.posterior)?
                 };
                 priors.entry(mechanism.variable).or_default().push((atom.weight, prior));
                 posts.entry(mechanism.variable).or_default().push((atom.weight, post));

@@ -304,6 +304,41 @@ fn static_fixture() -> (TabularData, Dag, AverageEffectQuery) {
     (data, dag, AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
 }
 
+/// On a correctly specified confounded Gaussian model with default settings the
+/// posterior predictive check passes: replicates carry the residual noise the
+/// observed outcome carries. The default residual prior has no finite mean, so
+/// the prior predictive scores only its one-sided dispersion axis, and a failure
+/// there is worded as a statement about the diffuse prior.
+#[test]
+fn static_default_predictive_checks_pass_on_a_correct_gaussian_model() {
+    let (data, dag, query) = static_fixture();
+    let result = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .inference(InferenceMode::Bayesian(BayesianConfig::laplace()))
+        .refute(RefuteSuite::Cheap)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(3))
+        .unwrap();
+    let verdict = |name: &str| {
+        result.refutations.iter().find(|r| r.refuter.as_ref() == name).cloned().unwrap()
+    };
+    let posterior = verdict("posterior_predictive");
+    assert!(posterior.passed, "{posterior:?}");
+    let prior_check = result
+        .predictive_checks
+        .iter()
+        .find(|c| c.kind == PredictiveCheckKind::Prior)
+        .expect("prior PPC");
+    assert_eq!(prior_check.noise, antecedent::validate::PredictiveNoise::MeanOnlyImproperScale);
+    let prior = verdict("prior_predictive");
+    assert!(
+        prior.passed || prior.failure_condition.as_deref().is_some_and(|m| m.contains("diffuse")),
+        "{prior:?}"
+    );
+}
+
 #[test]
 fn static_full_sensitivity_perturbs_an_explicit_prior() {
     let (data, dag, query) = static_fixture();
@@ -370,6 +405,17 @@ fn full_posterior_ppc_flags_serial_dependence_and_pins_a_value() {
     assert!(!report.passed);
     assert!(
         report.failure_condition.as_deref().is_some_and(|m| m.contains("serial-dependence")),
+        "{:?}",
+        report.failure_condition
+    );
+    // The failure is the dependence the tempering already widened the interval for,
+    // and the verdict says so rather than presenting it as a refutation.
+    assert!(serial.tempering_kappa.is_some_and(|k| k > 1.0), "{serial:?}");
+    assert!(
+        report
+            .failure_condition
+            .as_deref()
+            .is_some_and(|m| m.contains("already tempered") && !m.contains("dispersion")),
         "{:?}",
         report.failure_condition
     );
