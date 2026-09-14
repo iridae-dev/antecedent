@@ -62,9 +62,9 @@ fn series(columns: &[(&str, &[f64])]) -> TimeSeriesData {
 #[must_use]
 pub fn confounded_series(n: usize, b2: f64, rho: f64, seed: u64) -> TimeSeriesData {
     let total = n + BURN;
-    let z = ar1_noise(total, rho, 1.0, seed ^ 0x2A11);
-    let u = ar1_noise(total, rho, SD_Y, seed ^ 0x0B0E);
-    let mut e = gaussian(seed ^ 0x0E0E);
+    let z = ar1_noise(total, rho, 1.0, stream_seed(seed, 0x2A11));
+    let u = ar1_noise(total, rho, SD_Y, stream_seed(seed, 0x0B0E));
+    let mut e = gaussian(stream_seed(seed, 0x0E0E));
     let x: Vec<f64> = z.iter().map(|z| A * z + SD_X * e()).collect();
     let mut y = vec![0.0; total];
     for t in 2..total {
