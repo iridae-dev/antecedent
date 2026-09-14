@@ -20,8 +20,13 @@ series of the interval, the smaller of two readings,
   variance at the block length the interval resamples with.
 
 The scores are the treatment-coefficient influence (TemporalDag Pulse and
-single-step Sustained), the Total, Direct and Mediated scores (temporal
-mediation), the contrast influence (multi-step Sustained sequential
+single-step Sustained), the Total, Direct and Mediated persistence probes
+(temporal mediation: each mechanism residual times the centred treatment, and
+for the mediated path the centred mediator; the partialled influence functions
+size the blocks but predict under-coverage poorly, because partialling on
+lagged design columns removes the treatment's persistence from them while the
+interval still under-covers — on the same sweep they would need a threshold of
+70, which also warns on about 20 nominally covering cells), the contrast influence (multi-step Sustained sequential
 g-computation), and every atom's influence plus the weighted mixture score
 (class envelopes and DBN posteriors). The provenance diagnostic prints the
 statistic; the warning fires below the threshold of the interval's family.
@@ -173,45 +178,45 @@ ANTECEDENT_CALIBRATION_NSIM=2000 cargo test --release -p antecedent \
 | single-window | Pulse h=1, AR(1) treatment | 0.80 | 400 | 0.891 | -0.01 | 1.06 | 71 / 94 / 121 | 8.1 | 0.00 |
 | single-window | Pulse h=1, AR(1) treatment | 0.90 | 400 | 0.876 | -0.01 | 1.04 | 36 / 50 / 69 | 5.4 | 0.32 |
 | single-window | Pulse h=1, AR(1) treatment | 0.95 | 400 | 0.853 | +0.01 | 0.97 | 21 / 30 / 44 | 4.6 | 0.91 |
-| mediation | mediation, MA(3) treatment | 0.50 | 40 | Total 0.882, Direct 0.903, Mediated 0.912 | -0.04 | 1.06 | 19 / 28 / 39 | 6.5 | 1.00 |
-| mediation | mediation, MA(3) treatment | 0.80 | 40 | Total 0.880, Direct 0.896, Mediated 0.916 | +0.02 | 1.05 | 16 / 24 / 36 | 3.9 | 1.00 |
-| mediation | mediation, MA(3) treatment | 0.90 | 40 | Total 0.894, Direct 0.907, Mediated 0.927 | +0.01 | 1.08 | 15 / 23 / 35 | 3.2 | 1.00 |
+| mediation | mediation, MA(3) treatment | 0.50 | 40 | Total 0.881, Direct 0.903, Mediated 0.911 | -0.04 | 1.06 | 19 / 28 / 39 | 6.5 | 1.00 |
+| mediation | mediation, MA(3) treatment | 0.80 | 40 | Total 0.880, Direct 0.896, Mediated 0.917 | +0.02 | 1.05 | 16 / 24 / 36 | 3.9 | 1.00 |
+| mediation | mediation, MA(3) treatment | 0.90 | 40 | Total 0.894, Direct 0.907, Mediated 0.928 | +0.01 | 1.08 | 15 / 23 / 35 | 3.2 | 1.00 |
 | mediation | mediation, MA(3) treatment | 0.95 | 40 | Total 0.914, Direct 0.909, Mediated 0.928 | -0.03 | 1.13 | 14 / 22 / 35 | 3.2 | 1.00 |
-| mediation | mediation, MA(3) treatment | 0.50 | 60 | Total 0.893, Direct 0.891, Mediated 0.897 | +0.02 | 1.07 | 30 / 42 / 56 | 9.8 | 0.45 |
+| mediation | mediation, MA(3) treatment | 0.50 | 60 | Total 0.895, Direct 0.892, Mediated 0.898 | +0.02 | 1.08 | 30 / 42 / 56 | 9.8 | 0.45 |
 | mediation | mediation, MA(3) treatment | 0.80 | 60 | Total 0.889, Direct 0.894, Mediated 0.908 | -0.04 | 1.07 | 22 / 34 / 50 | 4.2 | 0.71 |
-| mediation | mediation, MA(3) treatment | 0.90 | 60 | Total 0.900, Direct 0.911, Mediated 0.928 | +0.01 | 1.07 | 21 / 32 / 48 | 3.3 | 0.78 |
-| mediation | mediation, MA(3) treatment | 0.95 | 60 | Total 0.908, Direct 0.901, Mediated 0.923 | +0.04 | 1.08 | 21 / 31 / 46 | 3.1 | 0.80 |
-| mediation | mediation, MA(3) treatment | 0.50 | 100 | Total 0.885, Direct 0.899, Mediated 0.899 | -0.03 | 1.04 | 48 / 66 / 86 | 11.0 | 0.02 |
-| mediation | mediation, MA(3) treatment | 0.80 | 100 | Total 0.901, Direct 0.900, Mediated 0.914 | -0.01 | 1.11 | 37 / 53 / 74 | 5.0 | 0.17 |
-| mediation | mediation, MA(3) treatment | 0.90 | 100 | Total 0.899, Direct 0.918, Mediated 0.919 | -0.02 | 1.09 | 33 / 49 / 70 | 3.5 | 0.25 |
+| mediation | mediation, MA(3) treatment | 0.90 | 60 | Total 0.900, Direct 0.910, Mediated 0.928 | +0.01 | 1.07 | 21 / 32 / 48 | 3.3 | 0.78 |
+| mediation | mediation, MA(3) treatment | 0.95 | 60 | Total 0.908, Direct 0.902, Mediated 0.924 | +0.04 | 1.08 | 21 / 31 / 46 | 3.1 | 0.80 |
+| mediation | mediation, MA(3) treatment | 0.50 | 100 | Total 0.886, Direct 0.897, Mediated 0.899 | -0.03 | 1.04 | 48 / 66 / 86 | 11.0 | 0.02 |
+| mediation | mediation, MA(3) treatment | 0.80 | 100 | Total 0.902, Direct 0.900, Mediated 0.913 | -0.01 | 1.11 | 37 / 53 / 74 | 5.0 | 0.17 |
+| mediation | mediation, MA(3) treatment | 0.90 | 100 | Total 0.898, Direct 0.918, Mediated 0.919 | -0.02 | 1.09 | 33 / 49 / 70 | 3.5 | 0.25 |
 | mediation | mediation, MA(3) treatment | 0.95 | 100 | Total 0.914, Direct 0.913, Mediated 0.921 | +0.01 | 1.12 | 32 / 48 / 68 | 3.0 | 0.28 |
-| mediation | mediation, MA(3) treatment | 0.50 | 160 | Total 0.885, Direct 0.892, Mediated 0.908 | +0.02 | 1.04 | 77 / 103 / 132 | 11.4 | 0.00 |
-| mediation | mediation, MA(3) treatment | 0.80 | 160 | Total 0.898, Direct 0.904, Mediated 0.919 | +0.01 | 1.08 | 58 / 80 / 107 | 5.7 | 0.01 |
-| mediation | mediation, MA(3) treatment | 0.90 | 160 | Total 0.913, Direct 0.896, Mediated 0.920 | +0.03 | 1.10 | 52 / 75 / 103 | 4.0 | 0.01 |
+| mediation | mediation, MA(3) treatment | 0.50 | 160 | Total 0.885, Direct 0.893, Mediated 0.909 | +0.02 | 1.04 | 77 / 103 / 132 | 11.4 | 0.00 |
+| mediation | mediation, MA(3) treatment | 0.80 | 160 | Total 0.897, Direct 0.904, Mediated 0.920 | +0.01 | 1.08 | 58 / 80 / 107 | 5.7 | 0.01 |
+| mediation | mediation, MA(3) treatment | 0.90 | 160 | Total 0.913, Direct 0.897, Mediated 0.919 | +0.03 | 1.10 | 52 / 75 / 103 | 4.0 | 0.01 |
 | mediation | mediation, MA(3) treatment | 0.95 | 160 | Total 0.904, Direct 0.907, Mediated 0.920 | +0.02 | 1.05 | 51 / 72 / 101 | 3.4 | 0.02 |
-| mediation | mediation, MA(3) treatment | 0.50 | 400 | Total 0.903, Direct 0.896, Mediated 0.903 | +0.02 | 1.03 | 201 / 252 / 302 | 18.1 | 0.00 |
+| mediation | mediation, MA(3) treatment | 0.50 | 400 | Total 0.902, Direct 0.896, Mediated 0.903 | +0.02 | 1.03 | 202 / 252 / 302 | 18.1 | 0.00 |
 | mediation | mediation, MA(3) treatment | 0.80 | 400 | Total 0.900, Direct 0.894, Mediated 0.901 | -0.04 | 1.09 | 146 / 194 / 239 | 7.7 | 0.00 |
 | mediation | mediation, MA(3) treatment | 0.90 | 400 | Total 0.898, Direct 0.900, Mediated 0.901 | -0.01 | 1.07 | 132 / 177 / 221 | 5.2 | 0.00 |
-| mediation | mediation, MA(3) treatment | 0.95 | 400 | Total 0.907, Direct 0.899, Mediated 0.925 | +0.04 | 1.09 | 127 / 172 / 215 | 4.4 | 0.00 |
-| mediation | mediation, AR(1) treatment | 0.50 | 40 | Total 0.888, Direct 0.891, Mediated 0.917 | +0.01 | 1.04 | 18 / 27 / 39 | 6.5 | 1.00 |
-| mediation | mediation, AR(1) treatment | 0.80 | 40 | Total 0.851, Direct 0.864, Mediated 0.927 | -0.01 | 0.97 | 11 / 17 / 28 | 3.9 | 1.00 |
-| mediation | mediation, AR(1) treatment | 0.90 | 40 | Total 0.815, Direct 0.825, Mediated 0.933 | -0.02 | 0.92 | 8 / 13 / 23 | 3.9 | 1.00 |
-| mediation | mediation, AR(1) treatment | 0.95 | 40 | Total 0.790, Direct 0.772, Mediated 0.945 | -0.01 | 0.84 | 7 / 12 / 22 | 3.2 | 1.00 |
-| mediation | mediation, AR(1) treatment | 0.50 | 60 | Total 0.873, Direct 0.891, Mediated 0.897 | -0.02 | 1.01 | 27 / 38 / 54 | 9.8 | 0.55 |
-| mediation | mediation, AR(1) treatment | 0.80 | 60 | Total 0.855, Direct 0.869, Mediated 0.914 | +0.02 | 0.98 | 13 / 21 / 33 | 4.2 | 0.96 |
-| mediation | mediation, AR(1) treatment | 0.90 | 60 | Total 0.851, Direct 0.847, Mediated 0.934 | -0.03 | 0.97 | 9 / 15 / 26 | 3.7 | 0.99 |
-| mediation | mediation, AR(1) treatment | 0.95 | 60 | Total 0.806, Direct 0.807, Mediated 0.942 | -0.03 | 0.86 | 7 / 13 / 23 | 3.3 | 1.00 |
-| mediation | mediation, AR(1) treatment | 0.50 | 100 | Total 0.891, Direct 0.898, Mediated 0.905 | +0.01 | 1.04 | 45 / 62 / 83 | 11.0 | 0.05 |
+| mediation | mediation, MA(3) treatment | 0.95 | 400 | Total 0.906, Direct 0.899, Mediated 0.925 | +0.04 | 1.09 | 127 / 172 / 215 | 4.4 | 0.00 |
+| mediation | mediation, AR(1) treatment | 0.50 | 40 | Total 0.889, Direct 0.890, Mediated 0.917 | +0.01 | 1.04 | 18 / 27 / 39 | 6.5 | 1.00 |
+| mediation | mediation, AR(1) treatment | 0.80 | 40 | Total 0.853, Direct 0.864, Mediated 0.928 | -0.01 | 0.98 | 11 / 17 / 28 | 3.9 | 1.00 |
+| mediation | mediation, AR(1) treatment | 0.90 | 40 | Total 0.816, Direct 0.825, Mediated 0.933 | -0.02 | 0.92 | 8 / 13 / 23 | 3.9 | 1.00 |
+| mediation | mediation, AR(1) treatment | 0.95 | 40 | Total 0.791, Direct 0.773, Mediated 0.945 | -0.01 | 0.84 | 7 / 12 / 22 | 3.2 | 1.00 |
+| mediation | mediation, AR(1) treatment | 0.50 | 60 | Total 0.874, Direct 0.892, Mediated 0.897 | -0.02 | 1.02 | 27 / 38 / 54 | 9.8 | 0.55 |
+| mediation | mediation, AR(1) treatment | 0.80 | 60 | Total 0.857, Direct 0.869, Mediated 0.913 | +0.02 | 0.98 | 13 / 21 / 33 | 4.2 | 0.97 |
+| mediation | mediation, AR(1) treatment | 0.90 | 60 | Total 0.849, Direct 0.849, Mediated 0.935 | -0.03 | 0.97 | 9 / 15 / 26 | 3.7 | 0.99 |
+| mediation | mediation, AR(1) treatment | 0.95 | 60 | Total 0.805, Direct 0.809, Mediated 0.943 | -0.03 | 0.86 | 7 / 13 / 23 | 3.3 | 1.00 |
+| mediation | mediation, AR(1) treatment | 0.50 | 100 | Total 0.891, Direct 0.896, Mediated 0.905 | +0.01 | 1.03 | 46 / 62 / 83 | 11.0 | 0.05 |
 | mediation | mediation, AR(1) treatment | 0.80 | 100 | Total 0.882, Direct 0.888, Mediated 0.912 | +0.02 | 1.07 | 20 / 30 / 45 | 5.0 | 0.83 |
-| mediation | mediation, AR(1) treatment | 0.90 | 100 | Total 0.863, Direct 0.854, Mediated 0.931 | -0.00 | 1.00 | 12 / 19 / 30 | 3.8 | 0.98 |
-| mediation | mediation, AR(1) treatment | 0.95 | 100 | Total 0.845, Direct 0.846, Mediated 0.937 | -0.00 | 0.94 | 8 / 14 / 24 | 3.2 | 0.99 |
-| mediation | mediation, AR(1) treatment | 0.50 | 160 | Total 0.895, Direct 0.883, Mediated 0.896 | +0.02 | 1.04 | 73 / 97 / 125 | 11.4 | 0.00 |
-| mediation | mediation, AR(1) treatment | 0.80 | 160 | Total 0.872, Direct 0.893, Mediated 0.905 | +0.01 | 1.06 | 30 / 42 / 60 | 5.7 | 0.44 |
+| mediation | mediation, AR(1) treatment | 0.90 | 100 | Total 0.863, Direct 0.855, Mediated 0.932 | -0.00 | 1.01 | 12 / 19 / 30 | 3.8 | 0.98 |
+| mediation | mediation, AR(1) treatment | 0.95 | 100 | Total 0.845, Direct 0.846, Mediated 0.938 | -0.00 | 0.94 | 8 / 14 / 24 | 3.2 | 0.99 |
+| mediation | mediation, AR(1) treatment | 0.50 | 160 | Total 0.895, Direct 0.882, Mediated 0.897 | +0.02 | 1.04 | 73 / 97 / 125 | 11.4 | 0.00 |
+| mediation | mediation, AR(1) treatment | 0.80 | 160 | Total 0.873, Direct 0.894, Mediated 0.906 | +0.01 | 1.06 | 30 / 42 / 60 | 5.7 | 0.44 |
 | mediation | mediation, AR(1) treatment | 0.90 | 160 | Total 0.870, Direct 0.874, Mediated 0.926 | -0.05 | 1.04 | 16 / 25 / 37 | 4.0 | 0.93 |
-| mediation | mediation, AR(1) treatment | 0.95 | 160 | Total 0.846, Direct 0.852, Mediated 0.938 | +0.02 | 0.98 | 10 / 17 / 27 | 3.5 | 0.99 |
+| mediation | mediation, AR(1) treatment | 0.95 | 160 | Total 0.846, Direct 0.853, Mediated 0.938 | +0.02 | 0.98 | 10 / 17 / 27 | 3.5 | 0.99 |
 | mediation | mediation, AR(1) treatment | 0.50 | 400 | Total 0.896, Direct 0.908, Mediated 0.919 | -0.00 | 1.02 | 184 / 235 / 282 | 18.1 | 0.00 |
 | mediation | mediation, AR(1) treatment | 0.80 | 400 | Total 0.886, Direct 0.901, Mediated 0.897 | -0.03 | 1.04 | 70 / 93 / 119 | 8.1 | 0.00 |
-| mediation | mediation, AR(1) treatment | 0.90 | 400 | Total 0.884, Direct 0.885, Mediated 0.917 | -0.01 | 1.05 | 36 / 49 / 67 | 5.2 | 0.21 |
+| mediation | mediation, AR(1) treatment | 0.90 | 400 | Total 0.884, Direct 0.885, Mediated 0.916 | -0.01 | 1.05 | 36 / 49 / 67 | 5.2 | 0.21 |
 | mediation | mediation, AR(1) treatment | 0.95 | 400 | Total 0.870, Direct 0.864, Mediated 0.912 | +0.00 | 1.02 | 20 / 29 / 42 | 4.6 | 0.87 |
 | sequential | multi-step Sustained, confounded DAG | 0.50 | 40 | 0.900 | -0.02 | 1.08 | 22 / 32 / 38 | 6.3 | 1.00 |
 | sequential | multi-step Sustained, confounded DAG | 0.80 | 40 | 0.906 | +0.04 | 1.09 | 18 / 27 / 38 | 6.3 | 1.00 |
