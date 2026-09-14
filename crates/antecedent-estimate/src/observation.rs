@@ -536,25 +536,53 @@ impl ObservationMechanismEstimator {
                 "temporal observation anchor has no lag-aligned observation row",
             ));
         }
-        let schema = data.schema().clone();
-        let mut owned = Vec::with_capacity(schema.len());
-        for var in schema.variables() {
-            let full = data.float64_values(var.id)?;
-            let shift = if conditioning.contains(&var.id) { lag } else { 0 };
-            owned.push((var.name.clone(), anchors.iter().map(|&s| full[s - shift]).collect()));
-        }
-        let pairs: Vec<(&str, &[f64])> = owned
-            .iter()
-            .map(|(name, values): &(Arc<str>, Vec<f64>)| (name.as_ref(), values.as_slice()))
-            .collect();
-        let table = TabularData::try_from_schema_f64(schema, pairs)?;
         let extras = self.outcome_model_extras(data, query, offset, outcome_regressors, anchors)?;
         if extras.as_ref().is_some_and(|extras| extras.lead > 0) {
             return Err(EstimationError::unsupported(
                 "temporal observation anchor has no lag-aligned outcome-model row",
             ));
         }
-        Ok(self.adjusted_outcome_with_extras(&table, query, None, extras.as_ref())?.values)
+        let covariates = gather_anchor_columns(data, conditioning, anchors, lag)?;
+        match &query.observation {
+            ObservationSpec::Selected { observed, indicator, .. } => {
+                if conditioning.iter().any(|id| id == observed || id == indicator) {
+                    return Err(EstimationError::unsupported(
+                        "observation-model conditions cannot include observed outcome or indicator",
+                    ));
+                }
+                let y = gather_anchor_column(data, *observed, anchors, 0)?;
+                let r = gather_anchor_column(data, *indicator, anchors, 0)?;
+                Ok(self
+                    .selected_from_columns(&y, &r, &covariates, conditioning.len(), extras.as_ref())?
+                    .values)
+            }
+            ObservationSpec::RightCensored { observed, censoring, event, .. }
+            | ObservationSpec::LeftCensored { observed, censoring, event, .. } => {
+                if conditioning.iter().any(|v| [observed, censoring, event].contains(&v)) {
+                    return Err(EstimationError::unsupported(
+                        "censoring conditioning cannot include recorded outcome, censoring time, or event indicator",
+                    ));
+                }
+                let y = gather_anchor_column(data, *observed, anchors, 0)?;
+                let c = gather_anchor_column(data, *censoring, anchors, 0)?;
+                let d = gather_anchor_column(data, *event, anchors, 0)?;
+                let reverse = matches!(query.observation, ObservationSpec::LeftCensored { .. });
+                Ok(self
+                    .censored_from_columns(
+                        &y,
+                        &c,
+                        &d,
+                        &covariates,
+                        conditioning.len(),
+                        None,
+                        reverse,
+                    )?
+                    .values)
+            }
+            _ => Err(EstimationError::unsupported(
+                "temporal observation correction supports selected and left/right censoring only",
+            )),
+        }
     }
 
     /// Largest lag (in rows before the outcome time) an observation row reads: the
@@ -723,13 +751,24 @@ impl ObservationMechanismEstimator {
         let observed = data.float64_values(observed_id)?;
         let indicator = data.float64_values(indicator_id)?;
         let covariates = read_complete_columns(data, conditioning)?;
+        self.selected_from_columns(&observed, &indicator, &covariates, conditioning.len(), extras)
+    }
+
+    fn selected_from_columns(
+        &self,
+        observed: &[f64],
+        indicator: &[f64],
+        covariates: &[f64],
+        n_cov: usize,
+        extras: Option<&OutcomeModelExtras>,
+    ) -> Result<ObservationAdjustedOutcome, EstimationError> {
         if indicator.iter().all(|&r| r == 1.0) {
             if observed.iter().any(|value| !value.is_finite()) {
                 return Err(EstimationError::unsupported("selected outcomes must be finite"));
             }
             return Ok(ObservationAdjustedOutcome {
-                values: observed,
-                weights: vec![1.0; data.row_count()],
+                values: observed.to_vec(),
+                weights: vec![1.0; observed.len()],
                 method: Arc::from("observation.selected.complete_collapse.v1"),
             });
         }
@@ -739,9 +778,9 @@ impl ObservationMechanismEstimator {
             // efficient — cross-fitting here would deviate from the citation to no end.
             SelectedOutcomeCorrection::Ipw => {
                 let fit = fit_observation_logistic(
-                    &indicator,
-                    &covariates,
-                    conditioning.len(),
+                    indicator,
+                    covariates,
+                    n_cov,
                     self.options.observation_probability_floor,
                 )?;
                 (fit.probabilities, None)
@@ -751,13 +790,13 @@ impl ObservationMechanismEstimator {
             // not fit on the row they are evaluated at.
             SelectedOutcomeCorrection::Aipw => {
                 let nuisances =
-                    self.crossfit_selected_nuisances(&observed, &indicator, &covariates, extras)?;
+                    self.crossfit_selected_nuisances(observed, indicator, covariates, extras)?;
                 (nuisances.probabilities, Some(nuisances.outcome_predictions))
             }
         };
         let values = selected_outcome_pseudo_values(
-            &observed,
-            &indicator,
+            observed,
+            indicator,
             &probabilities,
             outcome_predictions.as_deref(),
         )?;
@@ -915,7 +954,34 @@ impl ObservationMechanismEstimator {
         let observed = data.float64_values(observed_id)?;
         let censoring = data.float64_values(censoring_id)?;
         let event = data.float64_values(event_id)?;
-        if observed.iter().chain(&censoring).any(|v| !v.is_finite()) {
+        let covariates = if conditioning.is_empty() {
+            Vec::new()
+        } else {
+            read_complete_columns(data, conditioning)?
+        };
+        let entry_values = delayed_entry.map(|id| data.float64_values(id)).transpose()?;
+        self.censored_from_columns(
+            &observed,
+            &censoring,
+            &event,
+            &covariates,
+            conditioning.len(),
+            entry_values.as_deref(),
+            reverse,
+        )
+    }
+
+    fn censored_from_columns(
+        &self,
+        observed: &[f64],
+        censoring: &[f64],
+        event: &[f64],
+        covariates: &[f64],
+        n_cov: usize,
+        delayed_entry: Option<&[f64]>,
+        reverse: bool,
+    ) -> Result<ObservationAdjustedOutcome, EstimationError> {
+        if observed.iter().chain(censoring).any(|v| !v.is_finite()) {
             return Err(EstimationError::unsupported(
                 "censoring times and recorded outcomes must be finite",
             ));
@@ -931,21 +997,19 @@ impl ObservationMechanismEstimator {
         }
         let transformed: Vec<f64> =
             observed.iter().map(|&value| if reverse { -value } else { value }).collect();
-        let entry_values = delayed_entry.map(|id| data.float64_values(id)).transpose()?;
-        let weights = if conditioning.is_empty() {
+        let weights = if n_cov == 0 {
             kaplan_meier_ipcw(
                 &transformed,
-                &event,
-                entry_values.as_deref(),
+                event,
+                delayed_entry,
                 self.options.censoring_survival_floor,
             )?
         } else {
-            let covariates = read_complete_columns(data, conditioning)?;
             antecedent_stats::cox_ipcw(
                 &transformed,
-                &event,
-                &covariates,
-                conditioning.len(),
+                event,
+                covariates,
+                n_cov,
                 self.options.censoring_survival_floor,
             )?
             .weights
@@ -958,7 +1022,7 @@ impl ObservationMechanismEstimator {
         Ok(ObservationAdjustedOutcome {
             values,
             weights,
-            method: Arc::from(if !conditioning.is_empty() {
+            method: Arc::from(if n_cov > 0 {
                 if reverse {
                     "observation.left_censored.cox_ipcw_sign_reversal.v1"
                 } else {
@@ -1093,6 +1157,38 @@ fn censoring_independence(query: &ResponseQuery) -> Result<&[VariableId], Estima
             Err(EstimationError::unsupported("conditional censoring requires IndependentGiven(Z)"))
         }
     }
+}
+
+fn gather_anchor_column(
+    data: &TimeSeriesData,
+    id: VariableId,
+    anchors: &[usize],
+    shift: usize,
+) -> Result<Vec<f64>, EstimationError> {
+    let full = data.float64_values(id)?;
+    Ok(anchors.iter().map(|&anchor| full[anchor - shift]).collect())
+}
+
+fn gather_anchor_columns(
+    data: &TimeSeriesData,
+    ids: &[VariableId],
+    anchors: &[usize],
+    shift: usize,
+) -> Result<Vec<f64>, EstimationError> {
+    let mut values = Vec::with_capacity(anchors.len() * ids.len());
+    for &id in ids {
+        let full = data.float64_values(id)?;
+        for &anchor in anchors {
+            let value = full[anchor - shift];
+            if !value.is_finite() {
+                return Err(EstimationError::unsupported(
+                    "observation-model covariates must be completely observed and finite",
+                ));
+            }
+            values.push(value);
+        }
+    }
+    Ok(values)
 }
 
 fn read_complete_columns(
