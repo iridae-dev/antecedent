@@ -554,6 +554,7 @@ impl super::Study {
                 antecedent_estimate::CircularBlockFamily::SingleWindow,
                 info.block_length,
                 info.rows,
+                info.kernel_bias,
                 info.effective_rows,
                 &format!(
                     "se_bootstrap refits the lag-aligned design on circular blocks of \
@@ -784,6 +785,7 @@ impl super::Study {
                 antecedent_estimate::CircularBlockFamily::Mediation,
                 block.block_length,
                 block.rows,
+                block.kernel_bias,
                 block.effective_rows,
                 &format!(
                     "{horizon_label}iid analytic SEs are NaN for Total, Direct and Mediated; one \
@@ -5066,8 +5068,10 @@ fn sequential_dependence_se_diagnostics(
     estimate: &EffectEstimate,
     replicates: u32,
 ) -> Vec<Diagnostic> {
-    let (block_length, rows) =
-        estimate.block_resampling.map_or((0, 0), |geometry| (geometry.block_length, geometry.rows));
+    let (block_length, rows, kernel_bias) =
+        estimate.block_resampling.map_or((0, 0, 1.0), |geometry| {
+            (geometry.block_length, geometry.rows, geometry.kernel_bias)
+        });
     let scores: Vec<&[f64]> = estimate.influence.as_deref().into_iter().collect();
     let effective_rows = if estimate.block_resampling.is_some() {
         antecedent_estimate::score_effective_rows(&scores, block_length)
@@ -5078,6 +5082,7 @@ fn sequential_dependence_se_diagnostics(
         antecedent_estimate::CircularBlockFamily::Sequential,
         block_length,
         rows,
+        kernel_bias,
         effective_rows,
         &format!(
             "se_bootstrap refits every mechanism of the sequential g-computation on the \
@@ -5095,6 +5100,7 @@ fn temporal_dependence_se_diagnostics(
     family: antecedent_estimate::CircularBlockFamily,
     block_length: usize,
     rows: usize,
+    kernel_bias: f64,
     effective_rows: f64,
     detail: &str,
 ) -> Vec<Diagnostic> {
@@ -5108,7 +5114,8 @@ fn temporal_dependence_se_diagnostics(
              max(structural span, ceil(n^(1/3))), capped at n, and lengthened for a \
              persistently dependent estimating score), \
              n={rows} lag-aligned rows; \
-             replicate SD scaled by the circular-Bartlett fixed-b factor {scale:.4}; \
+             replicate SD scaled by the circular-Bartlett fixed-b factor {scale:.4} and \
+             the Bartlett kernel-bias factor {kernel_bias:.4} of the estimating score; \
              score effective rows {effective_rows:.1} (the smaller of the lag-1 and \
              block-length readings); {detail}"
         ),

@@ -109,7 +109,7 @@ fn aligned_pairs(data: &TimeSeriesData) -> Vec<(f64, f64)> {
 /// (`(x − x̄)·e`, up to a scale the length does not depend on), the single-atom
 /// mixture score (the same series) and the `[1, x]` regression's
 /// normal-equation scores.
-fn production_block_length(pairs: &[(f64, f64)], structural_span: usize) -> usize {
+fn production_block_length(pairs: &[(f64, f64)], structural_span: usize) -> (usize, Vec<f64>) {
     let rows = pairs.len();
     let mut matrix = vec![1.0; rows];
     matrix.extend(pairs.iter().map(|p| p.0));
@@ -120,7 +120,9 @@ fn production_block_length(pairs: &[(f64, f64)], structural_span: usize) -> usiz
     let influence: Vec<f64> =
         pairs.iter().zip(&normal[0]).map(|(p, e)| (p.0 - x_mean) * e).collect();
     let normal_refs: Vec<&[f64]> = normal.iter().map(Vec::as_slice).collect();
-    mixture_block_length(structural_span, rows, &[&influence], Some(&influence), &normal_refs)
+    let length =
+        mixture_block_length(structural_span, rows, &[&influence], Some(&influence), &normal_refs);
+    (length, influence)
 }
 
 struct Tally {
@@ -176,14 +178,17 @@ fn sensitivity(label: &str, rho: f64, n: usize, seed_base: u64) {
         let data = series(n, rho, seed_base + u64::from(s));
         let pairs = aligned_pairs(&data);
         let est = slope(pairs.iter().copied()).unwrap();
-        let length = production_block_length(&pairs, 2);
+        let (length, influence) = production_block_length(&pairs, 2);
         production.push(length);
         for (factor, tally) in factors.iter().zip(&mut tallies) {
             let scaled = ((length as f64 * factor).round() as usize).clamp(1, rows);
+            // The production kernel-bias factor of the influence at the scaled length.
+            let kernel_bias = antecedent_estimate::kernel_bias_scale(&[&influence], scaled);
             let block = shared_circular_block_mixture_se_with_length(
                 &design,
                 &[1.0],
                 scaled,
+                kernel_bias,
                 REPLICATES,
                 0xB10C_0000,
                 &ctx,

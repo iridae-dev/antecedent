@@ -1035,14 +1035,16 @@ fn estimate_sequential(
     let point = setup.evaluate(None, &mut ls_ws)?;
     // Circular blocks of consecutive lag-aligned rows (every row keeps its intact
     // unfolded window), every mechanism refit on the same rows, and the replicate
-    // SD scaled by the circular-Bartlett fixed-b factor, as on the single-window
-    // path ([`crate::temporal_block`]). Blocks are at least the unfolded span and
+    // SD scaled by the circular-Bartlett fixed-b factor and the kernel-bias
+    // factor of the contrast influence, as on the single-window path
+    // ([`crate::temporal_block`]). Blocks are at least the unfolded span and
     // lengthen when the contrast's estimating score, or any mechanism's
     // normal-equation score, is persistently dependent. The influence and block
     // length are returned on the estimate so callers can report the resampling
     // geometry without rebuilding the design.
     let influence = setup.influence(&mut ls_ws);
     let block_length = setup.dependence_block_length_with(influence.as_deref());
+    let target: Vec<&[f64]> = influence.as_deref().into_iter().collect();
     let boot = crate::temporal_block::row_block_bootstrap_vec(
         setup.n,
         block_length,
@@ -1050,7 +1052,9 @@ fn estimate_sequential(
         SEQUENTIAL_BLOCK_STREAM,
         ctx,
         |rows| setup.evaluate(Some(rows), &mut ls_ws).ok().map(|value| vec![value]),
-    );
+    )
+    .with_kernel_bias(&target);
+    let kernel_bias = boot.kernel_bias;
     let se = boot.se_result(0);
     let mut effect = EffectEstimate::from_parts(
         point,
@@ -1067,6 +1071,6 @@ fn estimate_sequential(
     );
     effect.influence = influence.map(Arc::from);
     effect.block_resampling =
-        Some(crate::adjustment::BlockResampling { block_length, rows: setup.n });
+        Some(crate::adjustment::BlockResampling { block_length, rows: setup.n, kernel_bias });
     Ok((effect, None))
 }

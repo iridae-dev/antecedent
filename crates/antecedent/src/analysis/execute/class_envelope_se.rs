@@ -21,6 +21,10 @@ pub struct SharedCircularBlockSe {
     pub atom_draws: Vec<Vec<f64>>,
     /// Fixed-b factor applied to [`Self::se`].
     pub fixed_b: f64,
+    /// Bartlett kernel-bias factor of every atom's influence and the mixture
+    /// score at the block length ([`antecedent_estimate::kernel_bias_scale`]),
+    /// applied to [`Self::se`] with [`Self::fixed_b`].
+    pub kernel_bias: f64,
 }
 
 impl SharedCircularBlockSe {
@@ -34,6 +38,7 @@ impl SharedCircularBlockSe {
             effective_rows: f64::NAN,
             atom_draws: Vec::new(),
             fixed_b: 1.0,
+            kernel_bias: 1.0,
         }
     }
 
@@ -50,7 +55,7 @@ impl SharedCircularBlockSe {
         antecedent_estimate::imbens_manski_shared_replicates(
             points,
             &self.atom_draws,
-            self.fixed_b,
+            self.fixed_b * self.kernel_bias,
             self.rows,
             level,
         )
@@ -199,7 +204,9 @@ impl TemporalAtomDesign {
 /// maximal lag window across all atoms is available; each atom's lag-aligned
 /// design keeps its rows' lag windows from the original series, every atom is
 /// refit on the same resampled times, and the replicate SD is scaled by the
-/// circular-Bartlett fixed-b factor ([`antecedent_estimate::circular_fixed_b_scale`]).
+/// circular-Bartlett fixed-b factor ([`antecedent_estimate::circular_fixed_b_scale`])
+/// and the Bartlett kernel-bias factor of every atom's influence and the mixture
+/// score ([`antecedent_estimate::kernel_bias_scale`]).
 /// The block length is [`mixture_block_length`] over the `m` shared times: at
 /// least `max(structural_span, ceil(m^(1/3)))`, lengthened when any atom's
 /// influence, the mixture score, or any normal-equation score of any atom's
@@ -244,21 +251,23 @@ pub fn shared_circular_block_mixture_se(
         score.as_deref(),
         &normal_windows,
     );
+    // Every atom's score, not only the weighted sum: a mixture dominated by a
+    // nearly iid atom can hide another atom's slowly decaying dependence.
+    let target: Vec<&[f64]> =
+        influences.iter().flatten().copied().chain(score.as_deref()).collect();
+    let kernel_bias = antecedent_estimate::kernel_bias_scale(&target, block_length);
     let mut workspace = EstimationWorkspace::default();
     let mut out = shared_circular_block_mixture_se_with_length(
         &designs,
         weights,
         block_length,
+        kernel_bias,
         replicates,
         stream_base,
         ctx,
         |atom, rows| atoms[atom].estimate_on_rows(rows, &mut workspace),
     );
-    // Every atom's score, not only the weighted sum: a mixture dominated by a
-    // nearly iid atom can hide another atom's slowly decaying dependence.
     out.effective_rows = if score.is_some() {
-        let target: Vec<&[f64]> =
-            influences.iter().flatten().copied().chain(score.as_deref()).collect();
         antecedent_estimate::score_effective_rows(&target, block_length)
     } else {
         f64::NAN
@@ -312,14 +321,16 @@ pub fn circular_block_length(structural_span: usize, n: usize) -> usize {
 }
 
 /// [`shared_circular_block_mixture_se`] over explicit aligned designs at an
-/// explicit block length. Production reaches it through
+/// explicit block length and kernel-bias factor. Production reaches it through
 /// [`shared_circular_block_mixture_se`] at [`mixture_block_length`]; the
 /// block-length sensitivity check calls it directly at multiples of that
 /// length. `fit_atom(g, rows)` refits atom `g` on its design rows `rows`.
+#[allow(clippy::too_many_arguments)]
 pub fn shared_circular_block_mixture_se_with_length(
     designs: &[antecedent_estimate::AlignedRows],
     weights: &[f64],
     block_length: usize,
+    kernel_bias: f64,
     replicates: u32,
     stream_base: u64,
     ctx: &ExecutionContext,
@@ -349,6 +360,7 @@ pub fn shared_circular_block_mixture_se_with_length(
     ) else {
         return SharedCircularBlockSe::empty();
     };
+    let draws = antecedent_estimate::RowBlockDraws { kernel_bias, ..draws };
     let k = designs.len();
     let se = draws.se_result(k).se.unwrap_or(f64::NAN);
     SharedCircularBlockSe {
@@ -359,6 +371,7 @@ pub fn shared_circular_block_mixture_se_with_length(
         rows: draws.rows,
         effective_rows: f64::NAN,
         fixed_b: draws.fixed_b(),
+        kernel_bias,
         atom_draws: draws
             .draws
             .into_iter()
@@ -412,7 +425,8 @@ pub fn shared_block_mixture_message(
          {} times where every atom's lag window is available; each atom's lag-aligned \
          rows keep their original lag windows and every atom is refit on the same \
          resampled times; replicate SD scaled by the circular-Bartlett fixed-b factor \
-         {:.4}; score effective rows {:.1} (smallest over every atom's and the \
+         {:.4} and the Bartlett kernel-bias factor {:.4} of the atom and mixture \
+         scores; score effective rows {:.1} (smallest over every atom's and the \
          mixture's score of the lag-1 and block-length readings); between-atom sampling \
          variance included; unidentified mass is not mixed into the SE; \
          the interval is for the reported aggregate, not a distribution \
@@ -422,6 +436,7 @@ pub fn shared_block_mixture_message(
         block.block_length,
         block.rows,
         block.fixed_b,
+        block.kernel_bias,
         block.effective_rows,
     )
 }

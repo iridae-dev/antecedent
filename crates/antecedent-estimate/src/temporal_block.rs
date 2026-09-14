@@ -16,6 +16,10 @@
 //! lengthens it when an estimating score — of the target or of any nuisance
 //! coefficient ([`normal_equation_scores`]) — is persistently dependent.
 //!
+//! Every published SE is the replicate SD times the circular fixed-b factor
+//! ([`circular_fixed_b_scale`]) and the Bartlett kernel-bias factor of the
+//! interval's estimating scores ([`kernel_bias_scale`]).
+//!
 //! Several designs on one series (the atoms of a temporal class / DBN mixture)
 //! share one replicate through [`aligned_block_bootstrap`]: blocks of consecutive
 //! series times over the window every design can evaluate, each design refit on
@@ -69,8 +73,11 @@ impl CircularBlockFamily {
     /// 90% of its replicates, taking the larger of that sweep and an
     /// independent 1000-replicate replication.
     ///
-    /// Measured on the current SE construction (blocks sized on every
-    /// estimating score, circular-Bartlett fixed-b factor):
+    /// Measured on the SE construction before the Bartlett kernel-bias factor
+    /// ([`kernel_bias_scale`]; blocks sized on every estimating score,
+    /// circular-Bartlett fixed-b factor). That factor only widens intervals;
+    /// re-measured with it, every cell below 0.855 still warns on at least 91%
+    /// of its replicates and the thresholds stand:
     ///
     /// * `SingleWindow` 45 (sweep 45, replication 40): the AR(1)-treatment
     ///   Pulse covers 0.750–0.854 at n = 40–60 (ρ ≥ 0.8), n = 100–160 (ρ ≥ 0.9)
@@ -396,6 +403,70 @@ pub fn circular_fixed_b_scale(block_length: usize, rows: usize) -> f64 {
     (1.96 + 2.4389 * b + 3.7072 * b * b - 2.1055 * b * b * b) / 1.96
 }
 
+/// Largest lag-1 autocorrelation the kernel-bias factor prewhitens with
+/// (Andrews & Monahan 1992 cap the AR(1) coefficient the same way, so a
+/// near-unit-root score cannot inflate the factor without bound).
+const KERNEL_BIAS_MAX_RHO: f64 = 0.97;
+
+/// Bartlett kernel-bias factor for a circular-block SE over `block_length`:
+/// `sqrt(LRV_AR(1)(ρ̂) / Bartlett_ℓ,AR(1)(ρ̂))`, the largest over `scores` (the
+/// interval's estimating scores: the target influence(s) and, for a mixture,
+/// the weighted mixture score), with `ρ̂` each score's lag-1 autocorrelation
+/// floored at zero and capped at [`KERNEL_BIAS_MAX_RHO`]. `1` for fewer than
+/// three scores, a non-finite or constant series, or a non-positive `ρ̂`.
+///
+/// A circular block of length `ℓ` reproduces the circular Bartlett long-run
+/// variance at bandwidth `ℓ`, whose expectation under an AR(1)(ρ) score is
+/// `γ₀[(1 + ρ)/(1 − ρ) − (2/ℓ)·ρ/(1 − ρ)² + …]`, below the long-run variance
+/// `γ₀(1 + ρ)/(1 − ρ)` by the Bartlett small-bandwidth bias. The fixed-b
+/// critical value ([`circular_fixed_b_scale`]) prices the `(1 − b)` level and
+/// the randomness of the block variance under short memory, not this bias,
+/// which grows with the score's memory relative to the block: 3% of the SE for
+/// an AR(1)(0.81) score at `ℓ = 74` (a persistent treatment and residual at
+/// ρ = 0.9, n = 400, where the 1.9 short-series measurement put the interval at
+/// 0.87–0.89 for nominal 0.90), under 1% for short-memory scores. Prewhitening
+/// the score by its lag-1 autocorrelation (Andrews & Monahan 1992) gives the
+/// ratio directly; the factor is capped so a near-unit-root `ρ̂` (at most
+/// 0.97) cannot inflate it without bound, and the short-series warning, not
+/// this factor, is what says the series is too short for the dependence.
+#[must_use]
+pub fn kernel_bias_scale(scores: &[&[f64]], block_length: usize) -> f64 {
+    let l = block_length.max(1);
+    scores
+        .iter()
+        .filter_map(|s| lag_one_autocorrelation(s))
+        .map(|rho| {
+            let rho = rho.clamp(0.0, KERNEL_BIAS_MAX_RHO);
+            let long_run = (1.0 + rho) / (1.0 - rho);
+            let mut power = 1.0;
+            let tail: f64 = (1..l)
+                .map(|k| {
+                    power *= rho;
+                    (1.0 - k as f64 / l as f64) * power
+                })
+                .sum();
+            (long_run / (1.0 + 2.0 * tail)).sqrt()
+        })
+        .filter(|f| f.is_finite())
+        .fold(1.0, f64::max)
+}
+
+/// Lag-1 autocorrelation of `scores`; `None` for fewer than three, non-finite
+/// or constant scores.
+fn lag_one_autocorrelation(scores: &[f64]) -> Option<f64> {
+    let n = scores.len();
+    if n < 3 || scores.iter().any(|s| !s.is_finite()) {
+        return None;
+    }
+    let mean = scores.iter().sum::<f64>() / n as f64;
+    let gamma0: f64 = scores.iter().map(|s| (s - mean).powi(2)).sum();
+    if gamma0 <= 0.0 {
+        return None;
+    }
+    let gamma1: f64 = scores.windows(2).map(|w| (w[0] - mean) * (w[1] - mean)).sum();
+    Some(gamma1 / gamma0)
+}
+
 /// Kiefer–Vogelsang (2005) fixed-b correction for a *non-circular* Bartlett
 /// long-run variance (a Newey–West HAC) at bandwidth `ℓ` over `rows` rows:
 /// `cv_95(ℓ/n) / 1.96` with `cv(b) = 1.96 + 2.9694b + 0.4160b² − 0.5324b³`,
@@ -428,6 +499,10 @@ pub struct RowBlockDraws {
     pub block_length: usize,
     /// Lag-aligned rows resampled.
     pub rows: usize,
+    /// Bartlett kernel-bias factor of the estimating scores at
+    /// [`Self::block_length`] ([`kernel_bias_scale`]); `1` until the caller
+    /// sets it from its scores ([`Self::with_kernel_bias`]).
+    pub kernel_bias: f64,
 }
 
 impl RowBlockDraws {
@@ -435,6 +510,21 @@ impl RowBlockDraws {
     #[must_use]
     pub fn fixed_b(&self) -> f64 {
         circular_fixed_b_scale(self.block_length, self.rows)
+    }
+
+    /// Set the kernel-bias factor to [`kernel_bias_scale`] of `scores` at this
+    /// block length.
+    #[must_use]
+    pub fn with_kernel_bias(mut self, scores: &[&[f64]]) -> Self {
+        self.kernel_bias = kernel_bias_scale(scores, self.block_length);
+        self
+    }
+
+    /// Factor applied to every raw replicate SD: [`Self::fixed_b`] times
+    /// [`Self::kernel_bias`].
+    #[must_use]
+    pub fn se_scale(&self) -> f64 {
+        self.fixed_b() * self.kernel_bias
     }
 
     /// Replicate values of target `k`.
@@ -450,11 +540,11 @@ impl RowBlockDraws {
         finalize_bootstrap_se_ex(&self.column(k), self.attempted, self.cancelled, false)
     }
 
-    /// Published SE of target `k`: [`Self::raw_se_result`] scaled by [`Self::fixed_b`].
+    /// Published SE of target `k`: [`Self::raw_se_result`] scaled by [`Self::se_scale`].
     #[must_use]
     pub fn se_result(&self, k: usize) -> BootstrapSeResult {
         let mut result = self.raw_se_result(k);
-        let scale = self.fixed_b();
+        let scale = self.se_scale();
         result.se = result.se.map(|se| se * scale);
         result
     }
@@ -517,7 +607,7 @@ pub fn aligned_block_bootstrap(
             }
             estimate(&maps)
         });
-    Some(RowBlockDraws { draws, attempted, cancelled, block_length, rows: len })
+    Some(RowBlockDraws { draws, attempted, cancelled, block_length, rows: len, kernel_bias: 1.0 })
 }
 
 /// Resample `rows` lag-aligned rows in circular blocks of `block_length` (callers
@@ -538,7 +628,7 @@ pub fn row_block_bootstrap_vec(
     let block_length = block_length.clamp(1, rows.max(1));
     let (draws, attempted, cancelled) =
         block_replicates(rows, block_length, replicates, stream_base, ctx, estimate);
-    RowBlockDraws { draws, attempted, cancelled, block_length, rows }
+    RowBlockDraws { draws, attempted, cancelled, block_length, rows, kernel_bias: 1.0 }
 }
 
 /// The replicate loop shared by every row-block bootstrap: circular blocks of
@@ -783,6 +873,52 @@ mod tests {
             assert!(!family.is_short_series(family.min_effective_rows()), "{family:?}");
             assert!(family.is_short_series(family.min_effective_rows() - 1e-9), "{family:?}");
         }
+    }
+
+    #[test]
+    fn kernel_bias_scale_grows_with_score_memory_and_shrinks_with_block_length() {
+        // A short-memory (alternating, negative r1) score keeps the factor at 1.
+        let alternating: Vec<f64> = (0..200).map(|t| if t % 2 == 0 { 1.0 } else { -1.0 }).collect();
+        assert!((kernel_bias_scale(&[&alternating], 10) - 1.0).abs() < 1e-12);
+        // Constant, short and non-finite series are ignored.
+        assert!(
+            (kernel_bias_scale(&[&[2.0; 50], &[1.0, 2.0], &[1.0, f64::NAN, 3.0]], 10) - 1.0).abs()
+                < 1e-12
+        );
+        assert!((kernel_bias_scale(&[], 10) - 1.0).abs() < 1e-12);
+        // AR(1)(0.81) score of length 400 (the persistent ρ = 0.9 design's score):
+        // about 3% at the production block (74), more at a shorter block.
+        let mut state = 0.0_f64;
+        let mut lcg = 0x1234_5678_u64;
+        let persistent: Vec<f64> = (0..400)
+            .map(|_| {
+                lcg = lcg.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+                let u = (lcg >> 11) as f64 / (1u64 << 53) as f64 - 0.5;
+                state = 0.81 * state + u;
+                state
+            })
+            .collect();
+        let at_74 = kernel_bias_scale(&[&persistent], 74);
+        let at_20 = kernel_bias_scale(&[&persistent], 20);
+        assert!(at_74 > 1.01 && at_74 < 1.08, "{at_74}");
+        assert!(at_20 > at_74, "{at_20} vs {at_74}");
+        // The largest over several scores, and the ρ̂ cap keeps it finite.
+        assert!((kernel_bias_scale(&[&alternating, &persistent], 74) - at_74).abs() < 1e-12);
+        let ramp: Vec<f64> = (0..400).map(f64::from).collect();
+        assert!(kernel_bias_scale(&[&ramp], 74).is_finite());
+        // Exact value for a known ρ: LRV/Bartlett_ℓ with ρ = 0.5, ℓ = 4.
+        let rho: f64 = 0.5;
+        let bartlett = 1.0 + 2.0 * (0.75 * rho + 0.5 * rho * rho + 0.25 * rho.powi(3));
+        let exact = ((1.0 + rho) / (1.0 - rho) / bartlett).sqrt();
+        let draws = RowBlockDraws {
+            draws: vec![],
+            attempted: 0,
+            cancelled: false,
+            block_length: 4,
+            rows: 100,
+            kernel_bias: exact,
+        };
+        assert!((draws.se_scale() - circular_fixed_b_scale(4, 100) * exact).abs() < 1e-12);
     }
 
     #[test]
