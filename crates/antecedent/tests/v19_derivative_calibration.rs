@@ -14,7 +14,8 @@
 //! The order-2 point derivative (`m''(0.5) = -2 sin 0.5`, `m''''(0.5) ≠ 0`) is
 //! scored at a wider bandwidth sized for the curvature. There the leading
 //! second-derivative bias is `h²·m''''`, which a local cubic does not remove;
-//! the interval is bias-corrected by a local quartic instead.
+//! the interval is bias-corrected by a local quartic instead (the local-cubic
+//! correction covered 0.695 here at nominal 0.90).
 //!
 //! The Jacobian / directional DGP is additive with a quadratic component. Only
 //! the Bayesian result publishes a band for these (the Frequentist result
