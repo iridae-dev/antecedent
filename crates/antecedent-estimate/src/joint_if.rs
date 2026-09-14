@@ -322,9 +322,7 @@ pub fn max_t_critical(
         maxima.push(max_abs);
     }
     maxima.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    let idx =
-        ((level * f64::from(replicates)).ceil() as usize).saturating_sub(1).min(maxima.len() - 1);
-    Ok(maxima[idx])
+    Ok(crate::util::monte_carlo_critical(&maxima, level))
 }
 
 /// Equal-weight least-squares projection onto decreasing sequences using PAVA.
