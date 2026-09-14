@@ -11,6 +11,22 @@ cd "$ROOT"
 FAILED=""
 FAILED_COUNT=0
 RECHECKED=""
+GROUP_INDEX=0
+
+# Sharding for the scheduled workflow: `ANTECEDENT_CALIBRATION_SHARD=k/N` runs
+# only the groups whose index (in script order) is congruent to k modulo N, so
+# N runners split the gate and each stays under its timeout. Unset runs all.
+# `ANTECEDENT_CALIBRATION_DRY_RUN=1` lists the groups this shard would run.
+SHARD_K=""
+SHARD_N=""
+if [ -n "${ANTECEDENT_CALIBRATION_SHARD:-}" ]; then
+  SHARD_K="${ANTECEDENT_CALIBRATION_SHARD%%/*}"
+  SHARD_N="${ANTECEDENT_CALIBRATION_SHARD##*/}"
+  case "$SHARD_K$SHARD_N" in *[!0-9]*|"") echo "bad ANTECEDENT_CALIBRATION_SHARD=$ANTECEDENT_CALIBRATION_SHARD (want k/N)" >&2; exit 2;; esac
+  if [ "$SHARD_N" -lt 1 ] || [ "$SHARD_K" -ge "$SHARD_N" ]; then
+    echo "bad ANTECEDENT_CALIBRATION_SHARD=$ANTECEDENT_CALIBRATION_SHARD (want 0 <= k < N)" >&2; exit 2
+  fi
+fi
 
 # Replicate count of the precision recheck (crates/antecedent/tests/common/calibration.rs).
 RECHECK_NSIM="${ANTECEDENT_CALIBRATION_RECHECK_NSIM:-2000}"
@@ -24,6 +40,14 @@ RECHECK_NSIM="${ANTECEDENT_CALIBRATION_RECHECK_NSIM:-2000}"
 check() {
   local label="$1"
   shift
+  GROUP_INDEX=$((GROUP_INDEX + 1))
+  if [ -n "$SHARD_N" ] && [ $(( (GROUP_INDEX - 1) % SHARD_N )) -ne "$SHARD_K" ]; then
+    return 0
+  fi
+  if [ -n "${ANTECEDENT_CALIBRATION_DRY_RUN:-}" ]; then
+    echo "group ${GROUP_INDEX}: ${label}"
+    return 0
+  fi
   local log status
   log="$(mktemp -t gate_calibration.XXXXXX)"
   "$@" 2>&1 | tee "$log"
@@ -385,4 +409,8 @@ if [ "$FAILED_COUNT" -gt 0 ]; then
   printf '%s' "$FAILED"
   exit 1
 fi
-echo "gate_calibration: ok"
+if [ -n "$SHARD_N" ]; then
+  echo "gate_calibration: shard ${SHARD_K}/${SHARD_N} ok (${GROUP_INDEX} groups in script order)"
+else
+  echo "gate_calibration: ok"
+fi

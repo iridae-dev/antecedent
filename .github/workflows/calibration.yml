@@ -16,9 +16,17 @@ env:
 
 jobs:
   gate:
-    name: Statistical calibration gate
+    # The full gate is several hours of release-mode coverage runs (plus
+    # 2000-replicate rechecks of any low cell), so it is split across shards;
+    # gate_calibration.sh assigns groups to shards by their index in script
+    # order. Raise the shard count, not the timeout, when the gate grows.
+    name: Statistical calibration gate (shard ${{ matrix.shard }} of 8)
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     permissions:
       contents: read
     steps:
@@ -32,5 +40,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
-      - name: Run calibration gate
+      - name: Run calibration gate shard
+        env:
+          ANTECEDENT_CALIBRATION_SHARD: ${{ matrix.shard }}/8
         run: bash scripts/gate_calibration.sh
