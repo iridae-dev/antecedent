@@ -610,9 +610,11 @@ mod tests {
         assert_eq!(right, vec![(1, 0.0), (2, 0.0)], "reference side all control");
     }
 
-    /// `(factor variable, bound treatment level)` pairs on each side of the
-    /// edge g-formula contrast, sorted by variable.
-    fn contrast_levels(res: &IdentificationResult) -> (Vec<(u32, f64)>, Vec<(u32, f64)>) {
+    /// `(factor variable, bound treatment level)` pairs, sorted by variable.
+    type FactorLevels = Vec<(u32, f64)>;
+
+    /// Factor levels on each side of the edge g-formula contrast.
+    fn contrast_levels(res: &IdentificationResult) -> (FactorLevels, FactorLevels) {
         let ExprNode::Contrast { left, right, .. } = res.arena.node(res.estimands[0].functional)
         else {
             panic!("expected a contrast");
@@ -652,11 +654,11 @@ mod tests {
         dag
     }
 
-    fn identify_on(dag: &Dag, query: CausalQuery) -> IdentificationResult {
+    fn identify_on(dag: &Dag, query: &CausalQuery) -> IdentificationResult {
         let id = PathSpecificIdentifier::new();
         let prep = id.prepare_dag(dag).unwrap();
         let mut ws = IdentificationWorkspace::default();
-        id.identify(&prep, &query, &mut ws).unwrap()
+        id.identify(&prep, query, &mut ws).unwrap()
     }
 
     fn path_query(t: u32, y: u32, path_nodes: &[u32]) -> CausalQuery {
@@ -697,7 +699,7 @@ mod tests {
     fn shared_descendant_through_distinct_children_identifies() {
         // 0=T 1=A 2=B 3=W 4=Y
         let dag = dag_from(5, &[(0, 1), (1, 3), (0, 2), (2, 3), (3, 4)]);
-        let res = identify_on(&dag, path_query(0, 4, &[1]));
+        let res = identify_on(&dag, &path_query(0, 4, &[1]));
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(witness(&res).is_none(), "{:?}", res.derivation.steps);
         assert!(has_rule(&res, "path_specific.edge_gformula"));
@@ -714,16 +716,17 @@ mod tests {
     fn mediation_with_post_mediator_node_identifies_both_natural_effects() {
         // 0=T 1=M1 2=W 3=Y
         let dag = dag_from(4, &[(0, 1), (1, 2), (0, 2), (2, 3), (0, 3)]);
-        let nde = identify_on(&dag, mediation_query(0, 3, &[1], MediationContrast::NaturalDirect));
-        assert_eq!(nde.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(has_rule(&nde, "path_specific.edge_gformula"));
-        let (left, _) = contrast_levels(&nde);
+        let direct =
+            identify_on(&dag, &mediation_query(0, 3, &[1], MediationContrast::NaturalDirect));
+        assert_eq!(direct.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(has_rule(&direct, "path_specific.edge_gformula"));
+        let (left, _) = contrast_levels(&direct);
         assert_eq!(left, vec![(1, 0.0), (2, 1.0), (3, 1.0)], "M1 control; W and Y active");
 
-        let nie =
-            identify_on(&dag, mediation_query(0, 3, &[1], MediationContrast::NaturalIndirect));
-        assert_eq!(nie.status, IdentificationStatus::NonparametricallyIdentified);
-        let (left, _) = contrast_levels(&nie);
+        let indirect =
+            identify_on(&dag, &mediation_query(0, 3, &[1], MediationContrast::NaturalIndirect));
+        assert_eq!(indirect.status, IdentificationStatus::NonparametricallyIdentified);
+        let (left, _) = contrast_levels(&indirect);
         assert_eq!(left, vec![(1, 1.0), (2, 0.0), (3, 0.0)], "M1 active; W and Y control");
     }
 
@@ -739,7 +742,7 @@ mod tests {
             mediation_query(0, 3, &[2], MediationContrast::NaturalIndirect),
             mediation_query(0, 3, &[2], MediationContrast::NaturalDirect),
         ] {
-            let res = identify_on(&dag, query);
+            let res = identify_on(&dag, &query);
             assert_eq!(res.status, IdentificationStatus::NotIdentified);
             let detail = witness(&res).expect("recanting witness step");
             assert!(detail.contains("dense=1"), "L is the witness: {detail}");
@@ -753,7 +756,7 @@ mod tests {
     fn selection_splitting_below_a_treatment_child_refuses() {
         // 0=T 1=A 2=B 3=R 4=Z 5=Y
         let dag = dag_from(6, &[(0, 1), (0, 2), (1, 3), (2, 3), (3, 5), (3, 4), (4, 5)]);
-        let res = identify_on(&dag, path_query(0, 5, &[1, 4]));
+        let res = identify_on(&dag, &path_query(0, 5, &[1, 4]));
         assert_eq!(res.status, IdentificationStatus::NotIdentified);
         assert!(witness(&res).expect("witness").contains("dense=1"));
     }
@@ -768,11 +771,12 @@ mod tests {
         for case in fixture["cases"].as_array().unwrap() {
             let id = case["id"].as_str().unwrap();
             let mut names: Vec<String> = Vec::new();
-            let mut index = |name: &str| {
-                names.iter().position(|n| n == name).unwrap_or_else(|| {
+            let mut index = |name: &str| -> u32 {
+                let at = names.iter().position(|n| n == name).unwrap_or_else(|| {
                     names.push(name.to_owned());
                     names.len() - 1
-                })
+                });
+                u32::try_from(at).unwrap()
             };
             let edges: Vec<(u32, u32)> = case["dag"]
                 .as_array()
@@ -780,19 +784,19 @@ mod tests {
                 .iter()
                 .map(|e| {
                     let (u, v) = e.as_str().unwrap().split_once("->").unwrap();
-                    (index(u.trim()) as u32, index(v.trim()) as u32)
+                    (index(u.trim()), index(v.trim()))
                 })
                 .collect();
             let path_nodes: Vec<u32> = case["included_path_nodes"]
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|v| index(v.as_str().unwrap()) as u32)
+                .map(|v| index(v.as_str().unwrap()))
                 .collect();
-            let (t, y) = (index("T") as u32, index("Y") as u32);
+            let (t, y) = (index("T"), index("Y"));
             let witness_node = case["witness"].as_str().map(&mut index);
-            let dag = dag_from(names.len() as u32, &edges);
-            let res = identify_on(&dag, path_query(t, y, &path_nodes));
+            let dag = dag_from(u32::try_from(names.len()).unwrap(), &edges);
+            let res = identify_on(&dag, &path_query(t, y, &path_nodes));
             match case["status"].as_str().unwrap() {
                 "identified" => {
                     assert_eq!(
