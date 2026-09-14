@@ -39,7 +39,7 @@
     "bayesian_n_draws": 256,
     "bayesian_prior_scale": 1000000.0,
     "bayesian_abs_tolerance": 0.01,
-    "note": "direct atom: E[Y | T=t] = 1 + 2.75t; Z-adjusted atom: E[Y | do(T=t)] = 1 + 2t + 1.5*mean(Z) = 1 + 2t; conditional_on_identified = (0.5*direct + 0.3*adjusted) / 0.8 = 1 + 2.46875t; multi-atom response uncertainty is unavailable, so this is a numeric pin, not a coverage claim"
+    "note": "direct atom: E[Y | T=t] = 1 + 2.75t; Z-adjusted atom: E[Y | do(T=t)] = 1 + 2t + 1.5*mean(Z) = 1 + 2t; conditional_on_identified = (0.5*direct + 0.3*adjusted) / 0.8 = 1 + 2.46875t; only the Frequentist scalar InterventionResponse aggregate carries a joint-IF SE (row-aligned atom influences); curves and Bayesian aggregates withhold the multi-atom interval, so this is a numeric pin, not a coverage claim"
   },
   "temporal_effect": {
     "dgp": "defect_t = 0.9 * pressure_{t-1}",
