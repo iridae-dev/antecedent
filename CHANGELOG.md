@@ -33,7 +33,8 @@ repeated-sampling coverage; intervals that missed were fixed, not footnoted.
 - Python `bootstrap=` on Frequentist temporal `ResponseCurve` /
   `InterventionResponse`, through `analyze()` and `PreparedAnalysis.prepare()`.
   Omitted, it follows the latency tier as Pulse / Sustained do (`analyze()`
-  without a tier runs 50 replicates and publishes the circular-block pointwise
+  without a tier runs 199 replicates — the coverage-gated circular-block
+  count — and publishes the circular-block pointwise
   and simultaneous bands); `bootstrap=0` returns the point surface and the
   `estimate.temporal_response.band_withheld` warning. Response routes that do
   not use bootstrap replicates refuse `bootstrap=` instead of ignoring it.
@@ -53,14 +54,21 @@ repeated-sampling coverage; intervals that missed were fixed, not footnoted.
 
 ### Changed
 
-- Serially dependent rows: every Frequentist temporal SE (plain TemporalDag
+- Serially dependent rows: Frequentist temporal SEs for plain TemporalDag
   Pulse/Sustained, temporal mediation, DBN posteriors, class envelopes,
-  multi-step sequential, temporal responses and the `bootstrap.ci_coverage`
-  refuter) resamples circular blocks of lag-aligned rows, not the raw series,
-  with a dependence-aware block length and a fixed-b correction. iid analytic
-  SEs on these cells are NaN; a short-series warning fires when the series is
-  short for the estimating score's dependence. Temporal response surfaces
-  likewise publish no band without bootstrap replicates
+  multi-step sequential, and the `bootstrap.ci_coverage` refuter resample
+  circular blocks of lag-aligned rows, not the raw series, with a
+  dependence-aware block length (`max(span, ⌈n^{1/3}⌉)`, lengthened by
+  Politis–White × `n^{1/6}`, cap `n/3`) and a fixed-b correction. The
+  published scalar interval uses the Kiefer–Vogelsang 95% Bartlett ratio
+  `cv_95(ℓ/n)/1.96` at every nominal level (including the gated 90% cells),
+  so it is a normal interval around a 95%-inflated SE rather than the 90%
+  fixed-b critical-value interval. iid analytic SEs on these cells are NaN;
+  a short-series warning fires when the series is short for the estimating
+  score's dependence. Temporal response surfaces and observation/Sequence
+  tuple bands use a different length rule — `max(span, ⌈√n⌉)`, the
+  testing-optimal Bartlett rate, with no score-driven Politis–White
+  lengthening — and likewise publish no band without bootstrap replicates
   (`estimate.temporal_response.band_withheld`).
 - `estimate.temporal.circular_block_se.short_series` uses a threshold per SE
   family, set from a coverage sweep over AR(1) persistence and series length
