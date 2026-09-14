@@ -13,6 +13,7 @@ use std::sync::Arc;
 use antecedent_core::{CausalRng, ExecutionContext, VariableId};
 use antecedent_kernels::unbiased_index;
 
+use crate::buffer::F64Buffer;
 use crate::column::{ColumnView, Float64Column, OwnedColumn};
 use crate::dataset::TimeSeriesData;
 use crate::error::DataError;
@@ -744,7 +745,12 @@ fn apply_row_map(data: &TimeSeriesData, row_map: &[u32]) -> Result<TimeSeriesDat
         // A replicate slot inherits the source row's validity: values under
         // null slots must not resurface as valid observations.
         let validity = src.validity.gather(row_map)?;
-        cols.push(OwnedColumn::Float64(Float64Column::new(v.id, Arc::from(values), validity)?));
+        // Rows gathered from a NaN-free column are NaN-free: skip the rescan.
+        let mut values = F64Buffer::owned(Arc::<[f64]>::from(values));
+        if src.values.is_nan_free() {
+            values.mark_nan_free();
+        }
+        cols.push(OwnedColumn::Float64(Float64Column::new(v.id, values, validity)?));
     }
     // Analysis mask and weights follow the same row map as the values.
     let analysis_mask = data.storage().analysis_mask().map(|m| m.gather(row_map)).transpose()?;
