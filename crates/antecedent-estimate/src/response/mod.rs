@@ -41,6 +41,9 @@ use antecedent_stats::{
 use crate::EstimationError;
 use crate::util::range;
 
+mod band;
+use band::simultaneous_multiplier_band;
+
 /// Lower clamp on the fitted conditional treatment density in the Kennedy weight.
 ///
 /// A clamped row has an unbounded inverse weight, so every clamp is counted and
@@ -700,8 +703,14 @@ impl ContinuousResponseEstimator {
                         ResponseFunctional::DirectionalDerivative { at, direction, .. } => {
                             let mut values = Vec::with_capacity(samples.len());
                             for sample in &samples {
-                                let (_, gradient) =
-                                    self.plugin_gradient_weighted(sample, at, Some(&weights))?;
+                                let fit =
+                                    self.fit_outcome_target_weighted(sample, Some(&weights))?;
+                                let (_, gradient) = Self::plugin_gradient_at_fit(
+                                    &fit,
+                                    sample,
+                                    at,
+                                    Some(&weights),
+                                )?;
                                 values.push(
                                     gradient.iter().zip(direction.iter()).map(|(a, b)| a * b).sum(),
                                 );
@@ -711,8 +720,14 @@ impl ContinuousResponseEstimator {
                         ResponseFunctional::Jacobian { at, scale, treatments, outcomes } => {
                             let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
                             for sample in &samples {
-                                let (level, gradient) =
-                                    self.plugin_gradient_weighted(sample, at, Some(&weights))?;
+                                let fit =
+                                    self.fit_outcome_target_weighted(sample, Some(&weights))?;
+                                let (level, gradient) = Self::plugin_gradient_at_fit(
+                                    &fit,
+                                    sample,
+                                    at,
+                                    Some(&weights),
+                                )?;
                                 for (j, raw) in gradient.into_iter().enumerate() {
                                     values.push(transform_derivative(raw, at[j], level, *scale)?);
                                 }
@@ -930,8 +945,13 @@ impl ContinuousResponseEstimator {
         let mut upper = Vec::with_capacity(grid.len());
         let mut ess = Vec::with_capacity(grid.len());
         let mut density = Vec::with_capacity(grid.len());
-        let mut influences = Vec::with_capacity(grid.len());
-        let mut robust_se = Vec::with_capacity(grid.len());
+        let n = sample.len();
+        let g = grid.len();
+        // One G×n buffer: local-polynomial IFs plus the grid-constant covariate
+        // term written in place (ENG-012). The additive-μ claim that makes the
+        // extra term the same at every `a` is disclosed below (SUS-002).
+        let mut influences = vec![0.0; g * n];
+        let mut robust_se = Vec::with_capacity(g);
         let z = normal_ppf(0.5 + self.options.confidence_level / 2.0);
         if sample.treatments.iter().chain(&pseudo).any(|v| !v.is_finite()) {
             return Err(
@@ -943,12 +963,12 @@ impl ContinuousResponseEstimator {
         // as the local WLS term does, because the cross-fit folds center `c`
         // on their own training rows.
         let covariate_term: Vec<f64> = {
-            let n_rows = sample.len() as f64;
+            let n_rows = n as f64;
             let center = covariate_centered.iter().sum::<f64>() / n_rows;
             covariate_centered.iter().map(|c| (c - center) / n_rows).collect()
         };
         let mut local = LocalQuadraticWorkspace::default();
-        for &at in grid {
+        for (g_idx, &at) in grid.iter().enumerate() {
             let fit = gaussian_local_quadratic_influence_prechecked(
                 &mut local,
                 &sample.treatments,
@@ -966,13 +986,13 @@ impl ContinuousResponseEstimator {
             // the same at every grid point. Treating the pseudo-outcomes as fixed
             // data drops it; the 1.9 calibration measured 0.80–0.86 pointwise
             // coverage at nominal 0.90 without it.
-            let row_influences: Vec<f64> = fit
-                .influences
-                .iter()
-                .zip(&covariate_term)
-                .map(|(local, centered)| local + centered)
-                .collect();
-            let standard_error = row_influences.iter().map(|v| v * v).sum::<f64>().sqrt();
+            let row = &mut influences[g_idx * n..(g_idx + 1) * n];
+            for (slot, (local_if, centered)) in
+                row.iter_mut().zip(fit.influences.iter().zip(&covariate_term))
+            {
+                *slot = local_if + centered;
+            }
+            let standard_error = row.iter().map(|v| v * v).sum::<f64>().sqrt();
             // The pointwise band uses the same influence-based standard error the
             // simultaneous band standardizes by, so the two are nested by
             // construction rather than being two different variance estimates at
@@ -981,10 +1001,8 @@ impl ContinuousResponseEstimator {
             upper.push(point.value + z * standard_error);
             ess.push(point.local_ess);
             density.push(
-                point.weight_sum
-                    / (sample.len() as f64 * bandwidth * (2.0 * std::f64::consts::PI).sqrt()),
+                point.weight_sum / (n as f64 * bandwidth * (2.0 * std::f64::consts::PI).sqrt()),
             );
-            influences.push(row_influences);
             robust_se.push(standard_error);
         }
         let mut support = support_report(
@@ -1005,10 +1023,16 @@ impl ContinuousResponseEstimator {
             bandwidth,
             &mut local,
         );
+        support.warnings.push(antecedent_core::Diagnostic::new(
+            "response.kennedy_dr.additive_covariate_if",
+            antecedent_core::DiagnosticKind::Scientific,
+            antecedent_core::DiagnosticSeverity::Info,
+            "the grid-constant Kennedy IF covariate term (c_i − c̄)/n assumes the fitted \
+             additive outcome restriction; it is not re-derived for treatment–covariate \
+             interactions in μ̂",
+        ));
         if self.options.export_row_diagnostics {
-            let n = sample.len();
-            let flat_influences: Vec<f64> =
-                influences.iter().flat_map(|row| row.iter().copied()).collect();
+            let flat_influences = influences.clone();
             // Downstream result layers require finite diagnostic values; refuse
             // rather than publish a non-finite influence into the export channel.
             if flat_influences.iter().any(|value| !value.is_finite()) {
@@ -1041,6 +1065,7 @@ impl ContinuousResponseEstimator {
             simultaneous_multiplier_band(
                 &mean,
                 &influences,
+                n,
                 &robust_se,
                 self.options.confidence_level,
                 replicates,
@@ -1057,9 +1082,11 @@ impl ContinuousResponseEstimator {
             sample.keep.iter().map(|&i| u32::try_from(i).unwrap_or(u32::MAX)).collect();
         // Local-polynomial exports are contributions to the estimate (order 1/n).
         // Shared IF covariance expects unnormalised row scores (order 1).
-        let columns = influences
-            .into_iter()
-            .map(|col| col.into_iter().map(|v| v * sample.len() as f64).collect())
+        let scale = n as f64;
+        let columns = (0..g)
+            .map(|g_idx| {
+                influences[g_idx * n..(g_idx + 1) * n].iter().map(|v| v * scale).collect()
+            })
             .collect();
         let scores = ResponseInfluence { columns, row_index };
         Ok((
@@ -1716,6 +1743,23 @@ impl ContinuousResponseEstimator {
         self.plugin_gradient_weighted(sample, at, None)
     }
 
+    /// Unpenalized treatment / penalized adjustment specs for the plug-in target.
+    ///
+    /// Shared by [`Self::fit_outcome_target`] and the weighted Jacobian path so
+    /// a 1.9 special-case cannot drift between the two (ENG-009).
+    fn outcome_target_specs(&self, sample: &CompleteSample) -> Vec<SmoothSpec> {
+        (0..sample.raw_cols)
+            .map(|col| {
+                let lambda = if col < sample.treatment_cols {
+                    PLUGIN_TARGET_LAMBDA
+                } else {
+                    self.options.nuisance_lambda
+                };
+                SmoothSpec::new(col, self.options.nuisance_basis, lambda)
+            })
+            .collect()
+    }
+
     /// Full-sample outcome GAM whose treatment smooths are the plug-in *target*.
     ///
     /// Same split as [`Self::plugin_gradient_weighted`]: treatment smooths are
@@ -1729,16 +1773,7 @@ impl ContinuousResponseEstimator {
     ) -> Result<antecedent_stats::GamFit, EstimationError> {
         let rows: Vec<usize> = (0..sample.len()).collect();
         let x = sample.raw_subset(&rows);
-        let specs: Vec<_> = (0..sample.raw_cols)
-            .map(|col| {
-                let lambda = if col < sample.treatment_cols {
-                    PLUGIN_TARGET_LAMBDA
-                } else {
-                    self.options.nuisance_lambda
-                };
-                SmoothSpec::new(col, self.options.nuisance_basis, lambda)
-            })
-            .collect();
+        let specs = self.outcome_target_specs(sample);
         let mut gam_ws = GamWorkspace::default();
         let target = fit_gam(
             &x,
@@ -1762,32 +1797,16 @@ impl ContinuousResponseEstimator {
         }
     }
 
-    fn plugin_gradient_weighted(
+    /// Fit the treatment-target outcome GAM once for this weight vector.
+    fn fit_outcome_target_weighted(
         &self,
         sample: &CompleteSample,
-        at: &[f64],
         weights: Option<&[f64]>,
-    ) -> Result<(f64, Vec<f64>), EstimationError> {
+    ) -> Result<antecedent_stats::GamFit, EstimationError> {
         let rows: Vec<usize> = (0..sample.len()).collect();
-        let mut gam_ws = GamWorkspace::default();
         let x = sample.raw_subset(&rows);
-        // The treatment smooths define the published gradient, so they are the
-        // target, not nuisances: a roughness penalty biases them at first order
-        // (with quantile knots even a linear component sits outside the
-        // second-difference null space). Fit them as unpenalized cubic
-        // regression splines. Adjustment smooths keep `nuisance_lambda`, which
-        // also keeps low-cardinality covariates (where an unpenalized basis is
-        // singular) estimable.
-        let specs: Vec<_> = (0..sample.raw_cols)
-            .map(|col| {
-                let lambda = if col < sample.treatment_cols {
-                    PLUGIN_TARGET_LAMBDA
-                } else {
-                    self.options.nuisance_lambda
-                };
-                SmoothSpec::new(col, self.options.nuisance_basis, lambda)
-            })
-            .collect();
+        let specs = self.outcome_target_specs(sample);
+        let mut gam_ws = GamWorkspace::default();
         let fit = antecedent_stats::fit_gam_weighted(
             &x,
             sample.len(),
@@ -1802,6 +1821,16 @@ impl ContinuousResponseEstimator {
         if !fit.converged {
             return Err(EstimationError::stats_msg("weighted GAM did not converge"));
         }
+        Ok(fit)
+    }
+
+    /// Evaluate the plug-in level and treatment gradient at `at` on a fitted GAM.
+    fn plugin_gradient_at_fit(
+        fit: &antecedent_stats::GamFit,
+        sample: &CompleteSample,
+        at: &[f64],
+        weights: Option<&[f64]>,
+    ) -> Result<(f64, Vec<f64>), EstimationError> {
         let mut treat_smooths = Vec::with_capacity(at.len());
         for j in 0..at.len() {
             treat_smooths.push(fit.smooth_for_raw_col(j).ok_or_else(|| {
@@ -1835,6 +1864,16 @@ impl ContinuousResponseEstimator {
             gradient.push(fit.smooth_derivative(smooth, at[j])?);
         }
         Ok((fit.intercept + treat_level + covariate_offset, gradient))
+    }
+
+    fn plugin_gradient_weighted(
+        &self,
+        sample: &CompleteSample,
+        at: &[f64],
+        weights: Option<&[f64]>,
+    ) -> Result<(f64, Vec<f64>), EstimationError> {
+        let fit = self.fit_outcome_target_weighted(sample, weights)?;
+        Self::plugin_gradient_at_fit(&fit, sample, at, weights)
     }
 
     fn fit_outcome(
@@ -2332,80 +2371,7 @@ fn ensure_crossfit_size(n: usize, folds: usize, basis: usize) -> Result<(), Esti
     Ok(())
 }
 
-fn simultaneous_multiplier_band(
-    mean: &[f64],
-    influences: &[Vec<f64>],
-    standard_errors: &[f64],
-    level: f64,
-    replicates: u32,
-    seed: u64,
-) -> Result<ResponseUncertainty, EstimationError> {
-    let Some(sample_size) = influences.first().map(Vec::len) else {
-        return Err(EstimationError::unsupported(
-            "simultaneous bands require a non-empty response grid",
-        ));
-    };
-    if influences.iter().any(|row| row.len() != sample_size)
-        || standard_errors.iter().any(|se| !se.is_finite() || *se <= f64::EPSILON)
-    {
-        return Err(EstimationError::unsupported(
-            "simultaneous bands require finite non-degenerate influence standard errors",
-        ));
-    }
-    let mut state = seed;
-    let mut maxima = Vec::with_capacity(replicates as usize);
-    let mut multipliers = vec![0.0; sample_size];
-    for _ in 0..replicates {
-        for multiplier in &mut multipliers {
-            state = splitmix64(state);
-            *multiplier = if state & 1 == 0 { -1.0 } else { 1.0 };
-        }
-        let maximum = influences
-            .iter()
-            .zip(standard_errors)
-            .map(|(coordinate, se)| {
-                coordinate
-                    .iter()
-                    .zip(&multipliers)
-                    .map(|(influence, multiplier)| influence * multiplier)
-                    .sum::<f64>()
-                    .abs()
-                    / se
-            })
-            .fold(0.0_f64, f64::max);
-        maxima.push(maximum);
-    }
-    maxima.sort_by(f64::total_cmp);
-    let mut index = 0usize;
-    while index + 1 < maxima.len()
-        && f64::from(u32::try_from(index + 1).unwrap_or(u32::MAX)) / f64::from(replicates) < level
-    {
-        index += 1;
-    }
-    // The population max-|t| quantile is never below the marginal one, but the
-    // finite multiplier quantile can dip under it when grid columns are nearly
-    // collinear (the shared covariate-marginalization term makes them so); a
-    // simultaneous band narrower than the pointwise band would be incoherent.
-    let critical = maxima[index].max(normal_ppf(0.5 + level / 2.0));
-    let lower = mean
-        .iter()
-        .zip(standard_errors)
-        .map(|(estimate, se)| estimate - critical * se)
-        .collect::<Vec<_>>();
-    let upper = mean
-        .iter()
-        .zip(standard_errors)
-        .map(|(estimate, se)| estimate + critical * se)
-        .collect::<Vec<_>>();
-    Ok(ResponseUncertainty::SimultaneousBand {
-        level,
-        lower: Arc::from(lower),
-        upper: Arc::from(upper),
-        replicates,
-    })
-}
-
-fn splitmix64(mut state: u64) -> u64 {
+pub(super) fn splitmix64(mut state: u64) -> u64 {
     state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
     let mut value = state;
     value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
@@ -3297,6 +3263,14 @@ mod tests {
             Assumption::ParametricRestriction(restriction)
                 if restriction.id.as_ref() == "response.kennedy_dr.nuisance_regularity"
         )));
+        assert!(
+            response
+                .support
+                .warnings
+                .iter()
+                .any(|d| d.code.as_ref() == "response.kennedy_dr.additive_covariate_if"),
+            "Kennedy IF covariate term must disclose the additive-μ restriction"
+        );
         let tail = response
             .support
             .diagnostics
@@ -3320,6 +3294,46 @@ mod tests {
             .find(|d| d.id.as_ref() == "response.pseudo_outcome_winsor_shift")
             .expect("winsor shift");
         assert_eq!(winsor.values.len(), 3);
+    }
+
+    #[test]
+    fn kennedy_curve_discloses_additive_if_on_a_treatment_covariate_product() {
+        let n = 80usize;
+        let a: Vec<f64> = (0..n).map(|i| (i as f64 / (n - 1) as f64) * 2.0 - 1.0).collect();
+        let x: Vec<f64> = (0..n).map(|i| ((i * 17) % 11) as f64 / 5.0 - 1.0).collect();
+        let y: Vec<f64> = a.iter().zip(&x).map(|(a, x)| a * x).collect();
+        let data = TabularData::from_f64_columns([
+            ("a", a.as_slice()),
+            ("y", y.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from([-0.5, 0.0, 0.5])),
+            ),
+        });
+        let response = ContinuousResponseEstimator::new([VariableId::from_raw(2)])
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        assert!(
+            response
+                .support
+                .warnings
+                .iter()
+                .any(|d| d.code.as_ref() == "response.kennedy_dr.additive_covariate_if")
+        );
+        assert!(matches!(
+            response.estimate,
+            ResponseIdentification::PointIdentified(ResponseValue::Surface { .. })
+        ));
     }
 
     fn overwrite_outcome(data: &TabularData, patches: &[(usize, f64)]) -> TabularData {
