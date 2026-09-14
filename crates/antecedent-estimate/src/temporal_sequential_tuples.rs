@@ -232,7 +232,7 @@ pub fn prepare_sequence_level(
     };
     let rows: Vec<usize> = (0..n).collect();
     let point = prepared
-        .level_on_rows(&rows, &[])
+        .level_on_rows(&rows, &[], &mut Vec::new(), &mut LeastSquaresWorkspace::default())
         .ok_or_else(|| EstimationError::stats_msg("singular sequential mechanism fit"))?;
     prepared.point = point;
     Ok(prepared)
@@ -325,6 +325,29 @@ impl PreparedSequenceLevel {
         anchors: &[usize],
         replacements: &[SequenceColumnReplacement<'_>],
     ) -> Result<Option<f64>, EstimationError> {
+        self.replicate_into(
+            anchors,
+            replacements,
+            &mut Vec::new(),
+            &mut Vec::new(),
+            &mut LeastSquaresWorkspace::default(),
+        )
+    }
+
+    /// [`Self::replicate`] writing the row map and design gather into caller-owned buffers.
+    ///
+    /// # Errors
+    ///
+    /// Fewer than three anchors, an anchor outside the tuple range, or a replacement
+    /// whose length differs from `anchors`.
+    pub fn replicate_into(
+        &self,
+        anchors: &[usize],
+        replacements: &[SequenceColumnReplacement<'_>],
+        rows: &mut Vec<usize>,
+        x_boot: &mut Vec<f64>,
+        ls_ws: &mut LeastSquaresWorkspace,
+    ) -> Result<Option<f64>, EstimationError> {
         if anchors.len() < 3
             || anchors
                 .iter()
@@ -335,8 +358,9 @@ impl PreparedSequenceLevel {
                 "sequence replicate anchors must lie in the tuple range and align with replacements",
             ));
         }
-        let rows: Vec<usize> = anchors.iter().map(|&s| s - self.base).collect();
-        Ok(self.level_on_rows(&rows, replacements))
+        rows.clear();
+        rows.extend(anchors.iter().map(|&s| s - self.base));
+        Ok(self.level_on_rows(rows, replacements, x_boot, ls_ws))
     }
 
     /// Gather `rows` of every column (with replacements), refit, and propagate.
@@ -344,6 +368,8 @@ impl PreparedSequenceLevel {
         &self,
         rows: &[usize],
         replacements: &[SequenceColumnReplacement<'_>],
+        x_boot: &mut Vec<f64>,
+        ls_ws: &mut LeastSquaresWorkspace,
     ) -> Option<f64> {
         let m = rows.len();
         let gathered: Vec<Vec<f64>> = self
@@ -364,19 +390,19 @@ impl PreparedSequenceLevel {
             })
             .collect();
         let mean = |c: usize| gathered[c].iter().sum::<f64>() / m as f64;
-        let mut ls_ws = LeastSquaresWorkspace::default();
         let mut coefficients: Vec<Vec<f64>> = vec![Vec::new(); self.column_of.len()];
         for &i in &self.order {
             if !self.fitted[i] {
                 continue;
             }
             let p = self.parents[i].len() + 1;
-            let mut x = vec![1.0; m * p];
+            x_boot.clear();
+            x_boot.resize(m * p, 1.0);
             for (k, &parent) in self.parents[i].iter().enumerate() {
-                x[(k + 1) * m..(k + 2) * m].copy_from_slice(&gathered[self.column_of[parent]]);
+                x_boot[(k + 1) * m..(k + 2) * m].copy_from_slice(&gathered[self.column_of[parent]]);
             }
             let y = &gathered[self.column_of[i]];
-            coefficients[i] = FaerBackend.least_squares(&x, m, p, y, &mut ls_ws).ok()?.coefficients;
+            coefficients[i] = FaerBackend.least_squares(x_boot, m, p, y, ls_ws).ok()?.coefficients;
         }
         let mut level = vec![0.0; self.column_of.len()];
         for &i in &self.order {

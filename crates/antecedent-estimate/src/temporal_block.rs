@@ -30,7 +30,7 @@
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 
 use antecedent_core::ExecutionContext;
-use antecedent_data::{ResamplingPlan, circular_block_length, fill_resample_indexes};
+use antecedent_data::{circular_block_length, fill_circular_block_indexes};
 
 use crate::util::{BootstrapSeResult, finalize_bootstrap_se_ex};
 
@@ -178,10 +178,7 @@ pub fn block_effective_rows(scores: &[f64], block_length: usize) -> f64 {
     }
     let nf = n as f64;
     let mean = scores.iter().sum::<f64>() / nf;
-    let centered: Vec<f64> = scores.iter().map(|s| s - mean).collect();
-    let autocov = |k: usize| -> f64 {
-        centered[..n - k].iter().zip(&centered[k..]).map(|(a, b)| a * b).sum::<f64>() / nf
-    };
+    let autocov = |k: usize| score_autocovariance(scores, mean, k, nf);
     let gamma0 = autocov(0);
     if gamma0 <= 0.0 {
         return nf;
@@ -193,6 +190,17 @@ pub fn block_effective_rows(scores: &[f64], block_length: usize) -> f64 {
         return nf;
     }
     (nf * gamma0 / long_run).min(nf)
+}
+
+/// Lag-`k` sample autocovariance of `scores` about `mean`, divided by `n`.
+/// Same products, same left-to-right sum as a centered copy.
+fn score_autocovariance(scores: &[f64], mean: f64, k: usize, n: f64) -> f64 {
+    scores[..scores.len() - k]
+        .iter()
+        .zip(&scores[k..])
+        .map(|(a, b)| (a - mean) * (b - mean))
+        .sum::<f64>()
+        / n
 }
 
 /// The short-series statistic of a circular-block interval: the smallest, over
@@ -231,10 +239,7 @@ pub fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
     }
     let nf = n as f64;
     let mean = scores.iter().sum::<f64>() / nf;
-    let centered: Vec<f64> = scores.iter().map(|s| s - mean).collect();
-    let autocov = |k: usize| -> f64 {
-        centered[..n - k].iter().zip(&centered[k..]).map(|(a, b)| a * b).sum::<f64>() / nf
-    };
+    let autocov = |k: usize| score_autocovariance(scores, mean, k, nf);
     let gamma0 = autocov(0);
     if gamma0 <= 0.0 {
         return None;
@@ -659,9 +664,8 @@ fn block_replicates<T: AsRef<[f64]>>(
     if rows == 0 {
         return (draws, attempted, cancelled);
     }
-    let plan = ResamplingPlan::CircularBlock { length: block_length };
-    let mut scratch = Vec::with_capacity(rows);
     let mut row_src = vec![0usize; rows];
+    let progress = ctx.progress.as_ref();
     for replicate in 0..replicates {
         if ctx.cancellation.is_cancelled() {
             cancelled = true;
@@ -669,18 +673,15 @@ fn block_replicates<T: AsRef<[f64]>>(
         }
         attempted += 1;
         let mut rng = ctx.rng.stream(stream_base.wrapping_add(u64::from(replicate)));
-        if fill_resample_indexes(plan, rows, &mut rng, &mut scratch).is_err() {
+        if fill_circular_block_indexes(rows, block_length, &mut rng, &mut row_src).is_err() {
             continue;
-        }
-        for (dst, &src) in row_src.iter_mut().zip(&scratch) {
-            *dst = src as usize;
         }
         if let Some(values) =
             estimate(&row_src).filter(|v| v.as_ref().iter().all(|x| x.is_finite()))
         {
             draws.push(values);
         }
-        if let Some(progress) = &ctx.progress {
+        if let Some(progress) = progress {
             progress.report(f64::from(replicate + 1) / f64::from(replicates), "block bootstrap");
         }
     }
