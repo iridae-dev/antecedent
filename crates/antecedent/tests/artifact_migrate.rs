@@ -350,7 +350,7 @@ fn class_aware_identified_set_interval_survives_the_result_artifact() {
     }))
     .unwrap();
     wire.structural_response.as_mut().unwrap().identified_set_interval =
-        Some(antecedent_io::identified_set_interval_to_wire(&interval));
+        Some(antecedent_io::identified_set_interval_to_wire(&interval).unwrap());
     let artifact = antecedent_io::encode_analysis_result_artifact(
         &wire,
         vec!["t".into(), "y".into(), "z".into()],

@@ -76,11 +76,17 @@ pub struct StructuralResponseMixture {
     pub unevaluable_mass: f64,
     /// Pointwise range over identified atom point responses.
     pub identified_set: Option<ResponseEnvelope>,
-    /// Imbens–Manski interval for a scalar [`Self::identified_set`]: covers the true
-    /// effect at the stated level whenever it is one identified completion's effect,
-    /// so it adds sampling uncertainty to the point bounds (1.9, C-3). Published on
-    /// class-aware temporal Pulse / Sustained effects: Frequentist from the shared
-    /// circular-block replicates, Bayesian from per-completion posterior draws.
+    /// Interval for a scalar [`Self::identified_set`] that adds sampling
+    /// uncertainty to the point bounds (1.9, C-3). Published on class-aware
+    /// temporal Pulse / Sustained effects. Frequentist: an Imbens–Manski interval
+    /// with per-completion endpoints from the shared circular-block replicates,
+    /// covering the true effect with asymptotic probability at least the stated
+    /// level whenever it is one retained identified completion's effect.
+    /// Bayesian: product-posterior envelope quantiles from independently seeded
+    /// per-completion posterior draws (every retained completion's posterior puts
+    /// at most `1 − Φ(c)` of its mass outside each endpoint). When the completion
+    /// enumeration was capped the interval is still published, flagged
+    /// `truncated`, with a warning diagnostic.
     pub identified_set_interval: Option<antecedent_estimate::IdentifiedSetInterval>,
     /// Probability-weighted summary, only for posterior-probability or caller-
     /// supplied class-prior weights when unidentified mass is zero.

@@ -2810,8 +2810,9 @@ impl super::Study {
             ctx,
         );
         let points: Vec<f64> = fitted_atoms.iter().map(|atom| atom.point).collect();
-        let identified_set_interval =
-            block.identified_set_interval(&points, IDENTIFIED_SET_INTERVAL_LEVEL);
+        let identified_set_interval = block
+            .identified_set_interval(&points, IDENTIFIED_SET_INTERVAL_LEVEL)
+            .map(|interval| interval.with_truncated(envelope.truncated_completions > 0));
         let se_analytic = mix_weighted_analytic_se(se_items);
         let se_bootstrap = block.se.is_finite().then_some(block.se);
         let estimate = EffectEstimate::from_parts(
@@ -2858,8 +2859,12 @@ impl super::Study {
         } else if fitted_atoms.len() > 1 {
             diagnostics.push(envelope_se_omits_between_atom_variance());
         }
-        diagnostics
-            .extend(identified_set_interval.as_ref().map(identified_set_interval_diagnostic));
+        diagnostics.extend(
+            identified_set_interval
+                .as_ref()
+                .into_iter()
+                .flat_map(identified_set_interval_diagnostics),
+        );
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
@@ -2968,8 +2973,9 @@ impl super::Study {
         let mut keys = Vec::new();
         let mut atom_values: Vec<Option<f64>> = vec![None; envelope.cases.len()];
         let mut per_graph = Vec::new();
-        let mut seq_atoms = Vec::new();
+        let mut seq_atoms: Vec<super::sequential_validation::SequentialValidationAtom> = Vec::new();
         let mut seq_atom_keys = Vec::new();
+        let mut seq_atom_seeds: Vec<u64> = Vec::new();
         let mut atom_posteriors = std::collections::HashMap::new();
         let mut primary_estimand = None;
         let mut unevaluable_weight = 0.0;
@@ -3025,22 +3031,44 @@ impl super::Study {
                 scope: antecedent_core::AssumptionScope::Estimation,
                 status: antecedent_core::AssumptionStatus::Declared,
             });
-            let mut mechanisms = Vec::new();
-            let (estimate, posterior) =
-                antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
-                    data,
-                    &dag,
-                    indexer,
-                    &estimand,
-                    query,
-                    case.result.status,
-                    assumptions,
-                    if bayes.is_some() { self.bootstrap_replicates } else { 0 },
-                    bayes.as_ref(),
-                    ctx,
-                    Some(&mut mechanisms),
-                )
-                .map_err(CausalError::from)?;
+            // Each completion's posterior draws from its own seed stream; a completion
+            // whose fitted mechanisms coincide with an earlier one's is refit on that
+            // completion's seed, so one model carries one posterior.
+            let mut seed = completion_fit_seed(ctx, key);
+            let (estimate, posterior, mechanisms) = loop {
+                let mut mechanisms = Vec::new();
+                let completion_bayes =
+                    bayes.as_ref().map(|est| BayesianGComputationAte { seed, ..est.clone() });
+                let (estimate, posterior) =
+                    antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
+                        data,
+                        &dag,
+                        indexer,
+                        &estimand,
+                        query,
+                        case.result.status,
+                        assumptions.clone(),
+                        if bayes.is_some() { self.bootstrap_replicates } else { 0 },
+                        completion_bayes.as_ref(),
+                        ctx,
+                        Some(&mut mechanisms),
+                    )
+                    .map_err(CausalError::from)?;
+                let shared_seed = seq_atoms
+                    .iter()
+                    .zip(&seq_atom_seeds)
+                    .find(|(atom, atom_seed)| {
+                        bayes.is_some()
+                            && **atom_seed != seed
+                            && same_fitted_mechanisms(&atom.mechanisms, &mechanisms)
+                    })
+                    .map(|(_, atom_seed)| *atom_seed);
+                match shared_seed {
+                    Some(shared) => seed = shared,
+                    None => break (estimate, posterior, mechanisms),
+                }
+            };
+            seq_atom_seeds.push(seed);
             atom_values[i] = Some(estimate.ate);
             weighted_ate += weight * estimate.ate;
             total_w += weight;
@@ -3090,8 +3118,13 @@ impl super::Study {
             identified_set_interval = posterior_identified_set_interval(
                 seq_atom_keys.iter().filter_map(|key| atom_posteriors.get(key)),
                 data.row_count(),
+                envelope.truncated_completions > 0,
             );
         }
+        // Unevaluable (bidirected) completions are flagged unidentified for the
+        // mixture, which never draws from them; their share is reported as
+        // `unevaluable_mass`, not as unidentified mass.
+        let unevaluable_share = unevaluable_weight / weights.iter().sum::<f64>();
         let (estimate, mut posterior) = if matches!(self.inference, InferenceMode::Bayesian(_)) {
             if class_masses.is_some()
                 && envelope.truncated_completions == 0
@@ -3099,13 +3132,14 @@ impl super::Study {
             {
                 let graphs = WeightedGraphSamples::new(weights, flags, keys)
                     .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-                let mixed = aggregate_effect_envelope(
+                let mut mixed = aggregate_effect_envelope(
                     &graphs,
                     &per_graph,
                     InferenceDiagnostics::analytic("temporal_class_sequential"),
                     EnvelopeOptions::default(),
                 )
                 .map_err(CausalError::from)?;
+                mixed.unidentified_mass = (mixed.unidentified_mass - unevaluable_share).max(0.0);
                 (effect_from_posterior(&mixed)?, Some(mixed))
             } else {
                 diagnostics.push(Diagnostic::new(
@@ -3142,8 +3176,9 @@ impl super::Study {
                 ctx,
             );
             let points: Vec<f64> = seq_atoms.iter().map(|atom| atom.estimate.ate).collect();
-            identified_set_interval =
-                block.identified_set_interval(&points, IDENTIFIED_SET_INTERVAL_LEVEL);
+            identified_set_interval = block
+                .identified_set_interval(&points, IDENTIFIED_SET_INTERVAL_LEVEL)
+                .map(|interval| interval.with_truncated(envelope.truncated_completions > 0));
             let se_analytic = mix_weighted_analytic_se(
                 seq_atoms.iter().map(|atom| (atom.weight, atom.estimate.se_analytic)),
             );
@@ -3216,8 +3251,12 @@ impl super::Study {
             (reports, extra, checks)
         };
         diagnostics.extend(extra_diagnostics);
-        diagnostics
-            .extend(identified_set_interval.as_ref().map(identified_set_interval_diagnostic));
+        diagnostics.extend(
+            identified_set_interval
+                .as_ref()
+                .into_iter()
+                .flat_map(identified_set_interval_diagnostics),
+        );
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
@@ -3358,6 +3397,7 @@ impl super::Study {
         estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
         let mut bayes = bayesian_temporal_gcomp(cfg, ctx);
         let mut atoms = Vec::new();
+        let mut atom_seeds: Vec<u64> = Vec::new();
         let mut per_graph = Vec::new();
         let mut ws = BayesianGCompWorkspace::default();
         for (key, estimand, status, indexer, weight) in &fit_atoms {
@@ -3370,7 +3410,19 @@ impl super::Study {
             let bprep = BayesianGComputationAte::from_prepared_temporal(&prep, names)
                 .map_err(CausalError::from)?;
             let (resolved, conflict) = resolve_envelope_prior_anchor(cfg, &bprep, ctx)?;
+            // Each completion draws from its own seed stream; completions fitting the
+            // same problem under the same prior share a seed, so one model carries
+            // one posterior.
+            let seed = atoms
+                .iter()
+                .zip(&atom_seeds)
+                .find(|(fit, _): &(&EnvelopeAtomFit, _)| {
+                    fit.prior == resolved && same_fitted_problem(&fit.prep, &bprep)
+                })
+                .map_or_else(|| completion_fit_seed(ctx, *key), |(_, seed)| *seed);
+            atom_seeds.push(seed);
             bayes.inner.prior = resolved;
+            bayes.inner.seed = seed;
             let mut posterior =
                 bayes.fit(&bprep, *status, &mut ws, ctx).map_err(CausalError::from)?;
             if let Some(summary) = conflict.as_ref() {
@@ -3487,19 +3539,21 @@ impl super::Study {
         structural_response.identified_set_interval = posterior_identified_set_interval(
             atoms.iter().map(|fit| &fit.posterior),
             data.row_count(),
+            envelope.truncated_completions > 0,
         );
         diagnostics.extend(
             structural_response
                 .identified_set_interval
                 .as_ref()
-                .map(identified_set_interval_diagnostic),
+                .into_iter()
+                .flat_map(identified_set_interval_diagnostics),
         );
         let tabular = TabularData::new(data.storage().clone());
         let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
         let mut refute_ws = EstimationWorkspace::default();
         let mut refutations = Vec::new();
         let mut predictive_checks = Vec::new();
-        for atom in &atoms {
+        for (atom, &seed) in atoms.iter().zip(&atom_seeds) {
             let refute_atom = EnvelopeRefuteAtom::from_fit(atom)?;
             let atom_ate = refute_atom.original.ate;
             let start = refutations.len();
@@ -3520,7 +3574,7 @@ impl super::Study {
             diagnostics.extend(na_diagnostics);
             let mut atom_posterior = atom.posterior.clone();
             let atom_estimator =
-                BayesianGComputationAte { prior: atom.prior.clone(), ..bayes.inner.clone() };
+                BayesianGComputationAte { prior: atom.prior.clone(), seed, ..bayes.inner.clone() };
             predictive_checks.extend(run_envelope_bayesian_full_validation(
                 self.refute,
                 cfg,

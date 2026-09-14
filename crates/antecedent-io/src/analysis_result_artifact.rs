@@ -138,9 +138,12 @@ pub enum IdentifiedSetIntervalMethodWire {
     ProductPosteriorEnvelopeQuantile,
 }
 
-/// Imbens–Manski interval for the identified set of a class-aware scalar effect:
-/// covers the true effect at `level` whenever it is one identified completion's
-/// effect. Mirrors [`antecedent_estimate::IdentifiedSetInterval`].
+/// Interval for the identified set of a class-aware scalar effect. Frequentist
+/// (`imbens_manski_shared_block`): covers the true effect with asymptotic
+/// probability at least `level` whenever it is one retained identified
+/// completion's effect. Bayesian (`product_posterior_envelope_quantile`): every
+/// retained completion's posterior puts at most `1 − Φ(critical_value)` of its
+/// mass outside each endpoint. Mirrors [`antecedent_estimate::IdentifiedSetInterval`].
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct IdentifiedSetIntervalWire {
     /// Nominal coverage of the true (completion-specific) effect.
@@ -153,28 +156,67 @@ pub struct IdentifiedSetIntervalWire {
     pub bound_lower: f64,
     /// Estimated upper bound `max_g θ̂_g`.
     pub bound_upper: f64,
-    /// Sampling (or posterior) SD of the estimated lower bound.
+    /// Endpoint SD: `lower = bound_lower − critical_value · lower_se`.
     pub lower_se: f64,
-    /// Sampling (or posterior) SD of the estimated upper bound.
+    /// Endpoint SD: `upper = bound_upper + critical_value · upper_se`.
     pub upper_se: f64,
     /// Imbens–Manski critical value.
     pub critical_value: f64,
     /// Whether the estimated width passed the moment-selection threshold.
     pub width_retained: bool,
-    /// Completions spanning the set.
+    /// Identified completions whose effects enter the set (every fitted
+    /// completion, in both constructions).
     pub completions: u64,
     /// Replicates or posterior draws behind the SDs.
     pub replicates: u64,
     /// Construction.
     pub method: IdentifiedSetIntervalMethodWire,
+    /// The completion enumeration (or its equivalence audit) was capped: the
+    /// set spans retained completions only. Omitted when false; artifacts
+    /// written before the field existed decode as `false`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub truncated: bool,
+}
+
+impl IdentifiedSetIntervalMethodWire {
+    /// Wire tag for an in-memory construction.
+    ///
+    /// # Errors
+    ///
+    /// A construction this wire version has no tag for.
+    pub fn try_from_method(
+        method: antecedent_estimate::IdentifiedSetIntervalMethod,
+    ) -> Result<Self, IoError> {
+        use antecedent_estimate::IdentifiedSetIntervalMethod as Method;
+        match method {
+            Method::ImbensManskiSharedBlock => Ok(Self::ImbensManskiSharedBlock),
+            Method::ProductPosteriorEnvelopeQuantile => Ok(Self::ProductPosteriorEnvelopeQuantile),
+            other => Err(IoError::Convert(format!(
+                "identified-set interval construction {other:?} has no wire tag"
+            ))),
+        }
+    }
+
+    /// In-memory construction for this wire tag.
+    #[must_use]
+    pub const fn method(self) -> antecedent_estimate::IdentifiedSetIntervalMethod {
+        use antecedent_estimate::IdentifiedSetIntervalMethod as Method;
+        match self {
+            Self::ImbensManskiSharedBlock => Method::ImbensManskiSharedBlock,
+            Self::ProductPosteriorEnvelopeQuantile => Method::ProductPosteriorEnvelopeQuantile,
+        }
+    }
 }
 
 /// Encode an identified-set interval.
-#[must_use]
+///
+/// # Errors
+///
+/// A construction with no wire tag (never silently relabelled).
 pub fn identified_set_interval_to_wire(
     interval: &antecedent_estimate::IdentifiedSetInterval,
-) -> IdentifiedSetIntervalWire {
-    IdentifiedSetIntervalWire {
+) -> Result<IdentifiedSetIntervalWire, IoError> {
+    Ok(IdentifiedSetIntervalWire {
         level: interval.level,
         lower: interval.lower,
         upper: interval.upper,
@@ -186,15 +228,9 @@ pub fn identified_set_interval_to_wire(
         width_retained: interval.width_retained,
         completions: u64::try_from(interval.completions).unwrap_or(u64::MAX),
         replicates: u64::try_from(interval.replicates).unwrap_or(u64::MAX),
-        method: match interval.method {
-            antecedent_estimate::IdentifiedSetIntervalMethod::ProductPosteriorEnvelopeQuantile => {
-                IdentifiedSetIntervalMethodWire::ProductPosteriorEnvelopeQuantile
-            }
-            // `IdentifiedSetIntervalMethod` is non-exhaustive; the shared block is the
-            // only Frequentist construction.
-            _ => IdentifiedSetIntervalMethodWire::ImbensManskiSharedBlock,
-        },
-    }
+        method: IdentifiedSetIntervalMethodWire::try_from_method(interval.method)?,
+        truncated: interval.truncated,
+    })
 }
 
 /// Decode and validate an identified-set interval.
@@ -249,14 +285,8 @@ pub fn identified_set_interval_from_wire(
         width_retained: wire.width_retained,
         completions: count(wire.completions)?,
         replicates: count(wire.replicates)?,
-        method: match wire.method {
-            IdentifiedSetIntervalMethodWire::ImbensManskiSharedBlock => {
-                antecedent_estimate::IdentifiedSetIntervalMethod::ImbensManskiSharedBlock
-            }
-            IdentifiedSetIntervalMethodWire::ProductPosteriorEnvelopeQuantile => {
-                antecedent_estimate::IdentifiedSetIntervalMethod::ProductPosteriorEnvelopeQuantile
-            }
-        },
+        method: wire.method.method(),
+        truncated: wire.truncated,
     })
 }
 
@@ -601,7 +631,37 @@ mod tests {
             completions: 2,
             replicates: 199,
             method: antecedent_estimate::IdentifiedSetIntervalMethod::ImbensManskiSharedBlock,
+            truncated: false,
         }
+    }
+
+    #[test]
+    fn every_identified_set_construction_has_its_own_wire_tag() {
+        let mut tags = Vec::new();
+        for method in antecedent_estimate::IdentifiedSetIntervalMethod::ALL {
+            let original = antecedent_estimate::IdentifiedSetInterval { method, ..interval() };
+            let wire = identified_set_interval_to_wire(&original).unwrap();
+            assert_eq!(identified_set_interval_from_wire(&wire).unwrap().method, method);
+            tags.push(serde_json::to_value(wire.method).unwrap());
+        }
+        tags.dedup();
+        assert_eq!(tags.len(), antecedent_estimate::IdentifiedSetIntervalMethod::ALL.len());
+    }
+
+    #[test]
+    fn truncated_identified_set_interval_round_trips_and_defaults_to_false() {
+        let original = antecedent_estimate::IdentifiedSetInterval { truncated: true, ..interval() };
+        let wire = identified_set_interval_to_wire(&original).unwrap();
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["truncated"], true);
+        assert_eq!(identified_set_interval_from_wire(&wire).unwrap(), original);
+        // An untruncated interval omits the field, and a body without it decodes
+        // as untruncated.
+        let plain = identified_set_interval_to_wire(&interval()).unwrap();
+        let json = serde_json::to_value(&plain).unwrap();
+        assert!(json.get("truncated").is_none());
+        let decoded: IdentifiedSetIntervalWire = serde_json::from_value(json).unwrap();
+        assert!(!identified_set_interval_from_wire(&decoded).unwrap().truncated);
     }
 
     fn with_structural(interval: Option<IdentifiedSetIntervalWire>) -> AnalysisResultWire {
@@ -624,7 +684,7 @@ mod tests {
     #[test]
     fn identified_set_interval_round_trips_and_validates() {
         let original = interval();
-        let wire = identified_set_interval_to_wire(&original);
+        let wire = identified_set_interval_to_wire(&original).unwrap();
         assert_eq!(identified_set_interval_from_wire(&wire).unwrap(), original);
         let result = with_structural(Some(wire.clone()));
         let names = vec!["a".into(), "y".into()];

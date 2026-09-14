@@ -131,20 +131,29 @@ same format-0.5 reader as Rust artifacts.
 ### Format 0.5 identified-set interval
 
 `StructuralResponseMixtureWire.identified_set_interval` is optional. It carries
-the Imbens–Manski interval published on class-aware temporal Pulse / Sustained
-effects (`StructuralResponseMixture::identified_set_interval`): it covers the
-true effect at `level` whenever that effect is one identified completion's
-effect. Fields: `level`, `lower`, `upper` (the interval), `bound_lower`,
-`bound_upper` (the estimated `min` / `max` over completions), `lower_se`,
-`upper_se`, `critical_value`, `width_retained`, `completions`, `replicates`,
-and `method` (`imbens_manski_shared_block` for the Frequentist shared
-circular-block replicates, `imbens_manski_posterior_draws` for the Bayesian
-per-completion draws). The field is omitted when no interval was computed.
-Readers refuse non-finite values, a level outside `(0, 1)`, inverted endpoints
-or bounds, negative SDs or critical value, zero completions, and fewer than two
-replicates. A format-0.4 analysis result has no such field and migrates with it
-absent; a 0.4 reader refuses a 0.5 artifact rather than silently dropping the
-interval.
+the identified-set interval published on class-aware temporal Pulse / Sustained
+effects (`StructuralResponseMixture::identified_set_interval`). With `method`
+`imbens_manski_shared_block` (Frequentist; per-completion endpoints from shared
+circular-block replicates) it covers the true effect with asymptotic
+probability at least `level` whenever that effect is one retained identified
+completion's effect. With `product_posterior_envelope_quantile` (Bayesian;
+alias `imbens_manski_posterior_draws` on read) its endpoints are quantiles of
+the per-draw min / max of independently seeded completion posteriors, and every
+retained completion's posterior puts at most `1 − Φ(critical_value)` of its
+mass outside each endpoint. Fields: `level`, `lower`, `upper` (the interval),
+`bound_lower`, `bound_upper` (the estimated `min` / `max` over completions),
+`lower_se`, `upper_se` (endpoint SDs: `lower = bound_lower − critical_value ·
+lower_se`, `upper = bound_upper + critical_value · upper_se`),
+`critical_value`, `width_retained`, `completions` (every fitted identified
+completion, in both methods), `replicates`, `method`, and `truncated` (present
+and `true` only when the completion enumeration or its equivalence audit was
+capped, so the set spans retained completions only; absent reads as `false`).
+Encoders refuse a construction with no wire tag rather than relabel it. The
+field is omitted when no interval was computed. Readers refuse non-finite
+values, a level outside `(0, 1)`, inverted endpoints or bounds, negative SDs or
+critical value, zero completions, and fewer than two replicates. A format-0.4
+analysis result has no such field and migrates with it absent; a 0.4 reader
+refuses a 0.5 artifact rather than silently dropping the interval.
 
 ## Exporting prepared results
 
