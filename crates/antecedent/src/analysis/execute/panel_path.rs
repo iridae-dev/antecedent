@@ -12,12 +12,24 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        let id_res = TemporalBackdoorIdentifier::new()
-            .identify_temporal(graph, query)
-            .map_err(CausalError::from)?;
-        let identification = id_res.result;
+        let (identification, estimand, indexer, identify_cached) =
+            if let Some(cache) = self.temporal_identification_cache.as_deref() {
+                let entry = cache.get(query.horizon_steps).ok_or_else(|| CausalError::Compile {
+                    message: "prepared panel identification cache missing query horizon".into(),
+                })?;
+                (entry.identification.clone(), entry.estimand.clone(), entry.indexer.clone(), true)
+            } else {
+                let id_res = TemporalBackdoorIdentifier::new()
+                    .identify_temporal(graph, query)
+                    .map_err(CausalError::from)?;
+                report_identify_compute(ctx);
+                let identification = id_res.result;
+                require_identified(&identification)?;
+                let estimand =
+                    select_estimand(&identification, EstimatorId::TemporalLinearAdjustment)?;
+                (identification, estimand, id_res.indexer, false)
+            };
         require_identified(&identification)?;
-        let estimand = select_estimand(&identification, EstimatorId::TemporalLinearAdjustment)?;
 
         let mut estimator = TemporalLinearAdjustment::new();
         estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
@@ -27,7 +39,7 @@ impl super::Study {
                 panel,
                 &estimand,
                 query,
-                &id_res.indexer,
+                &indexer,
                 self.split.as_ref(),
                 &ctx.kernel_policy,
             )
@@ -79,7 +91,7 @@ impl super::Study {
         let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
         let mut refute_ws = EstimationWorkspace::default();
         let temporal_ctx = TemporalRefitContext {
-            indexer: &id_res.indexer,
+            indexer: &indexer,
             temporal_query: query,
             split: self.split.as_ref(),
             kernel_policy: &ctx.kernel_policy,
@@ -139,7 +151,7 @@ impl super::Study {
             },
             treatment: query.treatment,
             outcome: query.outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics: Vec::new(),
             refutations,
             distribution: None,

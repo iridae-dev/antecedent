@@ -524,6 +524,60 @@ fn graph_posterior_response_retains_probability_atoms_and_mass() {
 }
 
 #[test]
+fn prepared_graph_posterior_response_reuses_identification() {
+    let (data, _graph, query) = mean_curve_study();
+    let ctx = ExecutionContext::for_tests(1);
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let gp = antecedent::discovery::discover_exact_dag_posterior(
+        &data,
+        &vars,
+        &antecedent::discovery::BayesianDiscoverParams::default(),
+        &ctx,
+    )
+    .unwrap();
+    let study = Study::tabular(data.clone())
+        .graph_posterior(gp)
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.clone().run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let second = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(
+        fresh.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
+        0
+    );
+    assert_eq!(
+        first.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
+        1
+    );
+    assert_eq!(
+        second.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
+        1
+    );
+    let structural = first.structural_response.as_ref().expect("structural");
+    assert!(
+        fresh
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("unevaluable_mass")
+                || d.code.as_ref() == "estimate.response.graph_posterior")
+    );
+    assert!(
+        first
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.response.graph_posterior.joint_if_se"
+                || d.code.as_ref() == "estimate.response.graph_posterior.uncertainty_withheld")
+    );
+    assert!((structural.identified_mass + structural.unidentified_mass - 1.0).abs() <= 1.0 + 1e-9);
+}
+
+#[test]
 fn graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters() {
     let (data, _graph, _) = mean_curve_study();
     let ctx = ExecutionContext::for_tests(3);
