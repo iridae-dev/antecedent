@@ -265,6 +265,61 @@ def test_rd_triple_conflict_between_loose_and_estimator_config_raises():
         )
 
 
+def _rd_heteroskedastic_data(seed: int = 31, n: int = 1500):
+    """Sharp RD fixture whose outcome noise grows along the running variable."""
+    rng = np.random.default_rng(seed)
+    r = rng.uniform(-2.0, 2.0, size=n)
+    t = (r >= 0.0).astype(np.float64)
+    y = 1.0 + 2.0 * t + 0.3 * r + rng.normal(size=n) * (0.1 + 0.4 * np.abs(r))
+    return ["t", "y", "r"], [t, y, r]
+
+
+def _rd_fit(names, columns, se_kind=None):
+    config = {"running_variable": "r", "cutoff": 0.0, "bandwidth": 1.5}
+    if se_kind is not None:
+        config["se_kind"] = se_kind
+    return analyze_ate(
+        names,
+        columns,
+        [],
+        "t",
+        "y",
+        estimator="rd.sharp",
+        identifier="rd.sharp",
+        refute=False,
+        bootstrap=0,
+        seed=26,
+        estimator_config=config,
+    )
+
+
+def test_rd_se_kind_defaults_to_hc1_and_selects_the_analytic_se():
+    names, columns = _rd_heteroskedastic_data()
+    default = _rd_fit(names, columns)
+    fits = {
+        kind: _rd_fit(names, columns, kind)
+        for kind in ("hc1", "homoskedastic", "hc0", "hc2", "hc3")
+    }
+    # Omitting se_kind is the HC1 default, bit for bit.
+    assert default.se_analytic == fits["hc1"].se_analytic
+    # se_kind never moves the point estimate.
+    for fit in fits.values():
+        assert fit.ate == default.ate
+    # Each kind reaches the estimator: the SEs are pairwise distinct.
+    ses = [fit.se_analytic for fit in fits.values()]
+    assert len({round(se, 12) for se in ses}) == len(ses)
+    # Standard orderings of the residual sandwiches: HC0 < HC1 and HC2 < HC3.
+    assert fits["hc0"].se_analytic < fits["hc1"].se_analytic
+    assert fits["hc2"].se_analytic < fits["hc3"].se_analytic
+
+
+@pytest.mark.parametrize("kind", ["cluster", "multiway", "newey_west", "panel_cluster_hac", "hc4"])
+def test_rd_se_kind_rejects_kinds_that_do_not_apply(kind):
+    names, columns = _rd_data()
+    with pytest.raises(ValueError, match="not supported for rd.sharp"):
+        _rd_fit(names, columns, kind)
+
+
 def test_rd_key_used_without_rd_sharp_estimator_reports_the_owner():
     names, columns, edges = _confounded_data()
     # `running_variable` is only a valid estimator_config key for rd.sharp; against the

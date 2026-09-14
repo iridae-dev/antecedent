@@ -5,7 +5,7 @@
 //! for backward compatibility). This module adds one table-driven parser behind a single
 //! `estimator_config: dict | None` kwarg, covering the ten estimators the facade's
 //! [`antecedent::EstimatorSpec`] can carry fully configured
-//! (`crates/antecedent/src/estimator_spec.rs`), plus the `rd.sharp` triple.
+//! (`crates/antecedent/src/estimator_spec.rs`), plus the `rd.sharp` triple and its SE kind.
 //!
 //! Two invariants drive the design:
 //!
@@ -137,7 +137,8 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
     // `rd.sharp` has no `EstimatorSpec` variant (see estimator_spec.rs doc comment) — its
     // triple is applied via the pre-existing `StudyBuilder::rd_config` path instead, merged
     // with the loose `running_variable`/`cutoff`/`bandwidth` kwargs by `merge_rd_triple`.
-    ("rd.sharp", &["running_variable", "cutoff", "bandwidth"]),
+    // `se_kind` selects the jump coefficient's residual-based SE (`RdConfig::with_se_kind`).
+    ("rd.sharp", &["running_variable", "cutoff", "bandwidth", "se_kind"]),
 ];
 
 /// Valid `glm_options` sub-dict keys (see [`build_glm_options`]).
@@ -167,13 +168,15 @@ fn format_id_list(ids: &[&str]) -> String {
 /// `StudyBuilder::estimator` (one of the ten estimators `EstimatorSpec` covers). The RD
 /// fields carry the `rd.sharp` triple parsed out of `estimator_config`, to be merged with the
 /// existing loose `running_variable`/`cutoff`/`bandwidth` kwargs via [`merge_rd_triple`] —
-/// `rd.sharp` has no `EstimatorSpec` variant, so it never sets `spec`.
+/// `rd.sharp` has no `EstimatorSpec` variant, so it never sets `spec`. `rd_se_kind` is the
+/// jump coefficient's analytic SE kind (`None` keeps `RdConfig`'s HC1 default).
 #[derive(Default)]
 pub(crate) struct ParsedEstimatorConfig {
     pub(crate) spec: Option<EstimatorSpec>,
     pub(crate) rd_running_variable: Option<String>,
     pub(crate) rd_cutoff: Option<f64>,
     pub(crate) rd_bandwidth: Option<f64>,
+    pub(crate) rd_se_kind: Option<AnalyticSeKind>,
 }
 
 /// Parse `estimator_config` into a [`ParsedEstimatorConfig`].
@@ -249,6 +252,7 @@ pub(crate) fn parse_estimator_config(
             rd_running_variable: get_string(dict, "running_variable")?,
             rd_cutoff: get_f64(dict, "cutoff")?,
             rd_bandwidth: get_f64(dict, "bandwidth")?,
+            rd_se_kind: build_rd_se_kind(dict)?,
         });
     }
 
@@ -425,6 +429,30 @@ fn build_se_kind(dict: &Bound<'_, PyDict>) -> PyResult<Option<AnalyticSeKind>> {
             return Err(PyValueError::new_err(format!(
                 "estimator_config['se_kind'] {other:?} is not recognized; use homoskedastic|\
                  hc0|hc1|hc2|hc3|cluster|multiway|newey_west|panel_cluster_hac",
+            )));
+        }
+    };
+    Ok(Some(kind))
+}
+
+/// Build the `rd.sharp` jump-coefficient SE kind from `se_kind`.
+///
+/// `rd.sharp` fits one local-linear regression per call and has no cluster labels, panel
+/// times, or serial order to attach, so only the residual-based kinds apply: `hc1` (the
+/// `RdConfig` default), `hc0`, `hc2`, `hc3`, and the explicit `homoskedastic` opt-in. The
+/// label- and lag-based kinds are refused here rather than at execute.
+fn build_rd_se_kind(dict: &Bound<'_, PyDict>) -> PyResult<Option<AnalyticSeKind>> {
+    let Some(tag) = get_string(dict, "se_kind")? else { return Ok(None) };
+    let kind = match tag.as_str() {
+        "homoskedastic" => AnalyticSeKind::Homoskedastic,
+        "hc0" => AnalyticSeKind::Hc0,
+        "hc1" => AnalyticSeKind::Hc1,
+        "hc2" => AnalyticSeKind::Hc2,
+        "hc3" => AnalyticSeKind::Hc3,
+        other => {
+            return Err(PyValueError::new_err(format!(
+                "estimator_config['se_kind'] {other:?} is not supported for rd.sharp; use \
+                 hc1 (default)|homoskedastic|hc0|hc2|hc3",
             )));
         }
     };
