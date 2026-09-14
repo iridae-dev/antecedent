@@ -67,8 +67,8 @@ fn single_window_block_length(
         &prep.design.outcome,
     )
     .unwrap_or_default();
-    let scores: Vec<&[f64]> =
-        influence.into_iter().chain(normal_scores.iter().map(Vec::as_slice)).collect();
+    let residual = normal_scores.first().map(Vec::as_slice);
+    let scores: Vec<&[f64]> = influence.into_iter().chain(residual).collect();
     crate::temporal_block::dependence_block_length(structural_span, rows, &scores)
 }
 
