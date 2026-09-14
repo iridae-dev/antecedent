@@ -1203,3 +1203,109 @@ fn prepared_graph_posterior_response_refuses_multi_coordinate_intervention() {
         "no posterior identification before the refusal"
     );
 }
+
+/// Interactive latency caps the graph-posterior response mixture at the same
+/// stratified subsample as the graph-posterior ATE: dropped identified mass is
+/// reported as unidentified, never renormalized away.
+#[test]
+fn interactive_graph_posterior_response_subsamples_like_the_ate_path() {
+    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    use antecedent_discovery::set_edge;
+
+    let n = 200;
+    let wave = |i: usize, period: f64| (i as f64 / period).sin();
+    let z: Vec<f64> = (0..n).map(|i| wave(i, 17.0)).collect();
+    let covariates: Vec<Vec<f64>> =
+        [5.0, 7.0, 9.0, 13.0].iter().map(|p| (0..n).map(|i| wave(i, *p)).collect()).collect();
+    let treatment: Vec<f64> = (0..n).map(|i| z[i] + (i as f64 / 11.0).cos()).collect();
+    let outcome: Vec<f64> = (0..n)
+        .map(|i| {
+            1.0 + 2.0 * treatment[i]
+                + 0.8 * z[i]
+                + covariates.iter().map(|c| 0.2 * c[i]).sum::<f64>()
+        })
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("treatment", treatment.as_slice()),
+        ("outcome", outcome.as_slice()),
+        ("z", z.as_slice()),
+        ("c1", covariates[0].as_slice()),
+        ("c2", covariates[1].as_slice()),
+        ("c3", covariates[2].as_slice()),
+        ("c4", covariates[3].as_slice()),
+    ])
+    .unwrap();
+    // T -> Y, an optional confounder Z -> {T, Y}, and any subset of four
+    // outcome-only parents: 32 distinct backdoor-identified atoms (no
+    // instrument or front-door candidates), twice the interactive cap.
+    let n_vars = 7;
+    let masks: Vec<u64> = (0u32..32)
+        .map(|subset| {
+            let mut mask = set_edge(0, n_vars, 0, 1, true);
+            if subset & 1 != 0 {
+                mask = set_edge(mask, n_vars, 2, 0, true);
+                mask = set_edge(mask, n_vars, 2, 1, true);
+            }
+            for covariate in 0..4 {
+                if subset & (2 << covariate) != 0 {
+                    mask = set_edge(mask, n_vars, 3 + covariate, 1, true);
+                }
+            }
+            mask
+        })
+        .collect();
+    assert!(masks.len() >= 2 * INTERACTIVE_MAX_ENVELOPE_GRAPHS);
+    let weight = 1.0 / masks.len() as f64;
+    let gp = antecedent_discovery::GraphPosterior::new(
+        n_vars,
+        vec![weight; masks.len()],
+        masks,
+        vec![0.0; n_vars * n_vars],
+        vec![0.0; n_vars * n_vars],
+        32.0,
+        antecedent_prob::InferenceDiagnostics::analytic("test"),
+        0,
+    )
+    .unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.25))]),
+    });
+    let ctx = ExecutionContext::for_tests(9);
+    let run = |latency: antecedent::LatencyMode| {
+        Study::tabular(data.clone())
+            .graph_posterior(gp.clone())
+            .query(CausalQuery::Response(query.clone()))
+            .inference(InferenceMode::Frequentist)
+            .latency_mode(latency)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    };
+    let subsample = "estimate.envelope.interactive_subsample";
+    let full = run(antecedent::LatencyMode::Standard);
+    assert!(full.diagnostics.iter().all(|d| d.code.as_ref() != subsample));
+    let full_mix = full.structural_response.as_ref().unwrap();
+    assert!(full_mix.unidentified_mass.abs() < 1e-12);
+
+    let interactive = run(antecedent::LatencyMode::Interactive);
+    assert!(interactive.diagnostics.iter().any(|d| d.code.as_ref() == subsample));
+    let mix = interactive.structural_response.as_ref().unwrap();
+    let evaluated = mix.atoms.iter().filter(|atom| atom.value.is_some()).count();
+    assert_eq!(evaluated, INTERACTIVE_MAX_ENVELOPE_GRAPHS);
+    assert!(mix.unidentified_mass > 0.4, "{}", mix.unidentified_mass);
+    assert!(
+        (mix.identified_mass + mix.unidentified_mass + mix.unevaluable_mass - 1.0).abs() < 1e-9,
+        "{} {} {}",
+        mix.identified_mass,
+        mix.unidentified_mass,
+        mix.unevaluable_mass
+    );
+    assert_eq!(
+        interactive.identification.status,
+        antecedent_core::IdentificationStatus::GraphDependent
+    );
+}
