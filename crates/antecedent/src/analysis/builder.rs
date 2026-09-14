@@ -94,26 +94,27 @@ pub struct RdConfig {
     pub cutoff: f64,
     /// Symmetric bandwidth around the cutoff (`|R − cutoff| ≤ bandwidth` is retained).
     pub bandwidth: f64,
-    /// Analytic SE kind for the jump coefficient. `Homoskedastic` (default) assumes
-    /// a constant outcome variance inside the window; `Hc0`–`Hc3` use the residual
-    /// sandwich. Label-based kinds are refused at execute.
+    /// Analytic SE kind for the jump coefficient. `Hc1` (default) and `Hc0`/`Hc2`/`Hc3`
+    /// use the heteroskedasticity-robust residual sandwich; `Homoskedastic` is an
+    /// explicit opt-in that assumes a constant outcome variance inside the window.
+    /// Label-based kinds are refused at execute.
     pub se_kind: antecedent_estimate::AnalyticSeKind,
 }
 
 impl RdConfig {
-    /// Construct an RD design configuration (homoskedastic analytic SE).
+    /// Construct an RD design configuration (HC1 analytic SE).
     #[must_use]
     pub const fn new(running_variable: VariableId, cutoff: f64, bandwidth: f64) -> Self {
         Self {
             running_variable,
             cutoff,
             bandwidth,
-            se_kind: antecedent_estimate::AnalyticSeKind::Homoskedastic,
+            se_kind: antecedent_estimate::AnalyticSeKind::Hc1,
         }
     }
 
-    /// Select the analytic SE kind (e.g. [`antecedent_estimate::AnalyticSeKind::Hc1`]
-    /// when the outcome variance may differ across the cutoff).
+    /// Select the analytic SE kind (e.g. [`antecedent_estimate::AnalyticSeKind::Homoskedastic`]
+    /// to opt into the classical constant-variance formula).
     #[must_use]
     pub const fn with_se_kind(mut self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self {
         self.se_kind = se_kind;
