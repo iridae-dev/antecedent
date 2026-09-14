@@ -123,11 +123,22 @@ CBOR artifacts.
 Selected posterior graph samples can be propagated into licensed Bayesian
 or Frequentist effect envelopes. Static graph-posterior analysis is limited to
 `AverageEffect` and `ResponseCurve` / one-coordinate `InterventionResponse`
-with DAG atoms. Temporal graph-posterior analysis is limited to pulse and
-single- or multi-step sustained effects with `TemporalDag` atoms under
-Bayesian or Frequentist inference. DBN-posterior response surfaces,
-TemporalCpdag/Pag posterior mixing, and ADMG/CPDAG/PAG posterior ATE atoms
-are refused.
+with DAG atoms. Frequentist multi-atom response aggregates publish a joint-IF
+scalar SE when atom influences align; otherwise uncertainty is withheld with
+`estimate.response.graph_posterior.uncertainty_withheld` (not a simultaneous
+band). Failed estimation mass is unevaluable, not unidentified. Temporal
+graph-posterior analysis is limited to pulse, single- or multi-step sustained
+effects, and single-horizon Frequentist or Bayesian temporal mediation with
+`TemporalDag` atoms. DBN-posterior response surfaces, TemporalCpdag/Pag
+posterior mixing, and ADMG/CPDAG/PAG posterior ATE atoms are refused.
+
+Panel Pulse/Sustained on an explicit or accepted `TemporalDag` can prepare and
+refresh. Panel `ResponseCurve` / `InterventionResponse` is refused: scalar
+panel SEs do not license response bands.
+
+Unconditional finite-discrete `InterventionalDistribution` on an explicit or
+accepted ADMG is licensed at validation `none` via general ID (bidirected
+edges stay). Cheap/full and IDC conditionals remain refused.
 
 ### Conditional independence tests
 

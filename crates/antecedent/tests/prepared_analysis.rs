@@ -734,13 +734,11 @@ fn prepared_distribution_reestimate_matches_fresh() {
     assert_cached_only_on_prepared(&fresh, &[&first, &second]);
 }
 
-/// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) now refuses these
-/// three query kinds at `.build()` itself: `parity/support_closed.toml` closes
-/// `ConditionalEffect` / `PathSpecificEffect` / `InterventionalDistribution` on Admg
-/// (`ConditionalEffect` on Cpdag/Pag is licensed). The matrix catches the mismatch
-/// before `.prepare()` would otherwise have to.
+/// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) refuses
+/// `ConditionalEffect` / `PathSpecificEffect` at `.build()`. Unconditional
+/// `InterventionalDistribution` on Admg is licensed separately.
 #[test]
-fn prepare_refuses_conditional_path_distribution_on_non_dag_graph() {
+fn prepare_refuses_conditional_path_on_non_dag_graph() {
     let mut admg = Admg::with_variables(3);
     admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
@@ -768,20 +766,6 @@ fn prepare_refuses_conditional_path_distribution_on_non_dag_graph() {
         .unwrap_err();
     assert!(err.to_string().contains("Dag"), "{err}");
 
-    let mut admg3 = Admg::with_variables(3);
-    admg3.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
-    admg3.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    admg3.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    let (data, _dag, distq) = distribution_fixture();
-    let err = Study::tabular(data)
-        .graph(admg3)
-        .query(CausalQuery::Distribution(distq))
-        .identifier(IdentifierId::GeneralId)
-        .estimator(EstimatorId::FunctionalDistribution)
-        .refute(RefuteSuite::None)
-        .build()
-        .unwrap_err();
-    assert!(err.to_string().contains("Dag"), "{err}");
     let _ = admg;
 }
 
@@ -1351,4 +1335,117 @@ fn bayesian_conditional_staged_known_truth() {
             }
         }
     }
+}
+
+#[test]
+fn prepared_admg_distribution_reuses_identification() {
+    let pin = include_str!("../../../conformance/identify/general_id_frontdoor/expected.json");
+    let expected: serde_json::Value = serde_json::from_str(pin).unwrap();
+    let (admg, nodes) = antecedent_identify::oracle_dot::admg_from_oracle_dot(
+        expected["graph_dot"].as_str().unwrap(),
+    );
+    let t_id = nodes.id(expected["treatment"].as_str().unwrap());
+    let y_id = nodes.id(expected["outcome"].as_str().unwrap());
+    let m_id = nodes.id("m");
+    let n = 300usize;
+    let mut t = Vec::with_capacity(n);
+    let mut m = Vec::with_capacity(n);
+    let mut y = Vec::with_capacity(n);
+    for i in 0..n {
+        let ui = u32::from(i % 5 < 2);
+        let ti = u32::from(i % 3 == 0);
+        let mi = (ti + ui) % 2;
+        let yi = (mi + ui) % 2;
+        t.push(f64::from(ti));
+        m.push(f64::from(mi));
+        y.push(f64::from(yi));
+    }
+    let mut b = CausalSchemaBuilder::new();
+    for name in nodes.observed() {
+        b.add_variable(
+            name.as_str(),
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(t_id, Arc::from(t), ValidityBitmap::all_valid(n)).unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(m_id, Arc::from(m), ValidityBitmap::all_valid(n)).unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(y_id, Arc::from(y), ValidityBitmap::all_valid(n)).unwrap(),
+        ),
+    ];
+    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+    let query = InterventionalDistributionQuery::new(y_id, [Intervention::set(t_id, Value::f64(1.0))]);
+    let ctx = ExecutionContext::for_tests(1);
+    let study = Study::tabular(data.clone())
+        .graph(admg.clone())
+        .query(CausalQuery::Distribution(query.clone()))
+        .identifier(IdentifierId::GeneralId)
+        .estimator(EstimatorId::FunctionalDistribution)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.clone().run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let second = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(cached_count_dist(&fresh), 0);
+    assert_eq!(cached_count_dist(&first), 1);
+    assert_eq!(cached_count_dist(&second), 1);
+    let fresh_dist = fresh.distribution.as_ref().expect("fresh ADMG distribution");
+    let first_dist = first.distribution.as_ref().expect("prepared ADMG distribution");
+    assert!((first_dist.mean - fresh_dist.mean).abs() < 1e-12);
+    assert_eq!(first.support_status.unwrap().as_str(), "licensed");
+    assert!(fresh.refutations.is_empty());
+
+    let accepted = Study::tabular(data.clone())
+        .graph(AcceptedGraph::from(admg))
+        .query(CausalQuery::Distribution(query))
+        .identifier(IdentifierId::GeneralId)
+        .estimator(EstimatorId::FunctionalDistribution)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let accepted_click = accepted.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+    assert!((accepted_click.distribution.as_ref().unwrap().mean - fresh_dist.mean).abs() < 1e-12);
+}
+
+fn cached_count_dist(result: &antecedent::StudyResult) -> usize {
+    result.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count()
+}
+
+#[test]
+fn admg_distribution_nonidentified_bidirected_pair_refuses() {
+    let mut admg = Admg::with_variables(3);
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let (data, _dag, query) = distribution_fixture();
+    let err = Study::tabular(data)
+        .graph(admg)
+        .query(CausalQuery::Distribution(query))
+        .identifier(IdentifierId::GeneralId)
+        .estimator(EstimatorId::FunctionalDistribution)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(1))
+        .unwrap_err();
+    let text = err.to_string();
+    assert!(
+        text.contains("identif") || text.contains("NotIdentified") || text.contains("Unsupported"),
+        "{text}"
+    );
 }

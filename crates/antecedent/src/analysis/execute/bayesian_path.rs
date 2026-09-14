@@ -600,7 +600,14 @@ impl super::Study {
                 )?;
                 logical.record.plan_id = Arc::from("temporal_mediation");
                 logical.record.identifier = Some(Arc::from("temporal.mediation"));
-                logical.record.estimator = Some(Arc::from("temporal.mediation.bayesian"));
+                logical.record.estimator = Some(Arc::from(if matches!(
+                    self.inference,
+                    InferenceMode::Frequentist
+                ) {
+                    EstimatorId::TemporalMediation.as_str()
+                } else {
+                    EstimatorId::BayesianTemporalMediation.as_str()
+                }));
                 logical.record.validation_suite = self.validation_suite_id();
                 logical.record.query_variables = Arc::from([q.treatment, q.outcome]);
                 logical.query = CausalQuery::Mediation(q.clone());
@@ -1708,6 +1715,203 @@ impl super::Study {
         }))
     }
 
+    /// Frequentist DBN-posterior temporal mediation: frozen graph weights, one
+    /// circular-block bootstrap per identified atom, then a joint-IF mixture SE
+    /// when every atom supplies an aligned influence. Unidentified mass is
+    /// retained; failed estimation is unevaluable, not unidentified.
+    pub(super) fn execute_dbn_posterior_mediation_frequentist(
+        &self,
+        data: &TimeSeriesData,
+        gp: &GraphPosterior,
+        query: &antecedent_core::MediationQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let started = Instant::now();
+        if query.horizons.len() != 1 {
+            return Err(CausalError::Unsupported {
+                message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
+                          multi-horizon grids need their own joint uncertainty contract",
+            });
+        }
+        let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+        let (identified, identify_cached) =
+            if let Some(cache) = self.dbn_posterior_identification_cache.as_deref() {
+                (cache.clone(), true)
+            } else {
+                (
+                    crate::analysis::prepared::build_dbn_posterior_mediation_identification_cache(
+                        gp, &vars, query, ctx,
+                    )?,
+                    false,
+                )
+            };
+        let horizon = query.horizons[0];
+        let identified = identified.mediation_horizon(horizon)?;
+        let est = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
+        let mut weighted = Vec::new();
+        let mut atom_ifs = Vec::new();
+        let mut atom_weights = Vec::new();
+        let mut failed_mass = 0.0;
+        let mut primary = None;
+        let mut slices = Vec::new();
+        for atom in identified.atoms.iter() {
+            let weight = identified_weight_for_key(&identified.graphs, atom.key);
+            if weight <= 0.0 {
+                continue;
+            }
+            let Some(entry) = atom.horizons.as_ref().and_then(|h| h.get(horizon)) else {
+                failed_mass += weight;
+                continue;
+            };
+            let lagged = super::temporal_path::lagged_adjustment_from_entry(entry);
+            let keys: Arc<[antecedent_core::TemporalNodeKey]> = entry
+                .estimand
+                .adjustment_set
+                .iter()
+                .filter_map(|id| entry.indexer.key_of(id.raw()).ok())
+                .collect::<Vec<_>>()
+                .into();
+            let mut qh = query.clone();
+            qh.horizons = Arc::from([horizon]);
+            let Ok((mediation, block)) = est.estimate_with_block_bootstrap(
+                data,
+                &entry.estimand,
+                &qh,
+                &lagged,
+                self.bootstrap_replicates,
+                0xDBF0_0001,
+                ctx,
+            ) else {
+                failed_mass += weight;
+                continue;
+            };
+            if let Some(inf) = mediation.effect.influence.as_ref() {
+                atom_ifs.push(inf.as_ref().to_vec());
+                atom_weights.push(weight);
+            }
+            if primary.is_none() {
+                primary = Some((entry.estimand.clone(), entry.identification.clone(), keys));
+            }
+            slices.push((weight, mediation.clone(), block));
+            weighted.push((weight, mediation));
+        }
+        let (estimand, mut identification, adjustment) =
+            primary.ok_or_else(|| CausalError::Compile {
+                message: "Frequentist DBN-posterior mediation has no estimable identified atom"
+                    .into(),
+            })?;
+        let total_mass = identified.graphs.total_weight();
+        let identified_mass: f64 = weighted.iter().map(|(w, _)| *w).sum();
+        let unidentified_mass = identified.graphs.unidentified_mass();
+        if unidentified_mass > 0.0 {
+            identification.status = IdentificationStatus::GraphDependent;
+        }
+        let mix = |pick: fn(&TemporalMediationEstimate) -> Option<f64>| -> Option<f64> {
+            let mut acc = 0.0;
+            let mut wsum = 0.0;
+            for (w, med) in &weighted {
+                acc += *w * pick(med)?;
+                wsum += *w;
+            }
+            (wsum > 0.0).then_some(acc / wsum)
+        };
+        let ate = mix(|m| Some(m.effect.ate)).unwrap_or(f64::NAN);
+        let se = (atom_ifs.len() == weighted.len() && !weighted.is_empty())
+            .then(|| mix_static_envelope_se(&atom_ifs, &atom_weights))
+            .filter(|s| s.is_finite());
+        let mut estimate = EffectEstimate::new(
+            ate,
+            se.unwrap_or(f64::NAN),
+            identification.required_assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        estimate.se_bootstrap = se;
+        let mediation = TemporalMediationEstimate {
+            effect: estimate.clone(),
+            total: mix(|m| m.total),
+            direct: mix(|m| m.direct),
+            mediated: mix(|m| m.mediated),
+        };
+        let mut diagnostics = vec![Diagnostic::new(
+            "estimate.dbn_posterior.mediation.frequentist",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "frozen posterior weights; identified_mass={}; unidentified_mass={}; \
+                 unevaluable_mass={}; each atom uses its own I(h) and a circular-block \
+                 bootstrap; the aggregate is a fixed-weight mean",
+                identified_mass / total_mass,
+                unidentified_mass / total_mass,
+                failed_mass / total_mass
+            ),
+        )];
+        if se.is_none() && weighted.len() > 1 {
+            diagnostics.push(Diagnostic::new(
+                "estimate.dbn_posterior.mediation.uncertainty_withheld",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                "multi-atom Frequentist DBN mediation withholds an aggregate SE because \
+                 aligned atom influences were unavailable; atom-level block SEs are not \
+                 combined as independent",
+            ));
+        }
+        if identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
+        let uncertainty = if let Some(standard_error) = se {
+            antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+                standard_error: Some(standard_error),
+            }
+        } else {
+            antecedent_estimate::TemporalMediationUncertainty::Unavailable
+        };
+        let mediation_grid = antecedent_estimate::TemporalMediationGrid {
+            slices: Arc::from([antecedent_estimate::TemporalMediationSlice {
+                horizon,
+                identification_status: identification.status,
+                method: Arc::clone(&estimand.method),
+                adjustment,
+                estimate: mediation.clone(),
+                uncertainty,
+                identified_set: None,
+                diagnostics: diagnostics.clone(),
+            }]),
+            joint_posterior: false,
+        };
+        let _ = slices;
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
+            identification: identification.clone(),
+            estimand,
+            estimate,
+            identifier_id: IdentifierId::TemporalBackdoorUnfolded,
+            estimator_id: EstimatorId::TemporalMediation,
+            treatment: query.treatment,
+            outcome: query.outcome,
+            identify_cached,
+            extra_diagnostics: Vec::new(),
+            refutations: Vec::new(),
+            distribution: None,
+            mediation: Some(mediation),
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: None,
+            cancelled: false,
+            early_stopped: false,
+            extras: IdentifiedExecuteExtras {
+                mediation_grid: Some(mediation_grid),
+                diagnostics: Some(diagnostics),
+                certificate: Some(crate::Identification::Point {
+                    result: identification,
+                    temporal_indexer: None,
+                    strategy: IdentifierId::TemporalBackdoorUnfolded,
+                    structure_version: self.graph.version(),
+                }),
+                ..Default::default()
+            },
+        }))
+    }
+
     /// Mix a DBN posterior into a Bayesian temporal-mediation envelope.
     ///
     /// Each atom uses that atom's per-horizon mediation set `S(h)` (its `I(h)`
@@ -1726,6 +1930,12 @@ impl super::Study {
             require_gaussian_mediation,
         };
 
+        if query.horizons.len() > 1 && matches!(self.inference, InferenceMode::Frequentist) {
+            return Err(CausalError::Unsupported {
+                message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
+                          multi-horizon grids need their own joint uncertainty contract",
+            });
+        }
         if query.horizons.len() > 1 {
             let started = Instant::now();
             // Identify once for the complete request, then project the same
@@ -1859,14 +2069,13 @@ impl super::Study {
                 },
             }));
         }
+        if matches!(self.inference, InferenceMode::Frequentist) {
+            return self.execute_dbn_posterior_mediation_frequentist(data, gp, query, physical, ctx);
+        }
         let started = Instant::now();
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
-            InferenceMode::Frequentist => {
-                return Err(CausalError::Unsupported {
-                    message: "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
-                });
-            }
+            InferenceMode::Frequentist => unreachable!("Frequentist DBN mediation is routed above"),
         };
         if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
             return Err(CausalError::Unsupported {

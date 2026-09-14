@@ -25,6 +25,13 @@ impl super::Study {
     pub(super) fn ensure_supported_combination(&self) -> Result<(), CausalError> {
         let class = self.graph.class();
         match (&self.data, &self.query, class) {
+            (DataInput::Panel(_), CausalQuery::Response(_), _) => {
+                return Err(CausalError::Unsupported {
+                    message: "panel ResponseCurve / InterventionResponse is not licensed in 1.9: \
+                              scalar panel Pulse/Sustained SEs do not license response bands, and \
+                              the single-series response likelihood is not a panel model",
+                });
+            }
             (_, CausalQuery::Response(q), class)
                 if !((!q.is_temporal()
                     && matches!(
@@ -58,10 +65,13 @@ impl super::Study {
                 });
             }
             (_, CausalQuery::Distribution(_), class)
-                if !matches!((&self.data, class), (DataInput::Tabular(_), GraphClass::Dag)) =>
+                if !matches!(
+                    (&self.data, class),
+                    (DataInput::Tabular(_), GraphClass::Dag | GraphClass::Admg)
+                ) =>
             {
                 return Err(CausalError::Unsupported {
-                    message: "CausalQuery::Distribution requires tabular data and a static DAG",
+                    message: "CausalQuery::Distribution requires tabular data and a static Dag or Admg",
                 });
             }
             (_, CausalQuery::PathSpecific(_), class)
@@ -602,9 +612,23 @@ impl super::Study {
             }
             AnalysisRoute::Distribution => {
                 let CausalQuery::Distribution(q) = &self.query else { unreachable!() };
-                let graph = self
-                    .require_execute_dag("Distribution execute requires a supplied static DAG")?;
-                self.execute_distribution(data, graph, q, physical, ctx)
+                match self.graph.class() {
+                    GraphClass::Dag => {
+                        let graph = self.require_execute_dag(
+                            "Distribution execute requires a supplied static DAG",
+                        )?;
+                        self.execute_distribution(data, graph, q, physical, ctx)
+                    }
+                    GraphClass::Admg => {
+                        let admg = self.graph.as_admg().ok_or(CausalError::Compile {
+                            message: "Distribution ADMG execute missing ADMG".into(),
+                        })?;
+                        self.execute_distribution_admg(data, admg, q, physical, ctx)
+                    }
+                    _ => Err(CausalError::Unsupported {
+                        message: "Distribution execute requires a supplied Dag or Admg",
+                    }),
+                }
             }
             AnalysisRoute::PathSpecific => {
                 let CausalQuery::PathSpecific(q) = &self.query else { unreachable!() };

@@ -34,10 +34,16 @@ structures = ["graph_posterior"]
 reason = "Graph-posterior path and distribution mixtures are not staged."
 
 [[closed]]
-queries = ["PathSpecificEffect", "InterventionalDistribution"]
+queries = ["PathSpecificEffect"]
 graph_classes = ["Admg", "Cpdag", "Pag"]
 structures = ["accepted"]
-reason = "Accepted path and distribution queries require a Dag."
+reason = "Accepted path queries require a Dag."
+
+[[closed]]
+queries = ["InterventionalDistribution"]
+graph_classes = ["Cpdag", "Pag"]
+structures = ["accepted"]
+reason = "Accepted InterventionalDistribution is licensed on Dag and Admg; Cpdag/Pag remain refused."
 
 [[closed]]
 queries = ["MediationEffect"]
@@ -62,9 +68,16 @@ reason = "Path and distribution queries execute only on a supplied static Dag; a
 
 [[closed]]
 queries = ["InterventionalDistribution"]
-graph_classes = ["Admg", "Pag"]
+graph_classes = ["Pag"]
 structures = ["explicit"]
-reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above)."
+reason = "Path and distribution queries execute only on a supplied static Dag or Admg; a directly supplied Pag hits the static-Dag/Admg requirement."
+
+[[closed]]
+queries = ["InterventionalDistribution"]
+graph_classes = ["Admg"]
+structures = ["explicit"]
+validations = ["cheap", "full"]
+reason = "ADMG InterventionalDistribution is licensed at validation none; cheap/full remain Dag-only."
 
 [[closed]]
 queries = ["TemporalMediationEffect"]
@@ -106,15 +119,18 @@ inferences = ["Frequentist"]
 reason = "Frequentist graph-posterior mixing is licensed only for DAG atoms. ADMG/CPDAG/PAG posterior atoms remain refused."
 
 [[closed]]
-queries = [
-  "TemporalMediationEffect",
-  "ResponseCurve",
-  "InterventionResponse",
-]
+queries = ["ResponseCurve", "InterventionResponse"]
 graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
 structures = ["graph_posterior"]
 inferences = ["Frequentist"]
-reason = "Frequentist DBN-posterior Pulse/Sustained effects are licensed with shared outer block replicates. Temporal mediation and response mixtures require their query-specific composite result evaluators."
+reason = "Frequentist DBN-posterior Pulse/Sustained effects and single-horizon TemporalMediationEffect are licensed. Temporal response mixtures still require their query-specific composite evaluators."
+
+[[closed]]
+queries = ["TemporalMediationEffect"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+structures = ["graph_posterior"]
+inferences = ["Frequentist"]
+reason = "Frequentist DBN-posterior mediation is licensed for TemporalDag atoms. TemporalCpdag/TemporalPag posterior atoms need a class-aware combiner that retains unidentified class mass."
 
 # -- 2026-08-19 audit. The following reasons cover cells probed end-to-end
 # (Study::build/run) and confirmed either to refuse at compile (an
