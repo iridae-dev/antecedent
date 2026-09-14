@@ -44,6 +44,28 @@ pub enum StructuralWeightBasis {
     CallerSuppliedClassPrior,
 }
 
+impl StructuralWeightBasis {
+    /// Snake-case name used by the bindings and the result artifact wire format.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::PosteriorProbability => "posterior_probability",
+            Self::CompletionEnumeration => "completion_enumeration",
+            Self::CallerSuppliedClassPrior => "caller_supplied_class_prior",
+        }
+    }
+}
+
+impl From<StructuralWeightBasis> for antecedent_io::StructuralWeightBasisWire {
+    fn from(basis: StructuralWeightBasis) -> Self {
+        match basis {
+            StructuralWeightBasis::PosteriorProbability => Self::PosteriorProbability,
+            StructuralWeightBasis::CompletionEnumeration => Self::CompletionEnumeration,
+            StructuralWeightBasis::CallerSuppliedClassPrior => Self::CallerSuppliedClassPrior,
+        }
+    }
+}
+
 /// One structural atom in a graph-dependent response.
 #[derive(Clone, Debug)]
 pub struct StructuralResponseAtom {
@@ -235,6 +257,23 @@ impl StudyResult {
                 .support_status
                 .and_then(crate::support::CellStatus::allowlist_parent)
                 .map(str::to_string),
+        }
+    }
+}
+
+#[cfg(test)]
+mod weight_basis_tests {
+    use super::StructuralWeightBasis;
+
+    #[test]
+    fn as_str_matches_the_wire_spelling() {
+        for basis in [
+            StructuralWeightBasis::PosteriorProbability,
+            StructuralWeightBasis::CompletionEnumeration,
+            StructuralWeightBasis::CallerSuppliedClassPrior,
+        ] {
+            let wire = antecedent_io::StructuralWeightBasisWire::from(basis);
+            assert_eq!(serde_json::to_value(wire).unwrap(), basis.as_str());
         }
     }
 }

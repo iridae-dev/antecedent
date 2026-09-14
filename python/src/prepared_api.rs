@@ -3711,18 +3711,7 @@ fn mediation_grid_wire(
 fn structural_response_wire(
     mixture: &antecedent::result::StructuralResponseMixture,
 ) -> PyResult<antecedent_io::StructuralResponseMixtureWire> {
-    let weight_basis = match mixture.weight_basis {
-        antecedent::result::StructuralWeightBasis::PosteriorProbability => {
-            antecedent_io::StructuralWeightBasisWire::PosteriorProbability
-        }
-        antecedent::result::StructuralWeightBasis::CompletionEnumeration => {
-            antecedent_io::StructuralWeightBasisWire::CompletionEnumeration
-        }
-        antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior => {
-            antecedent_io::StructuralWeightBasisWire::CallerSuppliedClassPrior
-        }
-        _ => antecedent_io::StructuralWeightBasisWire::CompletionEnumeration,
-    };
+    let weight_basis = antecedent_io::StructuralWeightBasisWire::from(mixture.weight_basis);
     Ok(antecedent_io::StructuralResponseMixtureWire {
         weight_basis,
         atoms: mixture
