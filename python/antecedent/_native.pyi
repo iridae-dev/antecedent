@@ -1127,6 +1127,7 @@ class PreparedAnalysis:
         prior_scale: float = 10.0,
         refute: bool | str | None = None,
         seed: int = 1,
+        bootstrap: int = 0,
         threads: int = 1,
         posterior: GraphPosterior | None = None,
     ) -> PreparedAnalysis: ...
