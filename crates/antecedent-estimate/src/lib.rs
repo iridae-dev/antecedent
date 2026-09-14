@@ -92,9 +92,10 @@ pub use error::EstimationError;
 pub use estimator::{Estimator, TabularAteEstimator};
 pub use frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace, PreparedFrontDoorProblem};
 pub use functional_distribution::{
-    DistributionAtom, FunctionalDistribution, FunctionalDistributionWorkspace, FunctionalEffect,
-    InterventionalDistributionEstimate, PreparedFunctionalDistribution, PreparedFunctionalEffect,
-    functional_cell_unevaluable, support_from_functional_eval,
+    AtomUncertainty, DistributionAtom, FunctionalDistribution, FunctionalDistributionWorkspace,
+    FunctionalEffect, InterventionalDistributionEstimate, PreparedFunctionalDistribution,
+    PreparedFunctionalEffect, ProbabilityInterval, ProbabilityIntervalUnavailable,
+    functional_cell_unevaluable, logit_probability_interval, support_from_functional_eval,
 };
 pub use glm_adjustment::{GlmAdjustmentAte, GlmAdjustmentWorkspace, PreparedGlmProblem};
 pub use identified_set::{

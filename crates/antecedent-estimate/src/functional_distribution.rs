@@ -64,7 +64,9 @@ pub struct InterventionalDistributionEstimate {
     /// Posterior SD of the mean in Bayesian mode. Analytic SE is not defined for
     /// the frequentist discrete plug-in (multinomial delta-method out of scope).
     pub se_analytic: f64,
-    /// Bootstrap SE of the interventional mean when requested.
+    /// Bootstrap SE of the interventional mean when requested. For a binary
+    /// outcome the mean is a probability: use [`Self::mean_interval`], not
+    /// `mean ± z·se`, which can leave `[0, 1]` near the boundary.
     pub se_bootstrap: Option<f64>,
     /// Successful bootstrap replicates contributing to [`Self::se_bootstrap`].
     pub bootstrap_replicates_ok: Option<u32>,
@@ -80,6 +82,129 @@ pub struct InterventionalDistributionEstimate {
     pub overlap: OverlapPolicy,
     /// Estimated retained-memory cost of fitted scratch (bytes), when known.
     pub retained_memory_bytes: Option<u64>,
+    /// Frequentist per-atom bootstrap uncertainty, aligned with [`Self::atoms`].
+    /// Empty when no bootstrap ran (zero replicates requested, or Bayesian mode,
+    /// whose atom uncertainty lives in the posterior draws).
+    pub atom_uncertainty: Arc<[AtomUncertainty]>,
+    /// Bounded interval for [`Self::mean`] when the single outcome takes values
+    /// in `{0, 1}`, so the mean is the probability `P(Y = 1 | do(x)[, z])` and the
+    /// interval is that atom's [`AtomUncertainty::interval`]. `None` otherwise.
+    pub mean_interval: Option<ProbabilityInterval>,
+}
+
+/// Why a bounded probability interval could not be formed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProbabilityIntervalUnavailable {
+    /// The plug-in probability is exactly 0 or 1 (or not a probability): its
+    /// logit is infinite and every bootstrap replicate sits on the same
+    /// boundary, so no sampling spread is observed to build an interval from.
+    BoundaryEstimate,
+    /// Fewer than two usable bootstrap replicates, or more than half failed.
+    BootstrapUnavailable,
+    /// Every usable replicate reproduced the point value (zero spread).
+    ZeroSpread,
+}
+
+impl ProbabilityIntervalUnavailable {
+    /// Stable machine-readable reason.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::BoundaryEstimate => "boundary_estimate",
+            Self::BootstrapUnavailable => "bootstrap_unavailable",
+            Self::ZeroSpread => "zero_spread",
+        }
+    }
+}
+
+/// Two-sided interval for one interventional probability.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ProbabilityInterval {
+    /// Interval inside `[0, 1]` at nominal two-sided `level`.
+    Bounded {
+        /// Nominal two-sided coverage.
+        level: f64,
+        /// Lower endpoint.
+        lower: f64,
+        /// Upper endpoint.
+        upper: f64,
+    },
+    /// No interval could be formed honestly.
+    Unavailable(ProbabilityIntervalUnavailable),
+}
+
+impl ProbabilityInterval {
+    /// `(lower, upper)` when the interval exists.
+    #[must_use]
+    pub const fn bounds(&self) -> Option<(f64, f64)> {
+        match *self {
+            Self::Bounded { lower, upper, .. } => Some((lower, upper)),
+            Self::Unavailable(_) => None,
+        }
+    }
+}
+
+/// Frequentist bootstrap uncertainty of one [`DistributionAtom`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AtomUncertainty {
+    /// Bootstrap SE of the atom probability (probability scale).
+    pub se_bootstrap: Option<f64>,
+    /// Replicates that produced a value for this atom.
+    pub replicates_ok: u32,
+    /// Bounded interval at the estimator's confidence level.
+    pub interval: ProbabilityInterval,
+}
+
+/// Logit-scale delta-method interval for a probability from its bootstrap SE:
+/// `expit(logit(p̂) ± z·se / (p̂(1 − p̂)))`, `z = Φ⁻¹(1/2 + level/2)`.
+///
+/// Why this construction: a probability's sampling law is skewed toward the
+/// interior near 0 and 1, so the symmetric `p̂ ± z·se` both leaves `[0, 1]` and
+/// under-covers on the short side. On the logit scale the law is close to
+/// symmetric, and `se / (p̂(1 − p̂))` is the delta-method SE of `logit(p̂)`
+/// (the same transformation that makes the logit Wald interval for a binomial
+/// proportion behave well at small counts). The back-transformed endpoints lie
+/// strictly inside `(0, 1)` and the interval widens on the interior side. It
+/// reuses the bootstrap SE that is already published, so the scalar SE and the
+/// interval describe the same replicates; a percentile interval would need the
+/// replicate probabilities to be retained and inherits the Wald-like
+/// short-side under-coverage of a discrete proportion.
+///
+/// At `p̂ ∈ {0, 1}` the logit is infinite and the bootstrap spread is
+/// degenerate, so the interval is [`ProbabilityIntervalUnavailable::BoundaryEstimate`]
+/// rather than a zero-width or clamped fake.
+#[must_use]
+pub fn logit_probability_interval(p: f64, se: Option<f64>, level: f64) -> ProbabilityInterval {
+    if !(p > 0.0 && p < 1.0) {
+        return ProbabilityInterval::Unavailable(ProbabilityIntervalUnavailable::BoundaryEstimate);
+    }
+    let Some(se) = se.filter(|s| s.is_finite() && *s >= 0.0) else {
+        return ProbabilityInterval::Unavailable(
+            ProbabilityIntervalUnavailable::BootstrapUnavailable,
+        );
+    };
+    if se == 0.0 {
+        return ProbabilityInterval::Unavailable(ProbabilityIntervalUnavailable::ZeroSpread);
+    }
+    let z = antecedent_stats::normal_ppf(0.5 + level / 2.0);
+    if !z.is_finite() || z <= 0.0 {
+        return ProbabilityInterval::Unavailable(
+            ProbabilityIntervalUnavailable::BootstrapUnavailable,
+        );
+    }
+    let centre = (p / (1.0 - p)).ln();
+    let half = z * se / (p * (1.0 - p));
+    ProbabilityInterval::Bounded { level, lower: expit(centre - half), upper: expit(centre + half) }
+}
+
+/// Numerically stable logistic function; always in `[0, 1]`.
+fn expit(x: f64) -> f64 {
+    if x >= 0.0 {
+        1.0 / (1.0 + (-x).exp())
+    } else {
+        let e = x.exp();
+        e / (1.0 + e)
+    }
 }
 
 /// Reusable scratch for [`FunctionalDistribution`] estimation.
@@ -131,8 +256,11 @@ pub struct PreparedFunctionalDistribution {
 pub struct FunctionalDistribution {
     /// Overlap policy (positivity is implicit in CPT support; override allowed).
     pub overlap: OverlapPolicy,
-    /// Bootstrap replicates for the interventional mean SE (0 = skip).
+    /// Bootstrap replicates for the interventional mean SE and the per-atom
+    /// probability intervals (0 = skip).
     pub bootstrap_replicates: u32,
+    /// Two-sided level of the published atom-probability intervals.
+    pub confidence_level: f64,
 }
 
 impl Default for FunctionalDistribution {
@@ -145,7 +273,18 @@ impl FunctionalDistribution {
     /// Create with default overlap override (CPT positivity is data-driven).
     #[must_use]
     pub fn new() -> Self {
-        Self { overlap: OverlapPolicy::ExplicitOverride, bootstrap_replicates: 0 }
+        Self {
+            overlap: OverlapPolicy::ExplicitOverride,
+            bootstrap_replicates: 0,
+            confidence_level: 0.95,
+        }
+    }
+
+    /// Set the two-sided level of the published atom-probability intervals.
+    #[must_use]
+    pub const fn with_confidence_level(mut self, level: f64) -> Self {
+        self.confidence_level = level;
+        self
     }
 
     /// Set the overlap policy recorded on the estimate artifact.
@@ -257,10 +396,24 @@ impl FunctionalDistribution {
         workspace: &mut FunctionalDistributionWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<InterventionalDistributionEstimate, EstimationError> {
+        if !(self.confidence_level > 0.0 && self.confidence_level < 1.0) {
+            return Err(EstimationError::unsupported(
+                "functional.distribution confidence_level must lie in (0, 1)",
+            ));
+        }
         let mut out = self.estimate_point(prepared, conditioning_values, workspace)?;
-        if self.bootstrap_replicates == 0 || !out.mean.is_finite() {
+        if self.bootstrap_replicates == 0 || out.atoms.is_empty() {
             return Ok(out);
         }
+        let has_mean = out.mean.is_finite();
+        let index: HashMap<AtomKey, usize> = out
+            .atoms
+            .iter()
+            .enumerate()
+            .map(|(i, a)| ((Arc::clone(&a.outcomes), Arc::clone(&a.conditioning)), i))
+            .collect();
+        let mut atom_replicates: Vec<Vec<f64>> = vec![Vec::new(); out.atoms.len()];
+        let mut aligned = vec![f64::NAN; out.atoms.len()];
         let n = prepared.bootstrap_columns.values().next().map_or(0, Vec::len);
         let boot = bootstrap_se(self.bootstrap_replicates, ctx, 0xF01D_u64, n, |idx| {
             let columns = gather_columns(&prepared.bootstrap_columns, idx);
@@ -274,16 +427,61 @@ impl FunctionalDistribution {
             let mut prep = prepared.clone();
             prep.provider = provider;
             let mut ws = FunctionalDistributionWorkspace::default();
-            match self.estimate_point(&prep, conditioning_values, &mut ws) {
-                Ok(est) if est.mean.is_finite() => Ok(Some(est.mean)),
-                Ok(_) | Err(_) => Ok(None),
+            let Ok(est) = self.estimate_point(&prep, conditioning_values, &mut ws) else {
+                return Ok(None);
+            };
+            align_replicate_atoms(&index, &out.atoms, &est.atoms, &mut aligned);
+            // The scalar SE tracks the interventional mean exactly as before;
+            // tables without a mean let the first defined atom drive the
+            // adaptive early-stop, and publish no scalar SE.
+            let tracked = if has_mean {
+                est.mean
+            } else {
+                aligned.iter().copied().find(|p| p.is_finite()).unwrap_or(f64::NAN)
+            };
+            if !tracked.is_finite() {
+                return Ok(None);
             }
+            for (values, &p) in atom_replicates.iter_mut().zip(aligned.iter()) {
+                if p.is_finite() {
+                    values.push(p);
+                }
+            }
+            Ok(Some(tracked))
         })?;
-        out.se_bootstrap = boot.se;
-        out.bootstrap_replicates_ok = Some(boot.replicates_ok);
-        out.bootstrap_replicates_failed = Some(boot.replicates_failed);
-        out.bootstrap_cancelled = boot.cancelled;
-        out.bootstrap_early_stopped = boot.early_stopped;
+        let attempted = boot.replicates_ok.saturating_add(boot.replicates_failed);
+        let uncertainty: Vec<AtomUncertainty> = out
+            .atoms
+            .iter()
+            .zip(&atom_replicates)
+            .map(|(atom, values)| {
+                let se = crate::util::finalize_bootstrap_se_ex(
+                    values,
+                    attempted,
+                    boot.cancelled,
+                    boot.early_stopped,
+                )
+                .se;
+                AtomUncertainty {
+                    se_bootstrap: se,
+                    replicates_ok: u32::try_from(values.len()).unwrap_or(u32::MAX),
+                    interval: logit_probability_interval(
+                        atom.probability,
+                        se,
+                        self.confidence_level,
+                    ),
+                }
+            })
+            .collect();
+        out.mean_interval = binary_mean_interval(&out.atoms, &uncertainty, has_mean);
+        out.atom_uncertainty = Arc::from(uncertainty);
+        if has_mean {
+            out.se_bootstrap = boot.se;
+            out.bootstrap_replicates_ok = Some(boot.replicates_ok);
+            out.bootstrap_replicates_failed = Some(boot.replicates_failed);
+            out.bootstrap_cancelled = boot.cancelled;
+            out.bootstrap_early_stopped = boot.early_stopped;
+        }
         Ok(out)
     }
 
@@ -392,6 +590,8 @@ impl FunctionalDistribution {
             assumptions: prepared.assumptions.clone(),
             overlap: self.overlap,
             retained_memory_bytes: None,
+            atom_uncertainty: Arc::from([]),
+            mean_interval: None,
         })
     }
 
@@ -880,6 +1080,61 @@ fn build_empirical_provider(
     let columns = gather_columns(&columns, &complete);
     let provider = provider_from_columns(&columns, complete.len(), factors, signatures, None)?;
     Ok((provider, columns))
+}
+
+/// `(outcomes, conditioning)` identity of one distribution atom.
+type AtomKey = (Arc<[(VariableId, Value)]>, Arc<[(VariableId, Value)]>);
+
+/// Map one bootstrap replicate's atoms onto the point-estimate atom order.
+///
+/// A resample can lose support. An outcome level missing under a conditioning
+/// assignment the replicate still has is an empirical probability of 0; an atom
+/// whose conditioning assignment vanished is undefined in that replicate (NaN).
+fn align_replicate_atoms(
+    index: &HashMap<AtomKey, usize>,
+    point: &[DistributionAtom],
+    replicate: &[DistributionAtom],
+    aligned: &mut [f64],
+) {
+    aligned.fill(f64::NAN);
+    let mut present: HashSet<&[(VariableId, Value)]> = HashSet::new();
+    for atom in replicate {
+        present.insert(atom.conditioning.as_ref());
+        let key = (Arc::clone(&atom.outcomes), Arc::clone(&atom.conditioning));
+        if let Some(&i) = index.get(&key) {
+            aligned[i] = atom.probability;
+        }
+    }
+    for (slot, atom) in aligned.iter_mut().zip(point) {
+        if slot.is_nan() && present.contains(atom.conditioning.as_ref()) {
+            *slot = 0.0;
+        }
+    }
+}
+
+/// The mean's interval when the single outcome is binary `{0, 1}` (then the
+/// mean is `P(Y = 1)`): the `Y = 1` atom's interval, or a boundary refusal when
+/// the level `1` never occurs (`p̂ = 0`).
+#[allow(clippy::float_cmp, reason = "outcome levels are exact data values, not arithmetic")]
+fn binary_mean_interval(
+    atoms: &[DistributionAtom],
+    uncertainty: &[AtomUncertainty],
+    has_mean: bool,
+) -> Option<ProbabilityInterval> {
+    if !has_mean || atoms.len() != uncertainty.len() {
+        return None;
+    }
+    let level = |a: &DistributionAtom| match a.outcomes.as_ref() {
+        [(_, v)] => v.as_f64(),
+        _ => None,
+    };
+    if !atoms.iter().all(|a| matches!(level(a), Some(x) if x == 0.0 || x == 1.0)) {
+        return None;
+    }
+    Some(atoms.iter().zip(uncertainty).find(|(a, _)| level(a) == Some(1.0)).map_or(
+        ProbabilityInterval::Unavailable(ProbabilityIntervalUnavailable::BoundaryEstimate),
+        |(_, u)| u.interval,
+    ))
 }
 
 fn gather_columns(
@@ -1509,6 +1764,140 @@ mod tests {
         let out = est.estimate(&prepared, &[], &mut ews, &ExecutionContext::for_tests(7)).unwrap();
         let se = out.se_bootstrap.expect("bootstrap SE");
         assert!(se.is_finite() && se > 0.0, "se={se}");
+    }
+
+    #[test]
+    fn logit_interval_refuses_boundary_probabilities() {
+        let boundary =
+            ProbabilityInterval::Unavailable(ProbabilityIntervalUnavailable::BoundaryEstimate);
+        for p in [0.0, 1.0, -0.1, 1.1, f64::NAN] {
+            assert_eq!(logit_probability_interval(p, Some(0.02), 0.95), boundary, "p={p}");
+        }
+        assert_eq!(
+            logit_probability_interval(0.3, None, 0.95),
+            ProbabilityInterval::Unavailable(ProbabilityIntervalUnavailable::BootstrapUnavailable)
+        );
+        assert_eq!(
+            logit_probability_interval(0.3, Some(0.0), 0.95),
+            ProbabilityInterval::Unavailable(ProbabilityIntervalUnavailable::ZeroSpread)
+        );
+    }
+
+    #[test]
+    fn logit_interval_stays_inside_unit_interval_and_matches_delta_method() {
+        // Near the boundary a symmetric p ± z·se leaves [0, 1]; the logit
+        // interval does not, and it widens toward the interior.
+        let (p, se) = (0.01, 0.02);
+        let (lo, hi) = logit_probability_interval(p, Some(se), 0.95).bounds().unwrap();
+        assert!(0.0 < lo && lo < p && p < hi && hi < 1.0, "[{lo}, {hi}]");
+        assert!(hi - p > p - lo, "skewed toward the interior");
+        let (lo1, hi1) = logit_probability_interval(1.0 - p, Some(se), 0.95).bounds().unwrap();
+        assert!((lo1 - (1.0 - hi)).abs() < 1e-12 && (hi1 - (1.0 - lo)).abs() < 1e-12);
+        // Delta-method width on the logit scale.
+        let z = antecedent_stats::normal_ppf(0.975);
+        let logit = |x: f64| (x / (1.0 - x)).ln();
+        let half = z * 0.05 / (0.4 * 0.6);
+        let (lo, hi) = logit_probability_interval(0.4, Some(0.05), 0.95).bounds().unwrap();
+        assert!((logit(lo) - (logit(0.4) - half)).abs() < 1e-10);
+        assert!((logit(hi) - (logit(0.4) + half)).abs() < 1e-10);
+        // Huge SEs saturate inside [0, 1] instead of escaping it.
+        let (lo, hi) = logit_probability_interval(0.5, Some(1e6), 0.95).bounds().unwrap();
+        assert!((0.0..=1.0).contains(&lo) && (0.0..=1.0).contains(&hi));
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "boundary plug-in probabilities are exactly 0 or 1")]
+    fn plug_in_publishes_bounded_atom_intervals_and_refuses_boundary_atoms() {
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let id = IdIdentifier::new();
+        let prep = id.prepare_dag(&dag).unwrap();
+        let query = InterventionalDistributionQuery::new(
+            VariableId::from_raw(1),
+            [Intervention::set(VariableId::from_raw(0), f(1.0))],
+        );
+        let cq = antecedent_core::CausalQuery::Distribution(query.clone());
+        let mut ws = IdentificationWorkspace::default();
+        let id_res = id.identify(&prep, &cq, &mut ws).unwrap();
+        let est =
+            FunctionalDistribution { bootstrap_replicates: 40, ..FunctionalDistribution::new() };
+        let run = |data: &TabularData| {
+            let prepared = est
+                .prepare(
+                    data,
+                    &query,
+                    &id_res.estimands[0],
+                    &id_res.arena,
+                    id_res.required_assumptions.clone(),
+                )
+                .unwrap();
+            let mut ews = FunctionalDistributionWorkspace::default();
+            est.estimate(&prepared, &[], &mut ews, &ExecutionContext::for_tests(7)).unwrap()
+        };
+
+        let out = run(&binary_confounding_table());
+        assert_eq!(out.atom_uncertainty.len(), out.atoms.len());
+        for (atom, u) in out.atoms.iter().zip(out.atom_uncertainty.iter()) {
+            let (lo, hi) = u.interval.bounds().expect("interior atom");
+            assert!(0.0 < lo && lo < atom.probability && atom.probability < hi && hi < 1.0);
+            assert_eq!(u.replicates_ok, out.bootstrap_replicates_ok.unwrap());
+        }
+        // Binary {0, 1} outcome: the Y = 1 atom SE is the mean's SE and its
+        // interval is the mean's interval.
+        let one = out.atoms.iter().position(|a| a.outcomes[0].1.as_f64() == Some(1.0)).unwrap();
+        let mean_se = out.se_bootstrap.unwrap();
+        assert!((out.atom_uncertainty[one].se_bootstrap.unwrap() - mean_se).abs() < 1e-12);
+        assert_eq!(out.mean_interval, Some(out.atom_uncertainty[one].interval));
+
+        // Force P(y = 1 | do(t = 1)) = 0: every treated row has y = 0.
+        let mut boundary = binary_confounding_table();
+        let t: Vec<f64> = match boundary.column(VariableId::from_raw(0)).unwrap() {
+            ColumnView::Float64(c) => c.values.to_vec(),
+            _ => unreachable!(),
+        };
+        let y: Vec<f64> = match boundary.column(VariableId::from_raw(1)).unwrap() {
+            ColumnView::Float64(c) => {
+                c.values.iter().zip(&t).map(|(&y, &t)| if t > 0.5 { 0.0 } else { y }).collect()
+            }
+            _ => unreachable!(),
+        };
+        boundary = rebuild_with_y(&boundary, y);
+        let out = run(&boundary);
+        let refused =
+            ProbabilityInterval::Unavailable(ProbabilityIntervalUnavailable::BoundaryEstimate);
+        assert_eq!(out.atoms.len(), 2);
+        for (atom, u) in out.atoms.iter().zip(out.atom_uncertainty.iter()) {
+            assert!(atom.probability == 0.0 || atom.probability == 1.0);
+            assert_eq!(u.interval, refused, "p̂ ∈ {{0, 1}} has no interval");
+        }
+        assert_eq!(out.mean_interval, Some(refused));
+        // The scalar SE is unchanged in meaning: the bootstrap spread is zero.
+        assert_eq!(out.se_bootstrap, Some(0.0));
+    }
+
+    /// Copy `t, z` from `data` and replace `y`.
+    fn rebuild_with_y(data: &TabularData, y: Vec<f64>) -> TabularData {
+        let col = |raw: u32| match data.column(VariableId::from_raw(raw)).unwrap() {
+            ColumnView::Float64(c) => c.values.to_vec(),
+            _ => unreachable!(),
+        };
+        let n = y.len();
+        let owned = |raw: u32, values: Vec<f64>| {
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(raw),
+                    Arc::from(values),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            )
+        };
+        let cols = vec![owned(0, col(0)), owned(1, y), owned(2, col(2))];
+        let storage =
+            OwnedColumnarStorage::try_new(data.schema().clone(), cols, None, None).unwrap();
+        TabularData::new(storage)
     }
 
     #[test]

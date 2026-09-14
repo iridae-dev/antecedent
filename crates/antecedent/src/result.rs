@@ -109,6 +109,10 @@ pub struct StudyResult {
     ///
     /// For [`CausalQuery::Distribution`](antecedent_core::CausalQuery::Distribution) this holds the
     /// interventional mean of the first numeric outcome when defined (`ate` field), else NaN.
+    /// Its `se_bootstrap` is the mean's bootstrap SE; do not form `ate ± z·se` for a
+    /// probability — the bounded per-atom intervals are
+    /// [`InterventionalDistributionEstimate::atom_uncertainty`], and a binary outcome's
+    /// mean interval is [`InterventionalDistributionEstimate::mean_interval`].
     pub estimate: EffectEstimate,
     /// Function-valued causal response for [`CausalQuery::Response`](antecedent_core::CausalQuery::Response).
     pub response: Option<CausalResponse>,

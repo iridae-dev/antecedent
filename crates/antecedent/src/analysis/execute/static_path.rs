@@ -408,7 +408,7 @@ impl super::Study {
             treatment,
             outcome,
             identify_cached,
-            extra_diagnostics: Vec::new(),
+            extra_diagnostics: distribution_interval_diagnostics(&dist),
             refutations,
             distribution: Some(dist),
             mediation: None,
@@ -1388,4 +1388,41 @@ impl super::Study {
             extras: IdentifiedExecuteExtras::default(),
         }))
     }
+}
+
+/// Name every interventional probability whose bounded interval could not be
+/// formed (a boundary plug-in `p̂ ∈ {0, 1}`, a failed bootstrap, or zero
+/// spread), so a missing interval is never mistaken for a computed one.
+fn distribution_interval_diagnostics(
+    dist: &antecedent_estimate::InterventionalDistributionEstimate,
+) -> Vec<Diagnostic> {
+    let missing: Vec<(usize, &'static str)> = dist
+        .atom_uncertainty
+        .iter()
+        .enumerate()
+        .filter_map(|(i, u)| match u.interval {
+            antecedent_estimate::ProbabilityInterval::Unavailable(reason) => {
+                Some((i, reason.as_str()))
+            }
+            antecedent_estimate::ProbabilityInterval::Bounded { .. } => None,
+        })
+        .collect();
+    if missing.is_empty() {
+        return Vec::new();
+    }
+    let atoms = missing.iter().map(|(i, r)| format!("{i}:{r}")).collect::<Vec<_>>().join(",");
+    let mut diagnostic = Diagnostic::new(
+        "estimate.distribution.interval_unavailable",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Warning,
+        format!(
+            "{} of {} interventional probabilities have no bounded interval (atom:reason \
+             {atoms}); a plug-in probability of exactly 0 or 1 has no sampling spread to \
+             build one from",
+            missing.len(),
+            dist.atom_uncertainty.len()
+        ),
+    );
+    diagnostic.fields = Arc::from([(Arc::from("atoms"), Arc::from(atoms.as_str()))]);
+    vec![diagnostic]
 }
