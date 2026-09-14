@@ -201,6 +201,7 @@ pub(super) fn validate_sequential(
     posterior: Option<&mut CausalPosterior>,
     original: f64,
     ctx: &ExecutionContext,
+    predictive_sims: u32,
 ) -> Result<SequentialValidationResults, CausalError> {
     let table = TabularData::new(data.storage().clone());
     let mut average = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
@@ -277,14 +278,13 @@ pub(super) fn validate_sequential(
             }
             for mechanism in &atom.mechanisms {
                 let prior = estimator.prior_in_force(mechanism.prepared.design.ncols);
-                let prior = PriorPredictiveCheck::for_estimator(estimator, ctx).check_with_prior(
-                    &mechanism.prepared,
-                    &prior,
-                    ctx,
-                )?;
+                let prior = PriorPredictiveCheck::for_estimator(estimator, ctx)
+                    .with_n_sims(predictive_sims)
+                    .check_with_prior(&mechanism.prepared, &prior, ctx)?;
                 // Mechanism rows are time-ordered: `full` adds the lag-1 residual
                 // autocorrelation discrepancy (C-4).
-                let post_check = PosteriorPredictiveCheck::for_estimator(estimator, ctx);
+                let post_check = PosteriorPredictiveCheck::for_estimator(estimator, ctx)
+                    .with_n_sims(predictive_sims);
                 let post = if suite == RefuteSuite::Full {
                     post_check.check_temporal(
                         &mechanism.prepared,

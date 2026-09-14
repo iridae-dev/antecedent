@@ -122,14 +122,17 @@ impl super::Study {
         let mut predictive_checks = Vec::new();
         if !matches!(self.refute, RefuteSuite::None) {
             const PPC_ALPHA: f64 = 0.05;
+            let sims = super::super::latency::predictive_check_sims(self.latency_mode);
             let ppc_prior = est.prior_in_force(prep.design.ncols);
             let prior_rep = PriorPredictiveCheck::for_estimator(&est, ctx)
+                .with_n_sims(sims)
                 .check_with_prior(&prep, &ppc_prior, ctx)
                 .map_err(CausalError::from)?;
             refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
             predictive_checks.push(prior_rep);
 
             let post_rep = PosteriorPredictiveCheck::for_estimator(&est, ctx)
+                .with_n_sims(sims)
                 .check(&prep, &posterior)
                 .map_err(CausalError::from)?;
             refutations.push(post_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
@@ -407,6 +410,7 @@ impl super::Study {
             &mut posterior,
             estimate.ate,
             ctx,
+            super::super::latency::predictive_check_sims(self.latency_mode),
             &mut refutations,
             &mut diagnostics,
         )?;
@@ -797,6 +801,7 @@ impl super::Study {
             &mut posterior,
             estimate.ate,
             ctx,
+            super::super::latency::predictive_check_sims(self.latency_mode),
             &mut refutations,
             &mut diagnostics,
         )?;
@@ -1238,6 +1243,7 @@ impl super::Study {
                     None,
                     estimate.ate,
                     ctx,
+                    super::super::latency::predictive_check_sims(self.latency_mode),
                 )?;
                 (reports, notes)
             } else {
@@ -1644,6 +1650,7 @@ impl super::Study {
                 Some(&mut posterior),
                 estimate.ate,
                 ctx,
+                super::super::latency::predictive_check_sims(self.latency_mode),
             )?
         } else {
             let (reports, notes) = run_envelope_effect_refuters(
@@ -1673,6 +1680,7 @@ impl super::Study {
                 &mut posterior,
                 estimate.ate,
                 ctx,
+                super::super::latency::predictive_check_sims(self.latency_mode),
                 &mut refutations,
                 &mut diagnostics,
             )?
