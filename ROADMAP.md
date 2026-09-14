@@ -379,8 +379,8 @@ where no fix was available. No new query kinds; seven cells were licensed on
 existing query kinds (ADMG interventional distributions, accepted-Dag
 counterfactuals, Frequentist DBN-posterior mediation). Temporal class-envelope
 between-atom variance and DBN shared-block calibration, the owner item, are
-gated. 122 licensed rows still name no executing test
-(`parity/_evidence_test_backlog.txt`).
+gated. Every licensed row names its executing test; the exemption list
+(`parity/_evidence_test_backlog.txt`) is empty.
 
 ## 1.x — Compatible cells
 
