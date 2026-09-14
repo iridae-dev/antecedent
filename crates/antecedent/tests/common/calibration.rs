@@ -8,6 +8,14 @@
 //! interval fail. Mean interval length is reported so a passing gate also
 //! records how wide the interval had to be.
 //!
+//! "Nominal" in a test name means exactly this: the empirical coverage is
+//! within ±3 MCSE of the level at the replicate count, ±4.5 points at 400
+//! replicates and a 90% level. It is a tolerance, not a claim that the
+//! interval's true coverage is the level: an interval whose true coverage is
+//! 0.87 passes a 400-replicate gate most of the time. Designs whose
+//! larger-sample measurement sits outside the tighter band at that count are
+//! named as boundary cells, not nominal ones.
+//!
 //! `ANTECEDENT_CALIBRATION_NSIM` overrides the replicate count for local smoke
 //! runs; the band widens automatically with fewer replicates. The gate script
 //! uses the default.
