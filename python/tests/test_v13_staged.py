@@ -429,8 +429,12 @@ def test_v13_named_refusals():
     data, dag = fixture()
     cf = ac.Counterfactual("a", "y", control_level=0.2, active_level=0.8)
     med = ac.MediationEffect("a", "y", mediators=["m"], contrast="natural_direct")
-    with pytest.raises(CausalUnsupportedError, match="explicit Dag"):
-        ac.analyze(data, graph=ac.AcceptedGraph(dag), query=cf, refute="none")
+    accepted_cf = ac.analyze(data, graph=ac.AcceptedGraph.from_graph(dag), query=cf, refute="none")
+    assert accepted_cf.effect == pytest.approx(
+        ac.analyze(data, graph=dag, query=cf, refute="none").effect
+    )
+    with pytest.raises(CausalUnsupportedError, match="cheap/full"):
+        ac.analyze(data, graph=dag, query=cf, refute="cheap")
     med_bayes = ac.analyze(
         data, graph=dag, query=med, inference=ac.Bayesian(n_draws=64), refute="none"
     )

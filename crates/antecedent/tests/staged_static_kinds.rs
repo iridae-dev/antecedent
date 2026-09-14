@@ -268,6 +268,71 @@ fn confounded_static_kinds_are_not_the_observational_association() {
 }
 
 #[test]
+fn accepted_counterfactual_matches_explicit() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/staged_static_kinds/expected.json"
+    ))
+    .unwrap();
+    let a: Vec<_> = (0..500).map(|i| (f64::from(i) * 0.71).sin()).collect();
+    let m: Vec<_> = a.iter().enumerate().map(|(i, a)| 2.0 * a + (i as f64 * 1.13).cos()).collect();
+    let y: Vec<_> = a
+        .iter()
+        .zip(&m)
+        .enumerate()
+        .map(|(i, (a, m))| 3.0 * a + 4.0 * m + 0.1 * (i as f64 * 0.31).sin())
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("a", a.as_slice()),
+        ("m", m.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut dag = Dag::with_variables(3);
+    for (s, t) in [(0, 1), (0, 2), (1, 2)] {
+        dag.insert_directed(DenseNodeId::from_raw(s), DenseNodeId::from_raw(t)).unwrap();
+    }
+    let query = CounterfactualQuery::new(
+        VariableId::from_raw(2),
+        Arc::from([Intervention::set(
+            VariableId::from_raw(0),
+            Value::f64(pin["active"].as_f64().unwrap()),
+        )]),
+    )
+    .with_control_level(pin["control"].as_f64().unwrap());
+    let ctx = ExecutionContext::for_tests(13);
+    let explicit = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(CausalQuery::Counterfactual(query.clone()))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    let accepted = Study::tabular(data.clone())
+        .graph(AcceptedGraph::from(dag))
+        .query(CausalQuery::Counterfactual(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    assert_eq!(accepted.structure_source, antecedent::StructureSource::Accepted);
+    assert_eq!(explicit.structure_source, antecedent::StructureSource::Explicit);
+    assert_eq!(accepted.logical_plan.estimator.as_deref(), Some("gcm.fit"));
+    let explicit_cf = explicit.counterfactual.as_ref().unwrap();
+    let accepted_cf = accepted.counterfactual.as_ref().unwrap();
+    assert!((accepted_cf.mean_ite - explicit_cf.mean_ite).abs() < 1e-12);
+    assert_eq!(accepted_cf.unit_effects, explicit_cf.unit_effects);
+    assert!(accepted.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+}
+
+#[test]
 fn nested_counterfactual_refuses_before_execution() {
     let a = [0.0, 1.0, 2.0];
     let data = TabularData::from_f64_columns([("a", a.as_slice()), ("y", a.as_slice())]).unwrap();

@@ -457,6 +457,56 @@ fn mediation_and_counterfactual_bayesian_pins() {
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("gcm.fit"));
 }
 
+#[test]
+fn accepted_counterfactual_matches_explicit_bayesian() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/staged_static_kinds/expected.json"
+    ))
+    .unwrap();
+    let (data, dag) = mediation_scm();
+    let ctx = ExecutionContext::for_tests(13);
+    let query = CounterfactualQuery::new(
+        VariableId::from_raw(2),
+        Arc::from([Intervention::set(
+            VariableId::from_raw(0),
+            Value::f64(pin["active"].as_f64().unwrap()),
+        )]),
+    )
+    .with_control_level(pin["control"].as_f64().unwrap());
+    let run = |graph: antecedent::AcceptedGraph| {
+        Study::tabular(data.clone())
+            .graph(graph)
+            .query(CausalQuery::Counterfactual(query.clone()))
+            .inference(bayes())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap()
+            .estimate(&data, &ctx)
+            .unwrap()
+    };
+    let explicit = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(CausalQuery::Counterfactual(query.clone()))
+        .inference(bayes())
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    let accepted = run(AcceptedGraph::from(dag));
+    assert_eq!(accepted.structure_source, antecedent::StructureSource::Accepted);
+    assert_eq!(explicit.structure_source, antecedent::StructureSource::Explicit);
+    let explicit_cf = explicit.counterfactual.as_ref().unwrap();
+    let accepted_cf = accepted.counterfactual.as_ref().unwrap();
+    assert!((accepted_cf.mean_ite - explicit_cf.mean_ite).abs() < 1e-12);
+    assert_eq!(accepted_cf.unit_effects, explicit_cf.unit_effects);
+    assert_eq!(accepted.logical_plan.estimator.as_deref(), Some("gcm.fit"));
+}
+
 /// Known-truth pins for all six Bayesian derivative functionals on explicit and
 /// accepted DAGs (`conformance/response/staged_derivatives`): each asserts the
 /// point value and that the published credible interval brackets the truth.

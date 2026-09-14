@@ -714,13 +714,7 @@ mod tests {
                 "none",
                 "Graph-posterior derivative mixtures are not staged",
             ),
-            (
-                "Counterfactual",
-                "accepted",
-                "Frequentist",
-                "none",
-                "Staged counterfactuals require an explicit Dag",
-            ),
+            ("Counterfactual", "graph_posterior", "Frequentist", "none", "graph-posterior"),
             (
                 "Counterfactual",
                 "explicit",
@@ -747,6 +741,14 @@ mod tests {
         );
         assert_eq!(
             classify(cell("Counterfactual", "Dag", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("Counterfactual", "Dag", "accepted", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("Counterfactual", "Dag", "accepted", "Bayesian", "none")),
             CellStatus::Licensed
         );
     }
