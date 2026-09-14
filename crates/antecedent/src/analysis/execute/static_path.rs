@@ -700,6 +700,14 @@ impl super::Study {
         let estimate = super::super::helpers::attach_conditional_functional_grid(
             estimate, data, query, &estimand, ctx,
         )?;
+        let uses_aipw_scores = super::super::helpers::conditional_uses_crossfit_aipw(query);
+        let estimator_name =
+            if uses_aipw_scores { "aipw" } else { "conditional.linear.adjustment" };
+        let estimator_id = if uses_aipw_scores {
+            EstimatorId::Aipw
+        } else {
+            EstimatorId::ConditionalLinearAdjustment
+        };
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, mut extra_diagnostics) = run_refuters(
             data,
@@ -710,7 +718,7 @@ impl super::Study {
             None,
             ctx,
             self.refute,
-            "conditional.linear.adjustment",
+            estimator_name,
             &self.custom_validators,
             None,
         )?;
@@ -729,7 +737,7 @@ impl super::Study {
             estimand,
             estimate,
             identifier_id,
-            estimator_id: EstimatorId::ConditionalLinearAdjustment,
+            estimator_id,
             treatment: query.inner.treatment,
             outcome: query.inner.outcome,
             identify_cached,

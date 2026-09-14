@@ -423,6 +423,8 @@ fn aipw_conditional_arm_scores(
         ));
     }
     let w_id = query.effect_modifiers[0];
+    let active = intervention_f64(&query.active)?;
+    let control = intervention_f64(&query.control)?;
     let mut adj: Vec<VariableId> =
         estimand.adjustment_set.iter().copied().filter(|&z| z != w_id).collect();
     adj.insert(0, w_id);
@@ -431,13 +433,14 @@ fn aipw_conditional_arm_scores(
         query.treatment,
         query.outcome,
         &adj,
-        antecedent_core::Value::f64(1.0),
-        antecedent_core::Value::f64(0.0),
+        antecedent_core::Value::f64(active),
+        antecedent_core::Value::f64(control),
     );
     let aipw_estimand =
         IdentifiedEstimand::backdoor("backdoor.adjustment", Arc::from(adj), functional);
-    let aipw_query = AverageEffectQuery::binary_ate(query.treatment, query.outcome)
-        .with_outcome_functional(query.outcome_functional.clone());
+    let aipw_query =
+        AverageEffectQuery::with_levels(query.treatment, query.outcome, control, active)
+            .with_outcome_functional(query.outcome_functional.clone());
     let problem = crate::propensity::prepare_propensity_problem_with_registry(
         data,
         &aipw_estimand,

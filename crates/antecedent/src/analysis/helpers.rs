@@ -768,14 +768,27 @@ pub(crate) fn conditional_thresholds(
     Ok(Some(antecedent_estimate::empirical_threshold_grid(&y, 19)?))
 }
 
+/// Whether binary 0/1 ConditionalEffect exceedance/quantile uses cross-fitted AIPW scores.
+#[must_use]
+pub(crate) fn conditional_uses_crossfit_aipw(query: &ConditionalEffectQuery) -> bool {
+    let functional = &query.inner.outcome_functional;
+    if functional.thresholds().is_none() && functional.quantile_level().is_none() {
+        return false;
+    }
+    matches!(
+        (&query.inner.control, &query.inner.active),
+        (Intervention::Set { value: c, .. }, Intervention::Set { value: a, .. })
+            if c.as_f64() == Some(0.0) && a.as_f64() == Some(1.0)
+    )
+}
+
 /// Name the estimator that actually produced a ConditionalEffect exceedance or
 /// quantile on binary 0/1 arms.
 ///
-/// The plan keeps `conditional.linear.adjustment` as its estimator id, but on
-/// binary arms the scalar, the arm CDFs, and their influence columns come from
-/// cross-fitted AIPW scores with the modifier added to the adjustment set
-/// (`ConditionalLinearAdjustment::estimate_with_arm_scores`), not from the
-/// `T×W` linear interaction model. Non-binary levels keep the linear plugin.
+/// Those cells record `aipw` (not `conditional.linear.adjustment`): the scalar,
+/// arm CDFs, and influence columns come from cross-fitted AIPW scores with the
+/// modifier added to the adjustment set. Non-binary levels and mean
+/// ConditionalEffect keep the linear plugin.
 pub(crate) fn conditional_score_estimator_diagnostic(
     query: &ConditionalEffectQuery,
 ) -> Option<Diagnostic> {
