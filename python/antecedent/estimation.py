@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import numbers
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import partial
@@ -737,6 +738,33 @@ def _prepared_temporal_inference_kwargs(
     if inference is not None and not isinstance(inference, Frequentist):
         raise CausalTypeError("inference must be Frequentist or Bayesian")
     return {"inference": "frequentist"}
+
+
+def _temporal_response_bootstrap(
+    bootstrap: int | None, inference: Frequentist | Bayesian | None
+) -> int | None:
+    """Replicate count for a temporal response surface, or ``None`` for the default.
+
+    Frequentist surfaces publish their pointwise and simultaneous bands from joint
+    circular-block replicates: ``None`` keeps the Study default (50), ``0`` keeps the
+    point surface with no band (``estimate.temporal_response.band_withheld``).
+    Bayesian surfaces use posterior draws and refuse a requested bootstrap.
+    """
+    if bootstrap is not None:
+        if (
+            isinstance(bootstrap, bool)
+            or not isinstance(bootstrap, numbers.Integral)
+            or bootstrap < 0
+        ):
+            raise CausalValueError("bootstrap must be a non-negative integer or None")
+        bootstrap = int(bootstrap)
+    if isinstance(inference, Bayesian):
+        if bootstrap:
+            raise CausalUnsupportedError(
+                "Bayesian responses use posterior intervals; bootstrap is unsupported"
+            )
+        return 0
+    return bootstrap
 
 
 def _temporal_inference_kwargs(
@@ -1507,7 +1535,12 @@ class PreparedAnalysis:
         generalized-adjustment envelope or general-ID result is frozen at
         prepare and reused by every estimate click (``exec.identify.cached``).
         Temporal ``ResponseCurve`` / ``InterventionResponse`` (keyword ``horizons``)
-        prepare on a ``TemporalDag`` or lagged edge list. Pulse / Sustained /
+        prepare on a ``TemporalDag`` or lagged edge list; their Frequentist
+        ``bootstrap`` is the joint circular-block replicate count behind the
+        pointwise and simultaneous bands (``None`` keeps the Study default of 50
+        whatever the ``latency``; ``0`` publishes the point surface with no band and
+        an ``estimate.temporal_response.band_withheld`` warning). Every other
+        prepared response refuses a positive ``bootstrap``. Pulse / Sustained /
         TemporalMediation prepare on a ``TemporalDag`` or lagged edge list.
         ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` / a constructed
         ``GraphPosterior`` compiles the licensed graph-posterior cells
@@ -1559,6 +1592,32 @@ class PreparedAnalysis:
                 raise CausalUnsupportedError(
                     "PreparedAnalysis responses require the AllObserved target population"
                 )
+        if (
+            isinstance(
+                query,
+                (
+                    ResponseCurve,
+                    InterventionResponse,
+                    PointDerivative,
+                    Elasticity,
+                    SemiElasticity,
+                    AverageDerivative,
+                    DirectionalDerivative,
+                    ResponseJacobian,
+                ),
+            )
+            and bootstrap
+            and (isinstance(inference, Bayesian) or not getattr(query, "is_temporal", False))
+        ):
+            # Only Frequentist temporal surfaces resample; every other prepared response
+            # carries analytic, influence-function or posterior uncertainty, so a
+            # requested bootstrap is refused rather than silently dropped.
+            raise CausalUnsupportedError(
+                "Bayesian responses use posterior intervals; bootstrap is unsupported"
+                if isinstance(inference, Bayesian)
+                else "prepared static responses use analytic or influence-function "
+                "uncertainty; bootstrap= applies to Frequentist temporal responses only"
+            )
         if estimator_config is not None and not isinstance(
             query,
             (
@@ -1755,6 +1814,7 @@ class PreparedAnalysis:
                 inference=inference,
                 refute=refute,
                 seed=seed,
+                bootstrap=bootstrap,
                 threads=threads,
                 structure_accepted=structure_accepted,
                 class_prior=class_prior,
@@ -2750,6 +2810,7 @@ class PreparedAnalysis:
         inference: Frequentist | Bayesian | None,
         refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | str,
         seed: int,
+        bootstrap: int | None = None,
         threads: int,
         structure_accepted: bool,
         class_prior: ClassPrior | None = None,
@@ -2761,6 +2822,7 @@ class PreparedAnalysis:
                 "cheap/full does not denote; cheap and full name the ATE-shaped scalar refuter "
                 "suite and a function-valued estimand has no such state. Use refute='none'."
             )
+        native_bootstrap = _temporal_response_bootstrap(bootstrap, inference)
         lagged = [] if isinstance(graph, (TemporalCpdag, TemporalPag)) else _lagged_edges(graph)
         from antecedent._analyze import _encode_temporal_interventions
 
@@ -2807,6 +2869,7 @@ class PreparedAnalysis:
                 max_history_lag=query.max_history_lag,
                 **_prepared_temporal_inference_kwargs(inference),
                 seed=seed,
+                bootstrap=native_bootstrap,
                 threads=threads,
                 accepted=structure_accepted,
                 class_graph=graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None,
@@ -2831,6 +2894,7 @@ class PreparedAnalysis:
             max_history_lag=query.max_history_lag,
             **_prepared_temporal_inference_kwargs(inference),
             seed=seed,
+            bootstrap=native_bootstrap,
             threads=threads,
             accepted=structure_accepted,
             class_graph=graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None,

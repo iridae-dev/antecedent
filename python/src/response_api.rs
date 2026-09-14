@@ -1019,13 +1019,18 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
 }
 
 /// Temporal dose × horizon / intervention-path response (ADR 0021).
+///
+/// `bootstrap` is the number of joint circular-block replicates behind the pointwise
+/// and simultaneous bands; `None` keeps the `Study` default (50) and `0` publishes the
+/// point surface with no band plus an `estimate.temporal_response.band_withheld`
+/// warning.
 #[pyfunction]
 #[pyo3(signature = (
     names, columns, edges, kind, treatments, outcomes, *,
     grid=None, intervention_kinds=None, intervention_parameters=None,
     horizons, policy=crate::temporal_license::DEFAULT_POLICY,
     treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG, max_history_lag=None,
-    seed=1, threads=1, accepted=false, refute=None,
+    seed=1, bootstrap=None, threads=1, accepted=false, refute=None,
     observation_kind=None, latent=None, observed=None, censoring=None, event=None,
     lower=None, upper=None, indicator=None, assumption_kind=None,
     assumption_variables=Vec::new(), structural_model=None
@@ -1047,6 +1052,7 @@ fn analyze_temporal_response(
     treatment_lag: u32,
     max_history_lag: Option<u32>,
     seed: u64,
+    bootstrap: Option<u32>,
     threads: u32,
     accepted: bool,
     refute: Option<Bound<'_, PyAny>>,
@@ -1125,14 +1131,12 @@ fn analyze_temporal_response(
         let mut builder = Study::series(series);
         builder =
             if accepted { builder.graph(AcceptedGraph::from(dag)) } else { builder.graph(dag) };
-        // Response queries are analytic on the facade: `analyze()` refuses `bootstrap=`
-        // for them (see `_analyze.py`), and the static response path is analytic too.
-        // Since 0.9.1 the temporal surface honors the builder's `bootstrap_replicates`
-        // (default 50), so pin it to 0 here — otherwise this public path would silently
-        // return seed-dependent bootstrap bands that disagree with the analytic
-        // conformance pin and the `Study`-level surface test. Explicit bootstrap stays a
-        // core `Study` knob; the facade does not yet expose it.
-        builder = builder.bootstrap_replicates(0);
+        // Frequentist temporal surfaces publish a band only from joint circular-block
+        // replicates; zero replicates keep the point surface and withhold the band
+        // (`estimate.temporal_response.band_withheld`). `None` keeps the Study default.
+        if let Some(replicates) = bootstrap {
+            builder = builder.bootstrap_replicates(replicates);
+        }
         let analysis = builder.query(causal_query).refute(suite).build().map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
@@ -1147,15 +1151,22 @@ fn analyze_temporal_response(
                 names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
             })
             .collect();
-        response_result(
-            response,
+        let diagnostics =
+            result.diagnostics.iter().map(|d| format!("{}: {}", d.code, d.message)).collect();
+        Ok(attach_study_response_meta(
+            response_result(
+                response,
+                None,
+                treatments,
+                outcomes,
+                adjustment_set,
+                &names,
+                result.support_status,
+            )?,
             None,
-            treatments,
-            outcomes,
-            adjustment_set,
-            &names,
-            result.support_status,
-        )
+            None,
+            diagnostics,
+        ))
     })
 }
 

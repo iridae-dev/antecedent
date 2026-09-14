@@ -29,6 +29,12 @@ repeated-sampling coverage; intervals that missed were fixed, not footnoted.
   (`response.simultaneous_band.*`), Frequentist and Bayesian.
   Observation-adjusted and complete-data Sequence overlays publish bands
   from a tuple-level bootstrap of the unfolded sequential g-comp.
+  Python reads them as `CausalResponseView.simultaneous_band`.
+- Python `bootstrap=` on Frequentist temporal `ResponseCurve` /
+  `InterventionResponse`, through `analyze()` and `PreparedAnalysis.prepare()`.
+  Omitted, the Study default of 50 replicates publishes the circular-block
+  pointwise and simultaneous bands; `bootstrap=0` returns the point surface
+  and the `estimate.temporal_response.band_withheld` warning.
 - Identified-set confidence intervals (Imbens–Manski) on temporal class
   structural mixtures, including the no-`ClassPrior` path
   (`identified_set_interval`; Python `structural_identified_set_interval`).
@@ -86,6 +92,10 @@ repeated-sampling coverage; intervals that missed were fixed, not footnoted.
 
 ### Fixed
 
+- Python `analyze(..., bootstrap=N)` was silently ignored on temporal
+  responses and on static CPDAG/PAG and TieredBackground responses, and
+  `PreparedAnalysis.prepare()` dropped it on every response. Every response
+  route now either uses it or refuses it.
 - Temporal mediation omitted mediator–outcome confounders from its
   adjustment set, biasing the mediated effect.
 - Path-specific effects returned the total effect when another directed
