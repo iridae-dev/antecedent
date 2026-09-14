@@ -451,6 +451,54 @@ fn frequentist_incomplete_class_uses_outer_block_or_withholds() {
         ResponseUncertainty::PointwiseBand { .. }
             if response.provenance_id.as_ref() == "estimate.temporal_response.gcomp"
     ));
+
+    // A published tuple band carries the response family's block disclosure and drops the
+    // zero-replicate withholding note of the inner fit; the class note says where the
+    // band came from.
+    let banded = |response: &antecedent_core::CausalResponse| {
+        matches!(response.uncertainty, ResponseUncertainty::PointwiseBand { .. })
+    };
+    let warns = |response: &antecedent_core::CausalResponse, code: &str| {
+        response.support.warnings.iter().any(|w| w.code.as_ref() == code)
+    };
+    let tuple_band_disclosed = |response: &antecedent_core::CausalResponse| {
+        !warns(response, "estimate.temporal_response.band_withheld")
+            && warns(response, "response.temporal.block.persistence_boundary")
+            && warns(response, "response.temporal.pointwise_band_few_replicates")
+            && response
+                .support
+                .diagnostics
+                .iter()
+                .any(|d| d.id.as_ref() == "response.temporal.block_length")
+            && response.assumptions.entries.iter().any(|record| {
+                matches!(
+                    &record.assumption,
+                    antecedent_core::Assumption::ParametricRestriction(p)
+                        if p.id.as_ref() == "temporal_response.block_bootstrap"
+                )
+            })
+    };
+    let atom_responses: Vec<_> = structural
+        .atoms
+        .iter()
+        .filter_map(|atom| atom.response.as_ref())
+        .filter(|r| banded(r))
+        .collect();
+    assert!(!atom_responses.is_empty(), "atoms carry the outer circular-block band");
+    assert!(atom_responses.iter().all(|r| tuple_band_disclosed(r)));
+    assert!(!warns(
+        incomplete.response.as_ref().unwrap(),
+        "estimate.temporal_response.band_withheld"
+    ));
+    assert!(banded(response), "the one-completion class publishes the outer band");
+    assert!(tuple_band_disclosed(response));
+    let note = oriented
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "estimate.temporal_class.observation_no_complete_band")
+        .expect("class observation note");
+    assert!(note.message.contains("outer circular-block"), "{}", note.message);
+    assert!(!note.message.contains("stay unavailable"), "{}", note.message);
 }
 
 #[test]

@@ -2238,13 +2238,7 @@ impl super::Study {
             ));
         }
         if query.observation != ObservationSpec::Complete {
-            diagnostics.push(Diagnostic::new(
-                "estimate.temporal_class.observation_no_complete_band",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "observation is adjusted per completion; complete-data bands are not reused \
-                 and joint observation/curve bands stay unavailable",
-            ));
+            diagnostics.push(class_observation_band_note(class_observation_band_applied));
         }
         let conditional = self.class_prior.as_ref().and_then(|_| {
             temporal_class_response_mean(
@@ -2614,13 +2608,7 @@ impl super::Study {
             )?;
         }
         if query.observation != ObservationSpec::Complete {
-            diagnostics.push(Diagnostic::new(
-                "estimate.temporal_class.observation_no_complete_band",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "observation is adjusted per completion; complete-data bands are not reused \
-                 and joint observation/curve bands stay unavailable",
-            ));
+            diagnostics.push(class_observation_band_note(class_observation_band_applied));
         }
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "class-aware Sequence missing estimand".into(),
@@ -4235,6 +4223,24 @@ fn apply_temporal_observation_result(
     ));
 }
 
+/// How a class-observation response reports its band: from the outer circular-block
+/// bootstrap when a single completion identifies, otherwise withheld.
+fn class_observation_band_note(class_band_applied: bool) -> Diagnostic {
+    Diagnostic::new(
+        "estimate.temporal_class.observation_no_complete_band",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        if class_band_applied {
+            "observation is adjusted per completion; complete-data bands are not reused; the \
+             class band is the outer circular-block observation bootstrap of the single \
+             identified completion"
+        } else {
+            "observation is adjusted per completion; complete-data bands are not reused and \
+             joint observation/curve bands stay unavailable at the class level"
+        },
+    )
+}
+
 struct ObservationBootstrapBand {
     lower: Vec<f64>,
     upper: Vec<f64>,
@@ -4244,15 +4250,27 @@ struct ObservationBootstrapBand {
     completed: u32,
     attempted: u32,
     cancelled: bool,
+    /// Block length and replicate dispersion factor of the resample, disclosed with a
+    /// published band.
+    block: Option<(antecedent_estimate::ResponseBlockLength, f64)>,
+}
+
+impl ObservationBootstrapBand {
+    /// Attach the block length and dispersion factor of the tuple resample behind the band.
+    const fn with_block(mut self, replicates: &TupleReplicates) -> Self {
+        self.block = Some((replicates.block, replicates.inflation));
+        self
+    }
 }
 
 /// Construction text for the observation-adjusted outer bootstrap simultaneous band.
 const OBSERVATION_SIMULTANEOUS_CONSTRUCTION: &str = "max-studentized deviation of the outer \
      circular-block bootstrap replicates of the whole observation-adjusted surface around the \
      full-sample estimate; every replicate resamples blocks of lag-aligned outcome-time tuples \
-     (block length max(span, ceil(sqrt(n)))), refits the observation nuisance on them and refits \
-     every horizon (curve / Set-Shift) or every unfolded sequential mechanism (Sequence); \
-     replicate deviations carry the Kiefer-Vogelsang fixed-b factor and the HC1 factor";
+     (block length: support diagnostic response.temporal.block_length), refits the observation \
+     nuisance on them and refits every horizon (curve / Set-Shift) or every unfolded sequential \
+     mechanism (Sequence); replicate deviations carry the Kiefer-Vogelsang fixed-b factor and the \
+     HC1 factor";
 
 /// Pointwise band `center ± z·SD` of the (already fixed-b scaled) joint replicates.
 ///
@@ -4272,6 +4290,7 @@ fn summarize_observation_bootstrap(
         completed,
         attempted,
         cancelled,
+        block: None,
     };
     if !bootstrap_has_enough_successes(completed as usize, attempted as usize)
         || draws.iter().any(|draw| draw.len() != center.len())
@@ -4384,7 +4403,7 @@ fn apply_class_observation_bootstrap(
         .max()
         .unwrap_or(1);
     // Every atom (curve or Sequence) resamples the same lag-aligned outcome-time tuples.
-    let (replicate_values, attempted, points) = {
+    let tuple = {
         let identifications: Vec<[(&IdentifiedEstimand, &TemporalIndexer); 1]> =
             atoms.iter().map(|atom| [(&atom.estimand, &atom.indexer)]).collect();
         let targets: Vec<TupleObservationTarget<'_>> = atoms
@@ -4467,7 +4486,8 @@ fn apply_class_observation_bootstrap(
         Some(mixed)
     };
 
-    for replicate_atom_values in &replicate_values {
+    let (attempted, points) = (tuple.attempted, &tuple.points);
+    for replicate_atom_values in &tuple.values {
         for (atom_i, values) in replicate_atom_values.iter().enumerate() {
             if let Some(values) = values {
                 if atom_draws[atom_i].first().is_none_or(|first| first.len() == values.len()) {
@@ -4489,7 +4509,8 @@ fn apply_class_observation_bootstrap(
             &points[atom_i],
             attempted,
             cancelled,
-        );
+        )
+        .with_block(&tuple);
         if let Some(atom_response) =
             structural_atoms.get_mut(atom.atom_index).and_then(|item| item.response.as_mut())
         {
@@ -4515,10 +4536,14 @@ fn apply_class_observation_bootstrap(
 
     if apply_class_band {
         let center = mix(&points.iter().map(Some).collect::<Vec<_>>()).unwrap_or_default();
-        let band = summarize_observation_bootstrap(&class_draws, &center, attempted, cancelled);
+        let band = summarize_observation_bootstrap(&class_draws, &center, attempted, cancelled)
+            .with_block(&tuple);
         apply_observation_bootstrap(response, &band, replicates);
         Ok(!band.lower.is_empty())
     } else {
+        response.support.warnings.retain(|warning| {
+            warning.code.as_ref() != antecedent_estimate::TEMPORAL_RESPONSE_BAND_WITHHELD
+        });
         diagnostics.push(Diagnostic::new(
             "estimate.temporal_class.observation_class_band_withheld",
             DiagnosticKind::Scientific,
@@ -4577,6 +4602,20 @@ impl TupleBandSource {
         }
     }
 
+    /// What one replicate refits, for the block-bootstrap assumption record.
+    const fn refit(self) -> &'static str {
+        match self {
+            Self::Observation => {
+                "one replicate refits the observation nuisance and every horizon model (or every \
+                 unfolded sequential mechanism) on the same resampled outcome-time tuples"
+            }
+            Self::CompleteSequence => {
+                "one replicate refits every unfolded sequential mechanism of every horizon on the \
+                 same resampled outcome-time tuples and recomputes the root-node means"
+            }
+        }
+    }
+
     const fn construction(self) -> &'static str {
         match self {
             Self::Observation => OBSERVATION_SIMULTANEOUS_CONSTRUCTION,
@@ -4588,10 +4627,10 @@ impl TupleBandSource {
 /// Construction text for the complete-data Sequence joint tuple bootstrap band.
 const SEQUENCE_SIMULTANEOUS_CONSTRUCTION: &str = "max-studentized deviation of the joint \
      circular-block bootstrap replicates of the whole Sequence surface around the full-sample \
-     estimate; every replicate resamples blocks of lag-aligned outcome-time tuples (block length \
-     max(span, ceil(sqrt(n)))), refits every unfolded sequential mechanism of every horizon and \
-     recomputes the root-node means; replicate deviations carry the Kiefer-Vogelsang fixed-b \
-     factor and the HC1 factor";
+     estimate; every replicate resamples blocks of lag-aligned outcome-time tuples (block length: \
+     support diagnostic response.temporal.block_length), refits every unfolded sequential \
+     mechanism of every horizon and recomputes the root-node means; replicate deviations carry \
+     the Kiefer-Vogelsang fixed-b factor and the HC1 factor";
 
 fn apply_observation_bootstrap(
     response: &mut CausalResponse,
@@ -4607,6 +4646,11 @@ fn apply_tuple_bootstrap_band(
     requested: u32,
     source: TupleBandSource,
 ) {
+    // A tuple bootstrap ran, so the estimator's zero-replicate withholding note (the
+    // inner fit runs without replicates on these paths) no longer describes the band.
+    response.support.warnings.retain(|warning| {
+        warning.code.as_ref() != antecedent_estimate::TEMPORAL_RESPONSE_BAND_WITHHELD
+    });
     if bootstrap.lower.is_empty() {
         antecedent_estimate::publish_simultaneous_band(
             &mut response.support,
@@ -4641,6 +4685,16 @@ fn apply_tuple_bootstrap_band(
                     | "response.temporal.sequence_uncertainty_unavailable"
             )
         });
+        if let Some((block, inflation)) = bootstrap.block {
+            antecedent_estimate::disclose_response_block_bootstrap(
+                &mut response.support,
+                &mut response.assumptions,
+                block,
+                inflation,
+                bootstrap.draws.len(),
+                source.refit(),
+            );
+        }
         let simultaneous = response_point_values(response)
             .ok_or_else(|| {
                 antecedent_estimate::EstimationError::unsupported(
@@ -4763,7 +4817,7 @@ fn single_target_observation_band(
         .map(|entry| entry.indexer.history() as usize + entry.indexer.horizon() as usize)
         .max()
         .unwrap_or(1);
-    let (replicate_values, attempted, mut points) = tuple_block_observation_replicates(
+    let mut tuple = tuple_block_observation_replicates(
         source,
         &[target],
         structural_span,
@@ -4772,10 +4826,18 @@ fn single_target_observation_band(
         stream,
         ctx,
     )?;
-    let draws: Vec<Vec<f64>> =
-        replicate_values.into_iter().filter_map(|mut values| values.pop().flatten()).collect();
-    let center = points.pop().unwrap_or_default();
-    Ok(summarize_observation_bootstrap(&draws, &center, attempted, ctx.cancellation.is_cancelled()))
+    let draws: Vec<Vec<f64>> = std::mem::take(&mut tuple.values)
+        .into_iter()
+        .filter_map(|mut values| values.pop().flatten())
+        .collect();
+    let center = tuple.points.pop().unwrap_or_default();
+    Ok(summarize_observation_bootstrap(
+        &draws,
+        &center,
+        tuple.attempted,
+        ctx.cancellation.is_cancelled(),
+    )
+    .with_block(&tuple))
 }
 
 /// Hydrate a shared coefficient prior into the unfolded design at every horizon.

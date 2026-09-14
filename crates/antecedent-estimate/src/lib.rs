@@ -146,7 +146,7 @@ pub use temporal_block::{
     AlignedRows, CircularBlockFamily, RowBlockBootstrap, RowBlockDraws, aligned_block_bootstrap,
     block_effective_rows, common_time_window, dependence_block_length, effective_rows,
     fixed_b_scale, normal_equation_scores, politis_white_block_length, row_block_bootstrap,
-    row_block_bootstrap_vec, score_effective_rows,
+    row_block_bootstrap_vec, score_effective_rows, testing_block_length,
 };
 pub use temporal_mediation::{
     MediationPosteriorSummary, PreparedTemporalMediation, SharedMediationBlockSe,
@@ -155,13 +155,16 @@ pub use temporal_mediation::{
     TemporalMediationSlice, TemporalMediationUncertainty, shared_mediation_block_bootstrap,
 };
 pub use temporal_response::{
-    MaxDeviationBand, PreparedTemporalSurface, SIMULTANEOUS_BAND_CRITICAL, SIMULTANEOUS_BAND_LOWER,
-    SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER, SIMULTANEOUS_BAND_WITHHELD,
-    TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC, TemporalInterventionPlan, TemporalResponseEstimator,
+    MaxDeviationBand, PreparedTemporalSurface, ResponseBlockLength, SIMULTANEOUS_BAND_CRITICAL,
+    SIMULTANEOUS_BAND_LOWER, SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER,
+    SIMULTANEOUS_BAND_WITHHELD, TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC,
+    TEMPORAL_RESPONSE_BAND_WITHHELD, TEMPORAL_RESPONSE_BLOCK_CAPPED,
+    TEMPORAL_RESPONSE_BLOCK_LENGTH, TEMPORAL_RESPONSE_FEW_REPLICATES,
+    TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY, TemporalInterventionPlan, TemporalResponseEstimator,
     block_dispersion_inflation, circular_block_positions, circular_block_positions_into,
-    clear_simultaneous_band, inflate_replicates, max_deviation_band, max_deviation_band_columns,
-    plan_from_response_query, plan_temporal_intervention, publish_simultaneous_band,
-    temporal_block_length,
+    clear_simultaneous_band, disclose_response_block_bootstrap, inflate_replicates,
+    max_deviation_band, max_deviation_band_columns, plan_from_response_query,
+    plan_temporal_intervention, publish_simultaneous_band, temporal_block_length,
 };
 pub use temporal_sequential::{
     SequentialContrastDesign, SequentialMechanismOverlay, SequentialNodeOverlay,

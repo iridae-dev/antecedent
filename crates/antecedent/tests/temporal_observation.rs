@@ -388,9 +388,21 @@ fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands
             && diagnostic.values[1] >= 2.0
             && (diagnostic.values[3] - 12.0).abs() < f64::EPSILON
     }));
-    assert!(!response.support.warnings.iter().any(|warning| {
-        warning.code.as_ref() == "response.observation_joint_uncertainty_unavailable"
-    }));
+    let warns = |code: &str| response.support.warnings.iter().any(|w| w.code.as_ref() == code);
+    assert!(!warns("response.observation_joint_uncertainty_unavailable"));
+    // The inner fit runs without replicates; its withholding note must not survive the
+    // outer band. The band discloses the response family's block rule, and twelve
+    // replicates are flagged as too few for a stable SD.
+    assert!(!warns("estimate.temporal_response.band_withheld"));
+    assert!(warns("response.temporal.block.persistence_boundary"));
+    assert!(warns("response.temporal.pointwise_band_few_replicates"));
+    assert!(
+        response
+            .support
+            .diagnostics
+            .iter()
+            .any(|d| d.id.as_ref() == "response.temporal.block_length")
+    );
     let mut limited = ExecutionContext::for_tests(37);
     // Enough for the output alone, but not twelve retained bootstrap surfaces.
     limited.memory.hard_limit_bytes = Some((lower.len() * 40) as u64);
@@ -458,10 +470,31 @@ fn temporal_sequence_observation_outer_block_bootstrap_returns_bands() {
     for cell in 0..mean.len() {
         assert!(lower[cell] < mean[cell] && mean[cell] < upper[cell], "cell {cell}");
     }
+    assert!(
+        response
+            .support
+            .warnings
+            .iter()
+            .any(|w| w.code.as_ref() == "response.temporal.block.persistence_boundary"),
+        "the Sequence tuple band discloses the response family's block rule"
+    );
+    assert!(
+        response
+            .support
+            .diagnostics
+            .iter()
+            .any(|d| d.id.as_ref() == "response.temporal.block_length")
+    );
+    assert!(response.assumptions.entries.iter().any(|record| matches!(
+        &record.assumption,
+        antecedent_core::Assumption::ParametricRestriction(p)
+            if p.id.as_ref() == "temporal_response.block_bootstrap"
+    )));
     for code in [
         "response.observation_sequence_band_withheld",
         "response.observation_joint_uncertainty_unavailable",
         "response.simultaneous_band_withheld",
+        "response.temporal.pointwise_band_few_replicates",
     ] {
         assert!(
             !response.support.warnings.iter().any(|warning| warning.code.as_ref() == code),

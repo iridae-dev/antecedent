@@ -3,10 +3,19 @@
 
 use super::*;
 
-/// `values[replicate][target]` joint replicate surfaces (`None` where a target's
-/// refit failed), the number of attempted replicates, and each target's full-sample
-/// surface.
-pub type TupleReplicates = (Vec<Vec<Option<Vec<f64>>>>, u32, Vec<Vec<f64>>);
+/// Joint replicate surfaces of every target of one tuple-level bootstrap.
+pub struct TupleReplicates {
+    /// `values[replicate][target]` (`None` where a target's refit failed).
+    pub values: Vec<Vec<Option<Vec<f64>>>>,
+    /// Replicates attempted.
+    pub attempted: u32,
+    /// Each target's full-sample surface.
+    pub points: Vec<Vec<f64>>,
+    /// Block length of the resample and how it was chosen.
+    pub block: antecedent_estimate::ResponseBlockLength,
+    /// Fixed-b × HC1 dispersion factor applied to every replicate deviation.
+    pub inflation: f64,
+}
 
 /// What a [`TupleObservationTarget`] refits on every replicate.
 pub enum TupleSurface<'a> {
@@ -59,6 +68,17 @@ impl PreparedTupleTarget {
         }
     }
 
+    /// Estimating-equation scores of the target's full-sample level.
+    fn scores(&self) -> Vec<Vec<f64>> {
+        match self {
+            Self::Curve(surface) => surface.estimating_scores(),
+            Self::Sequence { levels, .. } => levels
+                .iter()
+                .flat_map(antecedent_estimate::PreparedSequenceLevel::estimating_scores)
+                .collect(),
+        }
+    }
+
     fn parameters(&self) -> usize {
         match self {
             Self::Curve(surface) => surface.max_parameters(),
@@ -85,9 +105,11 @@ impl PreparedTupleTarget {
 }
 
 /// Shared tuple-level outer bootstrap: every target is refit on the same resampled
-/// anchors in each replicate, so per-target draws are jointly distributed. Replicate
-/// deviations from each target's full-sample surface carry the response family's
-/// fixed-b dispersion factor ([`antecedent_estimate::block_dispersion_inflation`]).
+/// anchors in each replicate, so per-target draws are jointly distributed. Blocks follow
+/// the response family's rule ([`antecedent_estimate::ResponseBlockLength`], lengthened
+/// by every target's full-sample estimating scores), and replicate deviations from
+/// each target's full-sample surface carry its fixed-b dispersion factor
+/// ([`antecedent_estimate::block_dispersion_inflation`]).
 pub fn tuple_block_observation_replicates(
     source: &TimeSeriesData,
     targets: &[TupleObservationTarget<'_>],
@@ -177,7 +199,11 @@ pub fn tuple_block_observation_replicates(
         prepared.push(fitted);
     }
     let m = source.row_count().saturating_sub(first_anchor);
-    let block = antecedent_estimate::temporal_block_length(structural_span, m);
+    let scores: Vec<Vec<f64>> = prepared.iter().flat_map(PreparedTupleTarget::scores).collect();
+    let score_refs: Vec<&[f64]> = scores.iter().map(Vec::as_slice).collect();
+    let block_length =
+        antecedent_estimate::ResponseBlockLength::new(structural_span, m, &score_refs);
+    let block = block_length.length;
     let parameters = prepared.iter().map(PreparedTupleTarget::parameters).max().unwrap_or(0);
     let inflation = antecedent_estimate::block_dispersion_inflation(m, block, parameters);
     let points: Vec<Vec<f64>> = prepared.iter().map(PreparedTupleTarget::point).collect();
@@ -260,5 +286,5 @@ pub fn tuple_block_observation_replicates(
             .collect();
         out.push(values);
     }
-    Ok((out, attempted, points))
+    Ok(TupleReplicates { values: out, attempted, points, block: block_length, inflation })
 }
