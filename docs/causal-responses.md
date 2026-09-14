@@ -310,11 +310,11 @@ Coverage of these bands on linear-Gaussian DGPs with iid and AR(1) residuals
 is measured by `crates/antecedent/tests/v19_temporal_response_calibration.rs`
 (run via `scripts/gate_calibration.sh`, 400 replicates, `n = 160`). Gated: iid and
 AR(1) `ρ = 0.5` residuals on every Frequentist cell, and the dose curve under an
-AR(1) `φ = 0.9` treatment (0.943–0.948 pointwise, 0.930 simultaneous). Recorded,
+AR(1) `φ = 0.9` treatment (0.943–0.945 pointwise, 0.943 simultaneous). Recorded,
 not gated, and disclosed on every band as
 `response.temporal.block.persistence_boundary`: AR(1) `ρ = 0.9` residuals on the
-dose × horizon curve (0.885–0.938 pointwise, 0.910 simultaneous) and a shift
-response under the `φ = 0.9` treatment (0.907 pointwise, 0.912 simultaneous). In
+dose × horizon curve (0.883–0.943 pointwise, 0.873 simultaneous) and a shift
+response under the `φ = 0.9` treatment (0.910 pointwise, 0.912 simultaneous). In
 both, a strongly persistent component is a small share of the residual, or the
 level is essentially the sample mean of a series with about eight effective rows;
 the Politis–White reading does not see the first at `n = 160`, and in the second
@@ -327,8 +327,8 @@ Frequentist curves use the separate path described under
 [Observation is not outcome](#observation-is-not-outcome). Bayesian derivative
 responses are described under
 [Curves, derivatives, and elasticities](#curves-derivatives-and-elasticities).
-Graph-posterior response mixtures and multi-step temporal response policies
-remain refused. See the [1.3 evidence ledger](v1.3-evidence.md) and
+Graph-posterior response mixtures (licensed for static DAG atoms in the Rust
+Study API only) and multi-step temporal response policies are refused here. See the [1.3 evidence ledger](v1.3-evidence.md) and
 [1.4 evidence ledger](v1.4-evidence.md).
 
 ## Row-diagnostic export contract
