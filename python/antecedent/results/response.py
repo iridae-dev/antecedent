@@ -381,6 +381,17 @@ class CausalResponseView:
             extra = " unlicensed"
         if self.support.warnings:
             extra += f" warnings={len(self.support.warnings)}"
+        rbc = any(
+            "derivative_interval_bias_corrected" in str(warning)
+            for warning in self.support.warnings
+        )
+        if rbc and isinstance(self.estimate, (float, int)) and self.uncertainty.lower:
+            lo = self.uncertainty.lower[0][0]
+            hi = self.uncertainty.upper[0][0] if self.uncertainty.upper else float("nan")
+            extra += (
+                f" interval=[{fmt_float(lo)}, {fmt_float(hi)}] around RBC center, "
+                "not the conventional point"
+            )
         return (
             f"<CausalResponseView estimate={estimate} support={self.support.status!r} "
             f"uncertainty={self.uncertainty.kind!r}{extra}>"

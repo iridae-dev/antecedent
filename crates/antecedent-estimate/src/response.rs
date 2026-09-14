@@ -619,9 +619,7 @@ impl ContinuousResponseEstimator {
                 });
                 let point_derivative =
                     matches!(query.functional, ResponseFunctional::PointDerivative { .. });
-                if point_derivative {
-                    support.warnings.push(bias_corrected_interval_note(true));
-                }
+                let pending_bias_corrected_note = point_derivative;
                 let mut rng = ctx.rng.stream(0xADEB_0002);
                 // Every draw refits its nuisances: point draws rebuild the
                 // cross-fitted Kennedy pseudo-outcome under the draw's row weights
@@ -728,7 +726,15 @@ impl ContinuousResponseEstimator {
                     // Reported value: posterior mean of the local-quadratic estimator.
                     // Interval and SD: the bias-corrected draws on the same weights.
                     let (mean, _, _, _) = summarize_scalar_draws(&scalars, level)?;
-                    let (_, lo, hi, sd) = summarize_scalar_draws(&corrected_scalars, level)?;
+                    let (corrected_mean, lo, hi, sd) =
+                        summarize_scalar_draws(&corrected_scalars, level)?;
+                    if pending_bias_corrected_note {
+                        support.warnings.push(bias_corrected_interval_note(
+                            true,
+                            Some(mean),
+                            Some(corrected_mean),
+                        ));
+                    }
                     (ResponseValue::Scalar(mean), scalar_uncertainty(sd, level, lo, hi))
                 } else {
                     let dim = vectors.first().map_or(0, Vec::len);
@@ -1257,7 +1263,11 @@ impl ContinuousResponseEstimator {
             ));
         }
         let uncertainty = if standard_error.is_finite() {
-            support.warnings.push(bias_corrected_interval_note(false));
+            support.warnings.push(bias_corrected_interval_note(
+                false,
+                Some(estimate),
+                Some(corrected_estimate),
+            ));
             let z = normal_ppf(0.5 + self.options.confidence_level / 2.0);
             ResponseUncertainty::Scalar {
                 standard_error,
@@ -2824,17 +2834,32 @@ fn transform_derivative(
 }
 
 /// Runtime disclosure attached whenever a point-derivative interval is published.
-fn bias_corrected_interval_note(bayesian: bool) -> Diagnostic {
-    Diagnostic::new(
+fn bias_corrected_interval_note(
+    bayesian: bool,
+    conventional: Option<f64>,
+    interval_center: Option<f64>,
+) -> Diagnostic {
+    let mut note = Diagnostic::new(
         "response.derivative_interval_bias_corrected",
         DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
+        DiagnosticSeverity::Warning,
         if bayesian {
-            "the derivative credible interval is robust bias-corrected: every Dirichlet row-weight draw refits the cross-fitted outcome and Gaussian treatment nuisances, rebuilds the Kennedy pseudo-outcome, and evaluates both the local-quadratic coordinate (averaged into the reported value) and its local-cubic bias-corrected coordinate (Calonico-Cattaneo-Titiunik, pilot bandwidth equal to the caller bandwidth; its quantiles give the interval and its SD the standard_error); the interval targets the true derivative and holds only the caller-fixed bandwidth, fold assignment, spline knots, and penalty fixed"
+            "the derivative credible interval is robust bias-corrected: every Dirichlet row-weight draw refits the cross-fitted outcome and Gaussian treatment nuisances, rebuilds the Kennedy pseudo-outcome, and evaluates both the local-quadratic coordinate (averaged into the reported value) and its local-cubic bias-corrected coordinate (Calonico-Cattaneo-Titiunik, pilot bandwidth equal to the caller bandwidth; its quantiles give the interval and its SD the standard_error); [lower, upper] is not a CI for the reported conventional point; the interval targets the true derivative and holds only the caller-fixed bandwidth, fold assignment, spline knots, and penalty fixed"
         } else {
-            "the derivative interval is robust bias-corrected (Calonico-Cattaneo-Titiunik, pilot bandwidth equal to the caller bandwidth): it is centered at the local-cubic bias-corrected coordinate rather than at the reported local-quadratic point estimate, and standard_error is the bias-corrected standard error; it targets the true derivative, conditions on the caller-fixed bandwidth, and treats the cross-fitted pseudo-outcome as data"
+            "the derivative interval is robust bias-corrected (Calonico-Cattaneo-Titiunik, pilot bandwidth equal to the caller bandwidth): it is centered at the local-cubic bias-corrected coordinate rather than at the reported local-quadratic point estimate, so [lower, upper] is not a CI for the printed value; standard_error is the bias-corrected standard error; it targets the true derivative, conditions on the caller-fixed bandwidth, and treats the cross-fitted pseudo-outcome as data"
         },
-    )
+    );
+    let mut fields = Vec::new();
+    if let Some(value) = conventional {
+        fields.push((Arc::from("conventional_point"), Arc::from(value.to_string())));
+    }
+    if let Some(center) = interval_center {
+        fields.push((Arc::from("interval_center"), Arc::from(center.to_string())));
+    }
+    if !fields.is_empty() {
+        note.fields = Arc::from(fields);
+    }
+    note
 }
 
 fn transform_point_derivative(
