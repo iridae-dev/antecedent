@@ -47,6 +47,8 @@ pub struct CoverageTally {
     covered: u32,
     scored: u32,
     skipped: u32,
+    /// Scored replicates that produced a finite, ordered interval.
+    with_interval: u32,
     length_sum: f64,
 }
 
@@ -54,7 +56,15 @@ impl CoverageTally {
     /// Start a tally for `name` at nominal `level` (e.g. `0.9`).
     #[must_use]
     pub fn new(name: impl Into<String>, level: f64) -> Self {
-        Self { name: name.into(), level, covered: 0, scored: 0, skipped: 0, length_sum: 0.0 }
+        Self {
+            name: name.into(),
+            level,
+            covered: 0,
+            scored: 0,
+            skipped: 0,
+            with_interval: 0,
+            length_sum: 0.0,
+        }
     }
 
     /// Record one replicate's interval `[lo, hi]` against `truth`.
@@ -68,6 +78,7 @@ impl CoverageTally {
         else {
             return;
         };
+        self.with_interval += 1;
         self.length_sum += hi - lo;
         if truth >= lo && truth <= hi {
             self.covered += 1;
@@ -89,7 +100,11 @@ impl CoverageTally {
     /// Mean interval length over replicates that produced an interval.
     #[must_use]
     pub fn mean_length(&self) -> f64 {
-        if self.scored == 0 { f64::NAN } else { self.length_sum / f64::from(self.scored) }
+        if self.with_interval == 0 {
+            f64::NAN
+        } else {
+            self.length_sum / f64::from(self.with_interval)
+        }
     }
 
     /// Assert two-sided nominal coverage; at most 5% of replicates may be skipped.
