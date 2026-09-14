@@ -70,7 +70,6 @@ InterventionalDistribution|Dag|explicit|Bayesian|cheap
 InterventionalDistribution|Dag|explicit|Bayesian|full
 InterventionalDistribution|Dag|explicit|Frequentist|cheap
 InterventionalDistribution|Dag|explicit|Frequentist|full
-InterventionalDistribution|Dag|explicit|Frequentist|none
 MediationEffect|Dag|accepted|Bayesian|cheap
 MediationEffect|Dag|accepted|Bayesian|full
 MediationEffect|Dag|accepted|Bayesian|none
