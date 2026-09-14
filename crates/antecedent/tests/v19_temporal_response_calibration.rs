@@ -6,8 +6,8 @@
 //! the per-completion atoms of `TemporalCpdag` / `TemporalPag` identified sets. Every
 //! Frequentist band is the response family's joint circular-block bootstrap of
 //! lag-aligned tuples (block `max(span, ceil(sqrt(n)))`, lengthened to
-//! `min(ceil(b_PW·n^{1/6}), n/3)` on persistent estimating scores; fixed-b and HC1
-//! scaling); every bootstrap cell uses the same 199 replicates. Every DGP is linear-Gaussian, so the
+//! `min(ceil(b_PW·n^{1/6}), n/3)` on persistent estimating scores; fixed-b, HC1 and
+//! per-cell kernel-bias scaling); every bootstrap cell uses the same 199 replicates. Every DGP is linear-Gaussian, so the
 //! truth of the reported functional is analytic. Frequentist surfaces are calibrated
 //! against the population level `E[Y_h | do(A)]`; the Bayesian
 //! `response.temporal.bayesian` bands are declared conditional on the observed
@@ -25,10 +25,17 @@
 //! bands and of the per-horizon long-run-tempered Bayesian posterior (both asserted;
 //! the class-atom Bayesian bands are asserted on iid residuals only). Every other DGP
 //! draws the treatment iid; one cell draws it AR(1) with `phi = 0.9` (the dose curve is
-//! asserted). Boundary records, measured and printed but not gated, cover AR(1)
-//! `rho = 0.9` residuals on the dose × horizon curve and the shift response under the
-//! persistent treatment; the runtime discloses them on every band
-//! (`response.temporal.block.persistence_boundary`). With zero replicates
+//! asserted). Each cell's replicate deviations also carry the kernel-bias factor of the
+//! autoregression fitted to that cell's influence (`response.temporal.kernel_bias_factor`).
+//! The shift response under that treatment is gated at n = 160 as well (it carries the
+//! factor). Boundary records, measured and printed but not gated, cover AR(1) `rho = 0.9`
+//! residuals on the dose × horizon curve at n = 100, 160, 400 and 1000 and the shift
+//! response under the persistent treatment at n = 100, 400 and 1000; the runtime
+//! discloses the boundary on every band (`response.temporal.block.persistence_boundary`)
+//! and warns `response.temporal.block.short_series` when a cell's influence reads fewer
+//! than 15 effective rows (the n = 100 shift response, asserted to warn on at least 90%
+//! of replicates; the gated iid / AR(1) designs are asserted to warn on at most 5%).
+//! With zero replicates
 //! the Frequentist surface publishes no band (the analytic band would assume
 //! independent lag-aligned rows, which no DGP here satisfies); the tests assert that.
 //!
@@ -250,7 +257,12 @@ fn simultaneous_slack(
 /// Dose × horizon DGP: `T_s ~ N(0, 0.8²)` iid, `Y_s = 1 + 2 T_{s-1} + 1.5 T_{s-2} + e_s`,
 /// `e` AR(1) with marginal SD 0.5. Truth: `E[Y_h | do(T_{-1} = a)] = 1 + BETA[h-1]·a`.
 fn dose_horizon_series(rho: f64, seed: u64) -> TimeSeriesData {
-    let n = N + BURN;
+    dose_horizon_series_n(N, rho, seed)
+}
+
+/// [`dose_horizon_series`] with `rows` retained rows.
+fn dose_horizon_series_n(rows: usize, rho: f64, seed: u64) -> TimeSeriesData {
+    let n = rows + BURN;
     let t = gaussian_vec(n, 0.8, seed);
     let e = ar1_noise(n, rho, 0.5, splitmix(stream_seed(seed, 0xE)));
     let y: Vec<f64> = (0..n)
@@ -369,43 +381,109 @@ fn curve_truth() -> Vec<f64> {
 }
 
 const PERSISTENCE_BOUNDARY: &str = "response.temporal.block.persistence_boundary";
+const SHORT_SERIES: &str = "response.temporal.block.short_series";
 
 /// Whether a response carries the runtime's persistence-boundary disclosure.
 fn discloses_persistence_boundary(response: &antecedent_core::CausalResponse) -> bool {
     response.support.warnings.iter().any(|w| w.code.as_ref() == PERSISTENCE_BOUNDARY)
 }
 
+/// Whether a response carries the response family's short-series warning.
+fn warns_short_series(response: &antecedent_core::CausalResponse) -> bool {
+    response.support.warnings.iter().any(|w| w.code.as_ref() == SHORT_SERIES)
+}
+
+/// How many replicates carried the persistence-boundary disclosure and the
+/// short-series warning.
+#[derive(Clone, Debug, Default)]
+struct Disclosures {
+    boundary: u32,
+    short_series: u32,
+    /// Smallest per-cell effective-rows reading of each replicate's band.
+    min_rows: Vec<f64>,
+}
+
+impl Disclosures {
+    fn record(&mut self, response: &antecedent_core::CausalResponse) {
+        self.boundary += u32::from(discloses_persistence_boundary(response));
+        self.short_series += u32::from(warns_short_series(response));
+        if let Some(rows) = diagnostic(response, "response.temporal.effective_rows") {
+            self.min_rows.push(rows.iter().copied().fold(f64::INFINITY, f64::min));
+        }
+    }
+
+    /// `[10%, 50%, 90%]` quantiles of the smallest effective-rows reading.
+    fn rows_quantiles(&self) -> [f64; 3] {
+        let mut sorted = self.min_rows.clone();
+        sorted.sort_by(f64::total_cmp);
+        let at = |q: f64| {
+            let index = ((sorted.len() as f64 * q) as usize).min(sorted.len().saturating_sub(1));
+            sorted.get(index).copied().unwrap_or(f64::NAN)
+        };
+        [at(0.1), at(0.5), at(0.9)]
+    }
+}
+
 /// Boundary record: a design outside the gated dependence scope. Coverage is measured
 /// and printed, not gated; the runtime must carry the persistence-boundary disclosure on
 /// every replicate's band.
-fn boundary(tallies: &[CoverageTally], disclosed: u32) {
+fn boundary(tallies: &[CoverageTally], disclosed: &Disclosures) {
     for tally in tallies {
         let (lo, hi) = common::calibration::coverage_band(n_sim(), LEVEL);
         eprintln!(
             "calibration-boundary {tally:?}: coverage={:.3} band=[{lo:.3}, {hi:.3}] \
-             mean_length={:.4} (not gated; disclosed on {disclosed}/{})",
+             mean_length={:.4} (not gated; disclosed on {}/{}; short-series warned on {}/{}; \
+             min effective rows q10/q50/q90 {:?})",
             tally.rate(),
             tally.mean_length(),
-            n_sim()
+            disclosed.boundary,
+            n_sim(),
+            disclosed.short_series,
+            n_sim(),
+            disclosed.rows_quantiles()
         );
     }
-    assert_eq!(disclosed, n_sim(), "every boundary band must carry the disclosure");
+    assert_eq!(disclosed.boundary, n_sim(), "every boundary band must carry the disclosure");
 }
 
-/// Pointwise and simultaneous tallies of the dose × horizon curve, plus how many
-/// replicates carried the persistence-boundary disclosure.
-fn frequentist_curve_tallies(rho: f64, seed_base: u64) -> (Vec<CoverageTally>, u32) {
+/// Gated design whose short-series warning must stay quiet: at most `quiet_frac` of the
+/// replicates may warn (the warning is the family's short-series boundary, not a
+/// property of a nominally covering cell).
+fn assert_quiet(disclosed: &Disclosures, quiet_frac: f64) {
+    eprintln!(
+        "calibration short-series warnings {}/{} (cap {quiet_frac}; min effective rows \
+         q10/q50/q90 {:?})",
+        disclosed.short_series,
+        n_sim(),
+        disclosed.rows_quantiles()
+    );
+    assert!(
+        f64::from(disclosed.short_series) <= quiet_frac * f64::from(n_sim()),
+        "a gated design warned short-series on {}/{} replicates",
+        disclosed.short_series,
+        n_sim()
+    );
+}
+
+/// Pointwise and simultaneous tallies of the dose × horizon curve on `rows` rows, plus
+/// how many replicates carried each disclosure.
+fn frequentist_curve_tallies(
+    rows: usize,
+    rho: f64,
+    seed_base: u64,
+) -> (Vec<CoverageTally>, Disclosures) {
     let label = noise_label(rho);
     let labels = cell_labels(&DOSES, &HORIZONS);
+    let size = if rows == N { String::new() } else { format!(" n={rows}") };
     let mut boot = SurfaceTallies::new(
-        &format!("freq TemporalDag ResponseCurve block-bootstrap {label}"),
+        &format!("freq TemporalDag ResponseCurve block-bootstrap {label}{size}"),
         &labels,
     );
     let truth = curve_truth();
-    let mut disclosed = 0;
+    let mut disclosed = Disclosures::default();
     for s in 0..n_sim() {
         let seed = seed_base + u64::from(s);
-        let data = dose_horizon_series(rho, seed);
+        let data = dose_horizon_series_n(rows, rho, seed);
         let result = run(
             data.clone(),
             dose_horizon_dag(),
@@ -415,7 +493,7 @@ fn frequentist_curve_tallies(rho: f64, seed_base: u64) -> (Vec<CoverageTally>, u
             seed,
         );
         let response = result.response.as_ref().expect("surface");
-        disclosed += u32::from(discloses_persistence_boundary(response));
+        disclosed.record(response);
         boot.record(response, &truth);
         let analytic_result = run(
             data,
@@ -438,26 +516,59 @@ fn frequentist_curve_tallies(rho: f64, seed_base: u64) -> (Vec<CoverageTally>, u
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_dag_response_curve_iid_nominal_95_coverage() {
-    assert_all(&frequentist_curve_tallies(0.0, 190_000).0);
+    let (tallies, disclosed) = frequentist_curve_tallies(N, 0.0, 190_000);
+    assert_quiet(&disclosed, 0.05);
+    assert_all(&tallies);
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage() {
-    assert_all(&frequentist_curve_tallies(RHO_AR1, 191_000).0);
+    let (tallies, disclosed) = frequentist_curve_tallies(N, RHO_AR1, 191_000);
+    assert_quiet(&disclosed, 0.05);
+    assert_all(&tallies);
 }
 
 /// Boundary record: AR(1) ρ = 0.9 residuals at n = 160. The residual's persistent part is
-/// a small share of its variance (the omitted-lag treatment terms dominate), so its
-/// lag-by-lag autocorrelations stay under the Politis–White significance threshold and
-/// the blocks are rarely lengthened, while that part dominates the long-run variance of
-/// the level. The runtime discloses the measured coverage
-/// (`response.temporal.block.persistence_boundary`).
+/// 15% of its variance (the omitted-lag treatment terms dominate), so its lag-by-lag
+/// autocorrelations stay under the Politis–White significance threshold, the blocks are
+/// rarely lengthened, and the autoregression fitted to each cell's influence reads a
+/// lag-1 coefficient near 0.14 (kernel-bias factor within 2% of 1), while that part
+/// carries most of the long-run variance of the level (ratio 3.7 to the variance; an
+/// AR(1)-plus-noise fit of the influence spans 1.2–5.9 at this n). The runtime discloses
+/// the boundary (`response.temporal.block.persistence_boundary`); the short-series
+/// warning does not fire, because the influence does not read short.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_dag_response_curve_ar1_rho09_boundary() {
-    let (tallies, disclosed) = frequentist_curve_tallies(0.9, 191_900);
-    boundary(&tallies, disclosed);
+    let (tallies, disclosed) = frequentist_curve_tallies(N, 0.9, 191_900);
+    boundary(&tallies, &disclosed);
+}
+
+/// The same design on 400 rows: the `ceil(sqrt(n))` block keeps 68% of the level's
+/// long-run variance, and the Politis–White threshold `2·sqrt(log10(n)/n)` still sits
+/// above the residual's lag-1 autocorrelation of 0.13. Recorded, not gated.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary() {
+    let (tallies, disclosed) = frequentist_curve_tallies(400, 0.9, 191_400);
+    boundary(&tallies, &disclosed);
+}
+
+/// The same design on 1000 rows. Recorded, not gated.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary() {
+    let (tallies, disclosed) = frequentist_curve_tallies(1000, 0.9, 191_100);
+    boundary(&tallies, &disclosed);
+}
+
+/// The same design on 100 rows. Recorded, not gated.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary() {
+    let (tallies, disclosed) = frequentist_curve_tallies(100, 0.9, 191_010);
+    boundary(&tallies, &disclosed);
 }
 
 /// `[block length, rule, uncapped testing length, rows, factor]` of a Frequentist band.
@@ -493,11 +604,65 @@ fn frequentist_temporal_response_lengthens_blocks_under_persistence() {
     assert!(long[0] <= (long[3] / 3.0).floor(), "capped at n/3: {long:?}");
     assert!(long[4] > short[4], "longer blocks carry a larger fixed-b factor");
     assert!(discloses_persistence_boundary(iid) && discloses_persistence_boundary(persistent));
+    // Every published band carries each cell's kernel-bias factor and effective rows in
+    // the mean layout; the dose cells of a persistent treatment read the slope's
+    // influence (short memory), so they neither inflate much nor warn short-series.
+    for response in [iid, persistent] {
+        let factors =
+            diagnostic(response, "response.temporal.kernel_bias_factor").expect("factors");
+        let rows = diagnostic(response, "response.temporal.effective_rows").expect("rows");
+        assert_eq!(factors.len(), DOSES.len());
+        assert_eq!(rows.len(), DOSES.len());
+        assert!(factors.iter().all(|f| (1.0..1.2).contains(f)), "{factors:?}");
+        assert!(rows.iter().all(|r| *r > 30.0), "{rows:?}");
+        assert!(!warns_short_series(response));
+    }
     let withheld = fit(0.9, 0);
     let withheld = withheld.response.as_ref().expect("surface");
     assert!(pointwise(withheld).is_none());
     assert!(!discloses_persistence_boundary(withheld), "no band, no band disclosure");
     assert!(diagnostic(withheld, "response.temporal.block_length").is_none());
+    assert!(diagnostic(withheld, "response.temporal.kernel_bias_factor").is_none());
+}
+
+/// A shift response reads the treatment mean, whose influence under an AR(1) φ = 0.9
+/// treatment has about ten effective rows at n = 160: its cell carries a kernel-bias
+/// factor well above 1 and the short-series warning, while the same data's iid-treatment
+/// twin stays quiet with a factor near 1.
+#[test]
+fn frequentist_temporal_shift_response_reads_short_under_a_persistent_treatment() {
+    let fit = |phi: f64| {
+        run(
+            persistent_treatment_series(phi, 0.0, 42),
+            dag(&[(0, 1, 1, 0)]),
+            intervention_query(
+                Intervention::soft(VariableId::from_raw(0), MechanismOverride::additive_shift(0.5)),
+                &[1],
+            ),
+            InferenceMode::Frequentist,
+            BOOT,
+            42,
+        )
+    };
+    let (iid, persistent) = (fit(0.0), fit(0.9));
+    let iid = iid.response.as_ref().expect("shift response");
+    let persistent = persistent.response.as_ref().expect("shift response");
+    let factor = |r: &antecedent_core::CausalResponse| {
+        diagnostic(r, "response.temporal.kernel_bias_factor").expect("factor")[0]
+    };
+    let rows = |r: &antecedent_core::CausalResponse| {
+        diagnostic(r, "response.temporal.effective_rows").expect("rows")[0]
+    };
+    assert!((1.0..1.05).contains(&factor(iid)), "iid factor {}", factor(iid));
+    assert!(rows(iid) > 100.0, "iid rows {}", rows(iid));
+    assert!(!warns_short_series(iid));
+    assert!(factor(persistent) > 1.05, "persistent factor {}", factor(persistent));
+    assert!(rows(persistent) < 30.0, "persistent rows {}", rows(persistent));
+    assert!(warns_short_series(persistent));
+    // The factor widens the published band beyond the fixed-b block band alone.
+    let (lo, hi) = pointwise(persistent).expect("band");
+    let block = block_length_record(persistent);
+    assert!(hi[0] - lo[0] > 0.0 && block[4] > 1.0);
 }
 
 /// Persistent treatment: `T` stationary AR(1) with coefficient `phi` (marginal SD 0.8, the
@@ -506,26 +671,33 @@ fn frequentist_temporal_response_lengthens_blocks_under_persistence() {
 /// `Y`, so the declared `T@-1 -> Y` graph identifies horizon 1 without adjustment.
 /// Truth: `E[Y_1 | do(T_{-1} = a)] = 1 + 2a` and `E[Y_1 | do(T := T + δ)] = 1 + 2δ`.
 fn persistent_treatment_series(phi: f64, rho: f64, seed: u64) -> TimeSeriesData {
-    let n = N + BURN;
+    persistent_treatment_series_n(N, phi, rho, seed)
+}
+
+/// [`persistent_treatment_series`] with `rows` retained rows.
+fn persistent_treatment_series_n(rows: usize, phi: f64, rho: f64, seed: u64) -> TimeSeriesData {
+    let n = rows + BURN;
     let t = ar1_noise(n, phi, 0.8, seed);
     let e = ar1_noise(n, rho, 0.5, splitmix(stream_seed(seed, 0xE)));
     let y: Vec<f64> = (0..n).map(|s| 1.0 + BETA[0] * lagged(&t, s, 1) + e[s]).collect();
     series(&[("t", &t), ("y", &y)])
 }
 
-/// Dose curve and additive-shift response at horizon 1 under a persistent treatment:
-/// `(curve tallies, shift tallies, shift replicates carrying the disclosure)`.
+/// Dose curve and additive-shift response at horizon 1 under a persistent treatment on
+/// `rows` rows: `(curve tallies, shift tallies, curve disclosures, shift disclosures)`.
 ///
 /// The slope's score `T_{s-1}·e_s` is AR(1)(`phi·rho`), and the shift level reads the
 /// sample mean of `Y` (`β̂₀ + β̂₁·T̄ = Ȳ`), whose long-run variance is dominated by the
 /// treatment term's `(1 + phi)/(1 − phi)` inflation: about 8 effective rows at
 /// `phi = 0.9`, `n = 160`.
 fn persistent_treatment_tallies(
+    rows: usize,
     phi: f64,
     rho: f64,
     seed_base: u64,
-) -> (Vec<CoverageTally>, Vec<CoverageTally>, u32) {
-    let label = format!("AR(1) treatment phi={phi}, {} residual", noise_label(rho));
+) -> (Vec<CoverageTally>, Vec<CoverageTally>, Disclosures, Disclosures) {
+    let size = if rows == N { String::new() } else { format!(" n={rows}") };
+    let label = format!("AR(1) treatment phi={phi}, {} residual{size}", noise_label(rho));
     let horizons = [1u32];
     let shift = 0.5;
     let mut curve = SurfaceTallies::new(
@@ -538,10 +710,11 @@ fn persistent_treatment_tallies(
     );
     let curve_truth: Vec<f64> = DOSES.iter().map(|a| 1.0 + BETA[0] * a).collect();
     let shift_truth = [1.0 + BETA[0] * shift];
-    let mut disclosed = 0;
+    let mut curve_disclosed = Disclosures::default();
+    let mut shift_disclosed = Disclosures::default();
     for s in 0..n_sim() {
         let seed = seed_base + u64::from(s);
-        let data = persistent_treatment_series(phi, rho, seed);
+        let data = persistent_treatment_series_n(rows, phi, rho, seed);
         let result = run(
             data.clone(),
             dag(&[(0, 1, 1, 0)]),
@@ -550,7 +723,9 @@ fn persistent_treatment_tallies(
             BOOT,
             seed,
         );
-        curve.record(result.response.as_ref().expect("surface"), &curve_truth);
+        let response = result.response.as_ref().expect("surface");
+        curve_disclosed.record(response);
+        curve.record(response, &curve_truth);
         let result = run(
             data,
             dag(&[(0, 1, 1, 0)]),
@@ -566,21 +741,74 @@ fn persistent_treatment_tallies(
             seed,
         );
         let response = result.response.as_ref().expect("intervention path");
-        disclosed += u32::from(discloses_persistence_boundary(response));
+        shift_disclosed.record(response);
         intervention.record(response, &shift_truth);
     }
-    (curve.all(), intervention.all(), disclosed)
+    (curve.all(), intervention.all(), curve_disclosed, shift_disclosed)
 }
 
-/// AR(1) φ = 0.9 treatment, AR(1) ρ = 0.5 residual: the dose curve is gated; the shift
-/// response, whose level is essentially the sample mean of a series with about eight
-/// effective rows, is a boundary record.
+/// AR(1) φ = 0.9 treatment, AR(1) ρ = 0.5 residual at n = 160: the dose curve is gated
+/// and quiet; the shift response, whose level is essentially the sample mean of a series
+/// with about ten effective rows, is gated too since its cell carries the kernel-bias
+/// factor (0.910 / 0.912 before it, 0.943 / 0.948 with it). Its influence reads near
+/// the short-series threshold (6.4 / 10.4 / 15.7 effective rows at the 10th / 50th /
+/// 90th percentile against 15), so the warning fires on most replicates: a covering
+/// band that reads short is warned, not silenced.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage() {
-    let (curve, shift, disclosed) = persistent_treatment_tallies(0.9, RHO_AR1, 192_500);
-    boundary(&shift, disclosed);
+    let (curve, shift, curve_disclosed, shift_disclosed) =
+        persistent_treatment_tallies(N, 0.9, RHO_AR1, 192_500);
+    eprintln!(
+        "calibration shift short-series warnings {}/{} (min effective rows q10/q50/q90 {:?})",
+        shift_disclosed.short_series,
+        n_sim(),
+        shift_disclosed.rows_quantiles()
+    );
+    assert_quiet(&curve_disclosed, 0.05);
     assert_all(&curve);
+    assert_all(&shift);
+}
+
+/// The same design on 400 rows (about 21 effective rows for the shift level). Recorded,
+/// not gated.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_dag_response_ar1_treatment_n400_boundary() {
+    let (curve, shift, curve_disclosed, shift_disclosed) =
+        persistent_treatment_tallies(400, 0.9, RHO_AR1, 192_400);
+    boundary(&shift, &shift_disclosed);
+    boundary(&curve, &curve_disclosed);
+}
+
+/// The same design on 1000 rows (about 53 effective rows for the shift level).
+/// Recorded, not gated.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_dag_response_ar1_treatment_n1000_boundary() {
+    let (curve, shift, curve_disclosed, shift_disclosed) =
+        persistent_treatment_tallies(1000, 0.9, RHO_AR1, 192_100);
+    boundary(&shift, &shift_disclosed);
+    boundary(&curve, &curve_disclosed);
+}
+
+/// The same design on 100 rows: the shift level reads about 7 effective rows (4.5 /
+/// 7.3 / 11.9 at the 10th / 50th / 90th percentile), covers 0.885 / 0.890, and must
+/// carry the short-series warning on at least 90% of its replicates; the threshold
+/// (15) is the smallest multiple of 5 that achieves this. The dose curve is recorded.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_dag_response_ar1_treatment_n100_boundary() {
+    let (curve, shift, curve_disclosed, shift_disclosed) =
+        persistent_treatment_tallies(100, 0.9, RHO_AR1, 192_010);
+    boundary(&shift, &shift_disclosed);
+    boundary(&curve, &curve_disclosed);
+    assert!(
+        f64::from(shift_disclosed.short_series) >= 0.9 * f64::from(n_sim()),
+        "the n=100 shift response must warn short-series on at least 90% of replicates: {}/{}",
+        shift_disclosed.short_series,
+        n_sim()
+    );
 }
 
 fn frequentist_intervention_coverage(rho: f64, seed_base: u64) {
