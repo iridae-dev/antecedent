@@ -12,7 +12,7 @@ use super::{
 };
 use crate::temporal_block::{
     AlignedRows, aligned_block_bootstrap, common_time_window, dependence_block_length,
-    normal_equation_scores, score_effective_rows,
+    kernel_bias_scale, normal_equation_scores, score_effective_rows,
 };
 
 /// One temporal mediation atom prepared once on the original series, so a
@@ -144,7 +144,8 @@ pub struct SharedMediationBlockSe {
 /// A replicate that cannot fit every atom is dropped for every contrast. The
 /// block length is [`dependence_block_length`] over every atom's contrast and
 /// normal-equation scores and the weighted mixture scores on the shared times;
-/// SEs carry the fixed-b factor of that length. With one atom this is the same
+/// SEs carry the fixed-b factor of that length and the kernel-bias factor of
+/// the contrast and mixture scores. With one atom this is the same
 /// replicate law as [`TemporalMediationEstimator::estimate_with_block_bootstrap`].
 ///
 /// Returns `None` when the atoms share no series time or `weights` do not align.
@@ -190,13 +191,15 @@ pub fn shared_mediation_block_bootstrap(
         }
         other_windows.extend(atom.normal_scores.iter().filter_map(|s| window(s, atom.aligned)));
     }
-    let mut block_scores: Vec<&[f64]> = contrast_windows.iter().map(Vec::as_slice).collect();
+    let mut target_scores: Vec<&[f64]> = contrast_windows.iter().map(Vec::as_slice).collect();
     if let Some(mix) = mixture.as_ref() {
-        block_scores.extend(mix.iter().map(Vec::as_slice));
+        target_scores.extend(mix.iter().map(Vec::as_slice));
     }
+    let mut block_scores = target_scores.clone();
     block_scores.extend(other_windows.iter().map(Vec::as_slice));
     let structural_span = atoms.iter().map(|atom| atom.structural_span).max().unwrap_or(1);
     let block_length = dependence_block_length(structural_span, len, &block_scores);
+    let kernel_bias = kernel_bias_scale(&target_scores, block_length);
     // The short-series statistic reads every atom's persistence probes and
     // their weighted mixture, as the single-atom estimator does.
     let mut probe_windows: Vec<Vec<f64>> = Vec::new();
@@ -239,6 +242,7 @@ pub fn shared_mediation_block_bootstrap(
         block_length: block_length.clamp(1, len),
         rows: len,
         effective_rows,
+        kernel_bias,
     };
     if replicates == 0 {
         return Some(SharedMediationBlockSe { block, requested: None, structural_span });
@@ -254,6 +258,7 @@ pub fn shared_mediation_block_bootstrap(
             }
             Some(mixed.to_vec())
         })?;
+    let draws = draws.with_kernel_bias(&target_scores);
     let [total_se, direct_se, mediated_se] = [0, 1, 2].map(|c| draws.se_result(c));
     block.total = total_se.se;
     block.direct = direct_se.se;

@@ -49,6 +49,10 @@ pub struct TemporalDependenceSe {
     pub effective_rows: f64,
     /// Bootstrap replicates evaluated (0 when none were requested).
     pub replicates_attempted: u32,
+    /// Bartlett kernel-bias factor of the treatment-coefficient score at
+    /// [`Self::block_length`] ([`crate::temporal_block::kernel_bias_scale`]),
+    /// applied to `se_bootstrap` together with the fixed-b factor.
+    pub kernel_bias: f64,
 }
 
 /// [`crate::temporal_block::dependence_block_length`] of one series' prepared
@@ -401,6 +405,9 @@ impl TemporalLinearAdjustment {
     ///   (`history + horizon` slices) and the row count, lengthened when the
     ///   treatment influence or any normal-equation score of the regression
     ///   (the residual included) is persistently dependent.
+    ///   The replicate SD carries the circular fixed-b factor of that length and
+    ///   the Bartlett kernel-bias factor of the treatment influence
+    ///   ([`crate::temporal_block::kernel_bias_scale`]).
     /// - `se_analytic` is NaN. No analytic SE is calibrated here: the iid OLS SE
     ///   ignores the dependence, and a Newey–West HAC SE at the same bandwidth
     ///   under-covered in the 1.9 calibration (0.82–0.88 at nominal 0.90).
@@ -429,6 +436,8 @@ impl TemporalLinearAdjustment {
 
         let replicates = self.inner.bootstrap_replicates;
         let block_length = single_window_block_length(prep, indexer, point.influence.as_deref());
+        let target: Vec<&[f64]> = point.influence.as_deref().into_iter().collect();
+        let kernel_bias = crate::temporal_block::kernel_bias_scale(&target, block_length);
         let boot = (replicates > 0).then(|| {
             let mut x_boot = vec![0.0; rows * prep.design.ncols];
             let mut y_boot = vec![0.0; rows];
@@ -460,8 +469,13 @@ impl TemporalLinearAdjustment {
                 block_length,
             ),
             replicates_attempted: boot.as_ref().map_or(0, |b| b.attempted),
+            kernel_bias,
         };
-        Ok((point.with_bootstrap(boot.map(|b| b.se_result(0))), info))
+        let boot = boot.map(|mut b| {
+            b.kernel_bias = kernel_bias;
+            b.se_result(0)
+        });
+        Ok((point.with_bootstrap(boot), info))
     }
 
     /// Circular-block length [`Self::fit_dependence_honest`] resamples `prep` with,

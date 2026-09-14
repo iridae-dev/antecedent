@@ -142,12 +142,16 @@ pub struct EffectEstimate {
 }
 
 /// Circular-block geometry an estimator used for its one-series bootstrap SE.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BlockResampling {
     /// Circular-block length in lag-aligned rows.
     pub block_length: usize,
     /// Lag-aligned rows resampled.
     pub rows: usize,
+    /// Bartlett kernel-bias factor of the target influence at `block_length`
+    /// (`antecedent_estimate::kernel_bias_scale`), applied to the SE together
+    /// with the fixed-b factor.
+    pub kernel_bias: f64,
 }
 
 /// Screen / estimate split recorded on a batch result artifact.

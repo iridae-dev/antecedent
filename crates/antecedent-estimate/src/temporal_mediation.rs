@@ -313,7 +313,8 @@ impl TemporalMediationEstimator {
     /// and Mediated influence scores and every mechanism's normal-equation scores
     /// (structural span = deepest design lag + 1), the rule the single-window
     /// Pulse / Sustained and class-envelope paths use, and every SE carries the
-    /// [`crate::temporal_block::circular_fixed_b_scale`] of that length. The
+    /// [`crate::temporal_block::circular_fixed_b_scale`] of that length and the
+    /// [`crate::temporal_block::kernel_bias_scale`] of the contrast influences. The
     /// short-series effective-row count reads the persistence probes instead
     /// (see `MediationDesign::persistence_probes`).
     /// `effect.se_bootstrap` is the requested contrast's SE; iid analytic SEs keep
@@ -356,6 +357,8 @@ impl TemporalMediationEstimator {
             })
             .flatten()
             .collect();
+        let influence_refs: Vec<&[f64]> =
+            scores.iter().flat_map(|s| s.iter().map(Vec::as_slice)).collect();
         let score_refs: Vec<&[f64]> = scores
             .iter()
             .flat_map(|s| s.iter().map(Vec::as_slice))
@@ -383,6 +386,7 @@ impl TemporalMediationEstimator {
                 &contrast_scores,
                 block_length,
             ),
+            kernel_bias: crate::temporal_block::kernel_bias_scale(&influence_refs, block_length),
         };
         if replicates > 0 {
             let boot = crate::temporal_block::row_block_bootstrap_vec(
@@ -396,7 +400,8 @@ impl TemporalMediationEstimator {
                         .ok()
                         .map(|fit| vec![fit.total, fit.direct, fit.mediated])
                 },
-            );
+            )
+            .with_kernel_bias(&influence_refs);
             let [total, direct, mediated] = [0, 1, 2].map(|k| boot.se_result(k));
             block.total = total.se;
             block.direct = direct.se;
@@ -658,6 +663,11 @@ pub struct TemporalMediationBlockSe {
     /// [`Self::block_length`] (the smallest,
     /// [`crate::temporal_block::score_effective_rows`]; `NaN` without scores).
     pub effective_rows: f64,
+    /// Bartlett kernel-bias factor of the three contrast influences (and, for
+    /// a mixture, their weighted mixtures) at [`Self::block_length`]
+    /// ([`crate::temporal_block::kernel_bias_scale`]), applied to every SE
+    /// together with the fixed-b factor.
+    pub kernel_bias: f64,
 }
 
 fn treatment_lag(query: &MediationQuery) -> u32 {

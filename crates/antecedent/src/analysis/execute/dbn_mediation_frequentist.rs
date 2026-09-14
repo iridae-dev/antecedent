@@ -244,7 +244,8 @@ impl super::Study {
                          windows and every atom's three mechanism regressions are refit on the \
                          same resampled times, then mixed with the frozen weights inside the \
                          replicate; replicate SD scaled by the circular-Bartlett fixed-b factor \
-                         {:.4}; score effective rows {:.1}; between-atom sampling covariance \
+                         {:.4} and the Bartlett kernel-bias factor {:.4} of the contrast and \
+                         mixture scores; score effective rows {:.1}; between-atom sampling covariance \
                          included; unidentified and unevaluable mass is not mixed into the SE; \
                          the interval is for the reported aggregate, not a distribution over \
                          graph-specific effects",
@@ -256,6 +257,7 @@ impl super::Study {
                             s.block.block_length,
                             s.block.rows
                         ),
+                        s.block.kernel_bias,
                         s.block.effective_rows,
                     ),
                 ));
