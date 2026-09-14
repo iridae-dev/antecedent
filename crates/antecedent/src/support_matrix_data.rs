@@ -328,10 +328,10 @@ pub static CLOSED_RULES: &[NaRule] = &[
     NaRule {
         queries: Some(&["Counterfactual"]),
         graph_classes: Some(&["Dag"]),
-        structures: Some(&["accepted", "graph_posterior"]),
+        structures: Some(&["graph_posterior"]),
         inferences: None,
         validations: None,
-        reason: "Staged counterfactuals require an explicit Dag; accepted and graph-posterior structures are refused.",
+        reason: "Staged counterfactuals require a supplied Dag; graph-posterior structures are refused.",
     },
     NaRule {
         queries: Some(&["Counterfactual"]),
@@ -2071,6 +2071,13 @@ pub static LICENSED: &[LicensedCell] = &[
         validation: "none",
     },
     LicensedCell {
+        query: "Counterfactual",
+        graph_class: "Dag",
+        structure: "accepted",
+        inference: "Frequentist",
+        validation: "none",
+    },
+    LicensedCell {
         query: "InterventionResponse",
         graph_class: "CoDetermined",
         structure: "explicit",
@@ -2529,6 +2536,13 @@ pub static LICENSED: &[LicensedCell] = &[
         query: "Counterfactual",
         graph_class: "Dag",
         structure: "explicit",
+        inference: "Bayesian",
+        validation: "none",
+    },
+    LicensedCell {
+        query: "Counterfactual",
+        graph_class: "Dag",
+        structure: "accepted",
         inference: "Bayesian",
         validation: "none",
     },

@@ -192,8 +192,8 @@ reason = "Graph-posterior derivative mixtures are not staged; the licensed deriv
 [[closed]]
 queries = ["Counterfactual"]
 graph_classes = ["Dag"]
-structures = ["accepted", "graph_posterior"]
-reason = "Staged counterfactuals require an explicit Dag; accepted and graph-posterior structures are refused."
+structures = ["graph_posterior"]
+reason = "Staged counterfactuals require a supplied Dag; graph-posterior structures are refused."
 
 [[closed]]
 queries = ["Counterfactual"]

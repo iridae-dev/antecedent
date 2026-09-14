@@ -1034,8 +1034,8 @@ def handle_counterfactual(
     del data, query, graph, seed, threads
     if discovery is not None:
         raise CausalUnsupportedError(
-            "refused: Staged counterfactuals require an explicit Dag; accepted and "
-            "graph-posterior structures are refused."
+            "refused: Staged counterfactuals require a supplied Dag; graph-posterior "
+            "structures are refused."
         )
     raise CausalUnsupportedError("refused: Counterfactual requires a supplied static Dag.")
 
