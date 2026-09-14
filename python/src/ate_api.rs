@@ -47,6 +47,21 @@ where
     Ok(Some((resolve_var(rv)?, cut, bw)))
 }
 
+/// `rd.sharp` design from the resolved triple plus the optional configured SE kind
+/// (`None` keeps [`antecedent::RdConfig`]'s HC1 default).
+fn rd_design(
+    running_variable: VariableId,
+    cutoff: f64,
+    bandwidth: f64,
+    se_kind: Option<antecedent_estimate::AnalyticSeKind>,
+) -> antecedent::RdConfig {
+    let config = antecedent::RdConfig::new(running_variable, cutoff, bandwidth);
+    match se_kind {
+        Some(kind) => config.with_se_kind(kind),
+        None => config,
+    }
+}
+
 fn parse_prior_mapping(
     prior_mapping: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<Option<antecedent_io::PriorMapping>> {
@@ -154,6 +169,7 @@ fn finish_static_ate(
         rd_running_variable: configured_rv,
         rd_cutoff: configured_cutoff,
         rd_bandwidth: configured_bandwidth,
+        rd_se_kind: configured_rd_se_kind,
     } = gil.parsed_estimator_config;
     let (merged_rv, merged_cutoff, merged_bandwidth) = crate::estimator_config::merge_rd_triple(
         running_variable,
@@ -201,7 +217,7 @@ fn finish_static_ate(
         );
     }
     if let Some((rv_id, cut, bw)) = rd_ids {
-        builder = builder.rd_config(rv_id, cut, bw);
+        builder = builder.rd_design(rd_design(rv_id, cut, bw, configured_rd_se_kind));
     }
     run_static_ate_from_builder(
         names,
@@ -1292,6 +1308,7 @@ fn run_ate_with_graph_input(
         rd_running_variable: configured_rv,
         rd_cutoff: configured_cutoff,
         rd_bandwidth: configured_bandwidth,
+        rd_se_kind: configured_rd_se_kind,
     } = parsed_estimator_config;
     let (merged_rv, merged_cutoff, merged_bandwidth) = crate::estimator_config::merge_rd_triple(
         running_variable,
@@ -1337,7 +1354,7 @@ fn run_ate_with_graph_input(
         );
     }
     if let Some((rv_id, cut, bw)) = rd_ids {
-        builder = builder.rd_config(rv_id, cut, bw);
+        builder = builder.rd_design(rd_design(rv_id, cut, bw, configured_rd_se_kind));
     }
     if let Some(mode) = latency_mode {
         builder = builder.latency_mode(mode);
@@ -1766,6 +1783,7 @@ fn analyze_ate_discover(
             rd_running_variable: configured_rv,
             rd_cutoff: configured_cutoff,
             rd_bandwidth: configured_bandwidth,
+            rd_se_kind: configured_rd_se_kind,
         } = parsed_estimator_config;
         let (merged_rv, merged_cutoff, merged_bandwidth) =
             crate::estimator_config::merge_rd_triple(
@@ -1995,7 +2013,7 @@ fn analyze_ate_discover(
             );
         }
         if let Some((rv_id, cut, bw)) = rd_ids {
-            builder = builder.rd_config(rv_id, cut, bw);
+            builder = builder.rd_design(rd_design(rv_id, cut, bw, configured_rd_se_kind));
         }
 
         run_static_ate_from_builder(
