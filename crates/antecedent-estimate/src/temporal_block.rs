@@ -348,43 +348,6 @@ pub fn normal_equation_scores(
     )
 }
 
-/// Outcome of a shared circular-block bootstrap of `K` scalar targets.
-#[derive(Clone, Debug)]
-pub struct RowBlockBootstrap<const K: usize> {
-    /// Replicates where every target was finite, in replicate order.
-    pub draws: Vec<[f64; K]>,
-    /// Replicates evaluated (cancellation stops early).
-    pub attempted: u32,
-    /// Cooperative cancellation stopped the loop.
-    pub cancelled: bool,
-    /// Block length in lag-aligned rows.
-    pub block_length: usize,
-    /// Lag-aligned rows resampled.
-    pub rows: usize,
-}
-
-impl<const K: usize> RowBlockBootstrap<K> {
-    /// Raw replicate SD for target `k` under the shared failure policy (≥ 2
-    /// successes and at most half of attempted replicates failed). Every target
-    /// shares the same replicates.
-    #[must_use]
-    pub fn raw_se_result(&self, k: usize) -> BootstrapSeResult {
-        let values: Vec<f64> = self.draws.iter().map(|draw| draw[k]).collect();
-        finalize_bootstrap_se_ex(&values, self.attempted, self.cancelled, false)
-    }
-
-    /// Published SE for target `k`: [`Self::raw_se_result`] scaled by
-    /// [`fixed_b_scale`], so that `estimate ± z·SE` carries the fixed-b critical
-    /// value for this block length.
-    #[must_use]
-    pub fn se_result(&self, k: usize) -> BootstrapSeResult {
-        let mut result = self.raw_se_result(k);
-        let scale = fixed_b_scale(self.block_length, self.rows);
-        result.se = result.se.map(|se| se * scale);
-        result
-    }
-}
-
 /// Fixed-b correction for a circular-block SE: `cv_95(ℓ/n) / 1.96`, with `cv_95`
 /// the Kiefer–Vogelsang (2005) Bartlett-kernel fixed-b critical value for a
 /// two-sided 95% test, `cv(b) = 1.96 + 2.9694b + 0.4160b² − 0.5324b³`.
@@ -406,27 +369,6 @@ pub fn fixed_b_scale(block_length: usize, rows: usize) -> f64 {
     }
     let b = (block_length as f64 / rows as f64).clamp(0.0, 1.0);
     (1.96 + 2.9694 * b + 0.4160 * b * b - 0.5324 * b * b * b) / 1.96
-}
-
-/// Resample `rows` lag-aligned rows in circular blocks of
-/// `circular_block_length(structural_span, rows)` and evaluate `estimate` on each
-/// replicate's row map (`row_src[r]` = source row for replicate row `r`).
-///
-/// `estimate` returns `None` for a replicate that cannot be fit; that replicate
-/// counts as failed for every target, so all `K` targets always come from the
-/// same replicates. Replicate `r` draws from `ctx.rng.stream(stream_base + r)`.
-pub fn row_block_bootstrap<const K: usize>(
-    rows: usize,
-    structural_span: usize,
-    replicates: u32,
-    stream_base: u64,
-    ctx: &ExecutionContext,
-    estimate: impl FnMut(&[usize]) -> Option<[f64; K]>,
-) -> RowBlockBootstrap<K> {
-    let block_length = circular_block_length(structural_span, rows);
-    let (draws, attempted, cancelled) =
-        block_replicates(rows, block_length, replicates, stream_base, ctx, estimate);
-    RowBlockBootstrap { draws, attempted, cancelled, block_length, rows }
 }
 
 /// Outcome of a shared circular-block bootstrap of a run-time number of targets
@@ -507,11 +449,11 @@ pub fn common_time_window(designs: &[AlignedRows]) -> Option<(usize, usize)> {
 /// junction and at the circular wrap, an outcome with regressors from an
 /// unrelated block; in the 1.9 calibration that inflated multi-atom SEs 1.35–2.3×.
 ///
-/// `block_length` is in series times (callers use
-/// [`antecedent_data::circular_block_length`] of the structural span and the
-/// window length); publish SEs through [`RowBlockDraws::se_result`] so they carry
-/// the [`fixed_b_scale`] of the resampled window. Returns `None` when the designs
-/// share no time.
+/// `block_length` is in series times (callers pass [`dependence_block_length`]
+/// of the structural span over the window's estimating scores, at least
+/// [`antecedent_data::circular_block_length`]); publish SEs through
+/// [`RowBlockDraws::se_result`] so they carry the [`fixed_b_scale`] of the
+/// resampled window. Returns `None` when the designs share no time.
 pub fn aligned_block_bootstrap(
     designs: &[AlignedRows],
     block_length: usize,
@@ -536,7 +478,13 @@ pub fn aligned_block_bootstrap(
     Some(RowBlockDraws { draws, attempted, cancelled, block_length, rows: len })
 }
 
-/// [`row_block_bootstrap`] with a run-time target count and an explicit block length.
+/// Resample `rows` lag-aligned rows in circular blocks of `block_length` (callers
+/// pass [`dependence_block_length`]) and evaluate `estimate` on each replicate's
+/// row map (`row_src[r]` = source row for replicate row `r`).
+///
+/// `estimate` returns `None` for a replicate that cannot be fit; that replicate
+/// counts as failed for every target, so all targets always come from the same
+/// replicates. Replicate `r` draws from `ctx.rng.stream(stream_base + r)`.
 pub fn row_block_bootstrap_vec(
     rows: usize,
     block_length: usize,
@@ -604,7 +552,7 @@ mod tests {
         let values: Vec<f64> = (0..64).map(f64::from).collect();
         let ctx = ExecutionContext::for_tests(5);
         let mut calls = 0;
-        let boot = row_block_bootstrap::<2>(64, 2, 12, 77, &ctx, |rows| {
+        let boot = row_block_bootstrap_vec(64, 4, 12, 77, &ctx, |rows| {
             calls += 1;
             // Every row map is a concatenation of circular runs of length 4.
             for block in rows.chunks(4) {
@@ -614,9 +562,9 @@ mod tests {
             }
             let mean = rows.iter().map(|&r| values[r]).sum::<f64>() / 64.0;
             // Every third replicate fails one target: it must be dropped for both.
-            Some([mean, if calls % 3 == 0 { f64::NAN } else { 2.0 * mean }])
+            Some(vec![mean, if calls % 3 == 0 { f64::NAN } else { 2.0 * mean }])
         });
-        assert_eq!(boot.block_length, 4, "⌈64^(1/3)⌉ = 4 dominates a span of 2");
+        assert_eq!(boot.block_length, 4);
         assert_eq!(boot.attempted, 12);
         assert_eq!(boot.draws.len(), 8);
         let a = boot.se_result(0);
