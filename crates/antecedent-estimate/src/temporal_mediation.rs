@@ -538,9 +538,16 @@ impl MediationDesign {
         &self.columns[c * self.n..(c + 1) * self.n]
     }
 
-    /// Estimating scores of the Total, Direct and Mediated contrasts on the
-    /// lag-aligned rows (residual × centered regressor; delta method for the
-    /// product), or `None` when a mechanism regression fails.
+    /// Influence scores of the Total, Direct and Mediated contrasts on the
+    /// lag-aligned rows, or `None` when a mechanism regression fails.
+    ///
+    /// A regression coefficient's score is its residual times the regressor
+    /// residualized on the other regressors (Frisch–Waugh), over that
+    /// residualized regressor's second moment: `T` on `[1, extras]` for the
+    /// total effect and for `a`, `T` on `[1, M, extras]` for the direct effect,
+    /// `M` on `[1, T, extras]` for `b`. The product `a·b` takes the delta method
+    /// `b·ψ_a + a·ψ_b`, which needs the second-moment scaling to weigh its two
+    /// terms correctly.
     fn contrast_scores(&self, backend: FaerBackend, fit: &ContrastFit) -> Option<[Vec<f64>; 3]> {
         let (t, m, y) = (self.column(0), self.column(1), self.column(2));
         let extras: Vec<&[f64]> = (0..self.n_extra).map(|i| self.column(3 + i)).collect();
@@ -563,15 +570,21 @@ impl MediationDesign {
         let r_a = residuals(&[t], m)?;
         let r_b = residuals(&[t, m], y)?;
         let r_c = residuals(&[t], y)?;
-        let centered = |x: &[f64]| {
-            let mean = x.iter().sum::<f64>() / x.len() as f64;
-            x.iter().map(|v| v - mean).collect::<Vec<f64>>()
+        // Coefficient score: residual × partialled regressor / its second moment.
+        let score = |residual: &[f64], partialled: &[f64]| -> Option<Vec<f64>> {
+            let moment = partialled.iter().map(|x| x * x).sum::<f64>() / self.n as f64;
+            (moment > 0.0 && moment.is_finite())
+                .then(|| residual.iter().zip(partialled).map(|(e, x)| e * x / moment).collect())
         };
-        let (tc, mc) = (centered(t), centered(m));
-        let total: Vec<f64> = r_c.iter().zip(&tc).map(|(e, x)| e * x).collect();
-        let direct: Vec<f64> = r_b.iter().zip(&tc).map(|(e, x)| e * x).collect();
+        let t_given_extras = residuals(&[], t)?;
+        let t_given_m = residuals(&[m], t)?;
+        let total = score(&r_c, &t_given_extras)?;
+        let direct = score(&r_b, &t_given_m)?;
+        let psi_a = score(&r_a, &t_given_extras)?;
+        // `M` partialled on `[1, T, extras]` is the `M ~ T` residual itself.
+        let psi_b = score(&r_b, &r_a)?;
         let mediated: Vec<f64> =
-            (0..self.n).map(|r| fit.b * r_a[r] * tc[r] + fit.a * r_b[r] * mc[r]).collect();
+            psi_a.iter().zip(&psi_b).map(|(sa, sb)| fit.b * sa + fit.a * sb).collect();
         Some([total, direct, mediated])
     }
 }
@@ -888,5 +901,51 @@ mod tests {
             .estimate(&data, &estimand, &q, &ExecutionContext::for_tests(1))
             .unwrap_err();
         assert!(matches!(err, EstimationError::Unsupported { .. }));
+    }
+
+    #[test]
+    fn contrast_scores_are_the_partialled_coefficient_influence_functions() {
+        // An extra regressor correlated with T: centring T alone is not the
+        // coefficient's influence function, residualizing it on the extras is.
+        let n = 40;
+        let x: Vec<f64> = (0..n).map(|i| (0.37 * i as f64).sin()).collect();
+        let t: Vec<f64> = (0..n).map(|i| 0.8 * x[i] + 0.3 * (1.3 * i as f64).cos()).collect();
+        let m: Vec<f64> =
+            (0..n).map(|i| 0.6 * t[i] + 0.4 * x[i] + 0.2 * (2.1 * i as f64).sin()).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| 0.5 * t[i] + 0.7 * m[i] - 0.3 * x[i] + 0.25 * (0.9 * i as f64).cos())
+            .collect();
+        let design =
+            MediationDesign { columns: [t.as_slice(), &m, &y, &x].concat(), n, n_extra: 1 };
+        let estimator = TemporalMediationEstimator::new();
+        let fit = estimator.fit_design(&design, None, 1.0).unwrap();
+        let [total, direct, mediated] = design.contrast_scores(estimator.backend, &fit).unwrap();
+        // ψ_i = n·[(X'X)⁻¹X']_{k,i}·e_i: the k-th coefficient of regressing the unit
+        // vector e_i on the design, times row i's residual, times n.
+        let influence = |regressors: &[&[f64]], outcome: &[f64], k: usize| -> Vec<f64> {
+            let mut matrix = vec![1.0; n];
+            for column in regressors {
+                matrix.extend_from_slice(column);
+            }
+            let ncols = 1 + regressors.len();
+            let coef = ols_fit(FaerBackend, &matrix, ncols, outcome).unwrap();
+            (0..n)
+                .map(|i| {
+                    let fitted = (0..ncols).map(|c| matrix[c * n + i] * coef[c]).sum::<f64>();
+                    let mut unit = vec![0.0; n];
+                    unit[i] = 1.0;
+                    let row = ols_fit(FaerBackend, &matrix, ncols, &unit).unwrap()[k];
+                    n as f64 * row * (outcome[i] - fitted)
+                })
+                .collect()
+        };
+        let close = |a: &[f64], b: &[f64]| a.iter().zip(b).all(|(u, v)| (u - v).abs() < 1e-8);
+        assert!(close(&total, &influence(&[&t, &x], &y, 1)));
+        assert!(close(&direct, &influence(&[&t, &m, &x], &y, 1)));
+        let psi_a = influence(&[&t, &x], &m, 1);
+        let psi_b = influence(&[&t, &m, &x], &y, 2);
+        let delta: Vec<f64> =
+            psi_a.iter().zip(&psi_b).map(|(a, b)| fit.b * a + fit.a * b).collect();
+        assert!(close(&mediated, &delta));
     }
 }
