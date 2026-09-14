@@ -103,9 +103,7 @@ impl super::Study {
                 // Identified but not evaluable: the atom keeps its identification
                 // status and has no value, so its mass is unevaluable.
                 failed_mass += weight;
-                if let Some(slot) =
-                    atoms.iter_mut().find(|candidate| candidate.graph_key == atom.key)
-                {
+                for slot in atoms.iter_mut().filter(|candidate| candidate.graph_key == atom.key) {
                     slot.status = atom.identification.status;
                 }
                 continue;
@@ -115,9 +113,10 @@ impl super::Study {
                     message: "identified graph-posterior response atom had no numerical value"
                         .into(),
                 })?;
-            if let Some(slot) = atoms.iter_mut().find(|candidate| candidate.graph_key == atom.key) {
+            // A repeated graph is listed once per sample; every listing carries its value.
+            for slot in atoms.iter_mut().filter(|candidate| candidate.graph_key == atom.key) {
                 slot.status = atom.identification.status;
-                slot.value = Some(value);
+                slot.value = Some(value.clone());
             }
             if primary.is_none() {
                 primary = Some((atom.estimand.clone(), atom.identification.clone()));
