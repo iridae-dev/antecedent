@@ -84,28 +84,28 @@ fn assert_recovers(result: &antecedent::StudyResult, expected: &JsonValue) {
 
 /// Largest accepted `|ln(SE_rust·√n_rust / SE_ref·√n_ref)|`: `ln 1.5`.
 ///
-/// The recorded DoWhy SE (`reference.outputs.se`) comes from DoWhy's own
+/// The recorded reference SE (`reference.outputs.se`) comes from the reference's own
 /// `n = 800` draw of the same SCM, so the two SEs are compared after `√n`
 /// rescaling, never as raw numbers. `ln 1.5` absorbs the sampling noise of
-/// two SE estimates from different draws (the DoWhy side is a bootstrap SE)
+/// two SE estimates from different draws (the reference side is a bootstrap SE)
 /// while still failing every constant-factor bug of 2 or more — variance
 /// reported as SD, a dropped `√2`, a missing `n/(n−1)` squared, or an SE
 /// computed on the wrong row count.
 const SE_LOG_RATIO_TOLERANCE: f64 = 0.405_465_108_108_164_4;
 
-/// Fixtures whose recorded DoWhy SE is not a reference for the Rust estimator.
+/// Fixtures whose recorded reference SE is not a reference for the Rust estimator.
 ///
-/// `aipw`'s DoWhy block ran `backdoor.propensity_score_weighting`, a different
+/// `aipw`'s reference block ran `backdoor.propensity_score_weighting`, a different
 /// estimator (its point estimate is byte-identical to `propensity_ipw`'s).
-/// `propensity_ipw`'s DoWhy SE (0.273 at n = 800) is about five times the
+/// `propensity_ipw`'s reference SE (0.273 at n = 800) is about five times the
 /// Monte Carlo sampling SD of any IPW estimator on the SCM this test draws
 /// from (≈0.054 Hajek with a fitted logistic propensity, ≈0.11 Horvitz–Thompson
 /// with the true one), so it cannot calibrate this SCM. Comparing either
-/// would test DoWhy's recording, not this crate; the Rust SEs for these two
+/// would test the reference's recording, not this crate; the Rust SEs for these two
 /// estimators are covered by the `antecedent-estimate` coverage gates instead.
 const SE_NOT_COMPARABLE: [&str; 2] = ["propensity_ipw", "aipw"];
 
-/// C-6: compare the reported SE against the fixture's DoWhy reference SE.
+/// Compare the reported SE against the fixture's recorded reference SE.
 fn assert_reference_se(result: &antecedent::StudyResult, name: &str, n: usize) {
     assert!(!SE_NOT_COMPARABLE.contains(&name), "{name} has no comparable reference SE");
     let expected = load_expected(name);
@@ -125,7 +125,7 @@ fn assert_reference_se(result: &antecedent::StudyResult, name: &str, n: usize) {
     );
     assert!(
         log_ratio.abs() <= SE_LOG_RATIO_TOLERANCE,
-        "{}: SE {se} (n={n}) vs DoWhy reference {reference_se} (n={reference_n}): \
+        "{}: SE {se} (n={n}) vs recorded reference {reference_se} (n={reference_n}): \
          |ln ratio| = {:.3} > ln 1.5 after sqrt(n) rescaling",
         expected["estimator"],
         log_ratio.abs()
