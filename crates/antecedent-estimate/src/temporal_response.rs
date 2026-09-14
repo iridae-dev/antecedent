@@ -482,10 +482,10 @@ pub fn disclose_response_block_bootstrap(
 
 /// Dispersion factor applied to circular-block replicate deviations.
 ///
-/// `fixed_b_scale(block, rows) · sqrt(rows / (rows − p))`:
-/// - the Kiefer–Vogelsang (2005) fixed-b critical-value ratio for the Bartlett kernel at
-///   `b = block / rows` ([`crate::temporal_block::fixed_b_scale`], the same correction
-///   the plain `TemporalDag` Pulse / Sustained SE uses), so `estimate ± 1.96·SD` is the
+/// `circular_fixed_b_scale(block, rows) · sqrt(rows / (rows − p))`:
+/// - the fixed-b critical-value ratio of the circular Bartlett estimator at
+///   `b = block / rows` ([`crate::temporal_block::circular_fixed_b_scale`], the same
+///   correction the plain `TemporalDag` Pulse / Sustained SE uses), so `estimate ± 1.96·SD` is the
 ///   fixed-b interval: it carries the downward bias and the sampling noise of a variance
 ///   estimated from `rows / block` blocks, and stays nominal on independent rows for any
 ///   `b`;
@@ -501,7 +501,7 @@ pub fn disclose_response_block_bootstrap(
 pub fn block_dispersion_inflation(rows: usize, block: usize, parameters: usize) -> f64 {
     let hc1 =
         if rows > parameters + 1 { (rows as f64 / (rows - parameters) as f64).sqrt() } else { 1.0 };
-    let ratio = crate::temporal_block::fixed_b_scale(block, rows) * hc1;
+    let ratio = crate::temporal_block::circular_fixed_b_scale(block, rows) * hc1;
     if ratio.is_finite() && ratio >= 1.0 { ratio } else { 1.0 }
 }
 
@@ -668,7 +668,7 @@ const BLOCK_BOOTSTRAP_CONSTRUCTION: &str = "max-studentized deviation of the joi
      bootstrap replicates of the whole dose × horizon surface around the full-sample estimate; \
      each replicate resamples time-aligned blocks of lag-aligned rows (block length: support \
      diagnostic response.temporal.block_length), refits every horizon and recomputes the \
-     covariate averages; replicate deviations carry the Kiefer-Vogelsang fixed-b factor for \
+     covariate averages; replicate deviations carry the circular-Bartlett fixed-b factor for \
      b = block/rows and the HC1 factor sqrt(rows/(rows − p))";
 
 /// What one surface-bootstrap replicate refits, for [`disclose_response_block_bootstrap`].
@@ -695,7 +695,7 @@ fn block_bootstrap_assumption(
                  ceil(sqrt(n))), min(testing {testing} = ceil(b_PW·n^(1/6)), n/3)), with b_PW the \
                  largest Politis-White length over the level's estimating scores (every fitted \
                  regression's normal-equation scores and the centered covariate columns whose \
-                 averages the level reads). Replicate deviations are scaled by {factor:.4}: the Kiefer-Vogelsang \
+                 averages the level reads). Replicate deviations are scaled by {factor:.4}: the circular-Bartlett \
                  fixed-b critical-value ratio for b = block/rows (the variance is estimated from \
                  few blocks) times the HC1 factor sqrt(rows/(rows − p)). The pointwise band is \
                  mean ± 1.96·SE of the scaled replicates. The simultaneous band (support \
@@ -739,8 +739,8 @@ fn temporal_bayesian_tempering_assumption(horizons: &[u32], kappas: &[f64]) -> A
             description: Arc::from(format!(
                 "generalized (power) posterior with a serial-dependence correction at every \
                  horizon: each horizon's Gaussian likelihood on time-ordered lag-aligned rows is \
-                 tempered by 1/kappa_h, kappa_h = the largest AR(1)-prewhitened Newey-West \
-                 long-run-variance ratio of that horizon's grid-cell level scores, floored at 1 \
+                 tempered by 1/kappa_h, kappa_h = the largest autoregressive-prewhitened (AR(1), plus a \
+                 BIC-selected AR(q <= 4)) Newey-West long-run-variance ratio of that horizon's grid-cell level scores, floored at 1 \
                  ({per_horizon}). At h >= 2 the unfolded regression omits intermediate \
                  treatments and innovations, so its residuals are MA(h-1) whenever the outcome \
                  or treatment is persistent; the prior keeps full weight; heteroskedasticity and \
@@ -1069,8 +1069,8 @@ impl TemporalResponseEstimator {
             values: Arc::from(tempering.clone()),
             detail: Arc::from(
                 "per-horizon likelihood tempering factor kappa (rows weighted 1/kappa): the \
-                 largest AR(1)-prewhitened Newey-West long-run-variance ratio of the grid-cell \
-                 level scores at that horizon, floored at 1",
+                 largest autoregressive-prewhitened (AR(1), plus a BIC-selected AR(q <= 4)) \
+                 Newey-West long-run-variance ratio of the grid-cell level scores at that horizon, floored at 1",
             ),
         });
         assumptions.push(AssumptionRecord {
@@ -3454,13 +3454,13 @@ mod tests {
 
     #[test]
     fn block_dispersion_inflation_is_the_fixed_b_ratio_times_hc1() {
-        // 159 rows in blocks of 13, 3 coefficients: KV fixed-b ratio at b = 13/159 times
-        // the HC1 factor sqrt(159/156).
+        // 159 rows in blocks of 13, 3 coefficients: circular-Bartlett fixed-b ratio at
+        // b = 13/159 times the HC1 factor sqrt(159/156).
         let b = 13.0 / 159.0;
-        let kv = (1.96 + 2.9694 * b + 0.4160 * b * b - 0.5324 * b * b * b) / 1.96;
-        let expected = kv * (159.0_f64 / 156.0).sqrt();
+        let circular = (1.96 + 2.4389 * b + 3.7072 * b * b - 2.1055 * b * b * b) / 1.96;
+        let expected = circular * (159.0_f64 / 156.0).sqrt();
         assert!((block_dispersion_inflation(159, 13, 3) - expected).abs() < 1e-12);
-        assert!(expected > 1.13 && expected < 1.14, "{expected}");
+        assert!(expected > 1.12 && expected < 1.13, "{expected}");
         // Long series with short blocks: no inflation to speak of.
         assert!((block_dispersion_inflation(1_000_000, 1_000, 3) - 1.0).abs() < 2e-3);
         // Barely one block: the b = 1 critical value, never "no inflation".

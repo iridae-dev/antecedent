@@ -312,7 +312,7 @@ impl TemporalMediationEstimator {
     /// [`crate::temporal_block::dependence_block_length`] over the Total, Direct
     /// and Mediated estimating scores (structural span = deepest design lag + 1),
     /// the rule the single-window Pulse / Sustained and class-envelope paths use,
-    /// and every SE carries the [`crate::temporal_block::fixed_b_scale`] of that
+    /// and every SE carries the [`crate::temporal_block::circular_fixed_b_scale`] of that
     /// length.
     /// `effect.se_bootstrap` is the requested contrast's SE; iid analytic SEs keep
     /// the [`Self::allow_iid_sobel_se`] gate.
