@@ -54,7 +54,8 @@ def test_interactive_vs_standard_effort():
     assert math.isfinite(standard.ate)
     assert standard.performance.latency_mode == "standard"
     assert standard.performance.bootstrap_replicates_requested == 199
-    assert (standard.performance.bootstrap_replicates_ok or 0) >= 2
+    assert standard.performance.bootstrap_replicates_ok == 199
+    assert not standard.performance.early_stopped
     assert standard.estimate.se_bootstrap is not None
 
 
@@ -70,13 +71,9 @@ def test_cancel_mid_bootstrap_partial():
         seed=3,
     )
     full_ok = full.performance.bootstrap_replicates_ok or 0
-    # Production contexts enable adaptive bootstrap; early-stop may finish under requested.
-    assert full_ok >= 2
-    assert full_ok <= requested
-    if full.performance.early_stopped:
-        assert full_ok < requested
-    else:
-        assert full_ok == requested
+    # Production contexts evaluate the full request; there is no early-stop budget.
+    assert full_ok == requested
+    assert not full.performance.early_stopped
 
     token = antecedent.state.CancellationToken()
     seen = {"bootstrap": False}
@@ -100,7 +97,7 @@ def test_cancel_mid_bootstrap_partial():
     assert partial.performance.cancelled
     ok = partial.performance.bootstrap_replicates_ok or 0
     assert ok < requested
-    assert ok != full_ok or full.performance.early_stopped
+    assert ok != full_ok
 
 
 def test_progressive_stages_callback_order():
