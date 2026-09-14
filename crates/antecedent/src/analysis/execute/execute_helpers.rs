@@ -899,21 +899,17 @@ pub(super) fn run_envelope_bayesian_full_validation(
         // Each atom's checks use the prior that atom was actually fitted under.
         let atom_est = BayesianGComputationAte { prior: atom.prior.clone(), ..est.clone() };
         let ppc_prior = atom_est.prior_in_force(atom.prep.design.ncols);
-        let prior_rep = PriorPredictiveCheck {
-            n_sims: 200,
-            seed: ctx.rng.master_seed(),
-            ..PriorPredictiveCheck::new()
-        }
-        .check_with_prior(&atom.prep, &ppc_prior, ctx)
-        .map_err(CausalError::from)?;
+        let prior_rep = PriorPredictiveCheck::for_estimator(&atom_est, ctx)
+            .check_with_prior(&atom.prep, &ppc_prior, ctx)
+            .map_err(CausalError::from)?;
         // Temporal atoms (lag indexer present) add the serial-dependence discrepancy
         // under `full`; exchangeable static rows keep the two-axis check.
         let post_rep = if matches!(refute, RefuteSuite::Full) && atom.indexer.is_some() {
-            PosteriorPredictiveCheck::new()
+            PosteriorPredictiveCheck::for_estimator(&atom_est, ctx)
                 .check_temporal(&atom.prep, &atom.posterior, ctx.rng.master_seed())
                 .map_err(CausalError::from)?
         } else {
-            PosteriorPredictiveCheck::new()
+            PosteriorPredictiveCheck::for_estimator(&atom_est, ctx)
                 .check(&atom.prep, &atom.posterior)
                 .map_err(CausalError::from)?
         };

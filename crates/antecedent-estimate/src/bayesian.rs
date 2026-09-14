@@ -615,6 +615,22 @@ impl BayesianGComputationAte {
         self
     }
 
+    /// The likelihood [`Self::fit`] actually uses: the conjugate backend forces
+    /// [`BayesLikelihood::GaussianIdentity`]; Laplace and HMC use [`Self::likelihood`].
+    #[must_use]
+    pub const fn effective_likelihood(&self) -> BayesLikelihood {
+        match self.backend {
+            BayesianBackendKind::ConjugateGaussian => BayesLikelihood::GaussianIdentity,
+            BayesianBackendKind::Laplace | BayesianBackendKind::Hmc => self.likelihood,
+        }
+    }
+
+    /// GLM mean family of [`Self::effective_likelihood`] (inverse link and observation model).
+    #[must_use]
+    pub fn glm_family(&self) -> GlmFamily {
+        likelihood_to_glm_family(self.effective_likelihood())
+    }
+
     /// Set the target draw count.
     ///
     /// Defaults to 1000. [`BayesianBackendKind::Hmc`] floors this at the schedule needed to
@@ -912,10 +928,7 @@ impl BayesianGComputationAte {
             });
         }
 
-        let likelihood = match self.backend {
-            BayesianBackendKind::ConjugateGaussian => BayesLikelihood::GaussianIdentity,
-            BayesianBackendKind::Laplace | BayesianBackendKind::Hmc => self.likelihood,
-        };
+        let likelihood = self.effective_likelihood();
         // HMC publication (Ř≤1.01, ESS≥100) needs a longer schedule than the
         // Laplace/conjugate default of 1000 draws; floor so under-specified
         // callers still clear the gate rather than refuse with near-miss Ř.
