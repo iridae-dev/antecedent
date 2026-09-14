@@ -312,20 +312,37 @@ pub fn identify_admg(
     admg: &antecedent_graph::Admg,
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, CausalError> {
+    identify_admg_query(identifier, admg, &CausalQuery::AverageEffect(query.clone()))
+}
+
+/// General ID over an ADMG for a static query (ATE or interventional distribution).
+///
+/// # Errors
+///
+/// Unsupported identifier or identification failure.
+pub fn identify_admg_query(
+    identifier: IdentifierId,
+    admg: &antecedent_graph::Admg,
+    query: &CausalQuery,
+) -> Result<IdentificationResult, CausalError> {
     match identifier {
         IdentifierId::GeneralId => {
             let id = IdIdentifier::new();
             let prepared = id.prepare(admg).map_err(identify_err)?;
             let mut id_ws = IdentificationWorkspace::default();
-            let result = id
-                .identify(&prepared, &CausalQuery::AverageEffect(query.clone()), &mut id_ws)
-                .map_err(identify_err)?;
+            let result = if matches!(query, CausalQuery::Distribution(q) if !q.conditioning.is_empty())
+            {
+                let idc = antecedent_identify::IdcIdentifier::new();
+                idc.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
+            } else {
+                id.identify(&prepared, query, &mut id_ws).map_err(identify_err)?
+            };
             require_identified(&result)?;
             Ok(result)
         }
         other => Err(CausalError::Compile {
             message: format!(
-                "ADMG ATE requires identifier \"general.id\"; got {:?}",
+                "ADMG identification requires identifier \"general.id\"; got {:?}",
                 other.as_str()
             ),
         }),

@@ -117,6 +117,50 @@ impl super::Study {
                     estimator,
                 })
             }
+            (Some(AnalysisRoute::Distribution), GraphClass::Admg) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::Distribution(q) = &self.query else { unreachable!() };
+                if !q.conditioning.is_empty() {
+                    return Err(CausalError::Unsupported {
+                        message: "ADMG InterventionalDistribution is licensed for unconditional \
+                                  finite-discrete tables; IDC conditionals are a follow-up",
+                    });
+                }
+                if self.refute != RefuteSuite::None {
+                    return Err(CausalError::Unsupported {
+                        message: "ADMG InterventionalDistribution is licensed at validation none",
+                    });
+                }
+                let (identifier, estimator) = self.resolve_distribution_pair();
+                let treatment = q
+                    .interventions
+                    .first()
+                    .and_then(Intervention::primary_variable)
+                    .ok_or_else(|| CausalError::Compile {
+                        message: "distribution query requires an intervention variable".into(),
+                    })?;
+                let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Compile {
+                    message: "distribution query requires an outcome".into(),
+                })?;
+                let record = antecedent_core::LogicalAnalysisPlanRecord {
+                    plan_id: Arc::from("static_admg_distribution"),
+                    data_classification: antecedent_core::DataClassification::Tabular,
+                    discovery_algorithm: None,
+                    graph_review_required: false,
+                    identifier: Some(identifier),
+                    estimator: Some(estimator),
+                    validation_suite: self.validation_suite_id(),
+                    query_variables: Arc::from([treatment, outcome]),
+                };
+                let logical = LogicalAnalysisPlan {
+                    record,
+                    query: CausalQuery::Distribution(q.clone()),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                };
+                logical.validate()?;
+                Ok(logical)
+            }
             (Some(AnalysisRoute::PathSpecific), GraphClass::Dag) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::PathSpecific(q) = &self.query else { unreachable!() };
@@ -481,6 +525,9 @@ impl super::Study {
                 ),
                 GraphClass::Dag,
             ) => self.compile_logical()?.compile_physical(ctx),
+            (Some(AnalysisRoute::Distribution), GraphClass::Admg) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
             (Some(AnalysisRoute::TemporalEffect), GraphClass::TemporalDag) => {
                 let graph = self
                     .graph

@@ -681,6 +681,81 @@ fn manufacturing_dbn_posterior_bayesian_mediation_envelope() {
 }
 
 #[test]
+fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_mediation"];
+    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+    let weights: Vec<f64> =
+        pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
+    let (series, q) = mediation_series(n);
+    let gp = known_truth_dbn_mediation_posterior(pin, &weights);
+    let (ctx, sink) = recording_ctx(pin["seed"].as_u64().unwrap());
+    let analysis = Study::series(series.clone())
+        .graph_posterior(gp)
+        .query(CausalQuery::Mediation(q))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(40)
+        .build()
+        .unwrap();
+    let fresh = analysis.clone().run(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 1);
+    let prepared = analysis.prepare(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 2);
+    let click = prepared.estimate_series(&series, &ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 2);
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert_eq!(cached_count(&fresh), 0);
+    assert_eq!(cached_count(&click), 1);
+    let structural = fresh.structural_response.as_ref();
+    if let Some(s) = structural {
+        assert!((s.unidentified_mass - unidentified_truth).abs() < 1e-12);
+    }
+    let mediation = fresh.mediation.as_ref().expect("Frequentist DBN mediation envelope");
+    assert!((mediation.effect.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert!(
+        fresh
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.dbn_posterior.mediation.frequentist")
+    );
+}
+
+#[test]
+fn manufacturing_dbn_posterior_frequentist_mediation_refuses_multi_horizon() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_mediation"];
+    let weights: Vec<f64> =
+        pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let (series, query) = mediation_series(usize::try_from(pin["n"].as_u64().unwrap()).unwrap());
+    let mut query = query;
+    query.horizons = Arc::from([1u32, 2]);
+    let posterior = known_truth_dbn_mediation_posterior(pin, &weights);
+    let err = Study::series(series)
+        .graph_posterior(posterior)
+        .query(CausalQuery::Mediation(query))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(43))
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("one horizon") || err.to_string().contains("multi-horizon"),
+        "{err}"
+    );
+}
+
+#[test]
 fn manufacturing_dbn_posterior_mediation_retains_multiple_horizons() {
     let expected: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"

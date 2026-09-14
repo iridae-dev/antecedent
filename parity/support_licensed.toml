@@ -12,7 +12,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/response_facade.rs"
 evidence_assertion = "graph_posterior_response_known_truth_conditional_on_identified"
-limitations = "Each DAG atom is identified and estimated independently. Posterior graph weights, atom values, identified/unidentified/unevaluable mass, the pointwise identified set, and the conditional-on-identified mean are retained. Multi-atom sampling uncertainty is unavailable. Known-truth pin (conformance/bayesian/known_truth_mixtures static_response): atom curves 1 + 2.75t and 1 + 2t at weights 0.5 / 0.3 with 0.2 unidentified give conditional_on_identified = 1 + 2.46875t; this is a numeric pin, not a coverage claim."
+limitations = "Each DAG atom is identified and estimated independently. Posterior graph weights, atom values, identified/unidentified/unevaluable mass, the pointwise identified set, and the conditional-on-identified mean are retained. Failed estimation is unevaluable, not unidentified. Prepared clicks reuse the graph-posterior identification cache. A Frequentist multi-atom frozen-weight aggregate publishes a joint-IF SE when every contributing atom supplies an aligned influence (`estimate.response.graph_posterior.joint_if_se`); otherwise the aggregate interval is withheld (`estimate.response.graph_posterior.uncertainty_withheld`). Simultaneous bands are not claimed. Known-truth pin (conformance/bayesian/known_truth_mixtures static_response): atom curves 1 + 2.75t and 1 + 2t at weights 0.5 / 0.3 with 0.2 unidentified give conditional_on_identified = 1 + 2.46875t; this is a numeric pin, not a coverage claim."
 
 [[cell]]
 query = "PulseEffect"
@@ -271,7 +271,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/response_facade.rs"
 evidence_assertion = "graph_posterior_response_known_truth_conditional_on_identified"
-limitations = "Per-atom Bayesian g-computation supplies atom point responses. Posterior graph weights and all mass categories are retained; the conditional-on-identified point mean is probability-weighted. Multi-atom response posterior bands are omitted until per-cell categorical model draws are retained. Known-truth pin (conformance/bayesian/known_truth_mixtures static_response): atom curves 1 + 2.75t and 1 + 2t at weights 0.5 / 0.3 with 0.2 unidentified give conditional_on_identified = 1 + 2.46875t; this is a numeric pin, not a coverage claim."
+limitations = "Per-atom Bayesian g-computation supplies atom point responses. Posterior graph weights and all mass categories are retained; the conditional-on-identified point mean is probability-weighted. Failed estimation is unevaluable, not unidentified. Prepared clicks reuse the identification cache. Multi-atom Bayesian aggregate intervals are withheld (`estimate.response.graph_posterior.uncertainty_withheld`): graph-specific dispersion and a frozen-weight aggregate are different objects. Known-truth pin (conformance/bayesian/known_truth_mixtures static_response): atom curves 1 + 2.75t and 1 + 2t at weights 0.5 / 0.3 with 0.2 unidentified give conditional_on_identified = 1 + 2.46875t; this is a numeric pin, not a coverage claim."
 
 [[cell]]
 query = "InterventionResponse"
@@ -284,7 +284,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/response_facade.rs"
 evidence_assertion = "graph_posterior_response_known_truth_conditional_on_identified"
-limitations = "One intervention coordinate only. Atom values, posterior graph weights, mass categories, pointwise identified set, and conditional-on-identified mean are retained. Multi-atom sampling uncertainty is unavailable. Known-truth pin (conformance/bayesian/known_truth_mixtures static_response): atom curves 1 + 2.75t and 1 + 2t at weights 0.5 / 0.3 with 0.2 unidentified give conditional_on_identified = 1 + 2.46875t; this is a numeric pin, not a coverage claim."
+limitations = "One intervention coordinate only. Atom values, posterior graph weights, mass categories, pointwise identified set, and conditional-on-identified mean are retained. Failed estimation is unevaluable, not unidentified. Prepared clicks reuse the identification cache. A Frequentist multi-atom frozen-weight aggregate publishes a joint-IF SE when influences align; otherwise the interval is withheld. Simultaneous bands are not claimed. Known-truth pin (conformance/bayesian/known_truth_mixtures static_response): atom curves 1 + 2.75t and 1 + 2t at weights 0.5 / 0.3 with 0.2 unidentified give conditional_on_identified = 1 + 2.46875t; this is a numeric pin, not a coverage claim."
 
 [[cell]]
 query = "InterventionResponse"
@@ -323,7 +323,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/response_facade.rs"
 evidence_assertion = "graph_posterior_response_known_truth_conditional_on_identified"
-limitations = "One intervention coordinate only. Per-atom Bayesian g-computation supplies point responses; posterior graph weights and all mass categories remain explicit. Multi-atom response posterior bands are omitted until per-cell categorical model draws are retained. Known-truth pin (conformance/bayesian/known_truth_mixtures static_response): atom curves 1 + 2.75t and 1 + 2t at weights 0.5 / 0.3 with 0.2 unidentified give conditional_on_identified = 1 + 2.46875t; this is a numeric pin, not a coverage claim."
+limitations = "One intervention coordinate only. Per-atom Bayesian g-computation supplies point responses; posterior graph weights and all mass categories remain explicit. Failed estimation is unevaluable, not unidentified. Prepared clicks reuse the identification cache. Multi-atom Bayesian aggregate intervals are withheld. Known-truth pin (conformance/bayesian/known_truth_mixtures static_response): atom curves 1 + 2.75t and 1 + 2t at weights 0.5 / 0.3 with 0.2 unidentified give conditional_on_identified = 1 + 2.46875t; this is a numeric pin, not a coverage claim."
 
 [[cell]]
 query = "AverageEffect"
@@ -3957,3 +3957,66 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 limitations = "Per-atom conditional identification on DAG graph-posterior atoms. Published moments are E[τ | identified] (identified-atom BMA); unidentified mass is a separate non-renormalized axis (assumption envelope.conditional_on_identification). Frequentist uses conditional.linear.adjustment; Bayesian uses conditional.bayesian and is not a silent Frequentist reuse. Cheap/full run the refuters on each contributing atom against that atom's own CATE and mix the reports by graph mass; the mixed check passes only if every atom passes. Evidence: crates/antecedent/tests/v18_bayesian_remainder.rs and conformance/bayesian/known_truth_mixtures. The credible interval is the identified-atom BMA P(tau | identified), a distribution over graph-specific effects that does not shrink to the aggregate; its 400-replicate coverage of the effect of a graph drawn from the identified weights is in crates/antecedent/tests/v19_static_mixture_calibration.rs. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/general_id_frontdoor"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_admg_distribution_reuses_identification"
+limitations = "Unconditional finite-discrete tables only. General ID on the supplied ADMG; bidirected edges are not dropped to coerce a Dag. Validation none only; cheap/full and IDC conditionals are refused. A nonidentified ADMG refuses rather than publishing a table. Prepared clicks reuse the cached functional. No continuous density claim."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/identify/general_id_frontdoor"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_admg_distribution_reuses_identification"
+limitations = "Same evaluator as explicit Admg; acceptance does not add identification. Validation none only."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_admg_distribution_reuses_identification"
+limitations = "Same ID functional as Frequentist; Bayesian uses the existing FunctionalDistribution CPT path. No transferred prior. Validation none only."
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
+evidence_assertion = "prepared_admg_distribution_reuses_identification"
+limitations = "Same evaluator as explicit Bayesian Admg; acceptance does not add identification."
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_frequentist_mediation_envelope"
+limitations = "Single horizon only; multi-horizon grids are refused. Frozen posterior weights; unidentified mass retained; failed estimation is unevaluable. Each atom uses its own I(h) and a circular-block bootstrap. A joint-IF SE is published when every contributing atom supplies an aligned influence; otherwise the aggregate SE is withheld. cheap/full are not licensed. Class-valued posterior atoms remain refused."

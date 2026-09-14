@@ -426,6 +426,148 @@ impl super::Study {
         }))
     }
 
+    /// Finite-discrete ADMG interventional distribution via general ID + the
+    /// existing functional provider. Bidirected edges stay; they are not
+    /// dropped to coerce a DAG.
+    pub(super) fn execute_distribution_admg(
+        &self,
+        data: &TabularData,
+        admg: &Admg,
+        query: &antecedent_core::InterventionalDistributionQuery,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if !query.conditioning.is_empty() {
+            return Err(CausalError::Unsupported {
+                message: "ADMG InterventionalDistribution is licensed for unconditional \
+                          finite-discrete tables; IDC conditionals are a follow-up",
+            });
+        }
+        if self.refute != RefuteSuite::None {
+            return Err(CausalError::Unsupported {
+                message: "ADMG InterventionalDistribution is licensed at validation none; \
+                          cheap/full remain Dag-only",
+            });
+        }
+        let started = Instant::now();
+        let identifier = physical
+            .logical
+            .record
+            .identifier
+            .as_deref()
+            .unwrap_or(DEFAULT_DISTRIBUTION_IDENTIFIER);
+        let estimator =
+            physical.logical.record.estimator.as_deref().unwrap_or(DEFAULT_DISTRIBUTION_ESTIMATOR);
+        let identifier_id: IdentifierId = identifier.parse()?;
+        let estimator_id: EstimatorId = estimator.parse()?;
+        if !matches!(estimator_id, EstimatorId::FunctionalDistribution) {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "Distribution execute requires estimator functional.distribution; got {estimator}"
+                ),
+            });
+        }
+        let (identification, estimand, identify_cached) =
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                let cq = CausalQuery::Distribution(query.clone());
+                let identification =
+                    crate::strategy_table::identify_admg_query(identifier_id, admg, &cq)?;
+                let estimand = select_estimand(&identification, estimator_id)?;
+                Ok((identification, estimand))
+            })?;
+        let est = FunctionalDistribution {
+            bootstrap_replicates: self.bootstrap_replicates,
+            ..FunctionalDistribution::new()
+        };
+        let prepared = est
+            .prepare(
+                data,
+                query,
+                &estimand,
+                &identification.arena,
+                identification.required_assumptions.clone(),
+            )
+            .map_err(CausalError::from)?;
+        let (dist, posterior) = if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            if let InferenceMode::Bayesian(cfg) = &self.inference {
+                if cfg.prior_artifact.is_some()
+                    || cfg.external_compose.is_some()
+                    || cfg.prior.is_some()
+                {
+                    return Err(CausalError::Unsupported {
+                        message: "functional Bayesian prior transfer requires a declared \
+                                  functional mapping; a backdoor coefficient artifact cannot \
+                                  be applied as an isotropic CPT prior",
+                    });
+                }
+            }
+            let (dist, posterior) = est
+                .estimate_bayesian(
+                    &prepared,
+                    &[],
+                    bayesian_draw_count(&self.inference)?,
+                    identification.status,
+                    ctx,
+                )
+                .map_err(CausalError::from)?;
+            (dist, Some(posterior))
+        } else {
+            let mut ws = FunctionalDistributionWorkspace::default();
+            (est.estimate(&prepared, &[], &mut ws, ctx).map_err(CausalError::from)?, None)
+        };
+        let estimate = EffectEstimate::from_parts(
+            dist.mean,
+            dist.se_analytic,
+            dist.se_bootstrap,
+            dist.bootstrap_replicates_ok,
+            dist.bootstrap_replicates_failed,
+            dist.bootstrap_cancelled,
+            dist.bootstrap_early_stopped,
+            dist.assumptions.clone(),
+            dist.overlap,
+            None,
+            dist.retained_memory_bytes,
+        );
+        let treatment =
+            query.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
+                || CausalError::Compile {
+                    message: "distribution query missing intervention target".into(),
+                },
+            )?;
+        let outcome = *query.outcomes.first().ok_or_else(|| CausalError::Compile {
+            message: "distribution query missing outcome".into(),
+        })?;
+        let bootstrap_ok = estimate.bootstrap_replicates_ok;
+        let cancelled = estimate.bootstrap_cancelled;
+        let early_stopped = estimate.bootstrap_early_stopped;
+        Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
+            physical,
+            identification,
+            estimand,
+            estimate,
+            identifier_id,
+            estimator_id,
+            treatment,
+            outcome,
+            identify_cached,
+            extra_diagnostics: distribution_interval_diagnostics(&dist),
+            refutations: Vec::new(),
+            distribution: Some(dist),
+            mediation: None,
+            wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
+            bootstrap_replicates_ok: bootstrap_ok,
+            cancelled,
+            early_stopped,
+            extras: IdentifiedExecuteExtras {
+                n_draws: posterior
+                    .as_ref()
+                    .map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX)),
+                posterior,
+                ..Default::default()
+            },
+        }))
+    }
+
     /// Identify + plug-in estimate for a path-specific natural effect.
     pub(super) fn execute_path_specific(
         &self,
