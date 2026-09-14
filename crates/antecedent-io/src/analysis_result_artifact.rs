@@ -303,6 +303,11 @@ pub struct StructuralResponseMixtureWire {
     pub unidentified_mass: f64,
     /// Identified but numerically unevaluable mass.
     pub unevaluable_mass: f64,
+    /// Identified mass the Interactive latency tier left out of its graph
+    /// subsample and never evaluated. Absent (zero) outside that tier and on
+    /// artifacts written before the field existed.
+    #[serde(default, skip_serializing_if = "is_zero_mass")]
+    pub subsampled_out_mass: f64,
     /// Pointwise identified set.
     pub identified_set: Option<crate::ResponseEnvelopeWire>,
     /// Imbens–Manski interval for a scalar identified set (format 0.5). Absent on
@@ -315,6 +320,11 @@ pub struct StructuralResponseMixtureWire {
     pub full_mass_scope: bool,
     /// Number of capped atom searches.
     pub truncated_atoms: u64,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde's skip_serializing_if passes `&T`.
+fn is_zero_mass(mass: &f64) -> bool {
+    *mass == 0.0
 }
 
 /// A temporal identification certificate with its explicit unfolded variable namespace.
@@ -477,6 +487,11 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     if let Some(structural) = &result.structural_response {
         if let Some(interval) = &structural.identified_set_interval {
             identified_set_interval_from_wire(interval)?;
+        }
+        if !(0.0..=1.0).contains(&structural.subsampled_out_mass) {
+            return Err(IoError::Convert(
+                "structural subsampled_out_mass must be a fraction in [0, 1]".into(),
+            ));
         }
         for atom in &structural.atoms {
             if !atom.weight.is_finite() || atom.weight < 0.0 {
@@ -672,6 +687,7 @@ mod tests {
             identified_mass: 1.0,
             unidentified_mass: 0.0,
             unevaluable_mass: 0.0,
+            subsampled_out_mass: 0.0,
             identified_set: None,
             identified_set_interval: interval,
             conditional_on_identified: None,
@@ -679,6 +695,33 @@ mod tests {
             truncated_atoms: 0,
         });
         result
+    }
+
+    #[test]
+    fn subsampled_out_mass_is_optional_on_the_wire_and_round_trips() {
+        let names: Vec<String> = vec!["a".into(), "y".into()];
+        // Zero is omitted, and a body without the field decodes as zero.
+        let plain = with_structural(None);
+        let json = serde_json::to_value(&plain).unwrap();
+        assert!(json["structural_response"].get("subsampled_out_mass").is_none());
+        let decoded: AnalysisResultWire = serde_json::from_value(json).unwrap();
+        assert_eq!(decoded.structural_response.unwrap().subsampled_out_mass, 0.0);
+
+        let mut result = with_structural(None);
+        if let Some(structural) = result.structural_response.as_mut() {
+            structural.identified_mass = 0.4;
+            structural.subsampled_out_mass = 0.6;
+        }
+        let artifact = encode_analysis_result_artifact(&result, names.clone(), "sub").unwrap();
+        let mut bytes = Vec::new();
+        artifact.write_to(&mut bytes).unwrap();
+        let (_, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
+        assert_eq!(decoded, result);
+
+        if let Some(structural) = result.structural_response.as_mut() {
+            structural.subsampled_out_mass = 1.5;
+        }
+        assert!(encode_analysis_result_artifact(&result, names, "bad").is_err());
     }
 
     #[test]

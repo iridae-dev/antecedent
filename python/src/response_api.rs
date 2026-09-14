@@ -86,6 +86,11 @@ pub(crate) struct ResponseAnalysisResult {
     /// from [`Self::unidentified_mass`].
     #[pyo3(get)]
     unevaluable_mass: Option<f64>,
+    /// Mass on identified atoms the Interactive latency tier never evaluated;
+    /// separate from both [`Self::unidentified_mass`] and
+    /// [`Self::unevaluable_mass`].
+    #[pyo3(get)]
+    subsampled_out_mass: Option<f64>,
     #[pyo3(get)]
     completion_count: Option<usize>,
     #[pyo3(get)]
@@ -379,6 +384,7 @@ fn analyze_response_pag(
             identified_mass: Some(estimable_mass / total_mass),
             unidentified_mass: Some((total_mass - estimable_mass) / total_mass),
             unevaluable_mass: Some(0.0),
+            subsampled_out_mass: Some(0.0),
             completion_count: Some(envelope.cases.len()),
             truncated_completions: Some(envelope.truncated_completions),
             enumeration_capped: Some(enumeration_capped),
@@ -785,6 +791,7 @@ pub(crate) fn response_result(
         identified_mass: structural.map(|mixture| mixture.identified_mass),
         unidentified_mass: structural.map(|mixture| mixture.unidentified_mass),
         unevaluable_mass: structural.map(|mixture| mixture.unevaluable_mass),
+        subsampled_out_mass: structural.map(|mixture| mixture.subsampled_out_mass),
         completion_count: structural.map(|mixture| mixture.atoms.len()),
         truncated_completions: structural.map(|mixture| mixture.truncated_atoms),
         enumeration_capped: structural.map(|mixture| !mixture.full_mass_scope),

@@ -3754,6 +3754,7 @@ fn structural_response_wire(
         identified_mass: mixture.identified_mass,
         unidentified_mass: mixture.unidentified_mass,
         unevaluable_mass: mixture.unevaluable_mass,
+        subsampled_out_mass: mixture.subsampled_out_mass,
         identified_set: mixture.identified_set.as_ref().map(|envelope| {
             antecedent_io::ResponseEnvelopeWire {
                 grid: envelope.grid.to_vec(),

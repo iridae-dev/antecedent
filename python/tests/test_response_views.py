@@ -63,6 +63,14 @@ def test_envelope_and_support_and_uncertainty_guards():
         ["a"], ["y"], [[0.0]], [[0.0]], [[1.0]], 0.6, 0.0, 2, unevaluable_mass=0.4
     )
     assert split.unevaluable_mass == 0.4 and split.unidentified_mass == 0.0
+    with pytest.raises(CausalValueError, match="subsampled_out_mass"):
+        ResponseEnvelopeView(
+            ["a"], ["y"], [[0.0]], [[0.0]], [[1.0]], 0.6, 0.0, 1, subsampled_out_mass=-0.1
+        )
+    subsampled = ResponseEnvelopeView(
+        ["a"], ["y"], [[0.0]], [[0.0]], [[1.0]], 0.5, 0.1, 3, subsampled_out_mass=0.4
+    )
+    assert subsampled.subsampled_out_mass == 0.4 and subsampled.unidentified_mass == 0.1
     with pytest.raises(CausalValueError, match="completion"):
         ResponseEnvelopeView(["a"], ["y"], [[0.0]], [[0.0]], [[1.0]], 1.0, 0.0, 0)
     with pytest.raises(CausalValueError, match="examined completions"):

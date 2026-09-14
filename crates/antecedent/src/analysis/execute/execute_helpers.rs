@@ -216,38 +216,127 @@ pub(super) fn nan_effect() -> EffectEstimate {
     )
 }
 
+/// Identified atoms the Interactive latency tier's graph budget left out of the
+/// stratified subsample. They were never estimated, so their mass is neither
+/// unidentified nor unevaluable; it is reported on its own.
+#[derive(Clone, Debug, Default)]
+pub(super) struct InteractiveSubsampleDrop {
+    /// Graph keys of the dropped identified atoms, in ensemble order.
+    pub(super) keys: Vec<u64>,
+    /// Absolute weight of the dropped atoms (same units as the ensemble weights).
+    pub(super) mass: f64,
+}
+
+/// Most dropped keys a subsample diagnostic lists before summarizing the rest.
+const SUBSAMPLE_DIAGNOSTIC_KEY_LIMIT: usize = 16;
+
+/// Stratified Interactive subsample returning the dropped identified atoms.
+///
+/// The returned ensemble has the dropped atoms flagged Unidentified so every
+/// downstream mixture excludes them without a fit; callers that account for
+/// mass must subtract [`InteractiveSubsampleDrop::mass`] from the ensemble's
+/// unidentified mass and report it as not evaluated. Outside the Interactive
+/// tier (or when the identified atoms fit the budget) nothing is dropped.
+pub(super) fn interactive_subsample_graphs_accounted(
+    latency_mode: Option<LatencyMode>,
+    graphs: WeightedGraphSamples,
+    ctx: &ExecutionContext,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<(WeightedGraphSamples, InteractiveSubsampleDrop), CausalError> {
+    subsample_graphs_with_drop(latency_mode, graphs, ctx, diagnostics, true)
+}
+
+fn subsample_graphs_with_drop(
+    latency_mode: Option<LatencyMode>,
+    graphs: WeightedGraphSamples,
+    ctx: &ExecutionContext,
+    diagnostics: &mut Vec<Diagnostic>,
+    separately_accounted: bool,
+) -> Result<(WeightedGraphSamples, InteractiveSubsampleDrop), CausalError> {
+    if latency_mode != Some(LatencyMode::Interactive) {
+        return Ok((graphs, InteractiveSubsampleDrop::default()));
+    }
+    let mut rng = ctx.rng.stream(0xE11E_u64);
+    let sub = graphs
+        .stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)
+        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let keys: Vec<u64> = graphs
+        .identified
+        .iter()
+        .zip(sub.graphs.identified.iter())
+        .zip(graphs.graph_keys.iter())
+        .filter(|((before, after), _)| {
+            **before == GraphIdentFlag::Identified && **after != GraphIdentFlag::Identified
+        })
+        .map(|(_, key)| *key)
+        .collect();
+    let drop = InteractiveSubsampleDrop { keys, mass: sub.leftover_identified_mass };
+    if sub.approximate {
+        diagnostics.push(interactive_subsample_diagnostic(
+            &drop,
+            graphs.total_weight(),
+            separately_accounted,
+        ));
+    }
+    Ok((sub.graphs, drop))
+}
+
+/// `estimate.envelope.interactive_subsample`: which identified atoms the
+/// Interactive tier skipped, why, and where their mass is reported.
+fn interactive_subsample_diagnostic(
+    drop: &InteractiveSubsampleDrop,
+    total_weight: f64,
+    separately_accounted: bool,
+) -> Diagnostic {
+    let listed = drop
+        .keys
+        .iter()
+        .take(SUBSAMPLE_DIAGNOSTIC_KEY_LIMIT)
+        .map(u64::to_string)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let more = drop.keys.len().saturating_sub(SUBSAMPLE_DIAGNOSTIC_KEY_LIMIT);
+    let listed = if more > 0 { format!("{listed}, +{more} more") } else { listed };
+    let fraction = if total_weight > 0.0 { drop.mass / total_weight } else { f64::NAN };
+    let accounting = if separately_accounted {
+        "their mass is reported as subsampled_out_mass, not as unidentified or unevaluable mass"
+    } else {
+        "this path folds their mass into unidentified_mass"
+    };
+    Diagnostic::new(
+        "estimate.envelope.interactive_subsample",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "approximate=true leftover_identified_mass={} subsampled_out_mass={fraction} \
+             subsampled_out_atoms={} max_identified={}; the Interactive latency tier evaluates \
+             at most {} identified graph atoms, so these identified atoms were not evaluated: \
+             [{listed}]; {accounting}; rerun at the Standard or Report tier to evaluate every \
+             identified atom",
+            drop.mass,
+            drop.keys.len(),
+            INTERACTIVE_MAX_ENVELOPE_GRAPHS,
+            INTERACTIVE_MAX_ENVELOPE_GRAPHS,
+        ),
+    )
+}
+
 /// Interactive graph×effect: stratified subsample of Identified graphs; leftover
 /// identified mass is flipped to Unidentified (never silent renormalize to 1).
 ///
 /// Call this **after** resolving the shared envelope prior from the first
 /// identified atom in original order ([`resolve_envelope_prior_anchor`]), and
 /// **before** per-graph estimation so dropped atoms never pay a fit. Subsample
-/// must not move the prior anchor (0.6.0 semantics).
+/// must not move the prior anchor (0.6.0 semantics). Paths that report
+/// structural mass separately use [`interactive_subsample_graphs_accounted`].
 pub(super) fn maybe_interactive_subsample_graphs(
     latency_mode: Option<LatencyMode>,
     graphs: WeightedGraphSamples,
     ctx: &ExecutionContext,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<WeightedGraphSamples, CausalError> {
-    if latency_mode != Some(LatencyMode::Interactive) {
-        return Ok(graphs);
-    }
-    let mut rng = ctx.rng.stream(0xE11E_u64);
-    let sub = graphs
-        .stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-    if sub.approximate {
-        diagnostics.push(Diagnostic::new(
-            "estimate.envelope.interactive_subsample",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "approximate=true leftover_identified_mass={} max_identified={}",
-                sub.leftover_identified_mass, INTERACTIVE_MAX_ENVELOPE_GRAPHS
-            ),
-        ));
-    }
-    Ok(sub.graphs)
+    subsample_graphs_with_drop(latency_mode, graphs, ctx, diagnostics, false)
+        .map(|(graphs, _)| graphs)
 }
 
 /// Interactive graph×effect subsample: stratified Identified selection; leftover
@@ -260,29 +349,15 @@ pub(super) fn maybe_interactive_envelope_subsample(
     ctx: &ExecutionContext,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<(WeightedGraphSamples, Vec<GraphEffectDraws>), CausalError> {
-    if latency_mode != Some(LatencyMode::Interactive) {
+    let (graphs, drop) = subsample_graphs_with_drop(latency_mode, graphs, ctx, diagnostics, false)?;
+    // Same trigger as the subsample's own `approximate` flag.
+    if drop.mass <= 0.0 {
         return Ok((graphs, per_graph));
     }
-    let mut rng = ctx.rng.stream(0xE11E_u64);
-    let sub = graphs
-        .stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-    if !sub.approximate {
-        return Ok((sub.graphs, per_graph));
-    }
-    let keep_keys = identified_envelope_keys(&sub.graphs);
+    let keep_keys = identified_envelope_keys(&graphs);
     let filtered: Vec<GraphEffectDraws> =
         per_graph.into_iter().filter(|g| keep_keys.contains(&g.graph_key)).collect();
-    diagnostics.push(Diagnostic::new(
-        "estimate.envelope.interactive_subsample",
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
-        format!(
-            "approximate=true leftover_identified_mass={} max_identified={}",
-            sub.leftover_identified_mass, INTERACTIVE_MAX_ENVELOPE_GRAPHS
-        ),
-    ));
-    Ok((sub.graphs, filtered))
+    Ok((graphs, filtered))
 }
 
 /// Resolve the shared envelope prior from a prepared Bayesian problem.
