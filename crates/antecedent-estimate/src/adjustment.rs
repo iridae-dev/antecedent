@@ -136,6 +136,18 @@ pub struct EffectEstimate {
     pub evalue: Option<f64>,
     /// Candidate-selection screen recorded on a batch family (artifact payload).
     pub candidate_selection: Option<CandidateSelectionRecord>,
+    /// Circular-block geometry of a one-series block-bootstrap SE (the block
+    /// length the estimator chose and the lag-aligned rows it resampled).
+    pub block_resampling: Option<BlockResampling>,
+}
+
+/// Circular-block geometry an estimator used for its one-series bootstrap SE.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BlockResampling {
+    /// Circular-block length in lag-aligned rows.
+    pub block_length: usize,
+    /// Lag-aligned rows resampled.
+    pub rows: usize,
 }
 
 /// Screen / estimate split recorded on a batch result artifact.
@@ -194,6 +206,7 @@ impl EffectEstimate {
             influence: None,
             evalue: None,
             candidate_selection: None,
+            block_resampling: None,
         }
     }
 
@@ -241,6 +254,7 @@ impl EffectEstimate {
             influence: None,
             evalue: None,
             candidate_selection: None,
+            block_resampling: None,
         }
     }
 

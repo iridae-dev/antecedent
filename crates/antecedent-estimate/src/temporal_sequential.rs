@@ -804,9 +804,14 @@ impl SequentialSetup {
     /// [`crate::temporal_block::dependence_block_length`] of the unfolded span over
     /// the contrast influence plus every mechanism's normal-equation scores.
     fn dependence_block_length(&self, ls_ws: &mut LeastSquaresWorkspace) -> usize {
-        let block_scores: Vec<Vec<f64>> =
-            self.influence(ls_ws).into_iter().chain(self.normal_equation_scores()).collect();
-        let scores: Vec<&[f64]> = block_scores.iter().map(Vec::as_slice).collect();
+        self.dependence_block_length_with(self.influence(ls_ws).as_deref())
+    }
+
+    /// [`Self::dependence_block_length`] with the contrast influence already computed.
+    fn dependence_block_length_with(&self, influence: Option<&[f64]>) -> usize {
+        let normal = self.normal_equation_scores();
+        let scores: Vec<&[f64]> =
+            influence.into_iter().chain(normal.iter().map(Vec::as_slice)).collect();
         crate::temporal_block::dependence_block_length(self.max_lag as usize + 1, self.n, &scores)
     }
 }
@@ -1033,9 +1038,11 @@ fn estimate_sequential(
     // SD scaled by the Kiefer–Vogelsang fixed-b factor, as on the single-window
     // path ([`crate::temporal_block`]). Blocks are at least the unfolded span and
     // lengthen when the contrast's estimating score, or any mechanism's
-    // normal-equation score, is persistently dependent.
-    let block_length =
-        if bootstrap_replicates > 0 { setup.dependence_block_length(&mut ls_ws) } else { 0 };
+    // normal-equation score, is persistently dependent. The influence and block
+    // length are returned on the estimate so callers can report the resampling
+    // geometry without rebuilding the design.
+    let influence = setup.influence(&mut ls_ws);
+    let block_length = setup.dependence_block_length_with(influence.as_deref());
     let boot = crate::temporal_block::row_block_bootstrap_vec(
         setup.n,
         block_length,
@@ -1045,20 +1052,21 @@ fn estimate_sequential(
         |rows| setup.evaluate(Some(rows), &mut ls_ws).ok().map(|value| vec![value]),
     );
     let se = boot.se_result(0);
-    Ok((
-        EffectEstimate::from_parts(
-            point,
-            f64::NAN,
-            se.se,
-            (bootstrap_replicates > 0).then_some(se.replicates_ok),
-            (bootstrap_replicates > 0).then_some(se.replicates_failed),
-            ctx.cancellation.is_cancelled(),
-            false,
-            assumptions,
-            OverlapPolicy::ExplicitOverride,
-            None,
-            None,
-        ),
+    let mut effect = EffectEstimate::from_parts(
+        point,
+        f64::NAN,
+        se.se,
+        (bootstrap_replicates > 0).then_some(se.replicates_ok),
+        (bootstrap_replicates > 0).then_some(se.replicates_failed),
+        ctx.cancellation.is_cancelled(),
+        false,
+        assumptions,
+        OverlapPolicy::ExplicitOverride,
         None,
-    ))
+        None,
+    );
+    effect.influence = influence.map(Arc::from);
+    effect.block_resampling =
+        Some(crate::adjustment::BlockResampling { block_length, rows: setup.n });
+    Ok((effect, None))
 }

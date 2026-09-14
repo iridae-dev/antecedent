@@ -60,8 +60,8 @@ pub mod util;
 mod calibration_coverage;
 
 pub use adjustment::{
-    CandidateSelectionRecord, EffectEstimate, EstimationWorkspace, LinearAdjustmentAte,
-    LinearFitKind, PreparedEstimationProblem,
+    BlockResampling, CandidateSelectionRecord, EffectEstimate, EstimationWorkspace,
+    LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
 };
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use antecedent_expr::EstimandMethod;

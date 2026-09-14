@@ -402,7 +402,7 @@ impl super::Study {
             let mut assumptions = identification.required_assumptions.clone();
             assumptions.push(antecedent_core::AssumptionRecord {
                 assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
-                    id: Arc::from("temporal.sequential.linear_sem"), description: Arc::from("linear additive mechanisms on the identified unfolded DAG; every sustained time is intervened on; frequentist intervals use a shared moving-block row bootstrap, Bayesian intervals share each stationary mechanism posterior across time copies, fitting its unique complete observed rows once"),
+                    id: Arc::from("temporal.sequential.linear_sem"), description: Arc::from("linear additive mechanisms on the identified unfolded DAG; every sustained time is intervened on; frequentist intervals use a shared circular-block row bootstrap whose replicate SD carries the Kiefer-Vogelsang fixed-b correction for the block length, Bayesian intervals share each stationary mechanism posterior across time copies, fitting its unique complete observed rows once"),
                 }),
                 source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from("temporal.sequential.gcomp") },
                 scope: antecedent_core::AssumptionScope::Estimation, status: antecedent_core::AssumptionStatus::Declared,
@@ -452,15 +452,8 @@ impl super::Study {
                 "the contrast propagates through all intervened times in topological order; no one-node collapse; no analytic SE is asserted for the frequentist sequential fit"));
             if bayes.is_none() {
                 diagnostics.extend(sequential_dependence_se_diagnostics(
-                    data,
-                    graph,
-                    &indexer,
-                    &estimand,
-                    query,
-                    identification.status,
                     &estimate,
                     self.bootstrap_replicates,
-                    ctx,
                 ));
             }
             return Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
@@ -5052,36 +5045,22 @@ mod observation_bootstrap_tests {
 const MEDIATION_BLOCK_STREAM: u64 = 0x3ED1_B10C_0000;
 
 /// [`temporal_dependence_se_diagnostics`] for a Frequentist multi-step Sustained
-/// fit on one `TemporalDag`: the contrast is prepared once more on the same
-/// aligned rows for its block length and its estimating score's effective rows
-/// (the same quantities the sequential circular-block bootstrap used). A design
-/// that cannot be prepared again reports NaN effective rows, which warns.
-#[allow(clippy::too_many_arguments)]
+/// fit on one `TemporalDag`, from the block length, aligned rows and contrast
+/// influence the sequential estimator returned on `estimate` (the quantities its
+/// circular-block bootstrap used). An estimate without them reports NaN
+/// effective rows, which warns.
 fn sequential_dependence_se_diagnostics(
-    data: &TimeSeriesData,
-    graph: &TemporalDag,
-    indexer: &TemporalIndexer,
-    estimand: &IdentifiedEstimand,
-    query: &TemporalEffectQuery,
-    status: IdentificationStatus,
     estimate: &EffectEstimate,
     replicates: u32,
-    ctx: &ExecutionContext,
 ) -> Vec<Diagnostic> {
-    let design = antecedent_estimate::SequentialContrastDesign::prepare(
-        data, graph, indexer, estimand, query, status, ctx,
-    )
-    .ok();
-    let (block_length, rows, effective_rows) = design.as_ref().map_or((0, 0, f64::NAN), |design| {
-        let block_length = design.block_length();
-        let influence = design.influence();
-        let scores: Vec<&[f64]> = influence.as_deref().into_iter().collect();
-        (
-            block_length,
-            design.aligned_rows().rows,
-            antecedent_estimate::score_effective_rows(&scores, block_length),
-        )
-    });
+    let (block_length, rows) =
+        estimate.block_resampling.map_or((0, 0), |geometry| (geometry.block_length, geometry.rows));
+    let scores: Vec<&[f64]> = estimate.influence.as_deref().into_iter().collect();
+    let effective_rows = if estimate.block_resampling.is_some() {
+        antecedent_estimate::score_effective_rows(&scores, block_length)
+    } else {
+        f64::NAN
+    };
     temporal_dependence_se_diagnostics(
         antecedent_estimate::CircularBlockFamily::Sequential,
         block_length,
