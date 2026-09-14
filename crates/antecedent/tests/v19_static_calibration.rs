@@ -1059,40 +1059,68 @@ fn interventional_distribution_bayesian_near_zero_nominal_90_coverage() {
     distribution_bayesian("interventional_distribution_bayesian_near_zero", 0.02, 33_500);
 }
 
-/// The Frequentist plug-in publishes only a bootstrap SE of the interventional
-/// mean (no interval). For a binary outcome that mean is `P(Y = 1 | do(t))`;
-/// this probe records how often the normal interval `mean ± z·se_bootstrap`
-/// covers and how often it leaves `[0, 1]`.
-#[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn interventional_distribution_frequentist_boundary_probe() {
-    for (base, label) in [(0.95, "near_one"), (0.02, "near_zero"), (0.45, "interior")] {
-        let truth = base + 0.015;
-        let (mut covered, mut scored, mut outside) = (0u32, 0u32, 0u32);
-        for rep in 0..u64::from(n_sim()) {
-            let seed = 34_000 + rep;
-            let Some(result) = run_distribution(
-                distribution_data(600, base, seed),
-                InferenceMode::Frequentist,
-                seed,
-            ) else {
-                continue;
-            };
-            scored += 1;
-            if let Some((lo, hi)) =
-                normal_interval(result.estimate.ate, result.estimate.se_bootstrap, Z90)
-            {
-                covered += u32::from(lo <= truth && truth <= hi);
-                outside += u32::from(lo < 0.0 || hi > 1.0);
+/// Frequentist published interval for `P(Y = 1 | do(t = 1))`: the logit-scale
+/// delta-method interval from the per-atom bootstrap SE, at the estimator's
+/// published level (95%). Every published atom bound must lie in `[0, 1]`, the
+/// headline mean interval must be the `Y = 1` atom's interval, and the atom SE
+/// of `Y = 1` must reproduce the scalar bootstrap SE of the mean.
+fn distribution_frequentist(name: &str, base: f64, seed: u64) {
+    const PUBLISHED_LEVEL: f64 = 0.95;
+    let truth = base + 0.015;
+    let mut tally = CoverageTally::new(name, PUBLISHED_LEVEL);
+    for rep in 0..u64::from(n_sim()) {
+        let Some(result) = run_distribution(
+            distribution_data(600, base, seed + rep),
+            InferenceMode::Frequentist,
+            seed + rep,
+        ) else {
+            tally.skip();
+            continue;
+        };
+        let dist = result.distribution.as_ref().expect("distribution payload");
+        assert_eq!(dist.atom_uncertainty.len(), dist.atoms.len(), "one interval per atom");
+        for (atom, u) in dist.atoms.iter().zip(dist.atom_uncertainty.iter()) {
+            if let Some((lo, hi)) = u.interval.bounds() {
+                assert!(
+                    (0.0..=1.0).contains(&lo) && (0.0..=1.0).contains(&hi) && lo <= hi,
+                    "published bounds [{lo}, {hi}] must lie in [0, 1]"
+                );
+                assert!(lo <= atom.probability && atom.probability <= hi, "p̂ inside its interval");
             }
         }
-        report_probe(
-            &format!("interventional_distribution_frequentist_wald_{label}"),
-            covered,
-            scored,
-            &format!("interval outside [0,1] in {outside}/{scored}"),
-        );
+        let one = dist
+            .atoms
+            .iter()
+            .position(|a| a.outcomes[0].1.as_f64() == Some(1.0))
+            .expect("Y = 1 atom");
+        let atom_interval = dist.atom_uncertainty[one].interval;
+        assert_eq!(dist.mean_interval, Some(atom_interval), "binary mean uses the Y = 1 atom");
+        if let (Some(atom_se), Some(mean_se)) =
+            (dist.atom_uncertainty[one].se_bootstrap, result.estimate.se_bootstrap)
+        {
+            assert!((atom_se - mean_se).abs() <= 1e-12 * mean_se.max(1.0), "same replicates");
+        }
+        tally.record(atom_interval.bounds(), truth);
     }
+    tally.assert();
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn interventional_distribution_frequentist_near_one_nominal_95_coverage() {
+    distribution_frequentist("interventional_distribution_frequentist_near_one", 0.95, 34_000);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn interventional_distribution_frequentist_near_zero_nominal_95_coverage() {
+    distribution_frequentist("interventional_distribution_frequentist_near_zero", 0.02, 34_500);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn interventional_distribution_frequentist_interior_nominal_95_coverage() {
+    distribution_frequentist("interventional_distribution_frequentist_interior", 0.45, 35_500);
 }
 
 // ======================================================================
