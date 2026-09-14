@@ -125,7 +125,7 @@ impl EffectRefit for SequentialRefitter<'_> {
             return Some(Err(antecedent_validate::ValidationError::NotApplicable {
                 message: "prior shrinkage separates the posterior mean from the least-squares \
                           contrast by more than 0.25 posterior SD, so the least-squares \
-                          stand-in would not check the published interval",
+                          stand-in would resample a different estimator than the posterior mean",
             }));
         }
         Some(Ok(antecedent_validate::common::AlignedRefit {
@@ -181,7 +181,9 @@ fn least_squares_stand_in(bayes: &BayesianGComputationAte) -> Arc<str> {
          mean is the ridge fit (X'X + kappa/scale^2 I)^-1 X'y, the least-squares fit up to \
          O(kappa/(n scale^2)) shrinkage; the check is not applicable when that shrinkage \
          moves the posterior mean more than 0.25 posterior SD from least squares, or under an \
-         informative coefficient prior",
+         informative coefficient prior. It asks whether the posterior mean lies inside that \
+         least-squares bootstrap interval; it does not test the published credible interval, \
+         so it cannot detect a miscalibrated (too narrow or too wide) posterior",
         bayes.prior_scale
     ))
 }
