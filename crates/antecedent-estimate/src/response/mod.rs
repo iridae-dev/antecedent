@@ -1113,7 +1113,7 @@ impl ContinuousResponseEstimator {
             treatments.push(variable);
         }
         let sample = CompleteSample::read(data, outcome, &treatments, &self.adjustment_set)?;
-        let fit = self.fit_outcome_target(&sample)?;
+        let (fit, target_fallback) = self.fit_outcome_target(&sample)?;
         // Discrete policies (Set/Shift/Bernoulli/Categorical) are integrated exactly as a
         // finite mixture. Monte Carlo through a continuous spline would treat categorical
         // codes as ordered coordinates and approximate a sum that has a closed form.
@@ -1178,12 +1178,7 @@ impl ContinuousResponseEstimator {
                         "observed minima followed by maxima; policy support is not certified",
                     ),
                 }],
-                warnings: vec![Diagnostic::new(
-                    "response.intervention_plugin_model_dependent",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Warning,
-                    "intervention response uses additive-GAM g-computation with unpenalized treatment splines (the target) and penalized adjustment splines (nuisances); SE includes fitted-coefficient and covariate-average influence conditional on the fitted spline knots and adjustment penalty; it excludes knot-selection, sieve-approximation bias of a non-additive or rough outcome surface, and policy-integration error",
-                )],
+                warnings: intervention_plugin_warnings(target_fallback.as_deref()),
                 point_status: None,
             },
             scores,
@@ -1752,10 +1747,15 @@ impl ContinuousResponseEstimator {
     /// knots shrinks even a linear dose effect, which biased the g-computation
     /// level by about half its SE at every n in the 1.9 calibration), and
     /// adjustment smooths keep `nuisance_lambda`.
+    ///
+    /// When the unpenalized target fit fails (a binary or low-cardinality
+    /// treatment cannot support an unpenalized cubic basis), the penalized
+    /// nuisance fit is used instead and the failure reason is returned so the
+    /// caller can disclose that the reported level is the penalized fit.
     fn fit_outcome_target(
         &self,
         sample: &CompleteSample,
-    ) -> Result<antecedent_stats::GamFit, EstimationError> {
+    ) -> Result<(antecedent_stats::GamFit, Option<String>), EstimationError> {
         let rows: Vec<usize> = (0..sample.len()).collect();
         let x = sample.raw_subset(&rows);
         let specs = self.outcome_target_specs(sample);
@@ -1771,14 +1771,17 @@ impl ContinuousResponseEstimator {
             &mut gam_ws,
         );
         match target {
-            Ok(fit) if fit.converged => Ok(fit),
+            Ok(fit) if fit.converged => Ok((fit, None)),
             Ok(_) => Err(EstimationError::unsupported(
                 "additive GAM target did not converge; refuse rather than publish an unfinished fit",
             )),
             // A binary or low-cardinality treatment cannot support an unpenalized
             // cubic basis (singular Gram); keep the penalized nuisance fit there,
-            // exactly as before 1.9.
-            Err(_) => self.fit_outcome(sample, &rows, &mut gam_ws),
+            // exactly as before 1.9, and report why.
+            Err(error) => {
+                let fit = self.fit_outcome(sample, &rows, &mut gam_ws)?;
+                Ok((fit, Some(error.to_string())))
+            }
         }
     }
 
@@ -2784,6 +2787,36 @@ fn transform_derivative(
     Ok(value)
 }
 
+/// Model-dependence disclosure for the intervention-response g-computation,
+/// worded for the outcome fit that actually ran. `target_fallback` carries the
+/// reason the unpenalized treatment-spline target fit failed, if it did.
+fn intervention_plugin_warnings(target_fallback: Option<&str>) -> Vec<Diagnostic> {
+    let Some(reason) = target_fallback else {
+        return vec![Diagnostic::new(
+            "response.intervention_plugin_model_dependent",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "intervention response uses additive-GAM g-computation with unpenalized treatment splines (the target) and penalized adjustment splines (nuisances); SE includes fitted-coefficient and covariate-average influence conditional on the fitted spline knots and adjustment penalty; it excludes knot-selection, sieve-approximation bias of a non-additive or rough outcome surface, and policy-integration error",
+        )];
+    };
+    let mut fallback = Diagnostic::new(
+        "response.intervention_target_penalized_fallback",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Warning,
+        "the unpenalized treatment-spline target fit failed (typically a binary or low-cardinality treatment that cannot support an unpenalized cubic basis), so the level and SE come from the penalized nuisance outcome fit; roughness shrinkage of the treatment smooths can bias the level toward the observed mean by a fraction of its SE, and the interval does not account for that bias",
+    );
+    fallback.fields = Arc::from(vec![(Arc::from("target_fit_error"), Arc::from(reason))]);
+    vec![
+        Diagnostic::new(
+            "response.intervention_plugin_model_dependent",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "intervention response uses additive-GAM g-computation with penalized treatment and adjustment splines (the unpenalized treatment-spline target fit failed); SE includes fitted-coefficient and covariate-average influence conditional on the fitted spline knots and penalties; it excludes penalty-induced shrinkage bias, knot-selection, sieve-approximation bias of a non-additive or rough outcome surface, and policy-integration error",
+        ),
+        fallback,
+    ]
+}
+
 /// Runtime disclosure attached whenever a point-derivative interval is published.
 fn bias_corrected_interval_note(
     bayesian: bool,
@@ -3592,6 +3625,60 @@ mod tests {
         assert!((scalar(&shift) - 1.5).abs() < 0.2);
         assert_eq!(set.support.status, SupportStatus::Extrapolative);
         assert_eq!(set.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
+        let codes: Vec<_> = set.support.warnings.iter().map(|w| w.code.as_ref()).collect();
+        assert!(codes.contains(&"response.intervention_plugin_model_dependent"));
+        assert!(!codes.contains(&"response.intervention_target_penalized_fallback"));
+    }
+
+    #[test]
+    fn intervention_response_discloses_the_penalized_fallback_for_a_binary_treatment() {
+        // A binary treatment cannot support the unpenalized cubic target basis;
+        // the penalized nuisance fit runs instead, and the result must say so.
+        let n = 400;
+        let mut a = Vec::with_capacity(n);
+        let mut y = Vec::with_capacity(n);
+        let mut x = Vec::with_capacity(n);
+        for i in 0..n {
+            let z = -1.0 + 2.0 * i as f64 / (n - 1) as f64;
+            let treatment = if (i * 37 % 101) as f64 / 100.0 < 0.5 + 0.3 * z { 1.0 } else { 0.0 };
+            x.push(z);
+            a.push(treatment);
+            y.push(1.0 + 2.0 * treatment + 0.8 * z + 0.05 * (i as f64).sin());
+        }
+        let data = TabularData::from_f64_columns([
+            ("a", a.as_slice()),
+            ("y", y.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let (a, y, x) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([Intervention::set(a, Value::f64(1.0))]),
+        });
+        let response = ContinuousResponseEstimator::new([x])
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let fallback = response
+            .support
+            .warnings
+            .iter()
+            .find(|w| w.code.as_ref() == "response.intervention_target_penalized_fallback")
+            .expect("the penalized fallback must be disclosed");
+        assert!(fallback.fields.iter().any(|(key, _)| key.as_ref() == "target_fit_error"));
+        let model = response
+            .support
+            .warnings
+            .iter()
+            .find(|w| w.code.as_ref() == "response.intervention_plugin_model_dependent")
+            .unwrap();
+        assert!(model.message.contains("penalized treatment and adjustment splines"));
+        assert!(!model.message.contains("unpenalized treatment splines (the target)"));
     }
 
     #[test]
