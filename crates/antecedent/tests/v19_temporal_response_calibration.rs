@@ -57,7 +57,7 @@ use antecedent_core::{
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
-use common::calibration::{CoverageTally, ar1_noise, gaussian, n_sim};
+use common::calibration::{CoverageTally, ar1_noise, gaussian, n_sim, stream_seed};
 
 const N: usize = 160;
 const BURN: usize = 10;
@@ -252,7 +252,7 @@ fn simultaneous_slack(
 fn dose_horizon_series(rho: f64, seed: u64) -> TimeSeriesData {
     let n = N + BURN;
     let t = gaussian_vec(n, 0.8, seed);
-    let e = ar1_noise(n, rho, 0.5, splitmix(seed ^ 0xE));
+    let e = ar1_noise(n, rho, 0.5, splitmix(stream_seed(seed, 0xE)));
     let y: Vec<f64> = (0..n)
         .map(|s| 1.0 + BETA[0] * lagged(&t, s, 1) + BETA[1] * lagged(&t, s, 2) + e[s])
         .collect();
@@ -269,9 +269,9 @@ fn dose_horizon_dag() -> TemporalDag {
 fn horizon_dependent_series(rho: f64, seed: u64) -> TimeSeriesData {
     let n = N + BURN;
     let z = gaussian_vec(n, 1.0, seed);
-    let u = gaussian_vec(n, 1.0, splitmix(seed ^ 0xA));
+    let u = gaussian_vec(n, 1.0, splitmix(stream_seed(seed, 0xA)));
     let a: Vec<f64> = z.iter().zip(&u).map(|(z, u)| z + u).collect();
-    let e = ar1_noise(n, rho, 0.5, splitmix(seed ^ 0xE));
+    let e = ar1_noise(n, rho, 0.5, splitmix(stream_seed(seed, 0xE)));
     let y: Vec<f64> = (0..n)
         .map(|s| 1.0 + 2.0 * lagged(&a, s, 1) + lagged(&a, s, 2) + 5.0 * lagged(&z, s, 1) + e[s])
         .collect();
@@ -288,8 +288,8 @@ fn horizon_dependent_dag() -> TemporalDag {
 fn selected_series(rho: f64, seed: u64) -> TimeSeriesData {
     let n = N + BURN;
     let t = gaussian_vec(n, 0.8, seed);
-    let e = ar1_noise(n, rho, 0.5, splitmix(seed ^ 0xE));
-    let mut coin = uniform(seed ^ 0x5E1);
+    let e = ar1_noise(n, rho, 0.5, splitmix(stream_seed(seed, 0xE)));
+    let mut coin = uniform(stream_seed(seed, 0x5E1));
     let mut y = vec![0.0; n];
     let mut r = vec![0.0; n];
     for s in 0..n {
@@ -308,12 +308,13 @@ fn selected_series(rho: f64, seed: u64) -> TimeSeriesData {
 /// fixture, where `T = 0.6 Z + U` has no `R` term).
 fn class_series(rho: f64, seed: u64, with_r: bool) -> TimeSeriesData {
     let n = N + BURN;
-    let r = if with_r { gaussian_vec(n, 1.0, splitmix(seed ^ 0x77)) } else { vec![0.0; n] };
+    let r =
+        if with_r { gaussian_vec(n, 1.0, splitmix(stream_seed(seed, 0x77))) } else { vec![0.0; n] };
     let v = gaussian_vec(n, 1.0, seed);
-    let u = gaussian_vec(n, 1.0, splitmix(seed ^ 0xA));
+    let u = gaussian_vec(n, 1.0, splitmix(stream_seed(seed, 0xA)));
     let z: Vec<f64> = r.iter().zip(&v).map(|(r, v)| 0.5 * r + v).collect();
     let t: Vec<f64> = (0..n).map(|s| 0.5 * r[s] + 0.6 * z[s] + u[s]).collect();
-    let e = ar1_noise(n, rho, 0.5, splitmix(seed ^ 0xE));
+    let e = ar1_noise(n, rho, 0.5, splitmix(stream_seed(seed, 0xE)));
     let y: Vec<f64> =
         (0..n).map(|s| 1.0 + 2.0 * lagged(&t, s, 1) + 1.5 * lagged(&z, s, 1) + e[s]).collect();
     if with_r {
@@ -507,7 +508,7 @@ fn frequentist_temporal_response_lengthens_blocks_under_persistence() {
 fn persistent_treatment_series(phi: f64, rho: f64, seed: u64) -> TimeSeriesData {
     let n = N + BURN;
     let t = ar1_noise(n, phi, 0.8, seed);
-    let e = ar1_noise(n, rho, 0.5, splitmix(seed ^ 0xE));
+    let e = ar1_noise(n, rho, 0.5, splitmix(stream_seed(seed, 0xE)));
     let y: Vec<f64> = (0..n).map(|s| 1.0 + BETA[0] * lagged(&t, s, 1) + e[s]).collect();
     series(&[("t", &t), ("y", &y)])
 }
@@ -806,8 +807,8 @@ fn frequentist_temporal_observation_selected_ar1_nominal_95_coverage() {
 fn selected_two_lag_series(rho: f64, seed: u64) -> TimeSeriesData {
     let n = N + BURN;
     let t = gaussian_vec(n, 0.8, seed);
-    let e = ar1_noise(n, rho, 0.5, splitmix(seed ^ 0xE));
-    let mut coin = uniform(seed ^ 0x5E2);
+    let e = ar1_noise(n, rho, 0.5, splitmix(stream_seed(seed, 0xE)));
+    let mut coin = uniform(stream_seed(seed, 0x5E2));
     let mut y = vec![0.0; n];
     let mut r = vec![0.0; n];
     for s in 0..n {

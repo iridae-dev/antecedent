@@ -43,7 +43,7 @@ use antecedent_data::TabularData;
 use antecedent_discovery::set_edge;
 use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
-    CoverageTally, Z90, gaussian, n_sim, normal_interval, quantile_interval,
+    CoverageTally, Z90, gaussian, n_sim, normal_interval, quantile_interval, stream_seed,
 };
 
 const N: usize = 400;
@@ -65,8 +65,8 @@ fn uniform(seed: u64) -> impl FnMut() -> f64 {
 /// Columns `[t, y, z]`, plus `w` when `modifier` is set.
 fn draw_data(seed: u64, modifier: bool) -> TabularData {
     let mut unif = uniform(seed);
-    let mut eps_noise = gaussian(seed ^ 0x5EED_0001);
-    let mut w_noise = gaussian(seed ^ 0x5EED_0002);
+    let mut eps_noise = gaussian(stream_seed(seed, 0x5EED_0001));
+    let mut w_noise = gaussian(stream_seed(seed, 0x5EED_0002));
     let (mut t, mut y, mut z, mut w) = (
         Vec::with_capacity(N),
         Vec::with_capacity(N),
