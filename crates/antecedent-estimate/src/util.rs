@@ -6,7 +6,7 @@
 
 use antecedent_core::{AdaptiveBootstrapBudget, ExecutionContext};
 use antecedent_data::{DataError, ResamplingPlan, fill_resample_index_batch};
-use antecedent_stats::{StatsError, form_xtx, invert_square};
+use antecedent_stats::{StatsError, chol_solve, cholesky_spd, form_xtx, invert_square};
 
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
@@ -15,6 +15,13 @@ use crate::overlap::OverlapPolicy;
 #[allow(clippy::needless_pass_by_value)] // StatsError is small / owned at call sites
 pub(crate) fn stats_err(e: StatsError) -> EstimationError {
     EstimationError::from(e)
+}
+
+/// Solve `A x = b` for symmetric positive-definite row-major `A` (`p × p`).
+#[must_use]
+pub(crate) fn solve_spd(a: &[f64], b: &[f64], p: usize) -> Option<Vec<f64>> {
+    let chol = cholesky_spd(a, p)?;
+    chol_solve(&chol, p, b)
 }
 
 /// Require [`OverlapPolicy::ExplicitOverride`] (linear / IV / RD / front-door / GLM paths).
