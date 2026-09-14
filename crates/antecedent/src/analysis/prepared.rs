@@ -97,8 +97,11 @@ pub(crate) struct CachedGraphPosteriorAtomIdentification {
 pub(crate) struct CachedGraphPosteriorIdentification {
     /// Frozen weights, graph keys, and identified/unidentified flags.
     pub graphs: WeightedGraphSamples,
-    /// Identified atoms, in posterior order. Unidentified atoms remain in
-    /// [`Self::graphs`] with [`GraphIdentFlag::Unidentified`].
+    /// Identified atoms, one per distinct graph key, in order of first
+    /// appearance. Weight an atom by the combined identified mass of its key in
+    /// [`Self::graphs`] (`identified_weight_for_key`), which keeps one entry per
+    /// posterior sample. Unidentified atoms remain in [`Self::graphs`] with
+    /// [`GraphIdentFlag::Unidentified`].
     pub atoms: Arc<[CachedGraphPosteriorAtomIdentification]>,
 }
 
@@ -257,6 +260,7 @@ pub(crate) fn build_graph_posterior_identification_cache(
     let mut atoms = Vec::new();
     let mut by_mask: HashMap<u64, Option<(IdentifiedEstimand, IdentificationResult)>> =
         HashMap::new();
+    let mut atom_masks: HashMap<u64, u64> = HashMap::new();
 
     for i in 0..posterior.n_graphs {
         if ctx.cancellation.is_cancelled() {
@@ -300,9 +304,32 @@ pub(crate) fn build_graph_posterior_identification_cache(
             by_mask.insert(mask, value.clone());
             value
         };
+        // A posterior may list the same graph more than once (one entry per
+        // sample). Every entry keeps its own weight and flag in `graphs`, but
+        // consumers weight an atom by the combined mass of its key, so each
+        // key contributes exactly one atom.
+        let first_for_key = match atom_masks.entry(key) {
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                slot.insert(mask);
+                true
+            }
+            std::collections::hash_map::Entry::Occupied(slot) if *slot.get() == mask => false,
+            std::collections::hash_map::Entry::Occupied(_) => {
+                return Err(CausalError::Compile {
+                    message: "graph posterior reuses one graph key for different adjacency masks"
+                        .into(),
+                });
+            }
+        };
         if let Some((estimand, identification)) = resolved {
             flags.push(GraphIdentFlag::Identified);
-            atoms.push(CachedGraphPosteriorAtomIdentification { key, estimand, identification });
+            if first_for_key {
+                atoms.push(CachedGraphPosteriorAtomIdentification {
+                    key,
+                    estimand,
+                    identification,
+                });
+            }
         } else {
             flags.push(GraphIdentFlag::Unidentified);
         }
