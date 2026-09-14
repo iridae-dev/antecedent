@@ -791,18 +791,7 @@ pub(crate) fn response_result(
         mass_scope: structural.map(|mixture| {
             if mixture.full_mass_scope { "full_class" } else { "examined_completions" }.into()
         }),
-        weight_basis: structural.map(|mixture| match mixture.weight_basis {
-            antecedent::result::StructuralWeightBasis::PosteriorProbability => {
-                "posterior_probability".into()
-            }
-            antecedent::result::StructuralWeightBasis::CompletionEnumeration => {
-                "completion_enumeration".into()
-            }
-            antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior => {
-                "caller_supplied_class_prior".into()
-            }
-            _ => "completion_enumeration".into(),
-        }),
+        weight_basis: structural.map(|mixture| mixture.weight_basis.as_str().into()),
         atom_keys: structural
             .map(|mixture| mixture.atoms.iter().map(|atom| atom.graph_key).collect())
             .unwrap_or_default(),

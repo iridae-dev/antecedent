@@ -1392,18 +1392,7 @@ pub(crate) fn shared_study_sections(
         evidence_status,
         allowlist_reason,
         allowlist_parent,
-        structural_weight_basis: structural.map(|mixture| {
-            match mixture.weight_basis {
-                antecedent::result::StructuralWeightBasis::PosteriorProbability => {
-                    "posterior_probability"
-                }
-                antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior => {
-                    "caller_supplied_class_prior"
-                }
-                _ => "completion_enumeration",
-            }
-            .to_string()
-        }),
+        structural_weight_basis: structural.map(|mixture| mixture.weight_basis.as_str().into()),
         structural_identified_mass: structural.map(|m| m.identified_mass),
         structural_unidentified_mass: structural.map(|m| m.unidentified_mass),
         structural_unevaluable_mass: structural.map(|m| m.unevaluable_mass),

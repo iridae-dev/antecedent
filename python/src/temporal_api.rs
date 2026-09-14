@@ -1955,20 +1955,10 @@ fn analysis_result_from_run(
         evidence_status,
         allowlist_reason,
         allowlist_parent,
-        structural_weight_basis: result.structural_response.as_ref().map(|mixture| {
-            match mixture.weight_basis {
-                antecedent::result::StructuralWeightBasis::PosteriorProbability => {
-                    "posterior_probability".to_string()
-                }
-                antecedent::result::StructuralWeightBasis::CompletionEnumeration => {
-                    "completion_enumeration".to_string()
-                }
-                antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior => {
-                    "caller_supplied_class_prior".to_string()
-                }
-                _ => "completion_enumeration".to_string(),
-            }
-        }),
+        structural_weight_basis: result
+            .structural_response
+            .as_ref()
+            .map(|mixture| mixture.weight_basis.as_str().to_string()),
         structural_identified_mass: result
             .structural_response
             .as_ref()
