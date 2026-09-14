@@ -127,7 +127,7 @@ fn interactive_vs_standard_records_mode_and_effort() {
     assert!(standard.estimate.ate.is_finite());
     assert!((standard.estimate.ate - 2.0).abs() < 0.5);
     assert_eq!(standard.performance.latency_mode.as_deref(), Some("standard"));
-    assert_eq!(standard.performance.bootstrap_replicates_requested, Some(50));
+    assert_eq!(standard.performance.bootstrap_replicates_requested, Some(199));
     let ok = standard.estimate.bootstrap_replicates_ok.expect("bootstrap ok count");
     assert!(ok >= 2, "expected bootstrap survivors, got {ok}");
     assert!(standard.estimate.se_bootstrap.is_some());

@@ -685,7 +685,7 @@ fn parse_population_registry(
     bandwidth=None,
     estimator_config=None,
     seed=1,
-    bootstrap=50,
+    bootstrap=199,
     threads=1,
     target_population=None,
     outcome_functional=None,
@@ -814,7 +814,7 @@ fn analyze_ate(
     bandwidth=None,
     estimator_config=None,
     seed=1,
-    bootstrap=50,
+    bootstrap=199,
     threads=1,
     latency=None,
     cancel=None,
@@ -1118,7 +1118,7 @@ fn compile_cell_batch(
     estimator=None,
     refute=None,
     seed=1,
-    bootstrap=50,
+    bootstrap=199,
     threads=1,
     latency=None,
     screen_id=None,
@@ -1372,7 +1372,7 @@ fn run_ate_with_graph_input(
     bandwidth=None,
     estimator_config=None,
     latency=None,
-    seed=1, bootstrap=50, threads=1
+    seed=1, bootstrap=199, threads=1
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_ate_pag(
@@ -1445,7 +1445,7 @@ fn analyze_ate_pag(
     bandwidth=None,
     estimator_config=None,
     latency=None,
-    seed=1, bootstrap=50, threads=1
+    seed=1, bootstrap=199, threads=1
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_ate_cpdag(
@@ -1518,7 +1518,7 @@ fn analyze_ate_cpdag(
     bandwidth=None,
     estimator_config=None,
     latency=None,
-    seed=1, bootstrap=50, threads=1
+    seed=1, bootstrap=199, threads=1
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_ate_admg(
@@ -1593,7 +1593,7 @@ macro_rules! typed_ate_arrow_c {
                             bandwidth=None,
                             estimator_config=None,
                             latency=None,
-                            seed=1, bootstrap=50, threads=1
+                            seed=1, bootstrap=199, threads=1
                         ))]
         #[allow(clippy::too_many_arguments)]
         fn $fn_name(
@@ -1698,7 +1698,7 @@ typed_ate_arrow_c!(analyze_ate_admg_arrow_c, graphs::Admg, Admg, admg);
     bandwidth=None,
     estimator_config=None,
     seed=1,
-    bootstrap=50,
+    bootstrap=199,
     threads=1
 ))]
 fn analyze_ate_discover(
@@ -2090,7 +2090,7 @@ fn analyze_distribution(
     max_paths=64,
     max_len=16,
     seed=1,
-    bootstrap=50,
+    bootstrap=199,
     threads=1,
     refute=None
 ))]
@@ -2564,7 +2564,7 @@ pub(crate) struct GraphEdge {
 #[pyo3(signature = (
     names, columns, edges, treatment, outcome, modifier, *,
     control_level=0.0, active_level=1.0,
-    refute=None, validators=None, seed=1, bootstrap=50, threads=1, accepted=false,
+    refute=None, validators=None, seed=1, bootstrap=199, threads=1, accepted=false,
     outcome_functional=None,
 ))]
 fn analyze_conditional(
@@ -3384,7 +3384,7 @@ impl PyPreparedBatch {
     estimator=None,
     refute=None,
     seed=1,
-    bootstrap=50,
+    bootstrap=199,
     threads=1,
     latency=None,
     screen_id=None,
@@ -3452,7 +3452,7 @@ fn prepare_ate_batch(
     estimator=None,
     refute=None,
     seed=1,
-    bootstrap=50,
+    bootstrap=199,
     threads=1,
     latency=None,
     screen_id=None,

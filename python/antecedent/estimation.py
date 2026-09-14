@@ -604,14 +604,14 @@ def _resolve_latency_budget(
     if isinstance(refute, Refute):
         refute = str(refute)
     if latency is None:
-        return (50 if bootstrap is None else bootstrap, refute)  # type: ignore[return-value]
+        return (199 if bootstrap is None else bootstrap, refute)  # type: ignore[return-value]
     key = str(latency).strip().lower()
     mapped_boot: int
     mapped_refute: bool | str
     if key == "interactive":
         mapped_boot, mapped_refute = 0, "cheap"
     elif key == "standard":
-        mapped_boot, mapped_refute = 50, True
+        mapped_boot, mapped_refute = 199, True
     elif key == "report":
         mapped_boot, mapped_refute = 200, "full"
     else:
@@ -1564,8 +1564,7 @@ class PreparedAnalysis:
         ``InterventionResponse``, ``PulseEffect``, ``SustainedEffect``,
         ``TemporalMediationEffect``, static ``MediationEffect``,
         ``Counterfactual``, and the six Frequentist derivative query types
-        on an explicit graph (or accepted wrapper, except ``Counterfactual``
-        which requires an explicit Dag).
+        on an explicit graph or accepted wrapper.
         ``AverageEffect`` also prepares on a ``Pag`` or bidirected ``Admg``; the
         generalized-adjustment envelope or general-ID result is frozen at
         prepare and reused by every estimate click (``exec.identify.cached``).
@@ -1573,7 +1572,7 @@ class PreparedAnalysis:
         prepare on a ``TemporalDag`` or lagged edge list; their Frequentist
         ``bootstrap`` is the joint circular-block replicate count behind the
         pointwise and simultaneous bands. ``None`` follows the ``latency`` tier as
-        Pulse / Sustained do (``interactive`` 0, ``standard`` 50, ``report`` 200);
+        Pulse / Sustained do (``interactive`` 0, ``standard`` 199, ``report`` 200);
         ``0`` publishes the point surface with no band and an
         ``estimate.temporal_response.band_withheld`` warning. Every other
         prepared response refuses a positive ``bootstrap``. Pulse / Sustained /
@@ -2087,14 +2086,7 @@ class PreparedAnalysis:
                 raise CausalUnsupportedError(
                     f"{query.kind} requires {expected_id} and {expected_est}"
                 )
-            if isinstance(query, Counterfactual) and (
-                structure_accepted or refute not in (False, "none", Refute.NONE)
-            ):
-                if structure_accepted:
-                    raise CausalUnsupportedError(
-                        "refused: Staged counterfactuals require an explicit Dag; accepted "
-                        "and graph-posterior structures are refused."
-                    )
+            if isinstance(query, Counterfactual) and refute not in (False, "none", Refute.NONE):
                 raise CausalUnsupportedError(
                     "refused: Counterfactual cheap/full are not licensed; there is no "
                     "native ITE refuter suite and ATE refuters do not apply."
