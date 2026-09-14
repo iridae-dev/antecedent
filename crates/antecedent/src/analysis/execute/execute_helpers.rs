@@ -927,6 +927,8 @@ pub(super) fn run_envelope_bayesian_full_validation(
         predictive_checks.push(mixed);
     }
 
+    // `Some(mixed)` under `full`: whether the per-completion sensitivity grids mixed.
+    let mut sensitivity_mixed = None;
     if matches!(refute, RefuteSuite::Full) {
         let mut ws = BayesianGCompWorkspace::default();
         let mut owned = Vec::with_capacity(atoms.len());
@@ -948,9 +950,9 @@ pub(super) fn run_envelope_bayesian_full_validation(
             grid.get_or_insert(sens);
         }
         let sens_items: Vec<_> = owned.iter().map(|(w, s)| (*w, s)).collect();
-        if let (Some(mixed), Some(sens)) =
-            (mix_prior_sensitivity_summaries(&sens_items), grid.as_ref())
-        {
+        let mixed = mix_prior_sensitivity_summaries(&sens_items);
+        sensitivity_mixed = Some(mixed.is_some());
+        if let (Some(mixed), Some(sens)) = (mixed, grid.as_ref()) {
             refutations.push(sens.to_report(&mixed, estimate_ate));
             *mixture_posterior = with_prior_sensitivity(mixture_posterior.clone(), mixed);
         }
@@ -958,23 +960,59 @@ pub(super) fn run_envelope_bayesian_full_validation(
 
     let atom_keys: String =
         atoms.iter().map(|atom| format!("{:x}", atom.key)).collect::<Vec<_>>().join(",");
-    diagnostics.push(Diagnostic::new(
+    diagnostics.extend(envelope_validation_diagnostics(&atom_keys, sensitivity_mixed));
+    Ok(predictive_checks)
+}
+
+/// Diagnostics describing what the class-envelope Bayesian validation evaluated.
+///
+/// `sensitivity_mixed` is `None` without a prior-sensitivity pass (`cheap`), and
+/// otherwise whether the per-completion sensitivity summaries shared one grid and
+/// so produced a mixture-weighted report. Grids of different perturbed-prior
+/// families (a transferred prior on some completions, the isotropic scale on
+/// others) are not comparable points, so no prior-sensitivity report is published
+/// and the diagnostics say so rather than claiming it was evaluated.
+pub(super) fn envelope_validation_diagnostics(
+    atom_keys: &str,
+    sensitivity_mixed: Option<bool>,
+) -> Vec<Diagnostic> {
+    let summary = match sensitivity_mixed {
+        Some(true) => format!(
+            "PPC and prior-sensitivity evaluated per identified completion [{atom_keys}]; \
+             reports are mixture-weighted by graph posterior mass"
+        ),
+        Some(false) => format!(
+            "PPC evaluated per identified completion [{atom_keys}]; reports are \
+             mixture-weighted by graph posterior mass. Prior sensitivity was computed per \
+             completion but no prior-sensitivity report is published (see \
+             refute.bayesian.prior_sensitivity.not_mixed)"
+        ),
+        None => format!(
+            "PPC evaluated per identified completion [{atom_keys}]; reports are \
+             mixture-weighted by graph posterior mass"
+        ),
+    };
+    let mut out = vec![Diagnostic::new(
         "refute.bayesian.ppc.envelope",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
-        if matches!(refute, RefuteSuite::Full) {
+        summary,
+    )];
+    if sensitivity_mixed == Some(false) {
+        out.push(Diagnostic::new(
+            "refute.bayesian.prior_sensitivity.not_mixed",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
             format!(
-                "PPC and prior-sensitivity evaluated per identified completion [{atom_keys}]; \
-                 reports are mixture-weighted by graph posterior mass"
-            )
-        } else {
-            format!(
-                "PPC evaluated per identified completion [{atom_keys}]; reports are \
-                 mixture-weighted by graph posterior mass"
-            )
-        },
-    ));
-    Ok(predictive_checks)
+                "prior sensitivity was not reported: the identified completions [{atom_keys}] \
+                 perturbed incomparable grids (different prior families, e.g. a transferred \
+                 prior on some completions and the isotropic scale on others, or different grid \
+                 points), so no mixture-weighted summary exists; the result carries no \
+                 prior-sensitivity evidence"
+            ),
+        ));
+    }
+    out
 }
 
 /// Run cheap/full effect refuters on every contributing envelope atom and mix.
