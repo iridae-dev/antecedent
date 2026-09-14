@@ -540,14 +540,27 @@ pub(super) fn envelope_refute_atoms(
     fits.iter().map(EnvelopeRefuteAtom::from_fit).collect()
 }
 
-/// Emit [`envelope_se_omits_between_atom_variance`] only when something was
-/// actually omitted: more than one atom contributes and no joint SE was formed.
-/// A single contributing atom keeps its own SE, so there is nothing to disclose.
+/// Disclose a non-finite envelope SE: with several contributing atoms the joint
+/// SE was not formed ([`envelope_se_omits_between_atom_variance`]); with one
+/// atom that atom's own analytic SE is unavailable.
 pub(super) fn envelope_se_omission_diagnostic(
     contributing_atoms: usize,
     se: f64,
 ) -> Option<Diagnostic> {
-    (contributing_atoms > 1 && !se.is_finite()).then(envelope_se_omits_between_atom_variance)
+    if se.is_finite() {
+        return None;
+    }
+    Some(if contributing_atoms > 1 {
+        envelope_se_omits_between_atom_variance()
+    } else {
+        Diagnostic::new(
+            "estimate.envelope.single_atom_se_unavailable",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "the single contributing atom publishes no analytic SE, so the envelope \
+             carries none; request bootstrap replicates for a resampled SE",
+        )
+    })
 }
 
 /// The legacy diagnostic code is retained for downstream consumers.
