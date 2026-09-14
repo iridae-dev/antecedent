@@ -7,21 +7,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Every licensed cell was reviewed for mathematical correctness and for claims
+that exceed the code or the evidence
+([review](docs/v1.9-cell-review.md)). Licensed intervals are now calibrated by
+repeated-sampling coverage; intervals that missed were fixed, not footnoted.
+
 ### Added
 
-- Frequentist TemporalCpdag / TemporalPag Pulse and Sustained envelopes
-  now compute between-atom sampling variance with a shared circular-block
-  bootstrap and frozen completion weights. Unidentified mass is not mixed
-  into the SE. `estimate.envelope.se_omits_between_atom_variance` is
-  emitted only when that SE is non-finite.
-- Ignored nominal-90% coverage tests for Frequentist DBN shared-block
-  intervals, class-envelope intervals, Bayesian multi-step / curve /
-  class-prior envelopes, and mixture functionals (unidentified mass not
-  renormalized). Wired in `scripts/gate_calibration.sh`.
-- Bayesian `full` temporal Pulse surfaces PPC on `predictive_checks` and
-  pins a numeric posterior PPC summary. Per-horizon
-  `temporal_horizon_support` on Bayesian temporal curves matches the
-  Frequentist geometry.
+- Two-sided calibration gate: 400 replicates per target with a
+  `level ± 3·MCSE` band, so under- and over-coverage both fail. Multi-atom
+  targets use fixtures whose identified atoms disagree. Temporal targets add
+  AR(1) residuals and short series. `scripts/gate_calibration.sh` runs in
+  release.
+- Coverage evidence for cells that had none: static CPDAG/PAG envelopes,
+  ConditionalEffect, static graph-posterior mixtures, responses, mediation,
+  path-specific effects, interventional distributions, counterfactuals,
+  derivatives, CoDetermined/Unknown tiers, front-door, 2SLS, AIPW ATT/ATC,
+  DBN posteriors, temporal class envelopes, temporal mediation and temporal
+  responses.
+- Simultaneous bands over the dose × horizon grid for temporal responses
+  (`response.simultaneous_band.*`), Frequentist and Bayesian.
+  Observation-adjusted and complete-data Sequence overlays publish bands
+  from a tuple-level bootstrap of the unfolded sequential g-comp.
+- Identified-set confidence intervals (Imbens–Manski) on temporal class
+  structural mixtures, including the no-`ClassPrior` path
+  (`identified_set_interval`; Python `structural_identified_set_interval`).
+  Serialized in artifact format 0.5; 0.4 artifacts migrate unchanged.
+- Posterior predictive checks on temporal `full` add a lag-1 residual
+  autocorrelation discrepancy.
+- Identified multi-completion PAG fixtures, static
+  (`conformance/estimate/pag_ate_envelope_identified`) and temporal, with
+  numpy references. Path-specific edge g-formula fixture
+  (`conformance/estimate/path_specific_edge_gformula`).
+- `rd.sharp` offers HC0–HC3 standard errors (`RdConfig::with_se_kind`).
+- The support-matrix gate fails a staged licensed row without a named
+  evidence test.
+
+### Changed
+
+- Serially dependent rows: every Frequentist temporal SE (plain TemporalDag
+  Pulse/Sustained, temporal mediation, DBN posteriors, class envelopes,
+  multi-step sequential, temporal responses and the `bootstrap.ci_coverage`
+  refuter) resamples circular blocks of lag-aligned rows, not the raw series,
+  with a dependence-aware block length and a fixed-b correction. iid analytic
+  SEs on these cells are NaN; a short-series warning fires below 100
+  effective rows.
+- Bayesian temporal likelihoods (Pulse, Sustained, class and DBN atoms,
+  temporal responses per horizon) are tempered by a long-run-variance
+  ratio. The result is a generalized posterior and is labelled as one.
+  The ratio is the larger of a fixed-b-scaled prewhitened Newey–West ratio
+  and a design-conditional AR(1) ratio.
+- Bayesian `full` prior sensitivity and prior predictive checks use the
+  prior in force. A staged or transferred prior is perturbed by a
+  variance-multiplier grid; the isotropic grid applies only when no prior
+  was supplied.
+- Temporal prior transfer fingerprints lag coordinates and coefficient
+  names. Index-only transfer between different lag structures, and transfer
+  from artifacts without coefficient names, fail closed.
+- Multi-atom refuters compare each atom with its own estimate, not the
+  pooled mixture.
+- `bootstrap.ci_coverage` resamples lag-aligned rows with the block length
+  of the interval it checks. When a Bayesian posterior mean sits more than
+  0.25 posterior SD from the least-squares contrast it refits, the check is
+  not applicable instead of reporting a spurious refutation.
+- The temporal selected-AIPW observation outcome model conditions on the
+  columns of the downstream design, restoring orthogonality.
+- Static CPDAG/PAG Bayesian envelopes publish the posterior of the
+  frozen-weight mixture functional. Probability-weighted mixtures (graph
+  posteriors, `ClassPrior`) keep the model average over graph-specific
+  effects.
+- Point-derivative intervals are robust bias-corrected; the Bayesian point
+  derivative refits nuisances every draw.
+- ConditionalEffect SEs include the sampling variance of the modifier mean.
+- Static graph-posterior Frequentist ATE/CATE SEs use joint
+  influence-function covariance across atoms instead of NaN.
+- Supplying `.graph()` together with `.tiered_background()` is a conflict.
+
+### Fixed
+
+- Temporal mediation omitted mediator–outcome confounders from its
+  adjustment set, biasing the mediated effect.
+- Path-specific effects returned the total effect when another directed
+  path existed; they now use the edge g-formula.
+- The linear-adjustment influence function centred the treatment instead
+  of residualizing it, understating static envelope SEs.
+- AIPW ATT/ATC standard errors on the residualized branch, Kennedy-DR
+  response-curve bands, and penalized g-computation response levels
+  missed nominal coverage.
+- The shared circular-block mixture SE was inflated 1.35–2.3× by lag windows
+  spanning block junctions.
+- Limitations text now matches behaviour: PAG rows no longer cite withdrawn
+  evidence, ADMG rows no longer say Bayesian is refused, and evidence kinds
+  claim a known-truth comparison only where one runs.
 
 ## [1.8.0] — 2026-09-13
 
