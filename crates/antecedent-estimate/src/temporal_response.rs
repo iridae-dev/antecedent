@@ -113,6 +113,10 @@ pub const SIMULTANEOUS_BAND_CRITICAL: &str = "response.simultaneous_band.critica
 /// Warning code when a simultaneous band is not published.
 pub const SIMULTANEOUS_BAND_WITHHELD: &str = "response.simultaneous_band_withheld";
 
+/// Warning code: a Frequentist temporal response published no band because no
+/// dependence-preserving replicates were available.
+pub const TEMPORAL_RESPONSE_BAND_WITHHELD: &str = "estimate.temporal_response.band_withheld";
+
 /// Fewest joint replicates / draws from which a simultaneous band is published.
 ///
 /// The critical value is the `ceil(level·(B+1))`-th order statistic of `B` maxima; below
@@ -395,8 +399,8 @@ impl SeProvenance {
         let message = if self.fell_back {
             format!(
                 "requested {replicates} bootstrap replicates for the response surface, but too \
-                 few joint resamples survived; the surface reports the analytic OLS \
-                 linear-functional SE instead and no simultaneous band"
+                 few joint resamples survived, so no band is published (the analytic OLS \
+                 band would treat lag-aligned rows as independent)"
             )
         } else {
             format!(
@@ -431,6 +435,26 @@ struct SurfaceCells {
     draws: Option<Vec<Vec<f64>>>,
 }
 
+impl SurfaceCells {
+    /// The pointwise band, published only when it comes from the joint
+    /// circular-block bootstrap of lag-aligned rows.
+    ///
+    /// The analytic delta-method band treats lag-aligned rows as independent;
+    /// temporal rows are not, so without dependence-preserving replicates no band
+    /// is published (the same rule as the scalar temporal Pulse / Sustained SE).
+    fn published_band(&self) -> ResponseUncertainty {
+        if self.draws.is_some() {
+            ResponseUncertainty::PointwiseBand {
+                level: 0.95,
+                lower: Arc::from(self.lower.as_slice()),
+                upper: Arc::from(self.upper.as_slice()),
+            }
+        } else {
+            ResponseUncertainty::None
+        }
+    }
+}
+
 /// Temporal response estimator: dose × horizon surfaces and temporal intervention responses.
 #[derive(Clone, Debug)]
 pub struct TemporalResponseEstimator {
@@ -462,15 +486,11 @@ fn with_pointwise_homoskedastic_ols_assumption(mut assumptions: AssumptionSet) -
         assumption: Assumption::ParametricRestriction(ParametricAssumption {
             id: Arc::from("ols.homoskedastic.pointwise"),
             description: Arc::from(
-                "With zero bootstrap replicates: pointwise 95% band from the delta-method SE of \
-                 the g-computed level, using the full homoskedastic OLS coefficient covariance \
-                 plus the iid variance of the empirical covariate average, so the band targets \
-                 the population level E[Y_h | do(A)]. It treats lag-aligned rows as independent \
-                 draws: when neighbouring rows share lagged treatment, confounder or residual \
-                 terms (typical of temporal designs, and of every shift policy) or innovations \
-                 are serially correlated or heteroskedastic, it is optimistic. It is not a \
-                 simultaneous band; request bootstrap replicates for the dependence-preserving \
-                 joint circular-block bands.",
+                "With zero bootstrap replicates no band is published: the delta-method band \
+                 from the homoskedastic OLS coefficient covariance would treat lag-aligned rows \
+                 as independent draws, and neighbouring temporal rows share lagged treatment, \
+                 confounder or residual terms. Request bootstrap replicates for the \
+                 dependence-preserving joint circular-block pointwise and simultaneous bands.",
             ),
         }),
         source: AssumptionSource::AlgorithmDefault {
@@ -939,6 +959,7 @@ impl TemporalResponseEstimator {
         let mut support = mean_curve_support(doses, temporal, &surface.ranges);
         let assumptions =
             surface.finish(&mut support, &values, assumptions, self.inner.bootstrap_replicates);
+        let uncertainty = values.published_band();
 
         Ok(CausalResponse {
             estimand: ResponseFunctional::MeanCurve {
@@ -954,11 +975,7 @@ impl TemporalResponseEstimator {
                 dimension: 2,
                 mean: Arc::from(values.mean),
             }),
-            uncertainty: ResponseUncertainty::PointwiseBand {
-                level: 0.95,
-                lower: Arc::from(values.lower),
-                upper: Arc::from(values.upper),
-            },
+            uncertainty,
             support,
             assumptions,
             provenance_id: Arc::from("estimate.temporal_response.gcomp"),
@@ -1009,6 +1026,7 @@ impl TemporalResponseEstimator {
             intervention_support(&eval_levels, level, shift, temporal, &surface.ranges);
         let assumptions =
             surface.finish(&mut support, &values, assumptions, self.inner.bootstrap_replicates);
+        let uncertainty = values.published_band();
 
         Ok(CausalResponse {
             estimand: ResponseFunctional::InterventionResponse {
@@ -1025,11 +1043,7 @@ impl TemporalResponseEstimator {
                 dimension: 1,
                 mean: Arc::from(values.mean),
             }),
-            uncertainty: ResponseUncertainty::PointwiseBand {
-                level: 0.95,
-                lower: Arc::from(values.lower),
-                upper: Arc::from(values.upper),
-            },
+            uncertainty,
             support,
             assumptions,
             provenance_id: Arc::from("estimate.temporal_response.intervention_gcomp"),
@@ -1299,6 +1313,16 @@ impl FittedSurface {
                 BLOCK_BOOTSTRAP_CONSTRUCTION,
             );
         } else {
+            if replicates == 0 {
+                support.warnings.push(Diagnostic::new(
+                    TEMPORAL_RESPONSE_BAND_WITHHELD,
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    "no pointwise or simultaneous band: the analytic OLS band treats lag-aligned \
+                     rows as independent, which temporal rows are not; request bootstrap \
+                     replicates for the joint circular-block bands",
+                ));
+            }
             publish_simultaneous_band(
                 support,
                 Err(EstimationError::unsupported(if replicates == 0 {
@@ -2663,7 +2687,7 @@ mod tests {
             ),
         })
         .with_temporal(temporal);
-        let est = TemporalResponseEstimator::new();
+        let est = TemporalResponseEstimator::new().with_bootstrap_replicates(60);
         let result = est
             .estimate(
                 &data,
@@ -3172,8 +3196,11 @@ mod tests {
         response.support.diagnostics.iter().find(|d| d.id.as_ref() == id).map(|d| d.values.as_ref())
     }
 
+    /// Zero replicates publish no band (the analytic OLS band would treat
+    /// lag-aligned rows as independent) and say so; requested replicates publish
+    /// the circular-block band around the same full-sample point estimate.
     #[test]
-    fn bootstrap_se_differs_from_analytic_ols_se() {
+    fn zero_replicates_withhold_the_band_and_the_bootstrap_publishes_it() {
         let (data, graph) = synthetic_series(240);
         let (estimand, indexer) = identify(&graph, 3);
         let query = surface_query(&[0.0, 1.0], vec![3u32]);
@@ -3190,15 +3217,24 @@ mod tests {
                 )
                 .unwrap()
         };
-        let (mu_a, lo_a, _) = pointwise(&run(0));
-        let (mu_b, lo_b, _) = pointwise(&run(40));
-        let (se_a, se_b) = (mu_a[1] - lo_a[1], mu_b[1] - lo_b[1]);
-        assert!(se_a.is_finite() && se_a > 0.0, "analytic half-width={se_a}");
-        assert!(se_b.is_finite() && se_b > 0.0, "bootstrap half-width={se_b}");
+        let analytic = run(0);
+        assert!(matches!(analytic.uncertainty, ResponseUncertainty::None));
         assert!(
-            (se_a - se_b).abs() > 1e-6,
-            "Study bootstrap must change the surface SE (analytic={se_a}, bootstrap={se_b})"
+            analytic
+                .support
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == TEMPORAL_RESPONSE_BAND_WITHHELD),
+            "a withheld band must be diagnosed"
         );
+        let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean: mu_a, .. }) =
+            &analytic.estimate
+        else {
+            panic!("expected surface");
+        };
+        let (mu_b, lo_b, _) = pointwise(&run(40));
+        let se_b = mu_b[1] - lo_b[1];
+        assert!(se_b.is_finite() && se_b > 0.0, "bootstrap half-width={se_b}");
         assert!(
             (mu_a[0] - mu_b[0]).abs() < 1e-12,
             "point estimate must stay full-sample OLS (analytic={}, boot={})",

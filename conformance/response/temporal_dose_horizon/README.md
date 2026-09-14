@@ -58,9 +58,13 @@ observed numerical agreement via shared adjustment machinery, not a
 derivation of one from the other and not a separate response estimand;
 multi-step Sustained is not evidenced here.
 
-Pointwise 95% bands on the surface are pinned in the fixture (`surface.lower` /
-`surface.upper`); index 0 is dose zero at horizon 1 and has strictly positive
-width (regression guard for the old zero-width-at-dose-0 bug).
+`surface.lower` / `surface.upper` record the analytic delta-method band from
+before 1.9. That band treats lag-aligned rows as independent and is no longer
+published: with zero bootstrap replicates the surface carries no band and a
+`estimate.temporal_response.band_withheld` warning, and requested replicates
+publish the joint circular-block band, whose width is strictly positive at
+every cell including dose zero at horizon 1 (the old zero-width-at-dose-0
+regression guard).
 
 Empirical support on this fixture is fully `supported` at every cell: the
 period-4 treatment lives in `{-1,0,1}`, so the union of horizon ranges equals

@@ -22,10 +22,9 @@
 //! Residual noise is iid (`rho = 0`) and AR(1) with `rho = 0.5`, `n = 160`. AR(1)
 //! residuals are inside the stated assumptions of the block-bootstrap Frequentist
 //! bands and of the per-horizon long-run-tempered Bayesian posterior (both asserted;
-//! the class-atom Bayesian bands are asserted on iid residuals only). The zero-replicate
-//! analytic Frequentist band assumes independent lag-aligned rows, which no DGP here
-//! satisfies (neighbouring rows share lagged treatment or confounder terms), so its
-//! coverage is always recorded as a probe.
+//! the class-atom Bayesian bands are asserted on iid residuals only). With zero replicates
+//! the Frequentist surface publishes no band (the analytic band would assume
+//! independent lag-aligned rows, which no DGP here satisfies); the tests assert that.
 //!
 //! Ignored tests run via `scripts/gate_calibration.sh`.
 //!
@@ -52,7 +51,7 @@ use antecedent_core::{
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
-use common::calibration::{CoverageTally, ar1_noise, coverage_band, gaussian, n_sim};
+use common::calibration::{CoverageTally, ar1_noise, gaussian, n_sim};
 
 const N: usize = 160;
 const BURN: usize = 10;
@@ -86,18 +85,6 @@ fn assert_all(tallies: &[CoverageTally]) {
         }
     }
     assert!(failures.is_empty(), "calibration failures:\n{}", failures.join("\n"));
-}
-
-/// Print a misspecification probe in the gate's format without asserting it.
-fn report_probe(tally: &CoverageTally, nominal: f64) {
-    let (lo, hi) = coverage_band(n_sim(), nominal);
-    eprintln!(
-        "calibration PROBE {:?}: nominal={nominal:.2} coverage={:.3} band=[{lo:.3}, {hi:.3}] \
-         mean_length={:.4} (outside the cell's stated assumptions; recorded, not asserted)",
-        tally,
-        tally.rate(),
-        tally.mean_length()
-    );
 }
 
 fn splitmix(mut x: u64) -> u64 {
@@ -381,15 +368,6 @@ fn frequentist_curve_coverage(rho: f64, seed_base: u64) {
         &format!("freq TemporalDag ResponseCurve block-bootstrap {label}"),
         &labels,
     );
-    let mut analytic: Vec<CoverageTally> = labels
-        .iter()
-        .map(|cell| {
-            CoverageTally::new(
-                format!("freq TemporalDag ResponseCurve analytic {label} [{cell}]"),
-                LEVEL,
-            )
-        })
-        .collect();
     let truth = curve_truth();
     for s in 0..n_sim() {
         let seed = seed_base + u64::from(s);
@@ -411,15 +389,12 @@ fn frequentist_curve_coverage(rho: f64, seed_base: u64) {
             0,
             seed,
         );
-        let band = pointwise(analytic_result.response.as_ref().expect("surface"));
-        for (cell, tally) in analytic.iter_mut().enumerate() {
-            tally.record(band.as_ref().map(|(lo, hi)| (lo[cell], hi[cell])), truth[cell]);
-        }
-    }
-    // The analytic band treats lag-aligned rows as independent; here neighbouring rows
-    // share lagged terms even with iid residuals, so it is a recorded probe.
-    for tally in &analytic {
-        report_probe(tally, LEVEL);
+        // Zero replicates publish no band: the analytic band would treat
+        // lag-aligned rows as independent.
+        assert!(
+            pointwise(analytic_result.response.as_ref().expect("surface")).is_none(),
+            "zero replicates must not publish the analytic band"
+        );
     }
     assert_all(&boot.all());
 }
@@ -734,15 +709,6 @@ fn horizon_dependent_coverage(rho: f64, seed_base: u64) {
         &format!("freq TemporalDag horizon-dependent I(h) block-bootstrap {label}"),
         &labels,
     );
-    let mut analytic: Vec<CoverageTally> = labels
-        .iter()
-        .map(|cell| {
-            CoverageTally::new(
-                format!("freq TemporalDag horizon-dependent I(h) analytic {label} [{cell}]"),
-                LEVEL,
-            )
-        })
-        .collect();
     let truth: Vec<f64> = doses.iter().flat_map(|&a| [1.0 + 2.0 * a, 1.0 + a]).collect();
     for s in 0..n_sim() {
         let seed = seed_base + u64::from(s);
@@ -783,15 +749,12 @@ fn horizon_dependent_coverage(rho: f64, seed_base: u64) {
             0,
             seed,
         );
-        let band = pointwise(analytic_result.response.as_ref().expect("surface"));
-        for (cell, tally) in analytic.iter_mut().enumerate() {
-            tally.record(band.as_ref().map(|(lo, hi)| (lo[cell], hi[cell])), truth[cell]);
-        }
-    }
-    // The analytic band treats lag-aligned rows as independent; here neighbouring rows
-    // share lagged terms even with iid residuals, so it is a recorded probe.
-    for tally in &analytic {
-        report_probe(tally, LEVEL);
+        // Zero replicates publish no band: the analytic band would treat
+        // lag-aligned rows as independent.
+        assert!(
+            pointwise(analytic_result.response.as_ref().expect("surface")).is_none(),
+            "zero replicates must not publish the analytic band"
+        );
     }
     assert_all(&boot.all());
 }
