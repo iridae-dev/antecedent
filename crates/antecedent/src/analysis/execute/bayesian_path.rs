@@ -1109,6 +1109,7 @@ impl super::Study {
             };
         let mut contexts = Vec::new();
         let mut atom_estimates = Vec::new();
+        let mut designs = Vec::new();
         let mut point_sum = 0.0;
         let mut point_mass = 0.0;
         let mut primary = None;
@@ -1117,7 +1118,44 @@ impl super::Study {
             if weight <= 0.0 {
                 continue;
             }
-            let estimate = fit_frequentist_dbn_atom(data, gp, &vars, atom, query, ctx)?;
+            let mut assumptions = atom.identification.required_assumptions.clone();
+            let design = if is_multi_step_sustained(query) {
+                assumptions.push(antecedent_core::AssumptionRecord {
+                    assumption: antecedent_core::Assumption::ParametricRestriction(
+                        antecedent_core::ParametricAssumption {
+                            id: Arc::from("temporal.sequential.linear_sem"),
+                            description: Arc::from(
+                                "linear additive mechanisms on each identified DBN atom; fixed posterior \
+                                 graph weights; uncertainty uses shared outer circular-block replicates",
+                            ),
+                        },
+                    ),
+                    source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                        algorithm: Arc::from("temporal.sequential.gcomp"),
+                    },
+                    scope: antecedent_core::AssumptionScope::Estimation,
+                    status: antecedent_core::AssumptionStatus::Declared,
+                });
+                TemporalAtomDesign::sequential(
+                    data,
+                    &crate::analysis::prepared::temporal_dag_from_dbn_atom(gp, atom.key, &vars)?,
+                    &atom.indexer,
+                    &atom.estimand,
+                    query,
+                    atom.identification.status,
+                    ctx,
+                )?
+            } else {
+                TemporalAtomDesign::linear(
+                    data,
+                    &atom.estimand,
+                    query,
+                    &atom.indexer,
+                    None,
+                    ctx,
+                )?
+            };
+            let estimate = design.effect_estimate(assumptions);
             point_sum += weight * estimate.ate;
             point_mass += weight;
             if primary.is_none() {
@@ -1129,42 +1167,13 @@ impl super::Study {
             }
             contexts.push((atom, weight));
             atom_estimates.push(estimate);
+            designs.push(design);
         }
         let (estimand, mut identification, assumptions) =
             primary.ok_or_else(|| CausalError::Compile {
                 message: "Frequentist DBN posterior has no estimable identified atom".into(),
             })?;
         let point = point_sum / point_mass;
-        // Shared circular block over lag-aligned series times: every atom's design
-        // is prepared once on the original series and refit on the same resampled
-        // times, so no row pairs an outcome with lags from an unrelated block.
-        let designs = contexts
-            .iter()
-            .map(|(atom, _)| {
-                if is_multi_step_sustained(query) {
-                    TemporalAtomDesign::sequential(
-                        data,
-                        &crate::analysis::prepared::temporal_dag_from_dbn_atom(
-                            gp, atom.key, &vars,
-                        )?,
-                        &atom.indexer,
-                        &atom.estimand,
-                        query,
-                        atom.identification.status,
-                        ctx,
-                    )
-                } else {
-                    TemporalAtomDesign::linear(
-                        data,
-                        &atom.estimand,
-                        query,
-                        &atom.indexer,
-                        None,
-                        ctx,
-                    )
-                }
-            })
-            .collect::<Result<Vec<_>, CausalError>>()?;
         let weights: Vec<f64> = contexts.iter().map(|(_, weight)| *weight).collect();
         let block = shared_circular_block_mixture_se(
             &designs.iter().collect::<Vec<_>>(),
@@ -2218,68 +2227,6 @@ impl super::Study {
             },
         }))
     }
-}
-
-fn fit_frequentist_dbn_atom(
-    data: &TimeSeriesData,
-    graph_posterior: &GraphPosterior,
-    variables: &[VariableId],
-    atom: &crate::analysis::prepared::CachedDbnPosteriorAtomIdentification,
-    query: &TemporalEffectQuery,
-    ctx: &ExecutionContext,
-) -> Result<EffectEstimate, CausalError> {
-    if is_multi_step_sustained(query) {
-        let graph = crate::analysis::prepared::temporal_dag_from_dbn_atom(
-            graph_posterior,
-            atom.key,
-            variables,
-        )?;
-        let mut assumptions = atom.identification.required_assumptions.clone();
-        assumptions.push(antecedent_core::AssumptionRecord {
-            assumption: antecedent_core::Assumption::ParametricRestriction(
-                antecedent_core::ParametricAssumption {
-                    id: Arc::from("temporal.sequential.linear_sem"),
-                    description: Arc::from(
-                        "linear additive mechanisms on each identified DBN atom; fixed posterior \
-                         graph weights; uncertainty uses shared outer circular-block replicates",
-                    ),
-                },
-            ),
-            source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                algorithm: Arc::from("temporal.sequential.gcomp"),
-            },
-            scope: antecedent_core::AssumptionScope::Estimation,
-            status: antecedent_core::AssumptionStatus::Declared,
-        });
-        return antecedent_estimate::temporal_sequential::estimate_sustained_window(
-            data,
-            &graph,
-            &atom.indexer,
-            &atom.estimand,
-            query,
-            atom.identification.status,
-            assumptions,
-            0,
-            None,
-            ctx,
-        )
-        .map(|(estimate, _)| estimate)
-        .map_err(CausalError::from);
-    }
-    let mut estimator = TemporalLinearAdjustment::new();
-    estimator.inner.bootstrap_replicates = 0;
-    estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
-    let prepared = estimator
-        .prepare(data, &atom.estimand, query, &atom.indexer, None, &ctx.kernel_policy)
-        .map_err(CausalError::from)?;
-    estimator
-        .fit(
-            &prepared,
-            &mut EstimationWorkspace::default(),
-            ctx,
-            atom.identification.required_assumptions.clone(),
-        )
-        .map_err(CausalError::from)
 }
 
 struct DbnMediationAtom {

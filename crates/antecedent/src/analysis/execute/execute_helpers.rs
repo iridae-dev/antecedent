@@ -533,9 +533,16 @@ pub(super) enum TemporalAtomDesign {
         prep: Box<antecedent_estimate::PreparedEstimationProblem>,
         rows: antecedent_estimate::AlignedRows,
         fitter: antecedent_estimate::LinearAdjustmentAte,
+        point: EffectEstimate,
+        normal_scores: Vec<Vec<f64>>,
     },
     /// Multi-step Sustained: sequential g-computation over the unfolded window.
-    Sequential(Box<antecedent_estimate::SequentialContrastDesign>),
+    Sequential {
+        design: Box<antecedent_estimate::SequentialContrastDesign>,
+        point: f64,
+        influence: Option<Vec<f64>>,
+        normal_scores: Vec<Vec<f64>>,
+    },
 }
 
 impl TemporalAtomDesign {
@@ -554,7 +561,28 @@ impl TemporalAtomDesign {
         let (prep, rows) = estimator
             .prepare_aligned(data, estimand, query, indexer, split, &ctx.kernel_policy)
             .map_err(CausalError::from)?;
-        Ok(Self::Linear { prep: Box::new(prep), rows, fitter: estimator.inner })
+        let point = estimator
+            .inner
+            .fit_point(
+                &prep,
+                &mut EstimationWorkspace::default(),
+                antecedent_core::AssumptionSet::default(),
+            )
+            .map_err(CausalError::from)?;
+        let normal_scores = antecedent_estimate::normal_equation_scores(
+            &prep.design.matrix,
+            prep.design.nrows,
+            prep.design.ncols,
+            &prep.design.outcome,
+        )
+        .unwrap_or_default();
+        Ok(Self::Linear {
+            prep: Box::new(prep),
+            rows,
+            fitter: estimator.inner,
+            point,
+            normal_scores,
+        })
     }
 
     /// Prepare a multi-step Sustained atom.
@@ -567,17 +595,37 @@ impl TemporalAtomDesign {
         status: IdentificationStatus,
         ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
-        antecedent_estimate::SequentialContrastDesign::prepare(
+        let design = antecedent_estimate::SequentialContrastDesign::prepare(
             data, graph, indexer, estimand, query, status, ctx,
         )
-        .map(|design| Self::Sequential(Box::new(design)))
-        .map_err(CausalError::from)
+        .map_err(CausalError::from)?;
+        let point = design.estimate().map_err(CausalError::from)?;
+        let influence = design.influence();
+        let normal_scores = design.normal_equation_scores();
+        Ok(Self::Sequential { design: Box::new(design), point, influence, normal_scores })
     }
 
     fn aligned_rows(&self) -> antecedent_estimate::AlignedRows {
         match self {
             Self::Linear { rows, .. } => *rows,
-            Self::Sequential(design) => design.aligned_rows(),
+            Self::Sequential { design, .. } => design.aligned_rows(),
+        }
+    }
+
+    /// Full-sample point and (for linear atoms) iid analytic SE, with `assumptions`.
+    pub(super) fn effect_estimate(
+        &self,
+        assumptions: antecedent_core::AssumptionSet,
+    ) -> EffectEstimate {
+        match self {
+            Self::Linear { point, .. } => {
+                let mut estimate = point.clone();
+                estimate.assumptions = assumptions;
+                estimate
+            }
+            Self::Sequential { point, .. } => {
+                EffectEstimate::new(*point, f64::NAN, assumptions, OverlapPolicy::ExplicitOverride)
+            }
         }
     }
 
@@ -588,38 +636,25 @@ impl TemporalAtomDesign {
                 let mut y = vec![0.0; rows.len()];
                 fitter.ate_on_row_indices_into(prep, workspace, rows, &mut x, &mut y).ok()
             }
-            Self::Sequential(design) => design.estimate_on_rows(rows).ok(),
+            Self::Sequential { design, .. } => design.estimate_on_rows(rows).ok(),
         }
     }
 
     /// Per-row influence of the atom's estimate on its own aligned rows.
-    fn influence(&self) -> Option<Vec<f64>> {
+    fn influence(&self) -> Option<&[f64]> {
         match self {
-            Self::Linear { prep, fitter, .. } => fitter
-                .fit_point(
-                    prep,
-                    &mut EstimationWorkspace::default(),
-                    antecedent_core::AssumptionSet::default(),
-                )
-                .ok()?
-                .influence
-                .map(|scores| scores.to_vec()),
-            Self::Sequential(design) => design.influence(),
+            Self::Linear { point, .. } => point.influence.as_deref(),
+            Self::Sequential { influence, .. } => influence.as_deref(),
         }
     }
 
-    /// OLS normal-equation scores of every regression the atom fits, on its own
-    /// aligned rows ([`antecedent_estimate::normal_equation_scores`]).
-    fn normal_equation_scores(&self) -> Vec<Vec<f64>> {
+    /// Intercept normal-equation score (the residual series) when the design
+    /// carries an intercept column first; otherwise the first fitted score.
+    fn intercept_residual(&self) -> Option<&[f64]> {
         match self {
-            Self::Linear { prep, .. } => antecedent_estimate::normal_equation_scores(
-                &prep.design.matrix,
-                prep.design.nrows,
-                prep.design.ncols,
-                &prep.design.outcome,
-            )
-            .unwrap_or_default(),
-            Self::Sequential(design) => design.normal_equation_scores(),
+            Self::Linear { normal_scores, .. } | Self::Sequential { normal_scores, .. } => {
+                normal_scores.first().map(Vec::as_slice)
+            }
         }
     }
 }
@@ -651,31 +686,28 @@ pub(super) fn shared_circular_block_mixture_se(
     else {
         return SharedCircularBlockSe::empty();
     };
-    let influences: Option<Vec<Vec<f64>>> = atoms
+    let influences: Option<Vec<&[f64]>> = atoms
         .iter()
         .zip(&designs)
         .map(|(atom, design)| {
             let offset = start - design.first_time;
-            atom.influence()?.get(offset..offset + len).map(<[f64]>::to_vec)
+            atom.influence()?.get(offset..offset + len)
         })
         .collect();
-    let score = influences.as_deref().and_then(|scores| mixture_score(scores, weights, len));
-    // Nuisance estimating equations (each atom's residual and covariate scores)
-    // size the blocks too: a persistent residual level moves every replicate slope.
-    let normal_scores: Vec<Vec<f64>> = atoms
+    let score = influences.as_deref().and_then(|windows| mixture_score(windows, weights, len));
+    // Intercept residual (the persistent score 1.9 needed) plus each atom's
+    // influence and the mixture score. Other OLS columns are not PW-scanned.
+    let residual_windows: Vec<&[f64]> = atoms
         .iter()
         .zip(&designs)
-        .flat_map(|(atom, design)| {
+        .filter_map(|(atom, design)| {
             let offset = start - design.first_time;
-            atom.normal_equation_scores()
-                .into_iter()
-                .filter_map(move |s| s.get(offset..offset + len).map(<[f64]>::to_vec))
+            atom.intercept_residual()?.get(offset..offset + len)
         })
         .collect();
-    let mut scores: Vec<&[f64]> =
-        influences.iter().flatten().map(Vec::as_slice).collect();
+    let mut scores: Vec<&[f64]> = influences.iter().flatten().copied().collect();
     scores.extend(score.as_deref());
-    scores.extend(normal_scores.iter().map(Vec::as_slice));
+    scores.extend(residual_windows.iter().copied());
     let block_length = antecedent_estimate::dependence_block_length(structural_span, len, &scores);
     let mut workspace = EstimationWorkspace::default();
     let mut out = shared_circular_block_mixture_se_with_length(
@@ -691,7 +723,7 @@ pub(super) fn shared_circular_block_mixture_se(
     // nearly iid atom can hide another atom's slowly decaying dependence.
     out.effective_rows = if score.is_some() {
         let target: Vec<&[f64]> =
-            influences.iter().flatten().map(Vec::as_slice).chain(score.as_deref()).collect();
+            influences.iter().flatten().copied().chain(score.as_deref()).collect();
         antecedent_estimate::score_effective_rows(&target, block_length)
     } else {
         f64::NAN
@@ -700,15 +732,15 @@ pub(super) fn shared_circular_block_mixture_se(
 }
 
 /// The weighted mixture estimating score `Σ_g w̄_g IF_g(t)` over the shared times.
-fn mixture_score(influences: &[Vec<f64>], weights: &[f64], len: usize) -> Option<Vec<f64>> {
+fn mixture_score(influences: &[&[f64]], weights: &[f64], len: usize) -> Option<Vec<f64>> {
     let total: f64 = weights.iter().sum();
     if total <= 0.0 {
         return None;
     }
     let mut score = vec![0.0; len];
     for (influence, weight) in influences.iter().zip(weights) {
-        for (slot, value) in score.iter_mut().zip(influence) {
-            *slot += weight / total * value;
+        for (slot, value) in score.iter_mut().zip(*influence) {
+            *slot += weight / total * *value;
         }
     }
     Some(score)

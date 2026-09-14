@@ -2759,15 +2759,15 @@ impl super::Study {
                 continue;
             }
             let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-            let estimate = fit_frequentist_class_pulse_atom(
+            let design = TemporalAtomDesign::linear(
                 data,
-                query,
                 &estimand,
+                query,
                 indexer,
-                case.result.required_assumptions.clone(),
                 self.split.as_ref(),
                 ctx,
             )?;
+            let estimate = design.effect_estimate(case.result.required_assumptions.clone());
             let w = case.weight.0;
             weighted_ate += w * estimate.ate;
             se_items.push((w, estimate.se_analytic));
@@ -2781,14 +2781,7 @@ impl super::Study {
                 weight: w,
                 point: estimate.ate,
                 indexer: indexer.clone(),
-                design: TemporalAtomDesign::linear(
-                    data,
-                    &estimand,
-                    query,
-                    indexer,
-                    self.split.as_ref(),
-                    ctx,
-                )?,
+                design,
             });
             refute_atoms.push(EnvelopeRefuteAtom {
                 key: i as u64,
@@ -4366,26 +4359,6 @@ fn identified_set_interval_diagnostic(
     )
 }
 
-fn fit_frequentist_class_pulse_atom(
-    data: &TimeSeriesData,
-    query: &TemporalEffectQuery,
-    estimand: &IdentifiedEstimand,
-    indexer: &TemporalIndexer,
-    assumptions: antecedent_core::AssumptionSet,
-    split: Option<&DiscoveryEstimationSplit>,
-    ctx: &ExecutionContext,
-) -> Result<EffectEstimate, CausalError> {
-    let mut estimator = TemporalLinearAdjustment::new();
-    estimator.inner.bootstrap_replicates = 0;
-    estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
-    let prep = estimator
-        .prepare(data, estimand, query, indexer, split, &ctx.kernel_policy)
-        .map_err(CausalError::from)?;
-    estimator
-        .fit(&prep, &mut EstimationWorkspace::default(), ctx, assumptions)
-        .map_err(CausalError::from)
-}
-
 struct ClassObservationAtom {
     atom_index: usize,
     horizon_index: usize,
@@ -5010,6 +4983,8 @@ fn tuple_block_observation_replicates(
     let mut attempted = 0u32;
     let mut positions = Vec::with_capacity(m);
     let mut anchors = Vec::with_capacity(m);
+    let mut shifted = Vec::with_capacity(m);
+    let mut by_lag: Vec<Vec<f64>> = Vec::new();
     for replicate in 0..replicates {
         if ctx.cancellation.is_cancelled() || m < 3 {
             break;
@@ -5040,21 +5015,19 @@ fn tuple_block_observation_replicates(
                     PreparedTupleTarget::Sequence { levels, outcome, outcome_lags } => {
                         // One observation refit per lag at which the outcome enters the
                         // tuple, on the same blocks shifted to that lag.
-                        let mut by_lag = Vec::with_capacity(outcome_lags.len());
-                        for &lag in outcome_lags {
-                            let shifted: Vec<usize> =
-                                anchors.iter().map(|&anchor| anchor - lag as usize).collect();
-                            by_lag.push(
-                                observation
-                                    .adjust_temporal_anchors(
-                                        source,
-                                        target.query,
-                                        target.adjustment,
-                                        &target.outcome_regressors,
-                                        &shifted,
-                                    )
-                                    .ok()?,
-                            );
+                        by_lag.resize_with(outcome_lags.len(), Vec::new);
+                        for (slot, &lag) in by_lag.iter_mut().zip(outcome_lags.iter()) {
+                            shifted.clear();
+                            shifted.extend(anchors.iter().map(|&anchor| anchor - lag as usize));
+                            *slot = observation
+                                .adjust_temporal_anchors(
+                                    source,
+                                    target.query,
+                                    target.adjustment,
+                                    &target.outcome_regressors,
+                                    &shifted,
+                                )
+                                .ok()?;
                         }
                         let replacements: Vec<antecedent_estimate::SequenceColumnReplacement<'_>> =
                             outcome_lags
