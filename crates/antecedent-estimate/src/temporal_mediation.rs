@@ -27,6 +27,11 @@ use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::util::{coefficient_variance, ols_sigma2};
 
+mod shared;
+pub use shared::{
+    PreparedTemporalMediation, SharedMediationBlockSe, shared_mediation_block_bootstrap,
+};
+
 /// Temporal mediation effect estimate with optional decomposition.
 #[derive(Clone, Debug)]
 pub struct TemporalMediationEstimate {
