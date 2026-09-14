@@ -25,6 +25,10 @@
 //! ([`crate::common::AlignedRefit::stand_in`], e.g. the least-squares contrast for
 //! a Bayesian posterior mean), a failing report says so.
 //!
+//! On a Bayesian cell the check places the posterior mean inside a least-squares
+//! bootstrap interval; it never looks at the published credible interval, so it
+//! cannot detect a credible interval that is too narrow or too wide.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::cast_sign_loss)]
@@ -170,12 +174,15 @@ impl BootstrapRefute {
             return Err(ValidationError::NotApplicable {
                 message: "the published estimate differs from the least-squares contrast by \
                           more than 0.25 of its SD (prior shrinkage), so a least-squares \
-                          block bootstrap would not check the published interval",
+                          block bootstrap would resample a different estimator than the one \
+                          published",
             });
         }
         let stand_in = (gap > 1e-9 * full.abs().max(1.0)).then_some(
             "replicates refit the least-squares contrast as a stand-in for the published \
-             estimate, which differs from it by less than 0.25 of its SD",
+             estimate, which differs from it by less than 0.25 of its SD; the check places the \
+             point estimate in the least-squares bootstrap interval and does not assess the \
+             published interval's calibration",
         );
         let boot = antecedent_estimate::row_block_bootstrap_vec(
             rows.rows,
@@ -389,7 +396,8 @@ fn coverage_report(
         } else {
             Some(Arc::from(format!(
                 "original ATE {} outside {}% bootstrap CI [{lo}, {hi}] \
-                 (coverage check of the point estimate, not a placebo falsification){}",
+                 (the point estimate against its own refit bootstrap interval: neither a placebo \
+                 falsification nor a calibration check of a published credible interval){}",
                 problem.original.ate,
                 ci_level * 100.0,
                 stand_in.map(|note| format!("; {note}")).unwrap_or_default()
