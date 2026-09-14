@@ -182,32 +182,75 @@ pub struct MonteCarloError {
     pub samples: u64,
 }
 
-/// Adaptive bootstrap early-stop budget (SE relative-change criterion).
+/// Opt-in bootstrap early-stop budget bounded by Monte Carlo error.
 ///
-/// After at least [`Self::min_replicates`] successful replicates, stop when
-/// `|SE_t − SE_{t−1}| / max(|SE_{t−1}|, ε₀) < se_rel_epsilon`. Cap remains the
-/// requested replicate count. Disabled runs always evaluate the full request.
+/// A bootstrap SE computed from `B` replicates carries a relative Monte Carlo
+/// standard error of about `1/√(2(B − 1))` (the SD of a sample SD), so the
+/// only honest stopping rule is a replicate floor: after
+/// [`Self::required_replicates`] successful replicates — the larger of
+/// [`Self::min_replicates`] and `⌈1 + 1/(2·se_rel_epsilon²)⌉`, the count at
+/// which that relative error is at most [`Self::se_rel_epsilon`] — the loop
+/// stops and reports `early_stopped = true` with the actual count. The cap
+/// remains the requested replicate count, so a request below the floor is
+/// evaluated in full.
+///
+/// Earlier releases stopped on a one-step relative change of the running SE
+/// (`|SE_t − SE_{t−1}| / SE_{t−1} < ε`), which is not an error bound and
+/// stopped static bootstraps at 10–22 replicates whatever was requested. That
+/// rule is gone. Neither [`ExecutionContext::production`] nor
+/// [`ExecutionContext::for_tests`] enables a budget: both evaluate the full
+/// request, which is what the calibration gates certify.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AdaptiveBootstrapBudget {
     /// When false, evaluate all requested replicates (no early-stop).
     pub enabled: bool,
     /// Minimum successful replicates before early-stop is eligible.
     pub min_replicates: u32,
-    /// Relative SE change threshold (default `0.01`).
+    /// Target relative Monte Carlo standard error of the bootstrap SE
+    /// (default `0.05`, met at 201 successful replicates). Zero or negative
+    /// never stops.
     pub se_rel_epsilon: f64,
 }
 
 impl AdaptiveBootstrapBudget {
-    /// Enabled defaults: min 10 replicates, 1% relative SE change.
+    /// Enabled defaults: stop once the relative Monte Carlo SE of the
+    /// bootstrap SE is at most 5% (201 successful replicates).
     #[must_use]
     pub const fn enabled_default() -> Self {
-        Self { enabled: true, min_replicates: 10, se_rel_epsilon: 0.01 }
+        Self { enabled: true, min_replicates: 2, se_rel_epsilon: 0.05 }
     }
 
     /// Force full requested replicate count (tests / exact-N pins).
     #[must_use]
     pub const fn disabled() -> Self {
         Self { enabled: false, min_replicates: 0, se_rel_epsilon: 0.0 }
+    }
+
+    /// Successful replicates after which an enabled budget may stop:
+    /// `max(min_replicates, ⌈1 + 1/(2·se_rel_epsilon²)⌉)`, from the relative
+    /// Monte Carlo SE `1/√(2(B − 1))` of a bootstrap SE. `u32::MAX` when the
+    /// budget is disabled or `se_rel_epsilon` is not positive.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use antecedent_core::AdaptiveBootstrapBudget;
+    ///
+    /// assert_eq!(AdaptiveBootstrapBudget::enabled_default().required_replicates(), 201);
+    /// assert_eq!(AdaptiveBootstrapBudget::disabled().required_replicates(), u32::MAX);
+    /// ```
+    #[must_use]
+    pub fn required_replicates(&self) -> u32 {
+        // NaN must read as "never stop", so test the positive branch directly.
+        let positive = self.se_rel_epsilon > 0.0;
+        if !self.enabled || !positive {
+            return u32::MAX;
+        }
+        let bound = (1.0 + 0.5 / (self.se_rel_epsilon * self.se_rel_epsilon)).ceil();
+        // Saturate rather than truncate: a tiny ε is "never stop", not "stop at 0".
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let bound = if bound >= f64::from(u32::MAX) { u32::MAX } else { bound as u32 };
+        bound.max(self.min_replicates).max(2)
     }
 }
 
@@ -217,32 +260,35 @@ impl Default for AdaptiveBootstrapBudget {
     }
 }
 
-/// Adaptive Bayesian draw budget (Laplace / conjugate path).
+/// Opt-in Bayesian draw budget for the Laplace Gaussian-redraw path.
 ///
-/// Cap by quantile-width relative change and/or ESS target under the latency
-/// `n_draws` maximum. HMC ignores this and always draws the full request.
+/// When enabled, Laplace MVN redraws stop once the effective sample size of
+/// the effect draws reaches [`Self::ess_target`] (independent draws, so ESS is
+/// the draw count) after at least [`Self::min_draws`]; the requested
+/// `n_draws` remains the cap. ESS is a genuine Monte Carlo error measure; the
+/// earlier stop on a one-step relative change of the 95% quantile width was
+/// not and is no longer consulted. Exact conjugate (NIG) sampling and HMC
+/// always materialize the full request. Neither
+/// [`ExecutionContext::production`] nor [`ExecutionContext::for_tests`]
+/// enables this budget.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AdaptiveDrawBudget {
     /// When false, materialize the full requested draw count.
     pub enabled: bool,
     /// Minimum draws before early-stop is eligible.
     pub min_draws: usize,
-    /// Relative 95% quantile-width change threshold (default `0.01`).
+    /// Retained for API stability; no longer consulted (quantile-width
+    /// convergence is not a Monte Carlo error bound).
     pub quantile_width_rel_epsilon: f64,
-    /// Stop when ESS of the effect draws reaches this target (default large).
+    /// Stop when ESS of the effect draws reaches this target (default `10_000`).
     pub ess_target: f64,
 }
 
 impl AdaptiveDrawBudget {
-    /// Enabled defaults: min 32 draws, 1% quantile-width change, high ESS target.
+    /// Enabled defaults: min 32 draws, stop at ESS 10 000.
     #[must_use]
     pub const fn enabled_default() -> Self {
-        Self {
-            enabled: true,
-            min_draws: 32,
-            quantile_width_rel_epsilon: 0.01,
-            ess_target: 10_000.0,
-        }
+        Self { enabled: true, min_draws: 32, quantile_width_rel_epsilon: 0.0, ess_target: 10_000.0 }
     }
 
     /// Force full requested draw count.
@@ -391,9 +437,9 @@ pub struct ExecutionContext {
     pub kernel_policy: KernelPolicy,
     /// Cache policy.
     pub cache_policy: CachePolicy,
-    /// Adaptive bootstrap early-stop (estimate SE path).
+    /// Opt-in bootstrap early-stop (estimate SE path); disabled by every constructor.
     pub adaptive_bootstrap: AdaptiveBootstrapBudget,
-    /// Adaptive Bayesian draw early-stop (Laplace / conjugate).
+    /// Opt-in Bayesian draw early-stop (Laplace redraws); disabled by every constructor.
     pub adaptive_draws: AdaptiveDrawBudget,
 }
 
@@ -426,6 +472,11 @@ impl ExecutionContext {
     }
 
     /// Production context: optimized kernels allowed, cache enabled, bounded threads.
+    ///
+    /// Monte Carlo effort is evaluated in full: the requested bootstrap
+    /// replicates and posterior draws are what the calibration gates certify,
+    /// so no early-stop budget is enabled. Opt in by setting
+    /// [`Self::adaptive_bootstrap`] / [`Self::adaptive_draws`] explicitly.
     #[must_use]
     pub fn production(seed: u64, max_threads: u32) -> Self {
         let threads =
@@ -439,8 +490,8 @@ impl ExecutionContext {
             progress: None,
             kernel_policy: KernelPolicy::default_policy(),
             cache_policy: CachePolicy::enabled(None),
-            adaptive_bootstrap: AdaptiveBootstrapBudget::enabled_default(),
-            adaptive_draws: AdaptiveDrawBudget::enabled_default(),
+            adaptive_bootstrap: AdaptiveBootstrapBudget::disabled(),
+            adaptive_draws: AdaptiveDrawBudget::disabled(),
         }
     }
 }
@@ -497,6 +548,34 @@ mod tests {
         assert!(!token.is_cancelled());
         clone.cancel();
         assert!(token.is_cancelled());
+    }
+
+    #[test]
+    fn production_and_test_contexts_evaluate_full_monte_carlo_effort() {
+        let production = ExecutionContext::production(1, 4);
+        let tests = ExecutionContext::for_tests(1);
+        assert_eq!(production.adaptive_bootstrap, AdaptiveBootstrapBudget::disabled());
+        assert_eq!(production.adaptive_draws, AdaptiveDrawBudget::disabled());
+        assert_eq!(production.adaptive_bootstrap, tests.adaptive_bootstrap);
+        assert_eq!(production.adaptive_draws, tests.adaptive_draws);
+    }
+
+    #[test]
+    fn bootstrap_budget_floor_is_the_monte_carlo_error_bound() {
+        let at = |eps: f64, min: u32| {
+            AdaptiveBootstrapBudget { enabled: true, min_replicates: min, se_rel_epsilon: eps }
+                .required_replicates()
+        };
+        // 1/√(2(B−1)) ≤ ε  ⇔  B ≥ 1 + 1/(2ε²).
+        assert_eq!(at(0.05, 0), 201);
+        assert_eq!(at(0.10, 0), 51);
+        assert_eq!(at(0.01, 0), 5_001);
+        assert_eq!(at(0.5, 0), 3);
+        assert_eq!(at(0.5, 10), 10, "explicit floor wins when larger");
+        assert_eq!(at(0.0, 10), u32::MAX, "non-positive ε never stops");
+        assert_eq!(at(f64::NAN, 10), u32::MAX);
+        assert_eq!(at(1e-9, 0), u32::MAX, "saturates instead of truncating");
+        assert_eq!(AdaptiveBootstrapBudget::disabled().required_replicates(), u32::MAX);
     }
 
     #[test]

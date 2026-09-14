@@ -132,37 +132,20 @@ pub(crate) fn finalize_bootstrap_se_ex(
     BootstrapSeResult { se, replicates_ok: ok, replicates_failed: failed, cancelled, early_stopped }
 }
 
-/// Relative SE change for adaptive early-stop.
-#[must_use]
-pub(crate) fn se_relative_change(se_prev: f64, se_new: f64) -> f64 {
-    if se_prev == 0.0 {
-        if se_new == 0.0 { 0.0 } else { f64::INFINITY }
-    } else {
-        (se_new / se_prev - 1.0).abs()
-    }
-}
-
-/// Whether adaptive bootstrap should stop given the current SE trajectory.
+/// Whether an enabled bootstrap budget may stop after `successful` replicates.
+///
+/// The stop is a replicate floor derived from the Monte Carlo error of a
+/// bootstrap SE ([`AdaptiveBootstrapBudget::required_replicates`]); it does not
+/// look at the SE trajectory, so the count is pinned by the budget alone.
 #[must_use]
 pub(crate) fn adaptive_bootstrap_should_stop(
     budget: AdaptiveBootstrapBudget,
     successful: u32,
-    se_prev: Option<f64>,
-    se_new: f64,
 ) -> bool {
-    if !budget.enabled || successful < budget.min_replicates.max(2) {
-        return false;
-    }
-    let Some(prev) = se_prev else {
-        return false;
-    };
-    if !prev.is_finite() || !se_new.is_finite() {
-        return false;
-    }
-    se_relative_change(prev, se_new) < budget.se_rel_epsilon
+    budget.enabled && successful >= budget.required_replicates()
 }
 
-/// IID bootstrap standard error with failure accounting and optional adaptive early-stop.
+/// IID bootstrap standard error with failure accounting and optional early-stop.
 ///
 /// Index plans are produced in one batch under `ctx` via
 /// [`fill_resample_index_batch`] for the full requested `replicates` (CRN-stable under
@@ -174,9 +157,10 @@ pub(crate) fn adaptive_bootstrap_should_stop(
 /// Cooperative cancellation: when `ctx.cancellation` trips mid-loop, returns a partial result
 /// with `cancelled = true` rather than inventing a full run.
 ///
-/// Adaptive early-stop: when [`ExecutionContext::adaptive_bootstrap`] is enabled and the SE
-/// relative change falls below ε after `min_replicates` successes, returns with
-/// `early_stopped = true`.
+/// Early-stop: when [`ExecutionContext::adaptive_bootstrap`] is enabled (no constructor
+/// enables it) and the successful count reaches the budget's Monte Carlo error floor
+/// before the request is exhausted, returns with `early_stopped = true` and the actual
+/// count. Otherwise every requested replicate is evaluated.
 pub(crate) fn bootstrap_se(
     replicates: u32,
     ctx: &ExecutionContext,
@@ -234,7 +218,6 @@ pub(crate) fn bootstrap_se(
     let mut cancelled = false;
     let mut early_stopped = false;
     let mut attempted = 0u32;
-    let mut se_prev: Option<f64> = None;
     let budget = ctx.adaptive_bootstrap;
     for r in 0..n_rep {
         if ctx.cancellation.is_cancelled() {
@@ -254,17 +237,15 @@ pub(crate) fn bootstrap_se(
             cancelled = true;
             break;
         }
-        if estimate.is_some() && ates.len() >= 2 {
-            let se_new = sample_std(&ates);
+        if estimate.is_some() && r + 1 < n_rep {
             let ok_count = u32::try_from(ates.len()).unwrap_or(u32::MAX);
-            if adaptive_bootstrap_should_stop(budget, ok_count, se_prev, se_new) {
+            if adaptive_bootstrap_should_stop(budget, ok_count) {
                 early_stopped = true;
                 if let Some(p) = &ctx.progress {
                     p.report((r + 1) as f64 / n_rep as f64, "bootstrap");
                 }
                 break;
             }
-            se_prev = Some(se_new);
         }
         if let Some(p) = &ctx.progress {
             p.report((r + 1) as f64 / n_rep as f64, "bootstrap");
@@ -386,16 +367,6 @@ mod tests {
     use antecedent_core::{AdaptiveBootstrapBudget, CancellationToken, ExecutionContext};
 
     #[test]
-    fn adaptive_se_change_is_invariant_to_measurement_units() {
-        for scale in [1e-200, 1.0, 1e200] {
-            assert!((se_relative_change(scale, 1.01 * scale) - 0.01).abs() < 1e-12);
-            assert!(se_relative_change(0.0, scale).is_infinite());
-            assert!((se_relative_change(scale, 0.0) - 1.0).abs() < 1e-12);
-        }
-        assert!(se_relative_change(0.0, 0.0).abs() < f64::EPSILON);
-    }
-
-    #[test]
     fn cancelled_bootstrap_retains_actual_failures() {
         let ctx = ExecutionContext::for_tests(7);
         let mut calls = 0;
@@ -417,8 +388,9 @@ mod tests {
     #[test]
     fn early_stopped_bootstrap_retains_actual_failures() {
         let mut ctx = ExecutionContext::for_tests(7);
+        // ε = 0.5 → floor ⌈1 + 1/(2·0.25)⌉ = 3 successes.
         ctx.adaptive_bootstrap =
-            AdaptiveBootstrapBudget { enabled: true, min_replicates: 2, se_rel_epsilon: 0.1 };
+            AdaptiveBootstrapBudget { enabled: true, min_replicates: 2, se_rel_epsilon: 0.5 };
         let mut calls = 0;
         let result = bootstrap_se(20, &ctx, 1, 10, |_| {
             calls += 1;
@@ -494,34 +466,54 @@ mod tests {
     }
 
     #[test]
-    fn adaptive_stop_requires_min_and_relative_eps() {
+    fn adaptive_stop_is_the_monte_carlo_error_floor() {
+        // ε = 5% needs 201 successes; the explicit floor of 4 is below that.
         let budget =
             AdaptiveBootstrapBudget { enabled: true, min_replicates: 4, se_rel_epsilon: 0.05 };
-        assert!(!adaptive_bootstrap_should_stop(budget, 3, Some(1.0), 1.0));
-        assert!(!adaptive_bootstrap_should_stop(budget, 4, None, 1.0));
-        assert!(!adaptive_bootstrap_should_stop(budget, 4, Some(1.0), 1.1)); // 10% > 5%
-        assert!(adaptive_bootstrap_should_stop(budget, 4, Some(1.0), 1.01)); // 1% < 5%
-        assert!(!adaptive_bootstrap_should_stop(
-            AdaptiveBootstrapBudget::disabled(),
-            100,
-            Some(1.0),
-            1.0
-        ));
+        assert!(!adaptive_bootstrap_should_stop(budget, 4));
+        assert!(!adaptive_bootstrap_should_stop(budget, 200));
+        assert!(adaptive_bootstrap_should_stop(budget, 201));
+        // A loose ε defers to the explicit floor.
+        let floored =
+            AdaptiveBootstrapBudget { enabled: true, min_replicates: 10, se_rel_epsilon: 0.5 };
+        assert!(!adaptive_bootstrap_should_stop(floored, 9));
+        assert!(adaptive_bootstrap_should_stop(floored, 10));
+        assert!(!adaptive_bootstrap_should_stop(AdaptiveBootstrapBudget::disabled(), u32::MAX));
     }
 
     #[test]
-    fn bootstrap_adaptive_early_stop_stable_count() {
+    fn bootstrap_early_stop_count_is_pinned_by_the_budget() {
         let mut ctx = ExecutionContext::for_tests(42);
+        // ε = 0.2 → ⌈1 + 1/(2·0.04)⌉ = 14 successes.
         ctx.adaptive_bootstrap =
-            AdaptiveBootstrapBudget { enabled: true, min_replicates: 5, se_rel_epsilon: 0.02 };
-        // Constant ATE → SE → 0 quickly; should early-stop soon after min.
+            AdaptiveBootstrapBudget { enabled: true, min_replicates: 5, se_rel_epsilon: 0.2 };
+        // A constant ATE would have tripped the old relative-change rule at
+        // once; the floor ignores the trajectory.
         let r1 = bootstrap_se(80, &ctx, 0xABCD, 20, |_| Ok(Some(2.0))).unwrap();
         let r2 = bootstrap_se(80, &ctx, 0xABCD, 20, |_| Ok(Some(2.0))).unwrap();
         assert!(r1.early_stopped);
+        assert_eq!(r1.replicates_ok, 14);
         assert_eq!(r1.replicates_ok, r2.replicates_ok);
-        assert!(r1.replicates_ok >= 5);
-        assert!(r1.replicates_ok < 80);
         assert!(!r1.cancelled);
+        // A request at or below the floor is evaluated in full, not "stopped".
+        let exact = bootstrap_se(14, &ctx, 0xABCD, 20, |_| Ok(Some(2.0))).unwrap();
+        assert!(!exact.early_stopped);
+        assert_eq!(exact.replicates_ok, 14);
+        let below = bootstrap_se(10, &ctx, 0xABCD, 20, |_| Ok(Some(2.0))).unwrap();
+        assert!(!below.early_stopped);
+        assert_eq!(below.replicates_ok, 10);
+    }
+
+    #[test]
+    fn enabled_default_budget_never_stops_below_its_floor() {
+        let mut ctx = ExecutionContext::for_tests(42);
+        ctx.adaptive_bootstrap = AdaptiveBootstrapBudget::enabled_default();
+        let r = bootstrap_se(199, &ctx, 0xABCD, 20, |_| Ok(Some(2.0))).unwrap();
+        assert!(!r.early_stopped);
+        assert_eq!(r.replicates_ok, 199);
+        let r = bootstrap_se(400, &ctx, 0xABCD, 20, |_| Ok(Some(2.0))).unwrap();
+        assert!(r.early_stopped);
+        assert_eq!(r.replicates_ok, 201);
     }
 
     #[test]
