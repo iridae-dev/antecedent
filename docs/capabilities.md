@@ -48,8 +48,10 @@ Frequentist DBN Pulse/Sustained mixtures publish shared outer-block
 bootstrap uncertainty. TemporalCpdag/TemporalPag class envelopes publish a
 shared circular-block mixture SE (frozen-weight aggregate over identified
 atoms; unidentified mass is retained, not mixed) and Imbens–Manski
-identified-set intervals; Bayesian class envelopes publish the product-posterior
-envelope quantile at Imbens–Manski tails. Temporal PAG results retain MAG
+identified-set intervals with per-completion endpoints; Bayesian class envelopes
+publish the product-posterior envelope quantile (independently seeded completion
+posteriors) at Imbens–Manski tails; both are flagged `truncated` over a capped
+completion enumeration. Temporal PAG results retain MAG
 completions and disclose finite-window audit caps. Those families are not licensed on every
 coordinate: Bayesian
 incomplete-class temporal cells,
@@ -123,10 +125,13 @@ CBOR artifacts.
 Selected posterior graph samples can be propagated into licensed Bayesian
 or Frequentist effect envelopes. Static graph-posterior analysis is limited to
 `AverageEffect` and `ResponseCurve` / one-coordinate `InterventionResponse`
-with DAG atoms. Frequentist multi-atom response aggregates publish a joint-IF
-scalar SE when atom influences align; otherwise uncertainty is withheld with
-`estimate.response.graph_posterior.uncertainty_withheld` (not a simultaneous
-band). Failed estimation mass is unevaluable, not unidentified. Temporal
+with DAG atoms (Rust Study API only; the Python API refuses graph-posterior
+responses). A Frequentist multi-atom aggregate publishes a joint-IF SE only for
+a scalar (one-coordinate `InterventionResponse`) when atom influences align on
+the shared rows; a multi-atom curve, or unaligned influences, withholds
+uncertainty with `estimate.response.graph_posterior.uncertainty_withheld`. The
+interval is not coverage-calibrated. Failed estimation mass is unevaluable, not
+unidentified, and makes the result `GraphDependent`. Temporal
 graph-posterior analysis is limited to pulse, single- or multi-step sustained
 effects, and single-horizon Frequentist or Bayesian temporal mediation with
 `TemporalDag` atoms. DBN-posterior response surfaces, TemporalCpdag/Pag
@@ -245,7 +250,8 @@ with validation `none`, and on `Cpdag` / `Pag` under Frequentist and Bayesian
 inference with validation `none` via the same generalized-adjustment envelope
 as ATE (see the [support matrix](support-matrix.md)). Bayesian
 responses require the documented Gaussian additive models and AllObserved population, with pointwise posterior intervals. Static Bayesian response uses complete observations; temporal Bayesian response also supports the five licensed observation pairs through its observed-data SEM backend. Bayesian Cpdag/Pag response
-mixes identified-mass means only. `Admg` response remains refused. Frequentist TemporalCpdag/Pag responses retain completion identified sets; DAG-posterior responses retain atom probabilities and unidentified mass.
+keeps per-completion posteriors unmixed and publishes the completion identified
+set when completions disagree. `Admg` response remains refused. Frequentist TemporalCpdag/Pag responses retain completion identified sets; DAG-posterior responses retain atom probabilities and unidentified mass.
 `ConditionalEffect` is licensed on `Dag`, `Cpdag`, and `Pag`. The public
 license is that matrix, not this page.
 
@@ -257,7 +263,9 @@ at runtime:
   outcome edge. The general nonparametric front-door formula is reached through
   the ID path and functional plug-in estimation, not through this estimator.
 * **Sharp regression discontinuity** uses a caller-supplied bandwidth with a
-  uniform kernel and reports a conventional, not bias-corrected, interval. There
+  uniform kernel and reports a conventional, not bias-corrected, interval; its
+  default SE is the HC1 residual sandwich, and the homoskedastic SE is an
+  explicit opt-in (`RdConfig::with_se_kind`). There
   is no data-driven bandwidth selector and no Calonico–Cattaneo–Titiunik robust
   correction, so the estimate is only as defensible as the chosen bandwidth.
 * **Propensity-matching standard errors** use a pooled homoskedastic variance
@@ -302,10 +310,10 @@ block = min(n, max(span, ceil(n^(1/3))))
 unfolded `history + horizon` window for temporal-backdoor designs, the deepest
 design lag + 1 for temporal mediation and multi-step sequential g-computation,
 and the DBN max lag + 1 for DBN-posterior mixtures. When an estimating score
-(of the target or of any fitted nuisance coefficient) is persistently
-dependent, the block is lengthened to `ceil(b_PW·n^(1/6))` (the Politis–White
-length at the fixed-b testing rate), capped at `n/3`
-(`antecedent_estimate::dependence_block_length`).
+(the target's influence, a mixture's score, or any normal-equation score of any
+fitted regression, residuals included) is persistently dependent, the block is
+lengthened to `ceil(b_PW·n^(1/6))` (the Politis–White length at the fixed-b
+testing rate), capped at `n/3` (`antecedent_estimate::dependence_block_length`).
 
 * **TemporalDag Pulse / single-step Sustained, multi-step Sustained, and
   temporal mediation.** These resample circular blocks of consecutive
@@ -319,8 +327,15 @@ length at the fixed-b testing rate), capped at `n/3`
   each atom refits its own lag-aligned rows at those times, so every atom sees
   the same replicate.
 
-In both, the replicate SD is multiplied by the Kiefer–Vogelsang fixed-b factor
-`cv(block/n) / 1.96`, so `estimate ± z·SE` uses the fixed-b critical value. The
+In both, the replicate SD is multiplied by the circular-Bartlett fixed-b factor
+`cv(block/n) / 1.96` with `cv(b) = 1.96 + 2.4389b + 3.7072b² − 2.1055b³`
+(`antecedent_estimate::circular_fixed_b_scale`), the simulated 95% fixed-b
+critical value for a mean studentized by the circular Bartlett variance that the
+circular-block bootstrap estimates. The Kiefer–Vogelsang polynomial is for the
+non-circular Bartlett estimator and is too small at long blocks (it covers 0.942
+at `b = 1/3` for a nominal 95% interval). Published 90% intervals use the same
+95% ratio around a normal critical value, not the 90% fixed-b value; in the same
+simulation that construction covers 0.901–0.913 for `b ≤ 1/3`. The
 `estimate.temporal.circular_block_se` diagnostic (the shared-block diagnostic
 for mixtures) records the block length, row count, fixed-b factor, and the
 estimating score's effective rows: over every score of the interval (every
@@ -330,22 +345,33 @@ smaller of the lag-1 reading `n(1 − r₁)/(1 + r₁)` and the block-length rea
 `estimate.temporal.circular_block_se.short_series` warns below a threshold set
 per SE family from a coverage sweep over AR(1) persistence and series length
 ([short-series thresholds](short-series-thresholds.md)): 45 for Pulse /
-single-step Sustained, 35 for mediation, 40 for multi-step Sustained, and 155
+single-step Sustained, 40 for mediation, 40 for multi-step Sustained, and 155
 for mixtures.
 
 The sweep separates designs whose estimating score forgets within a few lags
 from designs where treatment and residual are both persistent. With a
 short-memory score (an MA(3) treatment, or the confounded lag DGP for
 multi-step Sustained) and AR(1) residuals up to ρ = 0.95, one-series intervals
-covered 0.868–0.923 at nominal 0.90 for every n from 40 to 400 (2000
-replicates per cell), and the warning is quiet from n = 100–160. With an AR(1)
+covered 0.871–0.928 at nominal 0.90 for every n from 40 to 400 (2000
+replicates per cell), and the warning is quiet from n = 160. With an AR(1)
 treatment as well, Pulse, mediation Total/Direct and multi-step Sustained
-covered 0.75–0.86 wherever the series was short for that memory (n ≤ 60 at
+covered 0.75–0.85 wherever the series was short for that memory (n ≤ 60 at
 ρ ≥ 0.8, up to n = 160 at ρ ≥ 0.9, n = 400 at ρ = 0.95); the warning fires on
-at least 92% of the replicates of every cell below 0.855. The mixture threshold
+at least 91% of the replicates of every cell below 0.855. The mixture threshold
 is higher because a non-causal completion that omits a persistent confounder is
-biased in finite samples (TemporalCpdag Pulse covered 0.67–0.85 at ρ ≥ 0.9 up
+biased in finite samples (TemporalCpdag Pulse covered 0.68–0.89 at ρ ≥ 0.9 up
 to n = 400); no block length removes a bias, and the warning is the boundary.
+
+Temporal response surfaces and observation / Sequence tuple bands use their own
+block rule, `max(max(span, ceil(sqrt(n))), min(ceil(b_PW·n^(1/6)), n/3))` with
+`b_PW` read from the level's normal-equation scores and centered covariate
+columns (recorded as `response.temporal.block_length`), and the same
+circular-Bartlett factor. Their 400-replicate coverage at nominal 0.95 is gated
+for iid and AR(1) ρ = 0.5 residuals and for the dose curve under an AR(1)
+φ = 0.9 treatment; AR(1) ρ = 0.9 residuals (0.883–0.943 pointwise, 0.873
+simultaneous) and a shift response under the φ = 0.9 treatment (0.910 / 0.912)
+are boundary records, disclosed on every band as
+`response.temporal.block.persistence_boundary`.
 
 ### Bayesian
 
@@ -629,7 +655,9 @@ Python interfaces support NumPy, pandas, and Arrow CDI. Rust uses `TableView`.
 
 ## Artifacts
 
-Durable artifact format **0.4** is the 1.0 wire freeze. Versioned artifacts
+Durable artifact format **0.5** is current; it adds the optional
+identified-set interval on structural-mixture analysis results. Format 0.4 was
+the 1.0 wire freeze, and 0.4 artifacts migrate unchanged. Versioned artifacts
 include:
 
 * graphs;

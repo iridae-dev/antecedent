@@ -1062,8 +1062,9 @@ fn heterogeneous_cpdag_shared_block_se_carries_cross_atom_covariance() {
 
 /// `circle_pag`: two completions from one circle mark, one identified through
 /// MAG adjustment and one not amenable. Pins enumeration order, the identified
-/// atom's plim, and the retained unidentified mass. (Two identified,
-/// disagreeing PAG completions were not constructible; see the fixture docs.)
+/// atom's plim, and the retained unidentified mass. Disagreeing identified PAG
+/// completions are covered by `fixtures::chain_pag` in
+/// `v19_temporal_class_calibration.rs`.
 #[test]
 fn circle_pag_fixture_identifies_one_completion_and_retains_mass() {
     let data = pag_series(SANITY_N, 11);
