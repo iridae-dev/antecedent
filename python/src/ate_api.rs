@@ -2151,32 +2151,14 @@ pub(crate) fn ate_result_from_analysis(
     include_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
     let certificate_json = crate::identification_details::analysis_to_json(&result, names)?;
-    let adjustment_set: Vec<String> = crate::public_adjustment_set(
-        result.identification.status,
-        result
-            .estimand
-            .adjustment_set
-            .iter()
-            .map(|id| {
-                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
-            })
-            .collect(),
-    );
-
     let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
-    let overlap_ess = result.estimate.overlap_report.as_ref().and_then(|r| r.ess);
-    let overlap_propensity_min = result.estimate.overlap_report.as_ref().map(|r| r.propensity_min);
-
-    let (
-        posterior_effect_mean,
-        posterior_effect_sd,
-        posterior_q025,
-        posterior_q975,
-        posterior_n_draws,
-        posterior_p_below_zero,
-        posterior_backend,
-        posterior_artifact,
-    ) = posterior_summary_from_result(&result, include_posterior_artifact)?;
+    let posterior_artifact = if include_posterior_artifact {
+        posterior_summary_from_result(&result, true)?.7
+    } else {
+        None
+    };
+    let sections = crate::shared_study_sections(names, &result, estimator_id)?
+        .with_posterior_artifact(posterior_artifact);
     let ppc = ppc_fields_from_checks(&result.predictive_checks);
     let (
         prior_sensitivity_scales,
@@ -2188,146 +2170,28 @@ pub(crate) fn ate_result_from_analysis(
     ) = prior_sensitivity_from_result(&result);
     let (conflict_source_ids, conflict_alphas_requested, conflict_alphas_applied) =
         conflict_summary_from_result(&result);
-    let posterior_unidentified_mass = result.posterior.as_ref().map(|p| p.unidentified_mass);
-
-    // Values shared between an existing flat field and its new nested-section
-    // counterpart are computed once here, then cloned into the section so the
-    // flat field and the section can never drift apart.
-    let identification_status = format!("{:?}", result.identification.status);
-    let method = result.estimand.method.to_string();
-    let refutations: Vec<RefutationReportView> =
-        result.refutations.iter().map(RefutationReportView::from).collect();
-    let plan_id = result.logical_plan.plan_id.to_string();
-    let modality = format!("{:?}", result.logical_plan.data_classification);
-    let latency_mode =
-        result.performance.latency_mode.as_ref().map(std::string::ToString::to_string);
-    let bootstrap_replicates_ok =
-        result.performance.bootstrap_replicates_ok.or(result.estimate.bootstrap_replicates_ok);
-    let cancelled = result.performance.cancelled || result.estimate.bootstrap_cancelled;
-    let stage_timings: Vec<(String, u64)> =
-        result.performance.stage_timings_ns.iter().map(|(s, ns)| (s.to_string(), *ns)).collect();
-
-    let identification = IdentificationSection {
-        status: identification_status.clone(),
-        method: method.clone(),
-        adjustment_set: adjustment_set.clone(),
-        assumption_count: result.estimate.assumptions.len(),
-        derivation_step_count: result.identification.derivation.steps.len(),
-    };
-    let (distribution_atoms, mean_interval) =
-        crate::distribution_sections(names, result.distribution.as_ref());
-    let estimate = EstimateSection {
-        ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
-        se_analytic: result.estimate.se_analytic,
-        se_bootstrap: result.estimate.se_bootstrap,
-        estimator_id: estimator_id.clone(),
-        method: method.clone(),
-        overlap_ess,
-        overlap_propensity_min,
-        functional_means: result
-            .estimate
-            .score_inference
-            .as_ref()
-            .map(|s| s.raw_means.clone())
-            .or_else(|| {
-                result
-                    .estimate
-                    .score_table
-                    .as_ref()
-                    .and_then(|t| t.summarize(None).ok().map(|s| s.means.to_vec()))
-            }),
-        joint_covariance: result
-            .estimate
-            .joint_covariance
-            .as_ref()
-            .map(|c| (0..c.dim).map(|i| (0..c.dim).map(|j| c.get(i, j)).collect()).collect()),
-        score_inference: result.estimate.score_inference.as_ref().map(ScoreInferenceSection::from),
-        scenario_effects: result.estimate.scenario_effects.as_ref().map(|v| v.to_vec()),
-        scenario_intervals: result.estimate.scenario_intervals.as_ref().map(|v| v.to_vec()),
-        exceedance_cdf: result.estimate.exceedance_cdf.as_ref().map(|v| v.to_vec()),
-        monotone_rearranged: result.estimate.monotone_rearranged,
-        interaction_structurally_zero: result
-            .response
-            .as_ref()
-            .map(|r| r.interaction_structurally_zero)
-            .or(Some(result.estimate.interaction_structurally_zero)),
-        score_table: result.estimate.score_table.as_ref().map(|t| ScoreTableSection {
-            n_rows: t.n_rows,
-            n_folds: t.n_folds,
-            provenance: t.nuisance_provenance.to_string(),
-            columns: t.columns.iter().map(|c| (c.arm, c.threshold)).collect(),
-            scores: t.scores.to_vec(),
-            row_index: t.row_index.to_vec(),
-            fold_ids: t.fold_ids.to_vec(),
-            adjustment_set: t.adjustment_set.iter().map(|v| v.raw()).collect(),
-            observed_arm: t.observed_arm.to_vec(),
-            propensities: t.propensities.to_vec(),
-            observed_outcome: t.observed_outcome.to_vec(),
-            treatment: t.treatment.raw(),
-            intervened: t.intervened.iter().map(|v| v.raw()).collect(),
-        }),
-        simultaneous_interval: result.estimate.simultaneous_interval,
-        adjusted_p_values: result.estimate.adjusted_p_values,
-        family_contrast: result.estimate.family_contrast,
-        family_contrast_interval: result.estimate.family_contrast_interval,
-        candidate_selection: result
-            .estimate
-            .candidate_selection
-            .as_ref()
-            .map(|s| CandidateSelectionSection {
-                screen_id: s.screen_id.to_string(),
-                procedure: s.procedure.to_string(),
-                winner_index: s.winner_index,
-                family_size: s.family_size,
-                screen_rows: s.screen_rows.to_vec(),
-                estimate_rows: s.estimate_rows.to_vec(),
-                disjoint: s.disjoint,
-            })
-            .or_else(|| {
-                result.candidate_selection.as_ref().map(|s| CandidateSelectionSection {
-                    screen_id: s.screen_id.to_string(),
-                    procedure: s.procedure.as_str().to_string(),
-                    winner_index: s.winner_index,
-                    family_size: s.family_size,
-                    screen_rows: s.screen_rows.to_vec(),
-                    estimate_rows: s.estimate_rows.to_vec(),
-                    disjoint: s.disjoint,
-                })
-            }),
-        evalue: result.estimate.evalue,
-        distribution_atoms,
-        mean_interval,
-    };
-    let posterior = PosteriorSection {
-        effect_mean: posterior_effect_mean,
-        effect_sd: posterior_effect_sd,
-        q025: posterior_q025,
-        q975: posterior_q975,
-        n_draws: posterior_n_draws,
-        p_below_zero: posterior_p_below_zero,
-        backend: posterior_backend.clone(),
-        artifact: posterior_artifact.clone(),
-        unidentified_mass: posterior_unidentified_mass,
-    };
-    let validation = ValidationSection::from_reports(refutations.clone(), &result.diagnostics);
-    let performance = PerformanceSection {
-        plan_id: plan_id.clone(),
-        modality: modality.clone(),
-        peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
-        latency_mode: latency_mode.clone(),
-        wall_time_ns: result.performance.wall_time_ns,
-        bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,
-        bootstrap_replicates_ok,
-        n_draws: result.performance.n_draws,
-        cancelled,
-        early_stopped: result.performance.early_stopped,
-        stage_timings: stage_timings.clone(),
-        bytes_borrowed: result.performance.bytes_borrowed,
-    };
-
-    let (evidence_status, allowlist_reason, allowlist_parent) =
-        crate::evidence_status_parts(result.support_status);
-    let identified_set = crate::identified_set_fields(&result);
+    let SharedStudySections {
+        identification,
+        estimate,
+        posterior,
+        validation,
+        performance,
+        identified_set,
+        identification_status,
+        method,
+        adjustment_set,
+        estimator_id,
+        plan_id,
+        modality,
+        refutations,
+        evidence_status,
+        allowlist_reason,
+        allowlist_parent,
+        structural_weight_basis,
+        structural_identified_mass,
+        structural_unidentified_mass,
+        structural_unevaluable_mass,
+    } = sections;
     let mediation_slices: &[antecedent_estimate::TemporalMediationSlice] =
         result.mediation_grid.as_ref().map_or(&[], |grid| grid.slices.as_ref());
     let mediation_uncertainty = |slice: &antecedent_estimate::TemporalMediationSlice| match &slice
@@ -2352,27 +2216,10 @@ pub(crate) fn ate_result_from_analysis(
     };
 
     Ok(AteAnalysisResult {
-        structural_weight_basis: result.structural_response.as_ref().map(|mixture| {
-            match mixture.weight_basis {
-                antecedent::result::StructuralWeightBasis::PosteriorProbability => {
-                    "posterior_probability"
-                }
-                antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior => {
-                    "caller_supplied_class_prior"
-                }
-                _ => "completion_enumeration",
-            }
-            .to_string()
-        }),
-        structural_identified_mass: result.structural_response.as_ref().map(|m| m.identified_mass),
-        structural_unidentified_mass: result
-            .structural_response
-            .as_ref()
-            .map(|m| m.unidentified_mass),
-        structural_unevaluable_mass: result
-            .structural_response
-            .as_ref()
-            .map(|m| m.unevaluable_mass),
+        structural_weight_basis,
+        structural_identified_mass,
+        structural_unidentified_mass,
+        structural_unevaluable_mass,
         structural_identified_set: identified_set.0,
         structural_identified_set_interval: identified_set.1,
         structural_identified_set_interval_level: identified_set.2,
@@ -2391,16 +2238,16 @@ pub(crate) fn ate_result_from_analysis(
         derivation_step_count: result.identification.derivation.steps.len(),
         method,
         estimator_id,
-        overlap_ess,
-        overlap_propensity_min,
-        posterior_effect_mean,
-        posterior_effect_sd,
-        posterior_q025,
-        posterior_q975,
-        posterior_n_draws,
-        posterior_p_below_zero,
-        posterior_backend,
-        posterior_artifact,
+        overlap_ess: estimate.overlap_ess,
+        overlap_propensity_min: estimate.overlap_propensity_min,
+        posterior_effect_mean: posterior.effect_mean,
+        posterior_effect_sd: posterior.effect_sd,
+        posterior_q025: posterior.q025,
+        posterior_q975: posterior.q975,
+        posterior_n_draws: posterior.n_draws,
+        posterior_p_below_zero: posterior.p_below_zero,
+        posterior_backend: posterior.backend.clone(),
+        posterior_artifact: posterior.artifact.clone(),
         diagnostics: result
             .diagnostics
             .iter()
@@ -2453,15 +2300,15 @@ pub(crate) fn ate_result_from_analysis(
         conflict_source_ids,
         conflict_alphas_requested,
         conflict_alphas_applied,
-        posterior_unidentified_mass,
-        latency_mode,
+        posterior_unidentified_mass: posterior.unidentified_mass,
+        latency_mode: performance.latency_mode.clone(),
         wall_time_ns: result.performance.wall_time_ns,
         bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,
-        bootstrap_replicates_ok,
+        bootstrap_replicates_ok: performance.bootstrap_replicates_ok,
         n_draws_effort: result.performance.n_draws,
-        cancelled,
+        cancelled: performance.cancelled,
         early_stopped: result.performance.early_stopped,
-        stage_timings,
+        stage_timings: performance.stage_timings.clone(),
         identification,
         estimate,
         posterior,
