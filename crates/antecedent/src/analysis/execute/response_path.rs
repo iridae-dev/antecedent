@@ -144,8 +144,11 @@ impl super::Study {
         if graph_dependent {
             identification.status = IdentificationStatus::GraphDependent;
         }
+        // Only a scalar aggregate takes the joint-IF SE: for a curve the first
+        // score column is the influence of the first grid point alone.
         let mixed_if_se = (weighted.len() > 1
             && matches!(self.inference, InferenceMode::Frequentist)
+            && matches!(conditional, ResponseValue::Scalar(_))
             && atom_ifs.len() == weighted.len())
         .then(|| mix_static_envelope_se(&atom_ifs, &atom_if_weights))
         .filter(|se| se.is_finite());
@@ -219,6 +222,10 @@ impl super::Study {
                     "multi-atom Bayesian graph-posterior response withholds an aggregate \
                      credible interval: graph-specific dispersion and uncertainty of a \
                      frozen-weight aggregate are different objects"
+                } else if !matches!(conditional, ResponseValue::Scalar(_)) {
+                    "multi-atom Frequentist graph-posterior curve withholds an aggregate \
+                     band: the joint-IF SE is published for scalar aggregates only, and \
+                     marginal atom bands are not combined as independent"
                 } else {
                     "multi-atom Frequentist graph-posterior response withholds an aggregate \
                      interval because aligned atom influences were unavailable; marginal \

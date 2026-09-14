@@ -836,10 +836,29 @@ fn graph_posterior_response_known_truth_conditional_on_identified() {
                     "{mode} {label} conditional_on_identified[{g}]={a}, pinned {b}"
                 );
             }
-            assert!(
-                matches!(result.response.as_ref().unwrap().uncertainty, ResponseUncertainty::None),
-                "{mode} {label}: multi-atom response uncertainty is declared unavailable"
-            );
+            let uncertainty = &result.response.as_ref().unwrap().uncertainty;
+            let has_diagnostic =
+                |code: &str| result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref() == code);
+            if mode == "frequentist" && label == "InterventionResponse" {
+                // A scalar frozen-weight aggregate takes the joint-IF SE of
+                // the identified atoms on the shared sample.
+                let ResponseUncertainty::Scalar { standard_error, lower, upper, .. } = uncertainty
+                else {
+                    panic!("{mode} {label}: joint-IF aggregate SE expected, got {uncertainty:?}");
+                };
+                assert!(standard_error.is_finite() && *standard_error > 0.0);
+                assert!(lower < &got[0] && &got[0] < upper, "{mode} {label}: interval brackets");
+                assert!(has_diagnostic("estimate.response.graph_posterior.joint_if_se"));
+            } else {
+                assert!(
+                    matches!(uncertainty, ResponseUncertainty::None),
+                    "{mode} {label}: multi-atom aggregate uncertainty is withheld"
+                );
+                assert!(
+                    has_diagnostic("estimate.response.graph_posterior.uncertainty_withheld"),
+                    "{mode} {label}: withheld aggregate interval is disclosed"
+                );
+            }
         }
     }
     // Frequentist InterventionResponse cheap/full: the plugin-level refuters run
