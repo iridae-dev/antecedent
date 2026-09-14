@@ -447,14 +447,17 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
         "Pulse and single-step Sustained SEs must be comparable (pulse={se_pulse_b}, sustained={se_sustained_b})"
     );
 
-    let hw_a = pointwise_halfwidths(&run_surface(0));
-    let hw_b = pointwise_halfwidths(&run_surface(40));
-    assert!(hw_a.iter().all(|w| w.is_finite() && *w > 0.0), "analytic surface bands={hw_a:?}");
-    assert!(hw_b.iter().all(|w| w.is_finite() && *w > 0.0), "bootstrap surface bands={hw_b:?}");
+    // The surface follows the same rule: no replicates, no band.
+    let surface_analytic = run_surface(0);
     assert!(
-        hw_a.iter().zip(&hw_b).any(|(a, b)| (a - b).abs() > 1e-8),
-        "surface SEs must follow Study bootstrap (analytic={hw_a:?}, boot={hw_b:?})"
+        matches!(
+            surface_analytic.response.as_ref().expect("response").uncertainty,
+            ResponseUncertainty::None
+        ),
+        "the analytic surface band must not be published"
     );
+    let hw_b = pointwise_halfwidths(&run_surface(40));
+    assert!(hw_b.iter().all(|w| w.is_finite() && *w > 0.0), "bootstrap surface bands={hw_b:?}");
     let z = 1.959_963_984_540_054;
     let surface_se = hw_b.iter().copied().fold(0.0_f64, f64::max) / z;
     let ratio = se_pulse_b / surface_se;
@@ -1011,6 +1014,11 @@ fn joint_sequence_refuses_when_a_coordinate_is_the_outcome() {
     assert!(err.to_string().contains("same variable"), "unexpected error content: {err}");
 }
 
+/// With zero replicates the dose×horizon surface keeps its point values and
+/// publishes no band: the analytic OLS band recorded in the fixture's
+/// `surface.lower` / `surface.upper` treats lag-aligned rows as independent and
+/// is no longer published (1.9). Requested replicates publish the joint
+/// circular-block band instead, strictly positive at dose zero.
 #[test]
 fn temporal_dose_horizon_bands_match_fixture() {
     use antecedent_core::ResponseUncertainty;
@@ -1031,46 +1039,38 @@ fn temporal_dose_horizon_bands_match_fixture() {
         ),
     })
     .with_temporal(temporal_spec(&fixture));
-    let result = Study::series(series)
-        .graph(graph)
-        .query(CausalQuery::Response(query))
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(21))
-        .unwrap();
-    let response = result.response.as_ref().expect("response payload");
-    let ResponseUncertainty::PointwiseBand { lower, upper, .. } = &response.uncertainty else {
-        panic!("expected pointwise bands");
+    let run = |replicates| {
+        Study::series(series.clone())
+            .graph(graph.clone())
+            .query(CausalQuery::Response(query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(replicates)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(21))
+            .unwrap()
     };
-    let expected_lower: Vec<f64> = fixture["contract"]["surface"]["lower"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|value| value.as_f64().unwrap())
-        .collect();
-    let expected_upper: Vec<f64> = fixture["contract"]["surface"]["upper"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|value| value.as_f64().unwrap())
-        .collect();
-    let atol = fixture["tolerance"]["atol"].as_f64().unwrap();
-    for (i, (&lo, &hi)) in lower.iter().zip(upper.iter()).enumerate() {
-        assert!(
-            (lo - expected_lower[i]).abs() <= atol,
-            "lower[{i}]={lo}, expected={}",
-            expected_lower[i]
-        );
-        assert!(
-            (hi - expected_upper[i]).abs() <= atol,
-            "upper[{i}]={hi}, expected={}",
-            expected_upper[i]
-        );
-    }
-    // dose=0 horizon=1: index 0 — band width must be strictly positive (regression guard).
-    assert!(upper[0] - lower[0] > 0.0, "dose=0 band width must be positive");
+    let analytic = run(0);
+    let response = analytic.response.as_ref().expect("response payload");
+    assert!(matches!(response.uncertainty, ResponseUncertainty::None), "no analytic band");
+    assert!(
+        response
+            .support
+            .warnings
+            .iter()
+            .any(|w| w.code.as_ref() == "estimate.temporal_response.band_withheld"),
+        "the withheld band must be diagnosed"
+    );
+    let boot = run(60);
+    let ResponseUncertainty::PointwiseBand { lower, upper, .. } =
+        &boot.response.as_ref().expect("response payload").uncertainty
+    else {
+        panic!("expected the circular-block pointwise band");
+    };
+    assert!(
+        lower.iter().zip(upper.iter()).all(|(lo, hi)| hi - lo > 0.0),
+        "every cell's band must have positive width, including dose zero"
+    );
 }
 
 #[test]

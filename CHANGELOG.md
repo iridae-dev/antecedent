@@ -51,7 +51,8 @@ repeated-sampling coverage; intervals that missed were fixed, not footnoted.
   refuter) resamples circular blocks of lag-aligned rows, not the raw series,
   with a dependence-aware block length and a fixed-b correction. iid analytic
   SEs on these cells are NaN; a short-series warning fires below 100
-  effective rows.
+  effective rows. Temporal response surfaces likewise publish no band without
+  bootstrap replicates (`estimate.temporal_response.band_withheld`).
 - Bayesian temporal likelihoods (Pulse, Sustained, class and DBN atoms,
   temporal responses per horizon) are tempered by a long-run-variance
   ratio. The result is a generalized posterior and is labelled as one.
