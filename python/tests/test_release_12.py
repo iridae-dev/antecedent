@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import antecedent as ac
@@ -158,6 +159,21 @@ def test_posterior_moments_and_artifact(accepted, scale, family):
         check_moments(art.mean[effect_index], art.sd[effect_index] ** 2, expected)
         assert result.posterior is not None
         assert art.mean[effect_index] == result.posterior.effect_mean
+        if family in {"window", "stationary_window"}:
+            # Each mechanism's likelihood is tempered by its own long-run-variance
+            # ratio; the assumption reports kappa to 4 decimals per fitted design.
+            reported = {
+                int(rows): float(kappa)
+                for rows, kappa in (
+                    re.search(r"on (\d+) time-ordered rows .*? kappa = ([0-9.]+)", text).groups()
+                    for text in map(str, result.assumptions)
+                    if "bayes.temporal.long_run_tempering" in text
+                )
+            }
+            pinned = {f["rows"]: f["kappa"] for f in FIXTURE["tempering"][family]}
+            assert reported.keys() == pinned.keys()
+            for rows, kappa in pinned.items():
+                assert reported[rows] == pytest.approx(kappa, abs=5.1e-5)
         if family in {"mediation", "confounded_mediation"}:
             draws = np.asarray(art.draws).reshape((-1, art.n_draws))
             assert np.allclose(draws[1], draws[2] + draws[3], rtol=0, atol=1e-14)
