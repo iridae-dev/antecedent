@@ -38,6 +38,8 @@ thiserror = { workspace = true }
 [dev-dependencies]
 criterion.workspace = true
 antecedent-kernels = { version = "1.8.0", path = "../antecedent-kernels" }
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
 serde_json = { workspace = true }
 
 [[example]]
