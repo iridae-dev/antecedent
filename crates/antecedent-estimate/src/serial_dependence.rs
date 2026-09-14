@@ -285,6 +285,7 @@ pub fn tempering_inestimable_from_notes(notes: &[Arc<str>]) -> bool {
 ///
 /// Rank-deficient design (the OLS residuals are undefined), a missing treatment
 /// column for [`DependenceScope::Treatment`], or a direction of the wrong length.
+#[allow(clippy::too_many_lines)]
 pub fn long_run_tempering_factor(
     design: &CompiledDesign,
     scope: &DependenceScope,
@@ -439,7 +440,7 @@ fn bic_autoregression(s: &[f64]) -> Autoregression {
     let gamma: Vec<f64> = (0..=max_order)
         .map(|k| s[k..].iter().zip(s).map(|(a, b)| a * b).sum::<f64>() / n as f64)
         .collect();
-    if !(gamma[0] > 0.0) || !gamma[0].is_finite() {
+    if gamma[0] <= 0.0 || !gamma[0].is_finite() {
         return Autoregression::default();
     }
     let nf = n as f64;
@@ -458,7 +459,7 @@ fn bic_autoregression(s: &[f64]) -> Autoregression {
         next.push(reflection);
         phi = next;
         variance *= 1.0 - reflection * reflection;
-        if !(variance > 0.0) {
+        if variance <= 0.0 || variance.is_nan() {
             break;
         }
         let bic = nf * variance.ln() + order as f64 * nf.ln();
@@ -744,7 +745,7 @@ mod tests {
         assert!(picked_high <= 4, "BIC picked q >= 2 on {picked_high}/40 AR(1) series");
         // An AR(1) model reproduces the AR(1) quadratic form.
         let model = Autoregression { phi: vec![0.6], autocorrelation: vec![1.0, 0.6] };
-        let weights: Vec<f64> = (0..50).map(|t| 1.0 + 0.1 * t as f64).collect();
+        let weights: Vec<f64> = (0..50).map(|t| 1.0 + 0.1 * f64::from(t)).collect();
         let expected = {
             let (mut carry, mut cross, mut norm) = (0.0, 0.0, 0.0);
             for (t, &w) in weights.iter().enumerate() {
@@ -812,7 +813,7 @@ mod tests {
         // perfectly periodic series BIC fits as AR(q), but its product with the lag-1
         // regressor is identically zero, so the score carries no dependence.
         let n = 401;
-        let t: Vec<f64> = (0..n + 1)
+        let t: Vec<f64> = (0..=n)
             .map(|i| match i % 4 {
                 1 => 1.0,
                 3 => -1.0,
@@ -833,9 +834,8 @@ mod tests {
         // Noise-free outcome on a slowly drifting treatment: the residuals are rounding
         // error, whose structure must not be read as serial dependence.
         let n = 800;
-        let t: Vec<f64> = (0..n + 1)
-            .map(|i| 0.3 + 0.4 * (i % 2) as f64 + 0.05 * (0.017 * i as f64).sin())
-            .collect();
+        let t: Vec<f64> =
+            (0..=n).map(|i| 0.3 + 0.4 * (i % 2) as f64 + 0.05 * (0.017 * i as f64).sin()).collect();
         let x: Vec<f64> = t[1..].to_vec();
         let lag: Vec<f64> = t[..n].to_vec();
         let y: Vec<f64> = x.iter().zip(&lag).map(|(a, b)| 1.0 + 2.0 * a + 3.0 * b).collect();
