@@ -127,6 +127,13 @@ was not available, published as boundary records with a runtime disclosure.
 
 ### Changed
 
+- Bayesian prior and posterior predictive checks follow the latency tier
+  (50 Interactive / 200 Standard / 400 Report replicates) and run once per
+  distinct fitted design across graph-posterior and class-envelope atoms.
+- `Float64Column::new` establishes the NaN/validity invariant in one pass and
+  re-wrapping a constructed buffer no longer rescans (`F64Buffer::is_nan_free`).
+- Linear-adjustment fits compute `(XᵀX)⁻¹` once for the analytic SE and the
+  influence function.
 - Serially dependent rows: Frequentist temporal SEs for plain TemporalDag
   Pulse/Sustained, temporal mediation, DBN posteriors, class envelopes,
   multi-step sequential, and the `bootstrap.ci_coverage` refuter resample
