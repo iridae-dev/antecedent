@@ -1145,10 +1145,10 @@ mod identify_only_tests {
 
     #[test]
     fn bidirected_admg_non_ate_refuses_at_build_with_matrix_id() {
-        // Every non-AverageEffect query on an ADMG is now a closed cell, so
-        // the refusal fires at `build()` with the stable matrix reason.
-        // identify_only's own ADMG guard stays as defense in depth but is no
-        // longer reachable through the public builder.
+        // ADMG InterventionalDistribution is licensed only at validation
+        // none; the cheap/full cells are closed, so the refusal fires at
+        // `build()` with the stable matrix reason. identify_only's own ADMG
+        // guard stays as defense in depth.
         let mut admg = Admg::with_variables(2);
         admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -1159,7 +1159,7 @@ mod identify_only_tests {
         let err = Study::tabular(toy_data())
             .graph(admg)
             .query(CausalQuery::Distribution(query))
-            .refute(RefuteSuite::None)
+            .refute(RefuteSuite::Cheap)
             .build()
             .unwrap_err();
         assert!(
