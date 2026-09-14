@@ -262,6 +262,40 @@ impl PreparedSequenceLevel {
             .unwrap_or(0)
     }
 
+    /// Estimating-equation scores of the full-sample level, for the response block
+    /// length: the normal-equation scores of every fitted mechanism's regression (one
+    /// series per coefficient, intercept included) and the centered column of every
+    /// root node whose factual mean the level reads.
+    #[must_use]
+    pub fn estimating_scores(&self) -> Vec<Vec<f64>> {
+        let n = self.n;
+        let column = |c: usize| &self.values[c * n..(c + 1) * n];
+        let mut scores = Vec::new();
+        for &i in &self.order {
+            if self.fitted[i] {
+                let p = self.parents[i].len() + 1;
+                let mut x = vec![1.0; n * p];
+                for (k, &parent) in self.parents[i].iter().enumerate() {
+                    x[(k + 1) * n..(k + 2) * n].copy_from_slice(column(self.column_of[parent]));
+                }
+                scores.extend(
+                    crate::temporal_block::normal_equation_scores(
+                        &x,
+                        n,
+                        p,
+                        column(self.column_of[i]),
+                    )
+                    .unwrap_or_default(),
+                );
+            } else if self.overlay_at[i].is_none_or(|overlay| overlay.node.level.is_none()) {
+                let values = column(self.column_of[i]);
+                let mean = values.iter().sum::<f64>() / n as f64;
+                scores.push(values.iter().map(|v| v - mean).collect());
+            }
+        }
+        scores
+    }
+
     /// Distinct lags (relative to the anchor) at which `variable` enters the tuple.
     #[must_use]
     pub fn lags_of(&self, variable: VariableId) -> Vec<u32> {

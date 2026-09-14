@@ -289,9 +289,17 @@ pub fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
 #[must_use]
 pub fn dependence_block_length(structural_span: usize, rows: usize, scores: &[&[f64]]) -> usize {
     let rule = circular_block_length(structural_span, rows);
+    rule.max(testing_block_length(rows, scores).min(rows / 3)).min(rows.max(1))
+}
+
+/// Uncapped coverage-rate block length `⌈b_PW · rows^{1/6}⌉` of
+/// [`dependence_block_length`], with `b_PW` the largest
+/// [`politis_white_block_length`] over `scores`; `0` when no series yields one.
+/// Callers cap it at `rows / 3` and never go below their own rule.
+#[must_use]
+pub fn testing_block_length(rows: usize, scores: &[&[f64]]) -> usize {
     let pw = scores.iter().filter_map(|s| politis_white_block_length(s)).max().unwrap_or(0);
-    let testing = (pw as f64 * (rows as f64).powf(1.0 / 6.0)).ceil() as usize;
-    rule.max(testing.min(rows / 3)).min(rows.max(1))
+    (pw as f64 * (rows as f64).powf(1.0 / 6.0)).ceil() as usize
 }
 
 /// OLS normal-equation scores `x_{tj} · ê_t` of a column-major `rows × cols`
