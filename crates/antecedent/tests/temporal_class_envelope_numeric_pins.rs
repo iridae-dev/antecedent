@@ -706,3 +706,56 @@ fn temporal_pag_identified_multi_completion_pulse_and_sustained() {
         }
     }
 }
+
+/// Every licensed Frequentist `TemporalCpdag` Pulse and single-step Sustained
+/// coordinate (explicit and accepted structure × none / cheap / full) runs on the
+/// pinned two-completion law and returns the pinned mixture. Cheap and full run
+/// the refuters on each completion and mix them (`refute.envelope.effect_mixture`);
+/// none runs no refuter.
+#[test]
+fn temporal_cpdag_frequentist_pulse_and_sustained_all_structures_and_suites() {
+    let pin = pin();
+    let data = series(&pin);
+    let section = &pin["cpdag"];
+    let expected = section["pulse"]["ate"].as_f64().unwrap();
+    let tol = section["pulse"]["absolute_tolerance"].as_f64().unwrap();
+    for (label, query) in [("pulse", pulse_query(&pin)), ("sustained", sustained_query(&pin))] {
+        for accepted in [false, true] {
+            for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+                let builder = Study::series(data.clone());
+                let builder = if accepted {
+                    builder.graph(AcceptedGraph::from(cpdag()))
+                } else {
+                    builder.graph(cpdag())
+                };
+                let result = builder
+                    .query(query.clone())
+                    .refute(suite)
+                    .bootstrap_replicates(0)
+                    .build()
+                    .unwrap()
+                    .run(&ExecutionContext::for_tests(1))
+                    .unwrap();
+                let case = format!("{label} accepted={accepted} {suite:?}");
+                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{case}");
+                assert!(
+                    (result.estimate.ate - expected).abs() < tol,
+                    "{case}: ate {} vs {expected}",
+                    result.estimate.ate
+                );
+                if suite == RefuteSuite::None {
+                    assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
+                } else {
+                    assert!(!result.refutations.is_empty(), "{case}: suite must execute");
+                    assert!(
+                        result
+                            .diagnostics
+                            .iter()
+                            .any(|d| d.code.as_ref() == "refute.envelope.effect_mixture"),
+                        "{case}: refuters must be mixed across completions"
+                    );
+                }
+            }
+        }
+    }
+}

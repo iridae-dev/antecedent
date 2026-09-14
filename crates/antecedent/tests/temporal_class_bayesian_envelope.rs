@@ -1720,3 +1720,59 @@ fn mapped_transfer_onto_temporal_cpdag_cells() {
         }
     }
 }
+
+/// Every licensed Bayesian `TemporalPag` Pulse and single-step Sustained
+/// coordinate (explicit and accepted structure × none / cheap / full) runs on the
+/// mixed-identification PAG under a `ClassPrior`: the draws are mixed, the latent
+/// completion's mass stays unidentified, and cheap / full execute refuters.
+#[test]
+fn temporal_pag_bayesian_pulse_and_sustained_all_structures_and_suites() {
+    let mut sustained =
+        TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), 0, 1.0);
+    sustained.policy = TemporalPolicy::sustained(-1, -1);
+    sustained.horizon_steps = 1;
+    let queries = [("pulse", pulse_query()), ("sustained", CausalQuery::TemporalEffect(sustained))];
+    let antecedent::Identification::TemporalEnvelope { envelope, .. } =
+        identify(&antecedent::AcceptedGraph::temporal_pag(mixed_id_pag()), &pulse_query()).unwrap()
+    else {
+        panic!("mixed-ID TemporalPag Pulse returns an envelope");
+    };
+    let n_cases = envelope.envelope.cases.len();
+    let masses: Vec<f64> =
+        (0..n_cases).map(|i| if i == 0 { 0.4 } else { 0.6 / (n_cases - 1) as f64 }).collect();
+    for (label, query) in queries {
+        for accepted in [false, true] {
+            for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+                let builder = Study::series(mixed_id_series(400));
+                let builder = if accepted {
+                    builder.graph(antecedent::AcceptedGraph::temporal_pag(mixed_id_pag()))
+                } else {
+                    builder.graph(mixed_id_pag())
+                };
+                let result = builder
+                    .query(query.clone())
+                    .inference(bayes())
+                    .class_prior(ClassPrior::from_ordered(masses.clone()).unwrap())
+                    .refute(suite)
+                    .bootstrap_replicates(0)
+                    .build()
+                    .unwrap()
+                    .run(&ExecutionContext::for_tests(13))
+                    .unwrap();
+                let case = format!("{label} accepted={accepted} {suite:?}");
+                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{case}");
+                assert!(result.estimate.ate.is_finite(), "{case}");
+                let structural = result.structural_response.as_ref().expect("structural envelope");
+                assert!(structural.identified_mass > 0.0, "{case}");
+                assert!(structural.unidentified_mass > 0.0, "{case}");
+                let mixed = result.posterior.as_ref().expect("mixed posterior");
+                assert!(mixed.unidentified_mass > 0.0, "{case}: mass must not be renormalized");
+                if suite == RefuteSuite::None {
+                    assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
+                } else {
+                    assert!(!result.refutations.is_empty(), "{case}: suite must execute");
+                }
+            }
+        }
+    }
+}
