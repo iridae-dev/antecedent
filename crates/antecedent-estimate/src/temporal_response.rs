@@ -1279,7 +1279,9 @@ impl TemporalResponseEstimator {
         let series_rows = data.row_count();
         let rows = horizon_rows(&horizons, series_rows);
         let window = common_time_window(&rows).map_or(0, |(_, len)| len);
-        let scores = horizon_scores(&horizons);
+        // The lengthening reads every horizon's scores (a refit and a Politis–White
+        // scan each); without replicates no band is published and the rule suffices.
+        let scores = if replicates > 0 { horizon_scores(&horizons) } else { Vec::new() };
         let score_refs: Vec<&[f64]> = scores.iter().map(Vec::as_slice).collect();
         let block = ResponseBlockLength::new(span, window, &score_refs);
         let bootstrap = bootstrap_surface(&horizons, &rows, block.length, replicates, ctx);
