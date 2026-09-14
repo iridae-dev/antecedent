@@ -237,15 +237,36 @@ impl std::fmt::Debug for Study {
 
 mod attribution_path;
 mod bayesian_path;
+mod class_envelope_se;
 mod compile;
 mod dispatch;
+mod identified_set_diagnostics;
 mod pag_path;
 mod panel_path;
 mod response_path;
 mod sequential_validation;
 mod static_path;
 mod temporal_path;
+mod tuple_bootstrap;
 include!("execute_helpers.rs");
+
+#[allow(unused_imports)]
+pub(super) use class_envelope_se::{
+    SharedCircularBlockSe, TemporalAtomDesign, envelope_shared_block_diagnostics,
+    shared_block_mixture_message, shared_circular_block_mixture_se,
+    shared_circular_block_mixture_se_with_length,
+};
+#[cfg(test)]
+pub(super) use class_envelope_se::circular_block_length;
+pub(super) use identified_set_diagnostics::{
+    IDENTIFIED_SET_INTERVAL_LEVEL, identified_set_interval_diagnostic,
+    posterior_identified_set_interval,
+};
+#[allow(unused_imports)]
+pub(super) use tuple_bootstrap::{
+    PreparedTupleTarget, TupleObservationTarget, TupleReplicates, TupleSurface,
+    tuple_block_observation_replicates,
+};
 
 pub(crate) use response_path::{class_aware_response_supported, response_witness_ate};
 
