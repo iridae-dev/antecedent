@@ -39,6 +39,33 @@ fn parse_closed<T: Copy + PartialEq>(
     })
 }
 
+/// Declare a closed-set id enum together with its `ALL` catalog, both
+/// generated from one variant list.
+///
+/// `FromStr` walks `ALL`, so a variant added to the enum but missing from a
+/// hand-maintained catalog would compile and then fail to parse. Generating
+/// both from the same list makes that omission impossible.
+macro_rules! closed_id_enum {
+    (
+        $(#[$meta:meta])*
+        $vis:vis enum $name:ident {
+            $( $(#[$vmeta:meta])* $variant:ident, )+
+        }
+        all_doc = $all_doc:literal;
+    ) => {
+        $(#[$meta])*
+        $vis enum $name {
+            $( $(#[$vmeta])* $variant, )+
+        }
+
+        impl $name {
+            #[doc = $all_doc]
+            pub const ALL: &'static [$name] = &[ $( Self::$variant, )+ ];
+        }
+    };
+}
+
+closed_id_enum! {
 /// Closed set of identification strategies.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
@@ -67,6 +94,8 @@ pub enum IdentifierId {
     GcmParametric,
     /// `AutoIdentifier` — all applicable estimands, no silent estimator choice.
     Auto,
+}
+all_doc = "Every closed-set identifier, in declaration order (powers [`UnknownStrategy::expected`]).";
 }
 
 /// Per-identifier data-only facts backing [`IdentifierId::as_str`],
@@ -147,22 +176,6 @@ pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
 }
 
 impl IdentifierId {
-    /// Every closed-set identifier, in declaration order (powers [`UnknownStrategy::expected`]).
-    pub const ALL: &'static [IdentifierId] = &[
-        Self::BackdoorAdjustment,
-        Self::BackdoorEfficient,
-        Self::Frontdoor,
-        Self::Iv,
-        Self::RdSharp,
-        Self::TemporalBackdoorUnfolded,
-        Self::GeneralizedAdjustment,
-        Self::GeneralId,
-        Self::PathSpecificNatural,
-        Self::ResponseBackdoor,
-        Self::GcmParametric,
-        Self::Auto,
-    ];
-
     /// Canonical wire id.
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
@@ -195,6 +208,7 @@ impl std::fmt::Display for IdentifierId {
     }
 }
 
+closed_id_enum! {
 /// Closed set of estimators.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
@@ -261,6 +275,8 @@ pub enum EstimatorId {
     TemporalResponseGcomp,
     /// Fitted additive GCM mechanisms with abduction–action–prediction ITE.
     GcmFit,
+}
+all_doc = "Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).";
 }
 
 impl EstimatorId {
@@ -501,41 +517,6 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
 }
 
 impl EstimatorId {
-    /// Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).
-    pub const ALL: &'static [EstimatorId] = &[
-        Self::LinearAdjustmentAte,
-        Self::PropensityWeighting,
-        Self::PropensityMatching,
-        Self::PropensityStratification,
-        Self::DistanceMatching,
-        Self::Aipw,
-        Self::GlmAdjustment,
-        Self::FrontDoorTwoStage,
-        Self::IvWald,
-        Self::Iv2Sls,
-        Self::RdSharp,
-        Self::BayesianGcomp,
-        Self::BayesianConditional,
-        Self::TemporalLinearAdjustment,
-        Self::BayesianTemporalGcomp,
-        Self::TemporalSequentialGcomp,
-        Self::FunctionalDistribution,
-        Self::FunctionalEffect,
-        Self::StaticMediationLinear,
-        Self::ConditionalLinearAdjustment,
-        Self::TemporalMediation,
-        Self::TemporalResponseBayesian,
-        Self::ResponseBayesian,
-        Self::BayesianTemporalMediation,
-        Self::ResponseKennedyDr,
-        Self::ResponseRieszAde,
-        Self::ResponseGamDerivative,
-        Self::ResponseInterventionGcomp,
-        Self::CellAipw,
-        Self::TemporalResponseGcomp,
-        Self::GcmFit,
-    ];
-
     /// Canonical wire id.
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
@@ -985,5 +966,17 @@ mod names {
             assert_eq!(id.as_str().parse::<EstimatorId>().unwrap(), *id);
         }
         assert!("not.an.estimator".parse::<EstimatorId>().is_err());
+    }
+
+    /// `ALL` is generated from the enum's own variant list, so every variant
+    /// is present exactly once; distinct wire names keep `FromStr` injective.
+    #[test]
+    fn catalogs_have_distinct_wire_names() {
+        let identifiers: std::collections::HashSet<_> =
+            IdentifierId::ALL.iter().map(IdentifierId::as_str).collect();
+        assert_eq!(identifiers.len(), IdentifierId::ALL.len());
+        let estimators: std::collections::HashSet<_> =
+            EstimatorId::ALL.iter().map(EstimatorId::as_str).collect();
+        assert_eq!(estimators.len(), EstimatorId::ALL.len());
     }
 }
