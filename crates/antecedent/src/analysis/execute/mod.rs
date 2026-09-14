@@ -239,6 +239,7 @@ mod attribution_path;
 mod bayesian_path;
 mod class_envelope_se;
 mod compile;
+mod dbn_mediation_frequentist;
 mod dispatch;
 mod identified_set_diagnostics;
 mod pag_path;

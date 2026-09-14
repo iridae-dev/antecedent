@@ -149,9 +149,10 @@ pub use temporal_block::{
     row_block_bootstrap_vec, score_effective_rows,
 };
 pub use temporal_mediation::{
-    MediationPosteriorSummary, TemporalEffectSurface, TemporalMediationBlockSe,
-    TemporalMediationEstimate, TemporalMediationEstimator, TemporalMediationGrid,
-    TemporalMediationIdentifiedSet, TemporalMediationSlice, TemporalMediationUncertainty,
+    MediationPosteriorSummary, PreparedTemporalMediation, SharedMediationBlockSe,
+    TemporalEffectSurface, TemporalMediationBlockSe, TemporalMediationEstimate,
+    TemporalMediationEstimator, TemporalMediationGrid, TemporalMediationIdentifiedSet,
+    TemporalMediationSlice, TemporalMediationUncertainty, shared_mediation_block_bootstrap,
 };
 pub use temporal_response::{
     MaxDeviationBand, PreparedTemporalSurface, SIMULTANEOUS_BAND_CRITICAL, SIMULTANEOUS_BAND_LOWER,
