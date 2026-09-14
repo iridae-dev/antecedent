@@ -155,9 +155,19 @@ impl BootstrapRefute {
             )
             .map_err(ValidationError::from)?;
         // The published interval's blocks: sized on every normal-equation score.
-        let block = estimator
-            .dependence_block_length(&prep, temporal.indexer)
-            .map_err(ValidationError::from)?;
+        // A bootstrapped estimate carries the length its interval resampled;
+        // otherwise (no replicates, or a different design) derive it once here.
+        let block = match problem.original.block_resampling {
+            Some(geometry)
+                if problem.original.bootstrap_replicates_ok.is_some()
+                    && geometry.rows == rows.rows =>
+            {
+                geometry.block_length
+            }
+            _ => estimator
+                .dependence_block_length(&prep, temporal.indexer)
+                .map_err(ValidationError::from)?,
+        };
         let mut x_boot = vec![0.0; rows.rows * prep.design.ncols];
         let mut y_boot = vec![0.0; rows.rows];
         // The replicates refit least squares. When the published estimate is

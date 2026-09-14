@@ -40,7 +40,9 @@ pub struct TemporalDependenceSe {
     /// [`crate::temporal_block::dependence_block_length`] of the unfolded window
     /// over the treatment influence and every normal-equation score — at least
     /// `max(history + horizon, ⌈n^{1/3}⌉)`, lengthened for a persistently
-    /// dependent score.
+    /// dependent score. When no replicates were requested
+    /// ([`Self::replicates_attempted`] is 0) the scores are not scanned and this
+    /// is the plain rule length.
     pub block_length: usize,
     /// Lag-aligned rows in the fitted (and resampled) design.
     pub rows: usize,
@@ -435,7 +437,16 @@ impl TemporalLinearAdjustment {
         point.se_analytic = f64::NAN;
 
         let replicates = self.inner.bootstrap_replicates;
-        let block_length = single_window_block_length(prep, indexer, point.influence.as_deref());
+        // The dependence-aware length refits the design for its normal-equation
+        // scores and runs a Politis–White scan on each; without replicates no
+        // interval is published, so the rule length stands in (the diagnostic
+        // says so through `replicates_attempted == 0`).
+        let block_length = if replicates > 0 {
+            single_window_block_length(prep, indexer, point.influence.as_deref())
+        } else {
+            let structural_span = (indexer.history() as usize + indexer.horizon() as usize).max(1);
+            antecedent_data::circular_block_length(structural_span, rows)
+        };
         let target: Vec<&[f64]> = point.influence.as_deref().into_iter().collect();
         let kernel_bias = crate::temporal_block::kernel_bias_scale(&target, block_length);
         let boot = (replicates > 0).then(|| {
@@ -475,7 +486,12 @@ impl TemporalLinearAdjustment {
             b.kernel_bias = kernel_bias;
             b.se_result(0)
         });
-        Ok((point.with_bootstrap(boot), info))
+        let mut estimate = point.with_bootstrap(boot);
+        // The geometry the interval resampled, so a check of that interval
+        // (`bootstrap.ci_coverage`) can reuse the length instead of re-deriving it.
+        estimate.block_resampling =
+            Some(crate::adjustment::BlockResampling { block_length, rows, kernel_bias });
+        Ok((estimate, info))
     }
 
     /// Circular-block length [`Self::fit_dependence_honest`] resamples `prep` with,

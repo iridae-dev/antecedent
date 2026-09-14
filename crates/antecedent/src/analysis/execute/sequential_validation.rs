@@ -128,9 +128,22 @@ impl EffectRefit for SequentialRefitter<'_> {
                           stand-in would resample a different estimator than the posterior mean",
             }));
         }
+        let rows = design.aligned_rows().rows;
+        // A bootstrapped Frequentist contrast carries the length its interval
+        // resampled; otherwise derive it once from the prepared design.
+        let block_length = match self.atom.estimate.block_resampling {
+            Some(geometry)
+                if self.bayes.is_none()
+                    && self.atom.estimate.bootstrap_replicates_ok.is_some()
+                    && geometry.rows == rows =>
+            {
+                geometry.block_length
+            }
+            _ => design.block_length(),
+        };
         Some(Ok(antecedent_validate::common::AlignedRefit {
-            rows: design.aligned_rows().rows,
-            block_length: design.block_length(),
+            rows,
+            block_length,
             stand_in,
             estimate: Box::new(move |rows| design.estimate_on_rows(rows).ok()),
         }))
