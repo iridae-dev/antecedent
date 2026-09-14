@@ -367,3 +367,54 @@ fn fresh_dbn_posterior_cancelled_during_identification_returns_typed_error() {
         "expected identify-stage cancellation, got {error:?}"
     );
 }
+
+#[test]
+fn repeated_dbn_atoms_contribute_their_combined_mass_once() {
+    let treatment_to_outcome = 1_u64 << 1;
+    let confounder_to_outcome = 1_u64 << 7;
+    let unadjusted = treatment_to_outcome;
+    let adjusted = treatment_to_outcome | confounder_to_outcome;
+    let (series, query) = confounded_series(true);
+    let ctx = ExecutionContext::for_tests(73);
+    let third = 1.0 / 3.0;
+    let repeated = || dbn_posterior(&[unadjusted, unadjusted, adjusted], &[third; 3]);
+    let coalesced = || dbn_posterior(&[unadjusted, adjusted], &[2.0 * third, third]);
+
+    let frequentist = |posterior: GraphPosterior| {
+        Study::series(series.clone())
+            .graph_posterior(posterior)
+            .temporal_query(query.clone())
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(64)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+            .estimate
+    };
+    let only_unadjusted = frequentist(dbn_posterior(&[unadjusted], &[1.0])).ate;
+    let only_adjusted = frequentist(dbn_posterior(&[adjusted], &[1.0])).ate;
+    let expected = (2.0 * only_unadjusted + only_adjusted) / 3.0;
+    let mixed = frequentist(repeated());
+    assert!((mixed.ate - expected).abs() < 1e-10, "mixture={} expected={expected}", mixed.ate);
+    let reference = frequentist(coalesced());
+    assert!((mixed.ate - reference.ate).abs() < 1e-10);
+    let (se, reference_se) = (mixed.se_bootstrap.unwrap(), reference.se_bootstrap.unwrap());
+    assert!(
+        se.is_finite() && (se - reference_se).abs() < 1e-10,
+        "se={se} reference={reference_se}"
+    );
+
+    let bayesian = study(&series, &query, repeated()).run(&ctx).unwrap();
+    let mean = posterior_mean(&bayesian);
+    let unadjusted_mean = posterior_mean(
+        &study(&series, &query, dbn_posterior(&[unadjusted], &[1.0])).run(&ctx).unwrap(),
+    );
+    let adjusted_mean = posterior_mean(
+        &study(&series, &query, dbn_posterior(&[adjusted], &[1.0])).run(&ctx).unwrap(),
+    );
+    let expected = (2.0 * unadjusted_mean + adjusted_mean) / 3.0;
+    assert!((mean - expected).abs() < 0.05, "mixture mean={mean}, expected={expected}");
+    assert!(bayesian.posterior.as_ref().unwrap().unidentified_mass.abs() < f64::EPSILON);
+}
