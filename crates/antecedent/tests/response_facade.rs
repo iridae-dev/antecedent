@@ -271,32 +271,44 @@ fn intervention_response_conforms_to_known_truth_fixture() {
 
     // Exercise both the direct `Study::run` path and the prepared handle (which is
     // what the licensed cell actually uses on the Python `PreparedAnalysis` surface),
-    // and pin both against the same fixture truth.
-    let study = Study::tabular(data.clone())
-        .graph(graph.clone())
-        .query(CausalQuery::Response(query.clone()))
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap();
-    let direct = study.run(&ExecutionContext::for_tests(52)).unwrap();
-    let prepared = study.prepare(&ExecutionContext::for_tests(52)).unwrap();
-    let via_prepared = prepared.estimate(&data, &ExecutionContext::for_tests(52)).unwrap();
-
+    // on the explicit and the accepted structure axis, and pin every run against the
+    // same fixture truth.
     let truth = fixture["contract"]["true_response"].as_f64().unwrap();
     let tolerance = fixture["tolerance"]["truth_absolute"].as_f64().unwrap();
-    for (label, result) in [("direct", &direct), ("prepared", &via_prepared)] {
-        let response = result.response.as_ref().unwrap();
-        assert_eq!(response.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
-        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
-            response.estimate
-        else {
-            panic!("{label}: expected scalar intervention response");
+    for accepted in [false, true] {
+        let builder = Study::tabular(data.clone());
+        let builder = if accepted {
+            builder.graph(antecedent::AcceptedGraph::dag(graph.clone()))
+        } else {
+            builder.graph(graph.clone())
         };
-        assert!(
-            (value - truth).abs() <= tolerance,
-            "{label}: value={value} truth={truth} tolerance={tolerance}"
+        let study = builder
+            .query(CausalQuery::Response(query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        assert_eq!(
+            study.structure_source().as_str(),
+            if accepted { "accepted" } else { "explicit" }
         );
+        let direct = study.run(&ExecutionContext::for_tests(52)).unwrap();
+        let prepared = study.prepare(&ExecutionContext::for_tests(52)).unwrap();
+        let via_prepared = prepared.estimate(&data, &ExecutionContext::for_tests(52)).unwrap();
+        for (label, result) in [("direct", &direct), ("prepared", &via_prepared)] {
+            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            let response = result.response.as_ref().unwrap();
+            assert_eq!(response.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
+            let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
+                response.estimate
+            else {
+                panic!("{label}: expected scalar intervention response");
+            };
+            assert!(
+                (value - truth).abs() <= tolerance,
+                "{label} accepted={accepted}: value={value} truth={truth} tolerance={tolerance}"
+            );
+        }
     }
 }
 
@@ -386,17 +398,8 @@ fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contr
             assert!(!matches!(response.uncertainty, ResponseUncertainty::None));
         }
     }
-    let curve = Study::tabular(data.clone())
+    let average = Study::tabular(data.clone())
         .graph(graph.clone())
-        .query(CausalQuery::Response(curve_query))
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(51))
-        .unwrap();
-    let average = Study::tabular(data)
-        .graph(graph)
         .query(AverageEffectQuery::with_levels(
             VariableId::from_raw(0),
             VariableId::from_raw(1),
@@ -409,22 +412,51 @@ fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contr
         .unwrap()
         .run(&ExecutionContext::for_tests(51))
         .unwrap();
-    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
-        &curve.response.as_ref().unwrap().estimate
-    else {
-        panic!("expected a point-identified two-point response");
-    };
-    let curve_contrast = mean[1] - mean[0];
     let average_effect = average.effect();
     let contrast_tolerance = fixture["tolerance"]["contrast_absolute"].as_f64().unwrap();
     let truth_tolerance = fixture["tolerance"]["truth_absolute"].as_f64().unwrap();
     let truth = fixture["contract"]["true_contrast"].as_f64().unwrap();
-    assert!(
-        (curve_contrast - average_effect).abs() <= contrast_tolerance,
-        "curve contrast {curve_contrast} and AverageEffect {average_effect} exceed the documented tolerance {contrast_tolerance}"
-    );
-    assert!((curve_contrast - truth).abs() <= truth_tolerance);
     assert!((average_effect - truth).abs() <= truth_tolerance);
+    // Frequentist curve on the explicit and the accepted structure axis, through the
+    // prepared handle: both must reproduce the shared linear contract.
+    for accepted in [false, true] {
+        let builder = Study::tabular(data.clone());
+        let builder = if accepted {
+            builder.graph(antecedent::AcceptedGraph::dag(graph.clone()))
+        } else {
+            builder.graph(graph.clone())
+        };
+        let study = builder
+            .query(CausalQuery::Response(curve_query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        assert_eq!(
+            study.structure_source().as_str(),
+            if accepted { "accepted" } else { "explicit" }
+        );
+        let ctx = ExecutionContext::for_tests(51);
+        let fresh = study.clone().run(&ctx).unwrap();
+        let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+        for curve in [&fresh, &click] {
+            assert_eq!(curve.support_status.unwrap().as_str(), "licensed");
+            let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+                &curve.response.as_ref().unwrap().estimate
+            else {
+                panic!("expected a point-identified two-point response");
+            };
+            let curve_contrast = mean[1] - mean[0];
+            assert!(
+                (curve_contrast - average_effect).abs() <= contrast_tolerance,
+                "accepted={accepted}: curve contrast {curve_contrast} and AverageEffect {average_effect} exceed the documented tolerance {contrast_tolerance}"
+            );
+            assert!(
+                (curve_contrast - truth).abs() <= truth_tolerance,
+                "accepted={accepted}: curve contrast {curve_contrast} vs truth {truth}"
+            );
+        }
+    }
 }
 
 fn mean_curve_study() -> (antecedent_data::TabularData, Dag, ResponseQuery) {

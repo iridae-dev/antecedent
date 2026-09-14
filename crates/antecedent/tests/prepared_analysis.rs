@@ -1327,7 +1327,14 @@ fn bayesian_conditional_staged_known_truth() {
             );
             assert_ne!(result.estimate.ate.to_bits(), frequentist.estimate.ate.to_bits());
             assert!(result.posterior.is_some());
-            if suite != RefuteSuite::None {
+            if suite == RefuteSuite::None {
+                assert!(result.refutations.is_empty());
+                assert!(result.predictive_checks.is_empty());
+            } else {
+                assert!(
+                    result.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue"),
+                    "cheap/full must run the E-value on the conditional scalar"
+                );
                 assert!(!result.predictive_checks.is_empty());
             }
             if suite == RefuteSuite::Full {

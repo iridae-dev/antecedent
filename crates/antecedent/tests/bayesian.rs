@@ -373,20 +373,9 @@ fn prior_sensitivity() {
     }
 }
 
-#[test]
-fn temporal_pulse() {
-    use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy};
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
-        TimeSeriesData, ValidityBitmap,
-    };
-
-    let expected = load_expected("temporal_pulse");
-    let true_ate = expected["expected_ate"].as_f64().unwrap();
-    let tol = expected["tolerance"].as_f64().unwrap();
-    let n = usize::try_from(expected["n"].as_u64().unwrap()).expect("fixture n");
-    let n_draws = usize::try_from(expected["n_draws"].as_u64().unwrap()).expect("fixture n_draws");
-
+/// The `temporal_pulse` fixture's series and lag-1 `TemporalDag`:
+/// `defect_t = expected_ate * pressure_{t-1}`, `pressure_t = sin(0.04 t)`.
+fn pulse_scm_series(n: usize, true_ate: f64) -> (TimeSeriesData, TemporalDag) {
     let mut b = CausalSchemaBuilder::new();
     b.add_variable(
         "pressure",
@@ -444,6 +433,17 @@ fn temporal_pulse() {
     let p1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
     let d0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     g.insert_directed(p1, d0).unwrap();
+    (series, g)
+}
+
+#[test]
+fn temporal_pulse() {
+    let expected = load_expected("temporal_pulse");
+    let true_ate = expected["expected_ate"].as_f64().unwrap();
+    let tol = expected["tolerance"].as_f64().unwrap();
+    let n = usize::try_from(expected["n"].as_u64().unwrap()).expect("fixture n");
+    let n_draws = usize::try_from(expected["n_draws"].as_u64().unwrap()).expect("fixture n_draws");
+    let (series, g) = pulse_scm_series(n, true_ate);
     let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1);
@@ -470,6 +470,79 @@ fn temporal_pulse() {
         let bytes = encode_causal_posterior_bytes(post, "temporal-pulse").unwrap();
         let (meta, _) = decode_causal_posterior_bytes(&bytes).unwrap();
         assert_eq!(meta.n_draws as usize, post.draws.n_draws);
+    }
+}
+
+/// Bayesian `PulseEffect × TemporalDag` on every licensed coordinate: explicit
+/// and accepted structure × `none` / `cheap` / `full`, through the staged
+/// `prepare` → `estimate_series` handle. The posterior mean must recover the
+/// `temporal_pulse` fixture's effect. `none` runs no report; cheap runs the
+/// E-value (overlap is not applicable to a lag-aligned design) plus prior and
+/// posterior predictive checks; full adds the stability refuters (the
+/// contiguous-window data subset among them) and prior sensitivity.
+#[test]
+fn temporal_pulse_staged_all_structures_and_suites() {
+    let expected = load_expected("temporal_pulse");
+    let true_ate = expected["expected_ate"].as_f64().unwrap();
+    let tol = expected["tolerance"].as_f64().unwrap();
+    let n = usize::try_from(expected["n"].as_u64().unwrap()).expect("fixture n");
+    let n_draws = usize::try_from(expected["n_draws"].as_u64().unwrap()).expect("fixture n_draws");
+    let (series, g) = pulse_scm_series(n, true_ate);
+    let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1);
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            let label = format!("accepted={accepted} suite={suite:?}");
+            let builder = Study::series(series.clone())
+                .temporal_query(q.clone())
+                .inference(InferenceMode::Bayesian(
+                    BayesianConfig::conjugate().n_draws(n_draws).prior_scale(100.0),
+                ))
+                .refute(suite)
+                .bootstrap_replicates(0);
+            let builder = if accepted {
+                builder.graph(AcceptedGraph::temporal_dag(g.clone()))
+            } else {
+                builder.graph(g.clone())
+            };
+            let study = builder.build().unwrap();
+            assert_eq!(
+                study.structure_source().as_str(),
+                if accepted { "accepted" } else { "explicit" }
+            );
+            let ctx = ExecutionContext::for_tests(42);
+            let result = study.prepare(&ctx).unwrap().estimate_series(&series, &ctx).unwrap();
+            assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+            assert!(
+                result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+                "{label}: the prepared click must reuse identification"
+            );
+            let post = result.posterior.as_ref().expect("posterior");
+            let mean = post.summaries.mean[post.effect_column().unwrap()];
+            assert!((mean - true_ate).abs() < tol, "{label}: mean={mean} expected={true_ate}");
+            let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
+            let has_check = |kind| result.predictive_checks.iter().any(|c| c.kind == kind);
+            if suite == RefuteSuite::None {
+                assert!(names.is_empty(), "{label}: {names:?}");
+                assert!(result.predictive_checks.is_empty(), "{label}");
+            } else {
+                assert!(names.contains(&"sensitivity.evalue"), "{label}: {names:?}");
+                assert!(!names.contains(&"overlap.assessment"), "{label}: {names:?}");
+                assert!(has_check(FacadeKind::Prior), "{label}: prior PPC must run");
+                assert!(has_check(FacadeKind::Posterior), "{label}: posterior PPC must run");
+                assert_eq!(
+                    names.contains(&"data.subset"),
+                    suite == RefuteSuite::Full,
+                    "{label}: the stability refuters run under full only: {names:?}"
+                );
+                assert_eq!(
+                    post.prior_sensitivity.is_some(),
+                    suite == RefuteSuite::Full,
+                    "{label}: prior sensitivity runs under full only"
+                );
+            }
+        }
     }
 }
 

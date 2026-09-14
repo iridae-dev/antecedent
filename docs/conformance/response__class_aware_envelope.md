@@ -42,6 +42,25 @@ Multi-atom uncertainty is omitted: averaged confidence endpoints are neither
 a confidence band for the weighted mean nor quantiles of a graph mixture.
 A single contributing atom retains its own uncertainty.
 
+## Positive PAG response pins (`pag_identified.json`)
+
+The PAG section of `expected.json` is a negative fixture: its treatment has
+invisible causal first edges, so no response is identified there.
+`pag_identified.json` carries the positive PAG evidence.
+
+- **InterventionResponse** reuses the binary law of
+  `conformance/estimate/pag_ate_envelope_identified`. Every completion that
+  identifies the ATE by adjustment must return `do(t=1) − do(t=0)` equal to that
+  completion's numpy reference effect; the completions disagree, so the
+  published response is the completion identified set.
+- **ResponseCurve** uses a continuous linear law on a PAG whose four MAG
+  completions all adjust `{z}` (`r` and `z` point into `t`, so `t -> y` is
+  visible in each). The agreeing completions publish a point-identified curve;
+  its `[0, 1]` levels and contrast are pinned to the structural law and to the
+  AverageEffect cell on the same PAG.
+
+Consumer: `crates/antecedent/tests/pag_identified_envelope_numeric_pins.rs`.
+
 ## Expected summary
 
 Top-level keys: `bayesian, case, columns, contingency_table, continuous, cpdag, grid, pag, query, schema_version` (10 fields).

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "case": "identified_multi_completion_pag_response",
+  "intervention": {
+    "source": "conformance/estimate/pag_ate_envelope_identified",
+    "note": "Binary law of the PAG ATE fixture. Every completion that identifies the ATE by adjustment must return do(t=1) - do(t=0) equal to that completion's numpy reference effect (frequentist.completion_effects there). The additive-GAM plug-in falls back to its penalized fit on the binary treatment (response.intervention_target_penalized_fallback), hence the tolerance; the Bayesian posterior mean adds prior shrinkage at prior_scale 10.",
+    "frequentist_contrast_tolerance": 0.001,
+    "bayesian_contrast_tolerance": 0.005,
+    "bayesian": {"n_draws": 64, "prior_scale": 10.0, "seed": 1}
+  },
+  "curve": {
+    "columns": ["t", "y", "z", "r"],
+    "graph": {
+      "class": "Pag",
+      "marked_edges": [
+        ["r", "t", "circle", "arrow"],
+        ["z", "t", "circle", "arrow"],
+        ["z", "y", "tail", "arrow"],
+        ["t", "y", "tail", "arrow"]
+      ]
+    },
+    "law": {
+      "n": 800,
+      "z": "sin(0.37 i)",
+      "r": "sin(0.53 i)",
+      "t": "0.5 + 0.5 z + 0.4 r + 0.5 sin(0.61 i)",
+      "y": "0.1 + 0.4 t + 0.2 z + 0.02 sin(0.29 i)"
+    },
+    "identification": {
+      "identifier": "generalized.adjustment",
+      "completion_count": 4,
+      "identified_mass": 4.0,
+      "unidentified_mass": 0.0,
+      "adjustment_set": ["z"],
+      "note": "r and z point into t, so t -> y is visible in every MAG completion and every completion adjusts {z}."
+    },
+    "grid": [0.0, 1.0],
+    "true_contrast": 0.4,
+    "note": "Sample-covariate levels are 0.1 + 0.4 a + 0.2 mean(z) + 0.02 mean(sin(0.29 i)); the test recomputes them from the generated columns.",
+    "frequentist": {
+      "estimator": "response.kennedy_dr",
+      "level_tolerance": 0.02,
+      "contrast_tolerance": 0.03
+    },
+    "bayesian": {
+      "estimator": "response.bayesian",
+      "n_draws": 64,
+      "prior_scale": 10.0,
+      "seed": 1,
+      "level_tolerance": 0.005,
+      "contrast_tolerance": 0.005
+    }
+  }
+}

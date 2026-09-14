@@ -150,68 +150,85 @@ fn temporal_dose_horizon_surface_matches_fixture_and_prepared_path() {
         ),
     })
     .with_temporal(temporal_spec(&fixture));
-    let study = Study::series(series.clone())
-        .graph(graph)
-        .query(CausalQuery::Response(query))
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap();
-    let ctx = ExecutionContext::for_tests(21);
+    // The accepted-structure axis runs the same temporal backdoor and g-computation
+    // path as the explicit TemporalDag; both must reproduce the fixture surface.
+    for accepted in [false, true] {
+        let builder = Study::series(series.clone());
+        let builder = if accepted {
+            builder.graph(antecedent::AcceptedGraph::temporal_dag(graph.clone()))
+        } else {
+            builder.graph(graph.clone())
+        };
+        let study = builder
+            .query(CausalQuery::Response(query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        assert_eq!(
+            study.structure_source().as_str(),
+            if accepted { "accepted" } else { "explicit" }
+        );
+        let ctx = ExecutionContext::for_tests(21);
 
-    let direct = study.run(&ctx).unwrap();
-    let prepared = study.prepare(&ctx).unwrap();
-    let click = prepared.estimate_series(&series, &ctx).unwrap();
+        let direct = study.run(&ctx).unwrap();
+        let prepared = study.prepare(&ctx).unwrap();
+        let click = prepared.estimate_series(&series, &ctx).unwrap();
 
-    assert_surface(&direct, &expected, atol, "estimate.temporal_response.gcomp");
-    assert_surface(&click, &expected, atol, "estimate.temporal_response.gcomp");
-    let expected_grid: Vec<f64> = fixture["contract"]["surface"]["grid_pairs"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .flat_map(|pair| pair.as_array().unwrap().iter().map(|value| value.as_f64().unwrap()))
-        .collect();
-    let ResponseIdentification::PointIdentified(ResponseValue::Surface { grid, dimension, .. }) =
-        &direct.response.as_ref().unwrap().estimate
-    else {
-        unreachable!()
-    };
-    assert_eq!(*dimension, 2);
-    assert_eq!(grid.as_ref(), expected_grid.as_slice());
-    let support = &direct.response.as_ref().unwrap().support;
-    assert_eq!(support.status, SupportStatus::Supported);
-    let expected_cells: Vec<SupportStatus> = fixture["contract"]["support"]["point_status"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|value| match value.as_str().unwrap() {
-            "supported" => SupportStatus::Supported,
-            "weak_overlap" => SupportStatus::WeakOverlap,
-            "extrapolative" => SupportStatus::Extrapolative,
-            "outside_empirical_support" => SupportStatus::OutsideEmpiricalSupport,
-            other => panic!("unknown fixture support cell {other}"),
-        })
-        .collect();
-    assert_eq!(support.point_status.as_ref().map(AsRef::as_ref), Some(expected_cells.as_slice()));
-    assert!(
-        direct.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"),
-        "fresh execution must identify"
-    );
-    assert!(
-        click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
-        "prepared estimate_series must reuse identification"
-    );
+        assert_surface(&direct, &expected, atol, "estimate.temporal_response.gcomp");
+        assert_surface(&click, &expected, atol, "estimate.temporal_response.gcomp");
+        let expected_grid: Vec<f64> = fixture["contract"]["surface"]["grid_pairs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|pair| pair.as_array().unwrap().iter().map(|value| value.as_f64().unwrap()))
+            .collect();
+        let ResponseIdentification::PointIdentified(ResponseValue::Surface {
+            grid, dimension, ..
+        }) = &direct.response.as_ref().unwrap().estimate
+        else {
+            unreachable!()
+        };
+        assert_eq!(*dimension, 2);
+        assert_eq!(grid.as_ref(), expected_grid.as_slice());
+        let support = &direct.response.as_ref().unwrap().support;
+        assert_eq!(support.status, SupportStatus::Supported);
+        let expected_cells: Vec<SupportStatus> = fixture["contract"]["support"]["point_status"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| match value.as_str().unwrap() {
+                "supported" => SupportStatus::Supported,
+                "weak_overlap" => SupportStatus::WeakOverlap,
+                "extrapolative" => SupportStatus::Extrapolative,
+                "outside_empirical_support" => SupportStatus::OutsideEmpiricalSupport,
+                other => panic!("unknown fixture support cell {other}"),
+            })
+            .collect();
+        assert_eq!(
+            support.point_status.as_ref().map(AsRef::as_ref),
+            Some(expected_cells.as_slice())
+        );
+        assert!(
+            direct.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"),
+            "fresh execution must identify"
+        );
+        assert!(
+            click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+            "prepared estimate_series must reuse identification"
+        );
 
-    let surface = direct.response.as_ref().unwrap();
-    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
-        &surface.estimate
-    else {
-        unreachable!()
-    };
-    let projection = mean[2] - mean[0];
-    let expected_projection =
-        fixture["contract"]["pulse_effect_projection"]["contrast"].as_f64().unwrap();
-    assert!((projection - expected_projection).abs() <= atol);
+        let surface = direct.response.as_ref().unwrap();
+        let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+            &surface.estimate
+        else {
+            unreachable!()
+        };
+        let projection = mean[2] - mean[0];
+        let expected_projection =
+            fixture["contract"]["pulse_effect_projection"]["contrast"].as_f64().unwrap();
+        assert!((projection - expected_projection).abs() <= atol);
+    }
 }
 
 #[test]
@@ -483,17 +500,39 @@ fn temporal_intervention_path_matches_fixture() {
         interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
     })
     .with_temporal(temporal_spec(&fixture));
-    let result = Study::series(series)
-        .graph(graph)
-        .query(CausalQuery::Response(query))
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(22))
-        .unwrap();
-
-    assert_surface(&result, &expected, atol, "estimate.temporal_response.intervention_gcomp");
+    // Explicit and accepted TemporalDag share the intervention g-computation path;
+    // both the fresh run and the prepared click must reproduce the fixture path.
+    for accepted in [false, true] {
+        let builder = Study::series(series.clone());
+        let builder = if accepted {
+            builder.graph(antecedent::AcceptedGraph::temporal_dag(graph.clone()))
+        } else {
+            builder.graph(graph.clone())
+        };
+        let study = builder
+            .query(CausalQuery::Response(query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        assert_eq!(
+            study.structure_source().as_str(),
+            if accepted { "accepted" } else { "explicit" }
+        );
+        let ctx = ExecutionContext::for_tests(22);
+        let fresh = study.run(&ctx).unwrap();
+        let click = study.prepare(&ctx).unwrap().estimate_series(&series, &ctx).unwrap();
+        for result in [&fresh, &click] {
+            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            assert_surface(
+                result,
+                &expected,
+                atol,
+                "estimate.temporal_response.intervention_gcomp",
+            );
+        }
+        assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    }
 }
 
 // ---- GAP3: fixture keys that exist but were never read ----

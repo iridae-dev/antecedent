@@ -127,6 +127,17 @@ fn functional_bayesian_path_distribution_and_admg() {
                 result.estimate.ate
             );
             assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+            let reports = match suite {
+                RefuteSuite::None => 0,
+                RefuteSuite::Cheap => pin["cheap_path_reports"].as_u64().unwrap(),
+                _ => pin["full_path_reports"].as_u64().unwrap(),
+            };
+            assert_eq!(
+                result.refutations.len() as u64,
+                reports,
+                "path suite={suite:?} must run the path subset-stability suite"
+            );
+            assert!(result.refutations.iter().all(|r| r.refuter.starts_with("path.")));
         }
     }
 
