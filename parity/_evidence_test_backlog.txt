@@ -8,8 +8,9 @@
 # change, and new rows may not be added. Format: query|graph_class|structure|
 # inference|validation.
 #
-# The 24 derivative rows are deliberately NOT listed: their evidence is being
-# backfilled in the same 1.9 cycle, so the gate fails on them until it lands.
+# A listed row names no executing test; its known_truth_fixture and
+# limitations say what supports it. The derivative rows are not listed: they
+# name their evidence.
 AverageEffect|Admg|accepted|Frequentist|cheap
 AverageEffect|Admg|accepted|Frequentist|full
 AverageEffect|Admg|accepted|Frequentist|none
@@ -90,12 +91,6 @@ PathSpecificEffect|Dag|explicit|Bayesian|cheap
 PathSpecificEffect|Dag|explicit|Bayesian|full
 PathSpecificEffect|Dag|explicit|Frequentist|cheap
 PathSpecificEffect|Dag|explicit|Frequentist|full
-PulseEffect|TemporalCpdag|accepted|Frequentist|cheap
-PulseEffect|TemporalCpdag|accepted|Frequentist|full
-PulseEffect|TemporalCpdag|accepted|Frequentist|none
-PulseEffect|TemporalCpdag|explicit|Frequentist|cheap
-PulseEffect|TemporalCpdag|explicit|Frequentist|full
-PulseEffect|TemporalCpdag|explicit|Frequentist|none
 PulseEffect|TemporalDag|accepted|Bayesian|cheap
 PulseEffect|TemporalDag|accepted|Bayesian|full
 PulseEffect|TemporalDag|accepted|Bayesian|none
@@ -124,12 +119,6 @@ ResponseCurve|TemporalDag|accepted|Bayesian|none
 ResponseCurve|TemporalDag|accepted|Frequentist|none
 ResponseCurve|TemporalDag|explicit|Bayesian|none
 ResponseCurve|TemporalDag|explicit|Frequentist|none
-SustainedEffect|TemporalCpdag|accepted|Frequentist|cheap
-SustainedEffect|TemporalCpdag|accepted|Frequentist|full
-SustainedEffect|TemporalCpdag|accepted|Frequentist|none
-SustainedEffect|TemporalCpdag|explicit|Frequentist|cheap
-SustainedEffect|TemporalCpdag|explicit|Frequentist|full
-SustainedEffect|TemporalCpdag|explicit|Frequentist|none
 SustainedEffect|TemporalDag|accepted|Bayesian|cheap
 SustainedEffect|TemporalDag|accepted|Bayesian|full
 SustainedEffect|TemporalDag|accepted|Bayesian|none

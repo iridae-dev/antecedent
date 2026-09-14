@@ -219,7 +219,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         structures: Some(&["explicit"]),
         inferences: None,
         validations: None,
-        reason: "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above).",
+        reason: "Path-specific queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above).",
     },
     NaRule {
         queries: Some(&["InterventionalDistribution"]),
@@ -286,6 +286,14 @@ pub static CLOSED_RULES: &[NaRule] = &[
         reason: "Frequentist DBN-posterior mediation is licensed for TemporalDag atoms. TemporalCpdag/TemporalPag posterior atoms need a class-aware combiner that retains unidentified class mass.",
     },
     NaRule {
+        queries: Some(&["TemporalMediationEffect"]),
+        graph_classes: Some(&["TemporalDag"]),
+        structures: Some(&["graph_posterior"]),
+        inferences: Some(&["Frequentist"]),
+        validations: Some(&["cheap", "full"]),
+        reason: "Frequentist DBN-posterior TemporalMediationEffect is licensed at validation none. Mediation refuters are not run per atom against that atom's own contrast and mixed by graph weight on this path (the Bayesian DBN mediation cells do this), so cheap/full stay refused.",
+    },
+    NaRule {
         queries: Some(&["ConditionalEffect"]),
         graph_classes: Some(&["Cpdag", "Pag"]),
         structures: Some(&["graph_posterior"]),
@@ -307,7 +315,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         structures: Some(&["explicit"]),
         inferences: None,
         validations: None,
-        reason: "Path and distribution queries execute only on a supplied static Dag; a directly supplied Cpdag hits the same static-Dag requirement (Admg/Pag explicit already named above).",
+        reason: "Path-specific queries execute only on a supplied static Dag and distribution queries only on a supplied static Dag or Admg; a directly supplied Cpdag hits that requirement (Admg/Pag explicit already named above).",
     },
     NaRule {
         queries: Some(&["AverageEffect"]),
