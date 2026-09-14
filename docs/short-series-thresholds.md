@@ -62,6 +62,22 @@ replication (`ANTECEDENT_SHORT_SERIES_SEED_OFFSET=5000`, 1000 replicates):
 | multi-step sequential | 35 | 40 | 40 |
 | multi-atom mixture | 155 | 155 | 155 |
 
+### What the failure line tolerates
+
+The failure line 0.855 is the calibration gate's tolerance, not a coverage
+target. "Nominal" in the gate means the empirical coverage is within ±3 Monte
+Carlo SEs of the level at the gate's replicate count: at 400 replicates and a
+90% level that is ±4.5 points, the band [0.855, 0.945]. The thresholds are set
+so that cells *below that band* warn; a cell between 0.855 and roughly 0.88
+is not caught by the warning and can still pass a 400-replicate gate, even
+though at 2000 replicates (band [0.880, 0.920], ±2 points) it measures
+significantly low. Such cells are in the table below: the AR(1)-treatment
+Pulse at ρ = 0.8–0.9, n = 400 (0.875), the AR(1)-treatment mediation Total at
+ρ = 0.9–0.95, n = 400 (0.879–0.882), and the TemporalCpdag mixture at ρ = 0.9,
+n = 400 (0.873, warned on 76%). The last is also a gated design; its gate
+(`frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band`) is
+named as a boundary cell and asserts only the 400-replicate band.
+
 The mixture threshold is set by a different failure. Its SE-driven cells (the
 six-completion TemporalPag envelope at ρ ≥ 0.9, n ≤ 160) warn from about 30.
 The TemporalCpdag and DBN mixtures fail at ρ ≥ 0.9 through bias, not the SE:
@@ -81,6 +97,28 @@ bias cells at n = 160 and none at n = 400.
 
 2000 replicates per cell, nominal 0.90 (band at this count [0.880, 0.920]);
 100 bootstrap replicates per fit for one-series designs, 199 for mixtures.
+
+Measurement conditions. The table was measured with blocks sized on every
+estimating score: the target influence(s), the mixture score, and every
+normal-equation score of every fitted regression (residuals included), the
+rule every circular-block path uses. It was measured before two later changes
+that move individual numbers without changing the rule:
+
+* the fixed-b factor then was the non-circular Kiefer–Vogelsang polynomial;
+  the circular-block SEs now carry the circular-Bartlett factor
+  (`antecedent_estimate::circular_fixed_b_scale`). At the block-to-row ratios
+  in this table (median `blocks` 3–31, so b ≈ 0.03–0.33) the new factor is
+  0.3–0.7% smaller for b ≤ 0.15 and up to 4% larger at b = 1/3, so the cells
+  with the fewest blocks (about 3 blocks, b ≈ 0.31; nearly all warned) gain
+  about 1.2 coverage points and the rest move by a few tenths of a point;
+* the persistent fixtures (`fixtures::chain_pag_series`,
+  `persistent_dgp::mediation_series`, `persistent_dgp::sequential_series`)
+  now seed their noise streams independently per replicate; the previous
+  seeding reused one replicate's treatment path as another replicate's
+  residual path, so in the AR(1)-treatment and TemporalPag rows pairs of
+  replicates were not independent.
+
+Re-running the command below measures the table under the current code.
 Mediation lists Total / Direct / Mediated; the other columns describe the
 headline contrast. `bias/SD` and `SE/SD` divide the mean error and the mean
 reported SE by the Monte-Carlo SD of the estimate; `blocks` is the median
