@@ -269,7 +269,9 @@ pub(super) use tuple_bootstrap::{
     tuple_block_observation_replicates,
 };
 
-pub(crate) use response_path::{class_aware_response_supported, response_witness_ate};
+pub(crate) use response_path::{
+    class_aware_response_supported, graph_posterior_response_supported, response_witness_ate,
+};
 
 #[cfg(test)]
 mod block_length_tests;
