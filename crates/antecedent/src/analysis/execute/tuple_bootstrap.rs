@@ -15,6 +15,33 @@ pub struct TupleReplicates {
     pub block: antecedent_estimate::ResponseBlockLength,
     /// Fixed-b × HC1 dispersion factor applied to every replicate deviation.
     pub inflation: f64,
+    /// Each target's per-cell kernel-bias factors and effective rows, applied to that
+    /// target's replicate deviations after `inflation`.
+    pub dispersion: Vec<antecedent_estimate::CellDispersion>,
+}
+
+impl TupleReplicates {
+    /// The dispersion readings of every target joined into one band's disclosure: the
+    /// largest kernel-bias factor and the fewest effective rows over all targets, as a
+    /// one-cell summary (a mixed class band has no single per-cell layout).
+    #[must_use]
+    pub fn summary_dispersion(&self) -> antecedent_estimate::CellDispersion {
+        antecedent_estimate::CellDispersion {
+            kernel_factors: vec![
+                self.dispersion
+                    .iter()
+                    .map(antecedent_estimate::CellDispersion::max_factor)
+                    .fold(1.0, f64::max),
+            ],
+            effective_rows: vec![
+                self.dispersion
+                    .iter()
+                    .map(antecedent_estimate::CellDispersion::min_effective_rows)
+                    .filter(|rows| rows.is_finite())
+                    .fold(f64::NAN, f64::min),
+            ],
+        }
+    }
 }
 
 /// What a [`TupleObservationTarget`] refits on every replicate.
@@ -80,6 +107,25 @@ impl PreparedTupleTarget {
         }
     }
 
+    /// Per-cell kernel-bias factors and effective rows at block length `block`: the
+    /// delta-method influence of every curve cell; for a Sequence level, whose
+    /// g-computed level composes several mechanisms, the largest factor and fewest rows
+    /// over that level's estimating scores.
+    fn dispersion(&self, block: usize) -> antecedent_estimate::CellDispersion {
+        match self {
+            Self::Curve(surface) => surface.cell_dispersion(block),
+            Self::Sequence { levels, .. } => {
+                let mut out = antecedent_estimate::CellDispersion::default();
+                for level in levels {
+                    let scores = level.estimating_scores();
+                    let refs: Vec<&[f64]> = scores.iter().map(Vec::as_slice).collect();
+                    out.extend(antecedent_estimate::CellDispersion::from_scores(&refs, block));
+                }
+                out
+            }
+        }
+    }
+
     fn parameters(&self) -> usize {
         match self {
             Self::Curve(surface) => surface.max_parameters(),
@@ -110,7 +156,8 @@ impl PreparedTupleTarget {
 /// the response family's rule ([`antecedent_estimate::ResponseBlockLength`], lengthened
 /// by every target's full-sample estimating scores), and replicate deviations from
 /// each target's full-sample surface carry its fixed-b dispersion factor
-/// ([`antecedent_estimate::block_dispersion_inflation`]).
+/// ([`antecedent_estimate::block_dispersion_inflation`]) and each cell's kernel-bias
+/// factor ([`antecedent_estimate::CellDispersion`]).
 pub fn tuple_block_observation_replicates(
     source: &TimeSeriesData,
     targets: &[TupleObservationTarget<'_>],
@@ -215,6 +262,8 @@ pub fn tuple_block_observation_replicates(
     let block = block_length.length;
     let parameters = prepared.iter().map(PreparedTupleTarget::parameters).max().unwrap_or(0);
     let inflation = antecedent_estimate::block_dispersion_inflation(m, block, parameters);
+    let dispersion: Vec<antecedent_estimate::CellDispersion> =
+        prepared.iter().map(|fitted| fitted.dispersion(block)).collect();
     let points: Vec<Vec<f64>> = prepared.iter().map(PreparedTupleTarget::point).collect();
     let mut out = Vec::new();
     let mut attempted = 0u32;
@@ -232,8 +281,8 @@ pub fn tuple_block_observation_replicates(
         let values = targets
             .iter()
             .zip(&prepared)
-            .zip(&points)
-            .map(|((target, fitted), point)| {
+            .zip(points.iter().zip(&dispersion))
+            .map(|((target, fitted), (point, cell_dispersion))| {
                 let values = match fitted {
                     PreparedTupleTarget::Curve(surface) => {
                         let outcomes = observation
@@ -284,11 +333,19 @@ pub fn tuple_block_observation_replicates(
                 }
                 let mut draw = [values];
                 antecedent_estimate::inflate_replicates(point, &mut draw, inflation);
+                cell_dispersion.inflate(point, &mut draw);
                 let [values] = draw;
                 Some(values)
             })
             .collect();
         out.push(values);
     }
-    Ok(TupleReplicates { values: out, attempted, points, block: block_length, inflation })
+    Ok(TupleReplicates {
+        values: out,
+        attempted,
+        points,
+        block: block_length,
+        inflation,
+        dispersion,
+    })
 }

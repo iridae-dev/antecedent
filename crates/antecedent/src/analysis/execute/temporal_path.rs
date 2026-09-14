@@ -4240,15 +4240,29 @@ struct ObservationBootstrapBand {
     completed: u32,
     attempted: u32,
     cancelled: bool,
-    /// Block length and replicate dispersion factor of the resample, disclosed with a
-    /// published band.
-    block: Option<(antecedent_estimate::ResponseBlockLength, f64)>,
+    /// Block length, replicate dispersion factor and per-cell dispersion readings of the
+    /// resample, disclosed with a published band.
+    block: Option<(
+        antecedent_estimate::ResponseBlockLength,
+        f64,
+        antecedent_estimate::CellDispersion,
+    )>,
 }
 
 impl ObservationBootstrapBand {
-    /// Attach the block length and dispersion factor of the tuple resample behind the band.
-    const fn with_block(mut self, replicates: &TupleReplicates) -> Self {
-        self.block = Some((replicates.block, replicates.inflation));
+    /// Attach the block length, dispersion factor and per-cell readings of target
+    /// `target` of the tuple resample behind the band.
+    fn with_block(mut self, replicates: &TupleReplicates, target: usize) -> Self {
+        let dispersion = replicates.dispersion.get(target).cloned().unwrap_or_default();
+        self.block = Some((replicates.block, replicates.inflation, dispersion));
+        self
+    }
+
+    /// Attach the block length, dispersion factor and the one-cell summary of every
+    /// target's readings (a band mixed over several targets).
+    fn with_block_summary(mut self, replicates: &TupleReplicates) -> Self {
+        self.block =
+            Some((replicates.block, replicates.inflation, replicates.summary_dispersion()));
         self
     }
 }
@@ -4259,8 +4273,8 @@ const OBSERVATION_SIMULTANEOUS_CONSTRUCTION: &str = "max-studentized deviation o
      full-sample estimate; every replicate resamples blocks of lag-aligned outcome-time tuples \
      (block length: support diagnostic response.temporal.block_length), refits the observation \
      nuisance on them and refits every horizon (curve / Set-Shift) or every unfolded sequential \
-     mechanism (Sequence); replicate deviations carry the circular-Bartlett fixed-b factor and the \
-     HC1 factor";
+     mechanism (Sequence); replicate deviations carry the circular-Bartlett fixed-b factor, the \
+     HC1 factor and each cell's kernel-bias factor (response.temporal.kernel_bias_factor)";
 
 /// Pointwise band `center ± z·SD` of the (already fixed-b scaled) joint replicates.
 ///
@@ -4500,7 +4514,7 @@ fn apply_class_observation_bootstrap(
             attempted,
             cancelled,
         )
-        .with_block(&tuple);
+        .with_block(&tuple, atom_i);
         if let Some(atom_response) =
             structural_atoms.get_mut(atom.atom_index).and_then(|item| item.response.as_mut())
         {
@@ -4527,7 +4541,7 @@ fn apply_class_observation_bootstrap(
     if apply_class_band {
         let center = mix(&points.iter().map(Some).collect::<Vec<_>>()).unwrap_or_default();
         let band = summarize_observation_bootstrap(&class_draws, &center, attempted, cancelled)
-            .with_block(&tuple);
+            .with_block_summary(&tuple);
         apply_observation_bootstrap(response, &band, replicates);
         Ok(!band.lower.is_empty())
     } else {
@@ -4620,7 +4634,8 @@ const SEQUENCE_SIMULTANEOUS_CONSTRUCTION: &str = "max-studentized deviation of t
      estimate; every replicate resamples blocks of lag-aligned outcome-time tuples (block length: \
      support diagnostic response.temporal.block_length), refits every unfolded sequential \
      mechanism of every horizon and recomputes the root-node means; replicate deviations carry \
-     the circular-Bartlett fixed-b factor and the HC1 factor";
+     the circular-Bartlett fixed-b factor, the HC1 factor and each level's kernel-bias factor \
+     (response.temporal.kernel_bias_factor, the largest over that level's estimating scores)";
 
 fn apply_observation_bootstrap(
     response: &mut CausalResponse,
@@ -4675,12 +4690,13 @@ fn apply_tuple_bootstrap_band(
                     | "response.temporal.sequence_uncertainty_unavailable"
             )
         });
-        if let Some((block, inflation)) = bootstrap.block {
+        if let Some((block, inflation, dispersion)) = &bootstrap.block {
             antecedent_estimate::disclose_response_block_bootstrap(
                 &mut response.support,
                 &mut response.assumptions,
-                block,
-                inflation,
+                *block,
+                *inflation,
+                dispersion,
                 bootstrap.draws.len(),
                 source.refit(),
             );
@@ -4827,7 +4843,7 @@ fn single_target_observation_band(
         tuple.attempted,
         ctx.cancellation.is_cancelled(),
     )
-    .with_block(&tuple))
+    .with_block(&tuple, 0))
 }
 
 /// Hydrate a shared coefficient prior into the unfolded design at every horizon.
