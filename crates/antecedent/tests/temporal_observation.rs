@@ -554,3 +554,72 @@ fn compile_refuses_unlicensed_temporal_observation() {
         .unwrap_err();
     assert!(err.to_string().contains(TEMPORAL_OBSERVATION_UNLICENSED), "stable refuse, got {err}");
 }
+
+/// An observation-adjusted Sequence whose unfolded design carries the outcome at a
+/// nonzero lag is refused: the correction replaces the outcome column, so the lagged
+/// outcome regressor would be a pseudo-outcome (errors in variables), both in the
+/// full-sample fit and in every tuple-bootstrap replicate.
+#[test]
+fn observation_adjusted_sequence_refuses_a_lagged_outcome_regressor() {
+    let pin = fixture();
+    let (t, latent, selected, _, _, _) = generate(&pin);
+    let observed =
+        latent.iter().zip(&selected).map(|(&value, &keep)| value * keep).collect::<Vec<_>>();
+    let series = TimeSeriesData::from_f64_columns(
+        [("t", t.as_slice()), ("y", observed.as_slice()), ("r", selected.as_slice())],
+        1,
+    )
+    .unwrap();
+    // The fixture graph plus a lag-2 autoregressive outcome: Y@-2 → Y@0.
+    let mut ar_graph = graph();
+    let y2 =
+        ensure_lagged(&mut ar_graph, VariableId::from_raw(1), antecedent_core::Lag::from_raw(2))
+            .unwrap();
+    let y0 = ensure_lagged(
+        &mut ar_graph,
+        VariableId::from_raw(1),
+        antecedent_core::Lag::CONTEMPORANEOUS,
+    )
+    .unwrap();
+    ar_graph.insert_directed(y2, y0).unwrap();
+    let lag = u32::try_from(pin["treatment_lag"].as_u64().unwrap()).unwrap();
+    let at = -i32::try_from(lag).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::Sequence(InterventionSequence::new(vec![
+            SequencedIntervention {
+                intervention: Intervention::set(VariableId::from_raw(0), Value::f64(0.5)),
+                temporal: TemporalPolicy::pulse(at),
+            },
+            SequencedIntervention {
+                intervention: Intervention::set(VariableId::from_raw(0), Value::f64(0.5)),
+                temporal: TemporalPolicy::pulse(at + 1),
+            },
+        ]))]),
+    })
+    .with_temporal(temporal_spec(&pin))
+    .with_observation(
+        ObservationSpec::Selected {
+            latent: VariableId::from_raw(1),
+            observed: VariableId::from_raw(1),
+            indicator: VariableId::from_raw(2),
+        },
+        [ObservationAssumption::OutcomeIndependentGiven(Arc::from([VariableId::from_raw(0)]))],
+    );
+    for replicates in [0, 24] {
+        let err = Study::series(series.clone())
+            .graph(ar_graph.clone())
+            .query(CausalQuery::Response(query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(replicates)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(41))
+            .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("outcome to enter the unfolded design only at the outcome time"),
+            "replicates={replicates}: {err}"
+        );
+    }
+}

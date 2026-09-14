@@ -151,12 +151,60 @@ pub fn temporal_curve_outcome_regressors(
 /// Parents of the outcome's stationary mechanism in `graph`, as offsets relative to the
 /// outcome time: the regressors of the unfolded sequential outcome regression that a
 /// Sequence overlay refits.
+///
+/// The outcome itself is also listed at `−lag` for every lagged edge out of the outcome
+/// into a mechanism that can reach the outcome (its own or an ancestor's), i.e. every lag
+/// at which the outcome can enter the unfolded Sequence design as a regressor.
+/// [`ObservationMechanismEstimator::adjust_temporal_series`] refuses a Sequence whose
+/// regressors carry the outcome at a nonzero offset: the correction replaces the outcome
+/// column with pseudo-outcomes, which would then be regressors (errors in variables).
+/// The selected-AIPW outcome nuisance never conditions on outcome columns.
 #[must_use]
 pub fn temporal_sequence_outcome_regressors(
     graph: &antecedent_graph::TemporalDag,
     outcome: VariableId,
 ) -> Vec<TemporalNodeKey> {
     let mut keys = Vec::new();
+    // Template variables with a directed path to the outcome (the outcome included).
+    let mut reaches_outcome = vec![outcome];
+    loop {
+        let before = reaches_outcome.len();
+        for edge in graph.edges() {
+            let Some((from, to)) = edge.parent_child() else {
+                continue;
+            };
+            let (Some(from_key), Some(to_key)) = (graph.temporal_key(from), graph.temporal_key(to))
+            else {
+                continue;
+            };
+            if reaches_outcome.contains(&to_key.variable)
+                && !reaches_outcome.contains(&from_key.variable)
+            {
+                reaches_outcome.push(from_key.variable);
+            }
+        }
+        if reaches_outcome.len() == before {
+            break;
+        }
+    }
+    for edge in graph.edges() {
+        let Some((from, to)) = edge.parent_child() else {
+            continue;
+        };
+        let (Some(from_key), Some(to_key)) = (graph.temporal_key(from), graph.temporal_key(to))
+        else {
+            continue;
+        };
+        if from_key.variable == outcome
+            && from_key.offset < to_key.offset
+            && reaches_outcome.contains(&to_key.variable)
+        {
+            keys.push(TemporalNodeKey {
+                variable: outcome,
+                offset: from_key.offset.saturating_sub(to_key.offset),
+            });
+        }
+    }
     for (index, _) in graph.nodes().iter().enumerate() {
         let id = antecedent_graph::DenseNodeId::from_raw(u32::try_from(index).unwrap_or(u32::MAX));
         let Some(key) = graph.temporal_key(id) else {
@@ -474,6 +522,7 @@ impl ObservationMechanismEstimator {
             EstimationError::unsupported("response query has no treatment/outcome pair")
         })?;
         require_temporal_observation_containment(query, treatment, adjustment)?;
+        require_unlagged_sequence_outcome(query, outcome, outcome_regressors)?;
         let conditioning = temporal_conditioning_ids(query)?;
         let (table, start) = if conditioning.is_empty() {
             (TabularData::new(data.storage().clone()), 0)
@@ -1090,6 +1139,26 @@ impl ObservationMechanismEstimator {
             }),
         })
     }
+}
+
+/// Refuse an observation-adjusted Sequence whose unfolded design carries the outcome at
+/// a nonzero lag (see [`temporal_sequence_outcome_regressors`]). The correction replaces
+/// the outcome column by pseudo-outcomes, so every lagged outcome regressor would be a
+/// noisy proxy of the latent outcome and attenuate its coefficient.
+fn require_unlagged_sequence_outcome(
+    query: &ResponseQuery,
+    outcome: VariableId,
+    outcome_regressors: &[TemporalNodeKey],
+) -> Result<(), EstimationError> {
+    let sequence = crate::plan_from_response_query(query)?
+        .and_then(|plan| plan.mechanism_overlays())
+        .is_some();
+    if sequence && outcome_regressors.iter().any(|key| key.variable == outcome && key.offset != 0) {
+        return Err(EstimationError::unsupported(
+            "observation-adjusted Sequence responses require the outcome to enter the unfolded design only at the outcome time; a lagged outcome regressor would be replaced by pseudo-outcomes (errors in variables)",
+        ));
+    }
+    Ok(())
 }
 
 fn temporal_conditioning_ids(query: &ResponseQuery) -> Result<&[VariableId], EstimationError> {
@@ -1949,6 +2018,34 @@ mod tests {
             (0..doubled.len()).map(|row| layout.fold_of(row, folds)).collect();
         assert!(fold_of.windows(2).all(|w| w[0] <= w[1]), "time-block folds are contiguous");
         assert_eq!(fold_of.last().copied(), Some(folds - 1));
+    }
+
+    #[test]
+    fn sequence_regressors_flag_every_lag_at_which_the_outcome_feeds_its_ancestry() {
+        // T@-1 → Y@0, Y@-2 → T@0 (lagged outcome into an ancestral mechanism), and
+        // Y@-1 → Z@0 with Z a pure descendant (not in the outcome's design).
+        let (t, y, z) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(3));
+        let mut graph = antecedent_graph::TemporalDag::empty();
+        let lagged = |graph: &mut antecedent_graph::TemporalDag, v, lag| {
+            antecedent_graph::ensure_lagged(graph, v, antecedent_core::Lag::from_raw(lag)).unwrap()
+        };
+        let (t1, t0, y0, y1, y2, z0) = (
+            lagged(&mut graph, t, 1),
+            lagged(&mut graph, t, 0),
+            lagged(&mut graph, y, 0),
+            lagged(&mut graph, y, 1),
+            lagged(&mut graph, y, 2),
+            lagged(&mut graph, z, 0),
+        );
+        graph.insert_directed(t1, y0).unwrap();
+        graph.insert_directed(y2, t0).unwrap();
+        graph.insert_directed(y1, z0).unwrap();
+        let keys = temporal_sequence_outcome_regressors(&graph, y);
+        let key = |variable, offset| TemporalNodeKey { variable, offset };
+        assert_eq!(keys, vec![key(t, -1), key(y, -2)]);
+        let query = temporal_selected_query(vec![1]);
+        // A curve query is not a Sequence: the outcome key does not refuse it.
+        assert!(require_unlagged_sequence_outcome(&query, y, &keys).is_ok());
     }
 
     #[test]

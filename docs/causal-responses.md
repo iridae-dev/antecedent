@@ -264,9 +264,9 @@ block, so independent rows are not over-covered.
   point values and warns `estimate.temporal_response.band_withheld`.
 - **Frequentist observation-adjusted.** Each outer replicate additionally refits
   the observation nuisance on exactly the resampled tuples and replaces the
-  outcome with the replicate pseudo-outcome: once for curves and Set/Shift, and
-  once per lag at which the outcome enters the unfolded design for Sequence
-  overlays (on the same blocks shifted to that lag). No replicate row pairs values
+  outcome-time column with the replicate pseudo-outcome. Sequence overlays whose
+  unfolded design carries the outcome at a nonzero lag are refused (the lagged
+  outcome would be a pseudo-outcome regressor). No replicate row pairs values
   across a block junction. The raw-series replicate that 1.8 used for Sequence
   overlays measured 31–81% coverage for a nominal 95% band and is gone.
 - **Bayesian.** The simultaneous credible band uses posterior draws of the

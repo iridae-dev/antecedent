@@ -53,8 +53,9 @@ pub enum PreparedTupleTarget {
     Sequence {
         levels: Vec<antecedent_estimate::PreparedSequenceLevel>,
         outcome: VariableId,
-        /// Distinct lags at which the outcome enters any horizon's tuple.
-        outcome_lags: Vec<u32>,
+        /// Whether the outcome-time column is refit from the observation correction
+        /// (false for a complete-data target, whose stored outcome stands).
+        observation_adjusted: bool,
     },
 }
 
@@ -94,12 +95,12 @@ impl PreparedTupleTarget {
     fn first_anchor(&self, observation_lag: usize) -> usize {
         match self {
             Self::Curve(surface) => surface.first_common_anchor().max(observation_lag),
-            Self::Sequence { levels, outcome_lags, .. } => levels
+            Self::Sequence { levels, .. } => levels
                 .iter()
                 .map(antecedent_estimate::PreparedSequenceLevel::first_anchor)
                 .max()
                 .unwrap_or(0)
-                .max(outcome_lags.iter().max().map_or(0, |&lag| lag as usize) + observation_lag),
+                .max(observation_lag),
         }
     }
 }
@@ -184,15 +185,23 @@ pub fn tuple_block_observation_replicates(
                     })
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(CausalError::from)?;
-                // Complete data: nothing to refit, the stored outcome columns stand.
-                let mut outcome_lags: Vec<u32> = if complete {
-                    Vec::new()
-                } else {
-                    levels.iter().flat_map(|level| level.lags_of(*outcome)).collect()
-                };
-                outcome_lags.sort_unstable();
-                outcome_lags.dedup();
-                PreparedTupleTarget::Sequence { levels, outcome: *outcome, outcome_lags }
+                // The observation correction replaces only the outcome-time column. A
+                // lagged outcome regressor would be a pseudo-outcome (errors in
+                // variables); the full-sample correction refuses that design too.
+                if !complete
+                    && levels
+                        .iter()
+                        .any(|level| level.lags_of(*outcome).iter().any(|&lag| lag != 0))
+                {
+                    return Err(CausalError::Unsupported {
+                        message: "observation-adjusted Sequence responses require the outcome to enter the unfolded design only at the outcome time; a lagged outcome regressor would be replaced by pseudo-outcomes (errors in variables)",
+                    });
+                }
+                PreparedTupleTarget::Sequence {
+                    levels,
+                    outcome: *outcome,
+                    observation_adjusted: !complete,
+                }
             }
         };
         first_anchor = first_anchor.max(fitted.first_anchor(observation_lag));
@@ -211,8 +220,6 @@ pub fn tuple_block_observation_replicates(
     let mut attempted = 0u32;
     let mut positions = Vec::with_capacity(m);
     let mut anchors = Vec::with_capacity(m);
-    let mut shifted = Vec::with_capacity(m);
-    let mut by_lag: Vec<Vec<f64>> = Vec::new();
     for replicate in 0..replicates {
         if ctx.cancellation.is_cancelled() || m < 3 {
             break;
@@ -240,38 +247,35 @@ pub fn tuple_block_observation_replicates(
                             .ok()?;
                         surface.replicate(&anchors, &outcomes).ok()??
                     }
-                    PreparedTupleTarget::Sequence { levels, outcome, outcome_lags } => {
-                        // One observation refit per lag at which the outcome enters the
-                        // tuple, on the same blocks shifted to that lag.
-                        by_lag.resize_with(outcome_lags.len(), Vec::new);
-                        for (slot, &lag) in by_lag.iter_mut().zip(outcome_lags.iter()) {
-                            shifted.clear();
-                            shifted.extend(anchors.iter().map(|&anchor| anchor - lag as usize));
-                            *slot = observation
+                    PreparedTupleTarget::Sequence { levels, outcome, observation_adjusted } => {
+                        // The observation nuisance is refit on the replicate's outcome-time
+                        // rows; the pseudo-outcomes replace the lag-0 outcome column.
+                        let outcomes = if *observation_adjusted {
+                            observation
                                 .adjust_temporal_anchors(
                                     source,
                                     target.query,
                                     target.adjustment,
                                     &target.outcome_regressors,
-                                    &shifted,
+                                    &anchors,
                                 )
-                                .ok()?;
-                        }
-                        let replacements: Vec<antecedent_estimate::SequenceColumnReplacement<'_>> =
-                            outcome_lags
-                                .iter()
-                                .zip(&by_lag)
-                                .map(|(&lag, values)| {
-                                    antecedent_estimate::SequenceColumnReplacement {
-                                        variable: *outcome,
-                                        lag,
-                                        values,
-                                    }
-                                })
-                                .collect();
+                                .ok()?
+                        } else {
+                            Vec::new()
+                        };
+                        let replacement = antecedent_estimate::SequenceColumnReplacement {
+                            variable: *outcome,
+                            lag: 0,
+                            values: &outcomes,
+                        };
+                        let replacements = if *observation_adjusted {
+                            std::slice::from_ref(&replacement)
+                        } else {
+                            &[]
+                        };
                         levels
                             .iter()
-                            .map(|level| level.replicate(&anchors, &replacements).ok()?)
+                            .map(|level| level.replicate(&anchors, replacements).ok()?)
                             .collect::<Option<Vec<f64>>>()?
                     }
                 };

@@ -108,8 +108,13 @@ outcome-time tuples (each carrying its own lagged conditioning and design values
 so no row pairs values across a block junction), refits the selected/KM/Cox
 observation nuisance on them, reconstructs the pseudo-outcome, and refits every
 horizon (curves, Set/Shift) or every unfolded sequential mechanism of every
-horizon (Sequence; the nuisance is refit once per lag at which the outcome enters
-the unfolded design). The pointwise band is `θ̂ ± 1.96·SE` of the replicates
+horizon (Sequence). Selected-AIPW cross-fitting folds are contiguous time
+blocks keyed by each tuple's source position, so a tuple drawn twice sits in one
+fold. An observation-adjusted Sequence whose unfolded design carries the outcome
+at a nonzero lag (an autoregressive outcome, or a lagged outcome feeding an
+ancestral mechanism) is refused: the correction replaces the outcome column, so
+a lagged outcome regressor would be a pseudo-outcome (errors in variables). The
+pointwise band is `θ̂ ± 1.96·SE` of the replicates
 scaled by the response family's fixed-b and HC1 factors (block length
 `max(span, ceil(sqrt(n)))`; see
 [Temporal simultaneous bands](causal-responses.md#temporal-simultaneous-bands)).
