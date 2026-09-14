@@ -29,6 +29,14 @@ use std::sync::Arc;
 /// difference is the natural indirect effect under additive linear mechanisms.
 /// `extra` are exogenous nuisance covariates used by the native RCC refuter.
 ///
+/// The path-specific identifier certifies the *pure* natural indirect effect
+/// `E[Y(a₀, M(a₁))] − E[Y(a₀)]` (treatment at the active level only on edges
+/// that start a mediated path). `total − direct` is by definition the *total*
+/// natural indirect effect `E[Y(a₁)] − E[Y(a₁, M(a₀))]`. The two agree only
+/// without treatment–mediator interaction, which the additive linear
+/// mechanisms impose; indirect contrasts record that reliance as the
+/// `mediation.no_interaction` assumption.
+///
 /// # Errors
 /// Invalid query/data, unsupported population, singular regression, cancellation.
 #[allow(clippy::too_many_lines)]
@@ -145,6 +153,21 @@ pub fn estimate_static_mediation(
         }), source:AssumptionSource::AlgorithmDefault{algorithm:Arc::from("estimate.mediation.linear")},
         scope:AssumptionScope::Estimation,status:AssumptionStatus::Declared,
     });
+    if matches!(query.contrast, MediationContrast::Mediated | MediationContrast::NaturalIndirect) {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::ParametricRestriction(ParametricAssumption {
+                id: Arc::from("mediation.no_interaction"),
+                description: Arc::from(
+                    "The identified functional is the pure natural indirect effect E[Y(a0, M(a1))] - E[Y(a0)]; the estimate is total - direct, the total natural indirect effect E[Y(a1)] - E[Y(a1, M(a0))]. They coincide only without treatment-mediator interaction, which the additive linear mechanisms impose; under interaction the estimate is not the certified quantity.",
+                ),
+            }),
+            source: AssumptionSource::AlgorithmDefault {
+                algorithm: Arc::from("estimate.mediation.linear"),
+            },
+            scope: AssumptionScope::Estimation,
+            status: AssumptionStatus::Declared,
+        });
+    }
     let effect = EffectEstimate::new(
         contrast((total, direct)),
         f64::NAN,
@@ -691,6 +714,64 @@ mod tests {
             "omitting w must bias the mediated effect, got {}",
             omitted.mediated.unwrap()
         );
+    }
+
+    /// The indirect estimate is `total − direct` (the total natural indirect
+    /// effect) while the certificate names the pure one; the indirect contrast
+    /// records the no-interaction assumption that equates them, in both modes.
+    #[test]
+    fn indirect_contrast_records_no_interaction_assumption() {
+        let data = confounded_mediator(2_000);
+        let ctx = ExecutionContext::for_tests(3);
+        let declares = |set: &AssumptionSet| {
+            set.entries.iter().any(|r| {
+                matches!(&r.assumption, Assumption::ParametricRestriction(p)
+                    if p.id.as_ref() == "mediation.no_interaction")
+            })
+        };
+        for (contrast, expected) in [
+            (MediationContrast::NaturalIndirect, true),
+            (MediationContrast::Mediated, true),
+            (MediationContrast::NaturalDirect, false),
+            (MediationContrast::Total, false),
+        ] {
+            let q = MediationQuery::binary(
+                VariableId::from_raw(0),
+                VariableId::from_raw(2),
+                [VariableId::from_raw(1)],
+                contrast,
+            );
+            let freq = estimate_static_mediation(
+                &data,
+                &graph(true),
+                &q,
+                AssumptionSet::new(),
+                0,
+                &[],
+                &ctx,
+            )
+            .unwrap();
+            assert_eq!(declares(&freq.effect.assumptions), expected, "{contrast:?}");
+        }
+        let q = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::NaturalIndirect,
+        );
+        let (bayes, posterior) = estimate_static_mediation_bayesian(
+            &data,
+            &graph(true),
+            &q,
+            AssumptionSet::new(),
+            &[],
+            &crate::BayesianGComputationAte::conjugate(),
+            antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            None,
+            &ctx,
+        )
+        .unwrap();
+        assert!(declares(&bayes.effect.assumptions) && declares(&posterior.assumptions));
     }
 
     /// A rare binary mediator makes some pairs resamples singular (the mediator
