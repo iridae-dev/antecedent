@@ -1,8 +1,9 @@
 //! Heterogeneous multi-atom calibration fixtures (1.9, R-15 / R-17 / R-18).
 //!
 //! Every fixture pairs a linear-Gaussian data-generating process with a graph
-//! object carrying several atoms. The DBN and `TemporalCpdag` fixtures have
-//! identified atoms that *disagree*; the `TemporalPag` and mediation fixtures
+//! object carrying several atoms. The DBN, `TemporalCpdag` and [`chain_pag`]
+//! fixtures have identified atoms that *disagree*; [`circle_pag`] (one
+//! identified completion plus unidentified mass) and the mediation fixtures
 //! document why theirs do not (see each). Truths are the probability limits
 //! of each atom's estimator under the DGP (`θ_g`), derived analytically from
 //! the population covariance of the regressors the atom's estimand adjusts for.
@@ -351,14 +352,15 @@ pub fn pag_series_ar1(n: usize, rho: f64, seed: u64) -> TimeSeriesData {
 /// 1. `t <-> z`: `z[t-1]` blocks `t <-> z -> y` and `t <- r -> z -> y`; the
 ///    atom regresses `y[t]` on `(t[t-1], z[t-1])` and recovers `B1`.
 ///
-/// Why not two identified, disagreeing PAG completions: per-completion
-/// adjustment sets can differ only through (a) a tail at `t` on a circle edge
-/// (a treatment descendant in one completion), whose edge must then be
-/// visible, and any visibility witness into `t` turns the other refinement
-/// into a new unshielded collider; or (b) collider status at a neighbour `z`
-/// of `t` on the shielded triple `t - z - y`, which any witness making
-/// `t -> y` visible turns into a discriminating path that fixes the status
-/// across the class. This is the closest amenable construction found.
+/// Why this two-mark fixture has no second identified completion: on a single
+/// circle edge at `t`, per-completion adjustment sets can differ only through
+/// (a) a tail at `t` (a treatment descendant in one completion), whose edge
+/// must then be visible, and any visibility witness into `t` turns the other
+/// refinement into a new unshielded collider; or (b) collider status at a
+/// neighbour `z` of `t` on the shielded triple `t - z - y`, which any witness
+/// making `t -> y` visible turns into a discriminating path that fixes the
+/// status across the class. [`chain_pag`] reaches disagreeing identified
+/// completions on a larger PAG (six identified MAG completions at two effects).
 #[must_use]
 pub fn circle_pag() -> TemporalPag {
     let mut g = TemporalPag::empty();
