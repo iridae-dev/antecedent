@@ -451,3 +451,41 @@ fn hmc_draw_floor_raises_draws_with_a_diagnostic() {
     assert!(floor.message.contains("from 50 to 3000"), "{}", floor.message);
     assert!(result.posterior.as_ref().unwrap().draws.n_draws >= 3_000);
 }
+
+/// Whether `bootstrap.ci_coverage` produced a report, or was skipped with a
+/// not-applicable diagnostic naming it.
+fn bootstrap_check(result: &StudyResult) -> (bool, bool) {
+    let ran = result.refutations.iter().any(|r| r.refuter.as_ref() == "bootstrap.ci_coverage");
+    let skipped = result.diagnostics.iter().any(|d| {
+        d.code.as_ref() == "refute.validator.not_applicable"
+            && format!("{d:?}").contains("bootstrap")
+            && format!("{d:?}").contains("least-squares")
+    });
+    (ran, skipped)
+}
+
+#[test]
+fn least_squares_stand_in_is_checked_only_when_it_matches_the_posterior_mean() {
+    // A tight isotropic scale shrinks the posterior mean far from least squares;
+    // the least-squares block bootstrap would then report a spurious refutation,
+    // so the check is not applicable. The default weak scale keeps the check.
+    for (query, label) in [(pulse(), "pulse"), (multi_sustained(), "multi-step")] {
+        let lags: &[u32] = if label == "pulse" { &[1] } else { &[1, 2] };
+        let weak = run_temporal(
+            series_xy(200, 0.8, 0.0, 0.35, 11),
+            lag_dag(lags),
+            query.clone(),
+            BayesianConfig::conjugate().n_draws(200).prior_scale(10.0),
+            RefuteSuite::Full,
+        );
+        assert_eq!(bootstrap_check(&weak), (true, false), "{label}: weak scale runs the check");
+        let tight = run_temporal(
+            series_xy(200, 0.8, 0.0, 0.35, 11),
+            lag_dag(lags),
+            query,
+            BayesianConfig::conjugate().n_draws(200).prior_scale(0.01),
+            RefuteSuite::Full,
+        );
+        assert_eq!(bootstrap_check(&tight), (false, true), "{label}: tight scale skips it");
+    }
+}

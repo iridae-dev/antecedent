@@ -68,6 +68,10 @@ impl Default for BootstrapRefute {
     }
 }
 
+/// Largest gap, in published SDs, between the published estimate and the
+/// least-squares contrast for the least-squares block bootstrap to check it.
+const STAND_IN_MAX_GAP_SD: f64 = 0.25;
+
 impl BootstrapRefute {
     fn refute_composed(
         &self,
@@ -151,6 +155,28 @@ impl BootstrapRefute {
             .map_err(ValidationError::from)?;
         let mut x_boot = vec![0.0; rows.rows * prep.design.ncols];
         let mut y_boot = vec![0.0; rows.rows];
+        // The replicates refit least squares. When the published estimate is
+        // not the least-squares contrast (a Bayesian posterior mean shrunk by
+        // its prior), use it as a stand-in only if the two agree to within
+        // STAND_IN_MAX_GAP_SD published SDs on the full sample.
+        let all_rows: Vec<usize> = (0..rows.rows).collect();
+        let full = estimator
+            .inner
+            .ate_on_row_indices_into(&prep, workspace, &all_rows, &mut x_boot, &mut y_boot)
+            .map_err(ValidationError::from)?;
+        let gap = (full - problem.original.ate).abs();
+        let sd = problem.original.se_analytic;
+        if sd.is_finite() && sd > 0.0 && gap > STAND_IN_MAX_GAP_SD * sd {
+            return Err(ValidationError::NotApplicable {
+                message: "the published estimate differs from the least-squares contrast by \
+                          more than 0.25 of its SD (prior shrinkage), so a least-squares \
+                          block bootstrap would not check the published interval",
+            });
+        }
+        let stand_in = (gap > 1e-9 * full.abs().max(1.0)).then_some(
+            "replicates refit the least-squares contrast as a stand-in for the published \
+             estimate, which differs from it by less than 0.25 of its SD",
+        );
         let boot = antecedent_estimate::row_block_bootstrap_vec(
             rows.rows,
             block,
@@ -174,7 +200,14 @@ impl BootstrapRefute {
             ));
         }
         let scale = boot.fixed_b();
-        Ok(coverage_report(problem, boot.column(0), self.ci_level, self.replicates, scale, None))
+        Ok(coverage_report(
+            problem,
+            boot.column(0),
+            self.ci_level,
+            self.replicates,
+            scale,
+            stand_in,
+        ))
     }
 
     /// Defaults: 200 replicates, 95% CI.
