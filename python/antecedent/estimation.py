@@ -787,7 +787,7 @@ def _temporal_response_bootstrap(
     """Replicate count for a temporal response surface, or ``None`` for the default.
 
     Frequentist surfaces publish their pointwise and simultaneous bands from joint
-    circular-block replicates: ``None`` keeps the Study default (50), ``0`` keeps the
+    circular-block replicates: ``None`` keeps the Study default (199), ``0`` keeps the
     point surface with no band (``estimate.temporal_response.band_withheld``).
     Bayesian surfaces use posterior draws and refuse a requested bootstrap.
     """

@@ -1238,7 +1238,7 @@ impl PyPreparedAnalysis {
     /// Compile once for a temporal ResponseCurve / InterventionResponse (series data).
     ///
     /// Frequentist `bootstrap` is the joint circular-block replicate count behind the
-    /// pointwise and simultaneous bands: `None` keeps the `Study` default (50), `0`
+    /// pointwise and simultaneous bands: `None` keeps the `Study` default (199), `0`
     /// publishes no band and warns `estimate.temporal_response.band_withheld`.
     #[staticmethod]
     #[pyo3(signature = (

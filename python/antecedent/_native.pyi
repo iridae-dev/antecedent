@@ -726,7 +726,7 @@ class PreparedAnalysis:
         composed_prior: dict[str, Any] | None = None,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int | None = 50,
+        bootstrap: int | None = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -771,7 +771,7 @@ class PreparedAnalysis:
         composed_prior: dict[str, Any] | None = None,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -796,7 +796,7 @@ class PreparedAnalysis:
         composed_prior: dict[str, Any] | None = None,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -841,7 +841,7 @@ class PreparedAnalysis:
         prior_scale: float = 10.0,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -865,7 +865,7 @@ class PreparedAnalysis:
         prior_scale: float = 10.0,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -910,7 +910,7 @@ class PreparedAnalysis:
         prior_scale: float = 10.0,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -1173,7 +1173,7 @@ class PreparedAnalysis:
         prior_mapping: dict[str, Any] | None = None,
         composed_prior: dict[str, Any] | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -1194,7 +1194,7 @@ class PreparedAnalysis:
         max_len: int = 16,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -1570,7 +1570,7 @@ def analyze_ate_many(
     estimator: str | None = None,
     refute: bool | str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     latency: str | None = None,
     screen_id: str | None = None,
@@ -1606,7 +1606,7 @@ def prepare_ate_batch(
     estimator: str | None = None,
     refute: bool | str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     latency: str | None = None,
     screen_id: str | None = None,
@@ -1626,7 +1626,7 @@ def prepare_cells_batch(
     estimator: str | None = None,
     refute: bool | str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     latency: str | None = None,
     screen_id: str | None = None,
@@ -1661,7 +1661,7 @@ def analyze_ate(
     bandwidth: float | None = None,
     estimator_config: dict[str, Any] | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     target_population: dict[str, Any] | None = None,
     outcome_functional: dict[str, Any] | None = None,
@@ -1720,7 +1720,7 @@ def analyze_ate_arrow_c(
     bandwidth: float | None = None,
     estimator_config: dict[str, Any] | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     latency: str | None = None,
     cancel: CancellationToken | None = None,
@@ -1963,7 +1963,7 @@ def analyze_temporal_response(
 
     ``bootstrap`` is the joint circular-block replicate count behind the pointwise
     band and the simultaneous band (``response.simultaneous_band.*`` support
-    diagnostics). ``None`` keeps the Study default (50); ``0`` returns the point
+    diagnostics). ``None`` keeps the Study default (199); ``0`` returns the point
     surface with no band and an ``estimate.temporal_response.band_withheld``
     warning.
     """
@@ -2135,7 +2135,7 @@ def analyze_path_specific(
     max_paths: int = 64,
     max_len: int = 16,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     refute: bool | str | None = None,
 ) -> AteAnalysisResult: ...
@@ -2152,7 +2152,7 @@ def analyze_conditional(
     refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     accepted: bool = False,
     outcome_functional: dict[str, Any] | None = None,
@@ -2262,7 +2262,7 @@ def analyze_ate_discover(
     bandwidth: float | None = None,
     estimator_config: dict[str, Any] | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_graph_posterior(
@@ -2944,7 +2944,7 @@ def analyze_ate_pag_arrow_c(
     estimator_config: dict[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_pag(
@@ -2970,7 +2970,7 @@ def analyze_ate_pag(
     estimator_config: dict[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_cpdag_arrow_c(
@@ -2996,7 +2996,7 @@ def analyze_ate_cpdag_arrow_c(
     estimator_config: dict[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_cpdag(
@@ -3022,7 +3022,7 @@ def analyze_ate_cpdag(
     estimator_config: dict[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_admg_arrow_c(
@@ -3048,7 +3048,7 @@ def analyze_ate_admg_arrow_c(
     estimator_config: dict[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_admg(
@@ -3074,7 +3074,7 @@ def analyze_ate_admg(
     estimator_config: dict[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def dag_from_dot(dot: str) -> tuple[int, list[tuple[int, int]]]: ...

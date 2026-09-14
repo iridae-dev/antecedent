@@ -1026,7 +1026,7 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
 /// Temporal dose × horizon / intervention-path response (ADR 0021).
 ///
 /// `bootstrap` is the number of joint circular-block replicates behind the pointwise
-/// and simultaneous bands; `None` keeps the `Study` default (50) and `0` publishes the
+/// and simultaneous bands; `None` keeps the `Study` default (199) and `0` publishes the
 /// point surface with no band plus an `estimate.temporal_response.band_withheld`
 /// warning.
 #[pyfunction]

@@ -113,8 +113,11 @@ def test_counterfactual_stages_and_artifact():
     assert wire.payload["standard_error"] is None
     assert wire.payload["unit_effects"] == result.unit_effects
     assert wire.payload["support"]
-    with pytest.raises(CausalUnsupportedError):
-        PreparedAnalysis.prepare(data, graph=ac.AcceptedGraph(dag), query=q)
+    # An accepted DAG runs the same GCM path as the explicit one.
+    accepted = PreparedAnalysis.prepare(data, graph=ac.AcceptedGraph(dag), query=q).estimate(data)
+    assert accepted.estimate.estimator_id == "gcm.fit"
+    assert accepted.effect == pytest.approx(result.effect, abs=1e-12)
+    assert accepted.unit_effects == pytest.approx(result.unit_effects, abs=1e-12)
 
 
 @pytest.mark.parametrize(
