@@ -14,9 +14,10 @@ that change:
 - ``validation.passed`` / ``validation.ran`` are checked against the shared
   aggregate rule (``ran and all(r.passed for r in reports)``, never ``True``
   when nothing ran) on *both* DTO shapes, including the "nothing ran" case.
-- Fields the temporal DTO genuinely cannot supply (no overlap report, no
-  bootstrap-ok count, no draw effort, no per-stage timings) are checked to
-  read as ``None`` / empty rather than a fabricated zero or string.
+- Fields the temporal DTO genuinely cannot supply (no overlap report, no draw
+  effort, no per-stage timings) are checked to read as ``None`` / empty rather
+  than a fabricated zero or string. A NaN flat field (the temporal Pulse
+  ``se_analytic``) must mirror as NaN.
 """
 
 from __future__ import annotations
@@ -29,6 +30,17 @@ import pytest
 
 pytest.importorskip("antecedent")
 import antecedent
+
+
+def _mirrors(section, flat) -> bool:
+    """Equal, or both NaN (e.g. a dependence-honest temporal ``se_analytic``)."""
+    if (
+        isinstance(section, float)
+        and isinstance(flat, float)
+        and (math.isnan(section) or math.isnan(flat))
+    ):
+        return math.isnan(section) and math.isnan(flat)
+    return section == flat
 
 
 def _confounded_scm(n: int = 300, seed: int = 7):
@@ -186,9 +198,11 @@ def test_temporal_nested_sections_mirror_flat_fields():
     assert raw.identification.assumption_count == raw.assumption_count
     assert raw.identification.derivation_step_count == raw.derivation_step_count
 
-    assert raw.estimate.ate == raw.ate
-    assert raw.estimate.se_analytic == raw.se_analytic
-    assert raw.estimate.se_bootstrap == raw.se_bootstrap
+    # Plain TemporalDag Pulse reports se_analytic = NaN by design (the iid
+    # analytic SE is not dependence-honest); the mirror must still match.
+    assert _mirrors(raw.estimate.ate, raw.ate)
+    assert _mirrors(raw.estimate.se_analytic, raw.se_analytic)
+    assert _mirrors(raw.estimate.se_bootstrap, raw.se_bootstrap)
     assert raw.estimate.estimator_id == raw.estimator_id
     assert raw.estimate.method == raw.method
     # The temporal facade always fixes OverlapPolicy::ExplicitOverride, under
@@ -216,10 +230,13 @@ def test_temporal_nested_sections_mirror_flat_fields():
     # temporal fields before this change.
     assert raw.performance.wall_time_ns is not None
     assert raw.performance.bootstrap_replicates_requested is not None
-    # Genuinely never populated on any temporal execution path (confirmed
-    # against every `AssembleArgs` literal in `temporal_path.rs`/`panel_path.rs`)
-    # — `None` / empty here is accurate, not a placeholder.
-    assert raw.performance.bootstrap_replicates_ok is None
+    # The single-window Frequentist path publishes a circular-block bootstrap
+    # over the lag-aligned rows, so its successful replicate count is real.
+    requested = raw.performance.bootstrap_replicates_requested
+    assert raw.performance.bootstrap_replicates_ok is not None
+    assert 0 < raw.performance.bootstrap_replicates_ok <= requested
+    # Genuinely never populated on any temporal execution path — `None` /
+    # empty here is accurate, not a placeholder.
     assert raw.performance.n_draws is None
     assert raw.performance.stage_timings == []
 
