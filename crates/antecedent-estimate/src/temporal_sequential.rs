@@ -773,7 +773,7 @@ impl SequentialSetup {
                     xtx[b * p + a] = v;
                 }
             }
-            let v = solve_symmetric_positive(&xtx, p, &gradient[i])?;
+            let v = crate::util::solve_spd(&xtx, &gradient[i], p)?;
             for (r, slot) in score.iter_mut().enumerate() {
                 let (mut fitted, mut xv) = (0.0, 0.0);
                 for (c, (coef, vc)) in base[i].iter().zip(&v).enumerate() {
@@ -809,46 +809,6 @@ impl SequentialSetup {
         let scores: Vec<&[f64]> = block_scores.iter().map(Vec::as_slice).collect();
         crate::temporal_block::dependence_block_length(self.max_lag as usize + 1, self.n, &scores)
     }
-}
-
-/// Solve `A x = b` for a small symmetric positive-definite `A` (row-major `p×p`)
-/// by Cholesky; `None` when `A` is not numerically positive definite.
-#[allow(clippy::many_single_char_names, clippy::needless_range_loop)]
-fn solve_symmetric_positive(a: &[f64], p: usize, b: &[f64]) -> Option<Vec<f64>> {
-    let mut l = vec![0.0; p * p];
-    for i in 0..p {
-        for j in 0..=i {
-            let mut sum = a[i * p + j];
-            for k in 0..j {
-                sum -= l[i * p + k] * l[j * p + k];
-            }
-            if i == j {
-                if sum <= 0.0 || !sum.is_finite() {
-                    return None;
-                }
-                l[i * p + i] = sum.sqrt();
-            } else {
-                l[i * p + j] = sum / l[j * p + j];
-            }
-        }
-    }
-    let mut y = vec![0.0; p];
-    for i in 0..p {
-        let mut sum = b[i];
-        for k in 0..i {
-            sum -= l[i * p + k] * y[k];
-        }
-        y[i] = sum / l[i * p + i];
-    }
-    let mut x = vec![0.0; p];
-    for i in (0..p).rev() {
-        let mut sum = y[i];
-        for k in i + 1..p {
-            sum -= l[k * p + i] * x[k];
-        }
-        x[i] = sum / l[i * p + i];
-    }
-    Some(x)
 }
 
 fn estimate_sequential(
