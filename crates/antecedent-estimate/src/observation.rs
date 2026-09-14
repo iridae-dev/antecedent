@@ -1073,6 +1073,7 @@ impl ObservationMechanismEstimator {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn censored_from_columns(
         &self,
         observed: &[f64],
