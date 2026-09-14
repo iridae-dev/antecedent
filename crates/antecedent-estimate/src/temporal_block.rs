@@ -69,35 +69,39 @@ impl CircularBlockFamily {
     /// 90% of its replicates, taking the larger of that sweep and an
     /// independent 1000-replicate replication.
     ///
-    /// * `SingleWindow` 45 (sweep 45, replication 45): the AR(1)-treatment
-    ///   Pulse covers 0.765–0.853 at n = 40 (ρ ≥ 0.8), n = 60–160 (ρ ≥ 0.9)
-    ///   and n = 400 (ρ = 0.95); each warns on ≥ 92% of replicates. The
-    ///   MA(3)-treatment Pulse covers 0.868–0.911 everywhere and is quiet from
+    /// Measured on the current SE construction (blocks sized on every
+    /// estimating score, circular-Bartlett fixed-b factor):
+    ///
+    /// * `SingleWindow` 45 (sweep 45, replication 40): the AR(1)-treatment
+    ///   Pulse covers 0.750–0.854 at n = 40–60 (ρ ≥ 0.8), n = 100–160 (ρ ≥ 0.9)
+    ///   and n = 400 (ρ = 0.95); each warns on ≥ 91% of replicates. The
+    ///   MA(3)-treatment Pulse covers 0.871–0.919 everywhere and is quiet from
     ///   n = 160 (≤ 6% warned); at n ≤ 100 it still warns on part of the
     ///   replicates.
-    /// * `Mediation` 35 (30, 35): with an AR(1) treatment Total and Direct
-    ///   cover 0.755–0.850 at n = 40 (ρ ≥ 0.8), n = 60 (ρ ≥ 0.9) and
-    ///   n = 100–160 (ρ = 0.95), each warned on ≥ 97%; the MA(3) design covers
-    ///   0.875–0.923 and is quiet from n = 100 (≤ 15%).
-    /// * `Sequential` 40 (35, 40): the AR(1)-treatment multi-step Sustained
-    ///   covers 0.748–0.855 at n ≤ 60 (ρ ≥ 0.8), n = 100 (ρ = 0.95) and n = 400
-    ///   (ρ = 0.95), each warned on ≥ 98%; the confounded-DAG design covers
-    ///   0.888–0.919 and is quiet from n = 100 (≤ 29%).
-    /// * `Mixture` 155 (155, 155): SE-driven failures (the six-completion
-    ///   `TemporalPag` at ρ ≥ 0.9, n ≤ 160: 0.803–0.850) warn from 30. The rest
-    ///   is bias-driven: a non-causal completion that omits a persistent
-    ///   confounder is biased by 0.2–0.8 of its SD at ρ ≥ 0.9 (`TemporalCpdag`
-    ///   0.665–0.850 up to n = 400; DBN 0.823–0.841 at n ≤ 60). Only that
-    ///   completion's score shows it, as a weak slowly decaying component the
-    ///   block-length reading sees at ~80 effective rows (ρ = 0.95, n = 400,
-    ///   warned on 91%); the price is warnings on mixtures that cover nominally
-    ///   below about n = 400.
+    /// * `Mediation` 40 (35, 40): with an AR(1) treatment Total and Direct
+    ///   cover 0.772–0.854 at n = 40 (ρ ≥ 0.8), n = 60–100 (ρ ≥ 0.9) and
+    ///   n = 160 (ρ = 0.95), each warned on ≥ 98%; the MA(3) design covers
+    ///   0.880–0.928 and is quiet from n = 160 (≤ 2%; ≤ 28% at n = 100).
+    /// * `Sequential` 40 (25, 30): the AR(1)-treatment multi-step Sustained
+    ///   covers 0.764–0.853 at n = 40 (ρ ≥ 0.8), n = 60–100 (ρ ≥ 0.9) and
+    ///   n = 160 (ρ = 0.95), each warned on every replicate; the confounded-DAG
+    ///   design covers 0.887–0.926 and is quiet from n = 160 (≤ 1%; ≤ 29% at
+    ///   n = 100). The rule now gives 30; the threshold stays at the 40 an
+    ///   earlier measurement set, which warns more, not less.
+    /// * `Mixture` 155 (155, 90): SE-driven failures (the six-completion
+    ///   `TemporalPag` at ρ ≥ 0.9, n ≤ 160: 0.804–0.852; the DBN at ρ = 0.95,
+    ///   n ≤ 60: 0.833–0.851) warn from 30. The rest is bias-driven: a
+    ///   non-causal completion that omits a persistent confounder is biased by
+    ///   0.2–0.8 of its SD at ρ ≥ 0.9 (`TemporalCpdag` 0.675–0.853 up to
+    ///   n = 400). Only that completion's score shows it, as a weak slowly
+    ///   decaying component the block-length reading sees at ~80 effective rows
+    ///   (ρ = 0.95, n = 400, warned on 91%); the price is warnings on mixtures
+    ///   that cover nominally below about n = 400.
     #[must_use]
     pub const fn min_effective_rows(self) -> f64 {
         match self {
             Self::SingleWindow => 45.0,
-            Self::Mediation => 35.0,
-            Self::Sequential => 40.0,
+            Self::Mediation | Self::Sequential => 40.0,
             Self::Mixture => 155.0,
         }
     }
@@ -764,7 +768,7 @@ mod tests {
     fn circular_block_family_thresholds_on_a_fixed_series() {
         use CircularBlockFamily::{Mediation, Mixture, Sequential, SingleWindow};
         assert_eq!(SingleWindow.min_effective_rows(), 45.0);
-        assert_eq!(Mediation.min_effective_rows(), 35.0);
+        assert_eq!(Mediation.min_effective_rows(), 40.0);
         assert_eq!(Sequential.min_effective_rows(), 40.0);
         assert_eq!(Mixture.min_effective_rows(), 155.0);
         let scores = persistent_score(135);

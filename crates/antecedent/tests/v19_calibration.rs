@@ -531,8 +531,8 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage() {
 }
 
 /// Boundary cell, not a nominal one. The identical design (the two-completion
-/// `TemporalCpdag` Pulse at ρ = 0.9, n = 400) measured 0.873 over 2000
-/// replicates (`docs/short-series-thresholds.md`), 3.6 MCSE below 0.90 at
+/// `TemporalCpdag` Pulse at ρ = 0.9, n = 400) measured 0.875 over 2000
+/// replicates (`docs/short-series-thresholds.md`), 3.7 MCSE below 0.90 at
 /// that count: the non-causal completion omits a persistent confounder and is
 /// biased by about 0.16 of the mixture's SD. The runtime warns on about three
 /// quarters of its replicates. This test still asserts the 400-replicate band
