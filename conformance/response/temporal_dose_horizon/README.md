@@ -58,13 +58,58 @@ observed numerical agreement via shared adjustment machinery, not a
 derivation of one from the other and not a separate response estimand;
 multi-step Sustained is not evidenced here.
 
-`surface.lower` / `surface.upper` record the analytic delta-method band from
-before 1.9. That band treats lag-aligned rows as independent and is no longer
-published: with zero bootstrap replicates the surface carries no band and a
-`estimate.temporal_response.band_withheld` warning, and requested replicates
-publish the joint circular-block band, whose width is strictly positive at
-every cell including dose zero at horizon 1 (the old zero-width-at-dose-0
-regression guard).
+## Bands
+
+The pre-1.9 fixture pinned an analytic delta-method band (`surface.lower` /
+`surface.upper`, removed in 1.9; see git history at `0b907cb5`). That band
+treated lag-aligned rows as independent and is no longer published: with zero
+bootstrap replicates the surface carries no band and an
+`estimate.temporal_response.band_withheld` warning.
+
+`block_band` pins what requested replicates publish instead: the joint
+circular-block bootstrap of the dose × horizon surface, produced through the
+public Study API with `bootstrap_replicates(60)` and
+`ExecutionContext::for_tests(21)` (seed 21) at commit `3330a2c4`, by
+`cargo test -p antecedent --test temporal_response_facade
+temporal_dose_horizon_point_and_block_bands_match_fixture` (the test itself
+recomputes the run; the numbers were captured from the same run). The Python
+facade (`analyze(..., bootstrap=60, seed=21)`) runs the production context
+with the same seed and reproduces the values bit for bit, as do a serial
+context and a four-thread bounded context: the bootstrap loop is serial and
+its RNG stream is seeded from the context, so the pin does not depend on the
+thread count.
+
+Pinned fields, all in the dose-major layout of `surface.mean`:
+
+- `pointwise_lower` / `pointwise_upper`: the 95% pointwise band
+  (`ResponseUncertainty::PointwiseBand`), mean ± 1.96 × replicate SD after the
+  dispersion inflation.
+- `simultaneous_lower` / `simultaneous_upper` / `simultaneous_critical`: the
+  sup-t band carried by the `response.simultaneous_band.{lower,upper,critical}`
+  support diagnostics; the critical value is the max-studentized-deviation
+  order statistic over the 60 joint replicates.
+- `block_length`: the `response.temporal.block_length` diagnostic
+  `[length, rule, testing, rows, dispersion_factor]`; the block is the
+  Politis–White testing length 75 (the rule `max(span, ceil(sqrt(240))) = 16`
+  is shorter) over 240 lag-aligned rows, and the dispersion factor is the
+  circular-Bartlett fixed-b ratio times HC1.
+- `kernel_bias_factor` / `effective_rows`: the per-cell
+  `response.temporal.kernel_bias_factor` and `response.temporal.effective_rows`
+  diagnostics.
+
+These values are compared at relative tolerance `tolerance.band_rtol`
+(`1e-9`) by `crates/antecedent/tests/temporal_response_facade.rs` and
+`python/tests/test_temporal_response_api.py`. They are a **determinism pin**,
+not a coverage claim: a change in the resampler, the block-length rule, the
+dispersion factors or the RNG stream moves them and must be re-recorded
+deliberately. The coverage evidence for the band is the weekly gate
+`crates/antecedent/tests/v19_temporal_response_calibration.rs`. There is no
+`reference.py` for this fixture: the point surface is derived analytically
+above, and the band is a seeded bootstrap that cannot be re-derived
+independently in numpy without reimplementing the resampler, its RNG stream
+and the dispersion factors, so no independent numeric cross-check of the band
+is claimed. Every cell's width is strictly positive, including dose zero at
+horizon 1 (the old zero-width-at-dose-0 regression guard).
 
 Empirical support on this fixture is fully `supported` at every cell: the
 period-4 treatment lives in `{-1,0,1}`, so the union of horizon ranges equals

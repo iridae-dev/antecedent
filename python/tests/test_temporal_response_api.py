@@ -223,11 +223,84 @@ def _assert_block_bands(result: Any, replicates: int) -> None:
     assert not any(d.startswith(f"{_BAND_WITHHELD}: ") for d in result.diagnostics)
 
 
-def test_temporal_response_zero_bootstrap_withholds_band():
-    """The pre-1.9 analytic band in the fixture treats lag-aligned rows as independent.
+def _diagnostic_values(result: Any, diagnostic_id: str) -> np.ndarray:
+    for diagnostic in result.support.diagnostics:
+        if diagnostic.id == diagnostic_id:
+            return np.asarray(diagnostic.values, dtype=float)
+    raise AssertionError(f"support diagnostic {diagnostic_id} must be published")
 
-    ``surface.lower`` / ``surface.upper`` in the fixture record that retired band;
-    with ``bootstrap=0`` the surface keeps its point values and publishes no band.
+
+def _assert_pinned_block_bands(result: Any) -> None:
+    """The seeded run pinned in ``block_band``: every band value to ``band_rtol``.
+
+    A determinism pin of the circular-block bootstrap, not a coverage claim
+    (coverage is the weekly ``v19_temporal_response_calibration`` gate).
+    """
+    pin = _FIXTURE["contract"]["block_band"]
+    rtol = float(_FIXTURE["tolerance"]["band_rtol"])
+
+    def close(actual: Any, expected: Any, label: str) -> None:
+        np.testing.assert_allclose(
+            actual, np.asarray(expected, dtype=float), rtol=rtol, atol=0.0, err_msg=label
+        )
+
+    assert result.uncertainty.level == pytest.approx(pin["level"], rel=rtol)
+    close(_column(result.uncertainty.lower), pin["pointwise_lower"], "pointwise_lower")
+    close(_column(result.uncertainty.upper), pin["pointwise_upper"], "pointwise_upper")
+    band = result.simultaneous_band
+    assert band is not None
+    assert band.replicates == pin["replicates"]
+    assert band.critical == pytest.approx(pin["simultaneous_critical"], rel=rtol)
+    close(_column(band.lower), pin["simultaneous_lower"], "simultaneous_lower")
+    close(_column(band.upper), pin["simultaneous_upper"], "simultaneous_upper")
+    block = pin["block_length"]
+    close(
+        _diagnostic_values(result, "response.temporal.block_length"),
+        [block[key] for key in ("length", "rule", "testing", "rows", "dispersion_factor")],
+        "block_length",
+    )
+    close(
+        _diagnostic_values(result, "response.temporal.kernel_bias_factor"),
+        pin["kernel_bias_factor"],
+        "kernel_bias_factor",
+    )
+    close(
+        _diagnostic_values(result, "response.temporal.effective_rows"),
+        pin["effective_rows"],
+        "effective_rows",
+    )
+
+
+def test_temporal_dose_horizon_point_and_block_bands_match_fixture():
+    """Point surface at ``atol`` and every seeded block-band value at ``band_rtol``."""
+    pin = _FIXTURE["contract"]["block_band"]
+    data = _fixture_data()
+    result = antecedent.analyze(
+        data,
+        graph=_EDGES,
+        query=_SURFACE_QUERY,
+        refute=False,
+        bootstrap=int(pin["replicates"]),
+        seed=int(pin["seed"]),
+    )
+    _assert_block_bands(result, int(pin["replicates"]))
+    _assert_pinned_block_bands(result)
+    prepared = PreparedAnalysis.prepare(
+        data,
+        graph=_EDGES,
+        query=_SURFACE_QUERY,
+        refute=False,
+        seed=int(pin["seed"]),
+        bootstrap=int(pin["replicates"]),
+    )
+    _assert_pinned_block_bands(prepared.estimate(data, seed=int(pin["seed"])))
+
+
+def test_temporal_response_zero_bootstrap_withholds_band():
+    """The pre-1.9 analytic band treated lag-aligned rows as independent.
+
+    The fixture no longer carries it; with ``bootstrap=0`` the surface keeps its
+    point values and publishes no band.
     """
     data = _fixture_data()
     result = antecedent.analyze(
