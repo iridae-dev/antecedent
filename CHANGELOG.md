@@ -58,9 +58,21 @@ repeated-sampling coverage; intervals that missed were fixed, not footnoted.
   multi-step sequential, temporal responses and the `bootstrap.ci_coverage`
   refuter) resamples circular blocks of lag-aligned rows, not the raw series,
   with a dependence-aware block length and a fixed-b correction. iid analytic
-  SEs on these cells are NaN; a short-series warning fires below 100
-  effective rows. Temporal response surfaces likewise publish no band without
-  bootstrap replicates (`estimate.temporal_response.band_withheld`).
+  SEs on these cells are NaN; a short-series warning fires when the series is
+  short for the estimating score's dependence. Temporal response surfaces
+  likewise publish no band without bootstrap replicates
+  (`estimate.temporal_response.band_withheld`).
+- `estimate.temporal.circular_block_se.short_series` uses a threshold per SE
+  family, set from a coverage sweep over AR(1) persistence and series length
+  ([thresholds](docs/short-series-thresholds.md)): 45 score effective rows for
+  Pulse / single-step Sustained, 35 for temporal mediation, 40 for multi-step
+  Sustained and 155 for class and DBN mixtures, where the statistic is the
+  smaller of a lag-1 and a block-length reading over every estimating score
+  (every atom's, for mixtures). It replaces one floor of 100: short-memory
+  designs that cover nominally stop warning from n = 100–160, and
+  persistent-treatment designs and mixtures with a biased non-causal completion
+  that under-cover now warn. Multi-step Sustained on one TemporalDag reports its
+  circular-block provenance and the warning.
 - Bayesian temporal likelihoods (Pulse, Sustained, class and DBN atoms,
   temporal responses per horizon) are tempered by a long-run-variance
   ratio. The result is a generalized posterior and is labelled as one.

@@ -278,7 +278,7 @@ exactly 0 or 1 has no sampling spread, so it publishes no interval and the
 
 Lag-aligned rows of one time series are not independent, so temporal
 Frequentist intervals do not use the iid OLS standard error or an iid row
-bootstrap. Every temporal circular-block bootstrap uses one block rule
+bootstrap. Every temporal circular-block bootstrap starts from one block rule
 (`antecedent_data::circular_block_length`):
 
 ```text
@@ -288,30 +288,51 @@ block = min(n, max(span, ceil(n^(1/3))))
 `span` keeps each estimating row's lag window inside one block. It is the
 unfolded `history + horizon` window for temporal-backdoor designs, the deepest
 design lag + 1 for temporal mediation and multi-step sequential g-computation,
-and the DBN max lag + 1 for DBN-posterior mixtures. `ceil(n^(1/3))` is a
-rate-of-growth rule of thumb, not a data-driven block choice.
+and the DBN max lag + 1 for DBN-posterior mixtures. When an estimating score
+(of the target or of any fitted nuisance coefficient) is persistently
+dependent, the block is lengthened to `ceil(b_PW·n^(1/6))` (the Politis–White
+length at the fixed-b testing rate), capped at `n/3`
+(`antecedent_estimate::dependence_block_length`).
 
-* **TemporalDag Pulse / single-step Sustained and temporal mediation.** These
-  resample circular blocks of consecutive lag-aligned rows, so every replicate
-  row keeps its own lag window, and refit the design on each replicate.
-  Mediation refits Total, Direct, and Mediated on the same replicate. The
-  replicate SD is multiplied by the Kiefer–Vogelsang fixed-b factor
-  `cv(block/n) / 1.96`, so `estimate ± z·SE` uses the fixed-b critical
-  value. No analytic SE is published (`se_analytic` is NaN). With zero
-  replicates there is no SE. The `estimate.temporal.circular_block_se`
-  diagnostic records the block length, row count, fixed-b factor, and the
-  estimating score's effective rows `n(1 − r₁)/(1 + r₁)`. Below 100 effective
-  rows, `estimate.temporal.circular_block_se.short_series` warns that the
-  interval may under-cover. In the 1.9 calibration
-  (`crates/antecedent/tests/v19_temporal_frequentist.rs`), nominal-90%
-  intervals covered 0.86–0.93 under iid and AR(1) residuals (ρ = 0.5 at
-  n = 60 and 160; ρ = 0.9 at n = 400). With ρ = 0.9 at n = 60 and 160, below
-  the effective-row floor where the warning fires, Pulse covered 0.835–0.855
-  and mediation Total 0.845–0.853.
-* **Multi-atom temporal mixtures** (class envelopes, DBN posteriors, and the
-  observation-adjusted outer bootstrap) resample the raw series, because
-  their atoms use different lagged designs. They refit every atom on the same
-  replicate, and the replicate SD is published without fixed-b rescaling.
+* **TemporalDag Pulse / single-step Sustained, multi-step Sustained, and
+  temporal mediation.** These resample circular blocks of consecutive
+  lag-aligned rows, so every replicate row keeps its own lag window, and refit
+  the design (every mechanism of the sequential g-computation) on each
+  replicate. Mediation refits Total, Direct, and Mediated on the same
+  replicate. No analytic SE is published (`se_analytic` is NaN). With zero
+  replicates there is no SE.
+* **Multi-atom temporal mixtures** (class envelopes and DBN posteriors) resample
+  blocks of consecutive series times over the window every atom can evaluate;
+  each atom refits its own lag-aligned rows at those times, so every atom sees
+  the same replicate.
+
+In both, the replicate SD is multiplied by the Kiefer–Vogelsang fixed-b factor
+`cv(block/n) / 1.96`, so `estimate ± z·SE` uses the fixed-b critical value. The
+`estimate.temporal.circular_block_se` diagnostic (the shared-block diagnostic
+for mixtures) records the block length, row count, fixed-b factor, and the
+estimating score's effective rows: over every score of the interval (every
+atom's and the mixture's for mixtures, the three contrasts for mediation), the
+smaller of the lag-1 reading `n(1 − r₁)/(1 + r₁)` and the block-length reading
+`n·γ̂₀ / ĝ_b` (Bartlett long-run variance at the block length).
+`estimate.temporal.circular_block_se.short_series` warns below a threshold set
+per SE family from a coverage sweep over AR(1) persistence and series length
+([short-series thresholds](short-series-thresholds.md)): 45 for Pulse /
+single-step Sustained, 35 for mediation, 40 for multi-step Sustained, and 155
+for mixtures.
+
+The sweep separates designs whose estimating score forgets within a few lags
+from designs where treatment and residual are both persistent. With a
+short-memory score (an MA(3) treatment, or the confounded lag DGP for
+multi-step Sustained) and AR(1) residuals up to ρ = 0.95, one-series intervals
+covered 0.868–0.923 at nominal 0.90 for every n from 40 to 400 (2000
+replicates per cell), and the warning is quiet from n = 100–160. With an AR(1)
+treatment as well, Pulse, mediation Total/Direct and multi-step Sustained
+covered 0.75–0.86 wherever the series was short for that memory (n ≤ 60 at
+ρ ≥ 0.8, up to n = 160 at ρ ≥ 0.9, n = 400 at ρ = 0.95); the warning fires on
+at least 92% of the replicates of every cell below 0.855. The mixture threshold
+is higher because a non-causal completion that omits a persistent confounder is
+biased in finite samples (TemporalCpdag Pulse covered 0.67–0.85 at ρ ≥ 0.9 up
+to n = 400); no block length removes a bias, and the warning is the boundary.
 
 ### Bayesian
 
