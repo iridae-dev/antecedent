@@ -635,6 +635,13 @@ def _discovery_algorithm(discovery: Any) -> dict[str, Any]:
     return discovery_algorithm(discovery)
 
 
+ADMG_DISTRIBUTION_RUST_ONLY = (
+    "refused: ADMG InterventionalDistribution (unconditional finite-discrete tables, "
+    "validation none) is licensed in the Rust Study API only; the Python "
+    "distribution entry points take DAG edges and cannot carry bidirected edges"
+)
+
+
 def _static_edges(
     graph: Dag | Cpdag | Sequence[tuple[str, str]] | None,
 ) -> list[tuple[str, str]]:
@@ -1583,10 +1590,14 @@ class PreparedAnalysis:
         ``0`` publishes the point surface with no band and an
         ``estimate.temporal_response.band_withheld`` warning. Every other
         prepared response refuses a positive ``bootstrap``. Pulse / Sustained /
-        TemporalMediation prepare on a ``TemporalDag`` or lagged edge list.
+        TemporalMediation prepare on a ``TemporalDag`` or lagged edge list; a
+        Frequentist ``TemporalMediationEffect`` with ``bootstrap=None`` follows the
+        same ``latency`` tier for its shared circular-block replicates.
         ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` / a constructed
         ``GraphPosterior`` compiles the licensed graph-posterior cells
-        (Bayesian AverageEffect / Pulse / Sustained).
+        (Bayesian AverageEffect / Pulse / Sustained / TemporalMediationEffect,
+        Frequentist AverageEffect, and single-horizon Frequentist
+        TemporalMediationEffect on a DBN posterior).
         """
         if isinstance(query, (ResponseCurve, InterventionResponse)):
             from .query import coerce_outcome_functional
@@ -1808,6 +1819,15 @@ class PreparedAnalysis:
                 if isinstance(graph, (TemporalCpdag, TemporalPag))
                 else _lagged_edges(cast("TemporalDag | Sequence[tuple[str, int, str, int]]", graph))
             )
+            if bootstrap is None:
+                # Same latency mapping as Pulse / Sustained and temporal responses:
+                # Frequentist SEs come from the shared circular-block replicates
+                # (interactive 0 withholds them); Bayesian uses posterior draws.
+                bootstrap = (
+                    0
+                    if isinstance(inference, Bayesian)
+                    else _resolve_latency_budget(latency, None, True)[0]
+                )
             native = _NativePreparedAnalysis.prepare_temporal_mediation(
                 names,
                 columns,
@@ -1822,7 +1842,7 @@ class PreparedAnalysis:
                 **_prepared_inference_kwargs(inference),
                 refute=coerce_refute(refute),
                 seed=seed,
-                bootstrap=0 if bootstrap is None else bootstrap,
+                bootstrap=bootstrap,
                 threads=threads,
                 accepted=structure_accepted,
                 class_graph=graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None,
@@ -2081,6 +2101,8 @@ class PreparedAnalysis:
                 latency=latency,
                 structure_accepted=structure_accepted,
             )
+        if isinstance(query, InterventionalDistribution) and isinstance(graph, Admg):
+            raise CausalUnsupportedError(ADMG_DISTRIBUTION_RUST_ONLY)
         edges = _static_edges(graph)
         if isinstance(query, (MediationEffect, Counterfactual)):
             if inference is not None and not isinstance(inference, (Frequentist, Bayesian)):
@@ -2508,20 +2530,27 @@ class PreparedAnalysis:
         threads: int,
         latency: Latency | Literal["interactive", "standard", "report"] | str | None,
     ) -> PreparedAnalysis:
-        is_freq_gp_ate = (
-            isinstance(inference, Frequentist)
-            and isinstance(discovery, (ExactDagPosterior, GraphPosterior))
-            and isinstance(query, AverageEffect)
+        is_freq_licensed = isinstance(inference, Frequentist) and (
+            (
+                isinstance(discovery, (ExactDagPosterior, GraphPosterior))
+                and isinstance(query, AverageEffect)
+            )
+            or (
+                isinstance(discovery, (DbnPosterior, GraphPosterior))
+                and isinstance(query, TemporalMediationEffect)
+            )
         )
-        if isinstance(inference, Frequentist) and not is_freq_gp_ate:
+        if isinstance(inference, Frequentist) and not is_freq_licensed:
             raise CausalTypeError(
                 "PreparedAnalysis.prepare(discovery=) requires inference=Bayesian(...) "
-                "except AverageEffect × graph_posterior"
+                "except AverageEffect × graph_posterior and TemporalMediationEffect × "
+                "DBN graph_posterior"
             )
         if not isinstance(inference, (Bayesian, Frequentist)):
             raise CausalTypeError(
                 "PreparedAnalysis.prepare(discovery=) requires inference=Bayesian(...) "
-                "or Frequentist() for AverageEffect × graph_posterior"
+                "or Frequentist() for AverageEffect × graph_posterior and "
+                "TemporalMediationEffect × DBN graph_posterior"
             )
         refute = coerce_refute(refute)
         bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
@@ -2602,6 +2631,10 @@ class PreparedAnalysis:
         if isinstance(discovery, (DbnPosterior, GraphPosterior)) and isinstance(
             query, TemporalMediationEffect
         ):
+            # Frequentist atoms share one circular-block bootstrap for the mixture
+            # SE, so the latency tier's replicate count applies; the Bayesian
+            # mixture uses posterior draws and runs no bootstrap.
+            mediation_bootstrap = bootstrap if isinstance(inference, Frequentist) else 0
             if isinstance(discovery, GraphPosterior):
                 native = _NativePreparedAnalysis.prepare_dbn_posterior_mediation(
                     names,
@@ -2618,6 +2651,7 @@ class PreparedAnalysis:
                     prior_scale=prior_scale,
                     refute=refute,
                     seed=seed,
+                    bootstrap=mediation_bootstrap,
                     threads=threads,
                     posterior=discovery,
                 )
@@ -2642,6 +2676,7 @@ class PreparedAnalysis:
                     prior_scale=prior_scale,
                     refute=refute,
                     seed=seed,
+                    bootstrap=mediation_bootstrap,
                     threads=threads,
                 )
             return cls(native, kind="average", query=query)

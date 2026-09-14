@@ -2026,7 +2026,11 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Compile once for licensed TemporalMediationEffect × DBN graph_posterior × Bayesian.
+    /// Compile once for licensed TemporalMediationEffect × DBN graph_posterior.
+    ///
+    /// Bayesian mixes per-atom posteriors; single-horizon Frequentist mixes atom
+    /// estimates with a shared circular-block SE from `bootstrap` replicates
+    /// (`0` withholds the SE).
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -2049,6 +2053,7 @@ impl PyPreparedAnalysis {
         prior_scale=10.0,
         refute=None,
         seed=1,
+        bootstrap=0,
         threads=1,
         posterior=None,
     ))]
@@ -2074,6 +2079,7 @@ impl PyPreparedAnalysis {
         prior_scale: f64,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
+        bootstrap: u32,
         threads: u32,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
     ) -> PyResult<Self> {
@@ -2132,11 +2138,13 @@ impl PyPreparedAnalysis {
                 )
                 .map_err(py_err)?
             };
+            // Frequentist atoms share one circular-block bootstrap for the
+            // mixture SE; the Bayesian mixture uses posterior draws instead.
             let mut builder = Study::series(series)
                 .graph_posterior(gp)
                 .query(CausalQuery::Mediation(q))
                 .refute(suite)
-                .bootstrap_replicates(0);
+                .bootstrap_replicates(bootstrap);
             builder = crate::temporal_api::apply_temporal_inference(
                 builder,
                 Some(inference.as_deref().unwrap_or("conjugate")),
