@@ -53,8 +53,8 @@ publish the product-posterior envelope quantile (independently seeded completion
 posteriors) at Imbens–Manski tails; both are flagged `truncated` over a capped
 completion enumeration. Temporal PAG results retain MAG
 completions and disclose finite-window audit caps. Those families are not licensed on every
-coordinate: Bayesian
-incomplete-class temporal cells,
+coordinate: TemporalPag
+mediation, temporal graph-posterior responses,
 partial-graph derivatives, graph-posterior / nested counterfactuals,
 and cheap/full counterfactual validation remain refused. Importability is not
 a license. The [support matrix](support-matrix.md) is the public license.
@@ -463,10 +463,12 @@ Counterfactual primitives exist:
 * temporal trajectories;
 * unit-level counterfactual analysis.
 
-`analyze` licenses `Counterfactual` on an explicit Frequentist DAG at
-validation `none` as a two-world GCM ITE. Nested counterfactuals, temporal
-trajectories, accepted or graph-posterior structure, Bayesian inference, and
-cheap/full validation remain refused. The public license is the
+`analyze` licenses `Counterfactual` on an explicit or accepted DAG at
+validation `none`, Frequentist and Bayesian, as a two-world GCM ITE. Unit ITEs
+are exact only for invertible additive-noise mechanisms; downstream of a
+discrete or state-space mechanism a unit effect is one sampled counterfactual
+that varies with the seed. Nested counterfactuals, temporal trajectories,
+graph-posterior structure, and cheap/full validation remain refused. The public license is the
 [support matrix](support-matrix.md).
 
 ## Attribution and diagnostics
