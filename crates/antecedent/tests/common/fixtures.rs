@@ -73,6 +73,27 @@ pub fn confounded_series(n: usize, b2: f64, rho: f64, seed: u64) -> TimeSeriesDa
     series(&[("x", &x[BURN..]), ("y", &y[BURN..]), ("z", &z[BURN..])])
 }
 
+/// Generating DAG of [`confounded_series`] (DBN atom A as a `TemporalDag`):
+/// `z → x` at lags 0..=2, `x@1 → y`, `x@2 → y`, `z@1 → y`. Multi-step Sustained
+/// over lags 2..=1 recovers `B1 + b2`.
+#[must_use]
+pub fn confounded_dag() -> TemporalDag {
+    let mut g = TemporalDag::empty();
+    let y0 = g.add_lagged(var(1), Lag::CONTEMPORANEOUS).unwrap();
+    for lag in 0..=2 {
+        let x = g.add_lagged(var(0), Lag::from_raw(lag)).unwrap();
+        let z = g.add_lagged(var(2), Lag::from_raw(lag)).unwrap();
+        g.insert_directed(z, x).unwrap();
+        if lag >= 1 {
+            g.insert_directed(x, y0).unwrap();
+        }
+        if lag == 1 {
+            g.insert_directed(z, y0).unwrap();
+        }
+    }
+    g
+}
+
 /// Plim of the treatment coefficient when `y[t]` is regressed on `x[t-1]` alone.
 ///
 /// `Cov(x[t-2], x[t-1]) = A²·rho` and `Cov(z[t-1], x[t-1]) = A`; `Var(x) = 1`.
