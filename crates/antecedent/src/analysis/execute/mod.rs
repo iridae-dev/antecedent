@@ -251,23 +251,23 @@ mod temporal_path;
 mod tuple_bootstrap;
 include!("execute_helpers.rs");
 
-#[cfg(test)]
-pub(super) use class_envelope_se::circular_block_length;
-#[allow(unused_imports)]
 pub(super) use class_envelope_se::{
-    SharedCircularBlockSe, TemporalAtomDesign, envelope_shared_block_diagnostics,
-    shared_block_mixture_message, shared_circular_block_mixture_se,
-    shared_circular_block_mixture_se_with_length,
+    TemporalAtomDesign, envelope_shared_block_diagnostics, shared_block_mixture_message,
+    shared_circular_block_mixture_se,
+};
+#[cfg(test)]
+pub(super) use class_envelope_se::{
+    circular_block_length, shared_circular_block_mixture_se_with_length,
 };
 pub(super) use identified_set_diagnostics::{
     IDENTIFIED_SET_INTERVAL_LEVEL, completion_fit_seed, identified_set_interval_diagnostics,
     posterior_identified_set_interval, same_fitted_mechanisms, same_fitted_problem,
 };
-#[allow(unused_imports)]
 pub(super) use tuple_bootstrap::{
-    PreparedTupleTarget, TupleObservationTarget, TupleReplicates, TupleSurface,
-    tuple_block_observation_replicates,
+    TupleObservationTarget, TupleSurface, tuple_block_observation_replicates,
 };
+
+pub(crate) use static_path::DistributionGraph;
 
 pub(crate) use response_path::{
     class_aware_response_supported, graph_posterior_response_supported, response_witness_ate,

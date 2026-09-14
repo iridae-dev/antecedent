@@ -71,6 +71,15 @@ impl RefuteSuite {
     }
 }
 
+/// Refusal for panel data paired with a [`CausalQuery::Response`] query.
+///
+/// Checked at build, compile, and prepare; one message keeps them in step.
+pub(crate) const PANEL_RESPONSE_REFUSAL: &str = concat!(
+    "panel ResponseCurve / InterventionResponse is not licensed in 1.9: scalar panel ",
+    "Pulse/Sustained SEs do not license response bands, and the single-series response ",
+    "likelihood is not a panel model",
+);
+
 #[derive(Clone, Debug)]
 pub(crate) enum DataInput {
     Tabular(TabularData),
@@ -1137,11 +1146,7 @@ impl StudyBuilder {
             }
         }
         if matches!((&data, &query), (DataInput::Panel(_), CausalQuery::Response(_))) {
-            return Err(CausalError::Unsupported {
-                message: "panel ResponseCurve / InterventionResponse is not licensed in 1.9: \
-                          scalar panel Pulse/Sustained SEs do not license response bands, and \
-                          the single-series response likelihood is not a panel model",
-            });
+            return Err(CausalError::Unsupported { message: PANEL_RESPONSE_REFUSAL });
         }
         if self.class_prior.is_some() && matches!(inference, crate::InferenceMode::Frequentist) {
             return Err(CausalError::Unsupported {

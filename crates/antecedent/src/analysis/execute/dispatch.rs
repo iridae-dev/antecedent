@@ -2,6 +2,12 @@
 
 use super::*;
 
+/// Refusal for a graph-posterior study whose data / query pair has no route.
+pub(super) const GRAPH_POSTERIOR_QUERY_REFUSAL: &str = concat!(
+    "graph-posterior analysis supports tabular average-effect, conditional-effect, or static ",
+    "response queries, and series temporal-effect or temporal-mediation queries only",
+);
+
 impl super::Study {
     pub(super) fn validation_suite_id(&self) -> Option<Arc<str>> {
         let family = match self.query {
@@ -27,9 +33,7 @@ impl super::Study {
         match (&self.data, &self.query, class) {
             (DataInput::Panel(_), CausalQuery::Response(_), _) => {
                 return Err(CausalError::Unsupported {
-                    message: "panel ResponseCurve / InterventionResponse is not licensed in 1.9: \
-                              scalar panel Pulse/Sustained SEs do not license response bands, and \
-                              the single-series response likelihood is not a panel model",
+                    message: super::super::builder::PANEL_RESPONSE_REFUSAL,
                 });
             }
             (_, CausalQuery::Response(q), class)
@@ -373,27 +377,8 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
             return match (data, &self.query) {
-                (DataInput::Tabular(data), CausalQuery::AverageEffect(q)) => {
-                    match &self.inference {
-                        InferenceMode::Frequentist => {
-                            self.execute_graph_posterior_frequentist(data, gp, q, physical, ctx)
-                        }
-                        InferenceMode::Bayesian(_) => {
-                            self.execute_graph_posterior_bayesian(data, gp, q, physical, ctx)
-                        }
-                    }
-                }
-                (DataInput::Tabular(data), CausalQuery::ConditionalEffect(q)) => {
-                    match &self.inference {
-                        InferenceMode::Frequentist => self
-                            .execute_graph_posterior_frequentist(data, gp, &q.inner, physical, ctx),
-                        InferenceMode::Bayesian(_) => {
-                            self.execute_graph_posterior_bayesian(data, gp, &q.inner, physical, ctx)
-                        }
-                    }
-                }
-                (DataInput::Tabular(data), CausalQuery::Response(q)) => {
-                    self.execute_graph_posterior_response(data, gp, q, physical, ctx)
+                (DataInput::Tabular(data), _) => {
+                    self.execute_graph_posterior_tabular(data, gp, physical, ctx)
                 }
                 (
                     DataInput::Temporal(data) | DataInput::Event(data),
@@ -409,11 +394,7 @@ impl super::Study {
                 (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Mediation(q)) => {
                     self.execute_dbn_posterior_mediation(data, gp, q, physical, ctx)
                 }
-                _ => Err(CausalError::Unsupported {
-                    message: "graph-posterior analysis supports tabular average-effect, \
-                              tabular conditional-effect, temporal-effect, or \
-                              temporal-mediation queries only",
-                }),
+                _ => Err(CausalError::Unsupported { message: GRAPH_POSTERIOR_QUERY_REFUSAL }),
             };
         }
         match classify_analysis_route(data, &self.query) {
@@ -484,38 +465,39 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
-            return match &self.query {
-                CausalQuery::AverageEffect(q) => match &self.inference {
-                    InferenceMode::Frequentist => {
-                        self.execute_graph_posterior_frequentist(data, gp, q, physical, ctx)
-                    }
-                    InferenceMode::Bayesian(_) => {
-                        self.execute_graph_posterior_bayesian(data, gp, q, physical, ctx)
-                    }
-                },
-                CausalQuery::ConditionalEffect(q) => match &self.inference {
-                    InferenceMode::Frequentist => {
-                        self.execute_graph_posterior_frequentist(data, gp, &q.inner, physical, ctx)
-                    }
-                    InferenceMode::Bayesian(_) => {
-                        self.execute_graph_posterior_bayesian(data, gp, &q.inner, physical, ctx)
-                    }
-                },
-                CausalQuery::Response(q) => {
-                    self.execute_graph_posterior_response(data, gp, q, physical, ctx)
-                }
-                _ => Err(CausalError::Unsupported {
-                    message: "graph-posterior analysis supports tabular average-effect, \
-                              tabular conditional-effect, temporal-effect, or \
-                              temporal-mediation queries only",
-                }),
-            };
+            return self.execute_graph_posterior_tabular(data, gp, physical, ctx);
         }
         let route =
             classify_route(DataModality::Tabular, &self.query).ok_or(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",
             })?;
         self.execute_tabular_route(route, data, physical, ctx)
+    }
+
+    /// Tabular graph-posterior dispatch shared by fresh and prepared execution.
+    fn execute_graph_posterior_tabular(
+        &self,
+        data: &TabularData,
+        gp: &GraphPosterior,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let query = match &self.query {
+            CausalQuery::AverageEffect(q) => q,
+            CausalQuery::ConditionalEffect(q) => &q.inner,
+            CausalQuery::Response(q) => {
+                return self.execute_graph_posterior_response(data, gp, q, physical, ctx);
+            }
+            _ => return Err(CausalError::Unsupported { message: GRAPH_POSTERIOR_QUERY_REFUSAL }),
+        };
+        match &self.inference {
+            InferenceMode::Frequentist => {
+                self.execute_graph_posterior_frequentist(data, gp, query, physical, ctx)
+            }
+            InferenceMode::Bayesian(_) => {
+                self.execute_graph_posterior_bayesian(data, gp, query, physical, ctx)
+            }
+        }
     }
 
     fn execute_tabular_route(
@@ -617,13 +599,25 @@ impl super::Study {
                         let graph = self.require_execute_dag(
                             "Distribution execute requires a supplied static DAG",
                         )?;
-                        self.execute_distribution(data, graph, q, physical, ctx)
+                        self.execute_distribution(
+                            data,
+                            super::static_path::DistributionGraph::Dag(graph),
+                            q,
+                            physical,
+                            ctx,
+                        )
                     }
                     GraphClass::Admg => {
                         let admg = self.graph.as_admg().ok_or(CausalError::Compile {
                             message: "Distribution ADMG execute missing ADMG".into(),
                         })?;
-                        self.execute_distribution_admg(data, admg, q, physical, ctx)
+                        self.execute_distribution(
+                            data,
+                            super::static_path::DistributionGraph::Admg(admg),
+                            q,
+                            physical,
+                            ctx,
+                        )
                     }
                     _ => Err(CausalError::Unsupported {
                         message: "Distribution execute requires a supplied Dag or Admg",

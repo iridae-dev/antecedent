@@ -120,17 +120,7 @@ impl super::Study {
             (Some(AnalysisRoute::Distribution), GraphClass::Admg) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::Distribution(q) = &self.query else { unreachable!() };
-                if !q.conditioning.is_empty() {
-                    return Err(CausalError::Unsupported {
-                        message: "ADMG InterventionalDistribution is licensed for unconditional \
-                                  finite-discrete tables; IDC conditionals are a follow-up",
-                    });
-                }
-                if self.refute != RefuteSuite::None {
-                    return Err(CausalError::Unsupported {
-                        message: "ADMG InterventionalDistribution is licensed at validation none",
-                    });
-                }
+                super::static_path::ensure_admg_distribution_licensed(q, self.refute)?;
                 let (identifier, estimator) = self.resolve_distribution_pair();
                 let treatment =
                     q.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
