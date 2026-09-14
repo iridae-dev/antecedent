@@ -28,13 +28,22 @@ impl super::Study {
                     false,
                 )
             };
+        // Same interactive budget as the graph-posterior ATE path: atoms left
+        // out of the stratified subsample flip to unidentified mass before any
+        // fit, so they are never silently renormalized away.
+        let mut subsample_notes = Vec::new();
+        let graphs = maybe_interactive_subsample_graphs(
+            self.latency_mode,
+            identified.graphs.clone(),
+            ctx,
+            &mut subsample_notes,
+        )?;
         let mut weighted = Vec::new();
-        let mut atoms = identified
-            .graphs
+        let mut atoms = graphs
             .graph_keys
             .iter()
-            .zip(identified.graphs.weights.iter())
-            .zip(identified.graphs.identified.iter())
+            .zip(graphs.weights.iter())
+            .zip(graphs.identified.iter())
             .map(|((&graph_key, &weight), flag)| crate::result::StructuralResponseAtom {
                 posterior: None,
                 response: None,
@@ -55,7 +64,8 @@ impl super::Study {
         let mut atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)> = Vec::new();
         let options = self.response_options.clone().unwrap_or_default();
         for atom in identified.atoms.iter() {
-            let weight = identified_weight_for_key(&identified.graphs, atom.key);
+            // Zero for atoms the interactive subsample dropped.
+            let weight = identified_weight_for_key(&graphs, atom.key);
             if weight <= 0.0 {
                 continue;
             }
@@ -118,8 +128,8 @@ impl super::Study {
             message: "graph-posterior response has no evaluable identified atom".into(),
         })?;
         let identified_mass = weighted.iter().map(|(_, weight, _)| weight).sum::<f64>();
-        let total_mass = identified.graphs.total_weight();
-        let unidentified_mass = identified.graphs.unidentified_mass();
+        let total_mass = graphs.total_weight();
+        let unidentified_mass = graphs.unidentified_mass();
         let conditional_values = weighted
             .iter()
             .filter_map(|(_, weight, response)| {
@@ -288,6 +298,7 @@ impl super::Study {
             (Vec::new(), Vec::new())
         };
         diagnostics.extend(refute_diags);
+        diagnostics.extend(subsample_notes);
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
@@ -315,7 +326,7 @@ impl super::Study {
                     weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
                     atoms,
                     identified_mass: identified_mass / total_mass,
-                    unidentified_mass: identified.graphs.unidentified_mass() / total_mass,
+                    unidentified_mass: unidentified_mass / total_mass,
                     unevaluable_mass: failed_mass / total_mass,
                     identified_set: structural_set,
                     identified_set_interval: None,
