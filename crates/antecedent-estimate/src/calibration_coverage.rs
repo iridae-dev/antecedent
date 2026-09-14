@@ -698,13 +698,15 @@ fn rd_scm(
     (table_tyz(t, y, r), estimand)
 }
 
-/// Sharp-RD homoskedastic analytic SE on a homoskedastic DGP (its stated assumption).
+/// Sharp-RD homoskedastic analytic SE (explicit opt-in) on a homoskedastic DGP
+/// (its stated assumption).
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn rd_sharp_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = SharpRegressionDiscontinuity {
         bootstrap_replicates: 0,
+        se_kind: AnalyticSeKind::Homoskedastic,
         ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
     };
     let ctx = ExecutionContext::for_tests(6);

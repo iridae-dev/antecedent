@@ -444,30 +444,83 @@ fn estimate_rd_sharp_recovers_jump() {
     );
     assert_recovers(&click, &expected);
 
-    // rd_design threads the analytic SE kind: HC1 changes the SE, not the jump,
-    // and drops the homoskedastic-SE assumption the default declares.
-    let robust = Study::tabular(data)
+    // The default analytic SE is HC1; rd_design threads an explicit
+    // homoskedastic opt-in, which changes the SE (not the jump) and swaps the
+    // robust-SE assumption for the constant-variance one.
+    let classical = Study::tabular(data)
         .graph(Dag::with_variables(3))
         .query(rd_scm(3000, 25).1)
         .identifier(IdentifierId::RdSharp)
         .estimator(EstimatorId::RdSharp)
         .rd_design(
             antecedent::RdConfig::new(VariableId::from_raw(2), 0.0, 1.5)
-                .with_se_kind(antecedent_estimate::AnalyticSeKind::Hc1),
+                .with_se_kind(antecedent_estimate::AnalyticSeKind::Homoskedastic),
         )
         .bootstrap_replicates(0)
         .build()
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let declares_homoskedastic = |r: &antecedent::StudyResult| {
+    let declares = |r: &antecedent::StudyResult, id: &str| {
         r.estimate.assumptions.entries.iter().any(|a| {
             matches!(&a.assumption, antecedent_core::Assumption::ParametricRestriction(p)
-                if p.id.as_ref() == "rd.sharp.homoskedastic_se")
+                if p.id.as_ref() == id)
         })
     };
-    assert_eq!(robust.estimate.ate.to_bits(), result.estimate.ate.to_bits());
-    assert!(robust.estimate.se_analytic.is_finite());
-    assert!((robust.estimate.se_analytic - result.estimate.se_analytic).abs() > 1e-9);
-    assert!(declares_homoskedastic(&result) && !declares_homoskedastic(&robust));
+    assert_eq!(classical.estimate.ate.to_bits(), result.estimate.ate.to_bits());
+    assert!(result.estimate.se_analytic.is_finite() && classical.estimate.se_analytic.is_finite());
+    assert!((classical.estimate.se_analytic - result.estimate.se_analytic).abs() > 1e-9);
+    assert!(declares(&result, "rd.sharp.conventional_robust_se"));
+    assert!(!declares(&result, "rd.sharp.homoskedastic_se"));
+    assert!(declares(&classical, "rd.sharp.homoskedastic_se"));
+    assert!(!declares(&classical, "rd.sharp.conventional_robust_se"));
+}
+
+/// `conformance/estimate/rd_sharp/reference.py` computes the jump and both
+/// analytic SEs of a frozen heteroskedastic design from the textbook formulas.
+/// The default `rd.sharp` SE must equal its HC1 value and the explicit
+/// homoskedastic opt-in its classical value.
+#[test]
+fn estimate_rd_sharp_analytic_se_matches_reference() {
+    let block = load_expected("rd_sharp")["se_reference"].clone();
+    let floats = |key: &str| -> Vec<f64> {
+        block[key].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
+    };
+    let (running, outcome) = (floats("running"), floats("outcome"));
+    let n = running.len();
+    let data = tabular_data(&[
+        ("t", RoleHint::TreatmentCandidate, vec![0.0; n]),
+        ("y", RoleHint::OutcomeCandidate, outcome),
+        ("r", RoleHint::Context, running),
+    ]);
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let cutoff = block["cutoff"].as_f64().unwrap();
+    let bandwidth = block["bandwidth"].as_f64().unwrap();
+    let expected = &block["expected"];
+    let rel = block["relative_tolerance"].as_f64().unwrap();
+    let close = |got: f64, key: &str| {
+        let want = expected[key].as_f64().unwrap();
+        assert!((got - want).abs() <= rel * want.abs(), "{key}: {got} vs reference {want}");
+    };
+    let ctx = ExecutionContext::for_tests(3);
+    let run = |config: antecedent::RdConfig| {
+        Study::tabular(data.clone())
+            .graph(Dag::with_variables(3))
+            .query(query.clone())
+            .identifier(IdentifierId::RdSharp)
+            .estimator(EstimatorId::RdSharp)
+            .rd_design(config)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    };
+    let config = antecedent::RdConfig::new(VariableId::from_raw(2), cutoff, bandwidth);
+    let default = run(config);
+    close(default.estimate.ate, "jump");
+    close(default.estimate.se_analytic, "se_hc1");
+    let classical = run(config.with_se_kind(antecedent_estimate::AnalyticSeKind::Homoskedastic));
+    close(classical.estimate.ate, "jump");
+    close(classical.estimate.se_analytic, "se_homoskedastic");
 }
