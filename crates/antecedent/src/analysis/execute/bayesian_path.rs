@@ -276,12 +276,12 @@ impl super::Study {
             atom_priors.insert(*key, resolved);
             prepared.entry(*key).or_insert(prep);
         }
-        let graphs = WeightedGraphSamples::new(weights, flags, keys)
+        let full_graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut subsample_notes = Vec::new();
-        let graphs = maybe_interactive_subsample_graphs(
+        let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
             self.latency_mode,
-            graphs,
+            full_graphs.clone(),
             ctx,
             &mut subsample_notes,
         )?;
@@ -336,6 +336,7 @@ impl super::Study {
             ),
         }
         .map_err(CausalError::from)?;
+        report_subsampled_out_mass(&mut posterior, &full_graphs, &subsample_drop);
         retain_envelope_assumptions(&mut posterior, &atoms);
         if let Some(summary) = envelope_conflict {
             posterior = with_conflict_summary(posterior, summary);
@@ -371,12 +372,8 @@ impl super::Study {
         });
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.push(Diagnostic::new(
-            format!("estimate.{class_tag}.envelope"),
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!("unidentified_mass={}", posterior.unidentified_mass),
-        ));
+        diagnostics
+            .push(envelope_mass_diagnostic(format!("estimate.{class_tag}.envelope"), &posterior));
         if let Some(cs) = posterior.conflict_summary.as_ref() {
             push_conflict_diagnostics(&mut diagnostics, cs);
         }
@@ -626,6 +623,9 @@ impl super::Study {
     /// [`GraphIdentFlag::Unidentified`] and contribute their posterior weight to
     /// [`antecedent_estimate::CausalPosterior::unidentified_mass`] rather than being
     /// dropped or having their mass redistributed onto the identified atoms.
+    /// Identified atoms the Interactive tier leaves out of its subsample are
+    /// reported as [`antecedent_estimate::CausalPosterior::subsampled_out_mass`]
+    /// instead. Either kind of uncovered mass makes the result graph-dependent.
     ///
     /// # Errors
     ///
@@ -698,7 +698,7 @@ impl super::Study {
             prepared.entry(*key).or_insert(prep);
         }
         let mut subsample_notes = Vec::new();
-        let graphs = maybe_interactive_subsample_graphs(
+        let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
             self.latency_mode,
             graphs,
             ctx,
@@ -743,14 +743,19 @@ impl super::Study {
             EnvelopeOptions::default(),
         )
         .map_err(CausalError::from)?;
+        report_subsampled_out_mass(&mut posterior, &identified.graphs, &subsample_drop);
         retain_envelope_assumptions(&mut posterior, &atoms);
         if let Some(summary) = envelope_conflict {
             posterior = with_conflict_summary(posterior, summary);
         }
         let estimate = effect_from_posterior(&posterior)?;
-        let identification = primary_identification.ok_or_else(|| CausalError::Compile {
+        let mut identification = primary_identification.ok_or_else(|| CausalError::Compile {
             message: "graph-posterior envelope: no identified graph atoms".into(),
         })?;
+        // Mass the mixture does not cover, of either kind, leaves it graph-dependent.
+        if posterior.identification == IdentificationStatus::GraphDependent {
+            identification.status = IdentificationStatus::GraphDependent;
+        }
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "graph-posterior envelope: missing estimand".into(),
         })?;
@@ -758,12 +763,7 @@ impl super::Study {
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.push(Diagnostic::new(
-            "estimate.graph_posterior.envelope",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!("unidentified_mass={}", posterior.unidentified_mass),
-        ));
+        diagnostics.push(envelope_mass_diagnostic("estimate.graph_posterior.envelope", &posterior));
         if let Some(cs) = posterior.conflict_summary.as_ref() {
             push_conflict_diagnostics(&mut diagnostics, cs);
         }
@@ -1546,23 +1546,23 @@ impl super::Study {
             }
         }
 
-        let graphs = WeightedGraphSamples::new(
+        let fitted_graphs = WeightedGraphSamples::new(
             Arc::clone(&identified.graphs.weights),
             flags,
             Arc::clone(&identified.graphs.graph_keys),
         )
         .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut subsample_notes = Vec::new();
-        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
+        let (graphs, per_graph, subsample_drop) = maybe_interactive_envelope_subsample(
             self.latency_mode,
-            graphs,
+            fitted_graphs.clone(),
             per_graph,
             ctx,
             &mut subsample_notes,
         )?;
         let keep = identified_envelope_keys(&graphs);
         atoms.retain(|atom| keep.contains(&atom.key));
-        let (_, estimand, identification, _) = atom_contexts
+        let (_, estimand, mut identification, _) = atom_contexts
             .into_iter()
             .find(|(key, _, _, _)| keep.contains(key))
             .ok_or_else(|| CausalError::Compile {
@@ -1578,6 +1578,11 @@ impl super::Study {
             EnvelopeOptions::default(),
         )
         .map_err(CausalError::from)?;
+        report_subsampled_out_mass(&mut posterior, &fitted_graphs, &subsample_drop);
+        // Mass the mixture does not cover, of either kind, leaves it graph-dependent.
+        if posterior.identification == IdentificationStatus::GraphDependent {
+            identification.status = IdentificationStatus::GraphDependent;
+        }
         merge_posterior_notes(
             &mut posterior,
             atoms.iter().map(|atom| &atom.posterior).chain(
@@ -1593,12 +1598,7 @@ impl super::Study {
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.push(Diagnostic::new(
-            "estimate.dbn_posterior.envelope",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!("unidentified_mass={}", posterior.unidentified_mass),
-        ));
+        diagnostics.push(envelope_mass_diagnostic("estimate.dbn_posterior.envelope", &posterior));
         diagnostics.push(Diagnostic::new(
             "estimate.dbn_posterior.atom_demotion",
             DiagnosticKind::Scientific,
@@ -2046,16 +2046,16 @@ impl super::Study {
             }
         }
 
-        let graphs = WeightedGraphSamples::new(
+        let fitted_graphs = WeightedGraphSamples::new(
             Arc::clone(&identified.graphs.weights),
             flags,
             Arc::clone(&identified.graphs.graph_keys),
         )
         .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut subsample_notes = Vec::new();
-        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
+        let (graphs, per_graph, subsample_drop) = maybe_interactive_envelope_subsample(
             self.latency_mode,
-            graphs,
+            fitted_graphs.clone(),
             per_graph,
             ctx,
             &mut subsample_notes,
@@ -2078,9 +2078,10 @@ impl super::Study {
             EnvelopeOptions::default(),
         )
         .map_err(CausalError::from)?;
+        report_subsampled_out_mass(&mut posterior, &fitted_graphs, &subsample_drop);
         // The envelope must preserve structural restrictions and disclose this
         // horizon's unidentified graph mass, independently of other horizons.
-        if posterior.unidentified_mass > 0.0 {
+        if posterior.unidentified_mass > 0.0 || posterior.subsampled_out_mass > 0.0 {
             identification.status = IdentificationStatus::GraphDependent;
         }
         posterior.identification = identification.status;
@@ -2089,12 +2090,7 @@ impl super::Study {
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.push(Diagnostic::new(
-            "estimate.dbn_posterior.envelope",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!("unidentified_mass={}", posterior.unidentified_mass),
-        ));
+        diagnostics.push(envelope_mass_diagnostic("estimate.dbn_posterior.envelope", &posterior));
         diagnostics.push(Diagnostic::new(
             "estimate.dbn_posterior.atom_demotion",
             DiagnosticKind::Scientific,

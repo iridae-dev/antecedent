@@ -860,6 +860,7 @@ pub fn estimate_observed_temporal_response(
          innovations and the declared trajectory ignorability",
     );
     let posterior = CausalPosterior {
+        subsampled_out_mass: 0.0,
         draws,
         summaries,
         identification: status,

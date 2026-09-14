@@ -377,6 +377,7 @@ fn counterfactual_posterior(
     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
     let summaries = draws.summarize();
     Ok(CausalPosterior {
+        subsampled_out_mass: 0.0,
         draws,
         summaries,
         identification,

@@ -129,6 +129,7 @@ class AteAnalysisResult:
     conflict_alphas_requested: list[float] | None
     conflict_alphas_applied: list[float] | None
     posterior_unidentified_mass: float | None
+    posterior_subsampled_out_mass: float | None
     latency_mode: str | None
     wall_time_ns: int | None
     bootstrap_replicates_requested: int | None
@@ -404,6 +405,7 @@ class PosteriorSection:
     backend: str | None
     artifact: bytes | list[int] | None
     unidentified_mass: float | None
+    subsampled_out_mass: float | None
 
 class ValidationFailureSection:
     validator: str
@@ -450,6 +452,7 @@ class PosteriorArtifact:
     backend_id: str
     identification: str
     unidentified_mass: float
+    subsampled_out_mass: float
     converged: bool
     hessian_condition: float
     quantity_names: list[str]
@@ -469,6 +472,7 @@ class PosteriorArtifact:
         converged: bool = True,
         hessian_condition: float = ...,
         treatment_contrast: float | None = None,
+        subsampled_out_mass: float = 0.0,
     ) -> None: ...
     def __array__(
         self,
@@ -489,6 +493,7 @@ class PosteriorArtifact:
         converged: bool = True,
         hessian_condition: float = ...,
         treatment_contrast: float | None = None,
+        subsampled_out_mass: float = 0.0,
     ) -> PosteriorArtifact: ...
 
 class DiscoveredLink:
@@ -603,6 +608,7 @@ class AnalysisResult:
     posterior_backend: str | None
     posterior_artifact: bytes | None
     posterior_unidentified_mass: float | None
+    posterior_subsampled_out_mass: float | None
     mediation_total: float | None
     mediation_direct: float | None
     mediation_mediated: float | None

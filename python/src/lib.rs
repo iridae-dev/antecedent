@@ -829,6 +829,8 @@ pub(crate) struct AteAnalysisResult {
     #[pyo3(get)]
     posterior_unidentified_mass: Option<f64>,
     #[pyo3(get)]
+    posterior_subsampled_out_mass: Option<f64>,
+    #[pyo3(get)]
     latency_mode: Option<String>,
     #[pyo3(get)]
     wall_time_ns: Option<u64>,
@@ -1356,6 +1358,7 @@ pub(crate) fn shared_study_sections(
         backend: posterior_backend,
         artifact: None,
         unidentified_mass: result.posterior.as_ref().map(|p| p.unidentified_mass),
+        subsampled_out_mass: result.posterior.as_ref().map(|p| p.subsampled_out_mass),
     };
     let validation = ValidationSection::from_reports(refutations.clone(), &result.diagnostics);
     let performance = PerformanceSection {
@@ -1526,6 +1529,10 @@ pub(crate) struct PosteriorSection {
     pub(crate) artifact: Option<Vec<u8>>,
     #[pyo3(get)]
     pub(crate) unidentified_mass: Option<f64>,
+    /// Identified graph mass the Interactive tier left out of the envelope
+    /// subsample (not evaluated; not unidentified).
+    #[pyo3(get)]
+    pub(crate) subsampled_out_mass: Option<f64>,
 }
 
 /// Validation section (mirrors the `passed` / `ran` / `count` / `reports` fields of
@@ -1655,6 +1662,9 @@ struct PosteriorArtifact {
     identification: String,
     #[pyo3(get)]
     unidentified_mass: f64,
+    /// Identified graph mass a latency tier left out of the envelope subsample.
+    #[pyo3(get)]
+    subsampled_out_mass: f64,
     #[pyo3(get)]
     converged: bool,
     #[pyo3(get)]
@@ -1686,6 +1696,7 @@ impl PosteriorArtifact {
         converged=true,
         hessian_condition=f64::NAN,
         treatment_contrast=None,
+        subsampled_out_mass=0.0,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -1702,6 +1713,7 @@ impl PosteriorArtifact {
         converged: bool,
         hessian_condition: f64,
         treatment_contrast: Option<f64>,
+        subsampled_out_mass: f64,
     ) -> Self {
         Self {
             n_draws,
@@ -1713,6 +1725,7 @@ impl PosteriorArtifact {
             backend_id,
             identification,
             unidentified_mass,
+            subsampled_out_mass,
             converged,
             hessian_condition,
             quantity_names,
@@ -1745,6 +1758,7 @@ impl PosteriorArtifact {
         converged=true,
         hessian_condition=f64::NAN,
         treatment_contrast=None,
+        subsampled_out_mass=0.0,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn from_moments(
@@ -1760,6 +1774,7 @@ impl PosteriorArtifact {
         converged: bool,
         hessian_condition: f64,
         treatment_contrast: Option<f64>,
+        subsampled_out_mass: f64,
     ) -> Self {
         Self {
             n_draws,
@@ -1771,6 +1786,7 @@ impl PosteriorArtifact {
             backend_id,
             identification,
             unidentified_mass,
+            subsampled_out_mass,
             converged,
             hessian_condition,
             quantity_names,

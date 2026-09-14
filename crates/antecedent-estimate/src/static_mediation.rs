@@ -472,6 +472,7 @@ pub fn estimate_static_mediation_bayesian(
         status: AssumptionStatus::Declared,
     });
     let posterior = crate::CausalPosterior {
+        subsampled_out_mass: 0.0,
         draws,
         summaries,
         identification,

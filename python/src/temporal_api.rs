@@ -191,6 +191,8 @@ pub(crate) struct AnalysisResult {
     #[pyo3(get)]
     pub(crate) posterior_unidentified_mass: Option<f64>,
     #[pyo3(get)]
+    pub(crate) posterior_subsampled_out_mass: Option<f64>,
+    #[pyo3(get)]
     pub(crate) mediation_total: Option<f64>,
     #[pyo3(get)]
     pub(crate) mediation_direct: Option<f64>,
@@ -1929,6 +1931,7 @@ fn analysis_result_from_run(
         posterior_backend: posterior_section.backend.clone(),
         posterior_artifact: posterior_section.artifact.clone(),
         posterior_unidentified_mass: posterior_section.unidentified_mass,
+        posterior_subsampled_out_mass: posterior_section.subsampled_out_mass,
         mediation_total: result.mediation.as_ref().and_then(|m| m.total),
         mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
         mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),

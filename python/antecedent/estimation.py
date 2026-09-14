@@ -237,6 +237,7 @@ def _section_posterior(raw: Any) -> Any:
         backend=getattr(raw, "posterior_backend", None),
         artifact=getattr(raw, "posterior_artifact", None),
         unidentified_mass=getattr(raw, "posterior_unidentified_mass", None),
+        subsampled_out_mass=getattr(raw, "posterior_subsampled_out_mass", None),
     )
 
 
@@ -361,16 +362,18 @@ def _wrap_ate(
     posterior = None
     if sec_posterior.n_draws is not None:
         mass = sec_posterior.unidentified_mass
+        skipped = float(getattr(sec_posterior, "subsampled_out_mass", None) or 0.0)
         envelope = None
-        if mass is not None and float(mass) > 0.0:
+        if (mass is not None and float(mass) > 0.0) or skipped > 0.0:
             envelope = EffectEnvelope(
                 effect_mean=sec_posterior.effect_mean,
                 effect_sd=sec_posterior.effect_sd,
                 q025=sec_posterior.q025,
                 q975=sec_posterior.q975,
-                unidentified_mass=float(mass),
+                unidentified_mass=float(mass or 0.0),
                 n_draws=sec_posterior.n_draws,
                 backend=sec_posterior.backend,
+                subsampled_out_mass=skipped,
             )
         posterior = PosteriorView(
             effect_mean=sec_posterior.effect_mean,
@@ -384,6 +387,7 @@ def _wrap_ate(
             unidentified_mass=None if mass is None else float(mass),
             envelope=envelope,
             conflict=_conflict_from_raw(raw),
+            subsampled_out_mass=skipped,
         )
 
     # The predictive-check fields are static-DTO only; the temporal DTO does not

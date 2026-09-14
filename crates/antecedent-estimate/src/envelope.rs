@@ -3,7 +3,10 @@
 //! Aggregates per-graph effect posteriors using [`WeightedGraphSamples`].
 //! Published moments and draws are the identified-atom BMA (`P(τ | identified)`).
 //! Unidentified mass is a separate, non-renormalized axis on the result and is
-//! never redistributed into that effect posterior.
+//! never redistributed into that effect posterior. The aggregators see only
+//! identification flags, so atoms a latency tier flagged out of a subsample land
+//! in `unidentified_mass` here; callers that subsample move that share to
+//! [`CausalPosterior::subsampled_out_mass`].
 //! [`aggregate_mixture_functional_envelope`] instead publishes the posterior of
 //! the frozen-weight mixture functional, for equivalence-class envelopes whose
 //! weights the data cannot update.
@@ -240,6 +243,7 @@ pub fn aggregate_effect_envelope(
     });
 
     Ok(CausalPosterior {
+        subsampled_out_mass: 0.0,
         draws,
         summaries,
         identification,
@@ -723,7 +727,10 @@ mod tests {
             EnvelopeOptions::default(),
         )
         .unwrap();
-        // Mass honesty: unidentified = original UID + leftover identified, / total.
+        // Mass honesty: the aggregator only sees flags, so every atom outside
+        // the mixture (original UID + leftover identified) is uncovered mass.
+        // Study paths then split the leftover out as subsampled_out_mass.
+        assert!(approx.subsampled_out_mass.abs() < f64::EPSILON);
         let expected_uid =
             (graphs.unidentified_mass() + sub.leftover_identified_mass) / graphs.total_weight();
         let mass_err = (approx.unidentified_mass - expected_uid).abs();
