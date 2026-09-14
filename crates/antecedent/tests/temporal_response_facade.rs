@@ -1053,23 +1053,39 @@ fn joint_sequence_refuses_when_a_coordinate_is_the_outcome() {
     assert!(err.to_string().contains("same variable"), "unexpected error content: {err}");
 }
 
+fn fixture_f64s(value: &serde_json::Value) -> Vec<f64> {
+    value.as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
+}
+
+fn assert_close_rel(actual: &[f64], expected: &[f64], rtol: f64, label: &str) {
+    assert_eq!(actual.len(), expected.len(), "{label}: length");
+    for (index, (&a, &e)) in actual.iter().zip(expected).enumerate() {
+        assert!(
+            (a - e).abs() <= rtol * e.abs().max(1.0),
+            "{label}[{index}]={a:?}, pinned={e:?}, rtol={rtol}"
+        );
+    }
+}
+
 /// With zero replicates the dose×horizon surface keeps its point values and
-/// publishes no band: the analytic OLS band recorded in the fixture's
-/// `surface.lower` / `surface.upper` treats lag-aligned rows as independent and
-/// is no longer published (1.9). Requested replicates publish the joint
-/// circular-block band instead, strictly positive at dose zero.
+/// publishes no band: the analytic OLS band the fixture pinned before 1.9
+/// treated lag-aligned rows as independent and is no longer published.
+/// Requested replicates publish the joint circular-block bands, and the
+/// fixture's `block_band` pins every value of that seeded run (pointwise and
+/// simultaneous edges, critical value, block length, dispersion and
+/// kernel-bias factors) as a determinism guard; coverage is the weekly gate.
 #[test]
-fn temporal_dose_horizon_bands_match_fixture() {
+fn temporal_dose_horizon_point_and_block_bands_match_fixture() {
     use antecedent_core::ResponseUncertainty;
 
     let fixture = fixture();
     let (series, graph) = temporal_fixture_series();
-    let doses: Vec<f64> = fixture["contract"]["dose_grid"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|value| value.as_f64().unwrap())
-        .collect();
+    let doses = fixture_f64s(&fixture["contract"]["dose_grid"]);
+    let atol = fixture["tolerance"]["atol"].as_f64().unwrap();
+    let rtol = fixture["tolerance"]["band_rtol"].as_f64().unwrap();
+    let pin = &fixture["contract"]["block_band"];
+    let seed = pin["seed"].as_u64().unwrap();
+    let replicates = u32::try_from(pin["replicates"].as_u64().unwrap()).unwrap();
     let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: VariableId::from_raw(1),
         treatment: ContinuousDomain::new(
@@ -1086,7 +1102,7 @@ fn temporal_dose_horizon_bands_match_fixture() {
             .bootstrap_replicates(replicates)
             .build()
             .unwrap()
-            .run(&ExecutionContext::for_tests(21))
+            .run(&ExecutionContext::for_tests(seed))
             .unwrap()
     };
     let analytic = run(0);
@@ -1100,15 +1116,88 @@ fn temporal_dose_horizon_bands_match_fixture() {
             .any(|w| w.code.as_ref() == "estimate.temporal_response.band_withheld"),
         "the withheld band must be diagnosed"
     );
-    let boot = run(60);
-    let ResponseUncertainty::PointwiseBand { lower, upper, .. } =
-        &boot.response.as_ref().expect("response payload").uncertainty
-    else {
+
+    let boot = run(replicates);
+    let response = boot.response.as_ref().expect("response payload");
+    assert_surface(
+        &boot,
+        &fixture_f64s(&fixture["contract"]["surface"]["mean"]),
+        atol,
+        "estimate.temporal_response.gcomp",
+    );
+    let ResponseUncertainty::PointwiseBand { level, lower, upper } = &response.uncertainty else {
         panic!("expected the circular-block pointwise band");
     };
+    assert!((level - pin["level"].as_f64().unwrap()).abs() <= rtol);
+    assert_close_rel(lower, &fixture_f64s(&pin["pointwise_lower"]), rtol, "pointwise_lower");
+    assert_close_rel(upper, &fixture_f64s(&pin["pointwise_upper"]), rtol, "pointwise_upper");
     assert!(
         lower.iter().zip(upper.iter()).all(|(lo, hi)| hi - lo > 0.0),
         "every cell's band must have positive width, including dose zero"
+    );
+
+    assert_block_band_diagnostics(response, pin, replicates, rtol, lower, upper);
+}
+
+/// Pin every support diagnostic of the seeded block band: the simultaneous
+/// edges and critical value, the block-length record (with the dispersion
+/// factor), and the per-cell kernel-bias factors and effective rows.
+fn assert_block_band_diagnostics(
+    response: &antecedent_core::CausalResponse,
+    pin: &serde_json::Value,
+    replicates: u32,
+    rtol: f64,
+    pointwise_lower: &[f64],
+    pointwise_upper: &[f64],
+) {
+    let diagnostic = |id: &str| -> &[f64] {
+        response
+            .support
+            .diagnostics
+            .iter()
+            .find(|d| d.id.as_ref() == id)
+            .unwrap_or_else(|| panic!("support diagnostic {id} must be published"))
+            .values
+            .as_ref()
+    };
+    let pinned = |key: &str| fixture_f64s(&pin[key]);
+    let simultaneous_lower = diagnostic("response.simultaneous_band.lower");
+    let simultaneous_upper = diagnostic("response.simultaneous_band.upper");
+    assert_close_rel(simultaneous_lower, &pinned("simultaneous_lower"), rtol, "simultaneous_lower");
+    assert_close_rel(simultaneous_upper, &pinned("simultaneous_upper"), rtol, "simultaneous_upper");
+    assert_close_rel(
+        diagnostic("response.simultaneous_band.critical"),
+        &[
+            pin["level"].as_f64().unwrap(),
+            pin["simultaneous_critical"].as_f64().unwrap(),
+            f64::from(replicates),
+        ],
+        rtol,
+        "simultaneous_critical",
+    );
+    assert!(
+        simultaneous_lower.iter().zip(pointwise_lower).all(|(s, p)| s <= p)
+            && simultaneous_upper.iter().zip(pointwise_upper).all(|(s, p)| s >= p),
+        "the simultaneous band must contain the pointwise band"
+    );
+
+    let block = &pin["block_length"];
+    let record: Vec<f64> = ["length", "rule", "testing", "rows", "dispersion_factor"]
+        .iter()
+        .map(|key| block[key].as_f64().unwrap())
+        .collect();
+    assert_close_rel(diagnostic("response.temporal.block_length"), &record, rtol, "block_length");
+    assert_close_rel(
+        diagnostic("response.temporal.kernel_bias_factor"),
+        &pinned("kernel_bias_factor"),
+        rtol,
+        "kernel_bias_factor",
+    );
+    assert_close_rel(
+        diagnostic("response.temporal.effective_rows"),
+        &pinned("effective_rows"),
+        rtol,
+        "effective_rows",
     );
 }
 
