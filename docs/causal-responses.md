@@ -245,10 +245,9 @@ block, so independent rows are not over-covered.
   on each replicate. Multi-step and joint Sequence overlays refit every unfolded
   sequential mechanism of every horizon on the resampled tuples and recompute the
   root-node means. Both target the population level `E[Y_h | do(A)]`. With zero
-  replicates the curve / Set-Shift pointwise band is analytic (homoskedastic OLS
-  plus the iid variance of the covariate average). It treats lag-aligned rows as
-  independent, which temporal designs rarely satisfy, and no simultaneous band is
-  published; Sequence overlays publish no band without replicates.
+  replicates no band is published: the analytic OLS band would treat lag-aligned
+  rows as independent, which temporal rows are not, so the surface keeps its
+  point values and warns `estimate.temporal_response.band_withheld`.
 - **Frequentist observation-adjusted.** Each outer replicate additionally refits
   the observation nuisance on exactly the resampled tuples and replaces the
   outcome with the replicate pseudo-outcome: once for curves and Set/Shift, and
@@ -264,6 +263,30 @@ block, so independent rows are not over-covered.
   separately; pointwise bands only) and the class-level TemporalCpdag/Pag
   identified set (no class band; each completion atom keeps its own pointwise and
   simultaneous band, calibrated against that atom's own probability limit).
+
+In Python, `bootstrap=` on `analyze(...)` and `PreparedAnalysis.prepare(...)` is
+the replicate count for Frequentist temporal `ResponseCurve` /
+`InterventionResponse` (TemporalDag surfaces and TemporalCpdag/Pag completion
+atoms). Omitting it uses the Study default of 50 replicates, so a band is
+published by default. On `analyze`, `latency="interactive"` resolves the default
+to 0; `PreparedAnalysis.prepare` keeps 50 whatever its `latency`. `bootstrap=0`
+returns the point surface with `uncertainty.kind == "none"`, the withheld-band
+message in `support.warnings`, and `estimate.temporal_response.band_withheld: …`
+in `diagnostics`. The seed drives the replicates, so a fixed `seed=` reproduces
+the band. The simultaneous band is `result.simultaneous_band` (`None` when none
+was published), rebuilt from the support diagnostics above. Its `lower` / `upper`
+rows match `uncertainty.lower` / `uncertainty.upper`; `critical` and `replicates`
+come from `response.simultaneous_band.critical`:
+
+```python
+result = antecedent.analyze(data, graph=lagged_edges, query=surface, bootstrap=200, seed=7)
+result.uncertainty.lower, result.uncertainty.upper   # pointwise 95% band
+band = result.simultaneous_band                     # whole-grid 95% band
+band.lower, band.upper, band.critical, band.replicates
+```
+
+Bayesian responses (posterior intervals), static responses, and `cell.aipw`
+refuse a positive `bootstrap=` rather than ignoring it.
 
 Coverage of these bands on linear-Gaussian DGPs with iid and AR(1) residuals
 is measured by `crates/antecedent/tests/v19_temporal_response_calibration.rs`

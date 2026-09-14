@@ -936,6 +936,7 @@ class PreparedAnalysis:
         prior_mapping: dict[str, Any] | None = None,
         composed_prior: dict[str, Any] | None = None,
         seed: int = 1,
+        bootstrap: int | None = None,
         threads: int = 1,
         accepted: bool = False,
         observation_kind: str | None = None,
@@ -1918,6 +1919,7 @@ def analyze_temporal_response(
     treatment_lag: int = 1,
     max_history_lag: int | None = None,
     seed: int = 1,
+    bootstrap: int | None = None,
     threads: int = 1,
     accepted: bool = False,
     refute: bool | str | None = None,
@@ -1932,7 +1934,17 @@ def analyze_temporal_response(
     assumption_kind: str | None = None,
     assumption_variables: list[str] = [],
     structural_model: str | None = None,
-) -> ResponseAnalysisResult: ...
+) -> ResponseAnalysisResult:
+    """Temporal dose × horizon / intervention-path response (Frequentist).
+
+    ``bootstrap`` is the joint circular-block replicate count behind the pointwise
+    band and the simultaneous band (``response.simultaneous_band.*`` support
+    diagnostics). ``None`` keeps the Study default (50); ``0`` returns the point
+    surface with no band and an ``estimate.temporal_response.band_withheld``
+    warning.
+    """
+    ...
+
 def analyze_response_pag(
     names: list[str],
     columns: Sequence[Any],

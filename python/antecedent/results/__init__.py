@@ -26,6 +26,7 @@ from .response import (
     ResponseValidationCheck,
     ResponseValidationView,
     ResponseView,
+    SimultaneousBand,
     SupportDiagnostic,
     SupportReport,
 )
@@ -53,6 +54,7 @@ __all__ = [
     "ResponseView",
     "ResponseValidationCheck",
     "ResponseValidationView",
+    "SimultaneousBand",
     "SupportDiagnostic",
     "SupportReport",
 ]

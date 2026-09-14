@@ -1236,6 +1236,10 @@ impl PyPreparedAnalysis {
     }
 
     /// Compile once for a temporal ResponseCurve / InterventionResponse (series data).
+    ///
+    /// Frequentist `bootstrap` is the joint circular-block replicate count behind the
+    /// pointwise and simultaneous bands: `None` keeps the `Study` default (50), `0`
+    /// publishes no band and warns `estimate.temporal_response.band_withheld`.
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -1259,6 +1263,7 @@ impl PyPreparedAnalysis {
         prior_mapping=None,
         composed_prior=None,
         seed=1,
+        bootstrap=None,
         threads=1,
         accepted=false,
         class_graph=None,
@@ -1300,6 +1305,7 @@ impl PyPreparedAnalysis {
         prior_mapping: Option<&Bound<'_, PyDict>>,
         composed_prior: Option<&Bound<'_, PyDict>>,
         seed: u64,
+        bootstrap: Option<u32>,
         threads: u32,
         accepted: bool,
         class_graph: Option<Bound<'_, PyAny>>,
@@ -1386,8 +1392,10 @@ impl PyPreparedAnalysis {
             } else {
                 builder.graph(dag)
             };
-            builder =
-                builder.query(query).refute(antecedent::RefuteSuite::None).bootstrap_replicates(0);
+            builder = builder.query(query).refute(antecedent::RefuteSuite::None);
+            if let Some(replicates) = bootstrap {
+                builder = builder.bootstrap_replicates(replicates);
+            }
             builder = crate::temporal_api::apply_temporal_inference_transfer(
                 builder,
                 Some(inference.as_deref().unwrap_or("frequentist")),

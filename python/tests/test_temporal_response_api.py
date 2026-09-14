@@ -173,36 +173,113 @@ def test_pulse_projection_matches_surface_contrast():
     assert pulse.ate == pytest.approx(expected, abs=_ATOL)
 
 
-def test_temporal_response_bands_match_fixture():
+_SURFACE_QUERY = antecedent.ResponseCurve(
+    "t",
+    "y",
+    grid=[0.0, 1.0],
+    horizons=[1, 2],
+    policy="pulse",
+    treatment_lag=1,
+)
+_BAND_WITHHELD = "estimate.temporal_response.band_withheld"
+
+
+def _column(rows: Any) -> np.ndarray:
+    return np.asarray([row[0] for row in rows], dtype=float)
+
+
+def _assert_band_withheld(result: Any) -> None:
+    """Zero replicates: point surface only, with the withheld band diagnosed."""
+    np.testing.assert_allclose(_response_means(result), _MEAN, atol=_ATOL)
+    assert result.uncertainty.kind == "none"
+    assert result.uncertainty.lower is None and result.uncertainty.upper is None
+    assert result.simultaneous_band is None
+    assert any("no pointwise or simultaneous band" in w for w in result.support.warnings)
+    assert any(d.startswith(f"{_BAND_WITHHELD}: ") for d in result.diagnostics)
+
+
+def _assert_block_bands(result: Any, replicates: int) -> None:
+    """Replicates: positive-width pointwise band inside the simultaneous band."""
+    means = _response_means(result)
+    np.testing.assert_allclose(means, _MEAN, atol=_ATOL)
+    assert result.uncertainty.kind == "pointwise"
+    assert result.uncertainty.level == pytest.approx(0.95)
+    assert result.uncertainty.lower is not None and result.uncertainty.upper is not None
+    lower = _column(result.uncertainty.lower)
+    upper = _column(result.uncertainty.upper)
+    # Strictly positive at every cell, including dose zero at horizon 1 (the old
+    # zero-width-at-dose-0 regression guard).
+    assert np.all(upper - lower > 0.0)
+    assert np.all(lower <= means) and np.all(means <= upper)
+    band = result.simultaneous_band
+    assert band is not None
+    assert band.level == pytest.approx(0.95)
+    assert band.replicates == replicates
+    assert band.critical >= 1.959
+    assert len(band) == len(means)
+    sim_lower = _column(band.lower)
+    sim_upper = _column(band.upper)
+    assert np.all(sim_lower <= lower) and np.all(upper <= sim_upper)
+    assert not any(d.startswith(f"{_BAND_WITHHELD}: ") for d in result.diagnostics)
+
+
+def test_temporal_response_zero_bootstrap_withholds_band():
+    """The pre-1.9 analytic band in the fixture treats lag-aligned rows as independent.
+
+    ``surface.lower`` / ``surface.upper`` in the fixture record that retired band;
+    with ``bootstrap=0`` the surface keeps its point values and publishes no band.
+    """
     data = _fixture_data()
     result = antecedent.analyze(
-        data,
-        graph=_EDGES,
-        query=antecedent.ResponseCurve(
-            "t",
-            "y",
-            grid=[0.0, 1.0],
-            horizons=[1, 2],
-            policy="pulse",
-            treatment_lag=1,
-        ),
-        refute=False,
-        bootstrap=0,
-        seed=21,
+        data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, bootstrap=0, seed=21
     )
-    assert result.response is not None
-    assert result.uncertainty.lower is not None and result.uncertainty.upper is not None
-    expected_lower = np.asarray(_FIXTURE["contract"]["surface"]["lower"], dtype=float)
-    expected_upper = np.asarray(_FIXTURE["contract"]["surface"]["upper"], dtype=float)
-    lower = np.asarray([row[0] for row in result.uncertainty.lower], dtype=float)
-    upper = np.asarray([row[0] for row in result.uncertainty.upper], dtype=float)
-    np.testing.assert_allclose(lower, expected_lower, atol=_ATOL)
-    np.testing.assert_allclose(upper, expected_upper, atol=_ATOL)
-    assert upper[0] - lower[0] > 0.0
+    _assert_band_withheld(result)
     assert result.identification.method == "temporal.backdoor.unfolded"
     assert "identify.temporal_backdoor" in result.provenance["operation_ids"]
     assert result.validation is not None
     assert any(check.id == "refute.temporal_response.skipped" for check in result.validation.checks)
+
+    prepared = PreparedAnalysis.prepare(
+        data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, bootstrap=0
+    )
+    _assert_band_withheld(prepared.estimate(data, seed=21))
+
+
+@pytest.mark.parametrize("bootstrap", [None, 60])
+def test_temporal_response_bootstrap_publishes_block_bands(bootstrap: int | None):
+    data = _fixture_data()
+    replicates = 50 if bootstrap is None else bootstrap
+    kwargs: dict[str, Any] = {} if bootstrap is None else {"bootstrap": bootstrap}
+    direct = antecedent.analyze(
+        data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, **kwargs
+    )
+    _assert_block_bands(direct, replicates)
+    again = antecedent.analyze(
+        data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, **kwargs
+    )
+    assert again.uncertainty.lower == direct.uncertainty.lower
+    assert again.uncertainty.upper == direct.uncertainty.upper
+
+    prepared = PreparedAnalysis.prepare(
+        data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, **kwargs
+    )
+    click = prepared.estimate(data, seed=21)
+    _assert_block_bands(click, replicates)
+
+
+def test_temporal_intervention_path_bootstrap_publishes_block_bands():
+    data = _fixture_data()
+    query = antecedent.InterventionResponse(
+        "y", intervention=Set("t", 1.0), horizons=[1, 2], policy="pulse", treatment_lag=1
+    )
+    withheld = antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=0)
+    assert withheld.uncertainty.kind == "none"
+    assert any(d.startswith(f"{_BAND_WITHHELD}: ") for d in withheld.diagnostics)
+    banded = antecedent.analyze(data, graph=_EDGES, query=query, refute=False, bootstrap=60)
+    np.testing.assert_allclose(_response_means(banded), _SET_PATH, atol=_ATOL)
+    assert banded.uncertainty.kind == "pointwise"
+    assert banded.simultaneous_band is not None
+    assert banded.simultaneous_band.replicates == 60
 
 
 def test_temporal_default_lag_matches_pulse():

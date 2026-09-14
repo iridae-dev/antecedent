@@ -430,9 +430,16 @@ def handle_response(
     bootstrap_requested: bool,
     seed: int,
     threads: int,
+    bootstrap: int | None = None,
     structure_accepted: bool = False,
 ) -> Any:
-    """Identify and estimate a complete-observation continuous response."""
+    """Identify and estimate a complete-observation continuous response.
+
+    ``bootstrap`` is the latency-resolved replicate count. Only Frequentist
+    temporal surfaces resample (joint circular-block pointwise and simultaneous
+    bands; ``0`` withholds the band); every other route refuses an explicitly
+    requested bootstrap rather than dropping it.
+    """
     from .estimation import _response_support_bounds, _static_edges, _support_point_status
     from .query import coerce_outcome_functional
     from .results import (
@@ -505,7 +512,18 @@ def handle_response(
     # generalized-adjustment envelope as ATE). Derivatives still refuse here
     # because a Pag/Admg never reaches native `_analyze_response`. The Admg
     # literal is pinned against parity/support_closed.toml.
-    if isinstance(graph, (Admg, Cpdag, Pag)) and not getattr(query, "is_temporal", False):
+    is_temporal = bool(getattr(query, "is_temporal", False))
+    # Only Frequentist temporal surfaces resample; every static route refuses a
+    # requested bootstrap here rather than dropping it on a staged path below.
+    if bootstrap_requested and not is_temporal:
+        if isinstance(query, InterventionResponse) and (
+            estimator == "cell.aipw" or isinstance(graph, TieredBackground)
+        ):
+            raise CausalUnsupportedError(
+                "cell.aipw uses analytic influence uncertainty, not bootstrap"
+            )
+        raise ValueError("response queries do not yet expose bootstrap= through analyze()")
+    if isinstance(graph, (Admg, Cpdag, Pag)) and not is_temporal:
         if isinstance(query, (ResponseCurve, InterventionResponse)):
             if isinstance(graph, Admg):
                 raise CausalUnsupportedError(
@@ -527,8 +545,12 @@ def handle_response(
                 structure_accepted=structure_accepted,
             )
         raise CausalUnsupportedError("refused: Derivatives require a supplied static Dag.")
-    if getattr(query, "is_temporal", False):
-        from .estimation import _lagged_edges, _wrap_prepared_response
+    if is_temporal:
+        from .estimation import (
+            _lagged_edges,
+            _temporal_response_bootstrap,
+            _wrap_prepared_response,
+        )
 
         if not isinstance(graph, (TemporalDag, list, tuple)):
             raise TypeError(
@@ -605,6 +627,7 @@ def handle_response(
             treatment_lag=query.treatment_lag,
             max_history_lag=query.max_history_lag,
             seed=seed,
+            bootstrap=_temporal_response_bootstrap(bootstrap, inference),
             threads=threads,
             accepted=structure_accepted,
             refute=refute if refute_requested else False,
@@ -614,10 +637,6 @@ def handle_response(
     if estimator == "cell.aipw" and isinstance(query, InterventionResponse):
         if estimator_config is not None:
             raise CausalUnsupportedError("cell.aipw does not accept response estimator_config")
-        if bootstrap_requested:
-            raise CausalUnsupportedError(
-                "cell.aipw uses analytic influence uncertainty, not bootstrap"
-            )
         return _staged_prepared_result(
             data,
             query,
@@ -718,8 +737,6 @@ def handle_response(
             )
     if validators is not None:
         raise ValueError("response queries do not accept scalar ATE validators")
-    if bootstrap_requested:
-        raise ValueError("response queries do not yet expose bootstrap= through analyze()")
     mechanism = getattr(query, "observation", None)
     # Complete() is the documented "outcome is observed directly" spelling and
     # must be treated exactly like no mechanism at all everywhere below --
@@ -2059,6 +2076,7 @@ _KIND_HANDLER_KEYS: dict[str, tuple[Callable[..., Any], tuple[str, ...]]] = {
                 "bootstrap_requested",
                 "seed",
                 "threads",
+                "bootstrap",
                 "structure_accepted",
             ),
         )
@@ -2410,7 +2428,7 @@ def analyze(
                 "this staged query path does not support " + ", ".join(unsupported)
             )
         is_response = kind in {"response_curve", "intervention_response"}
-        if is_response and bootstrap_requested:
+        if is_response and bootstrap_requested and isinstance(inference, Bayesian):
             raise CausalUnsupportedError(
                 "Bayesian responses use posterior intervals; bootstrap is unsupported"
             )
@@ -2432,7 +2450,13 @@ def analyze(
             estimator=estimator,
             refute=suite,
             seed=seed,
-            bootstrap=0 if kind == "counterfactual" else bootstrap,
+            # Bayesian responses carry posterior intervals (a requested bootstrap was
+            # refused above); Frequentist temporal-class responses resample.
+            bootstrap=(
+                0
+                if kind == "counterfactual" or (is_response and isinstance(inference, Bayesian))
+                else bootstrap
+            ),
             threads=threads,
             latency=latency,
             class_prior=class_prior,

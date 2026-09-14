@@ -263,6 +263,79 @@ class ResponseUncertainty:
         return f"<ResponseUncertainty kind={self.kind!r}{level} rows={rows}>"
 
 
+SIMULTANEOUS_BAND_LOWER = "response.simultaneous_band.lower"
+SIMULTANEOUS_BAND_UPPER = "response.simultaneous_band.upper"
+SIMULTANEOUS_BAND_CRITICAL = "response.simultaneous_band.critical"
+
+
+@dataclass(frozen=True, slots=True)
+class SimultaneousBand:
+    """A band that covers every response cell at once, next to a pointwise band.
+
+    Temporal ``ResponseCurve`` / ``InterventionResponse`` surfaces keep their
+    pointwise band in :attr:`CausalResponseView.uncertainty` and publish this
+    max-studentized-deviation (sup-t) band from the same joint replicates
+    (Frequentist circular-block bootstrap) or posterior draws (Bayesian). It is
+    carried natively as the ``response.simultaneous_band.{lower,upper,critical}``
+    support diagnostics; this view reads them back. ``lower`` / ``upper`` share the
+    row layout of ``uncertainty.lower`` / ``uncertainty.upper`` (one value per
+    outcome, dose-major on a temporal surface). ``critical`` is the sup-t critical
+    value, floored at the one-cell normal quantile, so the band is never narrower
+    than the pointwise band. ``replicates`` counts the joint replicates or draws
+    it was computed from. ``detail`` names the construction.
+    """
+
+    level: float
+    critical: float
+    replicates: int
+    lower: Sequence[Sequence[float]]
+    upper: Sequence[Sequence[float]]
+    detail: str = ""
+
+    def __post_init__(self) -> None:
+        if not 0.0 < self.level < 1.0:
+            raise CausalValueError("level must be strictly between 0 and 1")
+        if not isfinite(self.critical) or self.critical < 0.0:
+            raise CausalValueError("critical value must be finite and non-negative")
+        if self.replicates < 1:
+            raise CausalValueError("replicates must be at least 1")
+        if len(self.lower) != len(self.upper):
+            raise CausalValueError("lower and upper must have the same number of rows")
+        for lower, upper in zip(self.lower, self.upper, strict=True):
+            if len(lower) != len(upper) or any(
+                lo > hi for lo, hi in zip(lower, upper, strict=True)
+            ):
+                raise CausalValueError("simultaneous band rows must be ordered and aligned")
+
+    @classmethod
+    def from_support(cls, support: SupportReport) -> SimultaneousBand | None:
+        """Rebuild the band from its support diagnostics, or ``None`` if none was published."""
+        by_id = {diagnostic.id: diagnostic for diagnostic in support.diagnostics}
+        lower = by_id.get(SIMULTANEOUS_BAND_LOWER)
+        upper = by_id.get(SIMULTANEOUS_BAND_UPPER)
+        critical = by_id.get(SIMULTANEOUS_BAND_CRITICAL)
+        if lower is None or upper is None or critical is None or len(critical.values) < 3:
+            return None
+        level, value, replicates = critical.values[:3]
+        return cls(
+            level=float(level),
+            critical=float(value),
+            replicates=int(replicates),
+            lower=tuple((float(v),) for v in lower.values),
+            upper=tuple((float(v),) for v in upper.values),
+            detail=lower.detail,
+        )
+
+    def __len__(self) -> int:
+        return len(self.lower)
+
+    def __repr__(self) -> str:
+        return (
+            f"<SimultaneousBand level={fmt_pct(self.level)} critical={fmt_float(self.critical)} "
+            f"replicates={self.replicates} rows={len(self)}>"
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class CausalResponseView:
     """Top-level result projection shared by response-family estimands."""
@@ -282,6 +355,19 @@ class CausalResponseView:
     allowlist_parent: str | None = None
     diagnostics: Sequence[str] = ()
     certificate: dict[str, Any] | None = None
+
+    @property
+    def simultaneous_band(self) -> SimultaneousBand | None:
+        """Band over the whole response grid published next to the pointwise band.
+
+        ``None`` when no such band was published: a Frequentist temporal surface
+        run with ``bootstrap=0`` (see the ``estimate.temporal_response.band_withheld``
+        warning), too few surviving replicates
+        (``response.simultaneous_band_withheld``), or a response whose
+        ``uncertainty.kind`` is already ``"simultaneous"`` (the static Kennedy-DR
+        multiplier band) and so needs no second band.
+        """
+        return SimultaneousBand.from_support(self.support)
 
     def __repr__(self) -> str:
         if isinstance(self.estimate, (float, int)):
@@ -308,6 +394,7 @@ __all__ = [
     "ResponseView",
     "ResponseValidationCheck",
     "ResponseValidationView",
+    "SimultaneousBand",
     "SupportDiagnostic",
     "SupportReport",
     "SupportStatus",
