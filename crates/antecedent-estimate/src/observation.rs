@@ -553,7 +553,13 @@ impl ObservationMechanismEstimator {
                 let y = gather_anchor_column(data, *observed, anchors, 0)?;
                 let r = gather_anchor_column(data, *indicator, anchors, 0)?;
                 Ok(self
-                    .selected_from_columns(&y, &r, &covariates, conditioning.len(), extras.as_ref())?
+                    .selected_from_columns(
+                        &y,
+                        &r,
+                        &covariates,
+                        conditioning.len(),
+                        extras.as_ref(),
+                    )?
                     .values)
             }
             ObservationSpec::RightCensored { observed, censoring, event, .. }

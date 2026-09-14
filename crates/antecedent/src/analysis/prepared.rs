@@ -1400,11 +1400,10 @@ impl Study {
             (DataInput::Tabular(_), CausalQuery::Response(query), Some(posterior))
                 if !query.is_temporal() =>
             {
-                let (treatment, outcome) = query.functional.primary_pair().ok_or_else(|| {
-                    CausalError::Compile {
+                let (treatment, outcome) =
+                    query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
                         message: "response query has no treatment/outcome pair".into(),
-                    }
-                })?;
+                    })?;
                 analysis.graph_posterior_identification_cache =
                     Some(Arc::new(build_graph_posterior_identification_cache(
                         posterior,

@@ -600,14 +600,12 @@ impl super::Study {
                 )?;
                 logical.record.plan_id = Arc::from("temporal_mediation");
                 logical.record.identifier = Some(Arc::from("temporal.mediation"));
-                logical.record.estimator = Some(Arc::from(if matches!(
-                    self.inference,
-                    InferenceMode::Frequentist
-                ) {
-                    EstimatorId::TemporalMediation.as_str()
-                } else {
-                    EstimatorId::BayesianTemporalMediation.as_str()
-                }));
+                logical.record.estimator =
+                    Some(Arc::from(if matches!(self.inference, InferenceMode::Frequentist) {
+                        EstimatorId::TemporalMediation.as_str()
+                    } else {
+                        EstimatorId::BayesianTemporalMediation.as_str()
+                    }));
                 logical.record.validation_suite = self.validation_suite_id();
                 logical.record.query_variables = Arc::from([q.treatment, q.outcome]);
                 logical.query = CausalQuery::Mediation(q.clone());
@@ -1153,14 +1151,7 @@ impl super::Study {
                     ctx,
                 )?
             } else {
-                TemporalAtomDesign::linear(
-                    data,
-                    &atom.estimand,
-                    query,
-                    &atom.indexer,
-                    None,
-                    ctx,
-                )?
+                TemporalAtomDesign::linear(data, &atom.estimand, query, &atom.indexer, None, ctx)?
             };
             let estimate = design.effect_estimate(assumptions);
             point_sum += weight * estimate.ate;
@@ -2070,7 +2061,8 @@ impl super::Study {
             }));
         }
         if matches!(self.inference, InferenceMode::Frequentist) {
-            return self.execute_dbn_posterior_mediation_frequentist(data, gp, query, physical, ctx);
+            return self
+                .execute_dbn_posterior_mediation_frequentist(data, gp, query, physical, ctx);
         }
         let started = Instant::now();
         let cfg = match &self.inference {

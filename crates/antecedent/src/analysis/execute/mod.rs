@@ -250,14 +250,14 @@ mod temporal_path;
 mod tuple_bootstrap;
 include!("execute_helpers.rs");
 
+#[cfg(test)]
+pub(super) use class_envelope_se::circular_block_length;
 #[allow(unused_imports)]
 pub(super) use class_envelope_se::{
     SharedCircularBlockSe, TemporalAtomDesign, envelope_shared_block_diagnostics,
     shared_block_mixture_message, shared_circular_block_mixture_se,
     shared_circular_block_mixture_se_with_length,
 };
-#[cfg(test)]
-pub(super) use class_envelope_se::circular_block_length;
 pub(super) use identified_set_diagnostics::{
     IDENTIFIED_SET_INTERVAL_LEVEL, identified_set_interval_diagnostic,
     posterior_identified_set_interval,

@@ -873,11 +873,17 @@ mod tests {
     #[test]
     fn closed_path_and_distribution_on_explicit_admg_pag_is_enforced() {
         for graph in ["Admg", "Pag"] {
-            let status = classify(cell("PathSpecificEffect", graph, "explicit", "Frequentist", "none"));
+            let status =
+                classify(cell("PathSpecificEffect", graph, "explicit", "Frequentist", "none"));
             assert_eq!(status, CellStatus::Refused, "PathSpecificEffect/{graph}");
-            let err =
-                refuse_if_not_applicable(cell("PathSpecificEffect", graph, "explicit", "Frequentist", "none"))
-                    .unwrap_err();
+            let err = refuse_if_not_applicable(cell(
+                "PathSpecificEffect",
+                graph,
+                "explicit",
+                "Frequentist",
+                "none",
+            ))
+            .unwrap_err();
             assert!(
                 err.to_string().starts_with(
                     "refused: Path and distribution queries execute only on a supplied"

@@ -262,4 +262,3 @@ pub fn tuple_block_observation_replicates(
     }
     Ok((out, attempted, points))
 }
-

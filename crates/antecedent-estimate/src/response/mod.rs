@@ -705,12 +705,8 @@ impl ContinuousResponseEstimator {
                             for sample in &samples {
                                 let fit =
                                     self.fit_outcome_target_weighted(sample, Some(&weights))?;
-                                let (_, gradient) = Self::plugin_gradient_at_fit(
-                                    &fit,
-                                    sample,
-                                    at,
-                                    Some(&weights),
-                                )?;
+                                let (_, gradient) =
+                                    Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
                                 values.push(
                                     gradient.iter().zip(direction.iter()).map(|(a, b)| a * b).sum(),
                                 );
@@ -722,12 +718,8 @@ impl ContinuousResponseEstimator {
                             for sample in &samples {
                                 let fit =
                                     self.fit_outcome_target_weighted(sample, Some(&weights))?;
-                                let (level, gradient) = Self::plugin_gradient_at_fit(
-                                    &fit,
-                                    sample,
-                                    at,
-                                    Some(&weights),
-                                )?;
+                                let (level, gradient) =
+                                    Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
                                 for (j, raw) in gradient.into_iter().enumerate() {
                                     values.push(transform_derivative(raw, at[j], level, *scale)?);
                                 }
@@ -1084,9 +1076,7 @@ impl ContinuousResponseEstimator {
         // Shared IF covariance expects unnormalised row scores (order 1).
         let scale = n as f64;
         let columns = (0..g)
-            .map(|g_idx| {
-                influences[g_idx * n..(g_idx + 1) * n].iter().map(|v| v * scale).collect()
-            })
+            .map(|g_idx| influences[g_idx * n..(g_idx + 1) * n].iter().map(|v| v * scale).collect())
             .collect();
         let scores = ResponseInfluence { columns, row_index };
         Ok((
