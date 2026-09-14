@@ -346,7 +346,7 @@ pub fn temporal_block_length(structural_span: usize, n: usize) -> usize {
 /// a small share of a score: with AR(1) ρ = 0.9 residuals under iid treatment terms at
 /// n = 160 the residual's autocorrelations stay under the Politis–White significance
 /// threshold, the blocks keep the `ceil(sqrt(n))` floor, and the 1.9 calibration
-/// measured 0.885–0.938 pointwise and 0.910 simultaneous coverage of nominal 95%
+/// measured 0.883–0.943 pointwise and 0.873 simultaneous coverage of nominal 95%
 /// (disclosed as [`TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResponseBlockLength {
@@ -400,9 +400,9 @@ const PERSISTENCE_BOUNDARY_MESSAGE: &str = "circular blocks are max(span, ceil(s
      detectably persistent; coverage is gated for iid and AR(1) ρ=0.5 residuals and for the \
      dose curve under an AR(1) φ=0.9 treatment. A strongly persistent component that is a \
      small share of the residual or treatment is not detected at short n: with AR(1) ρ=0.9 \
-     residuals the calibration measured 0.885–0.938 pointwise and 0.910 simultaneous coverage \
+     residuals the calibration measured 0.883–0.943 pointwise and 0.873 simultaneous coverage \
      of nominal 95% on the dose × horizon curve, and a shift response under an AR(1) φ=0.9 \
-     treatment 0.907 pointwise and 0.912 simultaneous (disclosed boundaries, not gated \
+     treatment 0.910 pointwise and 0.912 simultaneous (disclosed boundaries, not gated \
      claims)";
 
 /// Record how a temporal response circular-block band was built: the block-length
