@@ -131,6 +131,9 @@ pub struct TemperingFactor {
     pub nrows: usize,
     /// Whether the cap bound `κ̂` (the correction is then incomplete).
     pub capped: bool,
+    /// Whether the long-run-variance ratio could not be estimated (`n` below
+    /// `max(8, p+2)`); `κ = 1` then leaves the iid posterior in force.
+    pub inestimable: bool,
     /// Label of the scope that chose the combination.
     pub scope: &'static str,
 }
@@ -147,7 +150,7 @@ impl TemperingFactor {
     pub fn note(&self) -> Arc<str> {
         Arc::from(format!(
             "{DEPENDENCE_NOTE_PREFIX} kappa={:.6} raw_ratio={:.6} hac_ratio={:.6} fixed_b={:.6} \
-             ar_ratio={:.6} n={} n_eff={:.3} bandwidth={} scope={} capped={}",
+             ar_ratio={:.6} n={} n_eff={:.3} bandwidth={} scope={} capped={} inestimable={}",
             self.kappa,
             self.raw_ratio,
             self.hac_ratio,
@@ -157,7 +160,8 @@ impl TemperingFactor {
             self.effective_rows(),
             self.bandwidth,
             self.scope,
-            self.capped
+            self.capped,
+            self.inestimable
         ))
     }
 
@@ -177,10 +181,25 @@ impl TemperingFactor {
             self.scope,
             self.bandwidth,
             self.fixed_b,
-            if self.capped { ", capped" } else { "" },
+            if self.inestimable {
+                "; long-run-variance ratio inestimable on this short design — iid posterior \
+                 retained and is likely too narrow"
+            } else if self.capped {
+                ", capped; the correction is then incomplete and the posterior is still too narrow"
+            } else {
+                ""
+            },
             self.effective_rows()
         ))
     }
+}
+
+fn note_flag(notes: &[Arc<str>], key: &str) -> bool {
+    notes.iter().any(|note| {
+        note.strip_prefix(DEPENDENCE_NOTE_PREFIX)
+            .and_then(|rest| rest.split_whitespace().find_map(|kv| kv.strip_prefix(key)))
+            == Some("true")
+    })
 }
 
 /// Parse the tempering factor recorded on posterior inference notes.
@@ -191,6 +210,18 @@ pub fn tempering_kappa_from_notes(notes: &[Arc<str>]) -> Option<f64> {
         let value = rest.split_whitespace().find_map(|kv| kv.strip_prefix("kappa="))?;
         value.parse::<f64>().ok()
     })
+}
+
+/// Whether any tempering note recorded that the `n/(p+2)` cap bound `κ̂`.
+#[must_use]
+pub fn tempering_capped_from_notes(notes: &[Arc<str>]) -> bool {
+    note_flag(notes, "capped=")
+}
+
+/// Whether any tempering note recorded that the LRV ratio could not be estimated.
+#[must_use]
+pub fn tempering_inestimable_from_notes(notes: &[Arc<str>]) -> bool {
+    note_flag(notes, "inestimable=")
 }
 
 /// Estimate the long-run-variance tempering factor for `design` over `scope`.
@@ -217,6 +248,7 @@ pub fn long_run_tempering_factor(
         bandwidth,
         nrows: n,
         capped: false,
+        inestimable: false,
         scope: scope.label(),
     };
     let check_width = |direction: &[f64]| {
@@ -248,7 +280,10 @@ pub fn long_run_tempering_factor(
         .into_iter()
         .filter(|c| c.iter().all(|v| v.is_finite()) && c.iter().any(|v| *v != 0.0))
         .collect();
-    if n < MIN_ROWS.max(p + 2) || directions.is_empty() {
+    if n < MIN_ROWS.max(p + 2) {
+        return Ok(TemperingFactor { inestimable: true, ..floor });
+    }
+    if directions.is_empty() {
         return Ok(floor);
     }
     let x = &design.matrix[..n * p];
@@ -270,7 +305,7 @@ pub fn long_run_tempering_factor(
     // reported alongside it.
     let (mut raw_ratio, mut hac_ratio, mut ar_ratio) = (f64::NAN, f64::NAN, f64::NAN);
     for c in &directions {
-        let v = solve_spd(&xtx, c, p)
+        let v = crate::util::solve_spd(&xtx, c, p)
             .ok_or_else(|| EstimationError::stats_msg("long-run tempering: singular X'X"))?;
         // w_t = x_t'(X'X)⁻¹c: the weight of row t in c'β̂; w_t·ê_t is its influence.
         let weights: Vec<f64> =
@@ -327,38 +362,6 @@ fn ar1_quadratic_ratio(weights: &[f64], residuals: &[f64]) -> f64 {
         norm += w * w;
     }
     if norm > 0.0 { 1.0 + 2.0 * cross / norm } else { 1.0 }
-}
-
-/// Solve `A v = b` for symmetric positive-definite `A` (row-major, `p × p`) by Cholesky.
-fn solve_spd(a: &[f64], b: &[f64], p: usize) -> Option<Vec<f64>> {
-    let mut l = vec![0.0; p * p];
-    for i in 0..p {
-        for j in 0..=i {
-            let mut sum = a[i * p + j];
-            for k in 0..j {
-                sum -= l[i * p + k] * l[j * p + k];
-            }
-            if i == j {
-                if sum <= 0.0 || sum.is_nan() {
-                    return None;
-                }
-                l[i * p + i] = sum.sqrt();
-            } else {
-                l[i * p + j] = sum / l[j * p + j];
-            }
-        }
-    }
-    let mut y = vec![0.0; p];
-    for i in 0..p {
-        let s: f64 = (0..i).map(|k| l[i * p + k] * y[k]).sum();
-        y[i] = (b[i] - s) / l[i * p + i];
-    }
-    let mut v = vec![0.0; p];
-    for i in (0..p).rev() {
-        let s: f64 = (i + 1..p).map(|k| l[k * p + i] * v[k]).sum();
-        v[i] = (y[i] - s) / l[i * p + i];
-    }
-    Some(v)
 }
 
 /// Newey–West rule-of-thumb bandwidth `⌊4 (n/100)^{2/9}⌋`.
@@ -511,6 +514,7 @@ mod tests {
     fn short_or_irrelevant_designs_do_not_temper() {
         let f = long_run_tempering_factor(&design(6, 0.9, 1), &DependenceScope::Treatment).unwrap();
         assert!((f.kappa - 1.0).abs() < f64::EPSILON);
+        assert!(f.inestimable);
         let zero = long_run_tempering_factor(
             &design(200, 0.9, 1),
             &DependenceScope::Direction(Arc::from([0.0, 0.0, 0.0])),

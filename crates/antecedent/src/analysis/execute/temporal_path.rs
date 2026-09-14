@@ -4327,33 +4327,37 @@ fn posterior_identified_set_interval<'a>(
 fn identified_set_interval_diagnostic(
     interval: &antecedent_estimate::IdentifiedSetInterval,
 ) -> Diagnostic {
-    let source = match interval.method {
-        antecedent_estimate::IdentifiedSetIntervalMethod::ImbensManskiPosteriorDraws => {
+    let (label, source) = match interval.method {
+        antecedent_estimate::IdentifiedSetIntervalMethod::ProductPosteriorEnvelopeQuantile => (
+            "product-posterior envelope quantile",
             "per-completion posterior draws paired by index (endpoint quantiles of the \
-             per-draw min / max)"
-        }
-        _ => "shared circular-block replicates refitting every completion on the same resample",
+             per-draw min / max at Imbens-Manski tail probabilities; not a Frequentist IM interval)",
+        ),
+        _ => (
+            "Imbens-Manski",
+            "shared circular-block replicates refitting every completion on the same resample",
+        ),
     };
     Diagnostic::new(
         "estimate.temporal_class.identified_set_interval",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         format!(
-            "Imbens-Manski {:.0}% interval [{:.6}, {:.6}] for the identified set [{:.6}, {:.6}] \
-             over {} identified completions; bound SDs {:.6} / {:.6} from {}; critical value \
-             {:.4} ({}); covers the true effect whenever it is one completion's effect; \
+            "{label} {level:.0}% interval [{lo:.6}, {hi:.6}] for the identified set \
+             [{bound_lo:.6}, {bound_hi:.6}] over {completions} identified completions; \
+             bound SDs {se_lo:.6} / {se_hi:.6} from {source}; critical value {crit:.4} ({width}); \
+             covers the true effect whenever it is one completion's effect; \
              conservative when completions nearly agree",
-            interval.level * 100.0,
-            interval.lower,
-            interval.upper,
-            interval.bound_lower,
-            interval.bound_upper,
-            interval.completions,
-            interval.lower_se,
-            interval.upper_se,
-            source,
-            interval.critical_value,
-            if interval.width_retained {
+            level = interval.level * 100.0,
+            lo = interval.lower,
+            hi = interval.upper,
+            bound_lo = interval.bound_lower,
+            bound_hi = interval.bound_upper,
+            completions = interval.completions,
+            se_lo = interval.lower_se,
+            se_hi = interval.upper_se,
+            crit = interval.critical_value,
+            width = if interval.width_retained {
                 "set width retained"
             } else {
                 "set width within noise: two-sided"
@@ -5004,16 +5008,17 @@ fn tuple_block_observation_replicates(
     let points: Vec<Vec<f64>> = prepared.iter().map(PreparedTupleTarget::point).collect();
     let mut out = Vec::new();
     let mut attempted = 0u32;
+    let mut positions = Vec::with_capacity(m);
+    let mut anchors = Vec::with_capacity(m);
     for replicate in 0..replicates {
         if ctx.cancellation.is_cancelled() || m < 3 {
             break;
         }
         attempted += 1;
         let mut rng = ctx.rng.stream(stream + u64::from(replicate));
-        let anchors: Vec<usize> = antecedent_estimate::circular_block_positions(m, block, &mut rng)
-            .into_iter()
-            .map(|position| first_anchor + position)
-            .collect();
+        antecedent_estimate::circular_block_positions_into(m, block, &mut rng, &mut positions);
+        anchors.clear();
+        anchors.extend(positions.iter().map(|&position| first_anchor + position));
         let values = targets
             .iter()
             .zip(&prepared)

@@ -42,9 +42,11 @@ pub enum IdentifiedSetIntervalMethod {
     /// Frequentist Imbens–Manski interval from shared circular-block replicates
     /// (every completion refit on the same resample; SDs fixed-b scaled).
     ImbensManskiSharedBlock,
-    /// Bayesian analogue from per-completion posterior draws paired by draw
-    /// index: endpoint quantiles of the per-draw min / max at the IM tail level.
-    ImbensManskiPosteriorDraws,
+    /// Product-posterior envelope: per-draw min / max of independent completion
+    /// draws, then quantiles at Imbens–Manski tail probabilities `1 − Φ(c)`.
+    /// Not a Frequentist IM interval (the SDs are not sampling SDs of estimated
+    /// bounds, and `c` is not a posterior probability).
+    ProductPosteriorEnvelopeQuantile,
 }
 
 /// Interval for the identified set of a class-aware scalar effect.
@@ -199,7 +201,7 @@ pub fn imbens_manski_posterior_draws(
         rows,
         level,
         bounds.lower.len(),
-        IdentifiedSetIntervalMethod::ImbensManskiPosteriorDraws,
+        IdentifiedSetIntervalMethod::ProductPosteriorEnvelopeQuantile,
         Some((&bounds.lower, &bounds.upper)),
     )
 }

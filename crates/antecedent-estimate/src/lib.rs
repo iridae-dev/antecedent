@@ -135,7 +135,8 @@ pub use se::DEFAULT_RIDGE_ON_SEPARATION;
 pub use se::{AnalyticSeKind, LinearSeKind};
 pub use serial_dependence::{
     DEPENDENCE_ASSUMPTION_ID, DEPENDENCE_NOTE_PREFIX, DependenceScope, SerialDependence,
-    TemperingFactor, long_run_tempering_factor, tempering_kappa_from_notes,
+    TemperingFactor, long_run_tempering_factor, tempering_capped_from_notes,
+    tempering_inestimable_from_notes, tempering_kappa_from_notes,
 };
 pub use temporal_adjustment::{
     TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe, TemporalLinearAdjustment,
@@ -156,9 +157,10 @@ pub use temporal_response::{
     MaxDeviationBand, PreparedTemporalSurface, SIMULTANEOUS_BAND_CRITICAL, SIMULTANEOUS_BAND_LOWER,
     SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER, SIMULTANEOUS_BAND_WITHHELD,
     TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC, TemporalInterventionPlan, TemporalResponseEstimator,
-    block_dispersion_inflation, circular_block_positions, clear_simultaneous_band,
-    inflate_replicates, max_deviation_band, max_deviation_band_columns, plan_from_response_query,
-    plan_temporal_intervention, publish_simultaneous_band, temporal_block_length,
+    block_dispersion_inflation, circular_block_positions, circular_block_positions_into,
+    clear_simultaneous_band, inflate_replicates, max_deviation_band, max_deviation_band_columns,
+    plan_from_response_query, plan_temporal_intervention, publish_simultaneous_band,
+    temporal_block_length,
 };
 pub use temporal_sequential::{
     SequentialContrastDesign, SequentialMechanismOverlay, SequentialNodeOverlay,
