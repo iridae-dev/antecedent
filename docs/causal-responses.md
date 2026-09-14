@@ -438,9 +438,12 @@ sampling coverage of every published derivative interval is gated in
   `response.derivative_interval_bias_corrected` says so on every result that
   publishes one. The conventional local-quadratic interval ignores the
   `O(h² m‴)` smoothing bias of the slope and covered about 82% at a nominal
-  90% at an MSE-sized bandwidth on a curved response. The Frequentist interval
-  treats the cross-fitted pseudo-outcome as data and conditions on the caller
-  bandwidth.
+  90% at an MSE-sized bandwidth on a curved response. For `order=2` the
+  leading curvature bias of a local quadratic is `O(h² m⁗)`, which a local
+  cubic does not reduce, so the second-derivative interval is centered at the
+  local-quartic curvature with its own Eicker–White standard error. The
+  Frequentist interval treats the cross-fitted pseudo-outcome as data and
+  conditions on the caller bandwidth.
 - `AverageDerivative(...)` averages a derivative over an explicit weighting
   law; only observed-law weighting is licensed, via the Gaussian-score Riesz
   representer. The representer assumes the treatment is homoskedastic Gaussian
@@ -480,7 +483,8 @@ which every draw refits its nuisances:
 - `PointDerivative`, `Elasticity`, and `SemiElasticity` rebuild the
   cross-fitted Kennedy pseudo-outcome per draw (outcome and treatment
   nuisances refit on each weighted training fold), then evaluate the weighted
-  local quadratic and its bias-corrected local cubic at the caller bandwidth.
+  local quadratic and its bias-corrected coordinate at the caller bandwidth
+  (local-cubic slope; local-quartic level and curvature).
   The reported value is the posterior mean of the local-quadratic coordinate;
   the credible interval and `standard_error` come from the bias-corrected
   draws. Scale transforms are applied per draw, so elasticity and log-outcome
