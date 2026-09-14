@@ -1600,6 +1600,39 @@ fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::result::StudyR
     assert_eq!(subset.replicates, 20);
 }
 
+/// Validation `none` on both structure axes for Pulse and single-step
+/// Sustained: the staged click recovers the fixture's pulse / sustained
+/// projection contrast and runs no refuter.
+#[test]
+fn dose_horizon_pulse_and_sustained_none_all_structures() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/response/temporal_dose_horizon/expected.json"
+    ))
+    .unwrap();
+    let atol = fixture["tolerance"]["atol"].as_f64().unwrap();
+    for (key, query) in [
+        ("pulse_effect_projection", dose_horizon_pulse_query()),
+        ("sustained_effect_projection", dose_horizon_sustained_query()),
+    ] {
+        let truth = fixture["contract"][key]["contrast"].as_f64().unwrap();
+        for accepted in [false, true] {
+            let result = run_temporal_frequentist_case(accepted, query.clone(), RefuteSuite::None)
+                .unwrap_or_else(|e| panic!("{key} accepted={accepted}: {e}"));
+            assert_dose_horizon_ate(&result);
+            assert!(
+                (result.estimate.ate - truth).abs() <= atol,
+                "{key} accepted={accepted}: ate={} truth={truth}",
+                result.estimate.ate
+            );
+            assert!(
+                result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+                "{key} accepted={accepted}: the prepared click must reuse identification"
+            );
+            assert!(result.refutations.is_empty(), "{key} accepted={accepted}: none runs nothing");
+        }
+    }
+}
+
 #[test]
 fn dose_horizon_pulse_explicit_cheap_runs_evalue_only() {
     let result =

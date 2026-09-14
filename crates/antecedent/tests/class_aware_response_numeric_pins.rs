@@ -508,3 +508,50 @@ fn class_aware_bayesian_intervention_pins_against_ate_envelope() {
         }
     }
 }
+
+/// Bayesian `ResponseCurve × Cpdag` on explicit and accepted structure: the
+/// same MEC envelope evaluated pointwise with `response.bayesian` on the
+/// discrete table. The two-point `[0, 1]` curve contrast must equal the
+/// fixture's CPDAG Bayesian ATE contrast, per-completion draws stay unmixed
+/// (the disclosure diagnostic fires), and the prepared click reuses the frozen
+/// envelope.
+#[test]
+fn class_aware_bayesian_curve_pins_against_ate_envelope() {
+    let pin = pin();
+    let data = expand_contingency(&pin);
+    let bayes = &pin["bayesian"];
+    let diagnostic = bayes["diagnostic"].as_str().unwrap();
+    let seed = bayes["seed"].as_u64().unwrap();
+    let expected = bayes["cpdag_ate_contrast"].as_f64().unwrap();
+    let tol = bayes["contrast_tolerance"].as_f64().unwrap();
+    let section = &pin["cpdag"];
+    let graph = ClassGraph::Cpdag(cpdag_from_pin(&pin));
+    for accepted in [false, true] {
+        let study = build_bayesian_response(&data, &graph, accepted, curve_query(&pin), &pin);
+        let (ctx, sink) = recording_ctx(seed);
+        let fresh = study.clone().run(&ctx).unwrap();
+        assert_eq!(identify_computations(&sink), 1);
+        let prepared: PreparedStudy = study.prepare(&ctx).unwrap();
+        let click = prepared.estimate(&data, &ctx).unwrap();
+        assert_eq!(identify_computations(&sink), 2, "the click must reuse the envelope");
+        assert_eq!(cached_count(&fresh), 0);
+        assert_eq!(cached_count(&click), 1);
+        assert_eq!(fresh.logical_plan.estimator.as_deref(), Some("response.bayesian"));
+        for result in [&fresh, &click] {
+            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            assert_eq!(format!("{:?}", result.identification.status), "PartiallyIdentified");
+            assert_envelope_diagnostic(result, section, "cpdag");
+            assert!(
+                result.diagnostics.iter().any(|d| d.code.as_ref() == diagnostic),
+                "accepted={accepted}: must disclose {diagnostic}"
+            );
+            let values = response_values(result);
+            assert_eq!(values.len(), 2);
+            assert!(
+                (values[1] - values[0] - expected).abs() < tol,
+                "accepted={accepted}: Bayesian curve contrast {} vs {expected}",
+                values[1] - values[0]
+            );
+        }
+    }
+}
