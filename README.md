@@ -65,7 +65,9 @@ The release calibrates the licensed intervals: every licensed cell was
 reviewed, its intervals are checked by a two-sided repeated-sampling coverage
 gate, and cells measured outside their gated scope are disclosed as boundary
 records. It adds ADMG interventional distributions, accepted-Dag
-counterfactuals and Frequentist DBN-posterior mediation. The
+counterfactuals, Frequentist DBN-posterior mediation, and staged
+`AnomalyAttribution` / `ChangeAttribution` / `TransportQuery` /
+`InterferenceQuery` cells (Rust Study API only). The
 [1.9.0 release notes](docs/release-notes/v1.9.0.md), [support
 matrix](docs/support-matrix.md), and [conformance index](docs/conformance/README.md)
 state the implemented scope and verification limits. The [1.5 Python

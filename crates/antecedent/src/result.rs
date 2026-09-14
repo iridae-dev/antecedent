@@ -11,8 +11,8 @@ use antecedent_core::{
     ResponseValue, VariableId,
 };
 use antecedent_estimate::{
-    CausalPosterior, EffectEstimate, InterventionalDistributionEstimate, TemporalMediationEstimate,
-    TemporalMediationGrid,
+    CausalPosterior, EffectEstimate, InterferenceEstimate, InterventionalDistributionEstimate,
+    TemporalMediationEstimate, TemporalMediationGrid, TransportEffectEstimate,
 };
 use antecedent_identify::{IdentificationResult, IdentifiedEstimand};
 use antecedent_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
@@ -171,6 +171,10 @@ pub struct StudyResult {
     pub mechanism_change: Option<Vec<MechanismChangeDetection>>,
     /// Unit-change attribution.
     pub unit_change: Option<UnitChangeResult>,
+    /// Trial-to-target transport estimate when the query was transport.
+    pub transport: Option<TransportEffectEstimate>,
+    /// Design-based interference estimate when the query was interference.
+    pub interference: Option<InterferenceEstimate>,
     /// Refutation reports (may be empty).
     pub refutations: Vec<RefutationReport>,
     /// Prior/posterior predictive check reports (Bayesian path; may be empty).

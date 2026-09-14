@@ -195,9 +195,17 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let _ = ctx;
         let started = Instant::now();
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let outcome = *query.targets.first().unwrap_or(&VariableId::from_raw(0));
+        let (_, _, identify_cached) =
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                Ok(parametric_scm_identification(
+                    CausalQuery::AnomalyAttribution(query.clone()),
+                    outcome,
+                    outcome,
+                ))
+            })?;
         let fitted = fit_gcm(graph.clone(), data)?;
         let scores = anomaly_attribution(
             &fitted.model,
@@ -205,7 +213,6 @@ impl super::Study {
             query.targets.iter().copied(),
             query.max_units,
         )?;
-        let outcome = *query.targets.first().unwrap_or(&VariableId::from_raw(0));
         Ok(self.finish_gcm(
             physical,
             CausalQuery::AnomalyAttribution(query.clone()),
@@ -215,6 +222,7 @@ impl super::Study {
             started,
             GcmSlot::Anomaly(scores),
             Vec::new(),
+            identify_cached,
         ))
     }
 
@@ -228,6 +236,14 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let (_, _, identify_cached) =
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                Ok(parametric_scm_identification(
+                    CausalQuery::ChangeAttribution(query.clone()),
+                    query.outcome,
+                    query.outcome,
+                ))
+            })?;
         let fitted = fit_gcm(graph.clone(), data)?;
         let result = attribute_distribution_change(
             &fitted.model,
@@ -251,6 +267,7 @@ impl super::Study {
             started,
             GcmSlot::Change(result),
             Vec::new(),
+            identify_cached,
         ))
     }
 
@@ -282,6 +299,7 @@ impl super::Study {
             started,
             GcmSlot::Mechanism(detections),
             Vec::new(),
+            false,
         ))
     }
 
@@ -306,6 +324,7 @@ impl super::Study {
             started,
             GcmSlot::Unit(result),
             Vec::new(),
+            false,
         ))
     }
 
@@ -319,6 +338,7 @@ impl super::Study {
         started: Instant,
         slot: GcmSlot,
         diagnostics: Vec<Diagnostic>,
+        identify_cached: bool,
     ) -> StudyResult {
         let (identification, estimand) = parametric_scm_identification(query, treatment, outcome);
         self.finish_identified_execute(IdentifiedExecuteFinish {
@@ -330,7 +350,7 @@ impl super::Study {
             estimator_id: EstimatorId::GcmFit,
             treatment,
             outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics: Vec::new(),
             refutations: Vec::new(),
             distribution: None,

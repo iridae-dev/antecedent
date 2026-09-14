@@ -1551,6 +1551,13 @@ impl Study {
                 analysis.temporal_class_identification_cache =
                     self.prepare_temporal_class_identification()?.map(Arc::new);
             }
+            (DataInput::Tabular(_), CausalQuery::Transport(query), None) => {
+                let diagram = self.selection_diagram.as_ref().ok_or(CausalError::Unsupported {
+                    message: "TransportQuery prepare requires a selection diagram",
+                })?;
+                analysis.transport_identification_cache =
+                    Some(Arc::new(super::execute::live_transport_identification(diagram, query)?));
+            }
             (DataInput::Tabular(_), _, None) => {
                 analysis.identification_cache =
                     self.prepare_static_identification(&plan)?.map(Arc::new);
@@ -1592,6 +1599,7 @@ impl Study {
             || analysis.cpdag_identification_cache.is_some()
             || analysis.temporal_identification_cache.is_some()
             || analysis.temporal_class_identification_cache.is_some()
+            || analysis.transport_identification_cache.is_some()
         {
             super::execute::report_identify_compute(ctx);
         }
@@ -1620,6 +1628,18 @@ impl Study {
             let identification =
                 identify_static_query(IdentifierId::GcmParametric, graph, &self.query)?;
             let estimand = identification.estimands[0].clone();
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        if matches!(
+            self.query,
+            CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_)
+        ) {
+            let (treatment, outcome) = super::execute::gcm_query_vars(&self.query)?;
+            let (identification, estimand) = super::execute::parametric_scm_identification(
+                self.query.clone(),
+                treatment,
+                outcome,
+            );
             return Ok(Some(CachedStaticIdentification { identification, estimand }));
         }
         let identifier = plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
@@ -2470,6 +2490,26 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 return Err(CausalError::Unsupported { message: "counterfactual requires Dag" });
             }
         }
+        (
+            DataInput::Tabular(_),
+            CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
+        ) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported {
+                    message: "AnomalyAttribution and ChangeAttribution require a supplied Dag",
+                });
+            }
+        }
+        (DataInput::Tabular(_), CausalQuery::Transport(_)) => {
+            if analysis.graph.class() != GraphClass::Admg {
+                return Err(CausalError::Unsupported { message: "TransportQuery requires Admg" });
+            }
+        }
+        (DataInput::Tabular(_), CausalQuery::Interference(_)) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported { message: "InterferenceQuery requires Dag" });
+            }
+        }
         (DataInput::Tabular(_), CausalQuery::Mediation(_)) => {
             if analysis.graph.class() != GraphClass::Dag {
                 return Err(CausalError::Unsupported { message: "static mediation requires Dag" });
@@ -2516,7 +2556,8 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 message: "PreparedStudy currently supports AverageEffect, ResponseCurve, \
                     ConditionalEffect, PathSpecific, Distribution, temporal ResponseCurve, \
                     TemporalEffect (Pulse / single-step Sustained), TemporalMediationEffect, \
-                    or panel Pulse/Sustained",
+                    panel Pulse/Sustained, Counterfactual, AnomalyAttribution, \
+                    ChangeAttribution, TransportQuery, or InterferenceQuery",
             });
         }
     }

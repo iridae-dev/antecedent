@@ -1,7 +1,7 @@
 // Free functions supporting Study execute paths.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-pub(super) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, VariableId), CausalError> {
+pub(crate) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, VariableId), CausalError> {
     match query {
         CausalQuery::Counterfactual(q) => {
             let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Compile {
@@ -44,6 +44,8 @@ pub(super) enum AnalysisRoute {
     TemporalEffect,
     PanelTemporalEffect,
     MultiEnvTemporalEffect,
+    Transport,
+    Interference,
 }
 
 #[derive(Clone, Copy)]
@@ -99,6 +101,8 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         (DataModality::MultiEnv, CausalQuery::TemporalEffect(_)) => {
             AnalysisRoute::MultiEnvTemporalEffect
         }
+        (DataModality::Tabular, CausalQuery::Transport(_)) => AnalysisRoute::Transport,
+        (DataModality::Tabular, CausalQuery::Interference(_)) => AnalysisRoute::Interference,
         _ => return None,
     })
 }
@@ -275,7 +279,10 @@ pub(super) fn interactive_subsample_graphs_accounted(
 
 /// `estimate.envelope.interactive_subsample`: which identified atoms the
 /// Interactive tier skipped, why, and where their mass is reported.
-fn interactive_subsample_diagnostic(drop: &InteractiveSubsampleDrop, total_weight: f64) -> Diagnostic {
+fn interactive_subsample_diagnostic(
+    drop: &InteractiveSubsampleDrop,
+    total_weight: f64,
+) -> Diagnostic {
     let listed = drop
         .keys
         .iter()
@@ -314,8 +321,7 @@ pub(super) fn maybe_interactive_envelope_subsample(
     per_graph: Vec<GraphEffectDraws>,
     ctx: &ExecutionContext,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Result<(WeightedGraphSamples, Vec<GraphEffectDraws>, InteractiveSubsampleDrop), CausalError>
-{
+) -> Result<(WeightedGraphSamples, Vec<GraphEffectDraws>, InteractiveSubsampleDrop), CausalError> {
     let (graphs, drop) =
         interactive_subsample_graphs_accounted(latency_mode, graphs, ctx, diagnostics)?;
     // Same trigger as the subsample's own `approximate` flag.

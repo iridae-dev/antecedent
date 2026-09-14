@@ -178,6 +178,15 @@ pub struct Study {
     pub(crate) continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
     /// Shared fold assignment / covariate design when this study is part of a batch.
     pub(crate) shared_batch_design: Option<std::sync::Arc<super::batch::SharedBatchDesign>>,
+    /// Selection diagram frozen for a transport query.
+    pub(crate) selection_diagram: Option<antecedent_graph::SelectionDiagram>,
+    /// Trial columns frozen for a transport query.
+    pub(crate) transport_trial: Option<super::builder::TransportTrialSpec>,
+    /// Network + assignment frozen for an interference query.
+    pub(crate) interference: Option<super::builder::InterferenceSpec>,
+    /// Prepare-time transport formula + certificate.
+    pub(crate) transport_identification_cache:
+        Option<std::sync::Arc<antecedent_identify::TransportIdentification>>,
 }
 
 impl std::fmt::Debug for Study {
@@ -231,6 +240,13 @@ impl std::fmt::Debug for Study {
                 &self.dbn_posterior_identification_cache.is_some(),
             )
             .field("shared_batch_design_is_some", &self.shared_batch_design.is_some())
+            .field("selection_diagram_is_some", &self.selection_diagram.is_some())
+            .field("transport_trial_is_some", &self.transport_trial.is_some())
+            .field("interference_is_some", &self.interference.is_some())
+            .field(
+                "transport_identification_cache_is_some",
+                &self.transport_identification_cache.is_some(),
+            )
             .finish()
     }
 }
@@ -248,6 +264,7 @@ mod response_path;
 mod sequential_validation;
 mod static_path;
 mod temporal_path;
+mod transport_interference_path;
 mod tuple_bootstrap;
 include!("execute_helpers.rs");
 
@@ -268,6 +285,7 @@ pub(super) use tuple_bootstrap::{
 };
 
 pub(crate) use static_path::DistributionGraph;
+pub(crate) use transport_interference_path::live_transport_identification;
 
 pub(crate) use response_path::{
     class_aware_response_supported, graph_posterior_response_supported, response_witness_ate,

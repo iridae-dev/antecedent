@@ -8,8 +8,10 @@ reason = "Temporal contrast queries require a temporal graph class."
 
 [[n_a]]
 queries = [
+  "AnomalyAttribution",
   "AverageDerivative",
   "AverageEffect",
+  "ChangeAttribution",
   "ConditionalEffect",
   "Counterfactual",
   "DirectionalDerivative",
@@ -67,7 +69,9 @@ reason = "Derivative-native validation is not implemented; ATE refuters do not a
 
 [[n_a]]
 queries = [
+  "AnomalyAttribution",
   "AverageDerivative",
+  "ChangeAttribution",
   "ConditionalEffect",
   "Counterfactual",
   "DirectionalDerivative",
@@ -88,7 +92,9 @@ reason = "Unknown-tier cells license the two-scenario AverageEffect envelope onl
 
 [[n_a]]
 queries = [
+  "AnomalyAttribution",
   "AverageDerivative",
+  "ChangeAttribution",
   "ConditionalEffect",
   "Counterfactual",
   "DirectionalDerivative",

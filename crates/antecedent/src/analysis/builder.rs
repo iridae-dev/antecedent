@@ -19,8 +19,8 @@ use antecedent_core::{
     VariableId,
 };
 use antecedent_data::{
-    DiscoveryEstimationSplit, EventData, MultiEnvironmentData, PanelData, TableView, TabularData,
-    TimeSeriesData,
+    DiscoveryEstimationSplit, EventData, MultiEnvironmentData, NetworkData, PanelData, TableView,
+    TabularData, TimeSeriesData,
 };
 use antecedent_discovery::GraphPosterior;
 use antecedent_estimate::{ContinuousResponseOptions, OverlapPolicy};
@@ -69,6 +69,26 @@ impl RefuteSuite {
             None => "none",
         }
     }
+}
+
+/// Trial membership and known probabilities for a licensed [`CausalQuery::Transport`] cell.
+#[derive(Clone, Debug)]
+pub struct TransportTrialSpec {
+    /// Source-trial membership (`true` = source experiment row).
+    pub trial: VariableId,
+    /// P(S=1 | X) on every row, strictly inside (0, 1).
+    pub selection_probability: VariableId,
+    /// P(A=1 | X, S=1) on trial rows; unread on target rows.
+    pub treatment_probability: VariableId,
+}
+
+/// Fixed network and realized assignment for a licensed [`CausalQuery::Interference`] cell.
+#[derive(Clone, Debug)]
+pub struct InterferenceSpec {
+    /// Unit table plus incoming exposure edges.
+    pub network: NetworkData,
+    /// Realized binary assignment in unit-row order.
+    pub assignment: Arc<[bool]>,
 }
 
 /// Refusal for panel data paired with a [`CausalQuery::Response`] query.
@@ -313,6 +333,12 @@ pub struct StudyBuilder {
     compute_budget: ComputeBudget,
     /// Optional progressive stage-result sink (Identify → Point → Uncertainty → Validate).
     stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
+    /// Selection-node targets for a transport query (empty = Direct).
+    selection_targets: Option<Arc<[VariableId]>>,
+    /// Trial columns for a transport query.
+    transport_trial: Option<TransportTrialSpec>,
+    /// Network + assignment for an interference query.
+    interference: Option<InterferenceSpec>,
 }
 
 impl std::fmt::Debug for StudyBuilder {
@@ -348,6 +374,9 @@ impl std::fmt::Debug for StudyBuilder {
             .field("latency_mode", &self.latency_mode)
             .field("compute_budget", &self.compute_budget)
             .field("stage_sink_is_some", &self.stage_sink.is_some())
+            .field("selection_targets", &self.selection_targets)
+            .field("transport_trial", &self.transport_trial)
+            .field("interference", &self.interference)
             .finish()
     }
 }
@@ -385,6 +414,9 @@ impl StudyBuilder {
             latency_mode: None,
             compute_budget: ComputeBudget::new(),
             stage_sink: None,
+            selection_targets: None,
+            transport_trial: None,
+            interference: None,
         }
     }
 
@@ -653,6 +685,27 @@ impl StudyBuilder {
     #[must_use]
     pub fn observation_delayed_entry(mut self, variable: antecedent_core::VariableId) -> Self {
         self.observation_delayed_entry = Some(variable);
+        self
+    }
+
+    /// Selection-node targets for [`CausalQuery::Transport`] (empty = Direct formula).
+    #[must_use]
+    pub fn selection_targets(mut self, targets: impl Into<Arc<[VariableId]>>) -> Self {
+        self.selection_targets = Some(targets.into());
+        self
+    }
+
+    /// Trial membership and known probabilities for [`CausalQuery::Transport`].
+    #[must_use]
+    pub fn transport_trial(mut self, spec: TransportTrialSpec) -> Self {
+        self.transport_trial = Some(spec);
+        self
+    }
+
+    /// Fixed network and realized assignment for [`CausalQuery::Interference`].
+    #[must_use]
+    pub fn interference(mut self, spec: InterferenceSpec) -> Self {
+        self.interference = Some(spec);
         self
     }
 
@@ -1174,6 +1227,61 @@ impl StudyBuilder {
             None
         };
 
+        let (selection_diagram, transport_trial, interference) = match &query {
+            CausalQuery::Transport(_) => {
+                if self.interference.is_some() {
+                    return Err(CausalError::Unsupported {
+                        message: "interference network is not used by TransportQuery",
+                    });
+                }
+                let admg = graph.as_admg().ok_or(CausalError::Unsupported {
+                    message: "TransportQuery requires a supplied Admg",
+                })?;
+                let targets = self.selection_targets.clone().unwrap_or_default();
+                let diagram = antecedent_graph::SelectionDiagram::try_new(admg.clone(), targets)
+                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                let trial = self.transport_trial.clone().ok_or(CausalError::Unsupported {
+                    message: "TransportQuery requires StudyBuilder::transport_trial",
+                })?;
+                (Some(diagram), Some(trial), None)
+            }
+            CausalQuery::Interference(_) => {
+                if self.transport_trial.is_some() || self.selection_targets.is_some() {
+                    return Err(CausalError::Unsupported {
+                        message: "transport trial columns are not used by InterferenceQuery",
+                    });
+                }
+                let spec = self.interference.clone().ok_or(CausalError::Unsupported {
+                    message: "InterferenceQuery requires StudyBuilder::interference",
+                })?;
+                let DataInput::Tabular(units) = &data else {
+                    return Err(CausalError::Unsupported {
+                        message: "InterferenceQuery requires tabular unit data",
+                    });
+                };
+                if spec.network.units().row_count() != units.row_count()
+                    || spec.assignment.len() != units.row_count()
+                {
+                    return Err(CausalError::Compile {
+                        message: "interference network, assignment, and unit table row counts \
+                                  must match"
+                            .into(),
+                    });
+                }
+                (None, None, Some(spec))
+            }
+            _ if self.transport_trial.is_some()
+                || self.selection_targets.is_some()
+                || self.interference.is_some() =>
+            {
+                return Err(CausalError::Unsupported {
+                    message: "selection_targets / transport_trial / interference are only valid \
+                              for TransportQuery or InterferenceQuery",
+                });
+            }
+            _ => (None, None, None),
+        };
+
         Ok(Study {
             data,
             graph,
@@ -1211,6 +1319,10 @@ impl StudyBuilder {
             tiered: self.tiered,
             continuous_cell: self.continuous_cell,
             shared_batch_design: None,
+            selection_diagram,
+            transport_trial,
+            interference,
+            transport_identification_cache: None,
         })
     }
 }

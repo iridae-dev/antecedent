@@ -110,8 +110,10 @@ from .identify import Identification, estimate, identify
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .query import (
+    AnomalyAttribution,
     AverageDerivative,
     AverageEffect,
+    ChangeAttribution,
     ConditionalEffect,
     Counterfactual,
     DirectionalDerivative,
@@ -140,8 +142,10 @@ __all__ = [
     "Identification",
     "AnalysisResult",
     # Queries
+    "AnomalyAttribution",
     "AverageDerivative",
     "AverageEffect",
+    "ChangeAttribution",
     "ConditionalEffect",
     "Counterfactual",
     "DirectionalDerivative",
