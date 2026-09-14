@@ -44,8 +44,9 @@ use crate::temporal_block::{
     AlignedRows, aligned_block_bootstrap, common_time_window, normal_equation_scores,
     testing_block_length,
 };
+use crate::temporal_response_dispersion::{CellDispersion, RESPONSE_SHORT_SERIES_ROWS};
 use crate::temporal_sequential::{SequentialMechanismOverlay, SequentialNodeOverlay};
-use crate::util::{BOOTSTRAP_MAX_FAILURE_FRAC, monte_carlo_critical, range, sample_std};
+use crate::util::{BOOTSTRAP_MAX_FAILURE_FRAC, monte_carlo_critical, range, sample_std, solve_spd};
 
 /// Licensed temporal `InterventionResponse` overlay.
 #[derive(Clone, Debug, PartialEq)]
@@ -324,7 +325,9 @@ pub fn clear_simultaneous_band(support: &mut SupportReport) {
 /// 1.9 calibration of the observation-adjusted surface measured 0.89–0.91 pointwise
 /// coverage of nominal 95% bands under AR(1) ρ = 0.5 residuals at n = 160. The
 /// estimation noise the longer block adds is carried by the fixed-b factor of
-/// [`block_dispersion_inflation`].
+/// [`block_dispersion_inflation`]; the kernel bias that remains at any licensed
+/// length on a persistent influence is carried by the per-cell factor of
+/// [`crate::temporal_response_dispersion::kernel_bias_factor`].
 #[must_use]
 pub fn temporal_block_length(structural_span: usize, n: usize) -> usize {
     let root = (n as f64).sqrt().ceil() as usize;
@@ -342,12 +345,16 @@ pub fn temporal_block_length(structural_span: usize, n: usize) -> usize {
 /// averages the level reads.
 ///
 /// The lengthening fires when a score is detectably persistent (an AR(1) φ = 0.9
-/// treatment column, say). It does not fire when a strongly persistent component is
-/// a small share of a score: with AR(1) ρ = 0.9 residuals under iid treatment terms at
-/// n = 160 the residual's autocorrelations stay under the Politis–White significance
-/// threshold, the blocks keep the `ceil(sqrt(n))` floor, and the 1.9 calibration
-/// measured 0.883–0.943 pointwise and 0.873 simultaneous coverage of nominal 95%
-/// (disclosed as [`TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY`]).
+/// treatment column, say). The Bartlett kernel of the block still misses `O(1/ℓ)` of
+/// a persistent influence's long-run variance at any licensed length; each published
+/// cell's replicate deviations therefore also carry the parametric kernel-bias factor
+/// of [`crate::temporal_response_dispersion::kernel_bias_factor`]. Neither reading
+/// fires when a strongly persistent component is a small share of a score: with AR(1)
+/// ρ = 0.9 residuals under omitted iid treatment lags at n = 160 the residual's
+/// autocorrelations stay under the Politis–White significance threshold, the fitted
+/// autoregression reads a lag-1 coefficient near 0.14, and the calibration measured
+/// 0.883–0.943 pointwise and 0.873 simultaneous coverage of nominal 95% (disclosed as
+/// [`TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResponseBlockLength {
     /// Published block length, in lag-aligned rows.
@@ -391,61 +398,95 @@ pub const TEMPORAL_RESPONSE_FEW_REPLICATES: &str =
 /// and the measured coverage beyond it.
 pub const TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY: &str =
     "response.temporal.block.persistence_boundary";
+/// Support-diagnostic id carrying each published cell's kernel-bias factor (the layout
+/// of the mean; one value for a mixed class band).
+pub const TEMPORAL_RESPONSE_KERNEL_FACTOR: &str = "response.temporal.kernel_bias_factor";
+/// Support-diagnostic id carrying each published cell's influence effective rows (the
+/// layout of the mean; one value for a mixed class band).
+pub const TEMPORAL_RESPONSE_EFFECTIVE_ROWS: &str = "response.temporal.effective_rows";
+/// Warning code: a published cell's influence has fewer than
+/// [`RESPONSE_SHORT_SERIES_ROWS`] effective rows, so the band may under-cover.
+pub const TEMPORAL_RESPONSE_SHORT_SERIES: &str = "response.temporal.block.short_series";
 
 /// Text of [`TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY`]; the numbers are the 1.9
 /// calibration (`crates/antecedent/tests/v19_temporal_response_calibration.rs`, 400
-/// replicates, n = 160, nominal 95%).
+/// replicates, nominal 95%).
 const PERSISTENCE_BOUNDARY_MESSAGE: &str = "circular blocks are max(span, ceil(sqrt(n))), \
-     lengthened to ceil(b_PW·n^(1/6)) (at most n/3) only when an estimating score is \
-     detectably persistent; coverage is gated for iid and AR(1) ρ=0.5 residuals and for the \
-     dose curve under an AR(1) φ=0.9 treatment. A strongly persistent component that is a \
-     small share of the residual or treatment is not detected at short n: with AR(1) ρ=0.9 \
-     residuals the calibration measured 0.883–0.943 pointwise and 0.873 simultaneous coverage \
-     of nominal 95% on the dose × horizon curve, and a shift response under an AR(1) φ=0.9 \
-     treatment 0.910 pointwise and 0.912 simultaneous (disclosed boundaries, not gated \
-     claims)";
+     lengthened to ceil(b_PW·n^(1/6)) (at most n/3) when an estimating score is detectably \
+     persistent, and each cell's replicate deviations carry the kernel-bias factor of the \
+     autoregression fitted to that cell's influence; coverage is gated for iid and AR(1) \
+     ρ=0.5 residuals and for the dose curve and the shift response under an AR(1) φ=0.9 \
+     treatment (the shift level reads about ten effective rows at n=160 and is \
+     short-series-warned). A strongly \
+     persistent component that is a small share of a score is seen by neither reading at \
+     short n: with AR(1) ρ=0.9 residuals under omitted iid treatment lags (15% of the \
+     residual variance) the calibration measured 0.883–0.943 pointwise and 0.873 \
+     simultaneous coverage of nominal 95% on the dose × horizon curve at n=160, and the \
+     level's long-run variance is not estimable there (an AR(1)-plus-noise fit spans a \
+     ratio of 1.2–5.9 around a truth of 3.7); the band is short-series-warned only when \
+     the influence itself reads short (response.temporal.block.short_series)";
 
-/// Record how a temporal response circular-block band was built: the block-length
-/// diagnostic, a warning when the lengthening was capped or the pointwise band rests
-/// on few replicates, and the `temporal_response.block_bootstrap` assumption.
+/// Record how a temporal response circular-block band was built: the block-length and
+/// per-cell dispersion diagnostics, a warning when the lengthening was capped, when a
+/// cell's influence reads short, or when the pointwise band rests on few replicates, and
+/// the `temporal_response.block_bootstrap` assumption.
 ///
 /// Every temporal response block bootstrap (complete-data surface, observation-adjusted
 /// surface, Sequence and class-observation tuples) calls this once per published band,
 /// so they disclose one rule in one wording. `refit` names what each replicate refits;
-/// `completed` counts the surviving joint replicates.
+/// `completed` counts the surviving joint replicates; `dispersion` carries each cell's
+/// kernel-bias factor and effective rows.
 pub fn disclose_response_block_bootstrap(
     support: &mut SupportReport,
     assumptions: &mut AssumptionSet,
     block: ResponseBlockLength,
     factor: f64,
+    dispersion: &CellDispersion,
     completed: usize,
     refit: &str,
 ) {
-    let ResponseBlockLength { length, rule, testing, rows } = block;
-    support.diagnostics.retain(|d| d.id.as_ref() != TEMPORAL_RESPONSE_BLOCK_LENGTH);
+    let ResponseBlockLength { length, testing, rows, .. } = block;
+    support.diagnostics.retain(|d| {
+        !matches!(
+            d.id.as_ref(),
+            TEMPORAL_RESPONSE_BLOCK_LENGTH
+                | TEMPORAL_RESPONSE_KERNEL_FACTOR
+                | TEMPORAL_RESPONSE_EFFECTIVE_ROWS
+        )
+    });
     support.warnings.retain(|w| {
         !matches!(
             w.code.as_ref(),
             TEMPORAL_RESPONSE_BLOCK_CAPPED
                 | TEMPORAL_RESPONSE_FEW_REPLICATES
                 | TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY
+                | TEMPORAL_RESPONSE_SHORT_SERIES
         )
     });
-    support.diagnostics.push(SupportDiagnostic {
-        id: Arc::from(TEMPORAL_RESPONSE_BLOCK_LENGTH),
-        values: Arc::from([length as f64, rule as f64, testing as f64, rows as f64, factor]),
-        detail: Arc::from(
-            "[block length, max(span, ceil(sqrt(n))), uncapped ceil(b_PW·n^(1/6)), resampled \
-             rows n, replicate dispersion factor]; the block length is the larger of the rule \
-             and the Politis-White testing length capped at n/3",
-        ),
-    });
+    push_block_dispersion_diagnostics(support, block, factor, dispersion);
     support.warnings.push(Diagnostic::new(
         TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY,
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Warning,
         PERSISTENCE_BOUNDARY_MESSAGE,
     ));
+    if dispersion.is_short_series() {
+        let rows_read = dispersion.min_effective_rows();
+        support.warnings.push(Diagnostic::new(
+            TEMPORAL_RESPONSE_SHORT_SERIES,
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "a published cell's influence has {rows_read:.1} effective rows, below the \
+                 {RESPONSE_SHORT_SERIES_ROWS} threshold of the temporal response band: the \
+                 series is short for the dependence of that level (a shift response under an \
+                 AR(1) φ=0.9 treatment reads about 7 effective rows at n=100 and covered 0.885 \
+                 pointwise / 0.890 simultaneous of nominal 0.95 with the kernel-bias factor; at \
+                 n=160, about 10 rows, it covered 0.943 / 0.948), and its pointwise and \
+                 simultaneous bands may under-cover"
+            ),
+        ));
+    }
     if block.capped() {
         support.warnings.push(Diagnostic::new(
             TEMPORAL_RESPONSE_BLOCK_CAPPED,
@@ -477,7 +518,50 @@ pub fn disclose_response_block_bootstrap(
             Assumption::ParametricRestriction(p) if p.id.as_ref() == BLOCK_BOOTSTRAP_ASSUMPTION_ID
         )
     });
-    assumptions.push(block_bootstrap_assumption(block, factor, refit));
+    assumptions.push(block_bootstrap_assumption(block, factor, dispersion.max_factor(), refit));
+}
+
+/// The three support diagnostics of a temporal response block band: block length,
+/// per-cell kernel-bias factors and per-cell effective rows.
+fn push_block_dispersion_diagnostics(
+    support: &mut SupportReport,
+    block: ResponseBlockLength,
+    factor: f64,
+    dispersion: &CellDispersion,
+) {
+    let ResponseBlockLength { length, rule, testing, rows } = block;
+    support.diagnostics.push(SupportDiagnostic {
+        id: Arc::from(TEMPORAL_RESPONSE_BLOCK_LENGTH),
+        values: Arc::from([length as f64, rule as f64, testing as f64, rows as f64, factor]),
+        detail: Arc::from(
+            "[block length, max(span, ceil(sqrt(n))), uncapped ceil(b_PW·n^(1/6)), resampled \
+             rows n, replicate dispersion factor]; the block length is the larger of the rule \
+             and the Politis-White testing length capped at n/3; the dispersion factor is the \
+             circular-Bartlett fixed-b ratio times HC1, before the per-cell kernel-bias factor \
+             (response.temporal.kernel_bias_factor)",
+        ),
+    });
+    support.diagnostics.push(SupportDiagnostic {
+        id: Arc::from(TEMPORAL_RESPONSE_KERNEL_FACTOR),
+        values: Arc::from(dispersion.kernel_factors.clone()),
+        detail: Arc::from(
+            "per-cell kernel-bias factor on the replicate deviations (layout of the mean; one \
+             value for a mixed class band): 1/sqrt(f), f the share of the long-run variance of \
+             the autoregression fitted to the cell's influence (Kendall-corrected AR(1), or the \
+             BIC-selected AR(q <= 4) when larger) that the Bartlett kernel at the block length \
+             keeps; 1 when the fit carries no positive long-run excess",
+        ),
+    });
+    support.diagnostics.push(SupportDiagnostic {
+        id: Arc::from(TEMPORAL_RESPONSE_EFFECTIVE_ROWS),
+        values: Arc::from(dispersion.effective_rows.clone()),
+        detail: Arc::from(format!(
+            "per-cell effective rows of the influence (layout of the mean; one value for a mixed \
+             class band): the smaller of the lag-1 AR(1) reading n(1 - r1)/(1 + r1) and the \
+             block-length Bartlett reading; below {RESPONSE_SHORT_SERIES_ROWS} the band carries \
+             response.temporal.block.short_series"
+        )),
+    });
 }
 
 /// Dispersion factor applied to circular-block replicate deviations.
@@ -596,6 +680,8 @@ struct CellBand {
     upper: Vec<f64>,
     /// `draws[r]` is replicate `r`'s full surface in the output layout.
     draws: Vec<Vec<f64>>,
+    /// Each cell's kernel-bias factor and effective rows.
+    dispersion: CellDispersion,
 }
 
 impl SurfaceCells {
@@ -669,7 +755,8 @@ const BLOCK_BOOTSTRAP_CONSTRUCTION: &str = "max-studentized deviation of the joi
      each replicate resamples time-aligned blocks of lag-aligned rows (block length: support \
      diagnostic response.temporal.block_length), refits every horizon and recomputes the \
      covariate averages; replicate deviations carry the circular-Bartlett fixed-b factor for \
-     b = block/rows and the HC1 factor sqrt(rows/(rows − p))";
+     b = block/rows, the HC1 factor sqrt(rows/(rows − p)) and each cell's kernel-bias factor \
+     (response.temporal.kernel_bias_factor)";
 
 /// What one surface-bootstrap replicate refits, for [`disclose_response_block_bootstrap`].
 const SURFACE_REFIT: &str = "one replicate refits every horizon on the same time-aligned \
@@ -681,6 +768,7 @@ const BLOCK_BOOTSTRAP_ASSUMPTION_ID: &str = "temporal_response.block_bootstrap";
 fn block_bootstrap_assumption(
     block: ResponseBlockLength,
     factor: f64,
+    kernel_factor: f64,
     refit: &str,
 ) -> AssumptionRecord {
     let ResponseBlockLength { length, rule, testing, rows } = block;
@@ -697,7 +785,15 @@ fn block_bootstrap_assumption(
                  regression's normal-equation scores and the centered covariate columns whose \
                  averages the level reads). Replicate deviations are scaled by {factor:.4}: the circular-Bartlett \
                  fixed-b critical-value ratio for b = block/rows (the variance is estimated from \
-                 few blocks) times the HC1 factor sqrt(rows/(rows − p)). The pointwise band is \
+                 few blocks) times the HC1 factor sqrt(rows/(rows − p)); and by each cell's \
+                 kernel-bias factor (largest {kernel_factor:.4}; support diagnostic \
+                 response.temporal.kernel_bias_factor): 1/sqrt(f) with f the share of the \
+                 long-run variance of the autoregression fitted to that cell's influence \
+                 (Kendall-corrected AR(1), or the BIC-selected AR(q <= 4) when larger) that the \
+                 block's Bartlett kernel keeps, the O(1/block) kernel truncation the fixed-b \
+                 ratio does not repair. The factor corrects only dependence the autoregression \
+                 fits; a persistent component that is a small share of the influence is not \
+                 seen at short n. The pointwise band is \
                  mean ± 1.96·SE of the scaled replicates. The simultaneous band (support \
                  diagnostics response.simultaneous_band.*) is the max-studentized deviation over \
                  the whole grid from the same scaled replicates; the fixed-b ratio is derived for \
@@ -1429,7 +1525,8 @@ impl FittedSurface {
 
     /// Point values and, from the joint bootstrap only, the pointwise 95% band and
     /// the replicate draws for `cells`, in the order given. Draws are returned after
-    /// the block-count dispersion inflation, so both bands use the inflated dispersion.
+    /// the block-count dispersion inflation and each cell's kernel-bias factor, so both
+    /// bands use the inflated dispersion.
     fn cells(&self, cells: &[(usize, CellEval)]) -> SurfaceCells {
         let mean: Vec<f64> = cells
             .iter()
@@ -1451,6 +1548,8 @@ impl FittedSurface {
                 })
                 .collect();
             inflate_replicates(&mean, &mut draws, self.inflation());
+            let dispersion = cell_dispersion(&self.horizons, cells, self.block.length);
+            dispersion.inflate(&mean, &mut draws);
             let se: Vec<f64> = (0..cells.len())
                 .map(|cell| sample_std(&draws.iter().map(|draw| draw[cell]).collect::<Vec<_>>()))
                 .collect();
@@ -1458,6 +1557,7 @@ impl FittedSurface {
                 lower: mean.iter().zip(&se).map(|(m, s)| m - z * s).collect(),
                 upper: mean.iter().zip(&se).map(|(m, s)| m + z * s).collect(),
                 draws,
+                dispersion,
             }
         });
         SurfaceCells { mean, band }
@@ -1478,6 +1578,7 @@ impl FittedSurface {
                 &mut assumptions,
                 self.block,
                 self.inflation(),
+                &band.dispersion,
                 band.draws.len(),
                 SURFACE_REFIT,
             );
@@ -1546,6 +1647,13 @@ impl PreparedTemporalSurface {
     #[must_use]
     pub fn estimating_scores(&self) -> Vec<Vec<f64>> {
         horizon_scores(&self.horizons)
+    }
+
+    /// Each cell's kernel-bias factor and effective rows at block length `block`, in
+    /// the cell layout of [`Self::point`] (see [`CellDispersion`]).
+    #[must_use]
+    pub fn cell_dispersion(&self, block: usize) -> CellDispersion {
+        cell_dispersion(&self.horizons, &self.cells, block)
     }
 
     /// Full-sample surface in the response layout.
@@ -1670,6 +1778,8 @@ struct FittedHorizon {
     coefs: Vec<f64>,
     /// Design column means (length p); index `TREATMENT_COL` is `Abar`.
     column_means: Vec<f64>,
+    /// Full-sample OLS residuals (length n).
+    residuals: Vec<f64>,
 }
 
 impl FittedHorizon {
@@ -1683,12 +1793,71 @@ impl FittedHorizon {
             .least_squares(&prepared.design.matrix, n, p, &prepared.design.outcome, ols_ws)
             .map_err(EstimationError::from)?;
         let column_means = design_column_means(&prepared.design);
-        Ok(Self { prepared, coefs: fit.coefficients, column_means })
+        Ok(Self { prepared, coefs: fit.coefficients, column_means, residuals: fit.residuals })
     }
 
     fn treatment_mean(&self) -> f64 {
         self.column_means[TREATMENT_COL]
     }
+
+    /// Delta-method influence series of the level at `eval`: the row's weight in the
+    /// coefficient combination `c'β̂` (`c` = the column means with the treatment column
+    /// at the evaluated dose) times its residual, plus the centered design columns whose
+    /// sample means the level reads (every column but the treatment for a dose; every
+    /// column for a shift, whose level reads the treatment mean too), each weighted by
+    /// its coefficient. The circular-block variance of the level is asymptotically the
+    /// Bartlett long-run variance of this series at the block length. `None` when `X'X`
+    /// is singular.
+    fn level_influence(&self, eval: CellEval) -> Option<Vec<f64>> {
+        let design = &self.prepared.design;
+        let (n, p) = (design.nrows, design.ncols);
+        let x = &design.matrix[..n * p];
+        let mut xtx = vec![0.0; p * p];
+        for a in 0..p {
+            for b in a..p {
+                let dot: f64 = x[a * n..(a + 1) * n]
+                    .iter()
+                    .zip(&x[b * n..(b + 1) * n])
+                    .map(|(u, v)| u * v)
+                    .sum();
+                xtx[a * p + b] = dot;
+                xtx[b * p + a] = dot;
+            }
+        }
+        let mut direction = self.column_means.clone();
+        direction[TREATMENT_COL] = match eval {
+            CellEval::Dose(dose) => dose,
+            CellEval::Shift(shift) => self.column_means[TREATMENT_COL] + shift,
+        };
+        let v = solve_spd(&xtx, &direction, p)?;
+        let reads_treatment_mean = matches!(eval, CellEval::Shift(_));
+        Some(
+            (0..n)
+                .map(|t| {
+                    let weight: f64 = (0..p).map(|k| x[k * n + t] * v[k]).sum();
+                    let means: f64 = (0..p)
+                        .filter(|&k| k != TREATMENT_COL || reads_treatment_mean)
+                        .map(|k| self.coefs[k] * (x[k * n + t] - self.column_means[k]))
+                        .sum();
+                    weight * self.residuals[t] + means
+                })
+                .collect(),
+        )
+    }
+}
+
+/// Kernel-bias factor and effective rows of every cell of `cells` (a cell whose
+/// influence is unavailable reads factor `1` and unreadable rows).
+fn cell_dispersion(
+    horizons: &[FittedHorizon],
+    cells: &[(usize, CellEval)],
+    block: usize,
+) -> CellDispersion {
+    let influences: Vec<Vec<f64>> = cells
+        .iter()
+        .map(|&(h, eval)| horizons[h].level_influence(eval).unwrap_or_default())
+        .collect();
+    CellDispersion::from_influences(&influences, block)
 }
 
 /// Estimating-equation scores of every horizon's level, one series per equation: the

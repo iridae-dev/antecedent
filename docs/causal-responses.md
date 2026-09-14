@@ -238,11 +238,25 @@ uses one construction:
    circular Bartlett estimator at `b = ℓ/n` (simulated circular-Bartlett 97.5%
    quantiles; the correction the plain TemporalDag Pulse / Sustained SE uses) and by the HC1 factor
    `sqrt(n/(n − p))`;
-4. pointwise band `θ̂ ± 1.96·SE` with SE the scaled replicate SD, and the
-   simultaneous band above from the same scaled replicates. The fixed-b ratio is
-   the two-sided 95% correction for one pointwise interval; carrying it into the
-   sup-t band is a heuristic extension, checked by the calibration rather than
-   derived.
+4. each cell's deviations further scaled by that cell's kernel-bias factor
+   `1/sqrt(f)` (support diagnostic `response.temporal.kernel_bias_factor`, in the
+   mean layout): `f` is the share of the long-run variance of the autoregression
+   fitted to the cell's influence series (a Kendall-corrected AR(1), or the
+   BIC-selected AR(q ≤ 4) when it reads more) that the Bartlett kernel at `ℓ`
+   keeps, `f = (1 + 2 Σ_{k<ℓ} (1 − k/ℓ) ρ_k) / (1 + 2 Σ_k ρ_k)`. The influence is
+   the delta-method score of the level: the row's weight in `c'β̂` times its
+   residual, plus the centered design columns whose sample means the level reads
+   (every column but the treatment for a dose; the treatment too for a shift),
+   each weighted by its coefficient. A Sequence level, which composes several
+   mechanisms, takes the largest factor over its estimating scores. A fit with no
+   positive long-run excess keeps the factor at 1; on iid and AR(1) `ρ = 0.5`
+   cells it stays within 1% of 1;
+5. pointwise band `θ̂ ± 1.96·SE` with SE the scaled replicate SD, and the
+   simultaneous band above from the same scaled replicates (a per-cell scale
+   leaves the studentized maximum, hence the critical value, unchanged). The
+   fixed-b ratio is the two-sided 95% correction for one pointwise interval;
+   carrying it into the sup-t band is a heuristic extension, checked by the
+   calibration rather than derived.
 
 The block length is chosen for interval coverage, not for the mean-squared error
 of the variance. The circular-block variance behaves like a Bartlett-kernel
@@ -253,6 +267,24 @@ observation-adjusted bands under AR(1) `ρ = 0.5` residuals at 0.89–0.91 for n
 95%, and neither a `t_ν/z` batch-means factor nor longer blocks under that factor
 repaired it. The fixed-b factor carries the extra estimation noise of the longer
 block, so independent rows are not over-covered.
+
+The kernel-bias factor is what the block length cannot buy. The Bartlett kernel
+misses `O(1/ℓ)` of a persistent influence's long-run variance at any licensed
+length (46% kept at `ℓ = 13`, 82% at `ℓ = n/3` for an AR(1) ρ = 0.9 influence at
+n = 160), and the fixed-b ratio corrects the estimation noise of the block
+variance, not its truncation. Lengthening alone does not close the gap: on the
+mean of an AR(1) ρ = 0.9 series at n = 160 the fixed-b interval covers 0.803 at
+`ℓ = 13` and 0.903 at `ℓ = n/3`, while the fitted-AR(1) factor at `ℓ = 13` covers
+0.954 (0.948 for ρ = 0.5, 0.956 for iid; 4000 series); and long blocks degrade the
+sup-t band, which needs many blocks per replicate. The factor is model-based, so
+it carries no wide-bandwidth sampling noise, and it corrects only what the
+autoregression fits.
+
+Each band also reads every cell's influence for the family's short-series
+statistic (`response.temporal.effective_rows`: the smaller of the lag-1 AR(1)
+reading `n(1 − r₁)/(1 + r₁)` and the block-length Bartlett reading, the readings
+of the scalar temporal effects) and warns `response.temporal.block.short_series`
+when any cell reads fewer than 30 effective rows.
 
 - **Frequentist complete data.** Curves and single Set/Shift/Soft responses refit
   every horizon and recompute the covariate (and, for shifts, treatment) averages
@@ -309,16 +341,31 @@ refuse a positive `bootstrap=` rather than ignoring it.
 Coverage of these bands on linear-Gaussian DGPs with iid and AR(1) residuals
 is measured by `crates/antecedent/tests/v19_temporal_response_calibration.rs`
 (run via `scripts/gate_calibration.sh`, 400 replicates, `n = 160`). Gated: iid and
-AR(1) `ρ = 0.5` residuals on every Frequentist cell, and the dose curve under an
-AR(1) `φ = 0.9` treatment (0.943–0.945 pointwise, 0.943 simultaneous). Recorded,
-not gated, and disclosed on every band as
+AR(1) `ρ = 0.5` residuals on every Frequentist cell, and both the dose curve
+(0.945–0.948 pointwise, 0.948 simultaneous) and the shift response (0.943
+pointwise, 0.948 simultaneous; 0.910 / 0.912 before the kernel-bias factor) under
+an AR(1) `φ = 0.9` treatment. The shift level is essentially the sample mean of a
+series with about ten effective rows, so its band also carries the short-series
+warning on most replicates; at `n = 100` (about 7 effective rows) it covers
+0.885 / 0.890 and warns on every replicate, at `n = 400` 0.938 / 0.940, at
+`n = 1000` 0.965 / 0.968.
+
+Recorded, not gated, and disclosed on every band as
 `response.temporal.block.persistence_boundary`: AR(1) `ρ = 0.9` residuals on the
-dose × horizon curve (0.883–0.943 pointwise, 0.873 simultaneous) and a shift
-response under the `φ = 0.9` treatment (0.910 pointwise, 0.912 simultaneous). In
-both, a strongly persistent component is a small share of the residual, or the
-level is essentially the sample mean of a series with about eight effective rows;
-the Politis–White reading does not see the first at `n = 160`, and in the second
-the lengthened blocks (up to `n/3`) still under-cover.
+dose × horizon curve, 0.887–0.943 pointwise and 0.877 simultaneous at `n = 160`
+(0.868–0.922 / 0.853 at `n = 100`, 0.900–0.922 / 0.895 at `n = 400`,
+0.902–0.943 / 0.905 at `n = 1000`). The residual's persistent part is 15% of its
+variance (the omitted iid treatment lag dominates), yet it carries most of the
+level's long-run variance (3.7 times the variance). Nothing in the sample reads
+it at these sizes: the lag-by-lag autocorrelations (0.13 at lag 1) stay under the
+Politis–White threshold, the fitted autoregression sees a lag-1 coefficient near
+0.14 (factor within 2% of 1), the influence reads about 90 effective rows (no
+short-series warning), and an AR(1)-plus-noise fit of the influence's long-run
+ratio spans 1.2–5.9 at `n = 160` (1.7–6.0 at `n = 400`) around the truth of 3.7.
+Lengthening the blocks to `n/3` regardless was measured at 0.905–0.922 pointwise
+and 0.865 simultaneous, so it does not gate the design either. The block-length
+rule catches this component only once `n` is large enough for its
+autocorrelations to clear the threshold (about `n = 2000`).
 
 Prepared responses require complete observations and the AllObserved empirical
 population. Unsupported observation mechanisms, observation assumptions, or

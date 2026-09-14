@@ -51,6 +51,7 @@ pub mod temporal_block;
 pub mod temporal_mediation;
 pub mod temporal_observed_bayes;
 pub mod temporal_response;
+pub mod temporal_response_dispersion;
 pub mod temporal_sequential;
 pub mod temporal_sequential_tuples;
 pub mod transport;
@@ -165,6 +166,9 @@ pub use temporal_response::{
     clear_simultaneous_band, disclose_response_block_bootstrap, inflate_replicates,
     max_deviation_band, max_deviation_band_columns, plan_from_response_query,
     plan_temporal_intervention, publish_simultaneous_band, temporal_block_length,
+};
+pub use temporal_response_dispersion::{
+    CellDispersion, RESPONSE_SHORT_SERIES_ROWS, influence_effective_rows, kernel_bias_factor,
 };
 pub use temporal_sequential::{
     SequentialContrastDesign, SequentialMechanismOverlay, SequentialNodeOverlay,
