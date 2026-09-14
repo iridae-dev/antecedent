@@ -107,9 +107,12 @@ was not available, published as boundary records with a runtime disclosure.
   `StructuralResponseMixture` is not `#[non_exhaustive]`, so code that builds
   it as a struct literal must add the field.
 - The support-matrix gate fails a staged licensed row without a named
-  evidence test. The frozen, shrink-only exemption list for rows licensed
-  before the rule (`parity/_evidence_test_backlog.txt`) is empty: all 337
-  licensed rows name the test that executes them.
+  evidence test, and rejects an `#[ignore]`d citation (calibration tests run
+  only under `scripts/gate_calibration.sh`, so they are cited in `limitations`
+  as weekly-gate coverage, never as `evidence_test`). The frozen, shrink-only
+  exemption list for rows licensed before the rule
+  (`parity/_evidence_test_backlog.txt`) is empty: all 337 licensed rows name a
+  test that `cargo test` executes.
 
 ### Removed
 
