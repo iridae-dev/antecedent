@@ -70,9 +70,19 @@ coefficient; there is no off-diagonal prior covariance. Hydrating a prior from
 a posterior artifact (`IdenticalCoefficientSubspace`, `EffectFunctional`,
 `NamedParameters`, and every power / mixture compose built on them) reads only
 the per-coefficient posterior **means and standard deviations**, so posterior
-correlation between coefficients is **dropped**. A hydrated prior is therefore
-never more informative than the source posterior's marginals, but a strongly
-correlated source (e.g. collinear lags) transfers as independent coefficients.
+correlation between coefficients is **dropped**. Each coefficient's prior
+variance equals its source marginal variance, so no single coefficient is
+more tightly constrained than the source said. That does **not** hold for
+linear combinations: dropping the covariance replaces `Σ` by `diag(Σ)`, and
+`diag(Σ) − Σ` is not positive semidefinite in general, so a combination
+along which the source was uncertain because of correlated coefficients can
+receive a *tighter* prior than the source supports. For two coefficients the
+transferred variance of `β₁ ± β₂` is `σ₁² + σ₂²` instead of
+`σ₁² + σ₂² ± 2σ₁₂`: positive source correlation makes the transferred prior on
+the sum too narrow, negative correlation (typical of collinear lags such as
+`coef_x@lag1` and `coef_x@lag2`) makes the prior on their difference too
+narrow. Inspect the source's posterior correlation before transferring a
+strongly correlated source, or down-weight it (`α`).
 
 ## Temporal transfer is lag-aware
 
@@ -89,12 +99,30 @@ they produce. On such a target:
 - an explicit `NamedParameters` mapping is the declared bridge between
   different lags and is always honoured (names are validated at hydrate).
 
-At the catalog level, `EstimandFingerprint.temporal` (`TemporalCoordinates`:
-treatment lags, horizon, optional coefficient names) must match. A temporal
-target rejects a source whose metadata has no temporal coordinates
-(`temporal_coordinates_missing`, the case for pre-1.9 metadata) or different
-ones (`temporal_coordinates_mismatch`) unless the source declares a
-`NamedParameters` mapping. Metadata without the field still decodes.
+These checks run when a posterior artifact is hydrated against the target
+design (`prior_from=` / `prior_artifact`), because they compare the
+artifact's coefficient names with the target's.
+
+The catalog offers an additional, **opt-in** check:
+`EstimandFingerprint.temporal` (`TemporalCoordinates`: treatment lags,
+horizon, optional coefficient names). When the *target* fingerprint carries
+temporal coordinates, `compatible_with` rejects a source whose metadata has
+none (`temporal_coordinates_missing`, the case for pre-1.9 metadata) or
+different ones (`temporal_coordinates_mismatch`) unless the source declares a
+`NamedParameters` mapping. Nothing in the library populates these
+coordinates: analyses do not attach them to the posteriors they produce, and
+the Python prior-bank API (`PriorSourceMeta` dicts, `compatible_with`) cannot
+set them. Rust callers that bank temporal posteriors must attach them with
+`EstimandFingerprint::with_temporal` on both the source metadata and the
+target; otherwise the catalog applies no lag check. Metadata without the
+field still decodes.
+
+`compose_external_priors(...)` / `Bayesian(prior_from=<composed prior>)`
+performs **no** lag check: its sources are already-mapped coefficient priors
+(`ExternalPriorSource.prior`) that carry no coefficient names, so aligning
+each source's lags with the target design is the caller's responsibility
+(in Rust, hydrate each source with `hydrate_prior` against the target's
+coefficient names first, which applies the name checks above).
 
 ## What callers must supply
 
