@@ -1190,3 +1190,25 @@ mod identify_only_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod envelope_validation_diagnostic_tests {
+    use super::*;
+
+    #[test]
+    fn prior_sensitivity_is_claimed_only_when_it_mixed() {
+        let mixed = envelope_validation_diagnostics("a,b", Some(true));
+        assert_eq!(mixed.len(), 1);
+        assert!(mixed[0].message.contains("prior-sensitivity evaluated"));
+        let unmixed = envelope_validation_diagnostics("a,b", Some(false));
+        assert!(!unmixed[0].message.contains("prior-sensitivity evaluated"), "{unmixed:?}");
+        let warning = unmixed
+            .iter()
+            .find(|d| d.code.as_ref() == "refute.bayesian.prior_sensitivity.not_mixed")
+            .expect("not-mixed warning");
+        assert_eq!(warning.severity, DiagnosticSeverity::Warning);
+        let cheap = envelope_validation_diagnostics("a,b", None);
+        assert_eq!(cheap.len(), 1);
+        assert!(!cheap[0].message.contains("prior-sensitivity"));
+    }
+}
