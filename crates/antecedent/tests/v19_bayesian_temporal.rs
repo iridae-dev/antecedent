@@ -317,4 +317,11 @@ fn bayesian_multi_step_bootstrap_refuter_resamples_aligned_rows() {
             && d.message.contains("bootstrap")),
         "bootstrap.ci_coverage must not be skipped"
     );
+    // The replicate least-squares contrast stands in for the tempered posterior mean.
+    let stand_in = result
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "refute.bootstrap.ci_coverage.least_squares_stand_in")
+        .expect("the Bayesian check discloses its least-squares stand-in");
+    assert!(stand_in.message.contains("tempered by 1/kappa"), "{}", stand_in.message);
 }

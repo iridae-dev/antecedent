@@ -191,8 +191,14 @@ pub type AlignedRowEstimate = Box<dyn FnMut(&[usize]) -> Option<f64>>;
 pub struct AlignedRefit {
     /// Lag-aligned rows of the prepared design.
     pub rows: usize,
-    /// Consecutive series times one row reads (the unfolded window span).
-    pub structural_span: usize,
+    /// Circular-block length, in aligned rows, of the interval being checked (the
+    /// same rule that interval's block bootstrap uses, e.g.
+    /// [`antecedent_estimate::dependence_block_length`] over its estimating scores).
+    pub block_length: usize,
+    /// When [`Self::estimate`] is not the estimator whose point estimate is checked
+    /// but a stand-in for it (e.g. the least-squares contrast for a posterior
+    /// mean), what it stands in for and when that is valid; reported with the check.
+    pub stand_in: Option<Arc<str>>,
     /// Refit on the aligned rows of a row map.
     pub estimate: AlignedRowEstimate,
 }
@@ -201,7 +207,8 @@ impl std::fmt::Debug for AlignedRefit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AlignedRefit")
             .field("rows", &self.rows)
-            .field("structural_span", &self.structural_span)
+            .field("block_length", &self.block_length)
+            .field("stand_in", &self.stand_in)
             .finish_non_exhaustive()
     }
 }
