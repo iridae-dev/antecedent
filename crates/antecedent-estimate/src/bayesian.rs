@@ -1114,7 +1114,6 @@ impl BayesianGComputationAte {
             let batch = 32usize;
             let mut effect_acc: Vec<f64> = Vec::with_capacity(max_draws);
             let mut extra_blocks: Vec<PosteriorDraws> = Vec::new();
-            let mut width_prev: Option<f64> = None;
 
             // Evaluate initial block.
             {
@@ -1133,19 +1132,14 @@ impl BayesianGComputationAte {
             }
 
             loop {
-                let width = quantile_width_95(&effect_acc);
-                let ess = effect_acc.len() as f64; // independent MVN draws
-                if effect_acc.len() >= adaptive.min_draws.max(2) {
-                    let width_ok = width_prev.is_some_and(|prev| {
-                        let rel = (width - prev).abs() / prev.abs().max(1e-12);
-                        rel < adaptive.quantile_width_rel_epsilon
-                    });
-                    if width_ok || ess >= adaptive.ess_target {
-                        early_stopped = n_draws < max_draws;
-                        break;
-                    }
+                // Independent MVN draws: ESS is the draw count, a genuine Monte
+                // Carlo error measure. The former quantile-width change rule was
+                // not one and is no longer consulted.
+                let ess = effect_acc.len() as f64;
+                if effect_acc.len() >= adaptive.min_draws.max(2) && ess >= adaptive.ess_target {
+                    early_stopped = n_draws < max_draws;
+                    break;
                 }
-                width_prev = Some(width);
                 if n_draws >= max_draws {
                     break;
                 }
@@ -1716,22 +1710,6 @@ fn likelihood_to_glm_family(l: BayesLikelihood) -> GlmFamily {
 
 fn prob_err(e: antecedent_prob::ProbError) -> EstimationError {
     EstimationError::from(e)
-}
-
-/// 95% quantile width of a scalar draw vector.
-fn quantile_width_95(values: &[f64]) -> f64 {
-    if values.len() < 2 {
-        return f64::NAN;
-    }
-    // Reuse posterior summarization for consistent quantiles.
-    let schema = PosteriorSchema {
-        quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("w") }]),
-    };
-    let Ok(draws) = PosteriorDraws::from_column_major(schema, values.len(), values.to_vec()) else {
-        return f64::NAN;
-    };
-    let s = draws.summarize();
-    s.q975[0] - s.q025[0]
 }
 
 /// Concatenate two coefficient-only posterior draw tables (same schema).

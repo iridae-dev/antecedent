@@ -293,9 +293,12 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
     assert_eq!(full.estimate.bootstrap_replicates_ok, Some(max_reps));
     assert!(!full.performance.early_stopped);
 
+    // Opt-in budget: stop once the relative Monte Carlo SE of the bootstrap SE,
+    // ≈ 1/√(2(B−1)), is ≤ 10%, i.e. after ⌈1 + 1/(2·0.1²)⌉ = 51 successes.
+    let budget = AdaptiveBootstrapBudget { enabled: true, min_replicates: 12, se_rel_epsilon: 0.1 };
+    assert_eq!(budget.required_replicates(), 51);
     let mut ctx_adapt = ExecutionContext::for_tests(5);
-    ctx_adapt.adaptive_bootstrap =
-        AdaptiveBootstrapBudget { enabled: true, min_replicates: 12, se_rel_epsilon: 0.05 };
+    ctx_adapt.adaptive_bootstrap = budget;
     let a1 = Study::tabular(data.clone())
         .graph(dag.clone())
         .query(query.clone())
@@ -305,9 +308,9 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
         .unwrap()
         .run(&ctx_adapt)
         .unwrap();
-    let a2 = Study::tabular(data)
-        .graph(dag)
-        .query(query)
+    let a2 = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(query.clone())
         .bootstrap_replicates(max_reps)
         .refute(RefuteSuite::None)
         .build()
@@ -315,16 +318,34 @@ fn adaptive_bootstrap_pin_stable_count_and_se() {
         .run(&ctx_adapt)
         .unwrap();
 
-    assert!(a1.performance.early_stopped, "expected adaptive early-stop");
+    assert!(a1.performance.early_stopped, "expected MC-error-bound early-stop");
     assert_eq!(
         a1.estimate.bootstrap_replicates_ok, a2.estimate.bootstrap_replicates_ok,
         "fixed seed must pin early-stop replicate count"
     );
-    let ok = a1.estimate.bootstrap_replicates_ok.expect("ok count");
-    assert!(ok >= 12 && ok < max_reps, "ok={ok}");
+    // The stop is a function of the success count alone, so it is pinned exactly.
+    assert_eq!(a1.estimate.bootstrap_replicates_ok, Some(budget.required_replicates()));
     let adapt_se = a1.estimate.se_bootstrap.expect("adaptive SE");
+    // Two SEs with ≈10% and ≈8% relative MC error each; a 3σ band on their ratio.
     let rel = (adapt_se - full_se).abs() / full_se.abs().max(1e-12);
-    assert!(rel < 0.35, "adaptive SE={adapt_se} vs full SE={full_se} rel={rel}");
+    assert!(rel < 0.4, "adaptive SE={adapt_se} vs full SE={full_se} rel={rel}");
+
+    // A budget whose bound exceeds the request never stops.
+    let mut ctx_loose = ExecutionContext::for_tests(5);
+    ctx_loose.adaptive_bootstrap = AdaptiveBootstrapBudget::enabled_default();
+    assert!(ctx_loose.adaptive_bootstrap.required_replicates() > max_reps);
+    let loose = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .bootstrap_replicates(max_reps)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ctx_loose)
+        .unwrap();
+    assert!(!loose.performance.early_stopped);
+    assert_eq!(loose.estimate.bootstrap_replicates_ok, Some(max_reps));
+    assert_eq!(loose.estimate.se_bootstrap, Some(full_se));
 }
 
 #[test]
