@@ -182,16 +182,19 @@ was not available, published as boundary records with a runtime disclosure.
   `√(Σ(ψ − ψ̄)²)/n` (it returned HC1).
 - Bayesian temporal likelihoods (Pulse, Sustained, class and DBN atoms,
   temporal responses per horizon, and both temporal mediation mechanisms) are
-  tempered by a long-run-variance ratio κ. The result is a generalized
-  posterior and is labelled as one. κ is the larger of a fixed-b-scaled
-  prewhitened Newey–West ratio and a design-conditional residual ratio; both
-  add a BIC-selected AR(q ≤ 4) term to the AR(1) one, and κ stays 1 on exact
-  fits. It is calibrated for short-memory autoregressive dependence (AR(2)
-  Pulse 0.868 at n = 160, 0.895 at n = 400), not long memory; at n = 60 AR(2)
-  dependence under-covers (about 0.81) because BIC rarely selects the order.
-  Temporal mediation tempers the mediator along its path slope and the outcome
-  at the largest ratio over its direct, mediated and total directions (0.910–
-  0.917 at AR(1) ρ = 0.9, n = 400).
+  tempered by a serial-dependence factor κ. The result is a generalized
+  posterior and is labelled as one. κ is the design-conditional variance ratio
+  of the effect's combination under an AR(q ≤ 4) residual fitted by REML (the
+  OLS-residual Yule–Walker and kernel fits were biased toward independence by
+  the projection), times n/(n − tr(HR)) for the residual scale the projection
+  removes, times exp(τ²/2) for the delta-method spread of log κ; the
+  prewhitened Newey–West ratio remains only as a bound, and κ stays 1 on exact
+  fits. Nominal-90% coverage is 0.87–0.91 for AR(2)(0.3, 0.5), ARMA(1,1) and
+  MA(2) treatment and residual at n = 60–400 (AR(2) Pulse was 0.81 at n = 60
+  and 0.87 at n = 160), with AR(1) and iid cells unchanged in band and 3–17%
+  shorter. Long memory is still not corrected. Temporal mediation tempers the
+  mediator along its path slope and the outcome at the largest ratio over its
+  direct, mediated and total directions.
 - Posterior predictive replicates include observation noise drawn from the
   fitted likelihood (Gaussian residual draw, Bernoulli, Poisson) with the
   family's inverse link. A residual prior without a finite mean scores only
