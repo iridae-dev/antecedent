@@ -208,9 +208,12 @@ The construction is a max-studentized deviation (sup-t) from joint replicates
 of the whole surface, the replicate analogue of the Kennedy-DR multiplier band
 above. With cell scales `s_j` (the SD of the replicates of cell `j`) and
 `B` replicates, `c` is the `ceil(level·(B+1))`-th smallest of
-`max_j |θ*_j − θ̂_j| / s_j`, and the band is `θ̂_j ± c·s_j`. At least 40 joint
-replicates are required; otherwise `response.simultaneous_band_withheld`
-explains why no band was published.
+`max_j |θ*_j − θ̂_j| / s_j`, and the band is `θ̂_j ± c·s_j` (the static
+multiplier band and the Gaussian max-t critical value read the same rank). At
+least 40 joint replicates are required; otherwise
+`response.simultaneous_band_withheld` explains why no band was published. The
+pointwise band needs only two surviving replicates, but below 40 it carries
+`response.temporal.pointwise_band_few_replicates`: its SD is then itself noisy.
 
 The critical value is floored at the one-cell normal quantile, so the
 simultaneous band is never narrower than the pointwise band.
@@ -219,16 +222,27 @@ Every Frequentist temporal response band (curves, Set/Shift/Soft, Sequence
 overlays, observation-adjusted surfaces, and TemporalCpdag/Pag completion atoms)
 uses one construction:
 
-1. a joint circular-block bootstrap of lag-aligned outcome-time tuples, with
-   block length `ℓ = max(unfolded span, ceil(sqrt(n)))`; every replicate row keeps
-   its own intact lag window, and every horizon of a replicate is refit on the
-   same calendar blocks;
-2. replicate deviations from `θ̂` scaled by the Kiefer–Vogelsang (2005) fixed-b
-   critical-value ratio for the Bartlett kernel at `b = ℓ/rows` (the correction the
+1. a joint circular-block bootstrap of lag-aligned outcome-time tuples over the
+   `n` series times every horizon can evaluate; every replicate row keeps its own
+   intact lag window, and every horizon of a replicate is refit on its rows at the
+   same resampled calendar times;
+2. block length `ℓ = max(max(unfolded span, ceil(sqrt(n))), min(ceil(b_PW·n^{1/6}), n/3))`,
+   with `b_PW` the largest Politis–White (2004) block length over the level's
+   estimating scores (every fitted regression's normal-equation scores and the
+   centered covariate columns whose averages the level reads) — the lengthening
+   of the scalar temporal effects, on the `sqrt(n)` floor. The support diagnostic
+   `response.temporal.block_length` records `[ℓ, floor, uncapped testing length,
+   n, dispersion factor]`, and `response.temporal.block_length_capped` warns when
+   the `n/3` cap binds;
+3. replicate deviations from `θ̂` scaled by the Kiefer–Vogelsang (2005) fixed-b
+   critical-value ratio for the Bartlett kernel at `b = ℓ/n` (the correction the
    plain TemporalDag Pulse / Sustained SE uses) and by the HC1 factor
-   `sqrt(rows/(rows − p))`;
-3. pointwise band `θ̂ ± 1.96·SE` with SE the scaled replicate SD, and the
-   simultaneous band above from the same scaled replicates.
+   `sqrt(n/(n − p))`;
+4. pointwise band `θ̂ ± 1.96·SE` with SE the scaled replicate SD, and the
+   simultaneous band above from the same scaled replicates. The fixed-b ratio is
+   the two-sided 95% correction for one pointwise interval; carrying it into the
+   sup-t band is a heuristic extension, checked by the calibration rather than
+   derived.
 
 The block length is chosen for interval coverage, not for the mean-squared error
 of the variance. The circular-block variance behaves like a Bartlett-kernel
@@ -269,7 +283,7 @@ the replicate count for Frequentist temporal `ResponseCurve` /
 `InterventionResponse` (TemporalDag surfaces and TemporalCpdag/Pag completion
 atoms). An explicit count always wins. Omitted, it follows the `latency` tier
 as prepared Pulse / Sustained do: `interactive` 0, `standard` 199, `report` 200.
-`analyze()` without a `latency` uses 50, so a band is published; the prepared
+`analyze()` without a `latency` uses 199, so a band is published; the prepared
 API's default `interactive` tier publishes the point surface only. `bootstrap=0`
 returns the point surface with `uncertainty.kind == "none"`, the withheld-band
 message in `support.warnings`, and `estimate.temporal_response.band_withheld: …`
@@ -291,7 +305,17 @@ refuse a positive `bootstrap=` rather than ignoring it.
 
 Coverage of these bands on linear-Gaussian DGPs with iid and AR(1) residuals
 is measured by `crates/antecedent/tests/v19_temporal_response_calibration.rs`
-(run via `scripts/gate_calibration.sh`).
+(run via `scripts/gate_calibration.sh`, 400 replicates, `n = 160`). Gated: iid and
+AR(1) `ρ = 0.5` residuals on every Frequentist cell, and the dose curve under an
+AR(1) `φ = 0.9` treatment (0.943–0.948 pointwise, 0.930 simultaneous). Recorded,
+not gated, and disclosed on every band as
+`response.temporal.block.persistence_boundary`: AR(1) `ρ = 0.9` residuals on the
+dose × horizon curve (0.885–0.938 pointwise, 0.910 simultaneous) and a shift
+response under the `φ = 0.9` treatment (0.907 pointwise, 0.912 simultaneous). In
+both, a strongly persistent component is a small share of the residual, or the
+level is essentially the sample mean of a series with about eight effective rows;
+the Politis–White reading does not see the first at `n = 160`, and in the second
+the lengthened blocks (up to `n/3`) still under-cover.
 
 Prepared responses require complete observations and the AllObserved empirical
 population. Unsupported observation mechanisms, observation assumptions, or
@@ -354,10 +378,12 @@ these are per-row contributions, sized so the identities below hold.
 **Exact relationship to reported uncertainty.** The reported pointwise standard
 error is `SE(g) = sqrt(sum_i psi[g, i]^2)`, and the pointwise band is
 `m(g) ± z * SE(g)` with `z = Phi^{-1}(0.5 + level/2)`. The simultaneous band's
-critical value is the `level` empirical quantile, over
-`simultaneous_replicates` Rademacher draws (SplitMix64 stream from
+critical value is the upper `level` quantile, over `B = simultaneous_replicates`
+Rademacher draws (SplitMix64 stream from
 `multiplier_seed`, so deterministic given the seed), of
-`max_g | sum_i eps_i * psi[g, i] | / SE(g)`; the band is `m(g) ± c * SE(g)`.
+`max_g | sum_i eps_i * psi[g, i] | / SE(g)`, read as the `ceil(level·(B+1))`-th
+smallest of the `B` draws (the rank every simultaneous response band uses) and
+floored at `z`; the band is `m(g) ± c * SE(g)`.
 Both bands can be reconstructed from this export bit-for-bit; if your
 reconstruction disagrees, that is a bug report, not a tolerance issue.
 
