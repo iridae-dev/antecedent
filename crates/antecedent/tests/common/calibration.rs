@@ -161,6 +161,18 @@ pub fn mix_seed(seed: u64) -> u64 {
     z ^ (z >> 31)
 }
 
+/// Seed of the independent stream `stream` of the replicate keyed by `seed`.
+///
+/// Several noise series of one replicate must not be seeded as `seed ^ tag`
+/// with nearby tags: `(seed ^ 0x…1)` for replicate `r` equals `(seed ^ 0x…2)`
+/// for replicate `r ^ 3`, so with consecutive replicate seeds one replicate's
+/// treatment path is another's residual path. Scrambling the replicate seed
+/// first leaves no such algebraic relation between replicates.
+#[must_use]
+pub fn stream_seed(seed: u64, stream: u64) -> u64 {
+    mix_seed(seed).wrapping_add(mix_seed(stream))
+}
+
 /// Uniform `[0, 1)` draw keyed by `seed` (e.g. to pick a structural atom per replicate).
 #[must_use]
 pub fn unit_uniform(seed: u64) -> f64 {

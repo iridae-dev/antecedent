@@ -15,7 +15,7 @@ use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy, VariableId};
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
 
-use super::calibration::{ar1_noise, gaussian};
+use super::calibration::{ar1_noise, gaussian, stream_seed};
 use super::driven_dgp::{A, B, C};
 use super::fixtures::{B1, B2};
 
@@ -65,9 +65,9 @@ pub fn multi_sustained() -> TemporalEffectQuery {
 #[must_use]
 pub fn mediation_series(n: usize, rho: f64, seed: u64) -> TimeSeriesData {
     let total = n + BURN;
-    let t = ar1_noise(total, rho, 1.0, seed ^ 0x7A11);
-    let e = ar1_noise(total, rho, 0.5, seed ^ 0x7A12);
-    let mut g = gaussian(seed ^ 0x7A13);
+    let t = ar1_noise(total, rho, 1.0, stream_seed(seed, 0x7A11));
+    let e = ar1_noise(total, rho, 0.5, stream_seed(seed, 0x7A12));
+    let mut g = gaussian(stream_seed(seed, 0x7A13));
     let mut m = vec![0.0; total];
     let mut y = vec![0.0; total];
     for i in 1..total {
@@ -94,8 +94,8 @@ pub fn mediation_dag() -> TemporalDag {
 #[must_use]
 pub fn sequential_series(n: usize, rho: f64, seed: u64) -> TimeSeriesData {
     let total = n + BURN;
-    let x = ar1_noise(total, rho, 1.0, seed ^ 0x5E01);
-    let u = ar1_noise(total, rho, 0.5, seed ^ 0x5E02);
+    let x = ar1_noise(total, rho, 1.0, stream_seed(seed, 0x5E01));
+    let u = ar1_noise(total, rho, 0.5, stream_seed(seed, 0x5E02));
     let mut y = vec![0.0; total];
     for t in 2..total {
         y[t] = B1 * x[t - 1] + B2 * x[t - 2] + u[t];
