@@ -358,6 +358,25 @@ class EstimateSection:
     family_contrast_interval: tuple[float, float, float] | None
     candidate_selection: CandidateSelectionSection | None
     evalue: float | None
+    distribution_atoms: list[DistributionAtomSection] | None
+    mean_interval: ProbabilityIntervalSection | None
+
+class ProbabilityIntervalSection:
+    """Bounded interval for one interventional probability, or why none exists."""
+
+    level: float | None
+    lower: float | None
+    upper: float | None
+    unavailable: str | None
+
+class DistributionAtomSection:
+    """One interventional-distribution atom and its probability interval."""
+
+    outcomes: list[tuple[str, float | None]]
+    conditioning: list[tuple[str, float | None]]
+    probability: float
+    se_bootstrap: float | None
+    interval: ProbabilityIntervalSection | None
 
 class CandidateSelectionSection:
     screen_id: str

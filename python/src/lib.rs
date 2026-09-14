@@ -1037,6 +1037,110 @@ struct EstimateSection {
     candidate_selection: Option<CandidateSelectionSection>,
     #[pyo3(get)]
     evalue: Option<f64>,
+    /// Interventional-distribution atoms with their probability intervals.
+    /// `None` for non-distribution queries.
+    #[pyo3(get)]
+    distribution_atoms: Option<Vec<DistributionAtomSection>>,
+    /// Bounded interval for the interventional mean of a binary `{0, 1}`
+    /// outcome (the probability `P(Y = 1 | do(x))`). `None` otherwise.
+    #[pyo3(get)]
+    mean_interval: Option<ProbabilityIntervalSection>,
+}
+
+/// Bounded interval for one interventional probability, or the reason none
+/// could be formed.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct ProbabilityIntervalSection {
+    /// Nominal two-sided level; `None` when unavailable.
+    #[pyo3(get)]
+    level: Option<f64>,
+    /// Lower bound in `[0, 1]`; `None` when unavailable.
+    #[pyo3(get)]
+    lower: Option<f64>,
+    /// Upper bound in `[0, 1]`; `None` when unavailable.
+    #[pyo3(get)]
+    upper: Option<f64>,
+    /// Machine-readable reason when no interval could be formed.
+    #[pyo3(get)]
+    unavailable: Option<String>,
+}
+
+impl ProbabilityIntervalSection {
+    pub(crate) fn new(interval: antecedent_estimate::ProbabilityInterval) -> Self {
+        match interval {
+            antecedent_estimate::ProbabilityInterval::Bounded { level, lower, upper } => Self {
+                level: Some(level),
+                lower: Some(lower),
+                upper: Some(upper),
+                unavailable: None,
+            },
+            antecedent_estimate::ProbabilityInterval::Unavailable(reason) => Self {
+                level: None,
+                lower: None,
+                upper: None,
+                unavailable: Some(reason.as_str().to_string()),
+            },
+        }
+    }
+}
+
+/// One interventional-distribution atom.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct DistributionAtomSection {
+    /// `(outcome name, level)` pairs in query order.
+    #[pyo3(get)]
+    outcomes: Vec<(String, Option<f64>)>,
+    /// `(conditioning name, level)` pairs; empty when unconditional.
+    #[pyo3(get)]
+    conditioning: Vec<(String, Option<f64>)>,
+    /// Estimated probability (posterior mean in Bayesian mode).
+    #[pyo3(get)]
+    probability: f64,
+    /// Frequentist bootstrap SE of this probability.
+    #[pyo3(get)]
+    se_bootstrap: Option<f64>,
+    /// Frequentist bounded interval; `None` when no bootstrap ran.
+    #[pyo3(get)]
+    interval: Option<ProbabilityIntervalSection>,
+}
+
+/// Distribution atoms and the binary-mean interval for the estimate section.
+pub(crate) fn distribution_sections(
+    names: &[String],
+    distribution: Option<&antecedent_estimate::InterventionalDistributionEstimate>,
+) -> (Option<Vec<DistributionAtomSection>>, Option<ProbabilityIntervalSection>) {
+    let Some(dist) = distribution else {
+        return (None, None);
+    };
+    let named = |pairs: &[(antecedent_core::VariableId, antecedent_core::Value)]| {
+        pairs
+            .iter()
+            .map(|(id, value)| {
+                let name =
+                    names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()));
+                (name, value.as_f64())
+            })
+            .collect::<Vec<_>>()
+    };
+    let atoms = dist
+        .atoms
+        .iter()
+        .enumerate()
+        .map(|(i, atom)| {
+            let uncertainty = dist.atom_uncertainty.get(i);
+            DistributionAtomSection {
+                outcomes: named(&atom.outcomes),
+                conditioning: named(&atom.conditioning),
+                probability: atom.probability,
+                se_bootstrap: uncertainty.and_then(|u| u.se_bootstrap),
+                interval: uncertainty.map(|u| ProbabilityIntervalSection::new(u.interval)),
+            }
+        })
+        .collect();
+    let mean = dist.mean_interval.map(ProbabilityIntervalSection::new);
+    (Some(atoms), mean)
 }
 
 /// Typed candidate-selection provenance on a batch result.
@@ -1858,6 +1962,8 @@ fn register_native_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<IdentificationSection>()?;
     m.add_class::<EstimateSection>()?;
     m.add_class::<CandidateSelectionSection>()?;
+    m.add_class::<DistributionAtomSection>()?;
+    m.add_class::<ProbabilityIntervalSection>()?;
     m.add_class::<ScoreTableSection>()?;
     m.add_class::<ScoreInferenceSection>()?;
     m.add_class::<PosteriorSection>()?;
