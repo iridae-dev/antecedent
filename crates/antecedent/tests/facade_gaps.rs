@@ -356,3 +356,34 @@ fn pag_compile_ready() {
     let compiled = analysis.compile(&ExecutionContext::for_tests(1)).unwrap();
     assert!(compiled.static_pag().is_some());
 }
+
+/// `identify_admg_query` routes a conditional distribution on an ADMG through
+/// IDC. `Study` refuses conditional ADMG distributions at compile, so the
+/// public strategy-table entry point is the one caller that reaches this
+/// branch: `x -> y`, `z -> y`, `x <-> z`, query `P(y | do(x), z)`. IDC line 1
+/// moves `z` into the intervention (it is independent of `y` given `x` once
+/// `x`'s incoming edges and `z`'s outgoing edges are cut), leaving
+/// `P(y | do(x, z)) = P(y | x, z)`.
+#[test]
+fn admg_conditional_distribution_runs_idc() {
+    use antecedent::strategy_table::identify_admg_query;
+    use antecedent_core::InterventionalDistributionQuery;
+
+    let (x, y, z) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
+    let mut admg = antecedent_graph::Admg::with_variables(3);
+    admg.insert_directed(x, y).unwrap();
+    admg.insert_directed(z, y).unwrap();
+    admg.insert_bidirected(x, z).unwrap();
+    let mut query = InterventionalDistributionQuery::new(
+        VariableId::from_raw(1),
+        [Intervention::set(VariableId::from_raw(0), Value::f64(1.0))],
+    );
+    query.conditioning = Arc::from([VariableId::from_raw(2)]);
+    let result =
+        identify_admg_query(IdentifierId::GeneralId, &admg, &CausalQuery::Distribution(query))
+            .unwrap();
+    assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+    let rules: Vec<&str> = result.derivation.steps.iter().map(|s| s.rule.as_ref()).collect();
+    assert!(rules.contains(&"general.idc"), "IDC must run: {rules:?}");
+    assert!(rules.contains(&"general.idc.line1"), "z moves to the intervention: {rules:?}");
+}
