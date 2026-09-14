@@ -82,6 +82,10 @@ pub(crate) struct ResponseAnalysisResult {
     identified_mass: Option<f64>,
     #[pyo3(get)]
     unidentified_mass: Option<f64>,
+    /// Mass identified in theory but not evaluable by the estimator; separate
+    /// from [`Self::unidentified_mass`].
+    #[pyo3(get)]
+    unevaluable_mass: Option<f64>,
     #[pyo3(get)]
     completion_count: Option<usize>,
     #[pyo3(get)]
@@ -374,6 +378,7 @@ fn analyze_response_pag(
             // for this estimator; preserve their weight as unidentified execution mass.
             identified_mass: Some(estimable_mass / total_mass),
             unidentified_mass: Some((total_mass - estimable_mass) / total_mass),
+            unevaluable_mass: Some(0.0),
             completion_count: Some(envelope.cases.len()),
             truncated_completions: Some(envelope.truncated_completions),
             enumeration_capped: Some(enumeration_capped),
@@ -778,8 +783,8 @@ pub(crate) fn response_result(
             .collect(),
         provenance_id: response.provenance_id.to_string(),
         identified_mass: structural.map(|mixture| mixture.identified_mass),
-        unidentified_mass: structural
-            .map(|mixture| mixture.unidentified_mass + mixture.unevaluable_mass),
+        unidentified_mass: structural.map(|mixture| mixture.unidentified_mass),
+        unevaluable_mass: structural.map(|mixture| mixture.unevaluable_mass),
         completion_count: structural.map(|mixture| mixture.atoms.len()),
         truncated_completions: structural.map(|mixture| mixture.truncated_atoms),
         enumeration_capped: structural.map(|mixture| !mixture.full_mass_scope),

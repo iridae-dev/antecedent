@@ -55,6 +55,14 @@ def test_envelope_and_support_and_uncertainty_guards():
         ResponseEnvelopeView(["a"], ["y"], [[0.0]], [[0.0]], [[1.0]], 0.4, 1.2, 1)
     with pytest.raises(CausalValueError, match="sum to one"):
         ResponseEnvelopeView(["a"], ["y"], [[0.0]], [[0.0]], [[1.0]], 0.4, 0.4, 1)
+    with pytest.raises(CausalValueError, match="unevaluable_mass"):
+        ResponseEnvelopeView(
+            ["a"], ["y"], [[0.0]], [[0.0]], [[1.0]], 0.6, 0.0, 1, unevaluable_mass=1.5
+        )
+    split = ResponseEnvelopeView(
+        ["a"], ["y"], [[0.0]], [[0.0]], [[1.0]], 0.6, 0.0, 2, unevaluable_mass=0.4
+    )
+    assert split.unevaluable_mass == 0.4 and split.unidentified_mass == 0.0
     with pytest.raises(CausalValueError, match="completion"):
         ResponseEnvelopeView(["a"], ["y"], [[0.0]], [[0.0]], [[1.0]], 1.0, 0.0, 0)
     with pytest.raises(CausalValueError, match="examined completions"):
