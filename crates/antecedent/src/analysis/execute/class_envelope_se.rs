@@ -166,14 +166,23 @@ impl TemporalAtomDesign {
         }
     }
 
-    fn estimate_on_rows(&self, rows: &[usize], workspace: &mut EstimationWorkspace) -> Option<f64> {
+    fn estimate_on_rows(
+        &self,
+        rows: &[usize],
+        workspace: &mut EstimationWorkspace,
+        x_boot: &mut Vec<f64>,
+        y_boot: &mut Vec<f64>,
+    ) -> Option<f64> {
         match self {
             Self::Linear { prep, fitter, .. } => {
-                let mut x = vec![0.0; rows.len() * prep.design.ncols];
-                let mut y = vec![0.0; rows.len()];
-                fitter.ate_on_row_indices_into(prep, workspace, rows, &mut x, &mut y).ok()
+                let n = rows.len();
+                x_boot.resize(n * prep.design.ncols, 0.0);
+                y_boot.resize(n, 0.0);
+                fitter.ate_on_row_indices_into(prep, workspace, rows, x_boot, y_boot).ok()
             }
-            Self::Sequential { design, .. } => design.estimate_on_rows(rows).ok(),
+            Self::Sequential { design, .. } => {
+                design.estimate_on_rows_into(rows, &mut workspace.ols, x_boot, y_boot).ok()
+            }
         }
     }
 
@@ -257,6 +266,8 @@ pub fn shared_circular_block_mixture_se(
         influences.iter().flatten().copied().chain(score.as_deref()).collect();
     let kernel_bias = antecedent_estimate::kernel_bias_scale(&target, block_length);
     let mut workspace = EstimationWorkspace::default();
+    let mut x_boot = Vec::new();
+    let mut y_boot = Vec::new();
     let mut out = shared_circular_block_mixture_se_with_length(
         &designs,
         weights,
@@ -265,7 +276,7 @@ pub fn shared_circular_block_mixture_se(
         replicates,
         stream_base,
         ctx,
-        |atom, rows| atoms[atom].estimate_on_rows(rows, &mut workspace),
+        |atom, rows| atoms[atom].estimate_on_rows(rows, &mut workspace, &mut x_boot, &mut y_boot),
     );
     out.effective_rows = if score.is_some() {
         antecedent_estimate::score_effective_rows(&target, block_length)

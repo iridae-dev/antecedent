@@ -269,6 +269,9 @@ pub fn tuple_block_observation_replicates(
     let mut attempted = 0u32;
     let mut positions = Vec::with_capacity(m);
     let mut anchors = Vec::with_capacity(m);
+    let mut ols_ws = antecedent_stats::LeastSquaresWorkspace::default();
+    let mut x_boot = Vec::new();
+    let mut seq_rows = Vec::with_capacity(m);
     for replicate in 0..replicates {
         if ctx.cancellation.is_cancelled() || m < 3 {
             break;
@@ -294,7 +297,9 @@ pub fn tuple_block_observation_replicates(
                                 &anchors,
                             )
                             .ok()?;
-                        surface.replicate(&anchors, &outcomes).ok()??
+                        surface
+                            .replicate_into(&anchors, &outcomes, &mut ols_ws, &mut x_boot)
+                            .ok()??
                     }
                     PreparedTupleTarget::Sequence { levels, outcome, observation_adjusted } => {
                         // The observation nuisance is refit on the replicate's outcome-time
@@ -324,7 +329,17 @@ pub fn tuple_block_observation_replicates(
                         };
                         levels
                             .iter()
-                            .map(|level| level.replicate(&anchors, replacements).ok()?)
+                            .map(|level| {
+                                level
+                                    .replicate_into(
+                                        &anchors,
+                                        replacements,
+                                        &mut seq_rows,
+                                        &mut x_boot,
+                                        &mut ols_ws,
+                                    )
+                                    .ok()?
+                            })
                             .collect::<Option<Vec<f64>>>()?
                     }
                 };

@@ -325,10 +325,30 @@ impl SequentialContrastDesign {
     ///
     /// Out-of-range rows or least-squares failures.
     pub fn estimate_on_rows(&self, rows: &[usize]) -> Result<f64, EstimationError> {
+        self.estimate_on_rows_into(
+            rows,
+            &mut LeastSquaresWorkspace::default(),
+            &mut Vec::new(),
+            &mut Vec::new(),
+        )
+    }
+
+    /// [`Self::estimate_on_rows`] writing each mechanism gather into caller-owned buffers.
+    ///
+    /// # Errors
+    ///
+    /// Out-of-range rows or least-squares failures.
+    pub fn estimate_on_rows_into(
+        &self,
+        rows: &[usize],
+        ls_ws: &mut LeastSquaresWorkspace,
+        x_boot: &mut Vec<f64>,
+        y_boot: &mut Vec<f64>,
+    ) -> Result<f64, EstimationError> {
         if rows.iter().any(|&r| r >= self.setup.n) {
             return Err(EstimationError::data_msg("aligned row index out of range"));
         }
-        self.setup.evaluate(Some(rows), &mut LeastSquaresWorkspace::default())
+        self.setup.evaluate_into(Some(rows), ls_ws, x_boot, y_boot)
     }
 
     /// Per-row influence of the contrast (OLS scores of every mechanism mapped
@@ -684,26 +704,37 @@ impl SequentialSetup {
         &self,
         rows: Option<&[usize]>,
         ls_ws: &mut LeastSquaresWorkspace,
+        x_boot: &mut Vec<f64>,
+        y_boot: &mut Vec<f64>,
     ) -> Result<Vec<Vec<f64>>, EstimationError> {
         let n = self.n;
         let mut coefficients = vec![Vec::new(); self.node_count];
         for &i in &self.order {
             if let Some(design) = &self.designs[i] {
-                let (matrix, y) = if let Some(rows) = rows {
-                    (
-                        design
-                            .matrix
-                            .chunks(n)
-                            .flat_map(|column| rows.iter().map(|&r| column[r]))
-                            .collect::<Vec<_>>(),
-                        rows.iter().map(|&r| design.outcome[r]).collect::<Vec<_>>(),
-                    )
+                let (nrows, ncols) = if let Some(rows) = rows {
+                    let m = rows.len();
+                    let p = design.ncols;
+                    x_boot.resize(m * p, 0.0);
+                    y_boot.resize(m, 0.0);
+                    for c in 0..p {
+                        let column = &design.matrix[c * n..(c + 1) * n];
+                        for (r, &src) in rows.iter().enumerate() {
+                            x_boot[c * m + r] = column[src];
+                        }
+                    }
+                    for (r, &src) in rows.iter().enumerate() {
+                        y_boot[r] = design.outcome[src];
+                    }
+                    (m, p)
                 } else {
-                    (design.matrix.to_vec(), design.outcome.to_vec())
+                    x_boot.clear();
+                    x_boot.extend_from_slice(&design.matrix);
+                    y_boot.clear();
+                    y_boot.extend_from_slice(&design.outcome);
+                    (design.nrows, design.ncols)
                 };
-                coefficients[i] = FaerBackend
-                    .least_squares(&matrix, y.len(), design.ncols, &y, ls_ws)?
-                    .coefficients;
+                coefficients[i] =
+                    FaerBackend.least_squares(x_boot, nrows, ncols, y_boot, ls_ws)?.coefficients;
             }
         }
         Ok(coefficients)
@@ -716,7 +747,17 @@ impl SequentialSetup {
         rows: Option<&[usize]>,
         ls_ws: &mut LeastSquaresWorkspace,
     ) -> Result<f64, EstimationError> {
-        let coefficients = self.fit_ols(rows, ls_ws)?;
+        self.evaluate_into(rows, ls_ws, &mut Vec::new(), &mut Vec::new())
+    }
+
+    fn evaluate_into(
+        &self,
+        rows: Option<&[usize]>,
+        ls_ws: &mut LeastSquaresWorkspace,
+        x_boot: &mut Vec<f64>,
+        y_boot: &mut Vec<f64>,
+    ) -> Result<f64, EstimationError> {
+        let coefficients = self.fit_ols(rows, ls_ws, x_boot, y_boot)?;
         Ok(match (self.eval, rows) {
             (SequentialEval::Level, Some(rows)) if !rows.is_empty() => {
                 let mut factual = self.factual.clone();
@@ -755,7 +796,7 @@ impl SequentialSetup {
     /// over fitted mechanisms `i` with contrast gradient `g_i`. Used only for the
     /// effective-row count of the estimating score, so its scale is immaterial.
     fn influence(&self, ls_ws: &mut LeastSquaresWorkspace) -> Option<Vec<f64>> {
-        let base = self.fit_ols(None, ls_ws).ok()?;
+        let base = self.fit_ols(None, ls_ws, &mut Vec::new(), &mut Vec::new()).ok()?;
         let gradient = self.gradient(&base);
         let n = self.n;
         let mut score = vec![0.0; n];
@@ -846,23 +887,25 @@ fn estimate_sequential(
         // copies). The contrast is linear in each coefficient, so central differences
         // at the OLS fit are exact up to rounding.
         let contrast_gradient = match eval {
-            SequentialEval::Contrast { .. } => setup.fit_ols(None, &mut ls_ws).ok().map(|base| {
-                let per_node = setup.gradient(&base);
-                let mut gradients: std::collections::HashMap<VariableId, Vec<f64>> =
-                    std::collections::HashMap::new();
-                for &i in order {
-                    if base[i].is_empty() {
-                        continue;
+            SequentialEval::Contrast { .. } => {
+                setup.fit_ols(None, &mut ls_ws, &mut Vec::new(), &mut Vec::new()).ok().map(|base| {
+                    let per_node = setup.gradient(&base);
+                    let mut gradients: std::collections::HashMap<VariableId, Vec<f64>> =
+                        std::collections::HashMap::new();
+                    for &i in order {
+                        if base[i].is_empty() {
+                            continue;
+                        }
+                        let variable = indexer.key_of(i as u32).expect("unfolded node").variable;
+                        let entry =
+                            gradients.entry(variable).or_insert_with(|| vec![0.0; base[i].len()]);
+                        for k in 0..base[i].len().min(entry.len()) {
+                            entry[k] += per_node[i][k];
+                        }
                     }
-                    let variable = indexer.key_of(i as u32).expect("unfolded node").variable;
-                    let entry =
-                        gradients.entry(variable).or_insert_with(|| vec![0.0; base[i].len()]);
-                    for k in 0..base[i].len().min(entry.len()) {
-                        entry[k] += per_node[i][k];
-                    }
-                }
-                gradients
-            }),
+                    gradients
+                })
+            }
             SequentialEval::Level => None,
         };
         let mut mechanism_posts = vec![None; setup.node_count];

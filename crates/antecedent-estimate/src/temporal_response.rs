@@ -25,9 +25,7 @@ use antecedent_core::{
     SupportReport, SupportStatus, TargetPopulation, TemporalEffectQuery, TemporalNodeKey,
     TemporalResponseSpec, Value, VariableId,
 };
-use antecedent_data::{
-    ResamplingPlan, TableView, TemporalIndexer, TimeSeriesData, fill_resample_indexes,
-};
+use antecedent_data::{TableView, TemporalIndexer, TimeSeriesData, fill_circular_block_indexes};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, normal_ppf,
@@ -1543,16 +1541,17 @@ impl FittedSurface {
                 .map(|replicate| {
                     cells
                         .iter()
-                        .map(|&(h, eval)| level_at(&replicate[h].0, &replicate[h].1, eval))
+                        .map(|&(h, eval)| {
+                            let (coefs, means) = boot.horizon_fit(replicate, h);
+                            level_at(coefs, means, eval)
+                        })
                         .collect()
                 })
                 .collect();
             inflate_replicates(&mean, &mut draws, self.inflation());
             let dispersion = cell_dispersion(&self.horizons, cells, self.block.length);
             dispersion.inflate(&mean, &mut draws);
-            let se: Vec<f64> = (0..cells.len())
-                .map(|cell| sample_std(&draws.iter().map(|draw| draw[cell]).collect::<Vec<_>>()))
-                .collect();
+            let se: Vec<f64> = (0..cells.len()).map(|cell| sample_std_cell(&draws, cell)).collect();
             CellBand {
                 lower: mean.iter().zip(&se).map(|(m, s)| m - z * s).collect(),
                 upper: mean.iter().zip(&se).map(|(m, s)| m + z * s).collect(),
@@ -1689,25 +1688,52 @@ impl PreparedTemporalSurface {
                 "replicate anchors must align with outcomes and lie in every horizon's design",
             ));
         }
-        let mut ols_ws = LeastSquaresWorkspace::default();
+        self.replicate_into(
+            anchors,
+            outcomes,
+            &mut LeastSquaresWorkspace::default(),
+            &mut Vec::new(),
+        )
+    }
+
+    /// [`Self::replicate`] writing the design gather into caller-owned buffers.
+    ///
+    /// # Errors
+    ///
+    /// Misaligned `anchors` / `outcomes`, or an anchor outside every horizon's design.
+    pub fn replicate_into(
+        &self,
+        anchors: &[usize],
+        outcomes: &[f64],
+        ols_ws: &mut LeastSquaresWorkspace,
+        x_boot: &mut Vec<f64>,
+    ) -> Result<Option<Vec<f64>>, EstimationError> {
+        if anchors.len() != outcomes.len()
+            || anchors.len() < 2
+            || anchors.iter().any(|&s| s < self.first_common_anchor() || s >= self.series_rows)
+        {
+            return Err(EstimationError::unsupported(
+                "replicate anchors must align with outcomes and lie in every horizon's design",
+            ));
+        }
         let m = anchors.len();
         let mut fits = Vec::with_capacity(self.horizons.len());
         for fitted in &self.horizons {
             let design = &fitted.prepared.design;
             let (n, p) = (design.nrows, design.ncols);
             let base = self.series_rows - n;
-            let mut x = vec![0.0; m * p];
+            x_boot.resize(m * p, 0.0);
             for c in 0..p {
                 let column = &design.matrix[c * n..(c + 1) * n];
                 for (i, &anchor) in anchors.iter().enumerate() {
-                    x[c * m + i] = column[anchor - base];
+                    x_boot[c * m + i] = column[anchor - base];
                 }
             }
-            let Ok(fit) = FaerBackend.least_squares(&x, m, p, outcomes, &mut ols_ws) else {
+            let Ok(fit) = FaerBackend.least_squares(x_boot, m, p, outcomes, ols_ws) else {
                 return Ok(None);
             };
             let means: Vec<f64> =
-                (0..p).map(|c| x[c * m..(c + 1) * m].iter().sum::<f64>() / m as f64).collect();
+                (0..p).map(|c| x_boot[c * m..(c + 1) * m].iter().sum::<f64>() / m as f64).collect();
             fits.push((fit.coefficients, means));
         }
         Ok(Some(
@@ -1718,8 +1744,8 @@ impl PreparedTemporalSurface {
 
 /// Circular-block resample of `m` positions with block length `block`.
 ///
-/// Delegates to [`fill_resample_indexes`] with a circular-block plan, the same law as
-/// the complete-data surface bootstrap and the scalar Pulse SEs.
+/// Circular-block resample, the same law as the complete-data surface bootstrap
+/// and the scalar Pulse SEs.
 pub fn circular_block_positions(
     m: usize,
     block: usize,
@@ -1742,12 +1768,10 @@ pub fn circular_block_positions_into(
         return;
     }
     let block = block.clamp(1, m);
-    let mut scratch = Vec::with_capacity(m);
-    let plan = ResamplingPlan::CircularBlock { length: block };
-    if fill_resample_indexes(plan, m, rng, &mut scratch).is_err() {
-        return;
+    out.resize(m, 0);
+    if fill_circular_block_indexes(m, block, rng, out).is_err() {
+        out.clear();
     }
-    out.extend(scratch.iter().map(|&i| i as usize));
 }
 
 /// `coefs' cbar(eval)`: the g-computed level at one cell under one fit.
@@ -1901,9 +1925,24 @@ fn horizon_rows(horizons: &[FittedHorizon], series_rows: usize) -> Vec<AlignedRo
 /// accounting matches that helper: too few survivors, or more than
 /// [`BOOTSTRAP_MAX_FAILURE_FRAC`] soft failures, means no bootstrap SE is reported.
 struct SurfaceBootstrap {
-    /// `draws[r][h] = (coefficients, design column means)` of replicate `r` at horizon `h`.
-    draws: Vec<Vec<(Vec<f64>, Vec<f64>)>>,
+    /// `draws[r]` is flattened `[coefs_h, means_h]` per horizon in horizon order.
+    draws: Vec<Vec<f64>>,
+    /// `ncols[h]` is horizon `h`'s design column count (each horizon occupies `2 * p`).
+    ncols: Vec<usize>,
     cancelled: bool,
+}
+
+impl SurfaceBootstrap {
+    fn horizon_fit<'a>(&self, flat: &'a [f64], h: usize) -> (&'a [f64], &'a [f64]) {
+        let mut off = 0;
+        for (i, &p) in self.ncols.iter().enumerate() {
+            if i == h {
+                return (&flat[off..off + p], &flat[off + p..off + 2 * p]);
+            }
+            off += 2 * p;
+        }
+        (&[], &[])
+    }
 }
 
 /// Joint circular-block bootstrap of the whole dose × horizon surface.
@@ -1933,6 +1972,7 @@ fn bootstrap_surface(
     let mut ols_ws = LeastSquaresWorkspace::default();
     let mut x_boot = Vec::new();
     let mut y_boot = Vec::new();
+    let ncols: Vec<usize> = horizons.iter().map(|fitted| fitted.prepared.design.ncols).collect();
     let boot = aligned_block_bootstrap(
         rows,
         block_length,
@@ -1944,10 +1984,11 @@ fn bootstrap_surface(
             for (fitted, map) in horizons.iter().zip(maps) {
                 let design = &fitted.prepared.design;
                 let (n, p, m) = (design.nrows, design.ncols, map.len());
-                x_boot.clear();
                 x_boot.resize(m * p, 0.0);
-                y_boot.clear();
-                y_boot.extend(map.iter().map(|&src| design.outcome[src]));
+                y_boot.resize(m, 0.0);
+                for (i, &src) in map.iter().enumerate() {
+                    y_boot[i] = design.outcome[src];
+                }
                 for c in 0..p {
                     let column = &design.matrix[c * n..(c + 1) * n];
                     for (i, &src) in map.iter().enumerate() {
@@ -1972,24 +2013,25 @@ fn bootstrap_surface(
     if failed / f64::from(boot.attempted) > BOOTSTRAP_MAX_FAILURE_FRAC {
         return None;
     }
-    let draws = boot
-        .draws
-        .into_iter()
-        .map(|flat| {
-            let mut rest = flat.as_slice();
-            horizons
-                .iter()
-                .map(|fitted| {
-                    let p = fitted.prepared.design.ncols;
-                    let (coefs, tail) = rest.split_at(p);
-                    let (means, tail) = tail.split_at(p);
-                    rest = tail;
-                    (coefs.to_vec(), means.to_vec())
-                })
-                .collect()
+    Some(SurfaceBootstrap { draws: boot.draws, ncols, cancelled: boot.cancelled })
+}
+
+/// Unbiased sample SD of column `cell` across `draws`, without a temporary Vec.
+fn sample_std_cell(draws: &[Vec<f64>], cell: usize) -> f64 {
+    let n = draws.len() as f64;
+    if n < 2.0 {
+        return f64::NAN;
+    }
+    let mean = draws.iter().map(|draw| draw[cell]).sum::<f64>() / n;
+    let var = draws
+        .iter()
+        .map(|draw| {
+            let e = draw[cell] - mean;
+            e * e
         })
-        .collect();
-    Some(SurfaceBootstrap { draws, cancelled: boot.cancelled })
+        .sum::<f64>()
+        / (n - 1.0);
+    var.sqrt()
 }
 
 fn design_column_means(design: &CompiledDesign) -> Vec<f64> {
