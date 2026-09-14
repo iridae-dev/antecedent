@@ -481,7 +481,9 @@ pub(super) struct SharedCircularBlockSe {
     pub block_length: usize,
     /// Series times resampled (the window every atom can evaluate).
     pub rows: usize,
-    /// Effective rows of the weighted mixture estimating score (NaN when unknown).
+    /// Effective rows of every atom's and the weighted mixture's estimating score
+    /// at the block length ([`antecedent_estimate::score_effective_rows`]; NaN
+    /// when unknown).
     pub effective_rows: f64,
     /// Successful replicates: every atom's refit, in atom order.
     pub atom_draws: Vec<Vec<f64>>,
@@ -685,7 +687,15 @@ pub(super) fn shared_circular_block_mixture_se(
         ctx,
         |atom, rows| atoms[atom].estimate_on_rows(rows, &mut workspace),
     );
-    out.effective_rows = score.as_deref().map_or(f64::NAN, antecedent_estimate::effective_rows);
+    // Every atom's score, not only the weighted sum: a mixture dominated by a
+    // nearly iid atom can hide another atom's slowly decaying dependence.
+    out.effective_rows = if score.is_some() {
+        let target: Vec<&[f64]> =
+            influences.iter().flatten().map(Vec::as_slice).chain(score.as_deref()).collect();
+        antecedent_estimate::score_effective_rows(&target, block_length)
+    } else {
+        f64::NAN
+    };
     out
 }
 
@@ -767,7 +777,7 @@ pub(super) fn shared_circular_block_mixture_se_with_length(
 }
 
 /// The shared-block provenance diagnostic for a class envelope, plus the
-/// short-series warning when the mixture score is below the effective-row floor.
+/// short-series warning when the mixture score is below the mixture threshold.
 pub(super) fn envelope_shared_block_diagnostics(
     identified_mass: f64,
     unidentified_mass: f64,
@@ -784,7 +794,10 @@ pub(super) fn envelope_shared_block_diagnostics(
             block,
         ),
     )];
-    out.extend(short_series_warning(block.effective_rows));
+    out.extend(short_series_warning(
+        block.effective_rows,
+        antecedent_estimate::CircularBlockFamily::Mixture,
+    ));
     out
 }
 
@@ -805,7 +818,8 @@ pub(super) fn shared_block_mixture_message(
          {} times where every atom's lag window is available; each atom's lag-aligned \
          rows keep their original lag windows and every atom is refit on the same \
          resampled times; replicate SD scaled by the Kiefer-Vogelsang fixed-b factor \
-         {:.4}; score effective rows {:.0}; between-atom sampling \
+         {:.4}; score effective rows {:.1} (smallest over every atom's and the \
+         mixture's score of the lag-1 and block-length readings); between-atom sampling \
          variance included; unidentified mass is not mixed into the SE; \
          the interval is for the reported aggregate, not a distribution \
          over graph-specific effects",
@@ -815,25 +829,26 @@ pub(super) fn shared_block_mixture_message(
 }
 
 /// Warning shared by every one-series circular-block interval when the
-/// estimating score's effective rows fall below
-/// [`antecedent_estimate::MIN_EFFECTIVE_ROWS`].
-pub(super) fn short_series_warning(effective_rows: f64) -> Option<Diagnostic> {
-    (effective_rows.is_nan() || effective_rows < antecedent_estimate::MIN_EFFECTIVE_ROWS).then(
-        || {
-            Diagnostic::new(
-                "estimate.temporal.circular_block_se.short_series",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                format!(
-                    "estimating-score effective rows {effective_rows:.0} < {}: the series may \
-                     be too short for its serial dependence under the ceil(n^(1/3)) block \
-                     rule, and the circular-block interval may under-cover (the 1.9 \
-                     calibration measured down to 0.835 at nominal 0.90 below this floor)",
-                    antecedent_estimate::MIN_EFFECTIVE_ROWS
-                ),
-            )
-        },
-    )
+/// estimating score's effective rows fall below the threshold of its SE family
+/// ([`antecedent_estimate::CircularBlockFamily::min_effective_rows`]).
+pub(super) fn short_series_warning(
+    effective_rows: f64,
+    family: antecedent_estimate::CircularBlockFamily,
+) -> Option<Diagnostic> {
+    family.is_short_series(effective_rows).then(|| {
+        Diagnostic::new(
+            "estimate.temporal.circular_block_se.short_series",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "estimating-score effective rows {effective_rows:.1} < {} (the {} \
+                 threshold): the series may be too short for its serial dependence, and the \
+                 circular-block interval may under-cover",
+                family.min_effective_rows(),
+                family.label(),
+            ),
+        )
+    })
 }
 
 pub(super) fn temporal_class_block_span<'a>(

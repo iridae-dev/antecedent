@@ -142,10 +142,10 @@ pub use temporal_adjustment::{
     is_temporal_coefficient_name, temporal_coefficient_names,
 };
 pub use temporal_block::{
-    AlignedRows, MIN_EFFECTIVE_ROWS, RowBlockBootstrap, RowBlockDraws, aligned_block_bootstrap,
-    common_time_window, dependence_block_length, effective_rows, fixed_b_scale,
-    normal_equation_scores, politis_white_block_length, row_block_bootstrap,
-    row_block_bootstrap_vec,
+    AlignedRows, CircularBlockFamily, RowBlockBootstrap, RowBlockDraws, aligned_block_bootstrap,
+    block_effective_rows, common_time_window, dependence_block_length, effective_rows,
+    fixed_b_scale, normal_equation_scores, politis_white_block_length, row_block_bootstrap,
+    row_block_bootstrap_vec, score_effective_rows,
 };
 pub use temporal_mediation::{
     MediationPosteriorSummary, TemporalEffectSurface, TemporalMediationBlockSe,

@@ -30,21 +30,96 @@ use antecedent_data::{ResamplingPlan, circular_block_length, fill_resample_index
 
 use crate::util::{BootstrapSeResult, finalize_bootstrap_se_ex};
 
-/// Effective-sample floor for a trusted circular-block interval.
+/// The circular-block SE families that carry their own short-series threshold.
 ///
-/// With the `⌈n^{1/3}⌉` block rule (and the [`fixed_b_scale`] correction),
-/// measured coverage of nominal-90% intervals fell below the calibration band
-/// only in designs whose [`effective_rows`] sat under this floor (AR(1) ρ = 0.9
-/// residuals at n = 60 and 160: Pulse 0.835–0.855, mediation Total
-/// 0.845–0.853). Since blocks are sized on every normal-equation score
-/// ([`dependence_block_length`]) those `TemporalDag` designs measure 0.90–0.93,
-/// ρ = 0.5 series at n = 60 (also below the floor) 0.87–0.91 (see
-/// `crates/antecedent/tests/v19_temporal_frequentist.rs`), and the six-completion
-/// class-envelope mixtures at ρ = 0.9, n = 400 0.855–0.890. The floor is kept:
-/// the class-envelope boundary still sits at the band's edge, and nothing below
-/// it has been measured beyond these AR(1) designs. Results below it carry a
-/// `short_series` warning.
-pub const MIN_EFFECTIVE_ROWS: f64 = 100.0;
+/// Each family resamples lag-aligned rows the same way but estimates a
+/// different functional, so the effective-row count below which its interval
+/// under-covers differs. [`Self::min_effective_rows`] documents the measured
+/// provenance of every threshold.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CircularBlockFamily {
+    /// One lag-aligned adjustment regression: `TemporalDag` Pulse and
+    /// single-step Sustained (the statistic reads the treatment-coefficient score).
+    SingleWindow,
+    /// Temporal mediation: Total, Direct and Mediated from one shared replicate
+    /// (the statistic is the smallest over the three contrast scores).
+    Mediation,
+    /// Multi-step Sustained sequential g-computation on one `TemporalDag` (the
+    /// statistic reads the contrast's influence).
+    Sequential,
+    /// Frozen-weight mixtures over several temporal atoms (class envelopes and
+    /// DBN posteriors) resampled on one shared replicate; the statistic is the
+    /// smallest over every atom's score and the weighted mixture score.
+    Mixture,
+}
+
+impl CircularBlockFamily {
+    /// Threshold on [`score_effective_rows`] of the family's estimating scores
+    /// below which the interval carries a `short_series` warning.
+    ///
+    /// Provenance: `crates/antecedent/tests/v19_short_series_measurement.rs`,
+    /// table in `docs/short-series-thresholds.md` (2000 replicates per cell,
+    /// nominal 0.90, AR(1) ρ ∈ {0.5, 0.8, 0.9, 0.95}, n from 40 to 1600). Each
+    /// family is measured on a short-memory score and on a persistent one
+    /// (AR(1) treatment as well as residual), because the effective-row count
+    /// alone does not separate them: the short-memory designs cover nominally
+    /// at every measured n, the persistent ones fail at the same counts. A
+    /// threshold is the smallest multiple of 5 at which every cell covering
+    /// below 0.855 (the 400-replicate gate band's lower edge) warns on at least
+    /// 90% of its replicates, taking the larger of that sweep and an
+    /// independent 1000-replicate replication.
+    ///
+    /// * `SingleWindow` 45 (sweep 45, replication 45): the AR(1)-treatment
+    ///   Pulse covers 0.765–0.853 at n = 40 (ρ ≥ 0.8), n = 60–160 (ρ ≥ 0.9)
+    ///   and n = 400 (ρ = 0.95); each warns on ≥ 92% of replicates. The
+    ///   MA(3)-treatment Pulse covers 0.868–0.911 everywhere and is quiet from
+    ///   n = 160 (≤ 6% warned); at n ≤ 100 it still warns on part of the
+    ///   replicates.
+    /// * `Mediation` 35 (30, 35): with an AR(1) treatment Total and Direct
+    ///   cover 0.755–0.850 at n = 40 (ρ ≥ 0.8), n = 60 (ρ ≥ 0.9) and
+    ///   n = 100–160 (ρ = 0.95), each warned on ≥ 97%; the MA(3) design covers
+    ///   0.875–0.923 and is quiet from n = 100 (≤ 15%).
+    /// * `Sequential` 40 (35, 40): the AR(1)-treatment multi-step Sustained
+    ///   covers 0.748–0.855 at n ≤ 60 (ρ ≥ 0.8), n = 100 (ρ = 0.95) and n = 400
+    ///   (ρ = 0.95), each warned on ≥ 98%; the confounded-DAG design covers
+    ///   0.888–0.919 and is quiet from n = 100 (≤ 29%).
+    /// * `Mixture` 155 (155, 155): SE-driven failures (the six-completion
+    ///   `TemporalPag` at ρ ≥ 0.9, n ≤ 160: 0.803–0.850) warn from 30. The rest
+    ///   is bias-driven: a non-causal completion that omits a persistent
+    ///   confounder is biased by 0.2–0.8 of its SD at ρ ≥ 0.9 (`TemporalCpdag`
+    ///   0.665–0.850 up to n = 400; DBN 0.823–0.841 at n ≤ 60). Only that
+    ///   completion's score shows it, as a weak slowly decaying component the
+    ///   block-length reading sees at ~80 effective rows (ρ = 0.95, n = 400,
+    ///   warned on 91%); the price is warnings on mixtures that cover nominally
+    ///   below about n = 400.
+    #[must_use]
+    pub const fn min_effective_rows(self) -> f64 {
+        match self {
+            Self::SingleWindow => 45.0,
+            Self::Mediation => 35.0,
+            Self::Sequential => 40.0,
+            Self::Mixture => 155.0,
+        }
+    }
+
+    /// Short name used in diagnostics.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::SingleWindow => "single-window adjustment",
+            Self::Mediation => "temporal mediation",
+            Self::Sequential => "multi-step sequential",
+            Self::Mixture => "multi-atom mixture",
+        }
+    }
+
+    /// Whether `effective_rows` (NaN when the score is unavailable) falls short
+    /// of [`Self::min_effective_rows`].
+    #[must_use]
+    pub fn is_short_series(self, effective_rows: f64) -> bool {
+        effective_rows.is_nan() || effective_rows < self.min_effective_rows()
+    }
+}
 
 /// Effective rows of an estimating-score series, `n·(1 − r₁)/(1 + r₁)`, with `r₁`
 /// its lag-1 autocorrelation floored at zero (the AR(1) variance-inflation
@@ -72,6 +147,63 @@ pub fn effective_rows(scores: &[f64]) -> f64 {
     }
     let r1 = (gamma1 / gamma0).clamp(0.0, 0.99);
     n as f64 * (1.0 - r1) / (1.0 + r1)
+}
+
+/// Effective rows of `scores` as seen by a circular block of `block_length`:
+/// `n·γ̂₀ / ĝ_b`, where `ĝ_b = γ̂₀ + 2 Σ_{k<b} (1 − k/b) γ̂_k` is the Bartlett
+/// long-run variance at the block length — the variance a circular block of
+/// that length attributes to the scores' mean. Unlike [`effective_rows`] (an
+/// AR(1) reading of the lag-1 autocorrelation) it sees dependence that is weak
+/// at lag 1 but slowly decaying. Capped at `n`; a constant series returns `n`;
+/// non-finite scores return `NaN`.
+#[must_use]
+pub fn block_effective_rows(scores: &[f64], block_length: usize) -> f64 {
+    let n = scores.len();
+    if scores.iter().any(|s| !s.is_finite()) {
+        return f64::NAN;
+    }
+    if n < 3 {
+        return n as f64;
+    }
+    let nf = n as f64;
+    let mean = scores.iter().sum::<f64>() / nf;
+    let centered: Vec<f64> = scores.iter().map(|s| s - mean).collect();
+    let autocov = |k: usize| -> f64 {
+        centered[..n - k].iter().zip(&centered[k..]).map(|(a, b)| a * b).sum::<f64>() / nf
+    };
+    let gamma0 = autocov(0);
+    if gamma0 <= 0.0 {
+        return nf;
+    }
+    let b = block_length.clamp(1, n);
+    let long_run =
+        gamma0 + 2.0 * (1..b).map(|k| (1.0 - k as f64 / b as f64) * autocov(k)).sum::<f64>();
+    if long_run <= 0.0 {
+        return nf;
+    }
+    (nf * gamma0 / long_run).min(nf)
+}
+
+/// The short-series statistic of a circular-block interval: the smallest, over
+/// every estimating-score series in `scores` (one per atom or contrast, plus
+/// the weighted mixture score), of the two effective-row readings — the lag-1
+/// AR(1) reading [`effective_rows`] and the block-length Bartlett reading
+/// [`block_effective_rows`] at `block_length`. `NaN` when no series yields a
+/// finite reading.
+///
+/// The two readings fail differently. An AR(1)-like score (persistent
+/// regressor × persistent residual) is caught sharply by `r₁`; a mixture whose
+/// weighted score is dominated by a nearly iid atom, while another atom's score
+/// carries a weak but slowly decaying component (an omitted persistent
+/// confounder in a non-causal completion), looks independent at lag 1 but not
+/// to the block.
+#[must_use]
+pub fn score_effective_rows(scores: &[&[f64]], block_length: usize) -> f64 {
+    scores
+        .iter()
+        .flat_map(|s| [effective_rows(s), block_effective_rows(s, block_length)])
+        .filter(|v| v.is_finite())
+        .fold(f64::NAN, f64::min)
 }
 
 /// Data-driven circular-block length for the mean of `scores` (Politis & White
@@ -580,6 +712,76 @@ mod tests {
             "the persistent residual must lengthen blocks: {slope_only} -> {with_residual}"
         );
         assert!(normal_equation_scores(&matrix, n, 2, &y[..10]).is_none());
+    }
+
+    /// Deterministic AR(0.8)-like score of length `n` (the series of
+    /// `effective_rows_discounts_positive_lag_one_dependence`).
+    fn persistent_score(n: u32) -> Vec<f64> {
+        let mut state = 0.0_f64;
+        (0..n)
+            .map(|t| {
+                state = 0.8 * state + f64::from((t * 7919) % 13) - 6.0;
+                state
+            })
+            .collect()
+    }
+
+    #[test]
+    fn block_effective_rows_sees_slowly_decaying_dependence() {
+        // An alternating score (lag-1 correlation −1) plus a weak slow wave: the
+        // lag-1 reading sees no positive dependence, the block reading does.
+        let n = 400;
+        let scores: Vec<f64> = (0..n)
+            .map(|t| {
+                let wave = (2.0 * std::f64::consts::PI * f64::from(t) / 100.0).sin();
+                let alternating = if t % 2 == 0 { 1.0 } else { -1.0 };
+                alternating + 0.6 * wave
+            })
+            .collect();
+        let lag_one = effective_rows(&scores);
+        let block = block_effective_rows(&scores, 40);
+        assert!((lag_one - 400.0).abs() < 1e-9, "negative r1 is floored: {lag_one}");
+        assert!(block < 200.0, "the slow wave inflates the block variance: {block}");
+        assert!((score_effective_rows(&[&scores], 40) - block).abs() < 1e-12);
+        // Uncorrelated-looking and constant series keep n; non-finite scores are skipped.
+        assert!((block_effective_rows(&[3.0; 10], 4) - 10.0).abs() < 1e-12);
+        assert!(block_effective_rows(&[1.0, f64::NAN, 2.0], 2).is_nan());
+        assert!(score_effective_rows(&[&[1.0, f64::NAN, 2.0]], 2).is_nan());
+        // A single series' two readings, and the smallest over several series.
+        let persistent = persistent_score(400);
+        let combined = score_effective_rows(&[&scores, &persistent], 40);
+        assert!(
+            (combined
+                - effective_rows(&persistent)
+                    .min(block_effective_rows(&persistent, 40))
+                    .min(block))
+            .abs()
+                < 1e-12
+        );
+    }
+
+    /// The per-family thresholds on one fixed series whose statistic sits
+    /// between them: the families disagree exactly as their thresholds say.
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn circular_block_family_thresholds_on_a_fixed_series() {
+        use CircularBlockFamily::{Mediation, Mixture, Sequential, SingleWindow};
+        assert_eq!(SingleWindow.min_effective_rows(), 45.0);
+        assert_eq!(Mediation.min_effective_rows(), 35.0);
+        assert_eq!(Sequential.min_effective_rows(), 40.0);
+        assert_eq!(Mixture.min_effective_rows(), 155.0);
+        let scores = persistent_score(135);
+        let statistic = score_effective_rows(&[&scores], 30);
+        assert!((40.0..45.0).contains(&statistic), "statistic {statistic}");
+        assert!(SingleWindow.is_short_series(statistic));
+        assert!(!Mediation.is_short_series(statistic));
+        assert!(!Sequential.is_short_series(statistic));
+        assert!(Mixture.is_short_series(statistic));
+        for family in [SingleWindow, Mediation, Sequential, Mixture] {
+            assert!(family.is_short_series(f64::NAN), "{family:?}: an unknown statistic warns");
+            assert!(!family.is_short_series(family.min_effective_rows()), "{family:?}");
+            assert!(family.is_short_series(family.min_effective_rows() - 1e-9), "{family:?}");
+        }
     }
 
     #[test]
