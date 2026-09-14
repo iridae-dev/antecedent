@@ -43,6 +43,15 @@ the scale and sign of c). With OLS residuals ê and row weights w = X(X'X)^-1 c:
   b = (M + 1)/n (Kiefer–Vogelsang Bartlett fixed-b 95% critical value).
 - κ̂_AR = w'Rw / w'w with R_ts = ρ̂(ê)^|t-s| (AR(1) residual variance ratio
   given the design).
+- AR(q) terms: a Yule–Walker AR(q) (uncentred autocovariances, q ≤ 4 by BIC
+  `n ln σ̂²_q + q ln n`) is fitted to the score and to ê. When the score order
+  is q ≥ 2, κ̂_HAC is the larger of the AR(1) value and the AR(q)-prewhitened
+  Bartlett ratio recoloured by 1/max(1 - Σφ̂, .03)²; when the residual order is
+  q ≥ 2, κ̂_AR is the larger of the AR(1) value and min(w'Rw / w'w, 3 κ̂_HAC f_b²)
+  with R the AR(q) model autocorrelation (sample values up to lag q, the AR
+  recursion beyond).
+  The orders are pinned as `score_ar_order` / `residual_ar_order`; on these
+  fixtures BIC selects q ≤ 1 everywhere, so the AR(q) terms do not move κ̂.
 - κ̂ = clamp(max(κ̂_HAC f_b², κ̂_AR), 1, max(n/(p+2), 1)).
 
 `tempering` in `expected.json` pins κ̂ and its components per fitted design,
@@ -50,6 +59,15 @@ keyed by design rows; the test reads the reported κ̂ from the
 `bayes.temporal.long_run_tempering` assumption of each fit. The stationary
 reference keeps the independent-product moments of a and b1 + b2 from their
 separately tempered posteriors.
+
+The temporal mediation references (`mediation`, `confounded_mediation`) temper
+both mechanisms too: the mediator mechanism along its path slope a (c = e_1),
+the outcome mechanism at the largest κ̂ over its direct c' (e_1), mediated b
+(e_2) and total c' + â b (e_1 + â e_2) directions, with â the OLS mediator
+slope. `tempering.mediation` / `tempering.confounded_mediation` list the two
+mechanisms (`m`, `y`; both on the same rows). The Rust test
+`v19_bayesian_temporal::release_12_mediation_moments_and_tempering_match_the_reference`
+checks the moments and both κ̂.
 
 ## Modifier-mean uncertainty (`conditional`)
 

@@ -64,7 +64,7 @@ reason = "ConditionalEffect on Admg has no compile arm; Dag, Cpdag, and Pag are 
 queries = ["PathSpecificEffect"]
 graph_classes = ["Admg", "Pag"]
 structures = ["explicit"]
-reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above)."
+reason = "Path-specific queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above)."
 
 [[closed]]
 queries = ["InterventionalDistribution"]
@@ -132,6 +132,14 @@ structures = ["graph_posterior"]
 inferences = ["Frequentist"]
 reason = "Frequentist DBN-posterior mediation is licensed for TemporalDag atoms. TemporalCpdag/TemporalPag posterior atoms need a class-aware combiner that retains unidentified class mass."
 
+[[closed]]
+queries = ["TemporalMediationEffect"]
+graph_classes = ["TemporalDag"]
+structures = ["graph_posterior"]
+inferences = ["Frequentist"]
+validations = ["cheap", "full"]
+reason = "Frequentist DBN-posterior TemporalMediationEffect is licensed at validation none. Mediation refuters are not run per atom against that atom's own contrast and mixed by graph weight on this path (the Bayesian DBN mediation cells do this), so cheap/full stay refused."
+
 # -- 2026-08-19 audit. The following reasons cover cells probed end-to-end
 # (Study::build/run) and confirmed either to refuse at compile (an
 # identifier/estimator pair the strategy table rejects) or to silently ignore
@@ -159,7 +167,7 @@ reason = "Graph-posterior response currently executes only static DAG atoms; ADM
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
 graph_classes = ["Cpdag"]
 structures = ["explicit"]
-reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Cpdag hits the same static-Dag requirement (Admg/Pag explicit already named above)."
+reason = "Path-specific queries execute only on a supplied static Dag and distribution queries only on a supplied static Dag or Admg; a directly supplied Cpdag hits that requirement (Admg/Pag explicit already named above)."
 
 [[closed]]
 queries = ["AverageEffect"]
