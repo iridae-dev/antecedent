@@ -264,7 +264,7 @@ pub(super) use identified_set_diagnostics::{
     posterior_identified_set_interval, same_fitted_mechanisms, same_fitted_problem,
 };
 pub(super) use tuple_bootstrap::{
-    TupleObservationTarget, TupleSurface, tuple_block_observation_replicates,
+    TupleObservationTarget, TupleReplicates, TupleSurface, tuple_block_observation_replicates,
 };
 
 pub(crate) use static_path::DistributionGraph;
