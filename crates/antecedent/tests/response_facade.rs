@@ -728,8 +728,9 @@ fn response_values(value: &ResponseValue) -> Vec<f64> {
 
 /// D-2 (1.9 cell review): numeric known-truth pin of the static graph-posterior
 /// response `conditional_on_identified` mean for `InterventionResponse` and
-/// `ResponseCurve`, Frequentist and Bayesian. Multi-atom response uncertainty is
-/// declared unavailable, so these cells carry numeric pins, not coverage.
+/// `ResponseCurve`, Frequentist and Bayesian. Only the Frequentist scalar
+/// aggregate carries a joint-IF SE; curves and Bayesian aggregates withhold
+/// their multi-atom interval, so these cells carry numeric pins, not coverage.
 #[test]
 #[allow(clippy::too_many_lines)]
 fn graph_posterior_response_known_truth_conditional_on_identified() {
@@ -938,4 +939,267 @@ fn class_response_posterior_not_mixed_fires_only_when_uncertainty_is_dropped() {
     let multi = run(true);
     assert!(matches!(multi.response.as_ref().unwrap().uncertainty, ResponseUncertainty::None));
     assert!(fires(&multi), "dropped per-completion bands must be disclosed");
+}
+
+/// `t`, `y`, `z1`, `z2` with `Y = 1 + 2T + 1.5·Z1 + 0.5·Z2 + e` and `T` driven
+/// by both covariates; `valid[k](i)` marks `z{k+1}` observed at row `i`.
+#[allow(clippy::many_single_char_names)]
+fn two_covariate_response_data(n: usize, valid: [&dyn Fn(usize) -> bool; 2]) -> TabularData {
+    use antecedent_core::{CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet};
+    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["t", "y", "z1", "z2"] {
+        b.add_variable(
+            name,
+            antecedent_core::ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let (mut t, mut y, mut z1, mut z2) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for i in 0..n {
+        let a = (0.37 * i as f64).sin();
+        let c = (0.23 * i as f64 + 1.0).cos();
+        let tv = 0.6 * a + 0.4 * c + 0.5 * (0.91 * i as f64).sin();
+        // A missing cell is both invalid in the bitmap and NaN in the buffer.
+        z1.push(if valid[0](i) { a } else { f64::NAN });
+        z2.push(if valid[1](i) { c } else { f64::NAN });
+        t.push(tv);
+        y.push(1.0 + 2.0 * tv + 1.5 * a + 0.5 * c + 0.3 * (1.7 * i as f64).cos());
+    }
+    let bitmap = |valid: &dyn Fn(usize) -> bool| {
+        let mut bytes = vec![0u8; n.div_ceil(8)];
+        for i in (0..n).filter(|&i| valid(i)) {
+            bytes[i / 8] |= 1 << (i % 8);
+        }
+        let bitmap = ValidityBitmap::from_bytes(bytes, n).unwrap();
+        for i in 0..n {
+            assert_eq!(bitmap.is_valid(i), valid(i), "bitmap bit order");
+        }
+        bitmap
+    };
+    let columns = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(z1), bitmap(valid[0])).unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(3), Arc::from(z2), bitmap(valid[1])).unwrap(),
+        ),
+    ];
+    TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap())
+}
+
+/// Two identified DAG atoms: `z1` confounds `t → y` in the first, `z2` in the second.
+fn two_adjustment_posterior(weights: [f64; 2]) -> antecedent_discovery::GraphPosterior {
+    use antecedent_discovery::set_edge;
+    let first = set_edge(set_edge(set_edge(0, 4, 0, 1, true), 4, 2, 0, true), 4, 2, 1, true);
+    let second = set_edge(set_edge(set_edge(0, 4, 0, 1, true), 4, 3, 0, true), 4, 3, 1, true);
+    antecedent_discovery::GraphPosterior::new(
+        4,
+        weights.to_vec(),
+        vec![first, second],
+        vec![0.0; 16],
+        vec![0.0; 16],
+        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+        antecedent_prob::InferenceDiagnostics::analytic("two_adjustment_posterior"),
+        0,
+    )
+    .unwrap()
+}
+
+/// Atoms that drop different complete-case rows (missing `z1` early, missing
+/// `z2` late, equal counts) are mixed on the shared data rows by their row
+/// indices, not by position; the interval honours `confidence_level`.
+#[test]
+#[allow(clippy::too_many_lines)]
+fn graph_posterior_response_joint_if_aligns_atom_rows_by_index() {
+    let n = 160;
+    let data = two_covariate_response_data(n, [&|i| i >= 12, &|i| i < n - 12]);
+    let t = VariableId::from_raw(0);
+    let y = VariableId::from_raw(1);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: y,
+        interventions: Arc::from([Intervention::set(t, Value::f64(0.25))]),
+    });
+    let options = ContinuousResponseOptions { confidence_level: 0.9, ..Default::default() };
+    let weights = [0.55, 0.45];
+    let result = Study::tabular(data.clone())
+        .graph_posterior(two_adjustment_posterior(weights))
+        .query(CausalQuery::Response(query.clone()))
+        .inference(InferenceMode::Frequentist)
+        .response_options(options.clone())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(9))
+        .unwrap();
+
+    // Independent per-atom fits with each atom's own adjustment set.
+    let atoms: Vec<(f64, antecedent_estimate::ResponseInfluence)> = [2u32, 3]
+        .iter()
+        .map(|&z| {
+            let mut est =
+                antecedent_estimate::ContinuousResponseEstimator::new(vec![VariableId::from_raw(
+                    z,
+                )]);
+            est.options = options.clone();
+            let (response, scores) = est
+                .estimate_identified_scored(
+                    &data,
+                    &query,
+                    antecedent_core::IdentificationStatus::NonparametricallyIdentified,
+                    antecedent_core::AssumptionSet::default(),
+                )
+                .unwrap();
+            let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
+                response.estimate
+            else {
+                panic!("scalar atom response expected");
+            };
+            (value, scores.unwrap())
+        })
+        .collect();
+    assert_eq!(atoms[0].1.row_index.len(), n - 12);
+    assert_eq!(atoms[1].1.row_index.len(), n - 12);
+    assert_ne!(atoms[0].1.row_index, atoms[1].1.row_index);
+    let structural = result.structural_response.as_ref().unwrap();
+    let published: Vec<f64> = structural
+        .atoms
+        .iter()
+        .map(|atom| match atom.value.as_ref() {
+            Some(ResponseValue::Scalar(v)) => *v,
+            other => panic!("identified scalar atom expected, got {other:?}"),
+        })
+        .collect();
+    for ((value, _), got) in atoms.iter().zip(&published) {
+        assert!((value - got).abs() < 1e-12, "atom value {got} vs independent fit {value}");
+    }
+
+    // Row-aligned frozen-weight mixture: each atom's centred influence sits on
+    // its own data rows, scaled to the full sample.
+    let mass: f64 = weights.iter().sum();
+    let mut aligned = vec![0.0; n];
+    let mut positional = vec![0.0; n - 12];
+    for ((_, scores), weight) in atoms.iter().zip(weights) {
+        let column = &scores.columns[0];
+        let rows = column.len();
+        let center = column.iter().sum::<f64>() / rows as f64;
+        for (&row, &value) in scores.row_index.iter().zip(column) {
+            aligned[row as usize] += weight / mass * (value - center) * n as f64 / rows as f64;
+        }
+        for (slot, value) in positional.iter_mut().zip(column) {
+            *slot += weight / mass * value;
+        }
+    }
+    let se =
+        antecedent_estimate::joint_influence_covariance(&[aligned.as_slice()], None).unwrap().se(0);
+    let positional_se =
+        antecedent_estimate::joint_influence_covariance(&[positional.as_slice()], None)
+            .unwrap()
+            .se(0);
+    assert!((se - positional_se).abs() > 1e-3 * se, "fixture must separate the two mixings");
+    let ResponseUncertainty::Scalar { standard_error, level, lower, upper } =
+        result.response.as_ref().unwrap().uncertainty
+    else {
+        panic!("scalar joint-IF aggregate interval expected");
+    };
+    assert!((standard_error - se).abs() < 1e-10 * se, "{standard_error} vs aligned {se}");
+    assert!((level - 0.9).abs() < 1e-15);
+    let point = (weights[0] * atoms[0].0 + weights[1] * atoms[1].0) / mass;
+    let z = antecedent_stats::normal_ppf(0.95);
+    assert!((lower - (point - z * se)).abs() < 1e-10);
+    assert!((upper - (point + z * se)).abs() < 1e-10);
+}
+
+/// An identified atom whose estimation fails is unevaluable: its mass is
+/// reported separately, the atom keeps its identification status, and the
+/// result is graph-dependent rather than point-identified.
+#[test]
+fn graph_posterior_response_failed_atom_is_graph_dependent() {
+    let n = 160;
+    let data = two_covariate_response_data(n, [&|_| true, &|_| false]);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.25))]),
+    });
+    let result = Study::tabular(data)
+        .graph_posterior(two_adjustment_posterior([0.6, 0.4]))
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(4))
+        .unwrap();
+    let structural = result.structural_response.as_ref().unwrap();
+    assert!((structural.identified_mass - 0.6).abs() < 1e-12);
+    assert!((structural.unevaluable_mass - 0.4).abs() < 1e-12);
+    assert!(structural.unidentified_mass.abs() < 1e-15);
+    let failed = &structural.atoms[1];
+    assert!(failed.value.is_none());
+    assert_ne!(failed.status, antecedent_core::IdentificationStatus::NotIdentified);
+    let graph_dependent = antecedent_core::IdentificationStatus::GraphDependent;
+    assert_eq!(result.identification.status, graph_dependent);
+    let response = result.response.as_ref().unwrap();
+    assert_eq!(response.identification_status, graph_dependent);
+    assert!(
+        matches!(response.estimate, ResponseIdentification::GraphDependent(_)),
+        "{:?}",
+        response.estimate
+    );
+}
+
+/// The prepared handle refuses what every graph-posterior response click
+/// refuses, before building the posterior identification cache.
+#[test]
+fn prepared_graph_posterior_response_refuses_multi_coordinate_intervention() {
+    let data = two_covariate_response_data(80, [&|_| true, &|_| true]);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([
+            Intervention::set(VariableId::from_raw(0), Value::f64(0.25)),
+            Intervention::set(VariableId::from_raw(2), Value::f64(0.0)),
+        ]),
+    });
+    let study = Study::tabular(data)
+        .graph_posterior(two_adjustment_posterior([0.5, 0.5]))
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let (ctx, stages) = {
+        #[derive(Default)]
+        struct Stages(std::sync::Mutex<Vec<String>>);
+        impl antecedent_core::ProgressSink for Stages {
+            fn report(&self, _fraction: f64, stage: &str) {
+                self.0.lock().unwrap().push(stage.to_owned());
+            }
+        }
+        let stages = Arc::new(Stages::default());
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.progress = Some(Arc::clone(&stages) as Arc<dyn antecedent_core::ProgressSink>);
+        (ctx, stages)
+    };
+    let err = study.prepare(&ctx).unwrap_err();
+    assert!(err.to_string().contains("one intervention coordinate"), "{err}");
+    assert!(
+        stages.0.lock().unwrap().iter().all(|stage| stage != "identify.compute"),
+        "no posterior identification before the refusal"
+    );
 }

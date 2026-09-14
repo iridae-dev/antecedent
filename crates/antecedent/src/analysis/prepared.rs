@@ -2259,6 +2259,23 @@ pub(crate) fn identify_temporal_mediation_horizons(
 
 fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
     if analysis.graph_posterior.is_some() {
+        // Refuse here what every estimate click would refuse, before the
+        // posterior identification cache is built.
+        match (&analysis.data, &analysis.query) {
+            (DataInput::Tabular(_), CausalQuery::Response(query)) => {
+                super::execute::graph_posterior_response_supported(query)?;
+            }
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(query))
+                if matches!(analysis.inference, InferenceMode::Frequentist)
+                    && query.horizons.len() != 1 =>
+            {
+                return Err(CausalError::Unsupported {
+                    message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
+                              multi-horizon grids need their own joint uncertainty contract",
+                });
+            }
+            _ => {}
+        }
         return match (&analysis.data, &analysis.query) {
             (
                 DataInput::Tabular(_),
