@@ -242,15 +242,27 @@ pub fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
     let k_n = 5usize.max(nf.log10().sqrt().ceil() as usize);
     let m_max = (nf.sqrt().ceil() as usize + k_n).min(n - 1);
     let threshold = 2.0 * (nf.log10() / nf).sqrt();
-    let rho: Vec<f64> = (0..=m_max).map(|k| autocov(k) / gamma0).collect();
+    // Autocorrelations are taken lag by lag as the bandwidth search asks for
+    // them: the first run of `K_n` insignificant lags usually ends within a few
+    // lags of zero, so the `√n + K_n` lags the cap allows (each an O(n) pass)
+    // are only visited for a persistent series. Each lag is the same sum in
+    // the same order whenever it is taken, so the length is unchanged.
+    let mut rho: Vec<f64> = Vec::with_capacity(2 * k_n + 1);
+    let rho_through = |rho: &mut Vec<f64>, lag: usize| {
+        while rho.len() <= lag.min(m_max) {
+            rho.push(autocov(rho.len()) / gamma0);
+        }
+    };
     let mut m_hat = m_max.saturating_sub(k_n);
     for m in 0..=m_max.saturating_sub(k_n) {
+        rho_through(&mut rho, m + k_n);
         if (1..=k_n).all(|j| rho.get(m + j).is_none_or(|r| r.abs() < threshold)) {
             m_hat = m;
             break;
         }
     }
     let big_m = (2 * m_hat).min(m_max).max(1);
+    rho_through(&mut rho, big_m);
     let flat_top = |t: f64| {
         let t = t.abs();
         if t <= 0.5 {
@@ -766,6 +778,79 @@ mod tests {
         let long = dependence_block_length(2, 400, &[&iid, &persistent]);
         assert!(long > rule && long <= 400 / 3, "persistent score must lengthen blocks: {long}");
         assert!(politis_white_block_length(&[1.0; 4]).is_none());
+    }
+
+    /// The lag-by-lag bandwidth search of [`politis_white_block_length`] against
+    /// a reference that takes every autocorrelation up to the cap first: the
+    /// same sums in the same order, so the lengths are identical for short and
+    /// long memory alike.
+    #[test]
+    fn politis_white_lazy_lags_match_the_eager_scan() {
+        fn eager(scores: &[f64]) -> usize {
+            let n = scores.len();
+            let nf = n as f64;
+            let mean = scores.iter().sum::<f64>() / nf;
+            let centered: Vec<f64> = scores.iter().map(|s| s - mean).collect();
+            let autocov = |k: usize| -> f64 {
+                centered[..n - k].iter().zip(&centered[k..]).map(|(a, b)| a * b).sum::<f64>() / nf
+            };
+            let gamma0 = autocov(0);
+            let k_n = 5usize.max(nf.log10().sqrt().ceil() as usize);
+            let m_max = (nf.sqrt().ceil() as usize + k_n).min(n - 1);
+            let threshold = 2.0 * (nf.log10() / nf).sqrt();
+            let rho: Vec<f64> = (0..=m_max).map(|k| autocov(k) / gamma0).collect();
+            let mut m_hat = m_max.saturating_sub(k_n);
+            for m in 0..=m_max.saturating_sub(k_n) {
+                if (1..=k_n).all(|j| rho.get(m + j).is_none_or(|r| r.abs() < threshold)) {
+                    m_hat = m;
+                    break;
+                }
+            }
+            let big_m = (2 * m_hat).min(m_max).max(1);
+            let flat_top = |t: f64| {
+                let t = t.abs();
+                if t <= 0.5 {
+                    1.0
+                } else if t <= 1.0 {
+                    2.0 * (1.0 - t)
+                } else {
+                    0.0
+                }
+            };
+            let (mut g0, mut big_g) = (gamma0, 0.0);
+            for (k, r) in rho.iter().enumerate().take(big_m + 1).skip(1) {
+                let weight = flat_top(k as f64 / big_m as f64) * r * gamma0;
+                g0 += 2.0 * weight;
+                big_g += 2.0 * k as f64 * weight;
+            }
+            let d_cb = 4.0 / 3.0 * g0 * g0;
+            let b = (2.0 * big_g * big_g / d_cb).cbrt() * nf.cbrt();
+            let cap = (3.0 * nf.sqrt()).min(nf / 3.0).ceil();
+            b.clamp(1.0, cap.max(1.0)).ceil() as usize
+        }
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        let mut uniform = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state >> 11) as f64 / (1u64 << 53) as f64 - 0.5
+        };
+        for n in [8usize, 41, 400, 5000] {
+            for rho in [0.0, 0.5, 0.85, 0.97, -0.6] {
+                let mut level = 0.0;
+                let series: Vec<f64> = (0..n)
+                    .map(|_| {
+                        level = rho * level + uniform();
+                        level
+                    })
+                    .collect();
+                assert_eq!(
+                    politis_white_block_length(&series),
+                    Some(eager(&series)),
+                    "n={n} rho={rho}"
+                );
+            }
+        }
     }
 
     #[test]
