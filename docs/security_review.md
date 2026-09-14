@@ -1,8 +1,21 @@
 # Security, licensing, unsafe-code, and dependency review
 
-Date: 2026-09-13
-Scope: workspace crates + `python` extension (package version **1.8.0**)
+Date: 2026-09-14
+Scope: workspace crates + `python` extension (package version **1.9.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
+
+The 1.9.0 source diff (against the 1.8.0 cut) changes estimators, calibration
+tests, the Python facade, and the artifact format (0.5 adds an optional
+identified-set interval on structural-mixture analysis results; 0.4 artifacts
+migrate unchanged through the existing bounded decoder). Review of the diff
+found no new `unsafe` block and no workflow change. Its only manifest change
+adds `arrow-array` and `arrow-schema`, already workspace dependencies, as
+dev-dependencies of the `antecedent` crate; the lockfile gains no package. The
+Arrow C Data Interface import now borrows a Float64 column with nulls only when
+its null slots already hold NaN, and copies otherwise. An offline
+`cargo deny --offline check` against the cached advisory database passed
+advisories, bans, licenses, and sources. This is a source review, not a fresh
+advisory refresh or CodeQL run.
 
 The 1.8.0 source diff adds Bayesian functional evaluation, weighted statistical
 fits, mechanism composition, and prior-transfer arguments to existing prepared
