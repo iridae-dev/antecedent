@@ -64,10 +64,15 @@ fn coverage_band(n_sim: u32) -> (f64, f64) {
 }
 
 /// Coverage count plus mean interval length and Monte Carlo spread of the point.
+///
+/// Mean length and mean SE are over replicates that produced an interval (a
+/// finite positive SE); coverage and the point spread are over every scored
+/// replicate.
 #[derive(Default)]
 struct Tally {
     covered: u32,
     scored: u32,
+    with_interval: u32,
     half_width_sum: f64,
     points: Vec<f64>,
     se_sum: f64,
@@ -79,6 +84,7 @@ impl Tally {
         self.scored += 1;
         self.points.push(ate);
         if se.is_finite() && se > 0.0 {
+            self.with_interval += 1;
             self.half_width_sum += Z95 * se;
             self.se_sum += se;
             if (ate - truth).abs() <= Z95 * se {
@@ -94,6 +100,7 @@ impl Tally {
     /// Print the `calibration ...` line without gating (out-of-assumption probes).
     fn report(&self, label: &str) {
         let n = f64::from(self.scored.max(1));
+        let with_interval = f64::from(self.with_interval.max(1));
         let (lo, hi) = coverage_band(self.scored.max(1));
         let mcse = (LEVEL * (1.0 - LEVEL) / n).sqrt();
         let mean = self.points.iter().sum::<f64>() / n;
@@ -105,8 +112,8 @@ impl Tally {
              band=[{lo:.3}, {hi:.3}] mean_length={:.4} mean_se={:.4} mc_sd={mc_sd:.4} \
              mean_point={mean:.4} ({}/{} covered)",
             self.rate(),
-            2.0 * self.half_width_sum / n,
-            self.se_sum / n,
+            2.0 * self.half_width_sum / with_interval,
+            self.se_sum / with_interval,
             self.covered,
             self.scored
         );
@@ -259,10 +266,12 @@ fn linear_adjustment_hc1_ci_coverage() {
 fn ipw_hajek_bootstrap_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = PropensityWeighting { bootstrap_replicates: BOOT_REPS, ..PropensityWeighting::new() };
-    let ctx = ExecutionContext::for_tests(2);
     let mut tally = Tally::default();
     let mut skipped = 0u32;
     for s in 0..N_SIM_BOOT {
+        // One context per simulation: a shared context would hand every
+        // simulation the same bootstrap resample indices.
+        let ctx = ExecutionContext::for_tests(2000 + u64::from(s));
         let (data, estimand) = confounded_scm(500, 2000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
