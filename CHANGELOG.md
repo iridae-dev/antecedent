@@ -279,6 +279,12 @@ was not available, published as boundary records with a runtime disclosure.
   outer bootstrap.
 - Python native responses reported unevaluable mass inside
   `unidentified_mass`; they now carry `unevaluable_mass` separately.
+- The unevaluable share of a multi-step class-prior mixture is no longer
+  counted as unidentified mass on the posterior.
+- `docs/priors.md` no longer implies that dropping posterior covariance is
+  conservative for every linear combination of coefficients, and describes the
+  catalog's temporal-coordinate check as opt-in: nothing populates it, and
+  external prior-bank compose performs no lag check.
 - Limitations text now matches behaviour: PAG rows no longer cite withdrawn
   evidence, ADMG rows no longer say Bayesian is refused, and evidence kinds
   claim a known-truth comparison only where one runs.
