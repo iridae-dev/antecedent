@@ -37,7 +37,8 @@ pub enum LatencyMode {
     Interactive,
     /// Current science defaults (`bootstrap=199`, `n_draws=1000`, placebo+RCC).
     Standard,
-    /// More replicates / draws / full validation suite; HMC allowed.
+    /// More posterior draws and the full validation suite; HMC allowed. The bootstrap
+    /// count (200) is effectively the Standard count (199), not a larger resample.
     Report,
 }
 

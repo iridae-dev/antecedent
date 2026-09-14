@@ -117,13 +117,14 @@ impl LagMap {
 }
 
 /// Reject datasets whose analysis mask hides rows: lag gathers index raw rows,
-/// so temporal discovery requires the full contiguous series.
+/// so lagged temporal analysis (discovery and estimation) requires the full
+/// contiguous series.
 pub(crate) fn ensure_unmasked(data: &TimeSeriesData) -> Result<(), DataError> {
     if let Some(mask) = data.storage().analysis_mask() {
         if !mask.is_all_valid() {
             return Err(DataError::IncompleteSeries {
                 id: None,
-                message: "analysis mask hides rows; temporal discovery requires complete series",
+                message: "analysis mask hides rows; lagged temporal analysis requires complete series",
             });
         }
     }
@@ -136,7 +137,7 @@ pub(crate) fn ensure_complete_float(src: &Float64Column) -> Result<(), DataError
     if !src.validity.is_all_valid() {
         return Err(DataError::IncompleteSeries {
             id: Some(src.id),
-            message: "missing values in series; temporal discovery requires complete series",
+            message: "missing values in series; lagged temporal analysis requires complete series",
         });
     }
     Ok(())
