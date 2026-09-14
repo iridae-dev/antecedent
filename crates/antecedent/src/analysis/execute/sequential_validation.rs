@@ -117,13 +117,53 @@ impl EffectRefit for SequentialRefitter<'_> {
                 .map_err(antecedent_validate::ValidationError::from)
             });
         let stand_in = self.bayes.map(least_squares_stand_in);
-        Some(prepared.map(|design| antecedent_validate::common::AlignedRefit {
+        let design = match prepared {
+            Ok(design) => design,
+            Err(error) => return Some(Err(error)),
+        };
+        if self.bayes.is_some() && !stand_in_is_faithful(&design, &self.atom.estimate) {
+            return Some(Err(antecedent_validate::ValidationError::NotApplicable {
+                message: "prior shrinkage separates the posterior mean from the least-squares \
+                          contrast by more than 0.25 posterior SD, so the least-squares \
+                          stand-in would not check the published interval",
+            }));
+        }
+        Some(Ok(antecedent_validate::common::AlignedRefit {
             rows: design.aligned_rows().rows,
             block_length: design.block_length(),
             stand_in,
             estimate: Box::new(move |rows| design.estimate_on_rows(rows).ok()),
         }))
     }
+}
+
+/// Largest gap, in posterior SDs, between the Bayesian posterior mean and the
+/// least-squares contrast on the same rows for the stand-in to be used.
+///
+/// The posterior mean is a Monte Carlo average, so even without shrinkage it
+/// sits about `1/sqrt(draws)` SDs from least squares (0.1 at 100 draws); 0.25
+/// leaves that noise room while a tight scale moves the mean by many SDs.
+const STAND_IN_MAX_GAP_SD: f64 = 0.25;
+
+/// Whether the least-squares contrast on all aligned rows is within
+/// [`STAND_IN_MAX_GAP_SD`] posterior SDs of the published posterior mean.
+///
+/// Under a tight isotropic scale the ridge shrinkage `κ̂/s²` moves the posterior
+/// mean away from least squares; the bootstrap check would then compare the
+/// published mean against the wrong estimator and report a spurious refutation.
+/// A missing or degenerate posterior SD leaves the stand-in in place.
+fn stand_in_is_faithful(
+    design: &antecedent_estimate::SequentialContrastDesign,
+    posterior: &EffectEstimate,
+) -> bool {
+    let sd = posterior.se_analytic;
+    if !(sd.is_finite() && sd > 0.0) {
+        return true;
+    }
+    let all_rows: Vec<usize> = (0..design.aligned_rows().rows).collect();
+    design
+        .estimate_on_rows(&all_rows)
+        .is_ok_and(|ls| (ls - posterior.ate).abs() <= STAND_IN_MAX_GAP_SD * sd)
 }
 
 /// Why the least-squares contrast stands in for a Bayesian sequential posterior mean
@@ -139,8 +179,9 @@ fn least_squares_stand_in(bayes: &BayesianGComputationAte) -> Arc<str> {
          lag-aligned rows as a stand-in for the posterior mean: with each mechanism's \
          likelihood tempered by 1/kappa under the isotropic prior (scale {}), the posterior \
          mean is the ridge fit (X'X + kappa/scale^2 I)^-1 X'y, the least-squares fit up to \
-         O(kappa/(n scale^2)) shrinkage (negligible at the default scale 10, not under a \
-         tight scale); under an informative coefficient prior the check is not applicable",
+         O(kappa/(n scale^2)) shrinkage; the check is not applicable when that shrinkage \
+         moves the posterior mean more than 0.25 posterior SD from least squares, or under an \
+         informative coefficient prior",
         bayes.prior_scale
     ))
 }
