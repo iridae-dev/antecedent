@@ -50,6 +50,28 @@ pub struct TemporalDependenceSe {
     pub replicates_attempted: u32,
 }
 
+/// [`crate::temporal_block::dependence_block_length`] of one series' prepared
+/// design: the unfolded window (`history + horizon` slices), the treatment
+/// influence and every normal-equation score.
+fn single_window_block_length(
+    prep: &PreparedEstimationProblem,
+    indexer: &TemporalIndexer,
+    influence: Option<&[f64]>,
+) -> usize {
+    let rows = prep.design.nrows;
+    let structural_span = (indexer.history() as usize + indexer.horizon() as usize).max(1);
+    let normal_scores = crate::temporal_block::normal_equation_scores(
+        &prep.design.matrix,
+        rows,
+        prep.design.ncols,
+        &prep.design.outcome,
+    )
+    .unwrap_or_default();
+    let scores: Vec<&[f64]> =
+        influence.into_iter().chain(normal_scores.iter().map(Vec::as_slice)).collect();
+    crate::temporal_block::dependence_block_length(structural_span, rows, &scores)
+}
+
 /// Temporal linear adjustment for unfolded backdoor estimands.
 #[derive(Clone, Debug)]
 pub struct TemporalLinearAdjustment {
@@ -397,35 +419,13 @@ impl TemporalLinearAdjustment {
         assumptions: AssumptionSet,
     ) -> Result<(EffectEstimate, TemporalDependenceSe), EstimationError> {
         let rows = prep.design.nrows;
-        let structural_span = (indexer.history() as usize + indexer.horizon() as usize).max(1);
-        let fitter = LinearAdjustmentAte {
-            bootstrap_replicates: 0,
-            se_kind: AnalyticSeKind::Homoskedastic,
-            cluster_ids: None,
-            multiway_ids: None,
-            panel_times: None,
-            ..self.inner.clone()
-        };
+        let fitter = self.point_fitter();
         let mut workspace = EstimationWorkspace::default();
         let mut point = fitter.fit_point(prep, &mut workspace, assumptions)?;
         point.se_analytic = f64::NAN;
 
         let replicates = self.inner.bootstrap_replicates;
-        let normal_scores = crate::temporal_block::normal_equation_scores(
-            &prep.design.matrix,
-            rows,
-            prep.design.ncols,
-            &prep.design.outcome,
-        )
-        .unwrap_or_default();
-        let scores: Vec<&[f64]> = point
-            .influence
-            .as_deref()
-            .into_iter()
-            .chain(normal_scores.iter().map(Vec::as_slice))
-            .collect();
-        let block_length =
-            crate::temporal_block::dependence_block_length(structural_span, rows, &scores);
+        let block_length = single_window_block_length(prep, indexer, point.influence.as_deref());
         let boot = (replicates > 0).then(|| {
             let mut x_boot = vec![0.0; rows * prep.design.ncols];
             let mut y_boot = vec![0.0; rows];
@@ -459,6 +459,39 @@ impl TemporalLinearAdjustment {
             replicates_attempted: boot.as_ref().map_or(0, |b| b.attempted),
         };
         Ok((point.with_bootstrap(boot.map(|b| b.se_result(0))), info))
+    }
+
+    /// Circular-block length [`Self::fit_dependence_honest`] resamples `prep` with,
+    /// so a check of that interval (`bootstrap.ci_coverage`) can resample the same
+    /// blocks without running the bootstrap.
+    ///
+    /// # Errors
+    ///
+    /// Point-fit failures.
+    pub fn dependence_block_length(
+        &self,
+        prep: &PreparedEstimationProblem,
+        indexer: &TemporalIndexer,
+    ) -> Result<usize, EstimationError> {
+        let point = self.point_fitter().fit_point(
+            prep,
+            &mut EstimationWorkspace::default(),
+            AssumptionSet::default(),
+        )?;
+        Ok(single_window_block_length(prep, indexer, point.influence.as_deref()))
+    }
+
+    /// The OLS point fitter of [`Self::fit_dependence_honest`] (no iid bootstrap or
+    /// cluster SEs).
+    fn point_fitter(&self) -> LinearAdjustmentAte {
+        LinearAdjustmentAte {
+            bootstrap_replicates: 0,
+            se_kind: AnalyticSeKind::Homoskedastic,
+            cluster_ids: None,
+            multiway_ids: None,
+            panel_times: None,
+            ..self.inner.clone()
+        }
     }
 
     /// Fit using the shared linear-adjustment path.
@@ -682,6 +715,31 @@ mod tests {
             "ate={} expected {expected}",
             effect.ate
         );
+    }
+
+    #[test]
+    fn dependence_block_length_is_the_published_interval_block() {
+        let (data, g) = series();
+        let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
+        let estimand = id_res.result.estimands.first().unwrap();
+        let ctx = ExecutionContext::for_tests(3);
+        let mut est = TemporalLinearAdjustment::new();
+        est.inner.bootstrap_replicates = 8;
+        let prep =
+            est.prepare(&data, estimand, &q, &id_res.indexer, None, &ctx.kernel_policy).unwrap();
+        let (_, info) =
+            est.fit_dependence_honest(&prep, &id_res.indexer, &ctx, AssumptionSet::new()).unwrap();
+        // A check of the interval (no replicates of its own) resamples the same blocks.
+        est.inner.bootstrap_replicates = 0;
+        let block = est.dependence_block_length(&prep, &id_res.indexer).unwrap();
+        assert_eq!(block, info.block_length);
+        // The smooth residual is persistent, so its normal-equation score lengthens
+        // the blocks past the n^(1/3) rule.
+        assert!(block > antecedent_data::circular_block_length(2, info.rows), "block={block}");
     }
 
     #[test]

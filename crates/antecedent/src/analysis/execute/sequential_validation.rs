@@ -80,14 +80,13 @@ impl EffectRefit for SequentialRefitter<'_> {
         .0)
     }
 
-    /// Refits evaluate the OLS contrast on lag-aligned rows of the original series.
+    /// Refits evaluate the OLS contrast on lag-aligned rows of the original series,
+    /// in circular blocks of the Frequentist contrast interval's length
+    /// ([`antecedent_estimate::SequentialContrastDesign::block_length`]).
     ///
-    /// For Bayesian refits under the default weakly informative isotropic prior
-    /// (multi-step prior transfer is refused) each stationary mechanism's
-    /// posterior mean is its OLS fit up to `O(κ/n)` shrinkage, so the replicate OLS
-    /// contrast is the resampling analogue of the posterior-mean refit — the same
-    /// check the single-window Bayesian path runs. An informative coefficient prior
-    /// has no aligned-row posterior-mean evaluation, and the check is not applicable.
+    /// For Bayesian refits the replicate OLS contrast stands in for the posterior
+    /// mean ([`least_squares_stand_in`]); an informative coefficient prior has no
+    /// aligned-row posterior-mean evaluation, and the check is not applicable.
     fn prepare_aligned(
         &self,
         data: &TabularData,
@@ -117,12 +116,33 @@ impl EffectRefit for SequentialRefitter<'_> {
                 )
                 .map_err(antecedent_validate::ValidationError::from)
             });
+        let stand_in = self.bayes.map(least_squares_stand_in);
         Some(prepared.map(|design| antecedent_validate::common::AlignedRefit {
             rows: design.aligned_rows().rows,
-            structural_span: design.structural_span(),
+            block_length: design.block_length(),
+            stand_in,
             estimate: Box::new(move |rows| design.estimate_on_rows(rows).ok()),
         }))
     }
+}
+
+/// Why the least-squares contrast stands in for a Bayesian sequential posterior mean
+/// in `bootstrap.ci_coverage`.
+///
+/// Each mechanism's likelihood is tempered by `1/κ̂` under the isotropic prior
+/// `β | σ² ~ N(0, σ² s² I)`, so its posterior mean is the ridge fit
+/// `(X'X + (κ̂/s²) I)⁻¹ X'y`: tempering multiplies the prior's relative weight by
+/// `κ̂`, and the stand-in is exact only up to `O(κ̂/(n s²))` shrinkage.
+fn least_squares_stand_in(bayes: &BayesianGComputationAte) -> Arc<str> {
+    Arc::from(format!(
+        "bootstrap.ci_coverage refit the least-squares contrast on block-resampled \
+         lag-aligned rows as a stand-in for the posterior mean: with each mechanism's \
+         likelihood tempered by 1/kappa under the isotropic prior (scale {}), the posterior \
+         mean is the ridge fit (X'X + kappa/scale^2 I)^-1 X'y, the least-squares fit up to \
+         O(kappa/(n scale^2)) shrinkage (negligible at the default scale 10, not under a \
+         tight scale); under an informative coefficient prior the check is not applicable",
+        bayes.prior_scale
+    ))
 }
 
 type SequentialValidationResults =
@@ -186,6 +206,20 @@ pub(super) fn validate_sequential(
         let outcomes = validation.run(&problem, &mut EstimationWorkspace::default(), ctx)?;
         diagnostics
             .extend(crate::analysis::helpers::validator_not_applicable_diagnostics(&outcomes));
+        if let Some(estimator) = bayes {
+            let checked = ValidationSuite::reports_only(&outcomes)
+                .iter()
+                .any(|report| report.refuter.as_ref() == "bootstrap.ci_coverage");
+            let code = "refute.bootstrap.ci_coverage.least_squares_stand_in";
+            if checked && !diagnostics.iter().any(|d: &Diagnostic| d.code.as_ref() == code) {
+                diagnostics.push(Diagnostic::new(
+                    code,
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    least_squares_stand_in(estimator).to_string(),
+                ));
+            }
+        }
         for report in ValidationSuite::reports_only(&outcomes) {
             reports.entry(Arc::clone(&report.refuter)).or_default().push((atom.weight, report));
         }

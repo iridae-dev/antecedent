@@ -345,6 +345,14 @@ impl SequentialContrastDesign {
     pub fn normal_equation_scores(&self) -> Vec<Vec<f64>> {
         self.setup.normal_equation_scores()
     }
+
+    /// Circular-block length of this contrast's Frequentist block-bootstrap
+    /// interval ([`estimate_sustained_window`] with replicates), so a check of that
+    /// interval resamples the same blocks.
+    #[must_use]
+    pub fn block_length(&self) -> usize {
+        self.setup.dependence_block_length(&mut LeastSquaresWorkspace::default())
+    }
 }
 
 /// Sequential g-computation of the interventional **level** under per-node
@@ -793,10 +801,13 @@ impl SequentialSetup {
             .collect()
     }
 
-    /// Every series [`crate::temporal_block::dependence_block_length`] sizes the
-    /// blocks on: the contrast influence plus every mechanism's normal-equation scores.
-    fn block_scores(&self, ls_ws: &mut LeastSquaresWorkspace) -> Vec<Vec<f64>> {
-        self.influence(ls_ws).into_iter().chain(self.normal_equation_scores()).collect()
+    /// [`crate::temporal_block::dependence_block_length`] of the unfolded span over
+    /// the contrast influence plus every mechanism's normal-equation scores.
+    fn dependence_block_length(&self, ls_ws: &mut LeastSquaresWorkspace) -> usize {
+        let block_scores: Vec<Vec<f64>> =
+            self.influence(ls_ws).into_iter().chain(self.normal_equation_scores()).collect();
+        let scores: Vec<&[f64]> = block_scores.iter().map(Vec::as_slice).collect();
+        crate::temporal_block::dependence_block_length(self.max_lag as usize + 1, self.n, &scores)
     }
 }
 
@@ -1063,13 +1074,8 @@ fn estimate_sequential(
     // path ([`crate::temporal_block`]). Blocks are at least the unfolded span and
     // lengthen when the contrast's estimating score, or any mechanism's
     // normal-equation score, is persistently dependent.
-    let block_length = if bootstrap_replicates > 0 {
-        let block_scores = setup.block_scores(&mut ls_ws);
-        let scores: Vec<&[f64]> = block_scores.iter().map(Vec::as_slice).collect();
-        crate::temporal_block::dependence_block_length(setup.max_lag as usize + 1, setup.n, &scores)
-    } else {
-        0
-    };
+    let block_length =
+        if bootstrap_replicates > 0 { setup.dependence_block_length(&mut ls_ws) } else { 0 };
     let boot = crate::temporal_block::row_block_bootstrap_vec(
         setup.n,
         block_length,

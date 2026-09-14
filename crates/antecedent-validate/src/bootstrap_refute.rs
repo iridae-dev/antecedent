@@ -13,9 +13,17 @@
 //! the original series (single-window adjustment, and composed refitters that
 //! expose [`crate::common::EffectRefit::prepare_aligned`]), so every row keeps its
 //! lag window, and widen the percentile interval by the Kiefer–Vogelsang fixed-b
-//! factor, matching the circular-block interval the check is about. A composed
-//! refitter without lag-aligned evaluation is `NotApplicable`: a block bootstrap
-//! of the raw series would pair outcomes with regressors from unrelated blocks.
+//! factor, matching the circular-block interval the check is about. The block
+//! length is the one that interval uses: the single-window adjustment's
+//! [`antecedent_estimate::TemporalLinearAdjustment::dependence_block_length`]
+//! ([`antecedent_estimate::dependence_block_length`] over the treatment influence
+//! and every normal-equation score), and a composed refitter's
+//! [`crate::common::AlignedRefit::block_length`]. A composed refitter without
+//! lag-aligned evaluation is `NotApplicable`: a block bootstrap of the raw series
+//! would pair outcomes with regressors from unrelated blocks. When the aligned-row
+//! refit is a stand-in for the checked estimator
+//! ([`crate::common::AlignedRefit::stand_in`], e.g. the least-squares contrast for
+//! a Bayesian posterior mean), a failing report says so.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -85,10 +93,9 @@ impl BootstrapRefute {
             });
         };
         let mut aligned = aligned?;
-        let block = antecedent_data::circular_block_length(aligned.structural_span, aligned.rows);
         let boot = antecedent_estimate::row_block_bootstrap_vec(
             aligned.rows,
-            block,
+            aligned.block_length,
             self.replicates,
             BOOTSTRAP_REFUTE_STREAM,
             ctx,
@@ -103,7 +110,14 @@ impl BootstrapRefute {
             ));
         }
         let scale = boot.fixed_b();
-        Ok(coverage_report(problem, boot.column(0), self.ci_level, self.replicates, scale))
+        Ok(coverage_report(
+            problem,
+            boot.column(0),
+            self.ci_level,
+            self.replicates,
+            scale,
+            aligned.stand_in.as_deref(),
+        ))
     }
 
     /// One-series temporal adjustment: circular blocks of consecutive lag-aligned
@@ -131,8 +145,10 @@ impl BootstrapRefute {
                 temporal.kernel_policy,
             )
             .map_err(ValidationError::from)?;
-        let span = temporal.indexer.history() as usize + temporal.indexer.horizon() as usize;
-        let block = antecedent_data::circular_block_length(span.max(1), rows.rows);
+        // The published interval's blocks: sized on every normal-equation score.
+        let block = estimator
+            .dependence_block_length(&prep, temporal.indexer)
+            .map_err(ValidationError::from)?;
         let mut x_boot = vec![0.0; rows.rows * prep.design.ncols];
         let mut y_boot = vec![0.0; rows.rows];
         let boot = antecedent_estimate::row_block_bootstrap_vec(
@@ -158,7 +174,7 @@ impl BootstrapRefute {
             ));
         }
         let scale = boot.fixed_b();
-        Ok(coverage_report(problem, boot.column(0), self.ci_level, self.replicates, scale))
+        Ok(coverage_report(problem, boot.column(0), self.ci_level, self.replicates, scale, None))
     }
 
     /// Defaults: 200 replicates, 95% CI.
@@ -272,7 +288,14 @@ impl BootstrapRefute {
                         &mut y_boot,
                     )?);
                 }
-                return Ok(coverage_report(problem, ates, self.ci_level, self.replicates, 1.0));
+                return Ok(coverage_report(
+                    problem,
+                    ates,
+                    self.ci_level,
+                    self.replicates,
+                    1.0,
+                    None,
+                ));
             }
         }
         for _ in 0..self.replicates {
@@ -293,19 +316,22 @@ impl BootstrapRefute {
         }
         // Panel temporal designs resample stacked rows iid here (no per-unit block
         // or cluster plan yet); static designs are iid by construction.
-        Ok(coverage_report(problem, ates, self.ci_level, self.replicates, 1.0))
+        Ok(coverage_report(problem, ates, self.ci_level, self.replicates, 1.0, None))
     }
 }
 
 /// Percentile interval of the replicate ATEs, each endpoint's distance from the
 /// replicate mean multiplied by `scale` (the fixed-b factor of a circular-block
 /// bootstrap, so the checked interval matches the published one; `1.0` for iid).
+/// `stand_in` describes a replicate estimator that stands in for the checked one
+/// and is appended to a failure condition.
 fn coverage_report(
     problem: &RefutationProblem<'_>,
     mut ates: Vec<f64>,
     ci_level: f64,
     replicates: u32,
     scale: f64,
+    stand_in: Option<&str>,
 ) -> RefutationReport {
     ates.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let m = ates.len();
@@ -330,9 +356,10 @@ fn coverage_report(
         } else {
             Some(Arc::from(format!(
                 "original ATE {} outside {}% bootstrap CI [{lo}, {hi}] \
-                 (coverage check of the point estimate, not a placebo falsification)",
+                 (coverage check of the point estimate, not a placebo falsification){}",
                 problem.original.ate,
-                ci_level * 100.0
+                ci_level * 100.0,
+                stand_in.map(|note| format!("; {note}")).unwrap_or_default()
             )))
         },
         replicates,
