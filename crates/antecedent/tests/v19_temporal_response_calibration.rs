@@ -411,6 +411,35 @@ fn frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage() {
     frequentist_curve_coverage(RHO_AR1, 191_000);
 }
 
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_dag_response_curve_ar1_rho09_nominal_95_coverage() {
+    frequentist_curve_coverage(0.9, 191_900);
+}
+
+#[test]
+fn frequentist_temporal_response_discloses_sqrt_n_block_at_ar1_rho_0_9() {
+    let data = dose_horizon_series(0.9, 42);
+    let result = run(
+        data,
+        dose_horizon_dag(),
+        curve_query(&DOSES, &HORIZONS),
+        InferenceMode::Frequentist,
+        BOOT,
+        42,
+    );
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "response.temporal.block.sqrt_n_rate")
+            || result.response.as_ref().is_some_and(|r| {
+                r.support.warnings.iter().any(|d| d.code.as_ref() == "response.temporal.block.sqrt_n_rate")
+            }),
+        "ρ=0.9 must disclose the √n testing-rate block; do not claim the PW-lengthened scalar construction"
+    );
+}
+
 fn frequentist_intervention_coverage(rho: f64, seed_base: u64) {
     let label = noise_label(rho);
     let shift = 0.5;
