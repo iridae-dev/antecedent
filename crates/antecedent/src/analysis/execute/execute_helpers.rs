@@ -975,6 +975,27 @@ pub(super) fn mix_prior_sensitivity_summaries(
     })
 }
 
+/// Whether the atom's posterior check adds the serial-dependence axis.
+fn temporal_predictive_check(atom: &EnvelopeAtomFit, refute: RefuteSuite) -> bool {
+    matches!(refute, RefuteSuite::Full) && atom.indexer.is_some()
+}
+
+/// Whether two envelope atoms would produce identical predictive-check reports:
+/// same fitted problem, prior, posterior draws and check variant (the temporal
+/// axis also reads the posterior's tempering note).
+fn same_predictive_check_inputs(
+    a: &EnvelopeAtomFit,
+    b: &EnvelopeAtomFit,
+    refute: RefuteSuite,
+) -> bool {
+    let temporal = temporal_predictive_check(a, refute);
+    temporal == temporal_predictive_check(b, refute)
+        && a.prior == b.prior
+        && a.posterior.draws == b.posterior.draws
+        && (!temporal || a.posterior.diagnostics.notes == b.posterior.diagnostics.notes)
+        && same_fitted_problem(&a.prep, &b.prep)
+}
+
 /// Run PPC (and, under `full`, prior-sensitivity) on identified envelope atoms.
 ///
 /// Aggregation is mixture-weighted by graph-posterior mass. Records the method as a
@@ -987,6 +1008,7 @@ pub(super) fn run_envelope_bayesian_full_validation(
     mixture_posterior: &mut CausalPosterior,
     estimate_ate: f64,
     ctx: &ExecutionContext,
+    predictive_sims: u32,
     refutations: &mut Vec<antecedent_validate::RefutationReport>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<Vec<PredictiveCheckReport>, CausalError> {
@@ -999,25 +1021,34 @@ pub(super) fn run_envelope_bayesian_full_validation(
     if matches!(refute, RefuteSuite::None) || atoms.is_empty() {
         return Ok(predictive_checks);
     }
-    let mut prior_items = Vec::with_capacity(atoms.len());
-    let mut post_items = Vec::with_capacity(atoms.len());
-    for atom in atoms {
+    let mut prior_items: Vec<(f64, PredictiveCheckReport)> = Vec::with_capacity(atoms.len());
+    let mut post_items: Vec<(f64, PredictiveCheckReport)> = Vec::with_capacity(atoms.len());
+    for (j, atom) in atoms.iter().enumerate() {
+        // Both checks are deterministic in (design, prior, posterior draws, seed),
+        // so atoms that fitted the same problem under the same prior — graphs
+        // sharing an adjustment set — replicate the same outcomes: run once.
+        if let Some(i) = (0..j).find(|&i| same_predictive_check_inputs(&atoms[i], atom, refute)) {
+            prior_items.push((atom.weight, prior_items[i].1.clone()));
+            post_items.push((atom.weight, post_items[i].1.clone()));
+            continue;
+        }
         // Each atom's checks use the prior that atom was actually fitted under.
         let atom_est = BayesianGComputationAte { prior: atom.prior.clone(), ..est.clone() };
         let ppc_prior = atom_est.prior_in_force(atom.prep.design.ncols);
         let prior_rep = PriorPredictiveCheck::for_estimator(&atom_est, ctx)
+            .with_n_sims(predictive_sims)
             .check_with_prior(&atom.prep, &ppc_prior, ctx)
             .map_err(CausalError::from)?;
         // Temporal atoms (lag indexer present) add the serial-dependence discrepancy
         // under `full`; exchangeable static rows keep the two-axis check.
-        let post_rep = if matches!(refute, RefuteSuite::Full) && atom.indexer.is_some() {
-            PosteriorPredictiveCheck::for_estimator(&atom_est, ctx)
+        let post_check =
+            PosteriorPredictiveCheck::for_estimator(&atom_est, ctx).with_n_sims(predictive_sims);
+        let post_rep = if temporal_predictive_check(atom, refute) {
+            post_check
                 .check_temporal(&atom.prep, &atom.posterior, ctx.rng.master_seed())
                 .map_err(CausalError::from)?
         } else {
-            PosteriorPredictiveCheck::for_estimator(&atom_est, ctx)
-                .check(&atom.prep, &atom.posterior)
-                .map_err(CausalError::from)?
+            post_check.check(&atom.prep, &atom.posterior).map_err(CausalError::from)?
         };
         prior_items.push((atom.weight, prior_rep));
         post_items.push((atom.weight, post_rep));

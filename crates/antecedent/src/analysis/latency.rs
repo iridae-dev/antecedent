@@ -26,6 +26,23 @@ pub const STANDARD_BOOTSTRAP: u32 = 199;
 pub const REPORT_BOOTSTRAP: u32 = 200;
 /// Interactive max identified graphs in a graph×effect envelope subsample.
 pub const INTERACTIVE_MAX_ENVELOPE_GRAPHS: usize = 16;
+/// Interactive prior / posterior predictive-check replicates.
+pub const INTERACTIVE_PREDICTIVE_SIMS: u32 = 50;
+/// Standard predictive-check replicates (the pre-tier default).
+pub const STANDARD_PREDICTIVE_SIMS: u32 = 200;
+/// Report-tier predictive-check replicates.
+pub const REPORT_PREDICTIVE_SIMS: u32 = 400;
+
+/// Predictive-check replicates for a latency tier; an unset tier keeps the
+/// Standard count.
+#[must_use]
+pub const fn predictive_check_sims(mode: Option<LatencyMode>) -> u32 {
+    match mode {
+        Some(LatencyMode::Interactive) => INTERACTIVE_PREDICTIVE_SIMS,
+        Some(LatencyMode::Report) => REPORT_PREDICTIVE_SIMS,
+        Some(LatencyMode::Standard) | None => STANDARD_PREDICTIVE_SIMS,
+    }
+}
 
 /// Latency tier controlling known-equivalent compute budgets.
 ///

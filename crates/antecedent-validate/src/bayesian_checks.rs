@@ -366,6 +366,13 @@ impl PriorPredictiveCheck {
         Self { n_sims: 200, seed: ctx.rng.master_seed(), family: estimator.glm_family() }
     }
 
+    /// Set the simulation count (a latency tier's predictive-check budget).
+    #[must_use]
+    pub const fn with_n_sims(mut self, n_sims: u32) -> Self {
+        self.n_sims = n_sims;
+        self
+    }
+
     /// Run against a prepared Bayesian design with a weakly informative prior.
     ///
     /// Prefer [`Self::check_with_prior`] when an analysis / composed prior is known.
@@ -491,6 +498,10 @@ enum PriorResidual {
 const REPLICATE_NOISE_STREAM: u64 = 0x0B5E_4A7E_0001_D00D;
 
 /// `out[r] = g⁻¹(x_r'β)`.
+///
+/// Accumulates column by column over the column-major design (contiguous
+/// loads, vectorizable); each row still sums its terms in column order, so the
+/// result is the row-by-row dot product bit for bit.
 fn fitted_means(
     problem: &PreparedBayesianProblem,
     beta: &[f64],
@@ -498,12 +509,17 @@ fn fitted_means(
     out: &mut [f64],
 ) {
     let n = problem.design.nrows;
-    for (r, slot) in out.iter_mut().enumerate() {
-        let mut eta = 0.0;
-        for (c, &b) in beta.iter().enumerate() {
-            eta += problem.design.matrix[c * n + r] * b;
+    out.fill(0.0);
+    for (c, &b) in beta.iter().enumerate() {
+        let column = &problem.design.matrix[c * n..(c + 1) * n];
+        for (slot, &x) in out.iter_mut().zip(column) {
+            *slot += x * b;
         }
-        *slot = family.mean_from_eta(eta);
+    }
+    if family != GlmFamily::GaussianIdentity {
+        for slot in out.iter_mut() {
+            *slot = family.mean_from_eta(*slot);
+        }
     }
 }
 
@@ -588,6 +604,13 @@ impl PosteriorPredictiveCheck {
     #[must_use]
     pub fn for_estimator(estimator: &BayesianGComputationAte, ctx: &ExecutionContext) -> Self {
         Self { n_sims: 200, family: estimator.glm_family(), seed: ctx.rng.master_seed() }
+    }
+
+    /// Set the draw cap (a latency tier's predictive-check budget).
+    #[must_use]
+    pub const fn with_n_sims(mut self, n_sims: u32) -> Self {
+        self.n_sims = n_sims;
+        self
     }
 
     /// Check using a fitted [`CausalPosterior`] that includes coefficient columns.

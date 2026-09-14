@@ -444,6 +444,7 @@ impl super::Study {
                     posterior.as_mut(),
                     estimate.ate,
                     ctx,
+                    super::super::latency::predictive_check_sims(self.latency_mode),
                 )?;
             let bootstrap_replicates_ok = estimate.bootstrap_replicates_ok;
             let cancelled = estimate.bootstrap_cancelled;
@@ -624,14 +625,17 @@ impl super::Study {
         if !matches!(self.refute, RefuteSuite::None) {
             if let (Some((bayes, bprep)), Some(post)) = (bayes_fit.as_ref(), posterior.as_ref()) {
                 const PPC_ALPHA: f64 = 0.05;
+                let sims = super::super::latency::predictive_check_sims(self.latency_mode);
                 let prior_rep = PriorPredictiveCheck::for_estimator(&bayes.inner, ctx)
+                    .with_n_sims(sims)
                     .check_with_prior(bprep, &bayes.inner.prior_in_force(bprep.design.ncols), ctx)
                     .map_err(CausalError::from)?;
                 refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
                 predictive_checks.push(prior_rep);
 
                 // `full` adds the lag-1 residual-autocorrelation discrepancy (C-4).
-                let post_check = PosteriorPredictiveCheck::for_estimator(&bayes.inner, ctx);
+                let post_check =
+                    PosteriorPredictiveCheck::for_estimator(&bayes.inner, ctx).with_n_sims(sims);
                 let post_rep = if matches!(self.refute, RefuteSuite::Full) {
                     post_check.check_temporal(bprep, post, ctx.rng.master_seed())
                 } else {
@@ -3202,6 +3206,7 @@ impl super::Study {
                 posterior.as_mut(),
                 estimate.ate,
                 ctx,
+                super::super::latency::predictive_check_sims(self.latency_mode),
             )?
         } else {
             let mut reports = Vec::new();
@@ -3219,6 +3224,7 @@ impl super::Study {
                         atom_posteriors.get_mut(key),
                         atom.estimate.ate,
                         ctx,
+                        super::super::latency::predictive_check_sims(self.latency_mode),
                     )?;
                 for report in &mut local_reports {
                     report.refuter = Arc::from(format!("completion.{key}.{}", report.refuter));
@@ -3562,6 +3568,7 @@ impl super::Study {
                 &mut atom_posterior,
                 atom_ate,
                 ctx,
+                super::super::latency::predictive_check_sims(self.latency_mode),
                 &mut refutations,
                 &mut diagnostics,
             )?);
