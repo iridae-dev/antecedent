@@ -145,13 +145,19 @@ def _response_curve_values(data) -> list[float]:
 
 
 @pytest.mark.parametrize("column", ["x", "a", "y"])
-@pytest.mark.parametrize("source", ["numpy_nan", "pandas_nan", "arrow_null"])
+@pytest.mark.parametrize("source", ["numpy_nan", "pandas_nan", "arrow_null", "arrow_nan"])
 def test_missing_cell_matches_dropped_row_for_response_curve(source, column):
     """A NaN / null cell is excluded like a dropped row, never read as 0.0."""
     data = _response_curve_scm()
     missing = 37
     dropped = {k: np.delete(v, missing) for k, v in data.items()}
-    if source == "arrow_null":
+    if source == "arrow_nan":
+        # A non-null Arrow NaN value is a missing cell too, not an observation.
+        holed = {k: v.copy() for k, v in data.items()}
+        holed[column][missing] = np.nan
+        holed = pa.table({k: pa.array(v, type=pa.float64()) for k, v in holed.items()})
+        assert holed.column(column).null_count == 0
+    elif source == "arrow_null":
         mask = np.zeros(len(data[column]), dtype=bool)
         mask[missing] = True
         holed = pa.table(
@@ -169,3 +175,21 @@ def test_missing_cell_matches_dropped_row_for_response_curve(source, column):
     assert _response_curve_values(holed) == pytest.approx(
         _response_curve_values(dropped), rel=1e-9, abs=1e-12
     )
+
+
+@pytest.mark.parametrize("column", ["t", "y", "z"])
+def test_arrow_nan_value_matches_dropped_row_for_ate(column):
+    """An Arrow NaN value (null_count 0) is dropped like a null, for every role."""
+    data, edges = _confounded_scm(n=400, seed=5)
+    missing = 37
+    dropped = {k: np.delete(v, missing) for k, v in data.items()}
+    holed = {k: v.copy() for k, v in data.items()}
+    holed[column][missing] = np.nan
+    table = _as_table(holed)
+    q = antecedent.AverageEffect(treatment="t", outcome="y")
+    arrow_r = antecedent.analyze(table, graph=edges, query=q, latency="interactive", seed=1)
+    numpy_r = antecedent.analyze(holed, graph=edges, query=q, latency="interactive", seed=1)
+    dropped_r = antecedent.analyze(dropped, graph=edges, query=q, latency="interactive", seed=1)
+    assert math.isfinite(arrow_r.ate)
+    assert arrow_r.ate == pytest.approx(dropped_r.ate, rel=1e-9, abs=1e-12)
+    assert arrow_r.ate == pytest.approx(numpy_r.ate, rel=1e-9, abs=1e-12)
