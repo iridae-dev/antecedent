@@ -400,17 +400,30 @@ def check_evidence_test(label: str, test_rel: str, assertion: str) -> None:
         return
     test_text = test_path.read_text(errors="ignore")
     if test_path.suffix == ".rs":
-        # `#[test]`, optionally followed by further attributes (`#[ignore = ..]`).
+        # `#[test]`, optionally followed by further attributes; the attribute
+        # block is captured so an `#[ignore]`d test can be rejected below.
         test_pattern = re.compile(
-            rf"#\[test\][^\n]*\n(?:\s*#\[[^\n]*\n)*\s*fn\s+{re.escape(assertion)}\s*\(",
+            rf"#\[test\][^\n]*\n((?:\s*#\[[^\n]*\n)*)\s*fn\s+{re.escape(assertion)}\s*\(",
             re.M,
         )
     else:
-        test_pattern = re.compile(rf"^\s*def\s+{re.escape(assertion)}\s*\(", re.M)
-    if not test_pattern.search(test_text):
+        test_pattern = re.compile(rf"()^\s*def\s+{re.escape(assertion)}\s*\(", re.M)
+    match = test_pattern.search(test_text)
+    if not match:
         fail.append(
             f"{label}: evidence_assertion {assertion!r} is not an "
             f"executing test function in {test_rel}"
+        )
+    elif re.search(r"#\[\s*ignore\b", match.group(1)):
+        # `cargo test` and gate_release.sh skip `#[ignore]` tests; only the
+        # scheduled scripts/gate_calibration.sh runs them. A row's evidence must
+        # execute on every test run, so a calibration test may be cited in the
+        # limitations prose but not as evidence_test/evidence_assertion.
+        fail.append(
+            f"{label}: evidence_assertion {assertion!r} in {test_rel} is "
+            "#[ignore]d -- calibration tests run only under "
+            "scripts/gate_calibration.sh and are not executing evidence; name a "
+            "test that cargo test runs and cite the calibration test in limitations"
         )
 for i, row in enumerate(cells, 1):
     label = f"parity/support_licensed.toml cell #{i}"
