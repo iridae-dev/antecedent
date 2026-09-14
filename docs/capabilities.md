@@ -45,13 +45,15 @@ aggregates. Unknown tiers retain distinct canonical scenario effects.
 Completions stay envelope atoms; the runtime class is not collapsed.
 Static Cpdag / Pag Frequentist aggregates publish joint-IF standard errors.
 Frequentist DBN Pulse/Sustained mixtures publish shared outer-block
-bootstrap uncertainty; TemporalCpdag/TemporalPag class envelopes still
-disclose that envelope SE omits between-atom variance pending 1.9
-calibration. Temporal PAG results retain MAG completions
-and disclose finite-window audit caps. Those families are not licensed on every
+bootstrap uncertainty. TemporalCpdag/TemporalPag class envelopes publish a
+shared circular-block mixture SE (frozen-weight aggregate over identified
+atoms; unidentified mass is retained, not mixed) and Imbens–Manski
+identified-set intervals; Bayesian class envelopes publish the product-posterior
+envelope quantile at Imbens–Manski tails. Temporal PAG results retain MAG
+completions and disclose finite-window audit caps. Those families are not licensed on every
 coordinate: Bayesian
 incomplete-class temporal cells,
-partial-graph derivatives, accepted / Bayesian / nested counterfactuals,
+partial-graph derivatives, graph-posterior / nested counterfactuals,
 and cheap/full counterfactual validation remain refused. Importability is not
 a license. The [support matrix](support-matrix.md) is the public license.
 

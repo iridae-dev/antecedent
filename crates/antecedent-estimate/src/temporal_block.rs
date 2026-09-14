@@ -377,8 +377,8 @@ impl<const K: usize> RowBlockBootstrap<K> {
     }
 }
 
-/// Fixed-b correction for a circular-block SE: `cv(ℓ/n) / z`, with `cv` the
-/// Kiefer–Vogelsang (2005) Bartlett-kernel fixed-b critical value for a
+/// Fixed-b correction for a circular-block SE: `cv_95(ℓ/n) / 1.96`, with `cv_95`
+/// the Kiefer–Vogelsang (2005) Bartlett-kernel fixed-b critical value for a
 /// two-sided 95% test, `cv(b) = 1.96 + 2.9694b + 0.4160b² − 0.5324b³`.
 ///
 /// The circular-block variance of a smooth statistic is asymptotically the
@@ -386,8 +386,11 @@ impl<const K: usize> RowBlockBootstrap<K> {
 /// `ℓ = ⌈n^{1/3}⌉` bandwidth leaves both kernel bias and estimation noise that a
 /// standard-normal critical value ignores: uncorrected nominal-90% intervals
 /// measured 2–7 points low in the 1.9 calibration. Scaling the SE by this ratio
-/// makes `estimate ± z·SE` the fixed-b interval; the 95% ratio is used so the
-/// correction is not smaller than the 90% one (≈ `1 + 1.33ℓ/n`).
+/// makes `estimate ± z_{0.95}·SE` the 95% fixed-b interval. Published 90%
+/// scalar intervals still use this 95% ratio (not `cv_90 / z_{0.90}`), so they
+/// are 90% normal intervals around a 95%-inflated SE — conservative relative
+/// to the 90% KV polynomial (≈ `1 + 1.33ℓ/n`). The 1.9 gate measured that
+/// construction; do not silently swap in the 90% ratio.
 #[must_use]
 pub fn fixed_b_scale(block_length: usize, rows: usize) -> f64 {
     if rows == 0 {
