@@ -303,6 +303,7 @@ impl super::Study {
             identified_mass: identified_mass / total_mass,
             unidentified_mass: unidentified_mass / total_mass,
             unevaluable_mass: failed_mass / total_mass,
+            subsampled_out_mass: 0.0,
             identified_set: Some(antecedent_core::ResponseEnvelope {
                 grid: Arc::from([f64::from(horizon)]),
                 dimension: 1,

@@ -1421,6 +1421,7 @@ def _wrap_prepared_response(
             tuple(raw.atom_statuses),
             tuple(tuple(values) for values in raw.atom_values),
             float(getattr(raw, "unevaluable_mass", None) or 0.0),
+            float(getattr(raw, "subsampled_out_mass", None) or 0.0),
         )
     return CausalResponseView(
         certificate=json.loads(certificate_json) if certificate_json else None,

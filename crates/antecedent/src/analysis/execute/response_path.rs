@@ -28,22 +28,25 @@ impl super::Study {
                     false,
                 )
             };
-        // Same interactive budget as the graph-posterior ATE path: atoms left
-        // out of the stratified subsample flip to unidentified mass before any
-        // fit, so they are never silently renormalized away.
+        // Same interactive budget as the graph-posterior ATE path: identified
+        // atoms left out of the stratified subsample are never fit and never
+        // renormalized away; their mass is reported as not evaluated.
         let mut subsample_notes = Vec::new();
-        let graphs = maybe_interactive_subsample_graphs(
+        let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
             self.latency_mode,
             identified.graphs.clone(),
             ctx,
             &mut subsample_notes,
         )?;
         let mut weighted = Vec::new();
-        let mut atoms = graphs
+        // Atom statuses come from the full ensemble: a subsampled-out atom keeps
+        // its identified status and carries no value.
+        let mut atoms = identified
+            .graphs
             .graph_keys
             .iter()
-            .zip(graphs.weights.iter())
-            .zip(graphs.identified.iter())
+            .zip(identified.graphs.weights.iter())
+            .zip(identified.graphs.identified.iter())
             .map(|((&graph_key, &weight), flag)| crate::result::StructuralResponseAtom {
                 posterior: None,
                 response: None,
@@ -128,7 +131,10 @@ impl super::Study {
         })?;
         let identified_mass = weighted.iter().map(|(_, weight, _)| weight).sum::<f64>();
         let total_mass = graphs.total_weight();
-        let unidentified_mass = graphs.unidentified_mass();
+        // The subsampled ensemble flags dropped atoms Unidentified; the full
+        // ensemble's unidentified mass is the structural one.
+        let unidentified_mass = identified.graphs.unidentified_mass();
+        let subsampled_out_mass = subsample_drop.mass;
         let conditional_values = weighted
             .iter()
             .filter_map(|(_, weight, response)| {
@@ -140,9 +146,10 @@ impl super::Study {
         let conditional = mix_response_values(&conditional_refs)?;
         let structural_set = response_envelope_from_weighted(&weighted);
         let first = &weighted[0].2;
-        // Unevaluable mass is as incomplete as unidentified mass: the published
-        // value covers only the evaluable atoms.
-        let graph_dependent = unidentified_mass > 0.0 || failed_mass > 0.0;
+        // Unevaluable and subsampled-out mass are as incomplete as unidentified
+        // mass: the published value covers only the evaluated atoms.
+        let graph_dependent =
+            unidentified_mass > 0.0 || failed_mass > 0.0 || subsampled_out_mass > 0.0;
         if graph_dependent {
             identification.status = IdentificationStatus::GraphDependent;
         }
@@ -210,10 +217,13 @@ impl super::Study {
             DiagnosticSeverity::Info,
             format!(
                 "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
-                 unevaluable_mass={}; failed estimation is not mixed into unidentified mass",
+                 unevaluable_mass={}; subsampled_out_mass={}; failed estimation and \
+                 atoms the Interactive tier did not evaluate are not mixed into \
+                 unidentified mass",
                 identified_mass / total_mass,
                 unidentified_mass / total_mass,
-                failed_mass / total_mass
+                failed_mass / total_mass,
+                subsampled_out_mass / total_mass
             ),
         )];
         if weighted.len() > 1 && mixed_if_se.is_none() {
@@ -327,6 +337,7 @@ impl super::Study {
                     identified_mass: identified_mass / total_mass,
                     unidentified_mass: unidentified_mass / total_mass,
                     unevaluable_mass: failed_mass / total_mass,
+                    subsampled_out_mass: subsampled_out_mass / total_mass,
                     identified_set: structural_set,
                     identified_set_interval: None,
                     conditional_on_identified: Some(conditional),
@@ -1307,6 +1318,7 @@ impl super::Study {
             identified_mass: total_w / total_mass.max(f64::EPSILON),
             unidentified_mass: envelope.unidentified_weight.0 / total_mass.max(f64::EPSILON),
             unevaluable_mass: unestimated_id_mass / total_mass.max(f64::EPSILON),
+            subsampled_out_mass: 0.0,
             identified_set: response_envelope_from_weighted(&weighted),
             identified_set_interval: None,
             conditional_on_identified: None,

@@ -883,7 +883,7 @@ impl super::Study {
                 )
             };
         let mut subsample_notes = Vec::new();
-        let graphs = maybe_interactive_subsample_graphs(
+        let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
             self.latency_mode,
             identified.graphs.clone(),
             ctx,
@@ -990,17 +990,18 @@ impl super::Study {
                 estimate.influence = Some(inf);
             }
         }
-        let unidentified_mass: f64 = graphs
-            .weights
-            .iter()
-            .zip(graphs.identified.iter())
-            .filter(|(_, flag)| **flag != GraphIdentFlag::Identified)
-            .map(|(weight, _)| *weight)
-            .sum();
+        // Structural unidentified mass comes from the full ensemble; atoms the
+        // Interactive subsample dropped were identified but never evaluated.
+        let unidentified_mass = identified.graphs.unidentified_mass();
+        let subsampled_out_mass = subsample_drop.mass;
         let contributing: Vec<&IdentifiedEstimand> =
             refute_atoms.iter().map(|atom| &atom.estimand).collect();
-        identification.status =
-            graph_posterior_mixture_status(unidentified_mass, &contributing, identification.status);
+        // Mass the mixture does not cover, of either kind, leaves it graph-dependent.
+        identification.status = graph_posterior_mixture_status(
+            unidentified_mass + subsampled_out_mass,
+            &contributing,
+            identification.status,
+        );
 
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(subsample_notes);
@@ -1025,7 +1026,7 @@ impl super::Study {
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
             format!(
-                "published effect is E[τ | identified]; identified_mass={total_w}, unidentified_mass={unidentified_mass}, atoms={}",
+                "published effect is E[τ | identified]; identified_mass={total_w}, unidentified_mass={unidentified_mass}, subsampled_out_mass={subsampled_out_mass}, atoms={}",
                 refute_atoms.len()
             ),
         ));

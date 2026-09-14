@@ -96,6 +96,11 @@ pub struct StructuralResponseMixture {
     pub unidentified_mass: f64,
     /// Fraction identified in theory but not evaluable by the selected estimator.
     pub unevaluable_mass: f64,
+    /// Fraction on identified atoms that were never evaluated because the
+    /// Interactive latency tier's graph budget left them out of the stratified
+    /// subsample. Neither unidentified nor a failed estimate; the four masses
+    /// sum to one. Zero outside the Interactive tier.
+    pub subsampled_out_mass: f64,
     /// Pointwise range over identified atom point responses.
     pub identified_set: Option<ResponseEnvelope>,
     /// Interval for a scalar [`Self::identified_set`] that adds sampling

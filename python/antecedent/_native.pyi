@@ -205,6 +205,7 @@ class ResponseAnalysisResult:
     identified_mass: float | None
     unidentified_mass: float | None
     unevaluable_mass: float | None
+    subsampled_out_mass: float | None
     completion_count: int | None
     truncated_completions: int | None
     enumeration_capped: bool | None

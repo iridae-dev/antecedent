@@ -1204,11 +1204,9 @@ fn prepared_graph_posterior_response_refuses_multi_coordinate_intervention() {
     );
 }
 
-/// Interactive latency caps the graph-posterior response mixture at the same
-/// stratified subsample as the graph-posterior ATE: dropped identified mass is
-/// reported as unidentified, never renormalized away.
-#[test]
-fn interactive_graph_posterior_response_subsamples_like_the_ate_path() {
+/// Graph posterior with twice the Interactive cap of distinct backdoor-identified
+/// atoms plus one reverse-causal (unidentified) atom, all equally weighted.
+fn interactive_budget_fixture() -> (TabularData, antecedent_discovery::GraphPosterior, usize) {
     use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
     use antecedent_discovery::set_edge;
 
@@ -1239,7 +1237,7 @@ fn interactive_graph_posterior_response_subsamples_like_the_ate_path() {
     // outcome-only parents: 32 distinct backdoor-identified atoms (no
     // instrument or front-door candidates), twice the interactive cap.
     let n_vars = 7;
-    let masks: Vec<u64> = (0u32..32)
+    let mut masks: Vec<u64> = (0u32..32)
         .map(|subset| {
             let mut mask = set_edge(0, n_vars, 0, 1, true);
             if subset & 1 != 0 {
@@ -1254,7 +1252,10 @@ fn interactive_graph_posterior_response_subsamples_like_the_ate_path() {
             mask
         })
         .collect();
-    assert!(masks.len() >= 2 * INTERACTIVE_MAX_ENVELOPE_GRAPHS);
+    let n_identified = masks.len();
+    assert!(n_identified >= 2 * INTERACTIVE_MAX_ENVELOPE_GRAPHS);
+    // One reverse-causal Y -> T atom: structurally unidentified, never subsampled.
+    masks.push(set_edge(0, n_vars, 1, 0, true));
     let weight = 1.0 / masks.len() as f64;
     let gp = antecedent_discovery::GraphPosterior::new(
         n_vars,
@@ -1267,6 +1268,21 @@ fn interactive_graph_posterior_response_subsamples_like_the_ate_path() {
         0,
     )
     .unwrap();
+    (data, gp, n_identified)
+}
+
+const SUBSAMPLE_DIAGNOSTIC: &str = "estimate.envelope.interactive_subsample";
+
+/// Interactive latency caps the graph-posterior response mixture at the same
+/// stratified subsample as the graph-posterior ATE. Identified atoms left out
+/// of the subsample are reported as subsampled-out mass: not unidentified, not
+/// unevaluable, never renormalized away.
+#[test]
+fn interactive_graph_posterior_response_subsamples_like_the_ate_path() {
+    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+
+    let (data, gp, n_identified) = interactive_budget_fixture();
+    let n_atoms = n_identified + 1;
     let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
         outcome: VariableId::from_raw(1),
         interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.25))]),
@@ -1285,25 +1301,123 @@ fn interactive_graph_posterior_response_subsamples_like_the_ate_path() {
             .run(&ctx)
             .unwrap()
     };
-    let subsample = "estimate.envelope.interactive_subsample";
+    let unidentified = 1.0 / n_atoms as f64;
     let full = run(antecedent::LatencyMode::Standard);
-    assert!(full.diagnostics.iter().all(|d| d.code.as_ref() != subsample));
+    assert!(full.diagnostics.iter().all(|d| d.code.as_ref() != SUBSAMPLE_DIAGNOSTIC));
     let full_mix = full.structural_response.as_ref().unwrap();
-    assert!(full_mix.unidentified_mass.abs() < 1e-12);
+    assert!((full_mix.unidentified_mass - unidentified).abs() < 1e-12);
+    assert!(full_mix.subsampled_out_mass.abs() < 1e-12);
 
     let interactive = run(antecedent::LatencyMode::Interactive);
-    assert!(interactive.diagnostics.iter().any(|d| d.code.as_ref() == subsample));
+    let note = interactive
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == SUBSAMPLE_DIAGNOSTIC)
+        .expect("subsample diagnostic");
+    let dropped = n_identified - INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    assert!(note.message.contains(&format!("subsampled_out_atoms={dropped}")), "{}", note.message);
+    assert!(note.message.contains("Interactive latency tier"), "{}", note.message);
+    assert!(note.message.contains("reported as subsampled_out_mass"), "{}", note.message);
     let mix = interactive.structural_response.as_ref().unwrap();
     let evaluated = mix.atoms.iter().filter(|atom| atom.value.is_some()).count();
     assert_eq!(evaluated, INTERACTIVE_MAX_ENVELOPE_GRAPHS);
-    assert!(mix.unidentified_mass > 0.4, "{}", mix.unidentified_mass);
+    // Dropped atoms are identified but carry no value; the reverse-causal atom
+    // is the only NotIdentified one, exactly as in the Standard run.
+    let not_identified = mix
+        .atoms
+        .iter()
+        .filter(|atom| atom.status == antecedent_core::IdentificationStatus::NotIdentified)
+        .count();
+    assert_eq!(not_identified, 1);
+    let skipped = mix
+        .atoms
+        .iter()
+        .filter(|atom| {
+            atom.value.is_none()
+                && atom.status != antecedent_core::IdentificationStatus::NotIdentified
+        })
+        .count();
+    assert_eq!(skipped, dropped);
+    assert!((mix.unidentified_mass - unidentified).abs() < 1e-12, "{}", mix.unidentified_mass);
+    assert!(mix.unevaluable_mass.abs() < 1e-12);
     assert!(
-        (mix.identified_mass + mix.unidentified_mass + mix.unevaluable_mass - 1.0).abs() < 1e-9,
-        "{} {} {}",
-        mix.identified_mass,
-        mix.unidentified_mass,
-        mix.unevaluable_mass
+        (mix.subsampled_out_mass - dropped as f64 / n_atoms as f64).abs() < 1e-12,
+        "{}",
+        mix.subsampled_out_mass
     );
+    assert!(
+        (mix.identified_mass
+            + mix.unidentified_mass
+            + mix.unevaluable_mass
+            + mix.subsampled_out_mass
+            - 1.0)
+            .abs()
+            < 1e-9
+    );
+    let envelope = interactive
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "estimate.response.graph_posterior")
+        .unwrap();
+    assert!(envelope.message.contains("subsampled_out_mass="), "{}", envelope.message);
+    assert_eq!(
+        interactive.identification.status,
+        antecedent_core::IdentificationStatus::GraphDependent
+    );
+}
+
+/// The Frequentist graph-posterior ATE reports atoms the Interactive subsample
+/// dropped as subsampled-out mass, separate from structural unidentified mass,
+/// and stays graph-dependent.
+#[test]
+fn interactive_graph_posterior_ate_reports_subsampled_out_mass_separately() {
+    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+
+    let (data, gp, n_identified) = interactive_budget_fixture();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let ctx = ExecutionContext::for_tests(9);
+    let run = |latency: antecedent::LatencyMode| {
+        Study::tabular(data.clone())
+            .graph_posterior(gp.clone())
+            .query(query.clone())
+            .inference(InferenceMode::Frequentist)
+            .latency_mode(latency)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    };
+    let envelope_masses = |result: &antecedent::StudyResult| {
+        let message = &result
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "estimate.graph_posterior.envelope")
+            .expect("envelope diagnostic")
+            .message;
+        let field = |name: &str| -> f64 {
+            let tail = message.split(&format!(" {name}=")).nth(1).expect(name);
+            tail.split(|c| c == ',' || c == ' ').next().unwrap().parse().unwrap()
+        };
+        (field("unidentified_mass"), field("subsampled_out_mass"))
+    };
+    let unidentified = 1.0 / (n_identified + 1) as f64;
+
+    let full = run(antecedent::LatencyMode::Standard);
+    let (full_unidentified, full_dropped) = envelope_masses(&full);
+    assert!((full_unidentified - unidentified).abs() < 1e-12);
+    assert!(full_dropped.abs() < 1e-12);
+
+    let interactive = run(antecedent::LatencyMode::Interactive);
+    assert!(interactive.diagnostics.iter().any(|d| d.code.as_ref() == SUBSAMPLE_DIAGNOSTIC));
+    let (interactive_unidentified, dropped_mass) = envelope_masses(&interactive);
+    let dropped = n_identified - INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    assert!(
+        (interactive_unidentified - unidentified).abs() < 1e-12,
+        "dropped atoms must not be reported as unidentified: {interactive_unidentified}"
+    );
+    assert!((dropped_mass - dropped as f64 / (n_identified + 1) as f64).abs() < 1e-12);
     assert_eq!(
         interactive.identification.status,
         antecedent_core::IdentificationStatus::GraphDependent

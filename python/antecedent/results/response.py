@@ -87,6 +87,10 @@ class ResponseEnvelopeView:
     #: Mass identified in theory whose estimation failed. It is not
     #: unidentified mass and is not mixed into the published value.
     unevaluable_mass: float = 0.0
+    #: Mass on identified atoms the Interactive latency tier left out of its
+    #: graph subsample and never evaluated. Neither unidentified nor a failed
+    #: estimate, and not mixed into the published value.
+    subsampled_out_mass: float = 0.0
 
     def __post_init__(self) -> None:
         if len(self.points) != len(self.lower) or len(self.points) != len(self.upper):
@@ -97,9 +101,18 @@ class ResponseEnvelopeView:
             raise CausalValueError("unidentified_mass must be in [0, 1]")
         if not 0.0 <= self.unevaluable_mass <= 1.0:
             raise CausalValueError("unevaluable_mass must be in [0, 1]")
-        total = self.identified_mass + self.unidentified_mass + self.unevaluable_mass
+        if not 0.0 <= self.subsampled_out_mass <= 1.0:
+            raise CausalValueError("subsampled_out_mass must be in [0, 1]")
+        total = (
+            self.identified_mass
+            + self.unidentified_mass
+            + self.unevaluable_mass
+            + self.subsampled_out_mass
+        )
         if abs(total - 1.0) > 1e-9:
-            raise CausalValueError("identified, unidentified, and unevaluable mass must sum to one")
+            raise CausalValueError(
+                "identified, unidentified, unevaluable, and subsampled-out mass must sum to one"
+            )
         if (
             self.completion_count < 1
             or not 0 <= self.truncated_completions <= self.completion_count
