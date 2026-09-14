@@ -177,12 +177,14 @@ impl TemporalAtomDesign {
         }
     }
 
-    /// Intercept normal-equation score (the residual series) when the design
-    /// carries an intercept column first; otherwise the first fitted score.
-    fn intercept_residual(&self) -> Option<&[f64]> {
+    /// OLS normal-equation scores of every regression the atom fits, on its own
+    /// aligned rows ([`antecedent_estimate::normal_equation_scores`]; an
+    /// intercept's score is that regression's residual series). A sequential
+    /// atom lists every mechanism's scores, the outcome mechanism's among them.
+    fn normal_scores(&self) -> &[Vec<f64>] {
         match self {
             Self::Linear { normal_scores, .. } | Self::Sequential { normal_scores, .. } => {
-                normal_scores.first().map(Vec::as_slice)
+                normal_scores
             }
         }
     }
@@ -194,13 +196,13 @@ impl TemporalAtomDesign {
 /// maximal lag window across all atoms is available; each atom's lag-aligned
 /// design keeps its rows' lag windows from the original series, every atom is
 /// refit on the same resampled times, and the replicate SD is scaled by the
-/// Kiefer–Vogelsang fixed-b factor ([`antecedent_estimate::aligned_block_bootstrap`]).
-/// The block length is [`antecedent_estimate::dependence_block_length`] over the
-/// `m` shared times: at least `max(structural_span, ceil(m^(1/3)))`, lengthened
-/// when any atom's (or the mixture's) estimating score carries slowly decaying
-/// dependence. Unidentified mass is not mixed; a replicate that cannot fit every
-/// atom is dropped rather than renormalized. The interval is for the reported
-/// aggregate.
+/// circular-Bartlett fixed-b factor ([`antecedent_estimate::circular_fixed_b_scale`]).
+/// The block length is [`mixture_block_length`] over the `m` shared times: at
+/// least `max(structural_span, ceil(m^(1/3)))`, lengthened when any atom's
+/// influence, the mixture score, or any normal-equation score of any atom's
+/// regressions carries slowly decaying dependence. Unidentified mass is not
+/// mixed; a replicate that cannot fit every atom is dropped rather than
+/// renormalized. The interval is for the reported aggregate.
 pub fn shared_circular_block_mixture_se(
     atoms: &[&TemporalAtomDesign],
     weights: &[f64],
@@ -224,20 +226,21 @@ pub fn shared_circular_block_mixture_se(
         })
         .collect();
     let score = influences.as_deref().and_then(|windows| mixture_score(windows, weights, len));
-    // Intercept residual (the persistent score 1.9 needed) plus each atom's
-    // influence and the mixture score. Other OLS columns are not PW-scanned.
-    let residual_windows: Vec<&[f64]> = atoms
+    let normal_windows: Vec<&[f64]> = atoms
         .iter()
         .zip(&designs)
-        .filter_map(|(atom, design)| {
+        .flat_map(|(atom, design)| {
             let offset = start - design.first_time;
-            atom.intercept_residual()?.get(offset..offset + len)
+            atom.normal_scores().iter().filter_map(move |s| s.get(offset..offset + len))
         })
         .collect();
-    let mut scores: Vec<&[f64]> = influences.iter().flatten().copied().collect();
-    scores.extend(score.as_deref());
-    scores.extend(residual_windows.iter().copied());
-    let block_length = antecedent_estimate::dependence_block_length(structural_span, len, &scores);
+    let block_length = mixture_block_length(
+        structural_span,
+        len,
+        influences.as_deref().unwrap_or_default(),
+        score.as_deref(),
+        &normal_windows,
+    );
     let mut workspace = EstimationWorkspace::default();
     let mut out = shared_circular_block_mixture_se_with_length(
         &designs,
@@ -258,6 +261,28 @@ pub fn shared_circular_block_mixture_se(
         f64::NAN
     };
     out
+}
+
+/// Block length of the shared circular block over `len` shared times:
+/// [`antecedent_estimate::dependence_block_length`] of the structural span over
+/// every atom's influence, the weighted mixture score, and every normal-equation
+/// score of every atom's regressions (each a window of `len` shared times).
+///
+/// The nuisance scores are all included, not only one residual: a sequential
+/// atom's scores run over every mechanism in topological order, and the
+/// outcome mechanism's residual (the persistent score that moves every
+/// replicate slope) is not in a fixed position among them. This is the rule
+/// the single-window, mediation and standalone sequential paths use.
+pub fn mixture_block_length(
+    structural_span: usize,
+    len: usize,
+    influences: &[&[f64]],
+    mixture: Option<&[f64]>,
+    normal_scores: &[&[f64]],
+) -> usize {
+    let scores: Vec<&[f64]> =
+        influences.iter().copied().chain(mixture).chain(normal_scores.iter().copied()).collect();
+    antecedent_estimate::dependence_block_length(structural_span, len, &scores)
 }
 
 /// The weighted mixture estimating score `Σ_g w̄_g IF_g(t)` over the shared times.
@@ -284,9 +309,10 @@ pub fn circular_block_length(structural_span: usize, n: usize) -> usize {
 }
 
 /// [`shared_circular_block_mixture_se`] over explicit aligned designs at an
-/// explicit block length (the block-length sensitivity check calls this
-/// directly; production callers use the rule). `fit_atom(g, rows)` refits atom
-/// `g` on its design rows `rows`.
+/// explicit block length. Production reaches it through
+/// [`shared_circular_block_mixture_se`] at [`mixture_block_length`]; the
+/// block-length sensitivity check calls it directly at multiples of that
+/// length. `fit_atom(g, rows)` refits atom `g` on its design rows `rows`.
 pub fn shared_circular_block_mixture_se_with_length(
     designs: &[antecedent_estimate::AlignedRows],
     weights: &[f64],

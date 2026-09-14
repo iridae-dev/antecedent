@@ -38,8 +38,9 @@ const TEMPORAL_BLOCK_STREAM: u64 = 0x7B10_C000_0000;
 pub struct TemporalDependenceSe {
     /// Circular-block length in lag-aligned rows:
     /// [`crate::temporal_block::dependence_block_length`] of the unfolded window
-    /// and the treatment-coefficient score — at least `max(history + horizon, ⌈n^{1/3}⌉)`,
-    /// lengthened for a persistently dependent score.
+    /// over the treatment influence and every normal-equation score — at least
+    /// `max(history + horizon, ⌈n^{1/3}⌉)`, lengthened for a persistently
+    /// dependent score.
     pub block_length: usize,
     /// Lag-aligned rows in the fitted (and resampled) design.
     pub rows: usize,
@@ -52,7 +53,8 @@ pub struct TemporalDependenceSe {
 
 /// [`crate::temporal_block::dependence_block_length`] of one series' prepared
 /// design: the unfolded window (`history + horizon` slices), the treatment
-/// influence and every normal-equation score.
+/// influence and every normal-equation score of the regression (the intercept's
+/// score is the residual series).
 fn single_window_block_length(
     prep: &PreparedEstimationProblem,
     indexer: &TemporalIndexer,
@@ -67,8 +69,8 @@ fn single_window_block_length(
         &prep.design.outcome,
     )
     .unwrap_or_default();
-    let residual = normal_scores.first().map(Vec::as_slice);
-    let scores: Vec<&[f64]> = influence.into_iter().chain(residual).collect();
+    let scores: Vec<&[f64]> =
+        influence.into_iter().chain(normal_scores.iter().map(Vec::as_slice)).collect();
     crate::temporal_block::dependence_block_length(structural_span, rows, &scores)
 }
 
@@ -397,7 +399,8 @@ impl TemporalLinearAdjustment {
     ///   [`crate::temporal_block::dependence_block_length`]: at least
     ///   [`antecedent_data::circular_block_length`] of the unfolded window
     ///   (`history + horizon` slices) and the row count, lengthened when the
-    ///   treatment-coefficient score is persistently dependent.
+    ///   treatment influence or any normal-equation score of the regression
+    ///   (the residual included) is persistently dependent.
     /// - `se_analytic` is NaN. No analytic SE is calibrated here: the iid OLS SE
     ///   ignores the dependence, and a Newey–West HAC SE at the same bandwidth
     ///   under-covered in the 1.9 calibration (0.82–0.88 at nominal 0.90).
