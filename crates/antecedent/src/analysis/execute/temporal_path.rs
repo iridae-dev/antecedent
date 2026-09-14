@@ -402,7 +402,7 @@ impl super::Study {
             let mut assumptions = identification.required_assumptions.clone();
             assumptions.push(antecedent_core::AssumptionRecord {
                 assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
-                    id: Arc::from("temporal.sequential.linear_sem"), description: Arc::from("linear additive mechanisms on the identified unfolded DAG; every sustained time is intervened on; frequentist intervals use a shared circular-block row bootstrap whose replicate SD carries the Kiefer-Vogelsang fixed-b correction for the block length, Bayesian intervals share each stationary mechanism posterior across time copies, fitting its unique complete observed rows once"),
+                    id: Arc::from("temporal.sequential.linear_sem"), description: Arc::from("linear additive mechanisms on the identified unfolded DAG; every sustained time is intervened on; frequentist intervals use a shared circular-block row bootstrap whose replicate SD carries the circular-Bartlett fixed-b correction for the block length, Bayesian intervals share each stationary mechanism posterior across time copies, fitting its unique complete observed rows once"),
                 }),
                 source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from("temporal.sequential.gcomp") },
                 scope: antecedent_core::AssumptionScope::Estimation, status: antecedent_core::AssumptionStatus::Declared,
@@ -4255,7 +4255,7 @@ const OBSERVATION_SIMULTANEOUS_CONSTRUCTION: &str = "max-studentized deviation o
      full-sample estimate; every replicate resamples blocks of lag-aligned outcome-time tuples \
      (block length: support diagnostic response.temporal.block_length), refits the observation \
      nuisance on them and refits every horizon (curve / Set-Shift) or every unfolded sequential \
-     mechanism (Sequence); replicate deviations carry the Kiefer-Vogelsang fixed-b factor and the \
+     mechanism (Sequence); replicate deviations carry the circular-Bartlett fixed-b factor and the \
      HC1 factor";
 
 /// Pointwise band `center ± z·SD` of the (already fixed-b scaled) joint replicates.
@@ -4616,7 +4616,7 @@ const SEQUENCE_SIMULTANEOUS_CONSTRUCTION: &str = "max-studentized deviation of t
      estimate; every replicate resamples blocks of lag-aligned outcome-time tuples (block length: \
      support diagnostic response.temporal.block_length), refits every unfolded sequential \
      mechanism of every horizon and recomputes the root-node means; replicate deviations carry \
-     the Kiefer-Vogelsang fixed-b factor and the HC1 factor";
+     the circular-Bartlett fixed-b factor and the HC1 factor";
 
 fn apply_observation_bootstrap(
     response: &mut CausalResponse,
@@ -5078,7 +5078,7 @@ fn temporal_dependence_se_diagnostics(
     effective_rows: f64,
     detail: &str,
 ) -> Vec<Diagnostic> {
-    let scale = antecedent_estimate::fixed_b_scale(block_length, rows);
+    let scale = antecedent_estimate::circular_fixed_b_scale(block_length, rows);
     let mut out = vec![Diagnostic::new(
         "estimate.temporal.circular_block_se",
         DiagnosticKind::Scientific,
@@ -5088,7 +5088,7 @@ fn temporal_dependence_se_diagnostics(
              max(structural span, ceil(n^(1/3))), capped at n, and lengthened for a \
              persistently dependent estimating score), \
              n={rows} lag-aligned rows; \
-             replicate SD scaled by the Kiefer-Vogelsang fixed-b factor {scale:.4}; \
+             replicate SD scaled by the circular-Bartlett fixed-b factor {scale:.4}; \
              score effective rows {effective_rows:.1} (the smaller of the lag-1 and \
              block-length readings); {detail}"
         ),

@@ -243,7 +243,7 @@ impl super::Study {
                          available; each atom's lag-aligned rows keep their original lag \
                          windows and every atom's three mechanism regressions are refit on the \
                          same resampled times, then mixed with the frozen weights inside the \
-                         replicate; replicate SD scaled by the Kiefer-Vogelsang fixed-b factor \
+                         replicate; replicate SD scaled by the circular-Bartlett fixed-b factor \
                          {:.4}; score effective rows {:.1}; between-atom sampling covariance \
                          included; unidentified and unevaluable mass is not mixed into the SE; \
                          the interval is for the reported aggregate, not a distribution over \
@@ -252,7 +252,10 @@ impl super::Study {
                         s.block.replicates_attempted,
                         s.block.block_length,
                         s.block.rows,
-                        antecedent_estimate::fixed_b_scale(s.block.block_length, s.block.rows),
+                        antecedent_estimate::circular_fixed_b_scale(
+                            s.block.block_length,
+                            s.block.rows
+                        ),
                         s.block.effective_rows,
                     ),
                 ));

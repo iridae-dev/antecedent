@@ -234,9 +234,9 @@ uses one construction:
    `response.temporal.block_length` records `[ℓ, floor, uncapped testing length,
    n, dispersion factor]`, and `response.temporal.block_length_capped` warns when
    the `n/3` cap binds;
-3. replicate deviations from `θ̂` scaled by the Kiefer–Vogelsang (2005) fixed-b
-   critical-value ratio for the Bartlett kernel at `b = ℓ/n` (the correction the
-   plain TemporalDag Pulse / Sustained SE uses) and by the HC1 factor
+3. replicate deviations from `θ̂` scaled by the fixed-b critical-value ratio of the
+   circular Bartlett estimator at `b = ℓ/n` (simulated circular-Bartlett 97.5%
+   quantiles; the correction the plain TemporalDag Pulse / Sustained SE uses) and by the HC1 factor
    `sqrt(n/(n − p))`;
 4. pointwise band `θ̂ ± 1.96·SE` with SE the scaled replicate SD, and the
    simultaneous band above from the same scaled replicates. The fixed-b ratio is
