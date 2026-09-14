@@ -619,7 +619,7 @@ Available components:
 * configurable cache budgets;
 * prepared analyses;
 * progressive and cancellable execution;
-* adaptive resampling.
+* opt-in adaptive resampling bounded by Monte Carlo error (production evaluates the full request).
 
 Invalidation does not automatically rerun an analysis.
 

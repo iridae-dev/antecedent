@@ -253,6 +253,21 @@ was not available, published as boundary records with a runtime disclosure.
 
 ### Fixed
 
+- Production contexts (`ExecutionContext::production`, hence every Python
+  `analyze`) enabled an adaptive bootstrap budget that stopped once one
+  replicate changed the running SE by under 1%. Every static bootstrap SE
+  stopped at 10–24 replicates whatever `bootstrap=` requested (about 15–22%
+  Monte Carlo error on the SE), the default change 50→199 had no effect on
+  static cells, and the static linear mediation SE was identical at B=199 and
+  B=800. The Laplace draw budget had the same defect through a quantile-width
+  rule. Production now evaluates the full request, as the calibration gates
+  do; `bootstrap_replicates_ok` and `early_stopped` are truthful. The opt-in
+  `AdaptiveBootstrapBudget` stops only once the relative Monte Carlo SE of the
+  bootstrap SE (`1/√(2(B−1))`) is at most `se_rel_epsilon` (201 replicates at
+  the 5% default); `AdaptiveDrawBudget` uses its ESS target alone. Bootstrap
+  SEs are more precise and bootstrapped runs take roughly the replicate ratio
+  longer (8–17× at the default 199, single-threaded: OLS ATE n=100k
+  0.14 s→1.9 s, AIPW n=100k 2.4 s→42 s, IPW 0.5 s→8 s).
 - Graph atoms left out of the Interactive latency tier's 16-atom subsample
   were reported as unidentified mass. They are now `subsampled_out_mass` on the
   Frequentist and Bayesian graph-posterior ATE, graph-posterior responses,
