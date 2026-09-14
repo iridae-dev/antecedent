@@ -134,6 +134,13 @@ was not available, published as boundary records with a runtime disclosure.
   re-wrapping a constructed buffer no longer rescans (`F64Buffer::is_nan_free`).
 - Linear-adjustment fits compute `(XᵀX)⁻¹` once for the analytic SE and the
   influence function.
+- TemporalDag Pulse and multi-step Sustained no longer size dependence-aware
+  circular blocks (score refits plus Politis–White scans) when no bootstrap
+  replicates are drawn; the scan is lag-lazy and the `bootstrap.ci_coverage`
+  refuter reuses the published length. The Interactive tier is 4–20× faster
+  (Pulse n=2000 0.60 → 0.11 ms; Sustained n=100k 178 → 10 ms); zero-replicate
+  diagnostics report the rule length and say so. The bench
+  `temporal_zero_replicates` guards it.
 - Serially dependent rows: Frequentist temporal SEs for plain TemporalDag
   Pulse/Sustained, temporal mediation, DBN posteriors, class envelopes,
   multi-step sequential, and the `bootstrap.ci_coverage` refuter resample
