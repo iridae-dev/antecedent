@@ -257,7 +257,7 @@ pub(super) use class_envelope_se::{
 };
 #[cfg(test)]
 pub(super) use class_envelope_se::{
-    circular_block_length, shared_circular_block_mixture_se_with_length,
+    circular_block_length, mixture_block_length, shared_circular_block_mixture_se_with_length,
 };
 pub(super) use identified_set_diagnostics::{
     IDENTIFIED_SET_INTERVAL_LEVEL, completion_fit_seed, identified_set_interval_diagnostics,
