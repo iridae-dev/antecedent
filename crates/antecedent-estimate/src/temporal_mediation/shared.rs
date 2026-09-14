@@ -26,6 +26,7 @@ pub struct PreparedTemporalMediation {
     aligned: AlignedRows,
     structural_span: usize,
     contrast_scores: Option<[Vec<f64>; 3]>,
+    persistence_probes: Option<[Vec<f64>; 3]>,
     normal_scores: Vec<Vec<f64>>,
 }
 
@@ -51,6 +52,7 @@ impl TemporalMediationEstimator {
         let estimate = self.estimate_from_fit(query, &point);
         let max_lag = mediation_design_max_lag(query, adjustment) as usize;
         let contrast_scores = design.contrast_scores(self.backend, &point);
+        let persistence_probes = design.persistence_probes(self.backend, &point);
         let normal_scores = mechanism_normal_scores(&design, &point);
         Ok(PreparedTemporalMediation {
             estimator: self.clone(),
@@ -60,6 +62,7 @@ impl TemporalMediationEstimator {
             delta,
             estimate,
             contrast_scores,
+            persistence_probes,
             normal_scores,
         })
     }
@@ -187,18 +190,45 @@ pub fn shared_mediation_block_bootstrap(
         }
         other_windows.extend(atom.normal_scores.iter().filter_map(|s| window(s, atom.aligned)));
     }
-    let mut effective_targets: Vec<&[f64]> = contrast_windows.iter().map(Vec::as_slice).collect();
+    let mut block_scores: Vec<&[f64]> = contrast_windows.iter().map(Vec::as_slice).collect();
     if let Some(mix) = mixture.as_ref() {
-        effective_targets.extend(mix.iter().map(Vec::as_slice));
+        block_scores.extend(mix.iter().map(Vec::as_slice));
     }
-    let mut block_scores = effective_targets.clone();
     block_scores.extend(other_windows.iter().map(Vec::as_slice));
     let structural_span = atoms.iter().map(|atom| atom.structural_span).max().unwrap_or(1);
     let block_length = dependence_block_length(structural_span, len, &block_scores);
-    let effective_rows = if mixture.is_some() {
-        score_effective_rows(&effective_targets, block_length)
-    } else {
-        f64::NAN
+    // The short-series statistic reads every atom's persistence probes and
+    // their weighted mixture, as the single-atom estimator does.
+    let mut probe_windows: Vec<Vec<f64>> = Vec::new();
+    let mut probe_mixture: Option<[Vec<f64>; 3]> =
+        mixture.as_ref().map(|_| [vec![0.0; len], vec![0.0; len], vec![0.0; len]]);
+    for (atom, weight) in atoms.iter().zip(weights) {
+        let Some(probes) = atom.persistence_probes.as_ref() else {
+            probe_mixture = None;
+            continue;
+        };
+        for (k, probe) in probes.iter().enumerate() {
+            let Some(w) = window(probe, atom.aligned) else {
+                probe_mixture = None;
+                continue;
+            };
+            if let Some(mix) = probe_mixture.as_mut() {
+                for (slot, value) in mix[k].iter_mut().zip(&w) {
+                    *slot += weight / total * value;
+                }
+            }
+            probe_windows.push(w);
+        }
+    }
+    let effective_rows = match probe_mixture.as_ref() {
+        Some(mix) => {
+            let mut targets: Vec<&[f64]> = probe_windows.iter().map(Vec::as_slice).collect();
+            if atoms.len() > 1 {
+                targets.extend(mix.iter().map(Vec::as_slice));
+            }
+            score_effective_rows(&targets, block_length)
+        }
+        None => f64::NAN,
     };
     let mut block = TemporalMediationBlockSe {
         total: None,

@@ -310,10 +310,12 @@ impl TemporalMediationEstimator {
     /// mechanism regressions on it, so the three contrast SEs come from the same
     /// replicates. The block length is
     /// [`crate::temporal_block::dependence_block_length`] over the Total, Direct
-    /// and Mediated estimating scores (structural span = deepest design lag + 1),
-    /// the rule the single-window Pulse / Sustained and class-envelope paths use,
-    /// and every SE carries the [`crate::temporal_block::circular_fixed_b_scale`] of that
-    /// length.
+    /// and Mediated influence scores and every mechanism's normal-equation scores
+    /// (structural span = deepest design lag + 1), the rule the single-window
+    /// Pulse / Sustained and class-envelope paths use, and every SE carries the
+    /// [`crate::temporal_block::circular_fixed_b_scale`] of that length. The
+    /// short-series effective-row count reads the persistence probes instead
+    /// (see `MediationDesign::persistence_probes`).
     /// `effect.se_bootstrap` is the requested contrast's SE; iid analytic SEs keep
     /// the [`Self::allow_iid_sobel_se`] gate.
     ///
@@ -361,8 +363,14 @@ impl TemporalMediationEstimator {
             .collect();
         let block_length =
             crate::temporal_block::dependence_block_length(structural_span, design.n, &score_refs);
+        // The short-series statistic reads persistence probes (residual × centred
+        // regressor), not the partialled influence functions: the failure it
+        // predicts is a persistent treatment or mediator, which partialling on
+        // lagged design columns removes from the influence while the interval
+        // still under-covers (docs/short-series-thresholds.md measures both).
+        let probes = design.persistence_probes(self.backend, &point);
         let contrast_scores: Vec<&[f64]> =
-            scores.iter().flat_map(|s| s.iter().map(Vec::as_slice)).collect();
+            probes.iter().flat_map(|s| s.iter().map(Vec::as_slice)).collect();
         let mut block = TemporalMediationBlockSe {
             total: None,
             direct: None,
@@ -536,6 +544,46 @@ struct MediationDesign {
 impl MediationDesign {
     fn column(&self, c: usize) -> &[f64] {
         &self.columns[c * self.n..(c + 1) * self.n]
+    }
+
+    /// Persistence probes of the Total, Direct and Mediated contrasts: each
+    /// mechanism residual times the centred treatment (and, for the mediated
+    /// path, the centred mediator), or `None` when a mechanism regression
+    /// fails. They are not influence functions (see [`Self::contrast_scores`]);
+    /// they feed only the short-series effective-row statistic, whose threshold
+    /// was measured on them.
+    fn persistence_probes(&self, backend: FaerBackend, fit: &ContrastFit) -> Option<[Vec<f64>; 3]> {
+        let (t, m, y) = (self.column(0), self.column(1), self.column(2));
+        let extras: Vec<&[f64]> = (0..self.n_extra).map(|i| self.column(3 + i)).collect();
+        let residuals = |regressors: &[&[f64]], outcome: &[f64]| -> Option<Vec<f64>> {
+            let mut design = vec![1.0; self.n];
+            for column in regressors.iter().chain(&extras) {
+                design.extend_from_slice(column);
+            }
+            let ncols = 1 + regressors.len() + extras.len();
+            let coef = ols_fit(backend, &design, ncols, outcome).ok()?;
+            Some(
+                (0..self.n)
+                    .map(|r| {
+                        outcome[r]
+                            - (0..ncols).map(|c| design[c * self.n + r] * coef[c]).sum::<f64>()
+                    })
+                    .collect(),
+            )
+        };
+        let r_a = residuals(&[t], m)?;
+        let r_b = residuals(&[t, m], y)?;
+        let r_c = residuals(&[t], y)?;
+        let centered = |x: &[f64]| {
+            let mean = x.iter().sum::<f64>() / x.len() as f64;
+            x.iter().map(|v| v - mean).collect::<Vec<f64>>()
+        };
+        let (tc, mc) = (centered(t), centered(m));
+        let total = r_c.iter().zip(&tc).map(|(e, x)| e * x).collect();
+        let direct = r_b.iter().zip(&tc).map(|(e, x)| e * x).collect();
+        let mediated =
+            (0..self.n).map(|r| fit.b * r_a[r] * tc[r] + fit.a * r_b[r] * mc[r]).collect();
+        Some([total, direct, mediated])
     }
 
     /// Influence scores of the Total, Direct and Mediated contrasts on the
