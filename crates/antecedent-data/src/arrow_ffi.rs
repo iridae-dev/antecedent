@@ -15,7 +15,7 @@ use arrow_array::{Array, ArrayRef, Float64Array};
 use arrow_schema::ffi::FFI_ArrowSchema;
 
 use crate::buffer::{F64Buffer, ForeignF64Buffer};
-use crate::column::{Float64Column, OwnedColumn, ValidityBitmap};
+use crate::column::{Float64Column, OwnedColumn, ValidityBitmap, invalid_rows_are_nan};
 use crate::error::DataError;
 use crate::materialize::{MaterializationReason, materialization_diagnostic};
 
@@ -82,7 +82,12 @@ pub(crate) fn float64_column_from_array(
 
     let values_slice = floats.values().as_ref();
     let aligned = values_slice.as_ptr() as usize % core::mem::align_of::<f64>() == 0;
-    let can_borrow = aligned && values_slice.len() == n;
+    // Arrow leaves the value under a null slot unspecified (exporters commonly
+    // write 0.0). Borrow only when every null slot already holds NaN; otherwise
+    // copy and write NaN there, so a borrowed slice never shows a missing cell
+    // as an observation.
+    let can_borrow =
+        aligned && values_slice.len() == n && invalid_rows_are_nan(values_slice, &validity);
 
     if can_borrow {
         let ptr = values_slice.as_ptr();
@@ -99,7 +104,7 @@ pub(crate) fn float64_column_from_array(
     } else {
         let mut values = Vec::with_capacity(n);
         for i in 0..n {
-            values.push(if floats.is_null(i) { 0.0 } else { floats.value(i) });
+            values.push(if floats.is_null(i) { f64::NAN } else { floats.value(i) });
         }
         let value_bytes = (values.len() * core::mem::size_of::<f64>()) as u64;
         let copied = value_bytes + validity_copied;
