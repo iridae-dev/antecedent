@@ -143,6 +143,11 @@ was not available, published as boundary records with a runtime disclosure.
 
 ### Changed
 
+- The temporal dose × horizon conformance fixture pins the seeded
+  circular-block bands (pointwise and simultaneous edges, critical value,
+  block length, dispersion and kernel-bias factors) at 1e-9 relative in Rust
+  and Python; a determinism guard, with coverage still evidenced by the weekly
+  temporal response calibration gate.
 - Bayesian prior and posterior predictive checks follow the latency tier
   (50 Interactive / 200 Standard / 400 Report replicates) and run once per
   distinct fitted design across graph-posterior and class-envelope atoms.
