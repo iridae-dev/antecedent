@@ -1780,17 +1780,6 @@ fn analysis_result_from_run(
     result: antecedent::StudyResult,
 ) -> PyResult<AnalysisResult> {
     let certificate_json = crate::identification_details::analysis_to_json(&result, names)?;
-    let adjustment_set: Vec<String> = crate::public_adjustment_set(
-        result.identification.status,
-        result
-            .estimand
-            .adjustment_set
-            .iter()
-            .map(|id| {
-                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
-            })
-            .collect(),
-    );
     // The compiled plan names the executed estimator; Bayesian temporal fits
     // record `bayesian.temporal.gcomp` there, so no Python-side relabel is needed.
     let estimator_id = result
@@ -1799,153 +1788,25 @@ fn analysis_result_from_run(
         .as_deref()
         .unwrap_or(antecedent::EstimatorId::TemporalLinearAdjustment.as_str())
         .to_string();
-    let (
-        posterior_effect_mean,
-        posterior_effect_sd,
-        posterior_q025,
-        posterior_q975,
-        posterior_n_draws,
-        posterior_p_below_zero,
-        posterior_backend,
-        posterior_artifact,
-        posterior_unidentified_mass,
-    ) = if let Some(post) = result.posterior.as_ref() {
-        let eq = post.effect_column();
-        let artifact = None;
-        let p_below = eq.map(|_| post.probability_below(0.0)).transpose().map_err(py_err)?;
-        (
-            eq.map(|i| post.summaries.mean[i]),
-            eq.map(|i| post.summaries.sd[i]),
-            eq.map(|i| post.summaries.q025[i]),
-            eq.map(|i| post.summaries.q975[i]),
-            Some(post.draws.n_draws),
-            p_below,
-            Some(post.diagnostics.backend_id.to_string()),
-            artifact,
-            Some(post.unidentified_mass),
-        )
-    } else {
-        (None, None, None, None, None, None, None, None, None)
-    };
-
-    // Values shared between an existing flat field and its new nested-section
-    // counterpart are computed once here, then cloned into the section so the flat
-    // field and the section can never drift apart. Mirrors `ate_result_from_analysis`
-    // in `ate_api.rs` — same shared values, same reason.
-    let plan_id = result.logical_plan.plan_id.to_string();
-    let modality = format!("{:?}", result.logical_plan.data_classification);
-    let identification_status = format!("{:?}", result.identification.status);
-    let method = result.estimand.method.to_string();
-    let refutations: Vec<RefutationReportView> =
-        result.refutations.iter().map(RefutationReportView::from).collect();
-
-    let identification = IdentificationSection {
-        status: identification_status.clone(),
-        method: method.clone(),
-        adjustment_set: adjustment_set.clone(),
-        assumption_count: result.estimate.assumptions.len(),
-        derivation_step_count: result.identification.derivation.steps.len(),
-    };
-    let estimate = EstimateSection {
-        ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
-        se_analytic: result.estimate.se_analytic,
-        se_bootstrap: result.estimate.se_bootstrap,
-        estimator_id: estimator_id.clone(),
-        method: method.clone(),
-        // Every temporal path fixes `OverlapPolicy::ExplicitOverride`, under which
-        // the shared adjustment estimator never populates `overlap_report` — read
-        // it the same way the static DTO does rather than hardcoding `None`, so
-        // this stays correct if a temporal path ever computes one.
-        overlap_ess: result.estimate.overlap_report.as_ref().and_then(|r| r.ess),
-        overlap_propensity_min: result.estimate.overlap_report.as_ref().map(|r| r.propensity_min),
-        // Mirror the static DTO: read whatever the estimate actually holds.
-        // 1.9 temporal paths do not license these 1.5 grid/score payloads; when
-        // they are absent the StudyResult fields are already empty.
-        functional_means: result
-            .estimate
-            .score_inference
-            .as_ref()
-            .map(|s| s.raw_means.clone())
-            .or_else(|| {
-                result
-                    .estimate
-                    .score_table
-                    .as_ref()
-                    .and_then(|t| t.summarize(None).ok().map(|s| s.means.to_vec()))
-            }),
-        exceedance_cdf: result.estimate.exceedance_cdf.as_ref().map(|v| v.to_vec()),
-        monotone_rearranged: result.estimate.monotone_rearranged,
-        interaction_structurally_zero: result
-            .response
-            .as_ref()
-            .map(|r| r.interaction_structurally_zero)
-            .or(Some(result.estimate.interaction_structurally_zero)),
-        score_table: None,
-        joint_covariance: result
-            .estimate
-            .joint_covariance
-            .as_ref()
-            .map(|c| (0..c.dim).map(|i| (0..c.dim).map(|j| c.get(i, j)).collect()).collect()),
-        score_inference: result.estimate.score_inference.as_ref().map(ScoreInferenceSection::from),
-        scenario_effects: result.estimate.scenario_effects.as_ref().map(|v| v.to_vec()),
-        scenario_intervals: result.estimate.scenario_intervals.as_ref().map(|v| v.to_vec()),
-        simultaneous_interval: None,
-        adjusted_p_values: None,
-        family_contrast: None,
-        family_contrast_interval: None,
-        candidate_selection: None,
-        evalue: None,
-        distribution_atoms: None,
-        mean_interval: None,
-    };
-    let posterior_section = PosteriorSection {
-        effect_mean: posterior_effect_mean,
-        effect_sd: posterior_effect_sd,
-        q025: posterior_q025,
-        q975: posterior_q975,
-        n_draws: posterior_n_draws,
-        p_below_zero: posterior_p_below_zero,
-        backend: posterior_backend.clone(),
-        artifact: posterior_artifact.clone(),
-        unidentified_mass: posterior_unidentified_mass,
-    };
-    let validation = ValidationSection::from_reports(refutations.clone(), &result.diagnostics);
-    let performance = PerformanceSection {
-        plan_id: plan_id.clone(),
-        modality: modality.clone(),
-        peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
-        // Every temporal execution path (`execute_temporal`, `execute_temporal_mediation`,
-        // `execute_panel`, ...) populates `result.performance.{wall_time_ns,latency_mode,
-        // bootstrap_replicates_requested,cancelled,early_stopped}` with real data — it is
-        // simply never wired into the flat temporal `AnalysisResult` fields. Read it
-        // straight from the underlying `StudyResult` rather than fabricating `None`.
-        latency_mode: result
-            .performance
-            .latency_mode
-            .as_ref()
-            .map(std::string::ToString::to_string),
-        wall_time_ns: result.performance.wall_time_ns,
-        bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,
-        // `bootstrap_replicates_ok` is populated by the single-window Frequentist and
-        // temporal-mediation circular-block bootstraps and is `None` elsewhere;
-        // `n_draws` (draw effort) / per-stage timings are not populated on temporal paths.
-        bootstrap_replicates_ok: result.performance.bootstrap_replicates_ok,
-        n_draws: result.performance.n_draws,
-        // `execute_temporal`'s frequentist branch runs a circular-block row bootstrap
-        // (`TemporalLinearAdjustment::fit_dependence_honest`); its cancellation surfaces
-        // on `estimate.bootstrap_cancelled` as on the static DTO — OR it in the same way.
-        cancelled: result.performance.cancelled || result.estimate.bootstrap_cancelled,
-        early_stopped: result.performance.early_stopped,
-        stage_timings: result
-            .performance
-            .stage_timings_ns
-            .iter()
-            .map(|(s, ns)| (s.to_string(), *ns))
-            .collect(),
-        bytes_borrowed: result.performance.bytes_borrowed,
-    };
-    let (evidence_status, allowlist_reason, allowlist_parent) =
-        evidence_status_parts(result.support_status);
+    let SharedStudySections {
+        identification,
+        estimate,
+        posterior: posterior_section,
+        validation,
+        performance,
+        identified_set,
+        identification_status,
+        method,
+        adjustment_set,
+        estimator_id,
+        plan_id,
+        modality,
+        refutations,
+        evidence_status,
+        allowlist_reason,
+        allowlist_parent,
+        ..
+    } = crate::shared_study_sections(names, &result, estimator_id)?;
     let mut mediation_horizons = Vec::new();
     let mut mediation_effects = Vec::new();
     let mut mediation_totals = Vec::new();
@@ -2006,7 +1867,6 @@ fn analysis_result_from_run(
         }
     }
 
-    let identified_set = crate::identified_set_fields(&result);
     Ok(AnalysisResult {
         certificate_json,
         ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
@@ -2053,15 +1913,15 @@ fn analysis_result_from_run(
         assumption_count: result.estimate.assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
         estimator_id,
-        posterior_effect_mean,
-        posterior_effect_sd,
-        posterior_q025,
-        posterior_q975,
-        posterior_n_draws,
-        posterior_p_below_zero,
-        posterior_backend,
-        posterior_artifact,
-        posterior_unidentified_mass,
+        posterior_effect_mean: posterior_section.effect_mean,
+        posterior_effect_sd: posterior_section.effect_sd,
+        posterior_q025: posterior_section.q025,
+        posterior_q975: posterior_section.q975,
+        posterior_n_draws: posterior_section.n_draws,
+        posterior_p_below_zero: posterior_section.p_below_zero,
+        posterior_backend: posterior_section.backend.clone(),
+        posterior_artifact: posterior_section.artifact.clone(),
+        posterior_unidentified_mass: posterior_section.unidentified_mass,
         mediation_total: result.mediation.as_ref().and_then(|m| m.total),
         mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
         mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),
