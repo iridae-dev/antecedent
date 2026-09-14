@@ -157,6 +157,36 @@ def test_prepared_temporal_mediation_cheap_refute_runs():
     assert len(result.validation.reports) == 2
 
 
+def test_prepared_temporal_mediation_bootstrap_follows_latency_tier():
+    """An omitted bootstrap maps through the latency tier like Pulse / Sustained."""
+    n = 160
+    t = np.asarray([math.sin(0.071 * i) + 0.35 * math.cos(0.137 * i) for i in range(n)])
+    m = np.zeros(n)
+    y = np.zeros(n)
+    for i in range(1, n):
+        m[i] = 0.8 * t[i - 1] + 0.12 * math.sin(0.43 * i)
+        y[i] = 0.25 * t[i - 1] + 0.55 * m[i] + 0.09 * math.cos(0.29 * i)
+    data = {"t": t, "m": m, "y": y}
+    edges = [("t", 1, "m", 0), ("t", 1, "y", 0), ("m", 0, "y", 0)]
+    query = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
+
+    def click(**kwargs):
+        prepared = antecedent.estimation.PreparedAnalysis.prepare(
+            data, graph=edges, query=query, refute=False, seed=3, **kwargs
+        )
+        return prepared.estimate(data, seed=3)
+
+    interactive = click()
+    assert interactive.estimate.se_bootstrap is None
+    for latency in ("standard", "report"):
+        tiered = click(latency=latency)
+        assert tiered.ate == pytest.approx(interactive.ate, abs=1e-12)
+        assert tiered.estimate.se_bootstrap is not None
+        assert math.isfinite(tiered.estimate.se_bootstrap) and tiered.estimate.se_bootstrap > 0
+    # An explicit bootstrap still wins over the tier.
+    assert click(latency="standard", bootstrap=0).estimate.se_bootstrap is None
+
+
 def test_prepared_multi_horizon_mediation_retains_every_slice_and_artifact_axis():
     n = 96
     t = np.asarray([(-1.0, 0.0, 1.0)[i % 3] for i in range(n)])

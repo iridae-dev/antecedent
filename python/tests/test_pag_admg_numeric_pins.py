@@ -273,3 +273,23 @@ def test_numeric_pin_laws_match_their_recorded_functionals() -> None:
 
     functional = response(1.0) - response(0.0)
     assert functional == pytest.approx(_ADMG_PIN["frequentist"]["expected_ate"], abs=1e-15)
+
+
+def test_admg_interventional_distribution_is_rust_api_only() -> None:
+    """The Python distribution entry points take DAG edges only.
+
+    ADMG InterventionalDistribution is licensed on the Rust Study API; the Python
+    facades refuse a bidirected graph with that scope named rather than failing
+    while converting it to DAG edges.
+    """
+    from antecedent.errors import CausalUnsupportedError
+
+    data = _expand_contingency(_ADMG_PIN)
+    graph = antecedent.Admg.from_edges(
+        ["t", "m", "y"], directed=[("t", "m"), ("m", "y")], bidirected=[("t", "y")]
+    )
+    query = antecedent.InterventionalDistribution("y", interventions={"t": 1.0})
+    with pytest.raises(CausalUnsupportedError, match="Rust Study API only"):
+        antecedent.analyze(data, graph=graph, query=query, refute=False)
+    with pytest.raises(CausalUnsupportedError, match="Rust Study API only"):
+        antecedent.estimation.PreparedAnalysis.prepare(data, graph=graph, query=query)

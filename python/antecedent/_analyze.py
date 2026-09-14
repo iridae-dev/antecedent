@@ -292,14 +292,16 @@ def handle_temporal_mediation(
     from .estimation import _lagged_edges, _wrap_temporal
 
     if isinstance(discovery, (GraphPosterior, DbnPosterior)):
-        if not isinstance(inference, Bayesian):
+        if not isinstance(inference, (Bayesian, Frequentist)):
             raise TypeError(
-                "graph-posterior discovery requires inference=Bayesian(...) "
-                "for temporal mediation mixture"
+                "graph-posterior discovery requires inference=Bayesian(...) or "
+                "Frequentist() for a temporal mediation mixture"
             )
         from .estimation import PreparedAnalysis, _bayesian_inference_kwargs, _wrap_ate
 
-        if isinstance(discovery, DbnPosterior):
+        # DBN discovery and the single-horizon Frequentist mixture (shared
+        # circular-block SE over atoms) run through the prepared handle.
+        if isinstance(discovery, DbnPosterior) or isinstance(inference, Frequentist):
             prepared = PreparedAnalysis.prepare(
                 data,
                 query=query,
@@ -471,11 +473,16 @@ def handle_response(
 
     if discovery is not None:
         if isinstance(discovery, (*_GRAPH_POSTERIOR_DISCOVERY, GraphPosterior)):
+            if getattr(query, "is_temporal", False):
+                raise CausalUnsupportedError(
+                    "refused: temporal response mixtures over a graph posterior are not "
+                    "licensed; they need query-specific composite evaluators"
+                )
             raise CausalUnsupportedError(
-                "refused: Graph-posterior response is a contract choice, not typed "
-                "impossibility: the ATE envelope (retained unidentified mass) is the "
-                "same object a curve arm would use. This cut does not license a "
-                "response mixture."
+                "refused: the graph-posterior response mixture (static ResponseCurve / "
+                "one-coordinate InterventionResponse over DAG atoms) is licensed in the "
+                "Rust Study API only; the Python API does not expose a graph-posterior "
+                "response entry point yet"
             )
         raise ValueError("response queries do not yet support discovery=")
     if isinstance(inference, Bayesian):
@@ -1054,6 +1061,7 @@ def handle_distribution(
     threads: int,
 ) -> Any:
     from .estimation import (
+        ADMG_DISTRIBUTION_RUST_ONLY,
         _static_edges,
         _wrap_ate,
     )
@@ -1064,8 +1072,9 @@ def handle_distribution(
             "refused: Graph-posterior path and distribution mixtures are not staged. "
             "For a reviewed discovered Dag, pass graph=AcceptedGraph(...)."
         )
-    else:
-        edges = _static_edges(graph)
+    if isinstance(graph, Admg):
+        raise CausalUnsupportedError(ADMG_DISTRIBUTION_RUST_ONLY)
+    edges = _static_edges(graph)
     names, columns = ingest_columns(data)
     raw = _analyze_distribution(
         names,

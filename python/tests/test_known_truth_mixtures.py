@@ -407,3 +407,40 @@ def test_dbn_posterior_response_curve_stays_refused() -> None:
             bootstrap=0,
             seed=1,
         )
+
+
+def test_frequentist_dbn_mediation_mixture_follows_the_latency_tier() -> None:
+    """Single-horizon Frequentist DBN mediation is reachable from Python.
+
+    Atoms share one circular-block bootstrap for the aggregate SE, so the
+    replicate count follows the latency tier: interactive runs none and
+    withholds the SE, standard runs the Study default.
+    """
+    data = temporal_mediation_series(int(TEMPORAL_MEDIATION["n"]))
+    posterior = temporal_mediation_posterior()
+    query = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
+    seed = int(TEMPORAL_MEDIATION["seed"])
+    expected = float(TEMPORAL_MEDIATION["expected_effect_given_identified"])
+    tolerance = float(TEMPORAL_MEDIATION["effect_abs_tolerance"])
+    shared_block = "estimate.dbn_posterior.mediation.shared_block"
+
+    interactive = antecedent.estimation.PreparedAnalysis.prepare(
+        data, discovery=posterior, query=query, inference=FREQ, seed=seed
+    ).estimate(data, seed=seed)
+    assert interactive.ate == pytest.approx(expected, abs=tolerance)
+    assert interactive.estimate.se_bootstrap is None
+    assert not any(d.startswith(shared_block) for d in interactive.diagnostics)
+
+    standard = antecedent.estimation.PreparedAnalysis.prepare(
+        data, discovery=posterior, query=query, inference=FREQ, seed=seed, latency="standard"
+    ).estimate(data, seed=seed)
+    assert standard.ate == pytest.approx(interactive.ate, abs=1e-12)
+    assert standard.estimate.se_bootstrap is not None
+    assert math.isfinite(standard.estimate.se_bootstrap) and standard.estimate.se_bootstrap > 0
+    assert any(d.startswith(shared_block) for d in standard.diagnostics)
+
+    fresh = antecedent.analyze(
+        data, discovery=posterior, query=query, inference=FREQ, refute=False, seed=seed
+    )
+    assert fresh.ate == pytest.approx(interactive.ate, abs=1e-12)
+    assert fresh.estimate.se_bootstrap is not None
