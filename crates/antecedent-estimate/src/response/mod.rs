@@ -622,7 +622,6 @@ impl ContinuousResponseEstimator {
                 });
                 let point_derivative =
                     matches!(query.functional, ResponseFunctional::PointDerivative { .. });
-                let pending_bias_corrected_note = point_derivative;
                 let mut rng = ctx.rng.stream(0xADEB_0002);
                 // Every draw refits its nuisances: point draws rebuild the
                 // cross-fitted Kennedy pseudo-outcome under the draw's row weights
@@ -735,13 +734,7 @@ impl ContinuousResponseEstimator {
                     let (mean, _, _, _) = summarize_scalar_draws(&scalars, level)?;
                     let (corrected_mean, lo, hi, sd) =
                         summarize_scalar_draws(&corrected_scalars, level)?;
-                    if pending_bias_corrected_note {
-                        support.warnings.push(bias_corrected_interval_note(
-                            true,
-                            Some(mean),
-                            Some(corrected_mean),
-                        ));
-                    }
+                    support.warnings.push(bias_corrected_interval_note(true, mean, corrected_mean));
                     (ResponseValue::Scalar(mean), scalar_uncertainty(sd, level, lo, hi))
                 } else {
                     let dim = vectors.first().map_or(0, Vec::len);
@@ -780,7 +773,7 @@ impl ContinuousResponseEstimator {
                     support,
                     "bayesian.derivative.estimator_bootstrap",
                     if point_derivative {
-                        "Dirichlet(1,...,1)/Exp(1) row-weight posterior of the Kennedy-DR point derivative: every draw refits the cross-fitted additive-GAM outcome and Gaussian treatment nuisances on its weighted training folds, rebuilds the pseudo-outcome, and evaluates the weighted local quadratic (posterior mean = reported value) and its robust bias-corrected local cubic at the same caller-fixed bandwidth (quantiles = credible interval, SD = standard_error). Held fixed: the caller bandwidth, fold assignment, spline knots, and penalty. Not a frozen-pseudo-outcome reweight. Estimator identity stays estimate.response.point_derivative"
+                        "Dirichlet(1,...,1)/Exp(1) row-weight posterior of the Kennedy-DR point derivative: every draw refits the cross-fitted additive-GAM outcome and Gaussian treatment nuisances on its weighted training folds, rebuilds the pseudo-outcome, and evaluates the weighted local quadratic (posterior mean = reported value) and its robust bias-corrected coordinate at the same caller-fixed bandwidth (local-cubic slope for a first derivative, local-quartic level and curvature otherwise) (quantiles = credible interval, SD = standard_error). Held fixed: the caller bandwidth, fold assignment, spline knots, and penalty. Not a frozen-pseudo-outcome reweight. Estimator identity stays estimate.response.point_derivative"
                     } else {
                         "Dirichlet(1,...,1)/Exp(1) row-weight posterior of the additive-GAM plug-in gradient: every draw refits the GAM coefficients under the draw's row weights with fixed knots and penalty; pointwise quantile bands. The band inherits the additive-surface restriction and any penalized-spline smoothing bias at the evaluation point; no nuisance-selection uncertainty"
                     },
@@ -1226,10 +1219,12 @@ impl ContinuousResponseEstimator {
             scale,
         )?;
         // The published interval is robust bias-corrected (CCT, pilot bandwidth
-        // = h): centered at the local-cubic coordinate and studentized by its own
-        // sandwich. The conventional local-quadratic interval ignores the
-        // O(h²·m''') smoothing bias of m̂' and under-covers the true derivative
-        // at an MSE-sized bandwidth (tests/v19_derivative_calibration.rs).
+        // = h): centered at the higher-order coordinate (local-cubic slope for
+        // order 1, local-quartic curvature for order 2) and studentized by its
+        // own sandwich. The conventional local-quadratic interval ignores the
+        // O(h²·m''') smoothing bias of m̂' (and the O(h²·m'''') bias of m̂'')
+        // and under-covers the true derivative at an MSE-sized bandwidth
+        // (tests/v19_derivative_calibration.rs).
         let corrected = antecedent_stats::gaussian_local_quadratic_bias_corrected(
             &sample.treatments,
             &pseudo,
@@ -1282,8 +1277,8 @@ impl ContinuousResponseEstimator {
         let uncertainty = if standard_error.is_finite() {
             support.warnings.push(bias_corrected_interval_note(
                 false,
-                Some(estimate),
-                Some(corrected_estimate),
+                estimate,
+                corrected_estimate,
             ));
             let z = normal_ppf(0.5 + self.options.confidence_level / 2.0);
             ResponseUncertainty::Scalar {
@@ -1921,7 +1916,7 @@ fn with_estimation_assumptions(
         ),
         ResponseFunctional::PointDerivative { .. } => (
             "response.kennedy_dr.nuisance_regularity",
-            "Kennedy response estimation uses an additive-GAM outcome nuisance and a homoskedastic Gaussian treatment-density nuisance. Consistency requires at least one nuisance family to be adequate plus continuous-treatment differentiability/positivity. The point value is the local-quadratic slope; the derivative interval is robust bias-corrected (local cubic at the caller bandwidth), targets the true derivative, and conditions on the fitted nuisances and that bandwidth.",
+            "Kennedy response estimation uses an additive-GAM outcome nuisance and a homoskedastic Gaussian treatment-density nuisance. Consistency requires at least one nuisance family to be adequate plus continuous-treatment differentiability/positivity. The point value is the local-quadratic coordinate; the derivative interval is robust bias-corrected at the caller bandwidth (local-cubic slope for a first derivative, local-quartic curvature for a second derivative), targets the true derivative, and conditions on the fitted nuisances and that bandwidth.",
             "estimate.response.point_derivative",
         ),
         ResponseFunctional::AverageDerivative { .. } => (
@@ -2792,29 +2787,23 @@ fn transform_derivative(
 /// Runtime disclosure attached whenever a point-derivative interval is published.
 fn bias_corrected_interval_note(
     bayesian: bool,
-    conventional: Option<f64>,
-    interval_center: Option<f64>,
+    conventional: f64,
+    interval_center: f64,
 ) -> Diagnostic {
     let mut note = Diagnostic::new(
         "response.derivative_interval_bias_corrected",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Warning,
         if bayesian {
-            "the derivative credible interval is robust bias-corrected: every Dirichlet row-weight draw refits the cross-fitted outcome and Gaussian treatment nuisances, rebuilds the Kennedy pseudo-outcome, and evaluates both the local-quadratic coordinate (averaged into the reported value) and its local-cubic bias-corrected coordinate (Calonico-Cattaneo-Titiunik, pilot bandwidth equal to the caller bandwidth; its quantiles give the interval and its SD the standard_error); [lower, upper] is not a CI for the reported conventional point; the interval targets the true derivative and holds only the caller-fixed bandwidth, fold assignment, spline knots, and penalty fixed"
+            "the derivative credible interval is robust bias-corrected: every Dirichlet row-weight draw refits the cross-fitted outcome and Gaussian treatment nuisances, rebuilds the Kennedy pseudo-outcome, and evaluates both the local-quadratic coordinate (averaged into the reported value) and its bias-corrected coordinate (Calonico-Cattaneo-Titiunik, pilot bandwidth equal to the caller bandwidth: the local-cubic slope for a first derivative, the local-quartic level and curvature otherwise; its quantiles give the interval and its SD the standard_error); [lower, upper] is not a CI for the reported conventional point; the interval targets the true derivative and holds only the caller-fixed bandwidth, fold assignment, spline knots, and penalty fixed"
         } else {
-            "the derivative interval is robust bias-corrected (Calonico-Cattaneo-Titiunik, pilot bandwidth equal to the caller bandwidth): it is centered at the local-cubic bias-corrected coordinate rather than at the reported local-quadratic point estimate, so [lower, upper] is not a CI for the printed value; standard_error is the bias-corrected standard error; it targets the true derivative, conditions on the caller-fixed bandwidth, and treats the cross-fitted pseudo-outcome as data"
+            "the derivative interval is robust bias-corrected (Calonico-Cattaneo-Titiunik, pilot bandwidth equal to the caller bandwidth): it is centered at the bias-corrected coordinate (the local-cubic slope for a first derivative, the local-quartic curvature for a second derivative) rather than at the reported local-quadratic point estimate, so [lower, upper] is not a CI for the printed value; standard_error is the bias-corrected standard error; it targets the true derivative, conditions on the caller-fixed bandwidth, and treats the cross-fitted pseudo-outcome as data"
         },
     );
-    let mut fields = Vec::new();
-    if let Some(value) = conventional {
-        fields.push((Arc::from("conventional_point"), Arc::from(value.to_string())));
-    }
-    if let Some(center) = interval_center {
-        fields.push((Arc::from("interval_center"), Arc::from(center.to_string())));
-    }
-    if !fields.is_empty() {
-        note.fields = Arc::from(fields);
-    }
+    note.fields = Arc::from(vec![
+        (Arc::from("conventional_point"), Arc::from(conventional.to_string())),
+        (Arc::from("interval_center"), Arc::from(interval_center.to_string())),
+    ]);
     note
 }
 
@@ -4081,6 +4070,45 @@ mod tests {
                 .any(|w| w.code.as_ref() == "response.derivative_interval_bias_corrected"),
             "a published derivative interval must say it is bias-corrected"
         );
+    }
+
+    #[test]
+    fn second_derivative_interval_is_centered_at_the_local_quartic_curvature() {
+        let (data, a, y, x) = confounded_curve(500);
+        let (at, bandwidth) = (0.2, 0.6);
+        let query = ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome: y,
+            treatment: a,
+            at,
+            order: 2,
+            scale: DerivativeScale::Identity,
+        });
+        let mut estimator = ContinuousResponseEstimator::new([x]);
+        estimator.options.bandwidth = Some(bandwidth);
+        let sample = CompleteSample::read(&data, y, &[a], &[x]).unwrap();
+        let pseudo = estimator.cross_fitted_pseudo_outcome(&sample).unwrap().values;
+        let corrected = antecedent_stats::gaussian_local_quadratic_bias_corrected(
+            &sample.treatments,
+            &pseudo,
+            at,
+            bandwidth,
+            None,
+        )
+        .unwrap();
+        let response = estimator
+            .estimate_identified(
+                &data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let ResponseUncertainty::Scalar { standard_error, lower, upper, .. } = response.uncertainty
+        else {
+            panic!("expected scalar uncertainty");
+        };
+        assert!((standard_error - corrected.robust_second_derivative_standard_error).abs() < 1e-12);
+        assert!((0.5 * (lower + upper) - corrected.second_derivative).abs() < 1e-10);
     }
 
     #[test]
