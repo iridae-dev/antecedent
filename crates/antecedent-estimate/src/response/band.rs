@@ -7,6 +7,7 @@ use antecedent_core::ResponseUncertainty;
 use antecedent_stats::normal_ppf;
 
 use crate::EstimationError;
+use crate::util::monte_carlo_critical;
 
 use super::splitmix64;
 
@@ -57,17 +58,11 @@ pub(super) fn simultaneous_multiplier_band(
         maxima.push(maximum);
     }
     maxima.sort_by(f64::total_cmp);
-    let mut index = 0usize;
-    while index + 1 < maxima.len()
-        && f64::from(u32::try_from(index + 1).unwrap_or(u32::MAX)) / f64::from(replicates) < level
-    {
-        index += 1;
-    }
     // The population max-|t| quantile is never below the marginal one, but the
     // finite multiplier quantile can dip under it when grid columns are nearly
     // collinear (the shared covariate-marginalization term makes them so); a
     // simultaneous band narrower than the pointwise band would be incoherent.
-    let critical = maxima[index].max(normal_ppf(0.5 + level / 2.0));
+    let critical = monte_carlo_critical(&maxima, level).max(normal_ppf(0.5 + level / 2.0));
     let lower = mean
         .iter()
         .zip(standard_errors)

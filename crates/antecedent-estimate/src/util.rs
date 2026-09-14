@@ -51,6 +51,24 @@ pub(crate) fn sample_std(values: &[f64]) -> f64 {
     antecedent_stats::sample_std(values)
 }
 
+/// Monte Carlo critical value of a max-statistic band: the `⌈level·(B+1)⌉`-th
+/// smallest of `B` ascending-sorted replicate maxima (rank clamped to `[1, B]`).
+///
+/// The `B + 1` rank treats the observed statistic as one more exchangeable draw
+/// (Davison & Hinkley 1997, §4.2), so the band is conservative at every `B`;
+/// `⌈level·B⌉` sits one rank lower whenever `level·B` is not an integer. Every
+/// simultaneous response band (multiplier, Gaussian max-t and replicate sup-t)
+/// reads its critical value here. `NaN` for an empty slice.
+#[allow(clippy::cast_sign_loss)]
+pub(crate) fn monte_carlo_critical(sorted_maxima: &[f64], level: f64) -> f64 {
+    let b = sorted_maxima.len();
+    if b == 0 {
+        return f64::NAN;
+    }
+    let rank = ((level * (b as f64 + 1.0)).ceil() as usize).clamp(1, b);
+    sorted_maxima[rank - 1]
+}
+
 /// Outcome of an IID bootstrap SE computation with failure accounting.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BootstrapSeResult {
