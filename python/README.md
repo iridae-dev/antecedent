@@ -50,6 +50,17 @@ mediation, counterfactuals, and root-cause attribution — see the
 examples and the [documentation](https://antecedent.readthedocs.io/) for the
 full API.
 
+## 1.9.0
+
+The
+[1.9.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.9.0.md)
+cover the calibration of licensed intervals (a two-sided repeated-sampling
+coverage gate, with boundary records disclosed at runtime), ADMG
+interventional distributions (Rust Study API only), accepted-Dag
+counterfactuals, and Frequentist DBN-posterior mediation. Behaviour changes:
+`rd.sharp` defaults to the HC1 SE, NaN and null float cells are missing
+values, and the default bootstrap count is 199.
+
 ## 1.8.0
 
 The
