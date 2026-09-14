@@ -335,7 +335,12 @@ circular-block bootstrap estimates. The Kiefer–Vogelsang polynomial is for the
 non-circular Bartlett estimator and is too small at long blocks (it covers 0.942
 at `b = 1/3` for a nominal 95% interval). Published 90% intervals use the same
 95% ratio around a normal critical value, not the 90% fixed-b value; in the same
-simulation that construction covers 0.901–0.913 for `b ≤ 1/3`. The
+simulation that construction covers 0.901–0.913 for `b ≤ 1/3`. The replicate
+SD is also multiplied by the Bartlett kernel-bias factor
+`sqrt(LRV_AR(1)(ρ̂) / Bartlett_ℓ(ρ̂))` of the interval's target scores
+(`antecedent_estimate::kernel_bias_scale`, `ρ̂` the lag-1 autocorrelation
+capped at 0.97): a circular block of length `ℓ` reproduces the Bartlett variance
+at bandwidth `ℓ`, which the fixed-b critical value does not correct for. The
 `estimate.temporal.circular_block_se` diagnostic (the shared-block diagnostic
 for mixtures) records the block length, row count, fixed-b factor, and the
 estimating score's effective rows: over every score of the interval (every

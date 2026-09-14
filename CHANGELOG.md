@@ -18,6 +18,10 @@ was not available, published as boundary records with a runtime disclosure.
 - Two-sided calibration gate: 400 replicates per target (200 for the
   bootstrap Hájek IPW target) with a `level ± 3·MCSE` band, so under- and
   over-coverage both fail (±4.5 points at a 90% level and 400 replicates).
+  Any cell more than 2 points under its level is re-run at 2000 replicates and
+  must reach `level − 2·MCSE` there; cells still below it are named boundary
+  cells asserting their measured band
+  (`docs/short-series-thresholds.md`).
   Multi-atom targets use fixtures whose identified atoms disagree. Temporal
   targets add AR(1) residuals and short series. Every gate group runs and
   failures are listed at the end. `scripts/gate_calibration.sh` builds in
@@ -132,7 +136,11 @@ was not available, published as boundary records with a runtime disclosure.
   The replicate SD is scaled by the circular-Bartlett 95% fixed-b ratio
   `cv_95(ℓ/n)/1.96` at every nominal level (including the gated 90% cells), so
   the interval is a normal interval around a 95%-inflated SE rather than the
-  90% fixed-b critical-value interval. iid analytic SEs on these cells are NaN;
+  90% fixed-b critical-value interval, and by the Bartlett kernel-bias factor
+  of the interval's estimating scores (`antecedent_estimate::kernel_bias_scale`:
+  the AR(1)-prewhitened long-run variance over the Bartlett variance at the
+  block length, 1.01–1.05 on persistent scores, at most 1.01 on short-memory
+  ones); provenance diagnostics print both factors. iid analytic SEs on these cells are NaN;
   a short-series warning fires when the series is short for the estimating
   score's dependence.
 - Temporal response surfaces and observation / Sequence tuple bands use their
