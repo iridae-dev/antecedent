@@ -268,7 +268,7 @@ In Python, `bootstrap=` on `analyze(...)` and `PreparedAnalysis.prepare(...)` is
 the replicate count for Frequentist temporal `ResponseCurve` /
 `InterventionResponse` (TemporalDag surfaces and TemporalCpdag/Pag completion
 atoms). An explicit count always wins. Omitted, it follows the `latency` tier
-as prepared Pulse / Sustained do: `interactive` 0, `standard` 50, `report` 200.
+as prepared Pulse / Sustained do: `interactive` 0, `standard` 199, `report` 200.
 `analyze()` without a `latency` uses 50, so a band is published; the prepared
 API's default `interactive` tier publishes the point surface only. `bootstrap=0`
 returns the point surface with `uncertainty.kind == "none"`, the withheld-band

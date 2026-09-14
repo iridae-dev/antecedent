@@ -359,7 +359,7 @@ impl BatchStudy {
         Self {
             data,
             graph: BatchGraph::Dag(graph),
-            bootstrap_replicates: 50,
+            bootstrap_replicates: 199,
             refute: RefuteSuite::PlaceboAndRcc,
             latency_mode: None,
             identifier: None,
@@ -378,7 +378,7 @@ impl BatchStudy {
         Self {
             data,
             graph: BatchGraph::Tiered(background),
-            bootstrap_replicates: 50,
+            bootstrap_replicates: 199,
             refute: RefuteSuite::PlaceboAndRcc,
             latency_mode: None,
             identifier: None,

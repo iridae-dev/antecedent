@@ -354,7 +354,7 @@ impl StudyBuilder {
             query: None,
             refute: RefuteSuite::PlaceboAndRcc,
             refute_explicit: false,
-            bootstrap_replicates: 50,
+            bootstrap_replicates: 199,
             bootstrap_explicit: false,
             split: None,
             identifier: None,

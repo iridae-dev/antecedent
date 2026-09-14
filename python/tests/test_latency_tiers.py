@@ -53,7 +53,7 @@ def test_interactive_vs_standard_effort():
     )
     assert math.isfinite(standard.ate)
     assert standard.performance.latency_mode == "standard"
-    assert standard.performance.bootstrap_replicates_requested == 50
+    assert standard.performance.bootstrap_replicates_requested == 199
     assert (standard.performance.bootstrap_replicates_ok or 0) >= 2
     assert standard.estimate.se_bootstrap is not None
 

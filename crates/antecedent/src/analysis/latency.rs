@@ -20,8 +20,8 @@ pub const STANDARD_N_DRAWS: usize = 1000;
 pub const REPORT_N_DRAWS: usize = 4000;
 /// Interactive bootstrap replicates (analytic / Laplace only).
 pub const INTERACTIVE_BOOTSTRAP: u32 = 0;
-/// Standard bootstrap replicates (Python / backlog science default).
-pub const STANDARD_BOOTSTRAP: u32 = 50;
+/// Standard bootstrap replicates (coverage-gated circular-block count).
+pub const STANDARD_BOOTSTRAP: u32 = 199;
 /// Report-tier bootstrap replicates.
 pub const REPORT_BOOTSTRAP: u32 = 200;
 /// Interactive max identified graphs in a graph×effect envelope subsample.
@@ -35,7 +35,7 @@ pub const INTERACTIVE_MAX_ENVELOPE_GRAPHS: usize = 16;
 pub enum LatencyMode {
     /// Analytic SE or conjugate/Laplace + few draws; no bootstrap; cheap refute; no HMC.
     Interactive,
-    /// Current science defaults (`bootstrap=50`, `n_draws=1000`, placebo+RCC).
+    /// Current science defaults (`bootstrap=199`, `n_draws=1000`, placebo+RCC).
     Standard,
     /// More replicates / draws / full validation suite; HMC allowed.
     Report,
