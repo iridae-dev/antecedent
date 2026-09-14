@@ -133,8 +133,9 @@ pub struct StructuralResponseAtomWire {
 pub enum IdentifiedSetIntervalMethodWire {
     /// Frequentist Imbens–Manski interval from shared circular-block replicates.
     ImbensManskiSharedBlock,
-    /// Bayesian analogue from per-completion posterior draws paired by draw index.
-    ImbensManskiPosteriorDraws,
+    /// Product-posterior envelope quantiles at Imbens–Manski tails.
+    #[serde(alias = "imbens_manski_posterior_draws")]
+    ProductPosteriorEnvelopeQuantile,
 }
 
 /// Imbens–Manski interval for the identified set of a class-aware scalar effect:
@@ -186,8 +187,8 @@ pub fn identified_set_interval_to_wire(
         completions: u64::try_from(interval.completions).unwrap_or(u64::MAX),
         replicates: u64::try_from(interval.replicates).unwrap_or(u64::MAX),
         method: match interval.method {
-            antecedent_estimate::IdentifiedSetIntervalMethod::ImbensManskiPosteriorDraws => {
-                IdentifiedSetIntervalMethodWire::ImbensManskiPosteriorDraws
+            antecedent_estimate::IdentifiedSetIntervalMethod::ProductPosteriorEnvelopeQuantile => {
+                IdentifiedSetIntervalMethodWire::ProductPosteriorEnvelopeQuantile
             }
             // `IdentifiedSetIntervalMethod` is non-exhaustive; the shared block is the
             // only Frequentist construction.
@@ -252,8 +253,8 @@ pub fn identified_set_interval_from_wire(
             IdentifiedSetIntervalMethodWire::ImbensManskiSharedBlock => {
                 antecedent_estimate::IdentifiedSetIntervalMethod::ImbensManskiSharedBlock
             }
-            IdentifiedSetIntervalMethodWire::ImbensManskiPosteriorDraws => {
-                antecedent_estimate::IdentifiedSetIntervalMethod::ImbensManskiPosteriorDraws
+            IdentifiedSetIntervalMethodWire::ProductPosteriorEnvelopeQuantile => {
+                antecedent_estimate::IdentifiedSetIntervalMethod::ProductPosteriorEnvelopeQuantile
             }
         },
     })

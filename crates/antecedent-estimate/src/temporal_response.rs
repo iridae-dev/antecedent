@@ -25,8 +25,11 @@ use antecedent_core::{
     SupportReport, SupportStatus, TargetPopulation, TemporalEffectQuery, TemporalNodeKey,
     TemporalResponseSpec, Value, VariableId,
 };
-use antecedent_data::{TableView, TemporalIndexer, TimeSeriesData};
+use antecedent_data::{
+    ResamplingPlan, TableView, TemporalIndexer, TimeSeriesData, fill_resample_indexes,
+};
 use antecedent_expr::IdentifiedEstimand;
+use antecedent_kernels::unbiased_index;
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, SandwichKind,
     coefficient_covariance, normal_ppf,
@@ -1427,25 +1430,39 @@ impl PreparedTemporalSurface {
     }
 }
 
-/// Circular-block resample of `m` positions with block length `block`, drawn from
-/// `rng` (block starts uniform on `0..m`).
+/// Circular-block resample of `m` positions with block length `block`.
+///
+/// Starts use the crate's [`unbiased_index`] draw on `m` (same law as
+/// [`fill_resample_indexes`] / scalar Pulse SEs), then stitch with
+/// `while out.len() < m`.
 pub fn circular_block_positions(
     m: usize,
     block: usize,
     rng: &mut antecedent_core::CausalRng,
 ) -> Vec<usize> {
-    let block = block.clamp(1, m.max(1));
     let mut out = Vec::with_capacity(m);
-    while out.len() < m {
-        let start = ((rng.next_f64() * m as f64) as usize).min(m - 1);
-        for offset in 0..block {
-            if out.len() == m {
-                break;
-            }
-            out.push((start + offset) % m);
-        }
-    }
+    circular_block_positions_into(m, block, rng, &mut out);
     out
+}
+
+/// Fill `out` with a circular-block resample; reuses `out`'s allocation.
+pub fn circular_block_positions_into(
+    m: usize,
+    block: usize,
+    rng: &mut antecedent_core::CausalRng,
+    out: &mut Vec<usize>,
+) {
+    out.clear();
+    if m == 0 {
+        return;
+    }
+    let block = block.clamp(1, m);
+    let mut scratch = Vec::with_capacity(m);
+    let plan = ResamplingPlan::CircularBlock { length: block };
+    if fill_resample_indexes(plan, m, rng, &mut scratch).is_err() {
+        return;
+    }
+    out.extend(scratch.iter().map(|&i| i as usize));
 }
 
 /// `coefs' cbar(eval)`: the g-computed level at one cell under one fit.
@@ -1636,7 +1653,7 @@ fn bootstrap_surface(
         }
         let mut rng = ctx.rng.stream(HORIZON_BOOTSTRAP_STREAM.wrapping_add(u64::from(replicate)));
         for start in &mut starts {
-            *start = ((rng.next_f64() * axis as f64) as usize).min(axis - 1);
+            *start = unbiased_index(&mut rng, axis);
         }
         let mut surface = Vec::with_capacity(horizons.len());
         for fitted in horizons {

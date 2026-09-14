@@ -1668,6 +1668,8 @@ pub(super) fn posterior_note_diagnostics<'a>(
 ) -> Vec<Diagnostic> {
     let mut kappas = Vec::new();
     let mut floors = Vec::new();
+    let mut capped = 0usize;
+    let mut inestimable = 0usize;
     let mut seen = std::collections::HashSet::new();
     for post in posteriors {
         for note in &post.diagnostics.notes {
@@ -1677,6 +1679,12 @@ pub(super) fn posterior_note_diagnostics<'a>(
             let single = std::slice::from_ref(note);
             if let Some(kappa) = antecedent_estimate::tempering_kappa_from_notes(single) {
                 kappas.push(kappa);
+            }
+            if antecedent_estimate::tempering_capped_from_notes(single) {
+                capped += 1;
+            }
+            if antecedent_estimate::tempering_inestimable_from_notes(single) {
+                inestimable += 1;
             }
             if let Some(floor) = antecedent_estimate::hmc_draw_floor_from_notes(single) {
                 floors.push(floor);
@@ -1699,6 +1707,29 @@ pub(super) fn posterior_note_diagnostics<'a>(
                  (kappa = [{list}] over {} fit(s)); this corrects serial \
                  dependence in the outcome residual, not heteroskedasticity or a misspecified mean",
                 kappas.len()
+            ),
+        ));
+    }
+    if inestimable > 0 {
+        out.push(Diagnostic::new(
+            "estimate.bayesian.temporal.tempering_inestimable",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "long-run-variance tempering could not be estimated on {inestimable} fit(s) \
+                 (n < max(8, p+2)); the published credible interval is the iid posterior and \
+                 is likely too narrow"
+            ),
+        ));
+    }
+    if capped > 0 {
+        out.push(Diagnostic::new(
+            "estimate.bayesian.temporal.tempering_capped",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "long-run-variance tempering hit the n/(p+2) cap on {capped} fit(s); kappa is \
+                 known to be too small and the published credible interval is still too narrow"
             ),
         ));
     }
