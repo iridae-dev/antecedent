@@ -25,7 +25,7 @@ use antecedent_discovery::{GraphPosterior, set_edge};
 use antecedent_graph::{Endpoint, MarkedEdge, MiddleMark, TemporalCpdag, TemporalDag, TemporalPag};
 use antecedent_prob::InferenceDiagnostics;
 
-use super::calibration::{ar1_noise, gaussian};
+use super::calibration::{ar1_noise, gaussian, stream_seed};
 
 /// `z -> x` loading (contemporaneous confounder of the treatment).
 pub const A: f64 = 0.8;
@@ -326,10 +326,10 @@ pub fn pag_series(n: usize, seed: u64) -> TimeSeriesData {
 #[must_use]
 pub fn pag_series_ar1(n: usize, rho: f64, seed: u64) -> TimeSeriesData {
     let total = n + BURN;
-    let r = ar1_noise(total, rho, 1.0, seed ^ 0x9A61);
-    let et = ar1_noise(total, rho, PAG_SD_T, seed ^ 0x9A62);
-    let ez = ar1_noise(total, rho, 0.5, seed ^ 0x9A63);
-    let u = ar1_noise(total, rho, SD_Y, seed ^ 0x9A64);
+    let r = ar1_noise(total, rho, 1.0, stream_seed(seed, 0x9A61));
+    let et = ar1_noise(total, rho, PAG_SD_T, stream_seed(seed, 0x9A62));
+    let ez = ar1_noise(total, rho, 0.5, stream_seed(seed, 0x9A63));
+    let u = ar1_noise(total, rho, SD_Y, stream_seed(seed, 0x9A64));
     let t: Vec<f64> = r.iter().zip(&et).map(|(r, e)| PAG_A_RT * r + e).collect();
     let z: Vec<f64> =
         t.iter().zip(&r).zip(&ez).map(|((t, r), e)| PAG_B_TZ * t + PAG_C_RZ * r + e).collect();
@@ -416,11 +416,11 @@ pub const CHAIN_D: f64 = 0.6;
 #[must_use]
 pub fn chain_pag_series(n: usize, rho: f64, seed: u64) -> TimeSeriesData {
     let total = n + BURN;
-    let z = ar1_noise(total, rho, 1.0, seed ^ 0xC4A1);
-    let et = ar1_noise(total, rho, CHAIN_SD_T, seed ^ 0xC4A2);
-    let ev = ar1_noise(total, rho, 1.0, seed ^ 0xC4A3);
-    let em = ar1_noise(total, rho, 0.6, seed ^ 0xC4A4);
-    let u = ar1_noise(total, rho, SD_Y, seed ^ 0xC4A5);
+    let z = ar1_noise(total, rho, 1.0, stream_seed(seed, 0xC4A1));
+    let et = ar1_noise(total, rho, CHAIN_SD_T, stream_seed(seed, 0xC4A2));
+    let ev = ar1_noise(total, rho, 1.0, stream_seed(seed, 0xC4A3));
+    let em = ar1_noise(total, rho, 0.6, stream_seed(seed, 0xC4A4));
+    let u = ar1_noise(total, rho, SD_Y, stream_seed(seed, 0xC4A5));
     let t: Vec<f64> = z.iter().zip(&et).map(|(z, e)| CHAIN_A * z + e).collect();
     let v: Vec<f64> = t.iter().zip(&ev).map(|(t, e)| 0.5 * t + e).collect();
     let m: Vec<f64> = z.iter().zip(&em).map(|(z, e)| CHAIN_C * z + e).collect();
