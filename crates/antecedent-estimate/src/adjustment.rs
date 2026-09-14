@@ -632,15 +632,20 @@ impl LinearAdjustmentAte {
             .treatment_column()
             .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
         let ate = gcomp_or_coef_ate(problem, &coefficients, t_col)?;
-        let n = problem.design.nrows as f64;
-        let p = problem.design.ncols as f64;
+        let nrows = problem.design.nrows;
+        let ncols = problem.design.ncols;
+        let n = nrows as f64;
+        let p = ncols as f64;
+        // `(XᵀX)⁻¹` once: the homoskedastic SE reads its treatment diagonal and
+        // the influence function its treatment row.
+        let xtx_inv = gram_inverse(&problem.design.matrix, nrows, ncols);
         let se_coef = if !analytic_se_ok {
             f64::NAN
         } else if let Some(se) = residual_sandwich_coef_se(
             self.se_kind,
             &problem.design.matrix,
-            problem.design.nrows,
-            problem.design.ncols,
+            nrows,
+            ncols,
             &residuals,
             t_col,
             self.cluster_ids.as_deref(),
@@ -650,22 +655,19 @@ impl LinearAdjustmentAte {
             se
         } else {
             let sigma2 = rss / (n - p).max(1.0);
-            analytic_se_treatment(
-                &problem.design.matrix,
-                problem.design.nrows,
-                problem.design.ncols,
-                t_col,
-                sigma2,
-            )
+            xtx_inv
+                .as_ref()
+                .map_or(f64::NAN, |inv| (sigma2 * inv[t_col * ncols + t_col].max(0.0)).sqrt())
         };
         let se_analytic = se_coef * problem.treatment_delta.abs();
         let influence = treatment_coef_influence(
             &problem.design.matrix,
-            problem.design.nrows,
-            problem.design.ncols,
+            nrows,
+            ncols,
             t_col,
             &residuals,
             problem.treatment_delta,
+            xtx_inv.as_deref(),
         );
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
@@ -969,19 +971,11 @@ pub(crate) fn intervention_f64(intervention: &Intervention) -> Result<f64, Estim
     }
 }
 
-fn analytic_se_treatment(
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    t_col: usize,
-    sigma2: f64,
-) -> f64 {
+/// `(XᵀX)⁻¹` (row-major) of a column-major design; `None` when singular.
+fn gram_inverse(x_colmajor: &[f64], nrows: usize, ncols: usize) -> Option<Vec<f64>> {
     let mut xtx = vec![0.0; ncols * ncols];
     form_xtx(x_colmajor, nrows, ncols, &mut xtx);
-    let Some(inv) = invert_square(&xtx, ncols) else {
-        return f64::NAN;
-    };
-    (sigma2 * inv[t_col * ncols + t_col].max(0.0)).sqrt()
+    invert_square(&xtx, ncols)
 }
 
 /// Frisch–Waugh influence of the treatment coefficient, scaled by `delta`.
@@ -990,8 +984,12 @@ fn analytic_se_treatment(
 /// `δ · n · t̃_i e_i / Σ t̃²` with `t̃` the treatment residualized on every
 /// other design column. Centering the treatment alone (`t − t̄`) is only the
 /// unadjusted IF: with covariates correlated with the treatment it understates
-/// the variance by `1 − R²(T | Z)`. Non-invertible designs return NaN so a
-/// downstream mixture SE fails closed instead of reporting zero.
+/// the variance by `1 − R²(T | Z)`. Non-invertible designs (`xtx_inv` is
+/// `None`) return NaN so a downstream mixture SE fails closed instead of
+/// reporting zero.
+///
+/// The leverage `[(XᵀX)⁻¹ x_i]_T` accumulates one design column at a time
+/// (contiguous, vectorizable) rather than striding across columns per row.
 fn treatment_coef_influence(
     matrix: &[f64],
     nrows: usize,
@@ -999,23 +997,27 @@ fn treatment_coef_influence(
     t_col: usize,
     residuals: &[f64],
     delta: f64,
+    xtx_inv: Option<&[f64]>,
 ) -> Vec<f64> {
     if nrows == 0 || residuals.len() != nrows || t_col >= ncols {
         return vec![0.0; residuals.len()];
     }
-    let mut xtx = vec![0.0; ncols * ncols];
-    form_xtx(matrix, nrows, ncols, &mut xtx);
-    let Some(inv) = invert_square(&xtx, ncols) else {
+    let Some(inv) = xtx_inv else {
         return vec![f64::NAN; nrows];
     };
     let row = &inv[t_col * ncols..t_col * ncols + ncols];
     let scale = delta * nrows as f64;
-    (0..nrows)
-        .map(|i| {
-            let leverage: f64 = (0..ncols).map(|c| row[c] * matrix[c * nrows + i]).sum();
-            scale * leverage * residuals[i]
-        })
-        .collect()
+    let mut psi = vec![0.0; nrows];
+    for (c, &w) in row.iter().enumerate() {
+        let column = &matrix[c * nrows..(c + 1) * nrows];
+        for (slot, &x) in psi.iter_mut().zip(column) {
+            *slot += w * x;
+        }
+    }
+    for (slot, &e) in psi.iter_mut().zip(residuals) {
+        *slot = scale * *slot * e;
+    }
+    psi
 }
 
 impl crate::estimator::Estimator<TabularData> for LinearAdjustmentAte {
@@ -1182,6 +1184,38 @@ mod tests {
         let identity: Vec<usize> = (0..prep.design.nrows).collect();
         let resampled = est.ate_on_row_indices(&prep, &mut ws, &identity).unwrap();
         assert!((resampled - effect.ate).abs() < 1e-12);
+    }
+
+    /// The shared Gram inverse and the column-wise leverage pass reproduce the
+    /// row-by-row Frisch–Waugh influence `δ·n·[(XᵀX)⁻¹x_i]_T·e_i` and the
+    /// homoskedastic SE `√(σ²·[(XᵀX)⁻¹]_TT)` exactly.
+    #[test]
+    fn influence_and_homoskedastic_se_match_the_row_wise_gram_formula() {
+        let (data, estimand) = toy();
+        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        let (n, p) = (prep.design.nrows, prep.design.ncols);
+        let t_col = prep.design.treatment_column().unwrap();
+        let fit = prep.design.fit_ols(&est.backend, &mut ws.ols).unwrap();
+        let mut xtx = vec![0.0; p * p];
+        form_xtx(&prep.design.matrix, n, p, &mut xtx);
+        let inv = invert_square(&xtx, p).unwrap();
+        let sigma2 = fit.rss / (n - p) as f64;
+        let se = (sigma2 * inv[t_col * p + t_col]).sqrt() * prep.treatment_delta.abs();
+        assert_eq!(effect.se_analytic.to_bits(), se.to_bits());
+        let influence = effect.influence.as_ref().unwrap();
+        let row = &inv[t_col * p..(t_col + 1) * p];
+        let scale = prep.treatment_delta * n as f64;
+        for i in 0..n {
+            let leverage: f64 = (0..p).map(|c| row[c] * prep.design.matrix[c * n + i]).sum();
+            let expected = scale * leverage * fit.residuals[i];
+            assert!((influence[i] - expected).abs() == 0.0, "row {i}");
+        }
     }
 
     #[test]
