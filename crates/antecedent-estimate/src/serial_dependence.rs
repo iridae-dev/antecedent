@@ -27,25 +27,39 @@
 //!
 //! `κ̂ = max(κ̂_HAC · f_b², κ̂_AR)`:
 //!
-//! - `κ̂_HAC` uses AR(1) prewhitening of the score (with the Kendall small-sample
-//!   bias correction of `ρ̂`) followed by a Bartlett (Newey–West) kernel with the
-//!   rule-of-thumb bandwidth `M = ⌊4 (n/100)^{2/9}⌋`, then recolouring by
-//!   `1/(1 − ρ̂)²` (Andrews & Monahan 1992). It is robust to the form of the
-//!   dependence but noisy in short series, and a posterior scaled by a noisy
-//!   variance ratio under-covers; `f_b` is the Kiefer–Vogelsang fixed-b factor
-//!   of bandwidth `M + 1` ([`crate::temporal_block::fixed_b_scale`]), the same
-//!   correction the Frequentist circular-block SEs carry.
+//! - `κ̂_HAC` prewhitens the score, applies a Bartlett (Newey–West) kernel with
+//!   the rule-of-thumb bandwidth `M = ⌊4 (n/100)^{2/9}⌋` to the prewhitened
+//!   series and recolours it (Andrews & Monahan 1992). Two prewhitening filters
+//!   are evaluated and the larger ratio kept: AR(1) with the Kendall
+//!   small-sample bias correction of `ρ̂` (recolouring `1/(1 − ρ̂)²`), and, when
+//!   BIC selects an order `q ≥ 2` (`q ≤ 4`, Yule–Walker), AR(q) (recolouring
+//!   `1/(1 − Σφ̂)²`). `f_b` is the Kiefer–Vogelsang fixed-b factor of bandwidth
+//!   `M + 1` ([`crate::temporal_block::fixed_b_scale`]), the same correction the
+//!   Frequentist circular-block SEs carry. The kernel only mops up what the
+//!   prewhitening filter leaves, so the estimate is as good as the filter's fit:
+//!   it is **not** robust to arbitrary dependence (long memory, or
+//!   autocorrelation beyond what an AR(4) captures, is under-corrected).
 //! - `κ̂_AR = w'Γ̂w / (γ̂₀ w'w)` is the variance ratio of `c'β̂` given the realized
-//!   design when the residual is AR(1) with the Kendall-corrected `ρ̂` of the OLS
-//!   residuals. It is far less noisy and accounts for the realized regressor
-//!   path, but assumes AR(1)-type residual dependence.
+//!   design when the residual follows the fitted autoregression: AR(1) with the
+//!   Kendall-corrected `ρ̂` of the OLS residuals, and the BIC-selected AR(q),
+//!   `q ≥ 2`, when there is one (larger ratio kept). It is far less noisy and
+//!   accounts for the realized regressor path, but assumes the residual's
+//!   autocorrelation is independent of that path; the AR(q) term is therefore
+//!   bounded by three times the fixed-b-scaled `κ̂_HAC`, so residual structure
+//!   that the regressors themselves generate (and that never reaches the score)
+//!   cannot inflate `κ̂` on its own.
 //!
-//! The larger of the two never narrows the robust estimate. In the 1.9
-//! calibration (AR(1) residuals, n = 60–400) the prewhitened ratio alone had
-//! log-SD 0.2–0.4 and left nominal-90% intervals at 0.848–0.860 for n ≤ 160;
-//! the combination put them at 0.877–0.922. `κ̂` is floored at `1` (the
-//! correction never narrows the iid posterior) and capped so at least
-//! `ncols + 2` effective rows remain.
+//! The larger of the two never narrows the robust estimate, and the AR(q)
+//! terms only ever add to the AR(1) ones. In the 1.9 calibration (AR(1)
+//! residuals, n = 60–400) the prewhitened ratio alone had log-SD 0.2–0.4 and
+//! left nominal-90% intervals at 0.848–0.860 for n ≤ 160; the AR(1)
+//! combination put them at 0.877–0.922. On AR(2)(0.3, 0.5) treatment and
+//! residual it left them at 0.76–0.79 (n = 160–1000); the AR(q) terms raise
+//! that to ≈ 0.86 at n = 160 and ≈ 0.89 at n ≥ 400 while leaving the AR(1) and
+//! iid regimes unchanged. Short series with higher-order dependence stay
+//! under-covered (≈ 0.81 at n = 60), because BIC rarely selects the order.
+//! `κ̂` is floored at `1` (the correction never narrows the iid posterior) and
+//! capped so at least `ncols + 2` effective rows remain.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -73,6 +87,16 @@ const MAX_PREWHITEN_RHO: f64 = 0.97;
 
 /// Fewest rows on which a long-run variance is estimated; shorter designs keep `κ = 1`.
 const MIN_ROWS: usize = 8;
+
+/// Largest autoregressive order the BIC search considers for the AR(q) terms.
+const MAX_AR_ORDER: usize = 4;
+
+/// Largest factor by which the AR(q) residual quadratic form may exceed the
+/// fixed-b-scaled score HAC ratio. On the 1.9 AR(2) calibration designs the bound
+/// never binds (coverage identical to the unbounded term); on a deterministic
+/// period-4 treatment with an omitted lag it stops a residual quadratic form of
+/// ≈145 against a score ratio of ≈0.2.
+const AR_QUADRATIC_HAC_BOUND: f64 = 3.0;
 
 /// Row-dependence model for a Bayesian likelihood.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -126,13 +150,21 @@ pub struct TemperingFactor {
     /// Combined ratio before the floor / cap:
     /// `max(hac_ratio · fixed_b², ar_ratio)`.
     pub raw_ratio: f64,
-    /// AR(1)-prewhitened Bartlett long-run-variance ratio of the targeted score.
+    /// Prewhitened Bartlett long-run-variance ratio of the targeted score (the
+    /// larger of the AR(1) and the BIC-selected AR(q) prewhitening).
     pub hac_ratio: f64,
     /// Kiefer–Vogelsang fixed-b SE factor of the Bartlett bandwidth
     /// ([`crate::temporal_block::fixed_b_scale`]); `hac_ratio` is scaled by its square.
     pub fixed_b: f64,
-    /// AR(1)-residual quadratic-form ratio conditional on the realized design.
+    /// Autoregressive-residual quadratic-form ratio conditional on the realized
+    /// design (the larger of the AR(1) and the BIC-selected AR(q) residual model).
     pub ar_ratio: f64,
+    /// BIC-selected autoregressive order of the driving score (`0..=4`); orders
+    /// `≥ 2` add the AR(q)-prewhitened ratio.
+    pub score_ar_order: usize,
+    /// BIC-selected autoregressive order of the OLS residuals (`0..=4`); orders
+    /// `≥ 2` add the AR(q) quadratic-form ratio.
+    pub residual_ar_order: usize,
     /// Bartlett bandwidth on the prewhitened score.
     pub bandwidth: usize,
     /// Design rows.
@@ -158,12 +190,15 @@ impl TemperingFactor {
     pub fn note(&self) -> Arc<str> {
         Arc::from(format!(
             "{DEPENDENCE_NOTE_PREFIX} kappa={:.6} raw_ratio={:.6} hac_ratio={:.6} fixed_b={:.6} \
-             ar_ratio={:.6} n={} n_eff={:.3} bandwidth={} scope={} capped={} inestimable={}",
+             ar_ratio={:.6} score_ar_order={} residual_ar_order={} n={} n_eff={:.3} \
+             bandwidth={} scope={} capped={} inestimable={}",
             self.kappa,
             self.raw_ratio,
             self.hac_ratio,
             self.fixed_b,
             self.ar_ratio,
+            self.score_ar_order,
+            self.residual_ar_order,
             self.nrows,
             self.effective_rows(),
             self.bandwidth,
@@ -179,16 +214,19 @@ impl TemperingFactor {
         Arc::from(format!(
             "generalized (power) posterior with a serial-dependence correction: the Gaussian \
              likelihood on {} time-ordered rows is tempered by 1/kappa with kappa = {:.4}, the \
-             larger of the AR(1)-prewhitened Newey-West long-run-variance ratio of the {} score \
-             (bandwidth {}) scaled by the squared fixed-b factor {:.4}, and the AR(1)-residual \
-             variance ratio of the same combination given the design; floored at 1{}; \
-             effective rows {:.1}; the prior keeps full weight; heteroskedasticity and mean \
-             misspecification are not corrected",
+             larger of the autoregressive-prewhitened Newey-West long-run-variance ratio of the \
+             {} score (bandwidth {}, BIC score order {}) scaled by the squared fixed-b factor \
+             {:.4}, and the autoregressive-residual variance ratio of the same combination given \
+             the design (BIC residual order {}); floored at 1{}; effective rows {:.1}; the prior \
+             keeps full weight; calibrated for autoregressive dependence up to order 4, not for \
+             long memory; heteroskedasticity and mean misspecification are not corrected",
             self.nrows,
             self.kappa,
             self.scope,
             self.bandwidth,
+            self.score_ar_order,
             self.fixed_b,
+            self.residual_ar_order,
             if self.inestimable {
                 "; long-run-variance ratio inestimable on this short design — iid posterior \
                  retained and is likely too narrow"
@@ -253,6 +291,8 @@ pub fn long_run_tempering_factor(
         hac_ratio: 1.0,
         fixed_b: 1.0,
         ar_ratio: 1.0,
+        score_ar_order: 0,
+        residual_ar_order: 0,
         bandwidth,
         nrows: n,
         capped: false,
@@ -309,9 +349,11 @@ pub fn long_run_tempering_factor(
         }
     }
     let fixed_b = crate::temporal_block::fixed_b_scale(bandwidth + 1, n);
+    let residual_ar = bic_autoregression(&residuals);
     // The direction with the largest combined ratio drives κ̂; its components are
     // reported alongside it.
     let (mut raw_ratio, mut hac_ratio, mut ar_ratio) = (f64::NAN, f64::NAN, f64::NAN);
+    let mut score_ar_order = 0;
     for c in &directions {
         let v = crate::util::solve_spd(&xtx, c, p)
             .ok_or_else(|| EstimationError::stats_msg("long-run tempering: singular X'X"))?;
@@ -319,8 +361,20 @@ pub fn long_run_tempering_factor(
         let weights: Vec<f64> =
             (0..n).map(|t| (0..p).map(|k| x[k * n + t] * v[k]).sum::<f64>()).collect();
         let influence: Vec<f64> = weights.iter().zip(&residuals).map(|(w, e)| w * e).collect();
-        let hac = long_run_variance_ratio(&influence, bandwidth);
-        let ar = ar1_quadratic_ratio(&weights, &residuals);
+        let score_ar = bic_autoregression(&influence);
+        let mut hac = long_run_variance_ratio(&influence, bandwidth);
+        if score_ar.phi.len() >= 2 {
+            hac = hac.max(ar_prewhitened_variance_ratio(&influence, &score_ar.phi, bandwidth));
+        }
+        let mut ar = ar1_quadratic_ratio(&weights, &residuals);
+        if residual_ar.phi.len() >= 2 {
+            // The quadratic form assumes the residual's autocorrelation is independent of
+            // the regressor path. Residual structure that is a function of the regressors
+            // (an omitted seasonal lag of a seasonal treatment) does not reach the score,
+            // so the AR(q) term may exceed the score-based ratio by at most a bounded factor.
+            let bound = AR_QUADRATIC_HAC_BOUND * hac * fixed_b * fixed_b;
+            ar = ar.max(ar_quadratic_ratio(&weights, &residual_ar).min(bound));
+        }
         if !hac.is_finite() || !ar.is_finite() {
             continue;
         }
@@ -329,6 +383,7 @@ pub fn long_run_tempering_factor(
             raw_ratio = combined;
             hac_ratio = hac;
             ar_ratio = ar;
+            score_ar_order = score_ar.phi.len();
         }
     }
     if !raw_ratio.is_finite() {
@@ -342,9 +397,106 @@ pub fn long_run_tempering_factor(
         hac_ratio,
         fixed_b,
         ar_ratio,
+        score_ar_order,
+        residual_ar_order: residual_ar.phi.len(),
         capped: raw_ratio > cap,
         ..floor
     })
+}
+
+/// Yule–Walker autoregression of a series, at a BIC-selected order.
+#[derive(Clone, Debug, Default)]
+struct Autoregression {
+    /// Coefficients `φ₁ … φ_q` (empty for `q = 0`).
+    phi: Vec<f64>,
+    /// Uncentred autocorrelations `r_0 = 1, r_1 … r_q` of the series.
+    autocorrelation: Vec<f64>,
+}
+
+/// Yule–Walker AR(q) fit of `s` from its uncentred autocovariances (the same
+/// convention as [`kendall_rho`]; OLS residuals and scores have mean zero), with
+/// `q ≤ MAX_AR_ORDER` minimizing `n ln σ̂²_q + q ln n` (Levinson–Durbin). The
+/// Toeplitz autocovariance is positive definite, so every fitted model is
+/// stationary.
+fn bic_autoregression(s: &[f64]) -> Autoregression {
+    let n = s.len();
+    let max_order = MAX_AR_ORDER.min(n.saturating_sub(2));
+    let gamma: Vec<f64> = (0..=max_order)
+        .map(|k| s[k..].iter().zip(s).map(|(a, b)| a * b).sum::<f64>() / n as f64)
+        .collect();
+    if !(gamma[0] > 0.0) || !gamma[0].is_finite() {
+        return Autoregression::default();
+    }
+    let nf = n as f64;
+    let mut phi: Vec<f64> = Vec::new();
+    let mut variance = gamma[0];
+    let (mut best_bic, mut best) = (nf * variance.ln(), Vec::new());
+    for order in 1..=max_order {
+        let acc = gamma[order]
+            - phi.iter().enumerate().map(|(j, f)| f * gamma[order - 1 - j]).sum::<f64>();
+        let reflection = acc / variance;
+        if !reflection.is_finite() || reflection.abs() >= 1.0 {
+            break;
+        }
+        let mut next: Vec<f64> =
+            (0..order - 1).map(|j| phi[j] - reflection * phi[order - 2 - j]).collect();
+        next.push(reflection);
+        phi = next;
+        variance *= 1.0 - reflection * reflection;
+        if !(variance > 0.0) {
+            break;
+        }
+        let bic = nf * variance.ln() + order as f64 * nf.ln();
+        if bic < best_bic {
+            best_bic = bic;
+            best.clone_from(&phi);
+        }
+    }
+    let autocorrelation = gamma[..=best.len()].iter().map(|g| g / gamma[0]).collect();
+    Autoregression { phi: best, autocorrelation }
+}
+
+/// AR(q)-prewhitened Bartlett long-run variance of `s` divided by its variance:
+/// `u_t = s_t − Σ φ_j s_{t−j}`, recoloured by `1/(1 − Σφ)²` (floored like the
+/// AR(1) filter's `1 − ρ̂`).
+fn ar_prewhitened_variance_ratio(s: &[f64], phi: &[f64], bandwidth: usize) -> f64 {
+    let n = s.len();
+    let q = phi.len();
+    let gamma0 = s.iter().map(|v| v * v).sum::<f64>() / n as f64;
+    if gamma0 <= 0.0 || !gamma0.is_finite() || n <= q + 1 {
+        return 1.0;
+    }
+    let u: Vec<f64> = (q..n)
+        .map(|t| s[t] - phi.iter().enumerate().map(|(j, f)| f * s[t - 1 - j]).sum::<f64>())
+        .collect();
+    let recolour = (1.0 - phi.iter().sum::<f64>()).max(1.0 - MAX_PREWHITEN_RHO);
+    bartlett_long_run_variance(&u, bandwidth) / recolour.powi(2) / gamma0
+}
+
+/// Variance ratio of `Σ w_t e_t` when the residual follows the fitted AR(q):
+/// `1 + 2 Σ_k ρ_k Σ_t w_t w_{t−k} / w'w`, with the model autocorrelation `ρ_k`
+/// (equal to the sample one for `k ≤ q`, the AR recursion beyond), truncated
+/// once it is negligible.
+fn ar_quadratic_ratio(weights: &[f64], model: &Autoregression) -> f64 {
+    let n = weights.len();
+    let q = model.phi.len();
+    let norm: f64 = weights.iter().map(|w| w * w).sum();
+    if norm <= 0.0 || q == 0 {
+        return 1.0;
+    }
+    let mut rho = model.autocorrelation.clone();
+    let mut cross = 0.0;
+    for k in 1..n {
+        if k > q {
+            let next: f64 = model.phi.iter().enumerate().map(|(j, f)| f * rho[k - 1 - j]).sum();
+            rho.push(next);
+            if rho[k + 1 - q..=k].iter().all(|r| r.abs() < 1e-12) {
+                break;
+            }
+        }
+        cross += rho[k] * weights[k..].iter().zip(weights).map(|(a, b)| a * b).sum::<f64>();
+    }
+    1.0 + 2.0 * cross / norm
 }
 
 /// Bias-corrected lag-1 autocorrelation of `s` (Kendall 1954:
@@ -377,6 +529,19 @@ fn newey_west_bandwidth(n: usize) -> usize {
     (4.0 * (n as f64 / 100.0).powf(2.0 / 9.0)).floor().max(0.0) as usize
 }
 
+/// Bartlett (Newey–West) long-run variance of `u` (uncentred, divided by its length).
+fn bartlett_long_run_variance(u: &[f64], bandwidth: usize) -> f64 {
+    let m = u.len();
+    let lags = bandwidth.min(m.saturating_sub(1));
+    let autocov = |lag: usize| u[lag..].iter().zip(&u[..m - lag]).map(|(a, b)| a * b).sum::<f64>();
+    let mut lrv = autocov(0);
+    for lag in 1..=lags {
+        let weight = 1.0 - lag as f64 / (lags + 1) as f64;
+        lrv += 2.0 * weight * autocov(lag);
+    }
+    (lrv / m as f64).max(0.0)
+}
+
 /// AR(1)-prewhitened Bartlett long-run variance of `s` divided by its variance.
 fn long_run_variance_ratio(s: &[f64], bandwidth: usize) -> f64 {
     let n = s.len();
@@ -386,15 +551,7 @@ fn long_run_variance_ratio(s: &[f64], bandwidth: usize) -> f64 {
     }
     let rho = kendall_rho(s);
     let u: Vec<f64> = s.windows(2).map(|w| w[1] - rho * w[0]).collect();
-    let m = u.len();
-    let lags = bandwidth.min(m.saturating_sub(1));
-    let autocov = |lag: usize| u[lag..].iter().zip(&u[..m - lag]).map(|(a, b)| a * b).sum::<f64>();
-    let mut lrv = autocov(0);
-    for lag in 1..=lags {
-        let weight = 1.0 - lag as f64 / (lags + 1) as f64;
-        lrv += 2.0 * weight * autocov(lag);
-    }
-    let lrv = (lrv / m as f64).max(0.0) / (1.0 - rho).powi(2);
+    let lrv = bartlett_long_run_variance(&u, bandwidth) / (1.0 - rho).powi(2);
     lrv / gamma0
 }
 
@@ -530,5 +687,129 @@ mod tests {
         .unwrap();
         assert!((zero.kappa - 1.0).abs() < f64::EPSILON);
         assert!(tempering_kappa_from_notes(&[Arc::from("unrelated")]).is_none());
+    }
+
+    /// Stationary AR(2) with unit innovations after a burn-in.
+    fn ar2(n: usize, phi: [f64; 2], rng: &mut CausalRng) -> Vec<f64> {
+        let (mut a, mut b) = (0.0, 0.0);
+        let mut out = Vec::with_capacity(n);
+        for t in 0..n + 500 {
+            let next = phi[0] * a + phi[1] * b + standard_normal(rng);
+            b = a;
+            a = next;
+            if t >= 500 {
+                out.push(next);
+            }
+        }
+        out
+    }
+
+    fn ar2_design(n: usize, phi: [f64; 2], seed: u64) -> CompiledDesign {
+        let mut rng = CausalRng::from_seed(seed);
+        let x = ar2(n, phi, &mut rng);
+        let e = ar2(n, phi, &mut rng);
+        let y: Vec<f64> = x.iter().zip(&e).map(|(x, e)| 0.8 * x + e).collect();
+        CompiledDesign::linear_adjustment(&x, &[], &y, &[]).unwrap()
+    }
+
+    #[test]
+    fn bic_autoregression_recovers_the_order_and_coefficients() {
+        let mut rng = CausalRng::from_seed(5);
+        let fit = bic_autoregression(&ar2(4_000, [0.3, 0.5], &mut rng));
+        assert_eq!(fit.phi.len(), 2, "{fit:?}");
+        assert!((fit.phi[0] - 0.3).abs() < 0.05 && (fit.phi[1] - 0.5).abs() < 0.05, "{fit:?}");
+        assert!((fit.autocorrelation[1] - 0.6).abs() < 0.05, "{fit:?}");
+        // AR(1) and white noise do not trigger the higher-order terms.
+        let mut picked_high = 0;
+        for seed in 0..40 {
+            let mut rng = CausalRng::from_seed(100 + seed);
+            let x = ar1(400, 0.7, &mut rng);
+            picked_high += usize::from(bic_autoregression(&x).phi.len() >= 2);
+        }
+        assert!(picked_high <= 4, "BIC picked q >= 2 on {picked_high}/40 AR(1) series");
+        // An AR(1) model reproduces the AR(1) quadratic form.
+        let model = Autoregression { phi: vec![0.6], autocorrelation: vec![1.0, 0.6] };
+        let weights: Vec<f64> = (0..50).map(|t| 1.0 + 0.1 * t as f64).collect();
+        let expected = {
+            let (mut carry, mut cross, mut norm) = (0.0, 0.0, 0.0);
+            for (t, &w) in weights.iter().enumerate() {
+                if t > 0 {
+                    carry = 0.6 * (carry + weights[t - 1]);
+                }
+                cross += w * carry;
+                norm += w * w;
+            }
+            1.0 + 2.0 * cross / norm
+        };
+        assert!((ar_quadratic_ratio(&weights, &model) - expected).abs() < 1e-9);
+    }
+
+    #[test]
+    fn ar2_score_ratio_tracks_the_analytic_long_run_factor() {
+        // x and e independent AR(2)(0.3, 0.5): the score x e has autocorrelation ρ_k²,
+        // so LRV / Var = 1 + 2 Σ ρ_k².
+        let phi = [0.3, 0.5];
+        let mut rho = vec![1.0, phi[0] / (1.0 - phi[1])];
+        for k in 2..400 {
+            rho.push(phi[0] * rho[k - 1] + phi[1] * rho[k - 2]);
+        }
+        let truth = 1.0 + 2.0 * rho[1..].iter().map(|r| r * r).sum::<f64>();
+        let (mut kappas, mut ar1_only) = (Vec::new(), Vec::new());
+        for seed in 0..30 {
+            let d = ar2_design(2_000, phi, 300 + seed);
+            let f = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
+            assert!(f.score_ar_order >= 2 && f.residual_ar_order >= 2, "{f:?}");
+            kappas.push(f.kappa);
+            // The AR(1)-only combination, for comparison.
+            let x = &d.matrix[..2 * d.nrows];
+            let residuals = FaerBackend
+                .least_squares(x, d.nrows, 2, &d.outcome, &mut LeastSquaresWorkspace::default())
+                .unwrap()
+                .residuals;
+            let centred: Vec<f64> = {
+                let xs = &x[d.nrows..];
+                let mean = xs.iter().sum::<f64>() / d.nrows as f64;
+                let ss: f64 = xs.iter().map(|v| (v - mean).powi(2)).sum();
+                xs.iter().map(|v| (v - mean) / ss).collect()
+            };
+            let influence: Vec<f64> = centred.iter().zip(&residuals).map(|(w, e)| w * e).collect();
+            ar1_only.push(
+                (long_run_variance_ratio(&influence, f.bandwidth) * f.fixed_b * f.fixed_b)
+                    .max(ar1_quadratic_ratio(&centred, &residuals)),
+            );
+        }
+        let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+        assert!(
+            (mean(&kappas) / truth - 1.0).abs() < 0.15,
+            "AR(q) kappa {} vs analytic {truth}",
+            mean(&kappas)
+        );
+        assert!(
+            mean(&ar1_only) < 0.8 * truth,
+            "the AR(1)-only ratio under-corrects AR(2) dependence: {} vs {truth}",
+            mean(&ar1_only)
+        );
+    }
+
+    #[test]
+    fn regressor_generated_residual_structure_does_not_inflate_kappa() {
+        // Period-4 treatment with its second lag omitted: the residual is 3·t_{t-2}, a
+        // perfectly periodic series BIC fits as AR(q), but its product with the lag-1
+        // regressor is identically zero, so the score carries no dependence.
+        let n = 401;
+        let t: Vec<f64> = (0..n + 1)
+            .map(|i| match i % 4 {
+                1 => 1.0,
+                3 => -1.0,
+                _ => 0.0,
+            })
+            .collect();
+        let x: Vec<f64> = t[1..].to_vec();
+        let y: Vec<f64> =
+            (0..n).map(|i| 2.0 * t[i + 1] + 3.0 * t[i] + 0.03 * (0.73 * i as f64).sin()).collect();
+        let d = CompiledDesign::linear_adjustment(&x, &[], &y, &[]).unwrap();
+        let f = long_run_tempering_factor(&d, &DependenceScope::Treatment).unwrap();
+        assert!(f.residual_ar_order >= 2, "{f:?}");
+        assert!(f.kappa < 2.0, "the bounded AR(q) term must not blow kappa up: {f:?}");
     }
 }
