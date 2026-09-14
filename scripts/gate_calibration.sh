@@ -1,9 +1,25 @@
 #!/usr/bin/env bash
 # Scheduled statistical calibration gate.
 # Not part of every-PR unit CI — run locally / before release / weekly GHA.
-set -euo pipefail
+#
+# Every group runs even when an earlier one fails; the failed groups are listed
+# at the end and the script exits nonzero.
+set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+FAILED=""
+FAILED_COUNT=0
+
+# Run one gate group; record it as failed instead of aborting the gate.
+check() {
+  local label="$1"
+  shift
+  if ! "$@"; then
+    FAILED="${FAILED}  ${label}"$'\n'
+    FAILED_COUNT=$((FAILED_COUNT + 1))
+  fi
+}
 
 # Coverage tests run 400 replicates each (two-sided level ± 3·MCSE band), so the
 # gate builds in release; a debug build is ~50x slower with identical numbers.
@@ -11,7 +27,7 @@ run_ignored() {
   local pkg="$1"
   local filter="$2"
   echo "== ${pkg}: ${filter} =="
-  cargo test --release -p "$pkg" --lib "$filter" -- --ignored --nocapture
+  check "${pkg}: ${filter}" cargo test --release -p "$pkg" --lib "$filter" -- --ignored --nocapture
 }
 
 echo "== SE analytic / bootstrap CI coverage (antecedent-estimate) =="
@@ -45,7 +61,8 @@ echo "== 1.9 temporal / mixture interval coverage (antecedent) =="
 run_ignored_test() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  cargo test --release -p antecedent --test v19_calibration "$filter" -- --ignored --exact --nocapture
+  check "v19_calibration: ${filter}" \
+    cargo test --release -p antecedent --test v19_calibration "$filter" -- --ignored --exact --nocapture
 }
 run_ignored_test frequentist_dbn_pulse_shared_block_nominal_90_coverage
 run_ignored_test frequentist_dbn_sustained_shared_block_nominal_90_coverage
@@ -80,7 +97,8 @@ echo "== 1.9 temporal class envelopes: multi-step, TemporalPag, identified-set i
 run_temporal_class() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  cargo test --release -p antecedent --test v19_temporal_class_calibration "$filter" \
+  check "v19_temporal_class_calibration: ${filter}" \
+    cargo test --release -p antecedent --test v19_temporal_class_calibration "$filter" \
     -- --ignored --exact --nocapture
 }
 run_temporal_class frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage
@@ -108,14 +126,16 @@ run_temporal_class frequentist_temporal_pag_point_identified_set_interval_nomina
 run_temporal_class bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage
 run_temporal_class bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_coverage
 
-echo "== 1.9 shared circular-block length sensitivity (x0.5 / x1 / x2 of the rule) =="
+echo "== 1.9 shared circular-block length sensitivity (x0.5 / x1 / x2 of the production length) =="
 run_ignored antecedent analysis::execute::block_length_tests::shared_block_length_sensitivity
 
 echo "== 1.9 static graph-posterior mixture coverage (antecedent) =="
 run_static_mixture_test() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  cargo test -p antecedent --test v19_static_mixture_calibration "$filter" -- --ignored --nocapture
+  check "v19_static_mixture_calibration: ${filter}" \
+    cargo test --release -p antecedent --test v19_static_mixture_calibration "$filter" \
+    -- --ignored --nocapture
 }
 run_static_mixture_test static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage
 run_static_mixture_test static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage
@@ -126,7 +146,9 @@ echo "== 1.9 derivative-family interval coverage (antecedent) =="
 run_ignored_derivative() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  cargo test --release -p antecedent --test v19_derivative_calibration "$filter" -- --ignored --nocapture --exact
+  check "v19_derivative_calibration: ${filter}" \
+    cargo test --release -p antecedent --test v19_derivative_calibration "$filter" \
+    -- --ignored --nocapture --exact
 }
 run_ignored_derivative ade_frequentist_gaussian_treatment_nominal_90_coverage
 run_ignored_derivative ade_bayesian_gaussian_treatment_nominal_90_coverage
@@ -146,7 +168,8 @@ echo "== 1.9 Bayesian temporal Pulse / Sustained under serial dependence (antece
 run_ignored_bayes_temporal() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  cargo test -p antecedent --test v19_bayesian_temporal "$filter" -- --ignored --nocapture
+  check "v19_bayesian_temporal: ${filter}" \
+    cargo test --release -p antecedent --test v19_bayesian_temporal "$filter" -- --ignored --nocapture
 }
 run_ignored_bayes_temporal bayesian_temporal_pulse_iid_nominal_90_coverage
 run_ignored_bayes_temporal bayesian_temporal_pulse_ar1_rho05_n160_nominal_90_coverage
@@ -166,7 +189,9 @@ echo "== 1.9 dependence-honest Frequentist TemporalDag SEs (R-1, R-2) =="
 run_temporal_frequentist() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  cargo test --release -p antecedent --test v19_temporal_frequentist "$filter" -- --ignored --exact --nocapture
+  check "v19_temporal_frequentist: ${filter}" \
+    cargo test --release -p antecedent --test v19_temporal_frequentist "$filter" \
+    -- --ignored --exact --nocapture
 }
 run_temporal_frequentist temporal_dag_pulse_iid_n160_nominal_90_coverage
 run_temporal_frequentist temporal_dag_pulse_ar05_n160_nominal_90_coverage
@@ -201,7 +226,8 @@ echo "== 1.9 static envelope / tier coverage (antecedent, release) =="
 run_static_envelope() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  cargo test --release -p antecedent --test v19_static_envelope_calibration "$filter" \
+  check "v19_static_envelope_calibration: ${filter}" \
+    cargo test --release -p antecedent --test v19_static_envelope_calibration "$filter" \
     -- --ignored --nocapture --exact
 }
 run_static_envelope static_cpdag_ate_envelope_frequentist_nominal_90_coverage
@@ -223,13 +249,15 @@ echo "== 1.9 temporal response surfaces: pointwise + simultaneous bands (anteced
 # TemporalDag surfaces, observation-adjusted pairs, horizon-dependent I(h), and
 # TemporalCpdag / TemporalPag completion atoms, two-step Sequence overlays on
 # complete and observation-adjusted data, iid and AR(1) residuals).
-cargo test --release -p antecedent --test v19_temporal_response_calibration -- --ignored --nocapture
+check "v19_temporal_response_calibration" \
+  cargo test --release -p antecedent --test v19_temporal_response_calibration -- --ignored --nocapture
 
 echo "== 1.9 remaining static cells: responses, mediation, path, distribution, counterfactual (R-19, R-17) =="
 run_static_remaining() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  cargo test --release -p antecedent --test v19_static_calibration "$filter" \
+  check "v19_static_calibration: ${filter}" \
+    cargo test --release -p antecedent --test v19_static_calibration "$filter" \
     -- --ignored --nocapture --exact
 }
 run_static_remaining response_curve_dag_frequentist_pointwise_nominal_90_coverage
@@ -284,6 +312,11 @@ run_ignored antecedent-discovery pcmci_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_planted_lag1_power
 
 echo "== 0.5.0 response/observation/transport/interference =="
-bash scripts/gate_response_calibration.sh
+check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh
 
+if [ "$FAILED_COUNT" -gt 0 ]; then
+  echo "gate_calibration: ${FAILED_COUNT} group(s) failed:"
+  printf '%s' "$FAILED"
+  exit 1
+fi
 echo "gate_calibration: ok"
