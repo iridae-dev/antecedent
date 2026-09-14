@@ -29,6 +29,29 @@ structural truth. The total effect and the swapped-level contrast (natural
 direct effect) are recorded as discriminators: an implementation that binds
 one treatment level everywhere returns the total effect.
 
+A second case, stored under the ``shared_descendant`` key, pins a graph where
+one node lies on both a selected and an unselected path without being a
+recanting witness (binary, noises independent U(0,1), thresholds multiples of
+1/4):
+
+    C = 1[U_c < 2/4]
+    T = 1[U_t < (1 + 2C)/4]
+    A(t) = 1[U_a < (1 + 2t)/4]
+    B(t) = 1[U_b < (3 - 2t)/4]
+    W(a, b, c) = 1[U_w < (2a + b + c)/4]
+    Y(w, c) = 1[U_y < (1 + 2w + c)/4]
+
+Graph: C -> T, C -> W, C -> Y, T -> A, T -> B, A -> W, B -> W, W -> Y. The
+query selects the paths through A (only T -> A -> W -> Y); T -> B -> W -> Y is
+unselected. W is on both, but the two paths leave T through different
+children, so the effect is identified:
+
+    E[Y(W(A(1), B(0)))] - E[Y(W(A(0), B(0)))]
+      = sum P(c) [P(a | T=1) - P(a | T=0)] P(b | T=0) P(w | a, b, c) P(y | w, c).
+
+The truth again comes from enumerating the 4^6 noise cells of the structural
+equations; the table plug-in is only a cross-check.
+
 Run: ``python3 conformance/estimate/path_specific_edge_gformula/reference.py``
 (add ``--write`` to regenerate expected.json, ``--check`` to compare).
 
@@ -65,9 +88,9 @@ def p_y(t: int, m: int, c: int) -> float:
     return 0.1 + 0.3 * m + 0.1 * t + 0.2 * m * t + 0.2 * c
 
 
-def below(u_bin: int, p: float) -> int:
-    """1[U < p] for U in bin [u_bin/10, (u_bin+1)/10); p is a multiple of 0.1."""
-    return int(u_bin < round(p * BINS))
+def below(u_bin: int, p: float, bins: int = BINS) -> int:
+    """1[U < p] for U in bin [u_bin/bins, (u_bin+1)/bins); p is a multiple of 1/bins."""
+    return int(u_bin < round(p * bins))
 
 
 def structural_cells():
@@ -145,6 +168,130 @@ def empirical_contrasts(table: list[dict]) -> dict[str, float]:
     }
 
 
+SHARED_BINS = 4
+SHARED_COLUMNS = ("t", "a", "b", "w", "y", "c")
+
+
+def shared_cells():
+    """Yield (t, a(.), b(.), w(., .), y(.), c) for every equally likely noise cell."""
+    for uc, ut, ua, ub, uw, uy in itertools.product(range(SHARED_BINS), repeat=6):
+        c = below(uc, 2 / 4, SHARED_BINS)
+        t = below(ut, (1 + 2 * c) / 4, SHARED_BINS)
+        a_of = {tt: below(ua, (1 + 2 * tt) / 4, SHARED_BINS) for tt in (0, 1)}
+        b_of = {tt: below(ub, (3 - 2 * tt) / 4, SHARED_BINS) for tt in (0, 1)}
+        w_of = {
+            (aa, bb): below(uw, (2 * aa + bb + c) / 4, SHARED_BINS)
+            for aa in (0, 1)
+            for bb in (0, 1)
+        }
+        y_of = {ww: below(uy, (1 + 2 * ww + c) / 4, SHARED_BINS) for ww in (0, 1)}
+        yield t, a_of, b_of, w_of, y_of, c
+
+
+def shared_truths() -> dict[str, float]:
+    cells = list(shared_cells())
+    n = len(cells)
+
+    def mean(t_a: int, t_b: int) -> float:
+        # Y(W(A(t_a), B(t_b))): A answers the active or control arm independently of B.
+        return sum(y[w[(a[t_a], b[t_b])]] for _, a, b, w, y, _ in cells) / n
+
+    base = mean(0, 0)
+    return {
+        "path_specific_effect": mean(1, 0) - base,
+        "total_effect": mean(1, 1) - base,
+        "complementary_path_effect": mean(0, 1) - base,
+    }
+
+
+def shared_table() -> list[dict]:
+    counts: dict[tuple[int, ...], int] = {}
+    for t, a_of, b_of, w_of, y_of, c in shared_cells():
+        a, b = a_of[t], b_of[t]
+        w = w_of[(a, b)]
+        key = (t, a, b, w, y_of[w], c)
+        counts[key] = counts.get(key, 0) + 1
+    common = math.gcd(*counts.values())
+    return [
+        {**{k: float(v) for k, v in zip(SHARED_COLUMNS, key)}, "count": n // common}
+        for key, n in sorted(counts.items())
+    ]
+
+
+def shared_edge_g_formula(table: list[dict], level_a: float, level_b: float) -> float:
+    """sum P(c) P(a | T=level_a) P(b | T=level_b) P(w | a, b, c) E[Y | w, c] from the table."""
+    cols: dict[str, list[float]] = {k: [] for k in SHARED_COLUMNS}
+    for cell in table:
+        for k in cols:
+            cols[k].extend([cell[k]] * cell["count"])
+    t, a, b, w, y, c = (np.asarray(cols[k]) for k in SHARED_COLUMNS)
+    total = 0.0
+    for cv, av, bv, wv in itertools.product((0.0, 1.0), repeat=4):
+        pc = np.mean(c == cv)
+        pa = np.mean(a[t == level_a] == av)
+        pb = np.mean(b[t == level_b] == bv)
+        sel_w = (a == av) & (b == bv) & (c == cv)
+        pw = np.mean(w[sel_w] == wv)
+        ey = np.mean(y[(w == wv) & (c == cv)])
+        total += pc * pa * pb * pw * ey
+    return float(total)
+
+
+def build_shared() -> dict:
+    table = shared_table()
+    truth = shared_truths()
+    base = shared_edge_g_formula(table, 0.0, 0.0)
+    plug_in = {
+        "path_specific_effect": shared_edge_g_formula(table, 1.0, 0.0) - base,
+        "total_effect": shared_edge_g_formula(table, 1.0, 1.0) - base,
+        "complementary_path_effect": shared_edge_g_formula(table, 0.0, 1.0) - base,
+    }
+    for key, value in truth.items():
+        if abs(value - plug_in[key]) > 1e-12:
+            raise SystemExit(f"shared {key}: structural {value} != table plug-in {plug_in[key]}")
+    return {
+        "case": "shared_descendant_distinct_children",
+        "columns": list(SHARED_COLUMNS),
+        "query": {
+            "treatment": "t",
+            "outcome": "y",
+            "path_nodes": ["a"],
+            "control_level": 0.0,
+            "active_level": 1.0,
+        },
+        "graph": {
+            "class": "Dag",
+            "directed_edges": [
+                ["c", "t"],
+                ["c", "w"],
+                ["c", "y"],
+                ["t", "a"],
+                ["t", "b"],
+                ["a", "w"],
+                ["b", "w"],
+                ["w", "y"],
+            ],
+        },
+        "contingency_table": table,
+        "identification": {
+            "identifier": "path_specific.natural",
+            "status": "NonparametricallyIdentified",
+            "rule": "path_specific.edge_gformula",
+        },
+        "truth": {k: round(v, 12) for k, v in truth.items()},
+        "frequentist": {
+            "estimator": "functional.effect",
+            "expected_effect": round(truth["path_specific_effect"], 12),
+            "absolute_tolerance": 1e-9,
+        },
+        "bayesian": {
+            "estimator": "functional.effect",
+            "posterior_mean_tolerance": 0.02,
+            "note": "posterior mean within tolerance of the truth; 90% interval covers it",
+        },
+    }
+
+
 def build() -> dict:
     table = contingency_table()
     truth = structural_truths()
@@ -191,6 +338,7 @@ def build() -> dict:
             "posterior_mean_tolerance": 0.02,
             "note": "posterior mean within tolerance of the truth; 90% interval covers it",
         },
+        "shared_descendant": build_shared(),
     }
 
 
@@ -205,6 +353,7 @@ def main() -> None:
         if frozen != expected:
             raise SystemExit("expected.json is stale; rerun with --write")
     print(json.dumps(expected["truth"], indent=2))
+    print(json.dumps(expected["shared_descendant"]["truth"], indent=2))
 
 
 if __name__ == "__main__":

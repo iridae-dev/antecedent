@@ -7,6 +7,10 @@
 //! fixture derives the truth from the structural equations and re-derives the
 //! edge g-formula from the table with numpy.
 //!
+//! The fixture's `shared_descendant` case pins a node on both a selected and an
+//! unselected path that is not a recanting witness (`t -> a -> w -> y`
+//! selected, `t -> b -> w -> y` not): path effect 0.125, total effect 0.0625.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -105,15 +109,32 @@ fn assert_edge_g_formula_identification(result: &StudyResult, label: &str) {
 
 #[test]
 fn frequentist_edge_g_formula_matches_reference_fresh_and_prepared() {
-    let pin = pin();
+    check_frequentist(&pin());
+}
+
+/// `w` sits on the selected `t -> a -> w -> y` and the unselected
+/// `t -> b -> w -> y`; the paths leave `t` through different children, so `w`
+/// is not a recanting witness and the edge g-formula recovers the structural
+/// path effect.
+#[test]
+fn shared_descendant_through_distinct_children_matches_reference() {
+    check_frequentist(&pin()["shared_descendant"]);
+}
+
+#[test]
+fn shared_descendant_bayesian_posterior_centres_on_reference() {
+    check_bayesian(&pin()["shared_descendant"]);
+}
+
+fn check_frequentist(pin: &serde_json::Value) {
     let truth = pin["frequentist"]["expected_effect"].as_f64().unwrap();
     let tol = pin["frequentist"]["absolute_tolerance"].as_f64().unwrap();
     let total = pin["truth"]["total_effect"].as_f64().unwrap();
     let ctx = ExecutionContext::for_tests(7);
-    let data = expand(&pin);
+    let data = expand(pin);
     for accepted in [false, true] {
         for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
-            let built = study(&pin, accepted, InferenceMode::Frequentist, suite);
+            let built = study(pin, accepted, InferenceMode::Frequentist, suite);
             let fresh = built.clone().run(&ctx).unwrap();
             let click = built.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
             for (result, path) in [(&fresh, "fresh"), (&click, "prepared")] {
@@ -140,15 +161,18 @@ fn frequentist_edge_g_formula_matches_reference_fresh_and_prepared() {
 
 #[test]
 fn bayesian_edge_g_formula_posterior_centres_on_reference_fresh_and_prepared() {
-    let pin = pin();
+    check_bayesian(&pin());
+}
+
+fn check_bayesian(pin: &serde_json::Value) {
     let truth = pin["truth"]["path_specific_effect"].as_f64().unwrap();
     let tol = pin["bayesian"]["posterior_mean_tolerance"].as_f64().unwrap();
     let total = pin["truth"]["total_effect"].as_f64().unwrap();
     let ctx = ExecutionContext::for_tests(7);
-    let data = expand(&pin);
+    let data = expand(pin);
     for accepted in [false, true] {
         for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
-            let built = study(&pin, accepted, bayes(), suite);
+            let built = study(pin, accepted, bayes(), suite);
             let fresh = built.clone().run(&ctx).unwrap();
             let click = built.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
             for (result, path) in [(&fresh, "fresh"), (&click, "prepared")] {
@@ -166,7 +190,10 @@ fn bayesian_edge_g_formula_posterior_centres_on_reference_fresh_and_prepared() {
                 draws.sort_by(f64::total_cmp);
                 let at = |q: f64| draws[((draws.len() - 1) as f64 * q).round() as usize];
                 assert!(at(0.05) <= truth && truth <= at(0.95), "{label}: 90% interval");
-                assert!(at(0.95) < total, "{label}: interval must exclude the total effect");
+                assert!(
+                    !(at(0.05) <= total && total <= at(0.95)),
+                    "{label}: interval must exclude the total effect"
+                );
             }
             assert!((fresh.estimate.ate - click.estimate.ate).abs() < 1e-12);
         }

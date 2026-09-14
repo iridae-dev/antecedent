@@ -1,12 +1,39 @@
 //! Path-restricted natural-effect identification (Avin, Shpitser & Pearl 2005).
 //!
-//! Enumerate directed paths π from treatment to outcome and reject recanting
-//! descendants. When every directed path is in π the path-specific effect is
-//! the total effect: surgically delete treatment out-edges not on any path and
-//! run general ID for the active/control contrast. When a complementary path
-//! exists, emit the edge g-formula (Shpitser 2013): the treatment enters each
-//! child's factor at the active level if that edge starts a path in π and at
-//! the control level otherwise, minus the all-control g-formula.
+//! Enumerate directed paths π from treatment to outcome and refuse when a
+//! recanting witness exists. When every directed path is in π the
+//! path-specific effect is the total effect: surgically delete treatment
+//! out-edges not on any path and run general ID for the active/control
+//! contrast. When a complementary path exists, emit the edge g-formula
+//! (Shpitser 2013): the treatment enters each child's factor at the active
+//! level if that edge starts a path in π and at the control level otherwise,
+//! minus the all-control g-formula.
+//!
+//! # Recanting witness
+//!
+//! Avin, Shpitser & Pearl (2005) define a recanting witness for π as a node
+//! `W ≠ T` with a directed path `q` from `T` to `W` and two directed paths
+//! `s₁`, `s₂` from `W` to `Y` such that `q·s₁ ∈ π` and `q·s₂ ∉ π`: `W`'s
+//! response to the shared prefix `q` would be needed at the active level along
+//! one continuation and at the control level along the other, a cross-world
+//! quantity no observational law pins down. The effect is identified in a DAG
+//! iff no witness exists. Taking `W` to be the first node of `q` after `T`
+//! shows the witness exists iff some child `C` of `T` starts both a path in π
+//! and a path outside it (conversely, a child that starts both is itself a
+//! witness with `q = T → C`). The check is therefore exact: it compares the
+//! first hops of the selected and the complementary paths. Without a witness,
+//! π is exactly the set of paths leaving `T` through an edge that starts a
+//! selected path, which is the edge assignment the edge g-formula binds.
+//!
+//! A node reached from `T` along both kinds of path but through *different*
+//! children (`T → A → W → Y` selected, `T → B → W → Y` not) is not a witness:
+//! `W` takes `A` from the active world and `B` from the control world through
+//! one ordinary factor `P(w | a, b)`.
+//!
+//! On an ADMG a directed witness still refuses (latent variables cannot remove
+//! one). The district-level criterion (Shpitser 2013's recanting district) is
+//! not implemented: without a witness, a bidirected edge on an outcome ancestor
+//! is refused as unsupported by the edge g-formula.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -182,13 +209,12 @@ impl PathSpecificIdentifier {
         derivation
             .push("path_specific.paths", format!("{} path(s) retained after filter", pi.len()));
 
-        let complement: Vec<&Vec<DenseNodeId>> = complement_paths.iter().collect();
-
-        if let Some(w) = recanting_descendant(t, y, &pi, &complement) {
+        if let Some(w) = recanting_witness(&pi, &complement_paths) {
             derivation.push(
                 "path_specific.recanting",
                 format!(
-                    "recanting descendant dense={} blocks nonparametric path-specific ID",
+                    "recanting witness dense={} (a treatment child starting both a selected and a \
+                     complementary path) blocks nonparametric path-specific ID",
                     w.raw()
                 ),
             );
@@ -199,7 +225,7 @@ impl PathSpecificIdentifier {
                 perf,
             ));
         }
-        derivation.push("path_specific.recanting", "no recanting descendants");
+        derivation.push("path_specific.recanting", "no recanting witness");
 
         // Edges on π that leave the treatment.
         let mut keep_out: HashSet<DenseNodeId> = HashSet::new();
@@ -289,30 +315,24 @@ fn path_matches_filter(path: &[DenseNodeId], filter: &HashSet<DenseNodeId>) -> b
     filter.iter().all(|n| mid.contains(n))
 }
 
-/// Proper descendants of `t` that appear on both a π path and a complementary path (≠ y).
-fn recanting_descendant(
-    t: DenseNodeId,
-    y: DenseNodeId,
+/// A recanting witness for π, if one exists: a child of the treatment that
+/// starts both a selected and a complementary directed path to the outcome.
+///
+/// Every path begins at the treatment, so `path[1]` is the treatment child the
+/// path leaves through. By the argument in the module docs this is exactly the
+/// Avin–Shpitser–Pearl criterion over the complete path set; callers must fail
+/// closed on a truncated enumeration before relying on a `None`.
+fn recanting_witness(
     pi: &[Vec<DenseNodeId>],
-    complement: &[&Vec<DenseNodeId>],
+    complement: &[Vec<DenseNodeId>],
 ) -> Option<DenseNodeId> {
-    let mut on_pi: HashSet<DenseNodeId> = HashSet::new();
-    for path in pi {
-        for &n in path.iter().skip(1) {
-            if n != y && n != t {
-                on_pi.insert(n);
-            }
-        }
-    }
-    let mut on_comp: HashSet<DenseNodeId> = HashSet::new();
-    for path in complement {
-        for &n in path.iter().skip(1) {
-            if n != y && n != t {
-                on_comp.insert(n);
-            }
-        }
-    }
-    on_pi.intersection(&on_comp).next().copied()
+    let selected_first_hops: HashSet<DenseNodeId> =
+        pi.iter().filter_map(|path| path.get(1).copied()).collect();
+    complement
+        .iter()
+        .filter_map(|path| path.get(1).copied())
+        .filter(|child| selected_first_hops.contains(child))
+        .min_by_key(|child| child.raw())
 }
 
 /// Edge g-formula for a path-specific natural effect (Avin, Shpitser & Pearl
@@ -481,7 +501,7 @@ fn admg_to_dag(admg: &Admg) -> Result<Dag, IdentificationError> {
 
 #[cfg(test)]
 mod tests {
-    use antecedent_core::{Intervention, Value, VariableId};
+    use antecedent_core::{Intervention, MediationContrast, MediationQuery, Value, VariableId};
     use antecedent_graph::DenseNodeId;
 
     use super::*;
@@ -585,7 +605,14 @@ mod tests {
         let res = id.identify(&prep, &CausalQuery::PathSpecific(q), &mut ws).unwrap();
         assert!(has_rule(&res, "path_specific.edge_gformula"), "{:?}", res.derivation.steps);
 
-        // Collect (factor variable, bound treatment level) over the contrast's left side.
+        let (left, right) = contrast_levels(&res);
+        assert_eq!(left, vec![(1, 1.0), (2, 0.0)], "M at active, Y at control");
+        assert_eq!(right, vec![(1, 0.0), (2, 0.0)], "reference side all control");
+    }
+
+    /// `(factor variable, bound treatment level)` pairs on each side of the
+    /// edge g-formula contrast, sorted by variable.
+    fn contrast_levels(res: &IdentificationResult) -> (Vec<(u32, f64)>, Vec<(u32, f64)>) {
         let ExprNode::Contrast { left, right, .. } = res.arena.node(res.estimands[0].functional)
         else {
             panic!("expected a contrast");
@@ -614,8 +641,178 @@ mod tests {
             out.sort_by(|a, b| a.0.cmp(&b.0));
             out
         };
-        assert_eq!(levels(*left), vec![(1, 1.0), (2, 0.0)], "M at active, Y at control");
-        assert_eq!(levels(*right), vec![(1, 0.0), (2, 0.0)], "reference side all control");
+        (levels(*left), levels(*right))
+    }
+
+    fn dag_from(n: u32, edges: &[(u32, u32)]) -> Dag {
+        let mut dag = Dag::with_variables(n);
+        for &(u, v) in edges {
+            dag.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(v)).unwrap();
+        }
+        dag
+    }
+
+    fn identify_on(dag: &Dag, query: CausalQuery) -> IdentificationResult {
+        let id = PathSpecificIdentifier::new();
+        let prep = id.prepare_dag(dag).unwrap();
+        let mut ws = IdentificationWorkspace::default();
+        id.identify(&prep, &query, &mut ws).unwrap()
+    }
+
+    fn path_query(t: u32, y: u32, path_nodes: &[u32]) -> CausalQuery {
+        CausalQuery::PathSpecific(
+            PathSpecificEffectQuery::binary(VariableId::from_raw(t), VariableId::from_raw(y))
+                .with_path_nodes(
+                    path_nodes.iter().map(|&v| VariableId::from_raw(v)).collect::<Vec<_>>(),
+                ),
+        )
+    }
+
+    fn mediation_query(
+        t: u32,
+        y: u32,
+        mediators: &[u32],
+        contrast: MediationContrast,
+    ) -> CausalQuery {
+        CausalQuery::Mediation(MediationQuery::binary(
+            VariableId::from_raw(t),
+            VariableId::from_raw(y),
+            mediators.iter().map(|&v| VariableId::from_raw(v)).collect::<Vec<_>>(),
+            contrast,
+        ))
+    }
+
+    fn witness(res: &IdentificationResult) -> Option<String> {
+        res.derivation
+            .steps
+            .iter()
+            .find(|s| s.rule.as_ref() == "path_specific.recanting" && s.detail.contains("blocks"))
+            .map(|s| s.detail.to_string())
+    }
+
+    /// `T → A → W → Y` selected, `T → B → W → Y` not. `W` is on both paths but
+    /// they leave `T` through different children, so `W` is not a recanting
+    /// witness: `Σ P(a|t₁) P(b|t₀) P(w|a,b) P(y|w)` identifies the effect.
+    #[test]
+    fn shared_descendant_through_distinct_children_identifies() {
+        // 0=T 1=A 2=B 3=W 4=Y
+        let dag = dag_from(5, &[(0, 1), (1, 3), (0, 2), (2, 3), (3, 4)]);
+        let res = identify_on(&dag, path_query(0, 4, &[1]));
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(witness(&res).is_none(), "{:?}", res.derivation.steps);
+        assert!(has_rule(&res, "path_specific.edge_gformula"));
+        let (left, right) = contrast_levels(&res);
+        assert_eq!(left, vec![(1, 1.0), (2, 0.0)], "A at active, B at control");
+        assert_eq!(right, vec![(1, 0.0), (2, 0.0)]);
+    }
+
+    /// Natural direct effect with a post-mediator node: `T → M1 → W → Y`,
+    /// `T → W → Y`, `T → Y`, mediator `M1`. `W` is on a mediated and an
+    /// unmediated path, but `T`'s children `M1`, `W`, `Y` each start one kind
+    /// only, so both natural effects are identified.
+    #[test]
+    fn mediation_with_post_mediator_node_identifies_both_natural_effects() {
+        // 0=T 1=M1 2=W 3=Y
+        let dag = dag_from(4, &[(0, 1), (1, 2), (0, 2), (2, 3), (0, 3)]);
+        let nde = identify_on(&dag, mediation_query(0, 3, &[1], MediationContrast::NaturalDirect));
+        assert_eq!(nde.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(has_rule(&nde, "path_specific.edge_gformula"));
+        let (left, _) = contrast_levels(&nde);
+        assert_eq!(left, vec![(1, 0.0), (2, 1.0), (3, 1.0)], "M1 control; W and Y active");
+
+        let nie =
+            identify_on(&dag, mediation_query(0, 3, &[1], MediationContrast::NaturalIndirect));
+        assert_eq!(nie.status, IdentificationStatus::NonparametricallyIdentified);
+        let (left, _) = contrast_levels(&nie);
+        assert_eq!(left, vec![(1, 1.0), (2, 0.0), (3, 0.0)], "M1 active; W and Y control");
+    }
+
+    /// `T → L → M → Y`, `T → L → Y`, `T → M → Y`: `L` is a child of `T` that
+    /// starts a mediated and an unmediated path, a genuine recanting witness for
+    /// both natural effects and for the path set through `M`.
+    #[test]
+    fn treatment_child_starting_both_kinds_of_path_refuses() {
+        // 0=T 1=L 2=M 3=Y
+        let dag = dag_from(4, &[(0, 1), (1, 2), (1, 3), (0, 2), (2, 3)]);
+        for query in [
+            path_query(0, 3, &[2]),
+            mediation_query(0, 3, &[2], MediationContrast::NaturalIndirect),
+            mediation_query(0, 3, &[2], MediationContrast::NaturalDirect),
+        ] {
+            let res = identify_on(&dag, query);
+            assert_eq!(res.status, IdentificationStatus::NotIdentified);
+            let detail = witness(&res).expect("recanting witness step");
+            assert!(detail.contains("dense=1"), "L is the witness: {detail}");
+        }
+    }
+
+    /// A selection that is not closed under the path edges: only
+    /// `T → A → R → Z → Y` is selected, so `A` starts it and the unselected
+    /// `T → A → R → Y`.
+    #[test]
+    fn selection_splitting_below_a_treatment_child_refuses() {
+        // 0=T 1=A 2=B 3=R 4=Z 5=Y
+        let dag = dag_from(6, &[(0, 1), (0, 2), (1, 3), (2, 3), (3, 5), (3, 4), (4, 5)]);
+        let res = identify_on(&dag, path_query(0, 5, &[1, 4]));
+        assert_eq!(res.status, IdentificationStatus::NotIdentified);
+        assert!(witness(&res).expect("witness").contains("dense=1"));
+    }
+
+    /// Every case frozen in `conformance/identify/path_specific`.
+    #[test]
+    fn frozen_identification_cases() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../conformance/identify/path_specific/expected.json"
+        ))
+        .unwrap();
+        for case in fixture["cases"].as_array().unwrap() {
+            let id = case["id"].as_str().unwrap();
+            let mut names: Vec<String> = Vec::new();
+            let mut index = |name: &str| {
+                names.iter().position(|n| n == name).unwrap_or_else(|| {
+                    names.push(name.to_owned());
+                    names.len() - 1
+                })
+            };
+            let edges: Vec<(u32, u32)> = case["dag"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|e| {
+                    let (u, v) = e.as_str().unwrap().split_once("->").unwrap();
+                    (index(u.trim()) as u32, index(v.trim()) as u32)
+                })
+                .collect();
+            let path_nodes: Vec<u32> = case["included_path_nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| index(v.as_str().unwrap()) as u32)
+                .collect();
+            let (t, y) = (index("T") as u32, index("Y") as u32);
+            let witness_node = case["witness"].as_str().map(&mut index);
+            let dag = dag_from(names.len() as u32, &edges);
+            let res = identify_on(&dag, path_query(t, y, &path_nodes));
+            match case["status"].as_str().unwrap() {
+                "identified" => {
+                    assert_eq!(
+                        res.status,
+                        IdentificationStatus::NonparametricallyIdentified,
+                        "{id}"
+                    );
+                    if let Some(method) = case["method"].as_str() {
+                        assert_eq!(res.estimands[0].method.as_ref(), method, "{id}");
+                    }
+                }
+                "not_identified" => {
+                    assert_eq!(res.status, IdentificationStatus::NotIdentified, "{id}");
+                    let w = witness_node.expect("not_identified case names its witness");
+                    let detail = witness(&res).unwrap_or_default();
+                    assert!(detail.contains(&format!("dense={w} ")), "{id}: {detail}");
+                }
+                other => panic!("{id}: unknown status {other}"),
+            }
+        }
     }
 
     /// Latent confounding on an outcome ancestor needs the district formula,
