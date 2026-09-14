@@ -528,14 +528,20 @@ fn frequentist_temporal_pag_one_completion_sustained_ar1_rho05_n160_nominal_90_c
 /// Assertion: the two-sided `level ± 3·MCSE` band. Imbens–Manski intervals are
 /// conservative (coverage above nominal) only while the set's width is small
 /// relative to sampling noise. In every fixture below the identified effects are
-/// 4–10 bound SDs apart at the design's `n`, so the width is retained, the
+/// 4–10 completion SDs apart at the design's `n`, so the width is retained, the
 /// critical value is ≈ one-sided, and the true effect sits at an endpoint of the
 /// set: coverage is then nominal (a miss happens only in the tail on the side of
 /// the true completion). A one-completion set is a point and the interval is
 /// the two-sided atom interval, also nominal. Over-coverage in these designs
 /// would mean the construction is wider than IM requires, which the band is
 /// meant to catch. Coverage of the *other* endpoint (the non-causal completion's
-/// estimand) is printed for the record.
+/// estimand) is printed for the record. The heterogeneous-SD designs further
+/// below sit about one noisy-completion SD apart, where the construction is
+/// conservative by design, and are gated one-sided.
+///
+/// `chain_pag`'s equivalence audit is capped, so its intervals are published
+/// flagged `truncated`: they span the retained completions, and the generating
+/// graph is one of them.
 struct SetTally {
     name: String,
     truth: (CoverageTally, f64),
@@ -589,6 +595,11 @@ impl SetTally {
     }
 
     fn assert(&self) {
+        self.report();
+        self.truth.0.assert();
+    }
+
+    fn report(&self) {
         let n = self.lower.len().max(2) as f64;
         let mean = self.lower.iter().map(|l| l.0).sum::<f64>() / n;
         let sd = (self.lower.iter().map(|l| (l.0 - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt();
@@ -611,7 +622,6 @@ impl SetTally {
                 tally.rate()
             );
         }
-        self.truth.0.assert();
     }
 }
 
@@ -751,6 +761,132 @@ fn bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_cove
     );
 }
 
+// ---------------------------------------------------------------------------
+// Identified-set intervals with heterogeneous completion SDs
+// ---------------------------------------------------------------------------
+
+/// `z → t` loading of the heterogeneous-SD design.
+const HET_A: f64 = 1.0;
+/// Treatment innovation SD: small, so `t` is nearly collinear with `z`.
+const HET_S: f64 = 0.2;
+/// Effect of `z[t-1]` on `y[t]`.
+const HET_C: f64 = 0.25;
+/// Outcome noise SD.
+const HET_SD_E: f64 = 0.5;
+
+/// `z` iid N(0, 1), `t = HET_A z + HET_S e`, `y[t] = B1 t[t-1] + HET_C z[t-1] +
+/// HET_SD_E u[t]` on the [`confounded_cpdag`] structure. Columns `t, y, z`.
+///
+/// `t` is nearly collinear with `z`, so the adjusted (true, `z -> t`)
+/// completion is noisy — SD ≈ `HET_SD_E / (HET_S √n)` ≈ 0.20 at n = 160 —
+/// while the unadjusted completion regresses on all of `t`'s variance and is
+/// about five times more precise. The unadjusted plim sits
+/// `HET_C·HET_A / (HET_A² + HET_S²)` ≈ 0.24 (≈ 1.2 noisy-completion SDs) above
+/// `B1`.
+fn heterogeneous_se_series(n: usize, seed: u64) -> TimeSeriesData {
+    let total = n + 1;
+    let mut draw = common::calibration::gaussian(seed);
+    let z: Vec<f64> = (0..total).map(|_| draw()).collect();
+    let t: Vec<f64> = z.iter().map(|z| HET_A * z + HET_S * draw()).collect();
+    let mut y = vec![0.0; total];
+    for i in 1..total {
+        y[i] = B1 * t[i - 1] + HET_C * z[i - 1] + HET_SD_E * draw();
+    }
+    TimeSeriesData::from_f64_columns([("t", &t[1..]), ("y", &y[1..]), ("z", &z[1..])], 1).unwrap()
+}
+
+/// Unadjusted completion's plim: `B1 + HET_C·cov(t, z) / var(t)`.
+fn heterogeneous_se_unadjusted_plim() -> f64 {
+    B1 + HET_C * HET_A / (HET_A * HET_A + HET_S * HET_S)
+}
+
+/// One-sided record: the true (noisy) completion must not be under-covered.
+///
+/// A noisy completion next to a precise one is the case where an interval built
+/// on the SD of the min / max of completion estimates under-covers: the min is
+/// capped by the precise estimate, so its SD falls well below the noisy
+/// completion's own. In an idealised simulation (two jointly normal completion
+/// estimates with SDs 1 and 0.2, 1.2 SDs apart, replicates drawn around the
+/// estimates, n = 400 selection threshold) that construction covers the noisy
+/// completion 0.85 of the time at nominal 0.90. The per-completion
+/// construction keeps the noisy completion's own interval inside the published
+/// one and, at a width this close to the noise, is conservative (0.95 in the
+/// same simulation; 0.955 / 0.950 Frequentist / Bayesian here at 400
+/// replicates), so the assertion is the lower edge of the `level ± 3·MCSE` band.
+fn heterogeneous_se_case<F>(name: &str, mut result_for: F)
+where
+    F: FnMut(u32) -> StudyResult,
+{
+    let mut tally = SetTally::new(name, B1, Some(heterogeneous_se_unadjusted_plim()));
+    for s in 0..n_sim() {
+        tally.record(&result_for(s));
+    }
+    tally.report();
+    let (lo, hi) = common::calibration::coverage_band(n_sim(), LEVEL);
+    let rate = tally.truth.0.rate();
+    eprintln!(
+        "calibration {name} identified-set interval [true noisy completion]: coverage={rate:.3} \
+         band=[{lo:.3}, {hi:.3}] (one-sided: at least {lo:.3}) mean_length={:.4}",
+        tally.truth.0.mean_length()
+    );
+    assert!(rate >= lo, "{name}: true completion under-covered, {rate:.3} < {lo:.3}");
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion() {
+    heterogeneous_se_case("frequentist TemporalCpdag Pulse heterogeneous SDs", |s| {
+        run(
+            heterogeneous_se_series(N, 81_000 + u64::from(s)),
+            confounded_cpdag(),
+            &pulse_query(),
+            InferenceMode::Frequentist,
+            None,
+            BOOT,
+            u64::from(s),
+        )
+    });
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion() {
+    heterogeneous_se_case("Bayesian TemporalCpdag Pulse heterogeneous SDs (no ClassPrior)", |s| {
+        run(
+            heterogeneous_se_series(N, 82_000 + u64::from(s)),
+            confounded_cpdag(),
+            &pulse_query(),
+            bayes(),
+            None,
+            0,
+            u64::from(s),
+        )
+    });
+}
+
+/// The heterogeneous-SD design delivers what the calibration above relies on:
+/// completion plims at `B1` and the unadjusted plim, with the adjusted
+/// completion several times noisier than the unadjusted one.
+#[test]
+fn heterogeneous_se_fixture_has_a_noisy_true_completion() {
+    let result = run(
+        heterogeneous_se_series(SANITY_N, 9),
+        confounded_cpdag(),
+        &pulse_query(),
+        InferenceMode::Frequentist,
+        None,
+        BOOT,
+        9,
+    );
+    let values = atom_values(&result);
+    close("unadjusted completion", values[0].unwrap(), heterogeneous_se_unadjusted_plim(), 0.02);
+    close("adjusted completion", values[1].unwrap(), B1, 0.03);
+    let set = result.structural_response.as_ref().unwrap().identified_set_interval.unwrap();
+    assert!(!set.truncated, "a CPDAG enumeration is complete");
+    // The true completion is the lower one; its own SD sets the lower endpoint.
+    assert!(set.lower_se > 3.0 * set.upper_se, "noisy lower completion: {set:?}");
+}
+
 const SANITY_N: usize = 20_000;
 
 #[test]
@@ -775,6 +911,78 @@ fn chain_pag_fixture_identifies_six_completions_at_two_effects() {
             close("chain mixture", result.estimate.ate, chain_mixture_truth(&query), 0.03);
         }
     }
+}
+
+/// `chain_pag`'s capped equivalence audit leaves the class scope partial: both
+/// inference modes still publish the identified-set interval, flagged
+/// `truncated` and paired with a warning.
+#[test]
+fn chain_pag_identified_set_interval_is_flagged_truncated() {
+    const TRUNCATED: &str = "estimate.temporal_class.identified_set_interval_truncated";
+    for (inference, boot) in [(InferenceMode::Frequentist, 32), (bayes(), 0)] {
+        let result = run(
+            chain_pag_series(N, 0.0, 11),
+            chain_pag(),
+            &pulse_query(),
+            inference,
+            None,
+            boot,
+            11,
+        );
+        let structural = result.structural_response.as_ref().expect("class mixture");
+        assert!(!structural.full_mass_scope, "fixture: the audit is capped");
+        let set = structural.identified_set_interval.expect("interval published");
+        assert!(set.truncated, "{set:?}");
+        assert_eq!(set.completions, 6, "every retained identified completion enters");
+        let warning = result
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == TRUNCATED)
+            .expect("truncation warning");
+        assert_eq!(warning.severity, antecedent_core::DiagnosticSeverity::Warning);
+    }
+}
+
+/// `t@-1 o-o z@-1`, both into `y`: three MAG completions over a fully audited
+/// class, one of them `t <-> z` (identified, but unevaluable by sequential
+/// g-computation). Under a class prior the multi-step Sustained mixture draws
+/// only from the directed completions; the bidirected completion's mass is
+/// unevaluable on both the structural mixture and the mixed posterior, never
+/// unidentified.
+#[test]
+fn unevaluable_mag_completion_is_not_unidentified_on_the_mixed_posterior() {
+    use antecedent_core::Lag;
+    let mut pag = antecedent_graph::TemporalPag::empty();
+    let t1 = pag.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = pag.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = pag.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+    pag.insert_directed(t1, y0).unwrap();
+    pag.insert_directed(z1, y0).unwrap();
+    pag.insert_circle_circle_with_middle(t1, z1, antecedent_graph::MiddleMark::Empty).unwrap();
+    let prior = ClassPrior::from_ordered([0.2, 0.3, 0.5]).unwrap();
+    let result = run(
+        confounded_series(400, 0.0, 0.0, 3),
+        pag,
+        &multi_sustained(),
+        bayes(),
+        Some(prior),
+        0,
+        3,
+    );
+    let structural = result.structural_response.as_ref().expect("class mixture");
+    assert!(structural.full_mass_scope, "fixture: the class audit is complete");
+    assert!(structural.unevaluable_mass > 0.0, "fixture: one bidirected completion");
+    let posterior = result.posterior.as_ref().expect("class-prior mixture");
+    assert!(
+        (posterior.unidentified_mass - structural.unidentified_mass).abs() < 1e-12,
+        "posterior unidentified {} vs structural {} (unevaluable {})",
+        posterior.unidentified_mass,
+        structural.unidentified_mass,
+        structural.unevaluable_mass
+    );
+    let set = structural.identified_set_interval.expect("identified-set interval");
+    assert!(!set.truncated);
+    assert_eq!(set.completions, 2, "the two evaluable directed completions");
 }
 
 #[test]

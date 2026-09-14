@@ -260,8 +260,8 @@ pub(super) use class_envelope_se::{
     shared_circular_block_mixture_se_with_length,
 };
 pub(super) use identified_set_diagnostics::{
-    IDENTIFIED_SET_INTERVAL_LEVEL, identified_set_interval_diagnostic,
-    posterior_identified_set_interval,
+    IDENTIFIED_SET_INTERVAL_LEVEL, completion_fit_seed, identified_set_interval_diagnostics,
+    posterior_identified_set_interval, same_fitted_mechanisms, same_fitted_problem,
 };
 #[allow(unused_imports)]
 pub(super) use tuple_bootstrap::{
