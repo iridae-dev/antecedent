@@ -298,6 +298,104 @@ fn prepared_panel_pulse_reuses_identification() {
     assert!((still.estimate.ate - prior_ate).abs() < 1e-12);
 }
 
+fn pulse_query() -> TemporalEffectQuery {
+    TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1)
+        .with_max_history_lag(Some(1))
+}
+
+#[test]
+fn prepared_panel_handle_refuses_series_and_tabular_data() {
+    let panel = PanelData::try_new(Arc::from([
+        PanelUnit { unit_id: 0, series: xy_series(120, 0.1) },
+        PanelUnit { unit_id: 1, series: xy_series(120, 0.4) },
+    ]))
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(2);
+    let mut prepared = Study::panel(panel.clone())
+        .graph(lagged_xy_graph())
+        .temporal_query(pulse_query())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let before = prepared.estimate_panel(&panel, &ctx).unwrap();
+
+    // Same schema and regularity: only the modality differs.
+    let series = xy_series(120, 0.1);
+    for err in [
+        prepared.estimate_series(&series, &ctx).unwrap_err(),
+        prepared.refresh_series(series.clone(), &ctx).unwrap_err(),
+        prepared
+            .estimate(&antecedent_data::TabularData::new(series.storage().clone()), &ctx)
+            .unwrap_err(),
+    ] {
+        let text = err.to_string();
+        assert!(text.contains("prepared panel analysis requires panel data"), "{text}");
+        assert!(text.contains("estimate_panel"), "{text}");
+    }
+    let after = prepared.estimate_panel(&panel, &ctx).unwrap();
+    assert!((after.estimate.ate - before.estimate.ate).abs() < 1e-12);
+}
+
+#[test]
+fn prepared_series_handle_refuses_panel_data() {
+    let series = xy_series(180, 0.1);
+    let ctx = ExecutionContext::for_tests(2);
+    let mut prepared = Study::series(series.clone())
+        .graph(lagged_xy_graph())
+        .temporal_query(pulse_query())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let before = prepared.estimate_series(&series, &ctx).unwrap();
+    let panel = PanelData::try_new(Arc::from([
+        PanelUnit { unit_id: 0, series: xy_series(180, 0.1) },
+        PanelUnit { unit_id: 1, series: xy_series(180, 0.4) },
+    ]))
+    .unwrap();
+    for err in [
+        prepared.estimate_panel(&panel, &ctx).unwrap_err(),
+        prepared.refresh_panel(panel.clone(), &ctx).unwrap_err(),
+    ] {
+        let text = err.to_string();
+        assert!(text.contains("prepared series analysis requires series data"), "{text}");
+        assert!(text.contains("estimate_series"), "{text}");
+    }
+    let after = prepared.estimate_series(&series, &ctx).unwrap();
+    assert!((after.estimate.ate - before.estimate.ate).abs() < 1e-12);
+}
+
+#[test]
+fn prepared_panel_refuses_units_with_mixed_regularity() {
+    // Refresh requires every unit to match the frozen regularity, so prepare
+    // must not freeze unit 0's grid for a panel whose units disagree.
+    let panel = PanelData::try_new(Arc::from([
+        PanelUnit { unit_id: 0, series: xy_series_regular(120, 0.1, 1) },
+        PanelUnit { unit_id: 1, series: xy_series_regular(120, 0.4, 2) },
+    ]))
+    .unwrap();
+    let err = Study::panel(panel)
+        .graph(lagged_xy_graph())
+        .temporal_query(pulse_query())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ExecutionContext::for_tests(2))
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("every panel unit to share one time-index regularity"),
+        "{err}"
+    );
+}
+
 #[test]
 fn panel_response_curve_is_refused() {
     let panel = PanelData::try_new(Arc::from([
