@@ -4758,9 +4758,9 @@ fn bootstrap_observation_adjusted_temporal_response(
 /// unfolded sequential mechanism of every horizon on them through
 /// [`antecedent_estimate::PreparedSequenceLevel`], recomputing root-node means. For an
 /// observation-adjusted query, every replicate also refits the observation nuisance on
-/// the resampled tuples (once per lag at which the outcome enters the unfolded design)
-/// and replaces those outcome columns with the replicate pseudo-outcomes; a complete-data
-/// query keeps its recorded outcomes.
+/// the resampled tuples and replaces the outcome-time column with the replicate
+/// pseudo-outcomes (a design that reads the outcome at a nonzero lag is refused); a
+/// complete-data query keeps its recorded outcomes.
 #[allow(clippy::too_many_arguments)]
 fn bootstrap_sequence_response(
     source: &TimeSeriesData,
