@@ -248,7 +248,7 @@ def test_temporal_response_zero_bootstrap_withholds_band():
 @pytest.mark.parametrize("bootstrap", [None, 60])
 def test_temporal_response_bootstrap_publishes_block_bands(bootstrap: int | None):
     data = _fixture_data()
-    replicates = 50 if bootstrap is None else bootstrap
+    replicates = 199 if bootstrap is None else bootstrap
     kwargs: dict[str, Any] = {} if bootstrap is None else {"bootstrap": bootstrap}
     direct = antecedent.analyze(
         data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, **kwargs
@@ -263,7 +263,7 @@ def test_temporal_response_bootstrap_publishes_block_bands(bootstrap: int | None
     if bootstrap is None:
         # Prepared temporal responses follow the latency tier like Pulse /
         # Sustained: the default interactive tier publishes no band, standard
-        # runs the Study default of 50 replicates.
+        # runs 199 replicates, the same count as the Study default.
         interactive = PreparedAnalysis.prepare(
             data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21
         )
