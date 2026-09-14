@@ -198,7 +198,13 @@ pub fn shared_mediation_block_bootstrap(
     let mut block_scores = target_scores.clone();
     block_scores.extend(other_windows.iter().map(Vec::as_slice));
     let structural_span = atoms.iter().map(|atom| atom.structural_span).max().unwrap_or(1);
-    let block_length = dependence_block_length(structural_span, len, &block_scores);
+    // The scan reads every atom's scores; without replicates no interval is
+    // published and the rule length is reported instead.
+    let block_length = if replicates > 0 {
+        dependence_block_length(structural_span, len, &block_scores)
+    } else {
+        antecedent_data::circular_block_length(structural_span, len)
+    };
     let kernel_bias = kernel_bias_scale(&target_scores, block_length);
     // The short-series statistic reads every atom's persistence probes and
     // their weighted mixture, as the single-atom estimator does.

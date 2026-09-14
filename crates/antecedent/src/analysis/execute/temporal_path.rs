@@ -557,6 +557,7 @@ impl super::Study {
                 info.rows,
                 info.kernel_bias,
                 info.effective_rows,
+                info.replicates_attempted > 0,
                 &format!(
                     "se_bootstrap refits the lag-aligned design on circular blocks of \
                      consecutive rows ({}/{} replicates); se_analytic is NaN: the iid OLS SE \
@@ -791,6 +792,7 @@ impl super::Study {
                 block.rows,
                 block.kernel_bias,
                 block.effective_rows,
+                block.replicates_attempted > 0,
                 &format!(
                     "{horizon_label}iid analytic SEs are NaN for Total, Direct and Mediated; one \
                      shared circular-block replicate of consecutive lag-aligned rows refits all \
@@ -5069,8 +5071,9 @@ const MEDIATION_BLOCK_STREAM: u64 = 0x3ED1_B10C_0000;
 /// [`temporal_dependence_se_diagnostics`] for a Frequentist multi-step Sustained
 /// fit on one `TemporalDag`, from the block length, aligned rows and contrast
 /// influence the sequential estimator returned on `estimate` (the quantities its
-/// circular-block bootstrap used). An estimate without them reports NaN
-/// effective rows, which warns.
+/// circular-block bootstrap used; the rule length when `replicates == 0`, since
+/// the score scan only runs for a bootstrap). An estimate without them reports
+/// NaN effective rows, which warns.
 fn sequential_dependence_se_diagnostics(
     estimate: &EffectEstimate,
     replicates: u32,
@@ -5091,6 +5094,7 @@ fn sequential_dependence_se_diagnostics(
         rows,
         kernel_bias,
         effective_rows,
+        replicates > 0,
         &format!(
             "se_bootstrap refits every mechanism of the sequential g-computation on the \
              same circular blocks of consecutive lag-aligned rows ({}/{replicates} \
@@ -5103,23 +5107,33 @@ fn sequential_dependence_se_diagnostics(
 
 /// Provenance for a one-series circular-block interval, plus a warning when the
 /// estimating score is too dependent for its SE family's threshold.
+///
+/// `dependence_aware` says whether `block_length` came from the score scan
+/// ([`antecedent_estimate::dependence_block_length`]); without replicates the
+/// scan is skipped and the length is the plain rule, which the text says.
 fn temporal_dependence_se_diagnostics(
     family: antecedent_estimate::CircularBlockFamily,
     block_length: usize,
     rows: usize,
     kernel_bias: f64,
     effective_rows: f64,
+    dependence_aware: bool,
     detail: &str,
 ) -> Vec<Diagnostic> {
     let scale = antecedent_estimate::circular_fixed_b_scale(block_length, rows);
+    let length = if dependence_aware {
+        "at least max(structural span, ceil(n^(1/3))), capped at n, and lengthened for a \
+         persistently dependent estimating score"
+    } else {
+        "the rule max(structural span, ceil(n^(1/3))) capped at n; the dependence-aware \
+         lengthening scans the estimating scores only when replicates are drawn"
+    };
     let mut out = vec![Diagnostic::new(
         "estimate.temporal.circular_block_se",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         format!(
-            "dependence-honest SE: circular-block length {block_length} (at least \
-             max(structural span, ceil(n^(1/3))), capped at n, and lengthened for a \
-             persistently dependent estimating score), \
+            "dependence-honest SE: circular-block length {block_length} ({length}), \
              n={rows} lag-aligned rows; \
              replicate SD scaled by the circular-Bartlett fixed-b factor {scale:.4} and \
              the Bartlett kernel-bias factor {kernel_bias:.4} of the estimating score; \

@@ -1041,9 +1041,15 @@ fn estimate_sequential(
     // lengthen when the contrast's estimating score, or any mechanism's
     // normal-equation score, is persistently dependent. The influence and block
     // length are returned on the estimate so callers can report the resampling
-    // geometry without rebuilding the design.
+    // geometry without rebuilding the design. The lengthening refits every
+    // mechanism for its scores and scans each; without replicates no interval
+    // is published and the rule length is returned instead.
     let influence = setup.influence(&mut ls_ws);
-    let block_length = setup.dependence_block_length_with(influence.as_deref());
+    let block_length = if bootstrap_replicates > 0 {
+        setup.dependence_block_length_with(influence.as_deref())
+    } else {
+        antecedent_data::circular_block_length(setup.max_lag as usize + 1, setup.n)
+    };
     let target: Vec<&[f64]> = influence.as_deref().into_iter().collect();
     let boot = crate::temporal_block::row_block_bootstrap_vec(
         setup.n,

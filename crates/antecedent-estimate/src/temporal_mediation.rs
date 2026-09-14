@@ -340,32 +340,37 @@ impl TemporalMediationEstimator {
         let mut estimate = self.estimate_from_fit(query, &point);
         let structural_span = mediation_design_max_lag(query, adjustment) as usize + 1;
         let scores = design.contrast_scores(self.backend, &point);
-        // Every mechanism's normal-equation scores (intercept = residual series)
-        // join the contrast scores, as on the single-window effect path.
-        let (m, y) = (design.column(1), design.column(2));
-        let normal_scores: Vec<Vec<f64>> = point
-            .designs
-            .iter()
-            .zip([m, y, y])
-            .filter_map(|(matrix, outcome)| {
-                crate::temporal_block::normal_equation_scores(
-                    matrix,
-                    design.n,
-                    matrix.len() / design.n,
-                    outcome,
-                )
-            })
-            .flatten()
-            .collect();
         let influence_refs: Vec<&[f64]> =
             scores.iter().flat_map(|s| s.iter().map(Vec::as_slice)).collect();
-        let score_refs: Vec<&[f64]> = scores
-            .iter()
-            .flat_map(|s| s.iter().map(Vec::as_slice))
-            .chain(normal_scores.iter().map(Vec::as_slice))
-            .collect();
-        let block_length =
-            crate::temporal_block::dependence_block_length(structural_span, design.n, &score_refs);
+        // Every mechanism's normal-equation scores (intercept = residual series)
+        // join the contrast scores, as on the single-window effect path. The
+        // scan refits each mechanism and reads every score; without replicates
+        // no interval is published and the rule length is reported instead.
+        let block_length = if replicates > 0 {
+            let (m, y) = (design.column(1), design.column(2));
+            let normal_scores: Vec<Vec<f64>> = point
+                .designs
+                .iter()
+                .zip([m, y, y])
+                .filter_map(|(matrix, outcome)| {
+                    crate::temporal_block::normal_equation_scores(
+                        matrix,
+                        design.n,
+                        matrix.len() / design.n,
+                        outcome,
+                    )
+                })
+                .flatten()
+                .collect();
+            let score_refs: Vec<&[f64]> = influence_refs
+                .iter()
+                .copied()
+                .chain(normal_scores.iter().map(Vec::as_slice))
+                .collect();
+            crate::temporal_block::dependence_block_length(structural_span, design.n, &score_refs)
+        } else {
+            antecedent_data::circular_block_length(structural_span, design.n)
+        };
         // The short-series statistic reads persistence probes (residual × centred
         // regressor), not the partialled influence functions: the failure it
         // predicts is a persistent treatment or mediator, which partialling on
@@ -655,7 +660,10 @@ pub struct TemporalMediationBlockSe {
     pub replicates_ok: u32,
     /// Replicates evaluated.
     pub replicates_attempted: u32,
-    /// Circular-block length in lag-aligned rows ([`crate::temporal_block::dependence_block_length`]).
+    /// Circular-block length in lag-aligned rows
+    /// ([`crate::temporal_block::dependence_block_length`]; the plain rule
+    /// length when [`Self::replicates_attempted`] is 0, since the score scan
+    /// only runs for a bootstrap).
     pub block_length: usize,
     /// Lag-aligned rows resampled.
     pub rows: usize,
