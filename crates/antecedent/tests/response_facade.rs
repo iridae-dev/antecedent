@@ -560,13 +560,8 @@ fn prepared_graph_posterior_response_reuses_identification() {
         1
     );
     let structural = first.structural_response.as_ref().expect("structural");
-    assert!(
-        fresh
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("unevaluable_mass")
-                || d.code.as_ref() == "estimate.response.graph_posterior")
-    );
+    assert!(fresh.diagnostics.iter().any(|d| d.message.contains("unevaluable_mass")
+        || d.code.as_ref() == "estimate.response.graph_posterior"));
     assert!(
         first
             .diagnostics
@@ -837,8 +832,9 @@ fn graph_posterior_response_known_truth_conditional_on_identified() {
                 );
             }
             let uncertainty = &result.response.as_ref().unwrap().uncertainty;
-            let has_diagnostic =
-                |code: &str| result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref() == code);
+            let has_diagnostic = |code: &str| {
+                result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref() == code)
+            };
             if mode == "frequentist" && label == "InterventionResponse" {
                 // A scalar frozen-weight aggregate takes the joint-IF SE of
                 // the identified atoms on the shared sample.

@@ -1385,7 +1385,8 @@ fn prepared_admg_distribution_reuses_identification() {
         ),
     ];
     let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
-    let query = InterventionalDistributionQuery::new(y_id, [Intervention::set(t_id, Value::f64(1.0))]);
+    let query =
+        InterventionalDistributionQuery::new(y_id, [Intervention::set(t_id, Value::f64(1.0))]);
     let ctx = ExecutionContext::for_tests(1);
     let study = Study::tabular(data.clone())
         .graph(admg.clone())

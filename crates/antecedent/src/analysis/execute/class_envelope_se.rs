@@ -145,10 +145,7 @@ impl TemporalAtomDesign {
     }
 
     /// Full-sample point and (for linear atoms) iid analytic SE, with `assumptions`.
-    pub fn effect_estimate(
-        &self,
-        assumptions: antecedent_core::AssumptionSet,
-    ) -> EffectEstimate {
+    pub fn effect_estimate(&self, assumptions: antecedent_core::AssumptionSet) -> EffectEstimate {
         match self {
             Self::Linear { point, .. } => {
                 let mut estimate = point.clone();
@@ -213,8 +210,8 @@ pub fn shared_circular_block_mixture_se(
     ctx: &ExecutionContext,
 ) -> SharedCircularBlockSe {
     let designs: Vec<_> = atoms.iter().map(|atom| atom.aligned_rows()).collect();
-    let Some((start, len)) = antecedent_estimate::common_time_window(&designs)
-        .filter(|_| replicates > 0)
+    let Some((start, len)) =
+        antecedent_estimate::common_time_window(&designs).filter(|_| replicates > 0)
     else {
         return SharedCircularBlockSe::empty();
     };
@@ -333,10 +330,14 @@ pub fn shared_circular_block_mixture_se_with_length(
         rows: draws.rows,
         effective_rows: f64::NAN,
         fixed_b: draws.fixed_b(),
-        atom_draws: draws.draws.into_iter().map(|mut draw| {
-            draw.truncate(k);
-            draw
-        }).collect(),
+        atom_draws: draws
+            .draws
+            .into_iter()
+            .map(|mut draw| {
+                draw.truncate(k);
+                draw
+            })
+            .collect(),
     }
 }
 
@@ -387,8 +388,11 @@ pub fn shared_block_mixture_message(
          variance included; unidentified mass is not mixed into the SE; \
          the interval is for the reported aggregate, not a distribution \
          over graph-specific effects",
-        block.completed, block.attempted, block.block_length, block.rows, block.fixed_b,
+        block.completed,
+        block.attempted,
+        block.block_length,
+        block.rows,
+        block.fixed_b,
         block.effective_rows,
     )
 }
-

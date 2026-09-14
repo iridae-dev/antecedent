@@ -1205,7 +1205,8 @@ pub(crate) fn shared_study_sections(
         assumption_count: result.estimate.assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
     };
-    let (distribution_atoms, mean_interval) = distribution_sections(names, result.distribution.as_ref());
+    let (distribution_atoms, mean_interval) =
+        distribution_sections(names, result.distribution.as_ref());
     let overlap_ess = result.estimate.overlap_report.as_ref().and_then(|r| r.ess);
     let overlap_propensity_min = result.estimate.overlap_report.as_ref().map(|r| r.propensity_min);
     let estimate = EstimateSection {
@@ -1290,22 +1291,29 @@ pub(crate) fn shared_study_sections(
         distribution_atoms,
         mean_interval,
     };
-    let (posterior_effect_mean, posterior_effect_sd, posterior_q025, posterior_q975, posterior_n_draws, posterior_p_below_zero, posterior_backend) =
-        if let Some(post) = result.posterior.as_ref() {
-            let eq = post.effect_column();
-            let p_below = eq.map(|_| post.probability_below(0.0)).transpose().map_err(py_err)?;
-            (
-                eq.map(|i| post.summaries.mean[i]),
-                eq.map(|i| post.summaries.sd[i]),
-                eq.map(|i| post.summaries.q025[i]),
-                eq.map(|i| post.summaries.q975[i]),
-                Some(post.draws.n_draws),
-                p_below,
-                Some(post.diagnostics.backend_id.to_string()),
-            )
-        } else {
-            (None, None, None, None, None, None, None)
-        };
+    let (
+        posterior_effect_mean,
+        posterior_effect_sd,
+        posterior_q025,
+        posterior_q975,
+        posterior_n_draws,
+        posterior_p_below_zero,
+        posterior_backend,
+    ) = if let Some(post) = result.posterior.as_ref() {
+        let eq = post.effect_column();
+        let p_below = eq.map(|_| post.probability_below(0.0)).transpose().map_err(py_err)?;
+        (
+            eq.map(|i| post.summaries.mean[i]),
+            eq.map(|i| post.summaries.sd[i]),
+            eq.map(|i| post.summaries.q025[i]),
+            eq.map(|i| post.summaries.q975[i]),
+            Some(post.draws.n_draws),
+            p_below,
+            Some(post.diagnostics.backend_id.to_string()),
+        )
+    } else {
+        (None, None, None, None, None, None, None)
+    };
     let posterior = PosteriorSection {
         effect_mean: posterior_effect_mean,
         effect_sd: posterior_effect_sd,

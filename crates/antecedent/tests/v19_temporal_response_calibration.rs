@@ -429,12 +429,12 @@ fn frequentist_temporal_response_discloses_sqrt_n_block_at_ar1_rho_0_9() {
         42,
     );
     assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "response.temporal.block.sqrt_n_rate")
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "response.temporal.block.sqrt_n_rate")
             || result.response.as_ref().is_some_and(|r| {
-                r.support.warnings.iter().any(|d| d.code.as_ref() == "response.temporal.block.sqrt_n_rate")
+                r.support
+                    .warnings
+                    .iter()
+                    .any(|d| d.code.as_ref() == "response.temporal.block.sqrt_n_rate")
             }),
         "ρ=0.9 must disclose the √n testing-rate block; do not claim the PW-lengthened scalar construction"
     );

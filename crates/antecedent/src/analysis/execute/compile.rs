@@ -132,13 +132,12 @@ impl super::Study {
                     });
                 }
                 let (identifier, estimator) = self.resolve_distribution_pair();
-                let treatment = q
-                    .interventions
-                    .first()
-                    .and_then(Intervention::primary_variable)
-                    .ok_or_else(|| CausalError::Compile {
-                        message: "distribution query requires an intervention variable".into(),
-                    })?;
+                let treatment =
+                    q.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
+                        || CausalError::Compile {
+                            message: "distribution query requires an intervention variable".into(),
+                        },
+                    )?;
                 let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Compile {
                     message: "distribution query requires an outcome".into(),
                 })?;
