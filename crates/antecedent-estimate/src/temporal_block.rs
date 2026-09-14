@@ -349,19 +349,57 @@ pub fn normal_equation_scores(
 }
 
 /// Fixed-b correction for a circular-block SE: `cv_95(ℓ/n) / 1.96`, with `cv_95`
-/// the Kiefer–Vogelsang (2005) Bartlett-kernel fixed-b critical value for a
-/// two-sided 95% test, `cv(b) = 1.96 + 2.9694b + 0.4160b² − 0.5324b³`.
+/// the fixed-b two-sided 95% critical value of a mean studentized by the
+/// *circular* Bartlett long-run variance at bandwidth `ℓ`,
+/// `cv(b) = 1.96 + 2.4389b + 3.7072b² − 2.1055b³`.
 ///
-/// The circular-block variance of a smooth statistic is asymptotically the
-/// Bartlett-kernel long-run variance with bandwidth `ℓ` (Künsch 1989), and a
-/// `ℓ = ⌈n^{1/3}⌉` bandwidth leaves both kernel bias and estimation noise that a
-/// standard-normal critical value ignores: uncorrected nominal-90% intervals
-/// measured 2–7 points low in the 1.9 calibration. Scaling the SE by this ratio
-/// makes `estimate ± z_{0.95}·SE` the 95% fixed-b interval. Published 90%
-/// scalar intervals still use this 95% ratio (not `cv_90 / z_{0.90}`), so they
-/// are 90% normal intervals around a 95%-inflated SE — conservative relative
-/// to the 90% KV polynomial (≈ `1 + 1.33ℓ/n`). The 1.9 gate measured that
-/// construction; do not silently swap in the 90% ratio.
+/// The circular-block bootstrap variance of a sample mean is exactly `1/n` times
+/// the circular Bartlett estimator `γ̃₀ + 2 Σ_{k<ℓ} (1 − k/ℓ) γ̃_k` built from
+/// circular autocovariances `γ̃_k` (when `ℓ` divides `n`), and asymptotically so
+/// for a smooth statistic (Künsch 1989). Its fixed-b mean is `(1 − b)σ²`, below
+/// the `(1 − b + b²/3)σ²` of the non-circular Bartlett estimator, so the
+/// Kiefer–Vogelsang (2005) polynomial of [`fixed_b_scale`] (non-circular) is too
+/// small at long blocks: applied to the circular variance it covers 0.942 at
+/// `b = 1/3` for a nominal 95% interval.
+///
+/// Provenance of the polynomial: simulated fixed-b quantiles of `|√n·x̄ / σ̂|`
+/// for iid Gaussian series (`n = 2000`, 10⁶ series, `b` on a 0.01 grid),
+/// least-squares cubic in `b` with the intercept held at 1.96, fitted on
+/// `b ≤ 0.4` (the dependence-aware length stays at or below `n/3`); the fit is
+/// within 0.005 of every simulated quantile there. Beyond `b = 0.4` it is an
+/// extrapolation. The same simulation reproduces the non-circular KV values to
+/// within 0.03.
+///
+/// What the scale does and does not do: it replaces the standard-normal
+/// critical value by the fixed-b one for the resampled block length, so the
+/// interval accounts for the randomness and the `(1 − b)` level of the block
+/// variance at that length. It does not repair a block that is too short for
+/// the dependence (a long-run variance the block misses); that is what
+/// [`dependence_block_length`] and the short-series warning are for.
+///
+/// Scaling the SE by this ratio makes `estimate ± 1.96·SE` the 95% fixed-b
+/// interval. Published 90% scalar intervals use the same 95% ratio (not
+/// `cv_90 / z_{0.90}`), so they are 90% normal intervals around a 95%-scaled SE;
+/// in the same simulation that construction covers 0.901–0.913 at nominal 0.90
+/// for `b ≤ 1/3` (conservative, increasingly so at long blocks). The gates
+/// measured that construction; do not silently swap in the 90% ratio.
+#[must_use]
+pub fn circular_fixed_b_scale(block_length: usize, rows: usize) -> f64 {
+    if rows == 0 {
+        return 1.0;
+    }
+    let b = (block_length as f64 / rows as f64).clamp(0.0, 1.0);
+    (1.96 + 2.4389 * b + 3.7072 * b * b - 2.1055 * b * b * b) / 1.96
+}
+
+/// Kiefer–Vogelsang (2005) fixed-b correction for a *non-circular* Bartlett
+/// long-run variance (a Newey–West HAC) at bandwidth `ℓ` over `rows` rows:
+/// `cv_95(ℓ/n) / 1.96` with `cv(b) = 1.96 + 2.9694b + 0.4160b² − 0.5324b³`,
+/// the two-sided 95% fixed-b critical value.
+///
+/// Circular-block bootstrap SEs studentize by the circular Bartlett variance
+/// instead and take [`circular_fixed_b_scale`]; the two agree to within 1% of
+/// the SE for `b ≤ 0.2` and diverge above (4% at `b = 1/3`).
 #[must_use]
 pub fn fixed_b_scale(block_length: usize, rows: usize) -> f64 {
     if rows == 0 {
@@ -389,10 +427,10 @@ pub struct RowBlockDraws {
 }
 
 impl RowBlockDraws {
-    /// The [`fixed_b_scale`] for this block length and row count.
+    /// The [`circular_fixed_b_scale`] for this block length and row count.
     #[must_use]
     pub fn fixed_b(&self) -> f64 {
-        fixed_b_scale(self.block_length, self.rows)
+        circular_fixed_b_scale(self.block_length, self.rows)
     }
 
     /// Replicate values of target `k`.
@@ -452,8 +490,8 @@ pub fn common_time_window(designs: &[AlignedRows]) -> Option<(usize, usize)> {
 /// `block_length` is in series times (callers pass [`dependence_block_length`]
 /// of the structural span over the window's estimating scores, at least
 /// [`antecedent_data::circular_block_length`]); publish SEs through
-/// [`RowBlockDraws::se_result`] so they carry the [`fixed_b_scale`] of the
-/// resampled window. Returns `None` when the designs share no time.
+/// [`RowBlockDraws::se_result`] so they carry the [`circular_fixed_b_scale`] of
+/// the resampled window. Returns `None` when the designs share no time.
 pub fn aligned_block_bootstrap(
     designs: &[AlignedRows],
     block_length: usize,
@@ -597,7 +635,7 @@ mod tests {
         })
         .unwrap();
         assert_eq!((boot.rows, boot.block_length, boot.draws.len()), (97, 5, 6));
-        assert!((boot.fixed_b() - fixed_b_scale(5, 97)).abs() < 1e-15);
+        assert!((boot.fixed_b() - circular_fixed_b_scale(5, 97)).abs() < 1e-15);
         assert!(
             aligned_block_bootstrap(
                 &[AlignedRows { first_time: 0, rows: 3 }, AlignedRows { first_time: 5, rows: 3 }],
@@ -757,6 +795,20 @@ mod tests {
         let n_eff = effective_rows(&persistent);
         assert!(n_eff < 200.0 && n_eff > 10.0, "n_eff={n_eff}");
         assert!((effective_rows(&[0.0; 10]) - 10.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn circular_fixed_b_scale_matches_the_simulated_critical_values() {
+        assert!((circular_fixed_b_scale(6, 159) - 1.049_592).abs() < 1e-5);
+        assert!((circular_fixed_b_scale(0, 10) - 1.0).abs() < 1e-12);
+        assert!(circular_fixed_b_scale(8, 399) < circular_fixed_b_scale(4, 59));
+        // Simulated circular-Bartlett 97.5% quantiles (n = 2000, 10⁶ series).
+        for (b, simulated) in [(0.10, 2.2396), (0.20, 2.5791), (0.33, 3.0979), (0.40, 3.3958)] {
+            let cv = 1.96 * circular_fixed_b_scale((b * 10_000.0_f64).round() as usize, 10_000);
+            assert!((cv - simulated).abs() < 0.006, "b={b}: {cv} vs {simulated}");
+        }
+        // Above the non-circular Kiefer–Vogelsang value at long blocks.
+        assert!(circular_fixed_b_scale(1, 3) > fixed_b_scale(1, 3) + 0.05);
     }
 
     #[test]

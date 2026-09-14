@@ -34,8 +34,9 @@
 //!   small-sample bias correction of `ρ̂` (recolouring `1/(1 − ρ̂)²`), and, when
 //!   BIC selects an order `q ≥ 2` (`q ≤ 4`, Yule–Walker), AR(q) (recolouring
 //!   `1/(1 − Σφ̂)²`). `f_b` is the Kiefer–Vogelsang fixed-b factor of bandwidth
-//!   `M + 1` ([`crate::temporal_block::fixed_b_scale`]), the same correction the
-//!   Frequentist circular-block SEs carry. The kernel only mops up what the
+//!   `M + 1` ([`crate::temporal_block::fixed_b_scale`], for the non-circular
+//!   Bartlett estimator; the Frequentist circular-block SEs carry the
+//!   circular-Bartlett counterpart). The kernel only mops up what the
 //!   prewhitening filter leaves, so the estimate is as good as the filter's fit:
 //!   it is **not** robust to arbitrary dependence (long memory, or
 //!   autocorrelation beyond what an AR(4) captures, is under-corrected).
