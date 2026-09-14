@@ -266,7 +266,10 @@ block, so independent rows are not over-covered.
   the observation nuisance on exactly the resampled tuples and replaces the
   outcome-time column with the replicate pseudo-outcome. Sequence overlays whose
   unfolded design carries the outcome at a nonzero lag are refused (the lagged
-  outcome would be a pseudo-outcome regressor). No replicate row pairs values
+  outcome would be a pseudo-outcome regressor). The same guard covers curve and
+  Set / Shift designs; there a lagged outcome in the adjustment set would need
+  outcome ancestry that repeats at every earlier slice, which temporal backdoor
+  identification does not certify, so it refuses first. No replicate row pairs values
   across a block junction. The raw-series replicate that 1.8 used for Sequence
   overlays measured 31–81% coverage for a nominal 95% band and is gone.
 - **Bayesian.** The simultaneous credible band uses posterior draws of the

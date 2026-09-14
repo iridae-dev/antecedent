@@ -623,3 +623,131 @@ fn observation_adjusted_sequence_refuses_a_lagged_outcome_regressor() {
         );
     }
 }
+
+/// Right-censored series (independent censoring) over the fixture DGP. Unconditional
+/// censoring (`IndependentGiven([])`) has no containment requirement, so it is the
+/// observation pair under which a lagged-outcome adjustment column would otherwise
+/// reach the pseudo-outcome replacement unchallenged.
+fn right_censored_series(pin: &serde_json::Value) -> (TimeSeriesData, ObservationSpec) {
+    let (t, latent, _, c_ind, _, event) = generate(pin);
+    let y: Vec<f64> = latent.iter().zip(&c_ind).map(|(&y, &c)| y.min(c)).collect();
+    let series = TimeSeriesData::from_f64_columns(
+        [
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("c", c_ind.as_slice()),
+            ("event", event.as_slice()),
+        ],
+        1,
+    )
+    .unwrap();
+    let id = VariableId::from_raw;
+    (
+        series,
+        ObservationSpec::RightCensored {
+            latent: id(1),
+            observed: id(1),
+            censoring: id(2),
+            event: id(3),
+        },
+    )
+}
+
+/// An observation-adjusted curve (ResponseCurve / InterventionResponse, not a Sequence)
+/// cannot carry a lagged outcome in its adjustment set. A lagged outcome is only a
+/// backdoor covariate when it is an ancestor of the treatment or the outcome; with the
+/// treatment affecting the outcome, stationarity then repeats that ancestry at every
+/// earlier slice, so temporal backdoor identification is not certified and the run
+/// refuses before any pseudo-outcome is formed. A feedback graph without a treatment →
+/// outcome path does identify, with an empty adjustment set, and the correction runs.
+/// The estimator-level guard shared with the Sequence path refuses a curve design whose
+/// regressors carry the outcome at a nonzero lag.
+#[test]
+fn observation_adjusted_curve_cannot_carry_a_lagged_outcome_adjustment() {
+    let pin = fixture();
+    let (series, censored) = right_censored_series(&pin);
+    let id = VariableId::from_raw;
+    let independent = ObservationAssumption::IndependentGiven(Arc::from([]));
+    let curve = curve_query(&pin, censored.clone(), independent.clone());
+    let intervention = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: id(1),
+        interventions: Arc::from([Intervention::set(id(0), Value::f64(0.5))]),
+    })
+    .with_temporal(temporal_spec(&pin))
+    .with_observation(censored, [independent]);
+    let lagged = |g: &mut TemporalDag, v: u32, lag: u32| {
+        ensure_lagged(g, id(v), antecedent_core::Lag::from_raw(lag)).unwrap()
+    };
+    // Fixture graph (T@-1, T@-2 → Y@0) plus outcome feedback and/or autoregression.
+    let with_edges = |base: TemporalDag, edges: &[(u32, u32, u32, u32)]| {
+        let mut g = base;
+        for &(from_v, from_lag, to_v, to_lag) in edges {
+            let from = lagged(&mut g, from_v, from_lag);
+            let to = lagged(&mut g, to_v, to_lag);
+            g.insert_directed(from, to).unwrap();
+        }
+        g
+    };
+    let run = |g: &TemporalDag, query: &ResponseQuery| {
+        Study::series(series.clone())
+            .graph(g.clone())
+            .query(CausalQuery::Response(query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(41))
+    };
+    for (name, edges) in [
+        ("feedback", vec![(1, 1, 0, 0)]),
+        ("feedback_lag2", vec![(1, 2, 0, 0)]),
+        ("autoregressive", vec![(1, 1, 1, 0)]),
+        ("feedback_and_autoregressive", vec![(1, 1, 0, 0), (1, 1, 1, 0)]),
+    ] {
+        let g = with_edges(graph(), &edges);
+        for query in [&curve, &intervention] {
+            let err = run(&g, query).unwrap_err();
+            assert!(err.to_string().contains("not certified"), "{name}: {err}");
+        }
+    }
+
+    // Feedback without a treatment → outcome path: identified with no adjustment, so
+    // no lagged-outcome regressor exists and the observation correction runs.
+    let mut bare = TemporalDag::empty();
+    lagged(&mut bare, 0, 0);
+    lagged(&mut bare, 1, 0);
+    let bare = with_edges(bare, &[(1, 1, 0, 0)]);
+    for query in [&curve, &intervention] {
+        let result = run(&bare, query).expect("identified feedback graph");
+        let horizons = result
+            .response
+            .as_ref()
+            .and_then(|response| response.horizon_identification.as_ref())
+            .expect("per-horizon identification");
+        assert!(horizons.iter().all(|h| h.adjustment.is_empty()), "{horizons:?}");
+        assert_eq!(
+            result.response.as_ref().unwrap().provenance_id.as_ref(),
+            "estimate.temporal_response.observation_adjusted"
+        );
+    }
+
+    // The estimator guard is not Sequence-specific: a curve design whose regressors hold
+    // the outcome at a nonzero lag is refused with the Sequence path's error.
+    let key = |variable: u32, offset: i32| antecedent_core::TemporalNodeKey {
+        variable: id(variable),
+        offset,
+    };
+    let estimator = antecedent_estimate::ObservationMechanismEstimator::new(
+        antecedent_estimate::ObservationEstimatorOptions::default(),
+    );
+    for query in [&curve, &intervention] {
+        let err = estimator
+            .adjust_temporal_series(&series, query, &[], &[key(0, -1), key(1, -1)])
+            .unwrap_err();
+        assert!(
+            err.to_string().contains(antecedent_estimate::LAGGED_OUTCOME_REGRESSOR_REFUSAL),
+            "{err}"
+        );
+        assert!(estimator.adjust_temporal_series(&series, query, &[], &[key(0, -1)]).is_ok());
+    }
+}

@@ -194,7 +194,7 @@ pub fn tuple_block_observation_replicates(
                         .any(|level| level.lags_of(*outcome).iter().any(|&lag| lag != 0))
                 {
                     return Err(CausalError::Unsupported {
-                        message: "observation-adjusted Sequence responses require the outcome to enter the unfolded design only at the outcome time; a lagged outcome regressor would be replaced by pseudo-outcomes (errors in variables)",
+                        message: antecedent_estimate::LAGGED_OUTCOME_REGRESSOR_REFUSAL,
                     });
                 }
                 PreparedTupleTarget::Sequence {

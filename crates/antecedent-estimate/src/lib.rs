@@ -109,8 +109,8 @@ pub use joint_if::{
     max_t_critical, monotone_decreasing, monotone_increasing, weighted_mean,
 };
 pub use observation::{
-    ObservationAdjustedOutcome, ObservationEstimatorOptions, ObservationMechanismEstimator,
-    SelectedOutcomeCorrection, temporal_curve_outcome_regressors,
+    LAGGED_OUTCOME_REGRESSOR_REFUSAL, ObservationAdjustedOutcome, ObservationEstimatorOptions,
+    ObservationMechanismEstimator, SelectedOutcomeCorrection, temporal_curve_outcome_regressors,
     temporal_sequence_outcome_regressors,
 };
 pub use overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, PropensityInterval};

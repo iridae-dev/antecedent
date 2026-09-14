@@ -155,9 +155,9 @@ pub fn temporal_curve_outcome_regressors(
 /// The outcome itself is also listed at `−lag` for every lagged edge out of the outcome
 /// into a mechanism that can reach the outcome (its own or an ancestor's), i.e. every lag
 /// at which the outcome can enter the unfolded Sequence design as a regressor.
-/// [`ObservationMechanismEstimator::adjust_temporal_series`] refuses a Sequence whose
-/// regressors carry the outcome at a nonzero offset: the correction replaces the outcome
-/// column with pseudo-outcomes, which would then be regressors (errors in variables).
+/// [`ObservationMechanismEstimator::adjust_temporal_series`] refuses regressors that carry
+/// the outcome at a nonzero offset: the correction replaces the outcome column with
+/// pseudo-outcomes, which would then be regressors (errors in variables).
 /// The selected-AIPW outcome nuisance never conditions on outcome columns.
 #[must_use]
 pub fn temporal_sequence_outcome_regressors(
@@ -522,7 +522,7 @@ impl ObservationMechanismEstimator {
             EstimationError::unsupported("response query has no treatment/outcome pair")
         })?;
         require_temporal_observation_containment(query, treatment, adjustment)?;
-        require_unlagged_sequence_outcome(query, outcome, outcome_regressors)?;
+        require_unlagged_outcome_regressor(outcome, outcome_regressors)?;
         let conditioning = temporal_conditioning_ids(query)?;
         let (table, start) = if conditioning.is_empty() {
             (TabularData::new(data.storage().clone()), 0)
@@ -1142,22 +1142,23 @@ impl ObservationMechanismEstimator {
     }
 }
 
-/// Refuse an observation-adjusted Sequence whose unfolded design carries the outcome at
-/// a nonzero lag (see [`temporal_sequence_outcome_regressors`]). The correction replaces
-/// the outcome column by pseudo-outcomes, so every lagged outcome regressor would be a
-/// noisy proxy of the latent outcome and attenuate its coefficient.
-fn require_unlagged_sequence_outcome(
-    query: &ResponseQuery,
+/// Refusal for an observation-adjusted temporal response whose downstream design reads
+/// the outcome at a nonzero lag.
+pub const LAGGED_OUTCOME_REGRESSOR_REFUSAL: &str = "observation-adjusted temporal responses require the outcome to enter the unfolded design only at the outcome time; a lagged outcome regressor would be replaced by pseudo-outcomes (errors in variables)";
+
+/// Refuse an observation-adjusted temporal response whose downstream design carries the
+/// outcome at a nonzero lag: a Sequence overlay's unfolded outcome regression (see
+/// [`temporal_sequence_outcome_regressors`]) or a curve / Set / Shift design whose
+/// lag-aligned adjustment set holds a lagged outcome (see
+/// [`temporal_curve_outcome_regressors`]). The correction replaces the outcome column by
+/// pseudo-outcomes, so every lagged outcome regressor would be a noisy proxy of the latent
+/// outcome and attenuate its coefficient.
+fn require_unlagged_outcome_regressor(
     outcome: VariableId,
     outcome_regressors: &[TemporalNodeKey],
 ) -> Result<(), EstimationError> {
-    let sequence = crate::plan_from_response_query(query)?
-        .and_then(|plan| plan.mechanism_overlays())
-        .is_some();
-    if sequence && outcome_regressors.iter().any(|key| key.variable == outcome && key.offset != 0) {
-        return Err(EstimationError::unsupported(
-            "observation-adjusted Sequence responses require the outcome to enter the unfolded design only at the outcome time; a lagged outcome regressor would be replaced by pseudo-outcomes (errors in variables)",
-        ));
+    if outcome_regressors.iter().any(|key| key.variable == outcome && key.offset != 0) {
+        return Err(EstimationError::unsupported(LAGGED_OUTCOME_REGRESSOR_REFUSAL));
     }
     Ok(())
 }
@@ -2044,9 +2045,9 @@ mod tests {
         let keys = temporal_sequence_outcome_regressors(&graph, y);
         let key = |variable, offset| TemporalNodeKey { variable, offset };
         assert_eq!(keys, vec![key(t, -1), key(y, -2)]);
-        let query = temporal_selected_query(vec![1]);
-        // A curve query is not a Sequence: the outcome key does not refuse it.
-        assert!(require_unlagged_sequence_outcome(&query, y, &keys).is_ok());
+        let err = require_unlagged_outcome_regressor(y, &keys).unwrap_err();
+        assert!(err.to_string().contains(LAGGED_OUTCOME_REGRESSOR_REFUSAL), "{err}");
+        assert!(require_unlagged_outcome_regressor(y, &[key(t, -1), key(y, 0)]).is_ok());
     }
 
     #[test]
