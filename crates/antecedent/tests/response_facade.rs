@@ -1398,7 +1398,7 @@ fn interactive_graph_posterior_ate_reports_subsampled_out_mass_separately() {
             .message;
         let field = |name: &str| -> f64 {
             let tail = message.split(&format!(" {name}=")).nth(1).expect(name);
-            tail.split(|c| c == ',' || c == ' ').next().unwrap().parse().unwrap()
+            tail.split([',', ' ']).next().unwrap().parse().unwrap()
         };
         (field("unidentified_mass"), field("subsampled_out_mass"))
     };

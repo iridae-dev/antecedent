@@ -418,8 +418,8 @@ fn manufacturing_dbn_posterior_frequentist_shared_block_bootstrap() {
     let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
     assert!((structural.identified_mass - identified_truth).abs() < 1e-12);
     assert!((structural.unidentified_mass - unidentified_truth).abs() < 1e-12);
-    assert_eq!(structural.unevaluable_mass, 0.0);
-    assert_eq!(structural.subsampled_out_mass, 0.0);
+    assert!(structural.unevaluable_mass.abs() < f64::EPSILON);
+    assert!(structural.subsampled_out_mass.abs() < f64::EPSILON);
     let evaluated: Vec<_> = structural.atoms.iter().filter(|atom| atom.value.is_some()).collect();
     assert_eq!(evaluated.len(), 1);
     assert!((evaluated[0].weight - identified_truth).abs() < 1e-12);

@@ -705,7 +705,7 @@ mod tests {
         let json = serde_json::to_value(&plain).unwrap();
         assert!(json["structural_response"].get("subsampled_out_mass").is_none());
         let decoded: AnalysisResultWire = serde_json::from_value(json).unwrap();
-        assert_eq!(decoded.structural_response.unwrap().subsampled_out_mass, 0.0);
+        assert!(decoded.structural_response.unwrap().subsampled_out_mass.abs() < f64::EPSILON);
 
         let mut result = with_structural(None);
         if let Some(structural) = result.structural_response.as_mut() {
