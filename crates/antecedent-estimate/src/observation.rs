@@ -64,6 +64,27 @@ struct CrossFittedSelectedNuisances {
     outcome_predictions: Vec<f64>,
 }
 
+/// How selected-AIPW cross-fitting folds are assigned to observation rows.
+#[derive(Clone, Copy)]
+enum FoldLayout<'a> {
+    /// Row `i` of an exchangeable table goes to fold `i % folds`.
+    Interleaved,
+    /// Row `i` sits at series position `positions[i]` in `0..span` and goes to the
+    /// contiguous time block `positions[i]·folds / span`. Repeated positions (a block
+    /// bootstrap drawing the same tuple twice) share a fold, and a validation row's
+    /// serial neighbours mostly share its fold rather than training its nuisances.
+    TimeBlocks { positions: &'a [usize], span: usize },
+}
+
+impl FoldLayout<'_> {
+    fn fold_of(self, row: usize, folds: usize) -> usize {
+        match self {
+            Self::Interleaved => row % folds,
+            Self::TimeBlocks { positions, span } => (positions[row] * folds / span).min(folds - 1),
+        }
+    }
+}
+
 /// Extra selected-AIPW outcome-model regressors: the downstream design columns the
 /// declared observation conditioning set does not already carry.
 struct OutcomeModelExtras {
@@ -196,9 +217,11 @@ impl ObservationMechanismEstimator {
     /// left censoring with delayed entry and interval censoring/truncation are refused here.
     ///
     /// Under [`SelectedOutcomeCorrection::Aipw`] both nuisances are cross-fit over
-    /// `crossfit_folds` deterministic row-index folds, so no row's pseudo-value is built
-    /// from a model that saw it — the sample-splitting condition the AIPW double-robustness
-    /// argument assumes. A fold that cannot support either model is refused, never silently
+    /// `crossfit_folds` deterministic row-index folds (row `i` in fold `i % folds`), so no
+    /// row's pseudo-value is built from a model that saw it — the sample-splitting
+    /// condition the AIPW double-robustness argument assumes. The temporal entry points
+    /// ([`Self::adjust_temporal_series`], [`Self::adjust_temporal_anchors`]) use
+    /// contiguous time-block folds keyed by series position instead. A fold that cannot support either model is refused, never silently
     /// refit in sample. [`SelectedOutcomeCorrection::Ipw`] deliberately keeps its in-sample
     /// maximum-likelihood propensity, which is the published estimator.
     ///
@@ -215,7 +238,7 @@ impl ObservationMechanismEstimator {
         query: &ResponseQuery,
         delayed_entry: Option<VariableId>,
     ) -> Result<ObservationAdjustedOutcome, EstimationError> {
-        self.adjusted_outcome_with_extras(data, query, delayed_entry, None)
+        self.adjusted_outcome_with_extras(data, query, delayed_entry, None, FoldLayout::Interleaved)
     }
 
     fn adjusted_outcome_with_extras(
@@ -224,6 +247,7 @@ impl ObservationMechanismEstimator {
         query: &ResponseQuery,
         delayed_entry: Option<VariableId>,
         extras: Option<&OutcomeModelExtras>,
+        layout: FoldLayout<'_>,
     ) -> Result<ObservationAdjustedOutcome, EstimationError> {
         query.validate()?;
         self.validate_options()?;
@@ -234,7 +258,7 @@ impl ObservationMechanismEstimator {
                         "delayed entry applies only to right-censoring IPCW",
                     ));
                 }
-                self.selected(data, query, *observed, *indicator, extras)
+                self.selected(data, query, *observed, *indicator, extras, layout)
             }
             ObservationSpec::RightCensored { observed, censoring, event, .. } => {
                 self.censored(data, query, *observed, *censoring, *event, delayed_entry, false)
@@ -463,7 +487,11 @@ impl ObservationMechanismEstimator {
             outcome_regressors,
             &(start..data.row_count()).collect::<Vec<_>>(),
         )?;
-        let subset = self.adjusted_outcome_with_extras(&table, query, None, extras.as_ref())?;
+        // Contiguous time-block folds over the lag-aligned rows `start..n`.
+        let positions: Vec<usize> = (0..table.row_count()).collect();
+        let layout = FoldLayout::TimeBlocks { positions: &positions, span: positions.len().max(1) };
+        let subset =
+            self.adjusted_outcome_with_extras(&table, query, None, extras.as_ref(), layout)?;
         let mut values = data.float64_values(outcome)?;
         let mut weights = vec![0.0; values.len()];
         if start == 0 {
@@ -490,7 +518,10 @@ impl ObservationMechanismEstimator {
     /// outcome and indicators at the anchor, the conditioning set at the policy treatment
     /// offset — so no replicate row pairs values from different resampled blocks. The
     /// observation nuisance is refit on exactly those rows; the returned pseudo-outcomes
-    /// align with `anchors`. `outcome_regressors` are as in
+    /// align with `anchors`. Selected-AIPW folds are the same contiguous time blocks as
+    /// [`Self::adjust_temporal_series`], keyed by each anchor's source position, so a
+    /// tuple drawn more than once lands in a single fold and never trains the nuisance
+    /// that predicts its own copy. `outcome_regressors` are as in
     /// [`Self::adjust_temporal_series`]; every anchor must reach all of them
     /// ([`Self::observation_row_lag`]).
     ///
@@ -552,6 +583,8 @@ impl ObservationMechanismEstimator {
                 }
                 let y = gather_anchor_column(data, *observed, anchors, 0)?;
                 let r = gather_anchor_column(data, *indicator, anchors, 0)?;
+                let positions: Vec<usize> = anchors.iter().map(|&anchor| anchor - lag).collect();
+                let layout = FoldLayout::TimeBlocks { positions: &positions, span: n - lag };
                 Ok(self
                     .selected_from_columns(
                         &y,
@@ -559,6 +592,7 @@ impl ObservationMechanismEstimator {
                         &covariates,
                         conditioning.len(),
                         extras.as_ref(),
+                        layout,
                     )?
                     .values)
             }
@@ -747,6 +781,7 @@ impl ObservationMechanismEstimator {
         observed_id: VariableId,
         indicator_id: VariableId,
         extras: Option<&OutcomeModelExtras>,
+        layout: FoldLayout<'_>,
     ) -> Result<ObservationAdjustedOutcome, EstimationError> {
         let conditioning = exact_outcome_independence(query)?;
         if conditioning.iter().any(|id| *id == observed_id || *id == indicator_id) {
@@ -757,7 +792,14 @@ impl ObservationMechanismEstimator {
         let observed = data.float64_values(observed_id)?;
         let indicator = data.float64_values(indicator_id)?;
         let covariates = read_complete_columns(data, conditioning)?;
-        self.selected_from_columns(&observed, &indicator, &covariates, conditioning.len(), extras)
+        self.selected_from_columns(
+            &observed,
+            &indicator,
+            &covariates,
+            conditioning.len(),
+            extras,
+            layout,
+        )
     }
 
     fn selected_from_columns(
@@ -767,6 +809,7 @@ impl ObservationMechanismEstimator {
         covariates: &[f64],
         n_cov: usize,
         extras: Option<&OutcomeModelExtras>,
+        layout: FoldLayout<'_>,
     ) -> Result<ObservationAdjustedOutcome, EstimationError> {
         if indicator.iter().all(|&r| r == 1.0) {
             if observed.iter().any(|value| !value.is_finite()) {
@@ -795,8 +838,8 @@ impl ObservationMechanismEstimator {
             // double-robustness and asymptotic-linearity arguments assume the nuisances were
             // not fit on the row they are evaluated at.
             SelectedOutcomeCorrection::Aipw => {
-                let nuisances =
-                    self.crossfit_selected_nuisances(observed, indicator, covariates, extras)?;
+                let nuisances = self
+                    .crossfit_selected_nuisances(observed, indicator, covariates, extras, layout)?;
                 (nuisances.probabilities, Some(nuisances.outcome_predictions))
             }
         };
@@ -823,8 +866,10 @@ impl ObservationMechanismEstimator {
 
     /// Fit both selected-outcome nuisances out of fold.
     ///
-    /// Folds are the deterministic row-index folds used elsewhere in this crate. Every row
-    /// receives a probability and an outcome prediction from a model fit without it. A fold
+    /// Folds follow `layout`: the deterministic row-index folds used elsewhere in this
+    /// crate for exchangeable rows, contiguous time blocks for temporal rows. Every row
+    /// receives a probability and an outcome prediction from a model fit without it (or any
+    /// copy of it: repeated positions share a fold). A fold
     /// whose training rows cannot support either model is refused rather than quietly
     /// falling back to an in-sample fit, which would reintroduce exactly the bias the
     /// splitting removes.
@@ -838,6 +883,7 @@ impl ObservationMechanismEstimator {
         indicator: &[f64],
         covariates: &[f64],
         extras: Option<&OutcomeModelExtras>,
+        layout: FoldLayout<'_>,
     ) -> Result<CrossFittedSelectedNuisances, EstimationError> {
         let n = indicator.len();
         let folds = self.options.crossfit_folds;
@@ -860,9 +906,10 @@ impl ObservationMechanismEstimator {
         }
         let mut probabilities = vec![f64::NAN; n];
         let mut outcome_predictions = vec![f64::NAN; n];
+        let fold_of: Vec<usize> = (0..n).map(|row| layout.fold_of(row, folds)).collect();
         for fold in 0..folds {
-            let train: Vec<usize> = (0..n).filter(|i| i % folds != fold).collect();
-            let valid: Vec<usize> = (0..n).filter(|i| i % folds == fold).collect();
+            let train: Vec<usize> = (0..n).filter(|&i| fold_of[i] != fold).collect();
+            let valid: Vec<usize> = (0..n).filter(|&i| fold_of[i] == fold).collect();
             if valid.is_empty() {
                 continue;
             }
@@ -1853,6 +1900,55 @@ mod tests {
             replicate.iter().zip(&with_design.values[2..]).all(|(a, b)| (a - b).abs() < 1e-8),
             "on noiseless rows the exact outcome model makes the replicate fold-invariant"
         );
+    }
+
+    /// Noisy one-lag selected series: `Y_s = 1 + 2 T_{s-1} + ε_s`, selection on `T_{s-1}`.
+    fn noisy_selected_series(n: usize) -> TimeSeriesData {
+        let t: Vec<f64> = (0..n).map(|i| ((i * 37 + 11) % 101) as f64 / 50.0 - 1.0).collect();
+        let lag = |s: usize| s.checked_sub(1).map_or(0.0, |i| t[i]);
+        let r: Vec<f64> = (0..n).map(|s| f64::from(lag(s) > -0.4 || (s * 13) % 7 < 3)).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|s| {
+                let noise = ((s * 53 + 7) % 97) as f64 / 48.0 - 1.0;
+                if r[s] == 1.0 { 1.0 + 2.0 * lag(s) + noise } else { 0.0 }
+            })
+            .collect();
+        TimeSeriesData::from_f64_columns(
+            [("t", t.as_slice()), ("y", y.as_slice()), ("r", r.as_slice())],
+            1,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn replicate_folds_follow_source_positions_so_duplicated_tuples_share_a_fold() {
+        let n = 200;
+        let data = noisy_selected_series(n);
+        let query = temporal_selected_query(vec![1]);
+        let estimator = ObservationMechanismEstimator::default();
+        let (_, series) = estimator.adjust_temporal_series(&data, &query, &[], &[]).unwrap();
+        // Every distinct anchor once, in order: the replicate uses the same time-block
+        // folds as the full-series fit and reproduces it exactly.
+        let anchors: Vec<usize> = (1..n).collect();
+        let replicate =
+            estimator.adjust_temporal_anchors(&data, &query, &[], &[], &anchors).unwrap();
+        assert!(replicate.iter().zip(&series.values[1..]).all(|(a, b)| (a - b).abs() < 1e-10));
+        // A block bootstrap that draws every tuple twice, adjacently: copies share a fold,
+        // so both receive the same out-of-fold nuisances (a copy in the training fold
+        // would make the two pseudo-values differ).
+        let doubled: Vec<usize> = (1..n).flat_map(|anchor| [anchor, anchor]).collect();
+        let replicate =
+            estimator.adjust_temporal_anchors(&data, &query, &[], &[], &doubled).unwrap();
+        for pair in replicate.chunks(2) {
+            assert!((pair[0] - pair[1]).abs() < 1e-12, "duplicated tuple split across folds");
+        }
+        let folds = estimator.options.crossfit_folds;
+        let positions: Vec<usize> = doubled.iter().map(|&anchor| anchor - 1).collect();
+        let layout = FoldLayout::TimeBlocks { positions: &positions, span: n - 1 };
+        let fold_of: Vec<usize> =
+            (0..doubled.len()).map(|row| layout.fold_of(row, folds)).collect();
+        assert!(fold_of.windows(2).all(|w| w[0] <= w[1]), "time-block folds are contiguous");
+        assert_eq!(fold_of.last().copied(), Some(folds - 1));
     }
 
     #[test]
