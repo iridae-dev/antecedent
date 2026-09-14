@@ -6,10 +6,16 @@
 //! Acceptance band: two-sided `0.95 ± 3·MCSE` with `MCSE = √(0.95·0.05/N)`,
 //! the same rule as the 1.9 harness in `crates/antecedent/tests/common/calibration.rs`.
 //! At `N = 400` that is `[0.917, 0.983]`, so both an under-covering interval
-//! and a conservative (too wide) one fail. There is no floor or ceiling and no
-//! estimator-specific exemption; each test prints a `calibration ...` line with
-//! the rate, MCSE, band, mean interval length, mean SE, and the Monte Carlo SD
-//! of the point estimate.
+//! and a conservative (too wide) one fail. There is no estimator-specific
+//! exemption; each test prints a `calibration ...` line with the rate, MCSE,
+//! band, mean interval length, mean SE, and the Monte Carlo SD of the point
+//! estimate.
+//!
+//! The same recheck and precision rules as that harness apply: below
+//! `PRECISION_N_SIM` replicates a rate more than 2 points under the level
+//! prints a `calibration-recheck` line and the gate script re-runs the test at
+//! `ANTECEDENT_CALIBRATION_NSIM=2000`; from `PRECISION_N_SIM` replicates the
+//! rate must also reach the one-sided floor `0.95 − 2·MCSE` (0.940 at 2000).
 //!
 //! Every DGP here is inside the estimator's stated assumptions (correct
 //! nuisance families, the SE kind's variance model). Out-of-assumption probes
@@ -45,9 +51,11 @@ use crate::se::AnalyticSeKind;
 
 const TRUE_ATE: f64 = 2.0;
 /// Default Monte Carlo budget for analytic SE coverage (runtime OK on weekly gate).
-const N_SIM: u32 = 400;
-/// Bootstrap IPW is heavier; 200 replicates give a band of `[0.904, 0.996]`.
-const N_SIM_BOOT: u32 = 200;
+const DEFAULT_N_SIM: u32 = 400;
+/// Replicate count from which the one-sided precision floor applies.
+const PRECISION_N_SIM: u32 = 1000;
+/// Shortfall below the level that asks for a recheck at fewer replicates.
+const RECHECK_SHORTFALL: f64 = 0.02;
 const N_OBS: usize = 300;
 const Z95: f64 = 1.96;
 /// Bootstrap replicates for IPW SE: R=60 keeps gate runtime acceptable while
@@ -57,10 +65,34 @@ const BOOT_REPS: u32 = 60;
 /// Nominal level of every interval in this file.
 const LEVEL: f64 = 0.95;
 
+/// Replicate count, honoring `ANTECEDENT_CALIBRATION_NSIM` (the gate's recheck).
+fn n_sim() -> u32 {
+    std::env::var("ANTECEDENT_CALIBRATION_NSIM")
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(DEFAULT_N_SIM)
+}
+
+/// Bootstrap IPW is heavier: half the replicates (200 by default, a band of
+/// `[0.904, 0.996]`).
+fn n_sim_boot() -> u32 {
+    (n_sim() / 2).max(2)
+}
+
+fn coverage_mcse(n_sim: u32) -> f64 {
+    (LEVEL * (1.0 - LEVEL) / f64::from(n_sim)).sqrt()
+}
+
 /// Two-sided acceptance band `LEVEL ± 3·MCSE` (no floor, no cap below 1).
 fn coverage_band(n_sim: u32) -> (f64, f64) {
-    let mcse = (LEVEL * (1.0 - LEVEL) / f64::from(n_sim)).sqrt();
+    let mcse = coverage_mcse(n_sim);
     ((LEVEL - 3.0 * mcse).max(0.0), (LEVEL + 3.0 * mcse).min(1.0))
+}
+
+/// One-sided precision floor `LEVEL − 2·MCSE` from `PRECISION_N_SIM` replicates.
+fn precision_floor(n_sim: u32) -> Option<f64> {
+    (n_sim >= PRECISION_N_SIM).then(|| LEVEL - 2.0 * coverage_mcse(n_sim))
 }
 
 /// Coverage count plus mean interval length and Monte Carlo spread of the point.
@@ -119,7 +151,9 @@ impl Tally {
         );
     }
 
-    /// Print and gate two-sided nominal coverage.
+    /// Print and gate nominal coverage: the two-sided band, plus the precision
+    /// floor from `PRECISION_N_SIM` replicates or a `calibration-recheck` line
+    /// below it.
     fn assert(&self, label: &str) {
         assert!(self.scored > 0, "{label}: no replicates scored");
         self.report(label);
@@ -131,6 +165,23 @@ impl Tally {
             self.covered,
             self.scored
         );
+        if let Some(floor) = precision_floor(self.scored) {
+            assert!(
+                rate >= floor,
+                "{label}: coverage={rate:.3} below the precision floor {floor:.3} \
+                 (level - 2 MCSE at {} replicates; {}/{})",
+                self.scored,
+                self.covered,
+                self.scored
+            );
+        } else if rate < LEVEL - RECHECK_SHORTFALL {
+            eprintln!(
+                "calibration-recheck {label}: coverage={rate:.3} is more than \
+                 {RECHECK_SHORTFALL:.2} below {LEVEL:.2} at {} replicates; re-run at \
+                 ANTECEDENT_CALIBRATION_NSIM=2000",
+                self.scored
+            );
+        }
     }
 }
 
@@ -229,7 +280,7 @@ fn linear_adjustment_analytic_ci_coverage() {
     let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::default() };
     let ctx = ExecutionContext::for_tests(1);
     let mut tally = Tally::default();
-    for s in 0..N_SIM {
+    for s in 0..n_sim() {
         let (data, estimand) = confounded_scm(N_OBS, 1000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = crate::adjustment::EstimationWorkspace::default();
@@ -250,7 +301,7 @@ fn linear_adjustment_hc1_ci_coverage() {
     };
     let ctx = ExecutionContext::for_tests(11);
     let mut tally = Tally::default();
-    for s in 0..N_SIM {
+    for s in 0..n_sim() {
         let (data, estimand) = confounded_scm(N_OBS, 1100 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = crate::adjustment::EstimationWorkspace::default();
@@ -268,7 +319,7 @@ fn ipw_hajek_bootstrap_ci_coverage() {
     let est = PropensityWeighting { bootstrap_replicates: BOOT_REPS, ..PropensityWeighting::new() };
     let mut tally = Tally::default();
     let mut skipped = 0u32;
-    for s in 0..N_SIM_BOOT {
+    for s in 0..n_sim_boot() {
         // One context per simulation: a shared context would hand every
         // simulation the same bootstrap resample indices.
         let ctx = ExecutionContext::for_tests(2000 + u64::from(s));
@@ -283,8 +334,9 @@ fn ipw_hajek_bootstrap_ci_coverage() {
         tally.record(effect.ate, se_b, TRUE_ATE);
     }
     assert!(
-        skipped * 20 <= N_SIM_BOOT,
-        "ipw bootstrap: too many missing se_bootstrap ({skipped}/{N_SIM_BOOT})"
+        skipped * 20 <= n_sim_boot(),
+        "ipw bootstrap: too many missing se_bootstrap ({skipped}/{})",
+        n_sim_boot()
     );
     tally.assert("ipw_hajek_bootstrap");
 }
@@ -297,7 +349,7 @@ fn ipw_hajek_analytic_ci_coverage() {
     let est = PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() };
     let ctx = ExecutionContext::for_tests(2);
     let mut tally = Tally::default();
-    for s in 0..N_SIM {
+    for s in 0..n_sim() {
         let (data, estimand) = confounded_scm(500, 2100 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
@@ -321,7 +373,7 @@ fn ipw_hajek_analytic_conformance_scm_ci_coverage() {
     let est = PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() };
     let ctx = ExecutionContext::for_tests(9);
     let mut tally = Tally::default();
-    for s in 0..N_SIM {
+    for s in 0..n_sim() {
         let mut rng = ExecutionContext::for_tests(3 + 1000 * u64::from(s)).rng.stream(0x5051_u64);
         let n = 1200;
         let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
@@ -350,7 +402,7 @@ fn aipw_analytic_ci_coverage() {
     let est = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
     let ctx = ExecutionContext::for_tests(3);
     let mut tally = Tally::default();
-    for s in 0..N_SIM {
+    for s in 0..n_sim() {
         let (data, estimand) = confounded_scm(N_OBS, 3000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = crate::aipw::AipwWorkspace::default();
@@ -414,7 +466,7 @@ fn aipw_residualized_coverage(
         .with_target_population(population);
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::default();
-    for s in 0..N_SIM {
+    for s in 0..n_sim() {
         let (data, clusters) = heterogeneous_binary_scm(600, seed + u64::from(s), cluster_sd);
         let mut est = AipwAte { bootstrap_replicates: 0, se_kind, ..AipwAte::new() };
         if matches!(se_kind, AnalyticSeKind::Cluster) {
@@ -490,7 +542,7 @@ fn matching_homoskedastic_ci_coverage() {
     };
     let ctx = ExecutionContext::for_tests(4);
     let mut tally = Tally::default();
-    for s in 0..N_SIM {
+    for s in 0..n_sim() {
         let (data, estimand) = confounded_scm(N_OBS, 4000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
@@ -535,7 +587,7 @@ fn wald_coverage(label: &str, se_kind: AnalyticSeKind, seed: u64) {
     let est = WaldIv { bootstrap_replicates: 0, se_kind, ..WaldIv::new() };
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::default();
-    for s in 0..N_SIM {
+    for s in 0..n_sim() {
         let (data, estimand) = binary_iv_scm(N_OBS, seed * 1000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
@@ -599,7 +651,7 @@ fn two_sls_coverage(label: &str, se_kind: AnalyticSeKind, heteroskedastic: bool,
         TwoStageLeastSquares { bootstrap_replicates: 0, se_kind, ..TwoStageLeastSquares::new() };
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::default();
-    for s in 0..N_SIM {
+    for s in 0..n_sim() {
         let (data, estimand) = two_sls_scm(500, seed + u64::from(s), heteroskedastic);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = TwoStageLeastSquaresWorkspace::default();
@@ -651,7 +703,7 @@ fn frontdoor_coverage(label: &str, se_kind: AnalyticSeKind, seed: u64) {
     let est = FrontDoorTwoStage { bootstrap_replicates: 0, se_kind, ..FrontDoorTwoStage::new() };
     let ctx = ExecutionContext::for_tests(seed);
     let mut tally = Tally::default();
-    for s in 0..N_SIM {
+    for s in 0..n_sim() {
         let data = frontdoor_scm(400, seed + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = FrontDoorWorkspace::default();
@@ -720,7 +772,7 @@ fn rd_sharp_analytic_ci_coverage() {
     };
     let ctx = ExecutionContext::for_tests(6);
     let mut tally = Tally::default();
-    for s in 0..N_SIM {
+    for s in 0..n_sim() {
         let (data, estimand) = rd_scm(N_OBS, 6000 + u64::from(s), 0.0, 1.0, false);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = RdWorkspace::default();
@@ -746,7 +798,7 @@ fn rd_sharp_hc1_heteroskedastic_ci_coverage() {
     let ctx = ExecutionContext::for_tests(16);
     let mut tally = Tally::default();
     let mut probe = Tally::default();
-    for s in 0..N_SIM {
+    for s in 0..n_sim() {
         let (data, estimand) = rd_scm(N_OBS, 6100 + u64::from(s), 0.0, 1.0, true);
         let prep = hc1.prepare(&data, &estimand, &query).unwrap();
         let mut ws = RdWorkspace::default();

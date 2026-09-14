@@ -512,13 +512,28 @@ fn gam_coverage(name: &str, functional: &F, truth: &[f64]) -> Vec<CoverageTally>
     let mut tallies: Vec<_> =
         (0..truth.len()).map(|j| CoverageTally::new(format!("{name}[{j}]"), LEVEL)).collect();
     let graph = gam_graph();
+    // Posterior means and band half-widths per coordinate, so a failing gate
+    // says whether the band is mis-centred (bias) or mis-scaled (SE).
+    let mut points: Vec<Vec<f64>> = vec![Vec::new(); truth.len()];
+    let mut half_widths: Vec<Vec<f64>> = vec![Vec::new(); truth.len()];
     for rep in 0..u64::from(n_sim()) {
         let seed = replicate_seed(0x0D0F, rep);
         let data = gam_data(N_GAM, seed);
         match run(&data, &graph, functional.clone(), None, Some(bayes()), seed) {
             Ok(response) => {
+                let values: Vec<f64> = match &response.estimate {
+                    ResponseIdentification::PointIdentified(
+                        ResponseValue::Jacobian { values, .. } | ResponseValue::Vector(values),
+                    ) => values.to_vec(),
+                    other => panic!("{name}: unexpected estimate {other:?}"),
+                };
                 for (j, tally) in tallies.iter_mut().enumerate() {
-                    tally.record(band_interval(&response, j), truth[j]);
+                    let interval = band_interval(&response, j);
+                    tally.record(interval, truth[j]);
+                    points[j].push(values[j]);
+                    if let Some((lo, hi)) = interval {
+                        half_widths[j].push(0.5 * (hi - lo));
+                    }
                 }
             }
             Err(error) => {
@@ -529,16 +544,41 @@ fn gam_coverage(name: &str, functional: &F, truth: &[f64]) -> Vec<CoverageTally>
             }
         }
     }
+    let z = common::calibration::Z90;
+    for j in 0..truth.len() {
+        let n = points[j].len().max(2) as f64;
+        let mean = points[j].iter().sum::<f64>() / n;
+        let sd = (points[j].iter().map(|p| (p - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt();
+        let se = half_widths[j].iter().sum::<f64>() / half_widths[j].len().max(1) as f64 / z;
+        eprintln!(
+            "info {name}[{j}]: bias={:+.4} mc_sd={sd:.4} mean_band_se={se:.4} se/sd={:.3} \
+             bias/sd={:+.3}",
+            mean - truth[j],
+            se / sd,
+            (mean - truth[j]) / sd
+        );
+    }
     tallies
+}
+
+/// Print every coordinate's calibration line before failing on any of them.
+fn assert_all(tallies: &[CoverageTally]) {
+    let failures: Vec<String> = tallies
+        .iter()
+        .filter_map(|tally| {
+            std::panic::catch_unwind(|| tally.assert()).err().map(|e| {
+                e.downcast_ref::<String>().cloned().unwrap_or_else(|| "coverage failure".into())
+            })
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("; "));
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn response_jacobian_bayesian_nominal_90_coverage() {
     let tallies = gam_coverage("response_jacobian_bayesian", &jacobian_query(), &JACOBIAN_TRUTH);
-    for tally in &tallies {
-        tally.assert();
-    }
+    assert_all(&tallies);
 }
 
 #[test]
@@ -546,9 +586,7 @@ fn response_jacobian_bayesian_nominal_90_coverage() {
 fn directional_derivative_bayesian_nominal_90_coverage() {
     let tallies =
         gam_coverage("directional_derivative_bayesian", &directional_query(), &DIRECTIONAL_TRUTH);
-    for tally in &tallies {
-        tally.assert();
-    }
+    assert_all(&tallies);
 }
 
 // --- Withheld intervals stay withheld (not a coverage run) -------------------

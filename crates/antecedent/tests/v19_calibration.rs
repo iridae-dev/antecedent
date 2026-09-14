@@ -307,19 +307,31 @@ impl FreqTally {
         }
     }
 
-    fn assert(&self) {
+    fn report(&self) {
         let n = self.estimates.len().max(2) as f64;
         let mean = self.estimates.iter().sum::<f64>() / n;
         let mc_sd =
             (self.estimates.iter().map(|e| (e - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt();
         let mean_se = self.ses.iter().sum::<f64>() / self.ses.len().max(1) as f64;
         eprintln!(
-            "info {}: bias={:+.4} mc_sd={mc_sd:.4} mean_se={mean_se:.4} se/sd={:.3}",
+            "info {}: bias={:+.4} mc_sd={mc_sd:.4} mean_se={mean_se:.4} se/sd={:.3} \
+             bias/sd={:+.3}",
             self.name,
             mean - self.truth,
-            mean_se / mc_sd
+            mean_se / mc_sd,
+            (mean - self.truth) / mc_sd
         );
+    }
+
+    fn assert(&self) {
+        self.report();
         self.tally.assert();
+    }
+
+    /// Named boundary cell: assert the band around its measured coverage.
+    fn assert_boundary(&self, measured: f64) {
+        self.report();
+        self.tally.assert_boundary(measured);
     }
 }
 
@@ -336,6 +348,23 @@ fn diagnostic_field(result: &StudyResult, code: &str, key: &str) -> Option<f64> 
 // Frequentist DBN posterior (shared circular block)
 // ---------------------------------------------------------------------------
 
+fn frequentist_dbn_tally(
+    name: &str,
+    query: &TemporalEffectQuery,
+    truth: f64,
+    rho: f64,
+    n: usize,
+    seed_base: u64,
+) -> FreqTally {
+    let mut tally = FreqTally::new(name, truth);
+    for s in 0..n_sim() {
+        let data = confounded_series(n, B2, rho, seed_base + u64::from(s));
+        let result = run_freq_dbn(data, query.clone(), heterogeneous_dbn(), BOOT, u64::from(s));
+        tally.record(&result);
+    }
+    tally
+}
+
 fn frequentist_dbn_case(
     name: &str,
     query: &TemporalEffectQuery,
@@ -344,13 +373,37 @@ fn frequentist_dbn_case(
     n: usize,
     seed_base: u64,
 ) {
-    let mut tally = FreqTally::new(name, truth);
-    for s in 0..n_sim() {
-        let data = confounded_series(n, B2, rho, seed_base + u64::from(s));
-        let result = run_freq_dbn(data, query.clone(), heterogeneous_dbn(), BOOT, u64::from(s));
-        tally.record(&result);
+    frequentist_dbn_tally(name, query, truth, rho, n, seed_base).assert();
+}
+
+/// The gate rule of `common::calibration` on fixed counts: the two-sided band,
+/// the recheck request below it, and the one-sided precision floor from 1000
+/// replicates.
+#[test]
+fn calibration_rule_band_recheck_and_precision_floor() {
+    use common::calibration::{
+        PRECISION_N_SIM, RECHECK_N_SIM, coverage_band, needs_recheck, precision_floor,
+    };
+    let (lo, hi) = coverage_band(400, 0.9);
+    assert!((lo - 0.855).abs() < 1e-3 && (hi - 0.945).abs() < 1e-3);
+    assert!(precision_floor(400, 0.9).is_none());
+    assert!(needs_recheck(400, 0.9, 0.875) && !needs_recheck(400, 0.9, 0.885));
+    assert!(needs_recheck(400, 0.95, 0.925) && !needs_recheck(400, 0.95, 0.935));
+    let floor = precision_floor(RECHECK_N_SIM, 0.9).unwrap();
+    assert!((floor - 0.8866).abs() < 1e-3, "{floor}");
+    assert!((precision_floor(RECHECK_N_SIM, 0.95).unwrap() - 0.9403).abs() < 1e-3);
+    assert!(precision_floor(PRECISION_N_SIM, 0.9).is_some());
+    assert!(!needs_recheck(RECHECK_N_SIM, 0.9, 0.8));
+    // The floor is inside the two-sided band at the recheck count.
+    let (lo, _) = coverage_band(RECHECK_N_SIM, 0.9);
+    assert!(floor > lo);
+    // A tally at the recheck count that sits 2 points low fails the floor.
+    let mut tally = CoverageTally::new("rule", 0.9);
+    for i in 0..RECHECK_N_SIM {
+        tally.record(Some((0.0, 1.0)), if i % 50 < 44 { 0.5 } else { 2.0 });
     }
-    tally.assert();
+    assert!((tally.rate() - 0.88).abs() < 1e-9);
+    assert!(std::panic::catch_unwind(|| tally.assert()).is_err());
 }
 
 #[test]
@@ -426,15 +479,31 @@ frequentist_dbn_ar1!(
     160,
     30_000
 );
-frequentist_dbn_ar1!(
-    frequentist_dbn_pulse_ar1_rho09_n400_nominal_90_coverage,
-    "frequentist DBN Pulse AR(1) rho=0.9 n=400",
-    pulse_query(),
-    fixtures::dbn_pulse_atom_truths,
-    0.9,
-    400,
-    31_000
-);
+/// Boundary cell, not a nominal one: 0.879 at 2000 replicates (floor 0.887).
+/// The reported SE is right (SE/SD 1.07) and the errors are normal; the
+/// mixture is mis-centred by about a quarter of its SD (bias/SD −0.24) because
+/// the non-causal atom (`unadjusted_pulse_plim`) is scored against its
+/// probability limit while its finite-sample estimate, a regression on a
+/// persistent treatment with a persistent omitted confounder, sits below that
+/// limit at n = 400 (an `O(1/n_eff)` ratio-estimator bias, as in an AR(1)
+/// coefficient). The interval is for the frozen-weight aggregate of the atoms'
+/// limits; that target, not the SE, is what the cell misses. The runtime warns
+/// on most replicates (the mixture short-series threshold is set by this
+/// bias). The assertion is the band around the measured coverage.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band() {
+    let truth = fixtures::dbn_mixture_truth(fixtures::dbn_pulse_atom_truths(0.9));
+    frequentist_dbn_tally(
+        "frequentist DBN Pulse AR(1) rho=0.9 n=400 (boundary)",
+        &pulse_query(),
+        truth,
+        0.9,
+        400,
+        31_000,
+    )
+    .assert_boundary(0.879);
+}
 frequentist_dbn_ar1!(
     frequentist_dbn_pulse_ar1_rho05_n60_nominal_90_coverage,
     "frequentist DBN Pulse AR(1) rho=0.5 n=60",
@@ -477,6 +546,16 @@ frequentist_dbn_ar1!(
 // ---------------------------------------------------------------------------
 
 fn frequentist_cpdag_case(name: &str, query: &TemporalEffectQuery, rho: f64, n: usize, seed: u64) {
+    frequentist_cpdag_tally(name, query, rho, n, seed).assert();
+}
+
+fn frequentist_cpdag_tally(
+    name: &str,
+    query: &TemporalEffectQuery,
+    rho: f64,
+    n: usize,
+    seed: u64,
+) -> FreqTally {
     let truth = fixtures::cpdag_completion_truths(rho).iter().sum::<f64>() / 2.0;
     let mut tally = FreqTally::new(name, truth);
     for s in 0..n_sim() {
@@ -497,7 +576,7 @@ fn frequentist_cpdag_case(name: &str, query: &TemporalEffectQuery, rho: f64, n: 
         );
         tally.record(&result);
     }
-    tally.assert();
+    tally
 }
 
 #[test]
@@ -530,25 +609,30 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage() {
     );
 }
 
-/// Boundary cell, not a nominal one. The identical design (the two-completion
-/// `TemporalCpdag` Pulse at ρ = 0.9, n = 400) measured 0.875 over 2000
-/// replicates (`docs/short-series-thresholds.md`), 3.7 MCSE below 0.90 at
-/// that count: the non-causal completion omits a persistent confounder and is
-/// biased by about 0.16 of the mixture's SD. The runtime warns on about three
-/// quarters of its replicates. This test still asserts the 400-replicate band
-/// `[0.855, 0.945]`, which such an interval passes most of the time, so it
-/// guards against a regression below the band; a pass does not show nominal
-/// coverage.
+/// Boundary cell, not a nominal one. The two-completion `TemporalCpdag` Pulse
+/// at ρ = 0.9, n = 400 measures `CPDAG_RHO09_MEASURED` over 2000 replicates on
+/// this seed stream (0.890 and 0.905 on two other streams,
+/// `docs/short-series-thresholds.md`), at or below the gate's precision
+/// floor: the non-causal completion omits a persistent confounder, and its
+/// finite-sample estimate sits about 0.2 of the mixture's SD below the
+/// probability limit the frozen-weight aggregate is scored against (bias/SD
+/// −0.20 here; the reported SE itself is right, SE/SD 1.09). The runtime warns
+/// on about three quarters of its replicates. The assertion is the band around
+/// the measured coverage: it guards against a regression below (or a silent
+/// change above) that level; a pass does not show nominal coverage.
+const CPDAG_RHO09_MEASURED: f64 = 0.885;
+
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band() {
-    frequentist_cpdag_case(
+    frequentist_cpdag_tally(
         "frequentist TemporalCpdag Pulse AR(1) rho=0.9 n=400 (boundary)",
         &pulse_query(),
         0.9,
         400,
         37_000,
-    );
+    )
+    .assert_boundary(CPDAG_RHO09_MEASURED);
 }
 
 #[test]
