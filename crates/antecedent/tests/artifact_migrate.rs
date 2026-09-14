@@ -178,6 +178,7 @@ fn posterior_artifact() -> EncodedArtifact {
         q975: vec![1.1],
         identification: "NonparametricallyIdentified".into(),
         unidentified_mass: 0.0,
+        subsampled_out_mass: 0.0,
         backend_id: "laplace".into(),
         converged: true,
         hessian_condition: 1.0,

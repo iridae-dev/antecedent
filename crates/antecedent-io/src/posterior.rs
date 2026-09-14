@@ -56,6 +56,11 @@ pub struct CausalPosteriorWire {
     pub identification: String,
     /// Unidentified graph mass retained.
     pub unidentified_mass: f64,
+    /// Identified graph mass a latency tier left out of the envelope subsample
+    /// (never evaluated; not unidentified). Omitted when zero; artifacts written
+    /// before this field decode as zero.
+    #[serde(default, skip_serializing_if = "is_zero_mass")]
+    pub subsampled_out_mass: f64,
     /// Backend id.
     pub backend_id: String,
     /// Whether Laplace/conjugate reported convergence.
@@ -68,6 +73,11 @@ pub struct CausalPosteriorWire {
     /// identity-link effect. Used by effect-functional hydrate (`ATE / Δ`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub treatment_contrast: Option<f64>,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde's skip_serializing_if passes `&T`.
+fn is_zero_mass(mass: &f64) -> bool {
+    *mass == 0.0
 }
 
 fn validate_posterior_meta(
@@ -101,6 +111,16 @@ fn validate_posterior_meta(
     }
     if !meta.unidentified_mass.is_finite() || !(0.0..=1.0).contains(&meta.unidentified_mass) {
         return Err(IoError::Convert("posterior unidentified mass must lie in [0,1]".into()));
+    }
+    if !meta.subsampled_out_mass.is_finite()
+        || !(0.0..=1.0).contains(&meta.subsampled_out_mass)
+        || meta.unidentified_mass + meta.subsampled_out_mass > 1.0 + 1e-9
+    {
+        return Err(IoError::Convert(
+            "posterior subsampled-out mass must lie in [0,1] and not exceed the mass left \
+             after unidentified mass"
+                .into(),
+        ));
     }
     if meta.backend_id.trim().is_empty() || meta.n_draws == 0 {
         return Err(IoError::Convert(
@@ -296,6 +316,7 @@ mod tests {
             q975: vec![1.2],
             identification: "NonparametricallyIdentified".into(),
             unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
             backend_id: "laplace".into(),
             converged: true,
             hessian_condition: 10.0,
@@ -316,6 +337,46 @@ mod tests {
         assert_eq!(meta2.n_draws, 3);
         assert_eq!(draws2, draws);
         assert_eq!(meta2.backend_id, "laplace");
+    }
+
+    #[test]
+    fn subsampled_out_mass_is_optional_on_the_wire_and_round_trips() {
+        let draws = vec![0.9, 1.0, 1.1];
+        let round_trip = |meta: &CausalPosteriorWire| {
+            let art = encode_posterior_artifact(meta, &draws, "subsampled", "0.1.0").unwrap();
+            let mut buf = Vec::new();
+            art.write_to(&mut buf).unwrap();
+            decode_posterior_artifact(&EncodedArtifact::read_from(buf.as_slice()).unwrap())
+                .unwrap()
+                .0
+        };
+        // A zero share stays off the wire, so older readers and artifacts agree.
+        let zero = valid_meta();
+        let bytes = to_cbor(&zero).unwrap();
+        let value: ciborium::Value = ciborium::from_reader(bytes.as_slice()).unwrap();
+        let keys: Vec<String> = value
+            .as_map()
+            .unwrap()
+            .iter()
+            .filter_map(|(key, _)| key.as_text().map(str::to_owned))
+            .collect();
+        assert!(keys.iter().any(|key| key == "unidentified_mass"));
+        assert!(keys.iter().all(|key| key != "subsampled_out_mass"));
+        assert!(round_trip(&zero).subsampled_out_mass.abs() < f64::EPSILON);
+
+        let mut split = valid_meta();
+        split.identification = "GraphDependent".into();
+        split.unidentified_mass = 0.1;
+        split.subsampled_out_mass = 0.4;
+        let decoded = round_trip(&split);
+        assert!((decoded.subsampled_out_mass - 0.4).abs() < f64::EPSILON);
+        assert!((decoded.unidentified_mass - 0.1).abs() < f64::EPSILON);
+
+        for bad in [-0.1, 1.5, f64::NAN, 0.95] {
+            let mut invalid = split.clone();
+            invalid.subsampled_out_mass = bad;
+            assert!(encode_posterior_artifact(&invalid, &draws, "bad", "0.1.0").is_err(), "{bad}");
+        }
     }
 
     #[test]
@@ -345,6 +406,7 @@ mod tests {
             q975: vec![1.1],
             identification: "NonparametricallyIdentified".into(),
             unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
             backend_id: "laplace".into(),
             converged: true,
             hessian_condition: 1.0,

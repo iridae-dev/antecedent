@@ -1423,3 +1423,208 @@ fn interactive_graph_posterior_ate_reports_subsampled_out_mass_separately() {
         antecedent_core::IdentificationStatus::GraphDependent
     );
 }
+
+/// The Bayesian graph-posterior ATE reports atoms the Interactive subsample
+/// dropped as posterior subsampled-out mass, keeps unidentified mass at the
+/// full ensemble's share, and stays graph-dependent.
+#[test]
+fn interactive_bayesian_graph_posterior_ate_reports_subsampled_out_mass_separately() {
+    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+
+    let (data, gp, n_identified) = interactive_budget_fixture();
+    let n_atoms = n_identified + 1;
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let ctx = ExecutionContext::for_tests(9);
+    let run = |latency: antecedent::LatencyMode| {
+        Study::tabular(data.clone())
+            .graph_posterior(gp.clone())
+            .query(query.clone())
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+            .latency_mode(latency)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    };
+    let unidentified = 1.0 / n_atoms as f64;
+
+    let full = run(antecedent::LatencyMode::Standard);
+    assert!(full.diagnostics.iter().all(|d| d.code.as_ref() != SUBSAMPLE_DIAGNOSTIC));
+    let full_post = full.posterior.as_ref().unwrap();
+    assert!((full_post.unidentified_mass - unidentified).abs() < 1e-12);
+    assert!(full_post.subsampled_out_mass.abs() < 1e-12);
+
+    let interactive = run(antecedent::LatencyMode::Interactive);
+    let note = interactive
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == SUBSAMPLE_DIAGNOSTIC)
+        .expect("subsample diagnostic");
+    assert!(note.message.contains("reported as subsampled_out_mass"), "{}", note.message);
+    assert!(!note.message.contains("folds"), "{}", note.message);
+    let post = interactive.posterior.as_ref().unwrap();
+    let dropped = n_identified - INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    assert!(
+        (post.unidentified_mass - unidentified).abs() < 1e-12,
+        "dropped atoms must not be reported as unidentified: {}",
+        post.unidentified_mass
+    );
+    assert!(
+        (post.subsampled_out_mass - dropped as f64 / n_atoms as f64).abs() < 1e-12,
+        "{}",
+        post.subsampled_out_mass
+    );
+    let mixed = INTERACTIVE_MAX_ENVELOPE_GRAPHS as f64 / n_atoms as f64;
+    assert!((mixed + post.unidentified_mass + post.subsampled_out_mass - 1.0).abs() < 1e-12);
+    assert_eq!(post.identification, antecedent_core::IdentificationStatus::GraphDependent);
+    let envelope = interactive
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "estimate.graph_posterior.envelope")
+        .expect("envelope diagnostic");
+    assert!(
+        envelope.message.contains(&format!("subsampled_out_mass={}", post.subsampled_out_mass)),
+        "{}",
+        envelope.message
+    );
+
+    // The posterior artifact carries the split.
+    let bytes = antecedent_io::encode_causal_posterior_bytes(post, "subsampled").unwrap();
+    let (wire, _) = antecedent_io::decode_causal_posterior_bytes(&bytes).unwrap();
+    assert!((wire.subsampled_out_mass - post.subsampled_out_mass).abs() < f64::EPSILON);
+    assert!((wire.unidentified_mass - post.unidentified_mass).abs() < f64::EPSILON);
+    // The result's status follows the posterior's: uncovered mass of either
+    // kind leaves the mixture graph-dependent, at every tier.
+    for result in [&full, &interactive] {
+        assert_eq!(
+            result.identification.status,
+            antecedent_core::IdentificationStatus::GraphDependent
+        );
+    }
+}
+
+/// CPDAG whose Markov equivalence class has more completions than the
+/// Interactive graph budget: an undirected star centred on the treatment, with
+/// the outcome and seventeen covariates as leaves (one completion per root).
+fn interactive_star_cpdag_fixture() -> (TabularData, antecedent_graph::Cpdag) {
+    let n = 200_usize;
+    let n_leaves = 17_u32;
+    let wave = |i: usize, period: f64| (i as f64 / period).sin();
+    let leaves: Vec<Vec<f64>> = (0..n_leaves)
+        .map(|k| (0..n).map(|i| wave(i, 3.0 + f64::from(k) * 1.7)).collect())
+        .collect();
+    let noise = |i: usize, salt: usize| ((i * 7919 + salt * 104_729) % 101) as f64 / 101.0 - 0.5;
+    let treatment: Vec<f64> =
+        (0..n).map(|i| 0.3 * leaves[0][i] + 0.2 * leaves[1][i] + 0.5 * noise(i, 1)).collect();
+    let outcome: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * treatment[i] + 0.3 * noise(i, 2)).collect();
+    let names: Vec<String> = (0..n_leaves).map(|k| format!("l{k}")).collect();
+    let mut columns: Vec<(&str, &[f64])> =
+        vec![("treatment", treatment.as_slice()), ("outcome", outcome.as_slice())];
+    for (name, values) in names.iter().zip(&leaves) {
+        columns.push((name.as_str(), values.as_slice()));
+    }
+    let data = TabularData::from_f64_columns(columns).unwrap();
+    let n_vars = 2 + n_leaves;
+    let mut cpdag = antecedent_graph::Cpdag::with_variables(n_vars);
+    let centre = DenseNodeId::from_raw(0);
+    for leaf in 1..n_vars {
+        cpdag.insert_undirected(centre, DenseNodeId::from_raw(leaf)).unwrap();
+    }
+    (data, cpdag)
+}
+
+/// The Bayesian CPDAG class envelope at Interactive latency reports the
+/// completions its subsample skipped as subsampled-out mass, keeps
+/// unidentified mass at the full class's share, and stays graph-dependent.
+#[test]
+fn interactive_bayesian_cpdag_envelope_reports_subsampled_out_mass_separately() {
+    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+
+    let (data, cpdag) = interactive_star_cpdag_fixture();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let ctx = ExecutionContext::for_tests(5);
+    let run = |latency: antecedent::LatencyMode| {
+        Study::tabular(data.clone())
+            .graph(cpdag.clone())
+            .query(query.clone())
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+            .latency_mode(latency)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    };
+    let class_masses = |result: &antecedent::StudyResult| {
+        let message = &result
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "identify.cpdag.envelope")
+            .expect("class envelope diagnostic")
+            .message;
+        let field = |name: &str| -> f64 {
+            let tail = message.split(&format!(" {name}=")).nth(1).expect(name);
+            tail.split([',', ' ']).next().unwrap().parse().unwrap()
+        };
+        let cases = message.split("cases=").nth(1).unwrap().trim().parse::<usize>().unwrap();
+        (field("identified_mass"), field("unidentified_mass"), cases)
+    };
+
+    let full = run(antecedent::LatencyMode::Standard);
+    assert!(full.diagnostics.iter().all(|d| d.code.as_ref() != SUBSAMPLE_DIAGNOSTIC));
+    let (identified_weight, unidentified_weight, cases) = class_masses(&full);
+    let total = identified_weight + unidentified_weight;
+    let unidentified = unidentified_weight / total;
+    let full_post = full.posterior.as_ref().unwrap();
+    assert!((full_post.unidentified_mass - unidentified).abs() < 1e-12);
+    assert!(full_post.subsampled_out_mass.abs() < 1e-12);
+
+    let interactive = run(antecedent::LatencyMode::Interactive);
+    let note = interactive
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == SUBSAMPLE_DIAGNOSTIC)
+        .expect("subsample diagnostic");
+    assert!(note.message.contains("reported as subsampled_out_mass"), "{}", note.message);
+    let post = interactive.posterior.as_ref().unwrap();
+    // Every completion carries equal enumeration weight.
+    let n_identified = (0..=cases)
+        .find(|k| (*k as f64 / cases as f64 - identified_weight / total).abs() < 1e-9)
+        .expect("equal completion weights");
+    assert!(
+        n_identified > INTERACTIVE_MAX_ENVELOPE_GRAPHS,
+        "{n_identified} identified completions"
+    );
+    let dropped = n_identified - INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    assert!(note.message.contains(&format!("subsampled_out_atoms={dropped}")), "{}", note.message);
+    assert!(
+        (post.unidentified_mass - unidentified).abs() < 1e-12,
+        "skipped completions must not be reported as unidentified: {}",
+        post.unidentified_mass
+    );
+    assert!(
+        (post.subsampled_out_mass - dropped as f64 / cases as f64).abs() < 1e-12,
+        "{}",
+        post.subsampled_out_mass
+    );
+    let mixed = INTERACTIVE_MAX_ENVELOPE_GRAPHS as f64 / cases as f64;
+    assert!((mixed + post.unidentified_mass + post.subsampled_out_mass - 1.0).abs() < 1e-12);
+    assert_eq!(post.identification, antecedent_core::IdentificationStatus::GraphDependent);
+    let envelope = interactive
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "estimate.cpdag.envelope")
+        .expect("envelope mass diagnostic");
+    assert!(
+        envelope.message.contains(&format!("subsampled_out_mass={}", post.subsampled_out_mass)),
+        "{}",
+        envelope.message
+    );
+    assert_eq!(
+        interactive.identification.status,
+        antecedent_core::IdentificationStatus::GraphDependent
+    );
+}

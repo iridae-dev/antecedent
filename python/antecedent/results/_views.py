@@ -257,6 +257,10 @@ class PosteriorView:
     unidentified_mass: float | None = None
     envelope: EffectEnvelope | None = None
     conflict: ConflictSummaryView | None = None
+    #: Identified graph mass the Interactive latency tier left out of the
+    #: envelope subsample. Those atoms were not evaluated, so this is neither
+    #: unidentified mass nor part of the published mixture.
+    subsampled_out_mass: float = 0.0
 
     def __repr__(self) -> str:
         if self.effect_mean is None:
@@ -275,6 +279,8 @@ class PosteriorView:
         ]
         if self.unidentified_mass is not None and self.unidentified_mass > 0:
             parts.append(f"unidentified_mass={fmt_pct(self.unidentified_mass)}")
+        if self.subsampled_out_mass > 0:
+            parts.append(f"subsampled_out_mass={fmt_pct(self.subsampled_out_mass)}")
         return f"<PosteriorView {' '.join(parts)}>"
 
     def __array__(self, dtype: Any = None, copy: Any = None) -> Any:
@@ -326,12 +332,21 @@ class EffectEnvelope:
     unidentified_mass: float
     n_draws: int | None
     backend: str | None = None
+    #: Identified graph mass the Interactive latency tier left out of the
+    #: subsample (not evaluated; not unidentified).
+    subsampled_out_mass: float = 0.0
 
     def __repr__(self) -> str:
+        skipped = (
+            f" subsampled_out_mass={fmt_pct(self.subsampled_out_mass)}"
+            if self.subsampled_out_mass > 0
+            else ""
+        )
         return (
             f"<EffectEnvelope mean={fmt_float(self.effect_mean)} sd={fmt_float(self.effect_sd)} "
             f"ci95=[{fmt_float(self.q025)}, {fmt_float(self.q975)}] "
-            f"unidentified_mass={fmt_pct(self.unidentified_mass)} n_draws={self.n_draws}>"
+            f"unidentified_mass={fmt_pct(self.unidentified_mass)}{skipped} "
+            f"n_draws={self.n_draws}>"
         )
 
 

@@ -2321,6 +2321,7 @@ pub(crate) fn ate_result_from_analysis(
         conflict_alphas_requested,
         conflict_alphas_applied,
         posterior_unidentified_mass: posterior.unidentified_mass,
+        posterior_subsampled_out_mass: posterior.subsampled_out_mass,
         latency_mode: performance.latency_mode.clone(),
         wall_time_ns: result.performance.wall_time_ns,
         bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,

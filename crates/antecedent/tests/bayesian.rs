@@ -893,6 +893,7 @@ fn prior_bank_catalog() {
             q975: vec![1.0; n_q],
             identification: "NonparametricallyIdentified".into(),
             unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
             backend_id: "laplace".into(),
             converged: true,
             hessian_condition: 1.0,

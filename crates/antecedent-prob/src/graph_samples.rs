@@ -20,7 +20,9 @@ pub enum GraphIdentFlag {
 /// Result of an Interactive stratified graph subsample.
 #[derive(Clone, Debug)]
 pub struct GraphEnvelopeSubsample {
-    /// Ensemble used for the mixture (excluded identified mass flipped to Unidentified).
+    /// Ensemble used for the mixture (excluded identified atoms flagged
+    /// Unidentified so the mixture skips them; their mass is
+    /// [`Self::leftover_identified_mass`], not unidentified mass).
     pub graphs: WeightedGraphSamples,
     /// Absolute weight of identified graphs reclassified as Unidentified for UI.
     pub leftover_identified_mass: f64,
@@ -131,7 +133,10 @@ impl WeightedGraphSamples {
 
     /// Interactive stratified subsample: keep at most `max_identified` Identified
     /// graphs (plus all Unidentified), flipping leftover Identified flags to
-    /// Unidentified so their mass is never silently dropped.
+    /// Unidentified so their mass is never silently dropped. The flag only
+    /// excludes them from the mixture; callers report
+    /// [`GraphEnvelopeSubsample::leftover_identified_mass`] as subsampled-out
+    /// (not evaluated) mass, separate from genuinely unidentified mass.
     ///
     /// Total weight is unchanged. Mixture draws use E[τ | identified-in-subset].
     ///
