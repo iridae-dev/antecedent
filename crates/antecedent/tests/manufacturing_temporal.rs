@@ -407,6 +407,39 @@ fn manufacturing_dbn_posterior_frequentist_shared_block_bootstrap() {
                  graph-specific effects",
             )
     }));
+    // Structural mass accounting rides the result like the DBN mediation mixture.
+    let structural = result.structural_response.as_ref().expect("structural mixture");
+    assert_eq!(
+        structural.weight_basis,
+        antecedent::result::StructuralWeightBasis::PosteriorProbability
+    );
+    assert_eq!(structural.atoms.len(), weights.len());
+    let identified_truth = pin["identified_mass"].as_f64().unwrap();
+    let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
+    assert!((structural.identified_mass - identified_truth).abs() < 1e-12);
+    assert!((structural.unidentified_mass - unidentified_truth).abs() < 1e-12);
+    assert_eq!(structural.unevaluable_mass, 0.0);
+    assert_eq!(structural.subsampled_out_mass, 0.0);
+    let evaluated: Vec<_> = structural.atoms.iter().filter(|atom| atom.value.is_some()).collect();
+    assert_eq!(evaluated.len(), 1);
+    assert!((evaluated[0].weight - identified_truth).abs() < 1e-12);
+    assert_eq!(
+        structural
+            .atoms
+            .iter()
+            .filter(|atom| atom.status == IdentificationStatus::NotIdentified)
+            .count(),
+        1
+    );
+    match structural.conditional_on_identified.as_ref() {
+        Some(antecedent_core::ResponseValue::Scalar(value)) => {
+            assert!((value - result.estimate.ate).abs() < 1e-12);
+        }
+        other => panic!("expected a scalar conditional summary, got {other:?}"),
+    }
+    let set = structural.identified_set.as_ref().expect("identified set");
+    assert!((set.lower[0] - result.estimate.ate).abs() < 1e-12);
+    assert!((set.upper[0] - result.estimate.ate).abs() < 1e-12);
 }
 
 #[test]

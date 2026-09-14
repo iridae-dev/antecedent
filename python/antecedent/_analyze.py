@@ -1157,13 +1157,11 @@ def handle_supplied_graph_posterior(
 ) -> Any:
     from .estimation import _bayesian_inference_kwargs, _wrap_ate
 
-    if isinstance(query, (PulseEffect, SustainedEffect)) and not isinstance(inference, Bayesian):
+    # Frequentist Pulse / Sustained mix DBN atoms with a shared circular-block
+    # SE over `bootstrap` replicates (already resolved from the latency tier).
+    if not isinstance(inference, (Frequentist, Bayesian)):
         raise TypeError(
-            "graph-posterior discovery requires inference=Bayesian(...) for temporal effect mixture"
-        )
-    if isinstance(query, AverageEffect) and not isinstance(inference, (Frequentist, Bayesian)):
-        raise TypeError(
-            "graph-posterior AverageEffect requires inference=Frequentist() or Bayesian(...)"
+            "graph-posterior discovery requires inference=Frequentist() or Bayesian(...)"
         )
     if not isinstance(query, (AverageEffect, PulseEffect, SustainedEffect)):
         raise TypeError(
@@ -1933,12 +1931,14 @@ def _handle_series_discover(
     from .estimation import _discovery_algorithm, _wrap_temporal
 
     if isinstance(discovery, DbnPosterior):
-        if not isinstance(inference, Bayesian):
+        if not isinstance(inference, (Bayesian, Frequentist)):
             raise TypeError(
-                "discovery=DbnPosterior(...) requires inference=Bayesian(...) "
-                "for temporal effect mixture"
+                "discovery=DbnPosterior(...) requires inference=Bayesian(...) or "
+                "Frequentist() for a temporal effect mixture"
             )
-        if getattr(query, "window", None) is not None:
+        # Sustained windows and the Frequentist mixture (shared circular-block
+        # SE over atoms) run through the prepared handle.
+        if getattr(query, "window", None) is not None or isinstance(inference, Frequentist):
             from .estimation import PreparedAnalysis
 
             prepared = PreparedAnalysis.prepare(

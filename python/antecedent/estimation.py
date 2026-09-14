@@ -1597,8 +1597,10 @@ class PreparedAnalysis:
         ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` / a constructed
         ``GraphPosterior`` compiles the licensed graph-posterior cells
         (Bayesian AverageEffect / Pulse / Sustained / TemporalMediationEffect,
-        Frequentist AverageEffect, and single-horizon Frequentist
-        TemporalMediationEffect on a DBN posterior).
+        Frequentist AverageEffect, and Frequentist Pulse / Sustained and
+        single-horizon TemporalMediationEffect on a DBN posterior). Frequentist
+        DBN mixtures take their shared circular-block replicates from the
+        ``latency`` tier (or an explicit ``bootstrap``).
         """
         if isinstance(query, (ResponseCurve, InterventionResponse)):
             from .query import coerce_outcome_functional
@@ -2538,20 +2540,20 @@ class PreparedAnalysis:
             )
             or (
                 isinstance(discovery, (DbnPosterior, GraphPosterior))
-                and isinstance(query, TemporalMediationEffect)
+                and isinstance(query, (PulseEffect, SustainedEffect, TemporalMediationEffect))
             )
         )
         if isinstance(inference, Frequentist) and not is_freq_licensed:
             raise CausalTypeError(
                 "PreparedAnalysis.prepare(discovery=) requires inference=Bayesian(...) "
-                "except AverageEffect × graph_posterior and TemporalMediationEffect × "
-                "DBN graph_posterior"
+                "except AverageEffect × graph_posterior and Pulse / Sustained / "
+                "TemporalMediationEffect × DBN graph_posterior"
             )
         if not isinstance(inference, (Bayesian, Frequentist)):
             raise CausalTypeError(
                 "PreparedAnalysis.prepare(discovery=) requires inference=Bayesian(...) "
-                "or Frequentist() for AverageEffect × graph_posterior and "
-                "TemporalMediationEffect × DBN graph_posterior"
+                "or Frequentist() for AverageEffect × graph_posterior and Pulse / "
+                "Sustained / TemporalMediationEffect × DBN graph_posterior"
             )
         refute = coerce_refute(refute)
         bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
@@ -2586,6 +2588,10 @@ class PreparedAnalysis:
             query, (PulseEffect, SustainedEffect)
         ):
             window = getattr(query, "window", None)
+            # Frequentist atoms share one circular-block bootstrap for the mixture
+            # SE, so the latency tier's replicate count applies; the Bayesian
+            # mixture uses posterior draws and runs no bootstrap.
+            temporal_bootstrap = bootstrap if isinstance(inference, Frequentist) else 0
             if isinstance(discovery, GraphPosterior):
                 native = _NativePreparedAnalysis.prepare_dbn_posterior_temporal(
                     names,
@@ -2602,6 +2608,7 @@ class PreparedAnalysis:
                     prior_scale=prior_scale,
                     refute=refute,
                     seed=seed,
+                    bootstrap=temporal_bootstrap,
                     threads=threads,
                     posterior=discovery,
                 )
@@ -2626,6 +2633,7 @@ class PreparedAnalysis:
                     prior_scale=prior_scale,
                     refute=refute,
                     seed=seed,
+                    bootstrap=temporal_bootstrap,
                     threads=threads,
                 )
             return cls(native, kind="average", query=query)

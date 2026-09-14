@@ -1275,6 +1275,12 @@ impl super::Study {
                 antecedent_estimate::CircularBlockFamily::Mixture,
             ));
         }
+        let structural_response = dbn_frequentist_structural_mixture(
+            &identified.graphs,
+            &contexts,
+            &atom_estimates,
+            point,
+        );
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -1307,6 +1313,7 @@ impl super::Study {
                     "estimate.temporal.linear.adjustment",
                 )),
                 diagnostics: Some(diagnostics),
+                structural_response: Some(structural_response),
                 ..Default::default()
             },
         }))
@@ -2613,4 +2620,75 @@ fn static_envelope_atom_correlation(
         }
     }
     Some(corr)
+}
+
+/// Structural mass accounting for the Frequentist DBN-posterior Pulse /
+/// Sustained mixture: every posterior atom with its weight and status, the
+/// evaluated atoms' point effects, and the range over them. Masses are
+/// fractions of the posterior's total weight; every identified atom with
+/// positive weight is evaluated (an estimation failure aborts the run), so
+/// unevaluable mass is zero.
+fn dbn_frequentist_structural_mixture(
+    graphs: &WeightedGraphSamples,
+    evaluated: &[(&crate::analysis::prepared::CachedDbnPosteriorAtomIdentification, f64)],
+    estimates: &[EffectEstimate],
+    point: f64,
+) -> crate::result::StructuralResponseMixture {
+    let values: std::collections::HashMap<u64, (IdentificationStatus, f64)> = evaluated
+        .iter()
+        .zip(estimates)
+        .map(|((atom, _), estimate)| (atom.key, (atom.identification.status, estimate.ate)))
+        .collect();
+    let atoms: Vec<crate::result::StructuralResponseAtom> = graphs
+        .graph_keys
+        .iter()
+        .zip(graphs.weights.iter())
+        .zip(graphs.identified.iter())
+        .map(|((&graph_key, &weight), flag)| {
+            let fit =
+                (*flag == GraphIdentFlag::Identified).then(|| values.get(&graph_key)).flatten();
+            crate::result::StructuralResponseAtom {
+                graph_key,
+                weight,
+                status: match (flag, fit) {
+                    (GraphIdentFlag::Identified, Some((status, _))) => *status,
+                    (GraphIdentFlag::Identified, None) => {
+                        IdentificationStatus::NonparametricallyIdentified
+                    }
+                    (GraphIdentFlag::Unidentified, _) => IdentificationStatus::NotIdentified,
+                },
+                value: fit.map(|(_, value)| ResponseValue::Scalar(*value)),
+                posterior: None,
+                response: None,
+            }
+        })
+        .collect();
+    let total = graphs.total_weight();
+    let identified_mass =
+        atoms.iter().filter(|atom| atom.value.is_some()).map(|atom| atom.weight).sum::<f64>();
+    let unidentified_mass = graphs.unidentified_mass();
+    let (lo, hi) = estimates
+        .iter()
+        .map(|estimate| estimate.ate)
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| (lo.min(v), hi.max(v)));
+    crate::result::StructuralResponseMixture {
+        weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
+        atoms,
+        identified_mass: identified_mass / total,
+        unidentified_mass: unidentified_mass / total,
+        unevaluable_mass: 0.0,
+        subsampled_out_mass: 0.0,
+        identified_set: (lo.is_finite() && hi.is_finite()).then(|| {
+            antecedent_core::ResponseEnvelope {
+                grid: Arc::from([0.0]),
+                dimension: 1,
+                lower: Arc::from([lo]),
+                upper: Arc::from([hi]),
+            }
+        }),
+        identified_set_interval: None,
+        conditional_on_identified: Some(ResponseValue::Scalar(point)),
+        full_mass_scope: true,
+        truncated_atoms: 0,
+    }
 }
