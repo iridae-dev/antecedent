@@ -21,7 +21,9 @@ was not available, published as boundary records with a runtime disclosure.
   Any cell more than 2 points under its level is re-run at 2000 replicates and
   must reach `level − 2·MCSE` there; cells still below it are named boundary
   cells asserting their measured band
-  (`docs/short-series-thresholds.md`).
+  (`docs/short-series-thresholds.md`). The gate is weekly and manual (not
+  per-PR CI), and the workflow runs it in eight shards
+  (`ANTECEDENT_CALIBRATION_SHARD=k/N`) so each runner stays under its timeout.
   Multi-atom targets use fixtures whose identified atoms disagree. Temporal
   targets add AR(1) residuals and short series. Every gate group runs and
   failures are listed at the end. `scripts/gate_calibration.sh` builds in
