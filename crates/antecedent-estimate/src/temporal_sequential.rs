@@ -126,8 +126,8 @@ enum SequentialEval {
 /// order, overwriting **every** treatment-time node in the sustained window.
 /// Frequentist uncertainty is a circular-block bootstrap over consecutive
 /// lag-aligned rows, refitting every equation on the same rows, with the
-/// replicate SD scaled by the Kiefer–Vogelsang fixed-b factor
-/// ([`crate::temporal_block`]). Bayesian uncertainty uses independent Gaussian priors across
+/// replicate SD scaled by the circular-Bartlett fixed-b factor
+/// ([`crate::temporal_block::circular_fixed_b_scale`]). Bayesian uncertainty uses independent Gaussian priors across
 /// stationary mechanisms, sharing each coefficient draw across its time copies;
 /// each mechanism's Gaussian likelihood is tempered by its long-run-variance
 /// ratio ([`crate::serial_dependence`]), so the composed interval is a
@@ -1035,7 +1035,7 @@ fn estimate_sequential(
     let point = setup.evaluate(None, &mut ls_ws)?;
     // Circular blocks of consecutive lag-aligned rows (every row keeps its intact
     // unfolded window), every mechanism refit on the same rows, and the replicate
-    // SD scaled by the Kiefer–Vogelsang fixed-b factor, as on the single-window
+    // SD scaled by the circular-Bartlett fixed-b factor, as on the single-window
     // path ([`crate::temporal_block`]). Blocks are at least the unfolded span and
     // lengthen when the contrast's estimating score, or any mechanism's
     // normal-equation score, is persistently dependent. The influence and block

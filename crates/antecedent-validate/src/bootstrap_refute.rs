@@ -12,9 +12,10 @@
 //! circular blocks of consecutive *lag-aligned* rows of the design prepared once on
 //! the original series (single-window adjustment, and composed refitters that
 //! expose [`crate::common::EffectRefit::prepare_aligned`]), so every row keeps its
-//! lag window, and widen the percentile interval by the Kiefer–Vogelsang fixed-b
-//! factor, matching the circular-block interval the check is about. The block
-//! length is the one that interval uses: the single-window adjustment's
+//! lag window, and widen the percentile interval by the circular-Bartlett fixed-b
+//! factor ([`antecedent_estimate::circular_fixed_b_scale`]), matching the
+//! circular-block interval the check is about. The block length is the one that
+//! interval uses: the single-window adjustment's
 //! [`antecedent_estimate::TemporalLinearAdjustment::dependence_block_length`]
 //! ([`antecedent_estimate::dependence_block_length`] over the treatment influence
 //! and every normal-equation score), and a composed refitter's

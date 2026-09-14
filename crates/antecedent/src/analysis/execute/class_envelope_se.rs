@@ -382,7 +382,7 @@ pub fn shared_block_mixture_message(
          (dependence-aware length, at least max(span, ceil(m^(1/3)))) over the \
          {} times where every atom's lag window is available; each atom's lag-aligned \
          rows keep their original lag windows and every atom is refit on the same \
-         resampled times; replicate SD scaled by the Kiefer-Vogelsang fixed-b factor \
+         resampled times; replicate SD scaled by the circular-Bartlett fixed-b factor \
          {:.4}; score effective rows {:.1} (smallest over every atom's and the \
          mixture's score of the lag-1 and block-length readings); between-atom sampling \
          variance included; unidentified mass is not mixed into the SE; \
