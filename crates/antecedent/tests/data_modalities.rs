@@ -8,8 +8,9 @@ use std::sync::Arc;
 
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    CausalSchemaBuilder, DataClassification, ExecutionContext, IdentificationStatus, Lag,
-    MeasurementSpec, RoleHint, SmallRoleSet, TemporalEffectQuery, TemporalPolicy, ValueType,
+    CausalQuery, CausalSchemaBuilder, ContinuousDomain, DataClassification, ExecutionContext,
+    GridSpec, IdentificationStatus, Lag, MeasurementSpec, ResponseFunctional, ResponseQuery,
+    RoleHint, SmallRoleSet, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, ValueType,
     VariableId,
 };
 use antecedent_data::{
@@ -23,6 +24,10 @@ use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::TemporalBackdoorIdentifier;
 
 fn xy_series(n: usize, seed: f64) -> TimeSeriesData {
+    xy_series_regular(n, seed, 1)
+}
+
+fn xy_series_regular(n: usize, seed: f64, interval_ns: u64) -> TimeSeriesData {
     let mut b = CausalSchemaBuilder::new();
     b.add_variable(
         "x",
@@ -62,7 +67,7 @@ fn xy_series(n: usize, seed: f64) -> TimeSeriesData {
     let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
     TimeSeriesData::try_new(
         storage,
-        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns }, length: n },
     )
     .unwrap()
 }
@@ -239,5 +244,84 @@ fn bayesian_panel_pulse_posterior_wider_than_stacked_iid() {
     assert!(
         (study_sd - sd_h).abs() / sd_h.max(1e-12) < 0.35,
         "execute_panel posterior must match the GLS fit, not stacked iid (study={study_sd}, hierarchical={sd_h}, stacked={sd_s})"
+    );
+}
+
+#[test]
+fn prepared_panel_pulse_reuses_identification() {
+    let panel = PanelData::try_new(Arc::from([
+        PanelUnit { unit_id: 0, series: xy_series(180, 0.1) },
+        PanelUnit { unit_id: 1, series: xy_series(180, 0.4) },
+        PanelUnit { unit_id: 2, series: xy_series(180, 0.7) },
+    ]))
+    .unwrap();
+    let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1)
+        .with_max_history_lag(Some(1));
+    let ctx = ExecutionContext::for_tests(2);
+    let study = Study::panel(panel.clone())
+        .graph(lagged_xy_graph())
+        .temporal_query(q)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.clone().run(&ctx).unwrap();
+    let mut prepared = study.prepare(&ctx).unwrap();
+    let first = prepared.estimate_panel(&panel, &ctx).unwrap();
+    let second = prepared.estimate_panel(&panel, &ctx).unwrap();
+    assert_eq!(
+        fresh.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
+        0
+    );
+    assert_eq!(
+        first.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
+        1
+    );
+    assert_eq!(
+        second.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
+        1
+    );
+    assert!((first.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert!((second.estimate.ate - first.estimate.ate).abs() < 1e-12);
+
+    let mismatch = PanelData::try_new(Arc::from([PanelUnit {
+        unit_id: 0,
+        series: xy_series_regular(80, 0.2, 2),
+    }]))
+    .unwrap();
+    let prior_ate = first.estimate.ate;
+    let err = prepared.refresh_panel(mismatch, &ctx).unwrap_err();
+    assert!(err.to_string().contains("regularity"), "{err}");
+    let still = prepared.estimate_panel(&panel, &ctx).unwrap();
+    assert!((still.estimate.ate - prior_ate).abs() < 1e-12);
+}
+
+#[test]
+fn panel_response_curve_is_refused() {
+    let panel = PanelData::try_new(Arc::from([
+        PanelUnit { unit_id: 0, series: xy_series(80, 0.1) },
+        PanelUnit { unit_id: 1, series: xy_series(80, 0.4) },
+    ]))
+    .unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(vec![0.0, 1.0].into()),
+        ),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap());
+    let err = Study::panel(panel)
+        .graph(lagged_xy_graph())
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap_err();
+    let text = err.to_string();
+    assert!(
+        text.contains("scalar panel") || text.contains("do not license response bands"),
+        "{text}"
     );
 }

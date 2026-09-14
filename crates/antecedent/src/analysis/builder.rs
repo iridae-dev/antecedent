@@ -1135,6 +1135,13 @@ impl StudyBuilder {
                 _ => {}
             }
         }
+        if matches!((&data, &query), (DataInput::Panel(_), CausalQuery::Response(_))) {
+            return Err(CausalError::Unsupported {
+                message: "panel ResponseCurve / InterventionResponse is not licensed in 1.9: \
+                          scalar panel Pulse/Sustained SEs do not license response bands, and \
+                          the single-series response likelihood is not a panel model",
+            });
+        }
         if self.class_prior.is_some() && matches!(inference, crate::InferenceMode::Frequentist) {
             return Err(CausalError::Unsupported {
                 message: "class_prior is a structural probability over class members and \
