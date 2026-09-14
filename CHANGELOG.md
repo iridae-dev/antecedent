@@ -95,7 +95,17 @@ was not available, published as boundary records with a runtime disclosure.
   (`conformance/estimate/path_specific_edge_gformula`), including a
   shared-descendant case.
 - `rd.sharp` offers HC0–HC3 standard errors (`RdConfig::with_se_kind`) and
-  defaults to HC1.
+  defaults to HC1. Python selects the kind through
+  `estimator_config={"se_kind": ...}` or `SharpRd(se=...)`.
+- Frequentist DBN-posterior Pulse and Sustained effects are reachable from
+  Python (`analyze(discovery=...)`, `PreparedAnalysis.prepare(discovery=...)`),
+  with the shared-block replicate count following `bootstrap` or the latency
+  tier, and carry `structural_response`.
+- `subsampled_out_mass` on `StructuralResponseMixture` and `CausalPosterior`
+  (artifact wire field omitted when zero; older artifacts read as 0; Python
+  `ResponseResult`, `result.posterior`, `EffectEnvelope`, `PosteriorArtifact`).
+  `StructuralResponseMixture` is not `#[non_exhaustive]`, so code that builds
+  it as a struct literal must add the field.
 - The support-matrix gate fails a staged licensed row without a named
   evidence test. Rows licensed before the rule are exempt through a frozen,
   shrink-only list (`parity/_evidence_test_backlog.txt`, 122 of 337 licensed
@@ -235,6 +245,23 @@ was not available, published as boundary records with a runtime disclosure.
 
 ### Fixed
 
+- Graph atoms left out of the Interactive latency tier's 16-atom subsample
+  were reported as unidentified mass. They are now `subsampled_out_mass` on the
+  Frequentist and Bayesian graph-posterior ATE, graph-posterior responses,
+  DBN-posterior ATE and mediation, and CPDAG/PAG Bayesian class envelopes; the
+  envelope diagnostic lists the skipped atoms, and Bayesian graph-posterior and
+  DBN-posterior ATE results report `GraphDependent` whenever unidentified or
+  subsampled-out mass is present.
+- A graph posterior that lists the same DAG more than once (for example an
+  equal-weight bootstrap or MCMC ensemble passed sample by sample) now weights
+  that DAG by its combined mass once in Frequentist ATE/CATE and
+  graph-posterior response mixtures; a DAG listed k times entered with k² times
+  its per-sample weight and identified mass could exceed 1. Bayesian static
+  envelopes and DBN posteriors were already correct, and the built-in samplers
+  already merge repeated graphs.
+- The lagged-outcome regressor refusal covers every observation-adjusted
+  temporal design, not only Sequences (no current identification path reaches
+  it for curves; the guard is defense in depth).
 - Null Float64 cells (Arrow nulls, and NumPy/pandas NaN, which become Arrow
   nulls on the way in) were stored as 0.0 and could enter estimators that read
   column values directly — such as ResponseCurve, GCM fitting and attribution —
