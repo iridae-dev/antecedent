@@ -49,6 +49,31 @@ def fixed_b(block, rows):
     return (1.96 + 2.9694 * b + 0.4160 * b**2 - 0.5324 * b**3) / 1.96
 
 
+def bic_autoregression(e, max_order=4):
+    """Yule-Walker AR(q) of e (uncentred autocovariances), q <= 4 minimizing
+    n ln sigma2_q + q ln n. Returns (phi, autocorrelations r_0..r_q)."""
+    n = len(e)
+    max_order = min(max_order, n - 2)
+    g = np.array([e[k:] @ e[:n - k] / n for k in range(max_order + 1)])
+    best = (n * np.log(g[0]), np.zeros(0))
+    for q in range(1, max_order + 1):
+        r = np.array([[g[abs(i - j)] for j in range(q)] for i in range(q)])
+        phi = np.linalg.solve(r, g[1:q + 1])
+        sigma2 = g[0] - phi @ g[1:q + 1]
+        bic = n * np.log(sigma2) + q * np.log(n)
+        if bic < best[0]:
+            best = (bic, phi)
+    phi = best[1]
+    return phi, g[:len(phi) + 1] / g[0]
+
+
+def bartlett(u, bandwidth):
+    """Bartlett long-run variance of u (uncentred autocovariances over len(u))."""
+    lags = min(bandwidth, len(u) - 1)
+    lrv = u @ u + 2 * sum((1 - k / (lags + 1)) * (u[k:] @ u[:-k]) for k in range(1, lags + 1))
+    return max(lrv / len(u), 0.0)
+
+
 def tempering(x, y, c):
     """Long-run-variance ratio kappa of the score of c'beta on time-ordered rows."""
     rows, cols = x.shape
@@ -59,21 +84,35 @@ def tempering(x, y, c):
     # AR(1)-prewhitened Bartlett long-run variance, recoloured by 1/(1 - rho)^2.
     rho = kendall_rho(score)
     white = score[1:] - rho * score[:-1]
-    lags = min(bandwidth, len(white) - 1)
-    lrv = white @ white + 2 * sum(
-        (1 - k / (lags + 1)) * (white[k:] @ white[:-k]) for k in range(1, lags + 1)
-    )
-    hac = max(lrv / len(white), 0.0) / (1 - rho) ** 2 / (score @ score / rows)
+    hac = bartlett(white, bandwidth) / (1 - rho) ** 2 / (score @ score / rows)
+    # BIC-selected AR(q), q >= 2, prewhitening recoloured by 1/(1 - sum(phi))^2.
+    phi_s, _ = bic_autoregression(score)
+    if len(phi_s) >= 2:
+        q = len(phi_s)
+        white = np.array([score[t] - phi_s @ score[t - q:t][::-1] for t in range(q, rows)])
+        recolour = max(1 - phi_s.sum(), 1 - 0.97)
+        hac = max(hac, bartlett(white, bandwidth) / recolour**2 / (score @ score / rows))
     # AR(1)-residual quadratic-form ratio w' Gamma w / (gamma0 w'w) given the design.
     rho_e = kendall_rho(resid)
     lag = np.abs(np.subtract.outer(np.arange(rows), np.arange(rows)))
     ar = weight @ (rho_e**lag) @ weight / (weight @ weight)
+    # Same with the BIC-selected AR(q), q >= 2, residual autocorrelation.
+    # The AR(q) term is bounded by 3x the fixed-b-scaled HAC ratio.
     fb = fixed_b(bandwidth + 1, rows)
+    phi_e, r_e = bic_autoregression(resid)
+    if len(phi_e) >= 2:
+        acf = np.zeros(rows)
+        acf[:len(r_e)] = r_e
+        for k in range(len(r_e), rows):
+            acf[k] = phi_e @ acf[k - len(phi_e):k][::-1]
+        quadratic = weight @ acf[lag] @ weight / (weight @ weight)
+        ar = max(ar, min(quadratic, 3.0 * hac * fb**2))
     raw = max(hac * fb**2, ar)
     kappa = min(max(raw, 1.0), max(rows / (cols + 2), 1.0))
     return {
         'rows': rows, 'kappa': kappa, 'raw_ratio': raw, 'hac_ratio': hac,
         'fixed_b': fb, 'ar_ratio': ar, 'bandwidth': bandwidth,
+        'score_ar_order': len(phi_s), 'residual_ar_order': len(phi_e),
     }
 
 

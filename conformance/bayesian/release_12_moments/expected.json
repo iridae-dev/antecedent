@@ -1252,7 +1252,9 @@
         "hac_ratio": 1.1487633457286979,
         "fixed_b": 1.0648314822302558,
         "ar_ratio": 1.1068047299517711,
-        "bandwidth": 3
+        "bandwidth": 3,
+        "score_ar_order": 0,
+        "residual_ar_order": 0
       }
     ],
     "stationary_window": [
@@ -1264,6 +1266,8 @@
         "fixed_b": 1.0641454763144504,
         "ar_ratio": 0.9989306641561296,
         "bandwidth": 3,
+        "score_ar_order": 0,
+        "residual_ar_order": 0,
         "mechanism": "m"
       },
       {
@@ -1274,6 +1278,8 @@
         "fixed_b": 1.0648314822302558,
         "ar_ratio": 1.0726525605396873,
         "bandwidth": 3,
+        "score_ar_order": 0,
+        "residual_ar_order": 0,
         "mechanism": "y"
       }
     ],
@@ -1286,6 +1292,8 @@
         "fixed_b": 1.0641454763144504,
         "ar_ratio": 0.9989306641561296,
         "bandwidth": 3,
+        "score_ar_order": 0,
+        "residual_ar_order": 0,
         "mechanism": "m"
       },
       {
@@ -1296,6 +1304,8 @@
         "fixed_b": 1.0641454763144504,
         "ar_ratio": 1.0064202599743919,
         "bandwidth": 3,
+        "score_ar_order": 0,
+        "residual_ar_order": 0,
         "mechanism": "y"
       }
     ],
@@ -1308,6 +1318,8 @@
         "fixed_b": 1.0641454763144504,
         "ar_ratio": 0.9735245007770363,
         "bandwidth": 3,
+        "score_ar_order": 0,
+        "residual_ar_order": 1,
         "mechanism": "m"
       },
       {
@@ -1318,6 +1330,8 @@
         "fixed_b": 1.0641454763144504,
         "ar_ratio": 0.994907677172285,
         "bandwidth": 3,
+        "score_ar_order": 0,
+        "residual_ar_order": 0,
         "mechanism": "y"
       }
     ]

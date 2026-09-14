@@ -243,6 +243,67 @@ dag_coverage! {
         (Cell::MultiSustained, Regime::RHO05_N60);
 }
 
+/// AR(2) coefficients of the higher-order-dependence regime.
+const AR2_PHI: [f64; 2] = [0.3, 0.5];
+
+/// Stationary AR(2)(`AR2_PHI`) noise with marginal SD `sd` (500-step burn-in).
+fn ar2_noise(n: usize, sd: f64, seed: u64) -> Vec<f64> {
+    let [a, b] = AR2_PHI;
+    // Marginal variance of an AR(2) with unit innovations.
+    let gamma0 = (1.0 - b) / ((1.0 + b) * ((1.0 - b).powi(2) - a * a));
+    let scale = sd / gamma0.sqrt();
+    let mut z = common::calibration::gaussian(seed);
+    let (mut prev, mut prev2) = (0.0, 0.0);
+    let mut out = Vec::with_capacity(n);
+    for t in 0..n + 500 {
+        let next = a * prev + b * prev2 + z();
+        prev2 = prev;
+        prev = next;
+        if t >= 500 {
+            out.push(scale * next);
+        }
+    }
+    out
+}
+
+/// `y_t = 0.8 x_{t-1} + e_t` with `x` and `e` independent AR(2)(0.3, 0.5): the score
+/// autocorrelation decays far more slowly than an AR(1) fitted to its first lag.
+fn series_xy_ar2(n: usize, seed: u64) -> TimeSeriesData {
+    let x = ar2_noise(n, 0.5, seed);
+    let e = ar2_noise(n, 0.35, seed + 2);
+    let mut y = vec![0.0; n];
+    for t in 1..n {
+        y[t] = BETA1 * x[t - 1] + e[t];
+    }
+    TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1).unwrap()
+}
+
+fn ar2_pulse_coverage(n: usize, seed: u64) -> CoverageTally {
+    let mut tally =
+        CoverageTally::new(format!("Bayesian TemporalDag Pulse AR(2)(0.3, 0.5) n={n}"), LEVEL);
+    for rep in 0..u64::from(n_sim()) {
+        let data = series_xy_ar2(n, seed + 10 * rep + 1);
+        let result = run(data, lag1_dag(), pulse(), None, 7 + rep);
+        tally.record(credible_interval(&result), BETA1);
+    }
+    tally
+}
+
+/// AR(2) treatment and residual at n = 400: the AR(q) terms of the tempering
+/// factor bring coverage into the band (the AR(1)-only factor gave ≈ 0.78).
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn bayesian_temporal_pulse_ar2_n400_nominal_90_coverage() {
+    ar2_pulse_coverage(400, 5_000_000).assert();
+}
+
+/// AR(2) treatment and residual at n = 160.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn bayesian_temporal_pulse_ar2_n160_nominal_90_coverage() {
+    ar2_pulse_coverage(160, 6_000_000).assert();
+}
+
 /// Treatment → mediator path `a` of the mediation DGP.
 const MED_A: f64 = 0.6;
 /// Mediator → outcome path `b`.
