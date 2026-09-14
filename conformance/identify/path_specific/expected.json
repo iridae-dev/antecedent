@@ -1,9 +1,14 @@
 {
   "schema_version": 1,
-  "oracle": {"project": "edge-g formula and canonical mediation examples", "generator": "temporary clean-room harness (deleted after artifact import)"},
+  "oracle": {"project": "edge-g formula and canonical mediation examples", "generator": "temporary clean-room harness (deleted after artifact import); witness cases added by hand from the Avin-Shpitser-Pearl recanting-witness definition (a node W reached from T along a prefix q with continuations s1, s2 to Y such that q.s1 is selected and q.s2 is not)"},
   "cases": [
     {"id": "mediated_only", "dag": ["T->M", "M->Y", "T->Y"], "included_path_nodes": ["M"], "status": "identified", "method": "path_specific.natural"},
-    {"id": "all_paths", "dag": ["T->M", "M->Y", "T->Y"], "included_path_nodes": [], "status": "identified"}
+    {"id": "all_paths", "dag": ["T->M", "M->Y", "T->Y"], "included_path_nodes": [], "status": "identified"},
+    {"id": "shared_descendant_distinct_children", "dag": ["T->A", "A->W", "T->B", "B->W", "W->Y"], "included_path_nodes": ["A"], "status": "identified", "method": "path_specific.natural", "note": "W lies on the selected T->A->W->Y and the unselected T->B->W->Y but is not a witness: the two paths leave T through different children, so W takes A from the active world and B from the control world"},
+    {"id": "post_mediator_node_on_direct_path", "dag": ["T->M1", "M1->W", "T->W", "W->Y", "T->Y"], "included_path_nodes": ["W"], "status": "identified", "method": "path_specific.natural", "note": "selecting T->W->Y leaves T->M1->W->Y unselected; W is on both but T's children M1 and W each start one kind of path only"},
+    {"id": "treatment_child_splits", "dag": ["T->L", "L->M", "L->Y", "T->M", "M->Y"], "included_path_nodes": ["M"], "status": "not_identified", "witness": "L", "note": "L starts the selected T->L->M->Y and the unselected T->L->Y"},
+    {"id": "split_below_treatment_child", "dag": ["T->W", "W->A", "A->Y", "W->B", "B->Y", "T->C", "C->Y"], "included_path_nodes": ["A"], "status": "not_identified", "witness": "W", "note": "W continues to the selected W->A->Y and the unselected W->B->Y after the shared prefix T->W"},
+    {"id": "selection_not_edge_closed", "dag": ["T->A", "T->B", "A->R", "B->R", "R->Y", "R->Z", "Z->Y"], "included_path_nodes": ["A", "Z"], "status": "not_identified", "witness": "A", "note": "only T->A->R->Z->Y is selected; A also starts the unselected T->A->R->Y"}
   ],
-  "limits": "Only the supported no-recanting-witness cases are validated."
+  "limits": "Directed-graph cases only; the district-level recanting criterion for latent confounding is not implemented (a bidirected edge on an outcome ancestor with a complementary path is refused as unsupported)."
 }
