@@ -792,14 +792,7 @@ pub(crate) fn conditional_uses_crossfit_aipw(query: &ConditionalEffectQuery) -> 
 pub(crate) fn conditional_score_estimator_diagnostic(
     query: &ConditionalEffectQuery,
 ) -> Option<Diagnostic> {
-    let functional = &query.inner.outcome_functional;
-    if functional.thresholds().is_none() && functional.quantile_level().is_none() {
-        return None;
-    }
-    let binary = matches!((&query.inner.control, &query.inner.active),
-        (Intervention::Set { value: c, .. }, Intervention::Set { value: a, .. })
-        if c.as_f64() == Some(0.0) && a.as_f64() == Some(1.0));
-    binary.then(|| {
+    conditional_uses_crossfit_aipw(query).then(|| {
         Diagnostic::new(
             "estimate.conditional.crossfit_aipw_scores",
             DiagnosticKind::Scientific,
