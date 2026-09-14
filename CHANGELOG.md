@@ -253,6 +253,13 @@ was not available, published as boundary records with a runtime disclosure.
 
 ### Fixed
 
+- Temporal response bands carry a per-cell parametric kernel-bias factor
+  (`response.temporal.kernel_bias_factor`) and a short-series warning
+  (`response.temporal.block.short_series`, below 15 effective rows). The shift
+  response under an AR(1) φ=0.9 treatment is gated (0.943 / 0.948 at nominal
+  0.95; 0.910 / 0.912 before). AR(1) ρ=0.9 residuals remain a disclosed
+  boundary (0.887–0.943 / 0.877 at n=160): the persistent part is 15% of the
+  residual and its long-run ratio is not estimable at n ≤ 1000.
 - Production contexts (`ExecutionContext::production`, hence every Python
   `analyze`) enabled an adaptive bootstrap budget that stopped once one
   replicate changed the running SE by under 1%. Every static bootstrap SE
