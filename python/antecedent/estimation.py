@@ -1537,9 +1537,10 @@ class PreparedAnalysis:
         Temporal ``ResponseCurve`` / ``InterventionResponse`` (keyword ``horizons``)
         prepare on a ``TemporalDag`` or lagged edge list; their Frequentist
         ``bootstrap`` is the joint circular-block replicate count behind the
-        pointwise and simultaneous bands (``None`` keeps the Study default of 50
-        whatever the ``latency``; ``0`` publishes the point surface with no band and
-        an ``estimate.temporal_response.band_withheld`` warning). Every other
+        pointwise and simultaneous bands. ``None`` follows the ``latency`` tier as
+        Pulse / Sustained do (``interactive`` 0, ``standard`` 50, ``report`` 200);
+        ``0`` publishes the point surface with no band and an
+        ``estimate.temporal_response.band_withheld`` warning. Every other
         prepared response refuses a positive ``bootstrap``. Pulse / Sustained /
         TemporalMediation prepare on a ``TemporalDag`` or lagged edge list.
         ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` / a constructed
@@ -1806,6 +1807,11 @@ class PreparedAnalysis:
                     f"temporal response requires estimator={expected_estimator!r}; "
                     f"got {estimator!r}"
                 )
+            if bootstrap is None and not isinstance(inference, Bayesian):
+                # Same latency mapping as the prepared Pulse / Sustained path:
+                # interactive publishes the point surface only, standard / report
+                # run the joint circular-block replicates behind the bands.
+                bootstrap, _ = _resolve_latency_budget(latency, None, True)
             return cls._prepare_temporal(
                 names,
                 columns,

@@ -260,6 +260,15 @@ def test_temporal_response_bootstrap_publishes_block_bands(bootstrap: int | None
     assert again.uncertainty.lower == direct.uncertainty.lower
     assert again.uncertainty.upper == direct.uncertainty.upper
 
+    if bootstrap is None:
+        # Prepared temporal responses follow the latency tier like Pulse /
+        # Sustained: the default interactive tier publishes no band, standard
+        # runs the Study default of 50 replicates.
+        interactive = PreparedAnalysis.prepare(
+            data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21
+        )
+        _assert_band_withheld(interactive.estimate(data, seed=21))
+        kwargs = {"latency": "standard"}
     prepared = PreparedAnalysis.prepare(
         data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21, **kwargs
     )

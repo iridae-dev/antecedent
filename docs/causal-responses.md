@@ -267,9 +267,10 @@ block, so independent rows are not over-covered.
 In Python, `bootstrap=` on `analyze(...)` and `PreparedAnalysis.prepare(...)` is
 the replicate count for Frequentist temporal `ResponseCurve` /
 `InterventionResponse` (TemporalDag surfaces and TemporalCpdag/Pag completion
-atoms). Omitting it uses the Study default of 50 replicates, so a band is
-published by default. On `analyze`, `latency="interactive"` resolves the default
-to 0; `PreparedAnalysis.prepare` keeps 50 whatever its `latency`. `bootstrap=0`
+atoms). An explicit count always wins. Omitted, it follows the `latency` tier
+as prepared Pulse / Sustained do: `interactive` 0, `standard` 50, `report` 200.
+`analyze()` without a `latency` uses 50, so a band is published; the prepared
+API's default `interactive` tier publishes the point surface only. `bootstrap=0`
 returns the point surface with `uncertainty.kind == "none"`, the withheld-band
 message in `support.warnings`, and `estimate.temporal_response.band_withheld: …`
 in `diagnostics`. The seed drives the replicates, so a fixed `seed=` reproduces
