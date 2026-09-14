@@ -580,6 +580,12 @@ def _wrap_ate(
         structural_identified_set_interval_level=getattr(
             raw, "structural_identified_set_interval_level", None
         ),
+        structural_identified_set_interval_method=getattr(
+            raw, "structural_identified_set_interval_method", None
+        ),
+        structural_identified_set_interval_truncated=getattr(
+            raw, "structural_identified_set_interval_truncated", None
+        ),
         _raw=raw,
         _prepared=prepared,
     )

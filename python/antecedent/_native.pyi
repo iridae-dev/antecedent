@@ -76,6 +76,8 @@ class AteAnalysisResult:
     structural_identified_set: tuple[float, float] | None
     structural_identified_set_interval: tuple[float, float] | None
     structural_identified_set_interval_level: float | None
+    structural_identified_set_interval_method: str | None
+    structural_identified_set_interval_truncated: bool | None
     certificate_json: str | None
     unit_effects: list[float] | None
     assumptions: list[str]
@@ -633,6 +635,8 @@ class AnalysisResult:
     structural_identified_set: tuple[float, float] | None
     structural_identified_set_interval: tuple[float, float] | None
     structural_identified_set_interval_level: float | None
+    structural_identified_set_interval_method: str | None
+    structural_identified_set_interval_truncated: bool | None
 
 TemporalAnalysisResult = AnalysisResult
 

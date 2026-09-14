@@ -602,13 +602,23 @@ pub(crate) fn public_adjustment_set(
     }
 }
 
-/// Scalar identified set `[lower, upper]` of a class-aware result, its
-/// Imbens–Manski interval, and that interval's level (1.9, C-3).
-pub(crate) type IdentifiedSetFields = (Option<(f64, f64)>, Option<(f64, f64)>, Option<f64>);
+/// Scalar identified set `[lower, upper]` of a class-aware result and its
+/// interval: endpoints, level, construction, and truncation flag (1.9, C-3).
+#[derive(Default)]
+pub(crate) struct IdentifiedSetFields {
+    pub set: Option<(f64, f64)>,
+    pub interval: Option<(f64, f64)>,
+    pub level: Option<f64>,
+    /// Wire tag of the construction (`imbens_manski_shared_block` or
+    /// `product_posterior_envelope_quantile`).
+    pub method: Option<String>,
+    /// The set spans a capped (retained-only) completion enumeration.
+    pub truncated: Option<bool>,
+}
 
 pub(crate) fn identified_set_fields(result: &antecedent::StudyResult) -> IdentifiedSetFields {
     let Some(mixture) = result.structural_response.as_ref() else {
-        return (None, None, None);
+        return IdentifiedSetFields::default();
     };
     let set = mixture
         .identified_set
@@ -616,7 +626,22 @@ pub(crate) fn identified_set_fields(result: &antecedent::StudyResult) -> Identif
         .filter(|set| set.lower.len() == 1 && set.upper.len() == 1)
         .map(|set| (set.lower[0], set.upper[0]));
     let interval = mixture.identified_set_interval.as_ref();
-    (set, interval.map(|i| (i.lower, i.upper)), interval.map(|i| i.level))
+    IdentifiedSetFields {
+        set,
+        interval: interval.map(|i| (i.lower, i.upper)),
+        level: interval.map(|i| i.level),
+        method: interval.and_then(|i| identified_set_method_tag(i.method)),
+        truncated: interval.map(|i| i.truncated),
+    }
+}
+
+/// Wire tag of an identified-set interval construction (`None` for one the
+/// artifact format has no tag for, which the artifact encoder refuses too).
+fn identified_set_method_tag(
+    method: antecedent_estimate::IdentifiedSetIntervalMethod,
+) -> Option<String> {
+    let wire = antecedent_io::IdentifiedSetIntervalMethodWire::try_from_method(method).ok()?;
+    serde_json::to_value(wire).ok()?.as_str().map(str::to_owned)
 }
 
 pub(crate) fn evidence_status_parts(
@@ -646,12 +671,19 @@ pub(crate) struct AteAnalysisResult {
     /// Scalar identified set `(lower, upper)` over identified completions.
     #[pyo3(get)]
     pub(crate) structural_identified_set: Option<(f64, f64)>,
-    /// Imbens–Manski interval for the identified set (covers the true
-    /// completion's effect at `structural_identified_set_interval_level`).
+    /// Interval for the identified set at `structural_identified_set_interval_level`
+    /// (construction in `structural_identified_set_interval_method`).
     #[pyo3(get)]
     pub(crate) structural_identified_set_interval: Option<(f64, f64)>,
     #[pyo3(get)]
     pub(crate) structural_identified_set_interval_level: Option<f64>,
+    /// `imbens_manski_shared_block` (Frequentist coverage of the true
+    /// completion's effect) or `product_posterior_envelope_quantile` (Bayesian).
+    #[pyo3(get)]
+    pub(crate) structural_identified_set_interval_method: Option<String>,
+    /// The set spans a capped completion enumeration (retained completions only).
+    #[pyo3(get)]
+    pub(crate) structural_identified_set_interval_truncated: Option<bool>,
     #[pyo3(get)]
     pub(crate) certificate_json: Option<String>,
     #[pyo3(get)]

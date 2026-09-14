@@ -268,12 +268,19 @@ pub(crate) struct AnalysisResult {
     /// Scalar identified set `(lower, upper)` over identified completions.
     #[pyo3(get)]
     pub(crate) structural_identified_set: Option<(f64, f64)>,
-    /// Imbens–Manski interval for the identified set (covers the true
-    /// completion's effect at `structural_identified_set_interval_level`).
+    /// Interval for the identified set at `structural_identified_set_interval_level`
+    /// (construction in `structural_identified_set_interval_method`).
     #[pyo3(get)]
     pub(crate) structural_identified_set_interval: Option<(f64, f64)>,
     #[pyo3(get)]
     pub(crate) structural_identified_set_interval_level: Option<f64>,
+    /// `imbens_manski_shared_block` (Frequentist coverage of the true
+    /// completion's effect) or `product_posterior_envelope_quantile` (Bayesian).
+    #[pyo3(get)]
+    pub(crate) structural_identified_set_interval_method: Option<String>,
+    /// The set spans a capped completion enumeration (retained completions only).
+    #[pyo3(get)]
+    pub(crate) structural_identified_set_interval_truncated: Option<bool>,
 }
 
 /// Run temporal effect analysis with a supplied lagged edge list.
@@ -1974,9 +1981,11 @@ fn analysis_result_from_run(
             .structural_response
             .as_ref()
             .map(|mixture| mixture.unevaluable_mass),
-        structural_identified_set: identified_set.0,
-        structural_identified_set_interval: identified_set.1,
-        structural_identified_set_interval_level: identified_set.2,
+        structural_identified_set: identified_set.set,
+        structural_identified_set_interval: identified_set.interval,
+        structural_identified_set_interval_level: identified_set.level,
+        structural_identified_set_interval_method: identified_set.method,
+        structural_identified_set_interval_truncated: identified_set.truncated,
     })
 }
 

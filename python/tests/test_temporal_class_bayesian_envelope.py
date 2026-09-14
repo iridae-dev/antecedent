@@ -73,6 +73,11 @@ def test_temporal_class_bayesian_pulse_without_prior_is_identified_set() -> None
         "estimate.temporal_class.enumeration_not_probability" in diagnostic
         for diagnostic in result.diagnostics
     )
+    assert result.structural_identified_set_interval is not None
+    assert (
+        result.structural_identified_set_interval_method == "product_posterior_envelope_quantile"
+    )
+    assert result.structural_identified_set_interval_truncated is False
 
 
 def test_temporal_class_bayesian_pulse_with_class_prior_mixes() -> None:
@@ -344,6 +349,13 @@ def test_capped_audit_does_not_publish_a_full_class_mixture() -> None:
     assert any(
         "response_posterior_not_mixed" in diagnostic or "enumeration_not_probability" in diagnostic
         for diagnostic in result.diagnostics
+    )
+    # The identified-set interval spans the retained completion only: it is
+    # still published, flagged and warned.
+    assert result.structural_identified_set_interval is not None
+    assert result.structural_identified_set_interval_truncated is True
+    assert any(
+        "identified_set_interval_truncated" in diagnostic for diagnostic in result.diagnostics
     )
 
 
