@@ -973,6 +973,7 @@ impl BayesianGComputationAte {
                     algorithm: Arc::from(match factor.scope {
                         "treatment" => "bayesian_temporal_gcomp",
                         "response_levels" => "response.temporal.bayesian",
+                        "mediation_paths" => "temporal.mediation.bayesian",
                         _ => "temporal.sequential.gcomp",
                     }),
                 },

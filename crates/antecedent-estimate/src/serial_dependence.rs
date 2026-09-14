@@ -21,8 +21,9 @@
 //! misspecified mean are **not** corrected.
 //!
 //! With [`DependenceScope::Levels`] one fit targets several combinations (every grid
-//! cell of a temporal response at one horizon); `κ̂` is then the largest of their
-//! ratios.
+//! cell of a temporal response at one horizon), and with
+//! [`DependenceScope::MediationPaths`] the path coefficients a linear mediation
+//! mechanism contributes to; `κ̂` is then the largest of their ratios.
 //!
 //! `κ̂ = max(κ̂_HAC · f_b², κ̂_AR)`:
 //!
@@ -98,6 +99,12 @@ pub enum DependenceScope {
     /// long-run-variance ratios, so every cell's interval carries at least its own
     /// correction.
     Levels(Arc<[Arc<[f64]>]>),
+    /// The path combinations one linear mediation mechanism contributes to: the
+    /// treatment→mediator slope `a`, or the direct `c'`, mediated `b` and total
+    /// `c' + â b` gradients of the outcome mechanism (`â` the plug-in path
+    /// coefficient). `κ̂` is the largest of their ratios, so every published
+    /// decomposition quantity carries at least its own correction.
+    MediationPaths(Arc<[Arc<[f64]>]>),
 }
 
 impl DependenceScope {
@@ -106,6 +113,7 @@ impl DependenceScope {
             Self::Treatment => "treatment",
             Self::Direction(_) => "contrast_gradient",
             Self::Levels(_) => "response_levels",
+            Self::MediationPaths(_) => "mediation_paths",
         }
     }
 }
@@ -271,8 +279,8 @@ pub fn long_run_tempering_factor(
             vec![c]
         }
         DependenceScope::Direction(direction) => vec![check_width(direction)?],
-        DependenceScope::Levels(levels) => {
-            levels.iter().map(|direction| check_width(direction)).collect::<Result<_, _>>()?
+        DependenceScope::Levels(directions) | DependenceScope::MediationPaths(directions) => {
+            directions.iter().map(|direction| check_width(direction)).collect::<Result<_, _>>()?
         }
     };
     // A zero or non-finite combination carries no score; it neither tempers nor refuses.

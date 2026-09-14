@@ -12,14 +12,23 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_prob::{BayesLikelihood, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use antecedent_stats::CompiledDesign;
 
+use crate::serial_dependence::{DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence};
 use crate::{
     BayesianGComputationAte, CausalPosterior, EstimationError, OverlapPolicy,
     PreparedBayesianProblem,
 };
 
 /// Prepare the mediator and outcome mechanisms on the same lag-aligned rows.
-/// Independent Gaussian innovations and independent coefficient priors identify
-/// a posterior product; no prior changes the supplied identification status.
+/// Innovations independent across the two mechanisms and independent coefficient
+/// priors give a posterior product; no prior changes the supplied identification
+/// status.
+///
+/// Rows are time-ordered, so each mechanism's Gaussian likelihood is tempered by
+/// the long-run-variance ratio of its path combinations
+/// ([`crate::serial_dependence`], [`DependenceScope::MediationPaths`]): the
+/// treatment slope `a` of the mediator mechanism, and the direct `c'`, mediated
+/// `b` and total `c' + â b` gradients of the outcome mechanism (`â` the OLS
+/// mediator slope).
 pub fn prepare_temporal_mediation(
     data: &TimeSeriesData,
     estimand: &IdentifiedEstimand,
@@ -74,7 +83,7 @@ pub fn prepare_temporal_mediation_adjusted(
             overlap: OverlapPolicy::ExplicitOverride,
             coef_names: None,
             unit_ids: None,
-            serial_dependence: crate::SerialDependence::Iid,
+            serial_dependence: SerialDependence::Iid,
         })
     };
     let covs: Vec<_> = adjustment
@@ -84,7 +93,48 @@ pub fn prepare_temporal_mediation_adjusted(
         .collect();
     let mut outcome_covs = vec![(mediator, sample.column(1))];
     outcome_covs.extend_from_slice(&covs);
-    Ok([build(sample.column(1), &covs)?, build(sample.column(2), &outcome_covs)?])
+    let mediator_mechanism = build(sample.column(1), &covs)?;
+    let outcome_mechanism = build(sample.column(2), &outcome_covs)?;
+    // Mediator design [1 | T | Z…]: the path slope `a` is column 1. Outcome design
+    // [1 | T | M | Z…]: `c'` is column 1 and `b` column 2.
+    let unit = |p: usize, entries: &[(usize, f64)]| -> Arc<[f64]> {
+        let mut c = vec![0.0; p];
+        for &(i, v) in entries {
+            c[i] = v;
+        }
+        Arc::from(c)
+    };
+    let a_hat = ols_coefficient(&mediator_mechanism.design, 1)?;
+    let pm = mediator_mechanism.design.ncols;
+    let po = outcome_mechanism.design.ncols;
+    let mediator_paths = DependenceScope::MediationPaths(Arc::from([unit(pm, &[(1, 1.0)])]));
+    let outcome_paths = DependenceScope::MediationPaths(Arc::from([
+        unit(po, &[(1, 1.0)]),
+        unit(po, &[(2, 1.0)]),
+        unit(po, &[(1, 1.0), (2, a_hat)]),
+    ]));
+    Ok([
+        mediator_mechanism
+            .with_serial_dependence(SerialDependence::LongRunTempering(mediator_paths)),
+        outcome_mechanism.with_serial_dependence(SerialDependence::LongRunTempering(outcome_paths)),
+    ])
+}
+
+/// OLS coefficient `index` of `design` (the plug-in path slope for a tempering gradient).
+fn ols_coefficient(design: &CompiledDesign, index: usize) -> Result<f64, EstimationError> {
+    use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+    let fit = FaerBackend.least_squares(
+        &design.matrix[..design.nrows * design.ncols],
+        design.nrows,
+        design.ncols,
+        &design.outcome,
+        &mut LeastSquaresWorkspace::default(),
+    )?;
+    fit.coefficients
+        .get(index)
+        .copied()
+        .filter(|v| v.is_finite())
+        .ok_or_else(|| EstimationError::stats_msg("mediation path slope is not estimable"))
 }
 
 /// Compose independent mediator/outcome mechanism draws into a posterior over
@@ -132,15 +182,27 @@ pub fn compose_temporal_mediation(
         ]),
     };
     let draws = PosteriorDraws::from_column_major(schema, n, values)?;
+    let tempered = [mediator, outcome].iter().any(|post| {
+        post.assumptions.entries.iter().any(|record| {
+            matches!(&record.assumption, antecedent_core::Assumption::ParametricRestriction(p)
+                if p.id.as_ref() == DEPENDENCE_ASSUMPTION_ID)
+        })
+    });
     let mut post = outcome.clone();
     post.identification = status;
     post.summaries = draws.summarize();
     post.draws = draws;
+    // Both mechanisms' tempering notes stay on the composed diagnostics.
+    post.diagnostics.notes.extend(mediator.diagnostics.notes.iter().cloned());
     post.assumptions.entries.extend(mediator.assumptions.entries.iter().cloned());
     post.assumptions.push(antecedent_core::AssumptionRecord {
         assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
             id: Arc::from("temporal.mediation.gaussian_product"),
-            description: Arc::from("linear additive mediator and outcome mechanisms with independent Gaussian innovations and independent coefficient priors; no treatment-mediator interaction; empirical complete rows fixed"),
+            description: Arc::from(if tempered {
+                "linear additive mediator and outcome mechanisms with Gaussian innovations independent across the two mechanisms and independent coefficient priors; each mechanism's likelihood is tempered by the long-run-variance ratio of its path coefficients for serial dependence (a generalized posterior, not a correlated-innovation likelihood); no treatment-mediator interaction; empirical complete rows fixed"
+            } else {
+                "linear additive mediator and outcome mechanisms with independent Gaussian innovations and independent coefficient priors; no treatment-mediator interaction; empirical complete rows fixed"
+            }),
         }),
         source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from("temporal.mediation.bayesian") },
         scope: antecedent_core::AssumptionScope::Estimation,

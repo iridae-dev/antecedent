@@ -77,6 +77,24 @@ def tempering(x, y, c):
     }
 
 
+def mediation_tempering(x_m, y_m, x_o, y_o):
+    """Per-mechanism kappa of a linear mediation (columns [1, t, (m,) z...]).
+
+    The mediator mechanism is tempered along its path slope a (e_1); the outcome
+    mechanism along the direct c' (e_1), mediated b (e_2) and total c' + a_hat b
+    (e_1 + a_hat e_2) gradients, kappa the largest (a_hat the OLS mediator slope).
+    """
+    a_hat = np.linalg.lstsq(x_m, y_m, rcond=None)[0][1]
+    unit = lambda p, entries: np.array([entries.get(i, 0.0) for i in range(p)])
+    mediator = tempering(x_m, y_m, unit(x_m.shape[1], {1: 1.0}))
+    cols = x_o.shape[1]
+    outcome = max(
+        (tempering(x_o, y_o, unit(cols, d)) for d in ({1: 1.0}, {2: 1.0}, {1: 1.0, 2: a_hat})),
+        key=lambda f: f['raw_ratio'],
+    )
+    return [dict(mediator, mechanism='m'), dict(outcome, mechanism='y')]
+
+
 def dirichlet_mean_variance(values):
     """Var(sum_i omega_i values_i), omega ~ Dirichlet(1, ..., 1): S_cc / (n (n + 1))."""
     centred = values - values.mean()
@@ -98,20 +116,29 @@ kappas = {
         dict(tempering(x_b, y_b, contrast), mechanism='y'),
     ],
 }
+x_ma, y_ma = np.column_stack([np.ones(n-1), t[:-1]]), m[1:]
+x_mb, y_mb = np.column_stack([np.ones(n-1), t[:-1], m[1:]]), o[1:]
+x_ca, y_ca = np.column_stack([np.ones(n-1), tc[:-1], z[:-1]]), mc[1:]
+x_cb, y_cb = np.column_stack([np.ones(n-1), tc[:-1], mc[1:], z[:-1]]), oc[1:]
+# Bayesian temporal mediation tempers both mechanisms along their path gradients.
+kappas['mediation'] = mediation_tempering(x_ma, y_ma, x_mb, y_mb)
+kappas['confounded_mediation'] = mediation_tempering(x_ca, y_ca, x_cb, y_cb)
 k_window = kappas['window'][0]['kappa']
 k_a, k_b = (f['kappa'] for f in kappas['stationary_window'])
+k_ma, k_mb = (f['kappa'] for f in kappas['mediation'])
+k_ca, k_cb = (f['kappa'] for f in kappas['confounded_mediation'])
 
 expected = {}
 for scale in [0.1, 10.0]:
     cm, cv = posterior(np.column_stack([np.ones(n), t, w, t * (w - w.mean())]), y, scale)
     rm, rv = posterior(np.column_stack([np.ones(n), t]), r, scale)
-    am, av = posterior(np.column_stack([np.ones(n-1), t[:-1]]), m[1:], scale)
-    bm, bv = posterior(np.column_stack([np.ones(n-1), t[:-1], m[1:]]), o[1:], scale)
+    am, av = posterior(x_ma, y_ma, scale, k_ma)
+    bm, bv = posterior(x_mb, y_mb, scale, k_mb)
     sm, sv = posterior(x_window, y_window, scale, k_window)
     tam, tav = posterior(x_a, y_a, scale, k_a)
     um, uv = posterior(x_b, y_b, scale, k_b)
-    cam, cav = posterior(np.column_stack([np.ones(n-1), tc[:-1], z[:-1]]), mc[1:], scale)
-    cbm, cbv = posterior(np.column_stack([np.ones(n-1), tc[:-1], mc[1:], z[:-1]]), oc[1:], scale)
+    cam, cav = posterior(x_ca, y_ca, scale, k_ca)
+    cbm, cbv = posterior(x_cb, y_cb, scale, k_cb)
     # One stationary a multiplies b1+b2, so covariance between its two
     # appearances is retained. Each regression uses unique observed rows.
     b_mean, b_var = contrast @ um, contrast @ uv @ contrast

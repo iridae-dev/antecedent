@@ -21,7 +21,8 @@ mod common;
 
 use antecedent::{BayesianConfig, ClassPrior, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
-    CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
+    CausalQuery, ExecutionContext, Lag, MediationContrast, MediationQuery, TemporalEffectQuery,
+    TemporalPolicy, VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalCpdag, TemporalDag, ensure_lagged};
@@ -240,6 +241,281 @@ dag_coverage! {
         (Cell::MultiSustained, Regime::RHO09_N400);
     bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage =>
         (Cell::MultiSustained, Regime::RHO05_N60);
+}
+
+/// Treatment → mediator path `a` of the mediation DGP.
+const MED_A: f64 = 0.6;
+/// Mediator → outcome path `b`.
+const MED_B: f64 = 0.5;
+/// Direct treatment → outcome path `c'`.
+const MED_C: f64 = 0.4;
+
+/// `m_t = a t_{t-1} + u_t`, `y_t = c' t_{t-1} + b m_t + e_t` with `t`, `u` and `e`
+/// independent AR(1) at the regime's coefficient (the treatment at
+/// [`IID_TREATMENT_RHO`] when the innovations are iid). The mediator's persistence
+/// makes the outcome mechanism's `b` score inherit the residual autocorrelation.
+/// Columns `t` (0), `m` (1), `y` (2).
+fn series_mediation(regime: Regime, rep: u64) -> TimeSeriesData {
+    let t = ar1_noise(regime.n, regime.treatment_rho(), 1.0, regime.stream(rep, 0));
+    let u = ar1_noise(regime.n, regime.rho, 0.5, regime.stream(rep, 1));
+    let e = ar1_noise(regime.n, regime.rho, 0.5, regime.stream(rep, 2));
+    let mut m = vec![0.0; regime.n];
+    let mut y = vec![0.0; regime.n];
+    for i in 1..regime.n {
+        m[i] = MED_A * t[i - 1] + u[i];
+        y[i] = MED_C * t[i - 1] + MED_B * m[i] + e[i];
+    }
+    TimeSeriesData::from_f64_columns(
+        [("t", t.as_slice()), ("m", m.as_slice()), ("y", y.as_slice())],
+        1,
+    )
+    .unwrap()
+}
+
+/// `t@1 → m`, `t@1 → y`, `m → y`.
+fn mediation_dag() -> TemporalDag {
+    let mut g = TemporalDag::empty();
+    let t1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = ensure_lagged(&mut g, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_directed(t1, m0).unwrap();
+    g.insert_directed(t1, y0).unwrap();
+    g.insert_directed(m0, y0).unwrap();
+    g
+}
+
+fn run_mediation(data: TimeSeriesData, contrast: MediationContrast, seed: u64) -> StudyResult {
+    Study::series(data)
+        .graph(mediation_dag())
+        .query(CausalQuery::Mediation(
+            MediationQuery::binary(
+                VariableId::from_raw(0),
+                VariableId::from_raw(2),
+                [VariableId::from_raw(1)],
+                contrast,
+            )
+            .with_horizons(vec![1])
+            .unwrap(),
+        ))
+        .inference(bayes())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(seed))
+        .unwrap()
+}
+
+/// Total, Direct and Mediated 90% equal-tail coverage of the composed Bayesian
+/// temporal mediation posterior (one horizon; columns 1–3 of the posterior).
+fn mediation_coverage(regime: Regime) {
+    let targets =
+        [("Total", 1, MED_C + MED_A * MED_B), ("Direct", 2, MED_C), ("Mediated", 3, MED_A * MED_B)];
+    let mut tallies: Vec<CoverageTally> = targets
+        .iter()
+        .map(|(name, _, _)| {
+            CoverageTally::new(
+                format!("Bayesian TemporalDag mediation {name} {}", regime.label()),
+                LEVEL,
+            )
+        })
+        .collect();
+    for rep in 0..u64::from(n_sim()) {
+        let result =
+            run_mediation(series_mediation(regime, rep), MediationContrast::Mediated, 13 + rep);
+        let post = result.posterior.as_ref().expect("single-horizon mediation posterior");
+        for ((_, column, truth), tally) in targets.iter().zip(&mut tallies) {
+            let draws = post.draws.column(*column).expect("decomposition draws");
+            tally.record(quantile_interval(draws, LEVEL), *truth);
+        }
+    }
+    // Print every contrast's calibration line before failing on any of them.
+    let failures: Vec<String> = tallies
+        .iter()
+        .filter_map(|tally| {
+            std::panic::catch_unwind(|| tally.assert()).err().map(|e| {
+                e.downcast_ref::<String>().cloned().unwrap_or_else(|| "coverage failure".into())
+            })
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("; "));
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn bayesian_temporal_mediation_iid_nominal_90_coverage() {
+    mediation_coverage(Regime::IID);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage() {
+    mediation_coverage(Regime::RHO05_N160);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage() {
+    mediation_coverage(Regime::RHO09_N400);
+}
+
+/// Both mediation mechanisms are tempered for serial dependence, and the
+/// composed posterior records it.
+#[test]
+fn bayesian_temporal_mediation_tempers_both_mechanisms() {
+    let result =
+        run_mediation(series_mediation(Regime::RHO09_N400, 0), MediationContrast::Total, 3);
+    let post = result.posterior.as_ref().unwrap();
+    let kappas: Vec<f64> = post
+        .diagnostics
+        .notes
+        .iter()
+        .filter_map(|note| {
+            antecedent_estimate::tempering_kappa_from_notes(std::slice::from_ref(note))
+        })
+        .collect();
+    assert_eq!(kappas.len(), 2, "one tempering note per mechanism: {:?}", post.diagnostics.notes);
+    assert!(kappas.iter().all(|k| *k > 1.5), "rho 0.9 must temper both mechanisms: {kappas:?}");
+    assert!(
+        post.diagnostics
+            .notes
+            .iter()
+            .all(|note| !note.contains("scope=") || note.contains("scope=mediation_paths")),
+        "{:?}",
+        post.diagnostics.notes
+    );
+    let correction = result
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "estimate.bayesian.temporal.dependence_correction")
+        .expect("dependence correction diagnostic");
+    assert!(correction.message.contains("over 2 fit(s)"), "{}", correction.message);
+    let product = post
+        .assumptions
+        .entries
+        .iter()
+        .find_map(|a| match &a.assumption {
+            antecedent_core::Assumption::ParametricRestriction(p)
+                if p.id.as_ref() == "temporal.mediation.gaussian_product" =>
+            {
+                Some(p.description.clone())
+            }
+            _ => None,
+        })
+        .expect("gaussian product assumption");
+    assert!(product.contains("tempered"), "{product}");
+}
+
+/// `conformance/bayesian/release_12_moments`: the tempered mediation posteriors
+/// match the independent NIG reference (moments and each mechanism's `κ̂`).
+#[test]
+fn release_12_mediation_moments_and_tempering_match_the_reference() {
+    let fixture: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../conformance/bayesian/release_12_moments/expected.json"
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    let column = |name: &str| -> Vec<f64> {
+        fixture["data"][name].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
+    };
+    let lagged = |g: &mut TemporalDag, id: u32, lag: u32| {
+        ensure_lagged(g, VariableId::from_raw(id), Lag::from_raw(lag)).unwrap()
+    };
+    for family in ["mediation", "confounded_mediation"] {
+        // Columns t (0), m (1), y (2), plus z (3) in the confounded design.
+        let (data, graph) = if family == "mediation" {
+            let data = TimeSeriesData::from_f64_columns(
+                [("t", column("t").as_slice()), ("m", &column("m")), ("y", &column("o"))],
+                1,
+            )
+            .unwrap();
+            let mut g = TemporalDag::empty();
+            let (t1, m0, y0) = (lagged(&mut g, 0, 1), lagged(&mut g, 1, 0), lagged(&mut g, 2, 0));
+            for (a, b) in [(t1, m0), (t1, y0), (m0, y0)] {
+                g.insert_directed(a, b).unwrap();
+            }
+            (data, g)
+        } else {
+            let data = TimeSeriesData::from_f64_columns(
+                [
+                    ("t", column("tc").as_slice()),
+                    ("m", &column("mc")),
+                    ("y", &column("oc")),
+                    ("z", &column("z")),
+                ],
+                1,
+            )
+            .unwrap();
+            let mut g = TemporalDag::empty();
+            let (t0, t1) = (lagged(&mut g, 0, 0), lagged(&mut g, 0, 1));
+            let (m0, y0) = (lagged(&mut g, 1, 0), lagged(&mut g, 2, 0));
+            let (z0, z1) = (lagged(&mut g, 3, 0), lagged(&mut g, 3, 1));
+            for (a, b) in [(z0, t0), (z1, m0), (z1, y0), (t1, m0), (t1, y0), (m0, y0)] {
+                g.insert_directed(a, b).unwrap();
+            }
+            (data, g)
+        };
+        for scale in [0.1, 10.0] {
+            let result = Study::series(data.clone())
+                .graph(graph.clone())
+                .query(CausalQuery::Mediation(
+                    MediationQuery::binary(
+                        VariableId::from_raw(0),
+                        VariableId::from_raw(2),
+                        [VariableId::from_raw(1)],
+                        MediationContrast::Mediated,
+                    )
+                    .with_horizons(vec![1])
+                    .unwrap(),
+                ))
+                .inference(InferenceMode::Bayesian(
+                    BayesianConfig::conjugate().n_draws(8192).prior_scale(scale),
+                ))
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ExecutionContext::for_tests(1201))
+                .unwrap();
+            let post = result.posterior.as_ref().unwrap();
+            let expected = &fixture["posterior"][format!("{scale:.1}")][family];
+            let (mean, var) = (expected[0].as_f64().unwrap(), expected[1].as_f64().unwrap());
+            let sd = post.summaries.sd[0];
+            assert!(
+                (post.summaries.mean[0] - mean).abs() < 0.08 * var.sqrt(),
+                "{family} scale {scale}: mean {} vs {mean}",
+                post.summaries.mean[0]
+            );
+            assert!(
+                (sd * sd / var - 1.0).abs() < 0.06,
+                "{family} scale {scale}: variance {} vs {var}",
+                sd * sd
+            );
+            let mut reported: Vec<f64> = post
+                .diagnostics
+                .notes
+                .iter()
+                .filter_map(|note| {
+                    antecedent_estimate::tempering_kappa_from_notes(std::slice::from_ref(note))
+                })
+                .collect();
+            let mut pinned: Vec<f64> = fixture["tempering"][family]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|f| f["kappa"].as_f64().unwrap())
+                .collect();
+            reported.sort_by(f64::total_cmp);
+            pinned.sort_by(f64::total_cmp);
+            assert_eq!(reported.len(), pinned.len(), "{family}: {reported:?} vs {pinned:?}");
+            for (r, p) in reported.iter().zip(&pinned) {
+                assert!((r - p).abs() < 1e-5, "{family} kappa {r} vs pinned {p}");
+            }
+        }
+    }
 }
 
 /// `t_t = 0.4 z_t + 0.5 u_t`, `y_t = 0.8 t_{t-1} + e_t`; `z`, `u`, `e` independent AR(1).

@@ -49,6 +49,15 @@ keyed by design rows; the test reads the reported κ̂ from the
 reference keeps the independent-product moments of a and b1 + b2 from their
 separately tempered posteriors.
 
+The temporal mediation references (`mediation`, `confounded_mediation`) temper
+both mechanisms too: the mediator mechanism along its path slope a (c = e_1),
+the outcome mechanism at the largest κ̂ over its direct c' (e_1), mediated b
+(e_2) and total c' + â b (e_1 + â e_2) directions, with â the OLS mediator
+slope. `tempering.mediation` / `tempering.confounded_mediation` list the two
+mechanisms (`m`, `y`; both on the same rows). The Rust test
+`v19_bayesian_temporal::release_12_mediation_moments_and_tempering_match_the_reference`
+checks the moments and both κ̂.
+
 ## Modifier-mean uncertainty (`conditional`)
 
 The design is (1, t, w, t(w - w̄)). Each ConditionalEffect draw is
