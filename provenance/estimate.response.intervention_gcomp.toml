@@ -27,5 +27,5 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
-  "crates/antecedent-estimate/src/response.rs",
+  "crates/antecedent-estimate/src/response/mod.rs",
 ]
