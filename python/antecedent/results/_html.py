@@ -158,7 +158,16 @@ def _analysis_result_body(result: AnalysisResult) -> str:
     )
     se_kind = "bootstrap" if result.estimate.se_bootstrap is not None else "analytic"
     se_text = fmt_se(se)
-    if result.unit_effects is not None:
+    interval = result.estimate.mean_interval
+    if interval is not None and result.unit_effects is None:
+        from ._views import fmt_probability_interval
+
+        label = "Effect"
+        value = (
+            f"{_esc(fmt_float(result.effect))} "
+            f'<span class="antecedent-ar-sub">{_esc(fmt_probability_interval(interval))}</span>'
+        )
+    elif result.unit_effects is not None:
         label = "Mean ITE"
         if se_text is None:
             value = _esc(fmt_float(result.effect))

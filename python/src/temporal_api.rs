@@ -1895,6 +1895,8 @@ fn analysis_result_from_run(
         family_contrast_interval: None,
         candidate_selection: None,
         evalue: None,
+        distribution_atoms: None,
+        mean_interval: None,
     };
     let posterior_section = PosteriorSection {
         effect_mean: posterior_effect_mean,

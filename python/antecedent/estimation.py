@@ -97,6 +97,7 @@ from .results import (
     AnalysisResult,
     CausalResponseView,
     ConflictSummaryView,
+    DistributionAtomView,
     EffectEnvelope,
     EstimateView,
     IdentificationView,
@@ -107,6 +108,7 @@ from .results import (
     PosteriorView,
     PredictiveCheckReport,
     PriorSensitivityReport,
+    ProbabilityIntervalView,
     RefutationReport,
     ResponseEnvelopeView,
     ResponseUncertainty,
@@ -272,6 +274,35 @@ def _section_performance(raw: Any) -> Any:
         early_stopped=bool(getattr(raw, "early_stopped", False)),
         stage_timings=getattr(raw, "stage_timings", None),
         bytes_borrowed=getattr(raw, "bytes_borrowed", None),
+    )
+
+
+def _probability_interval_from_raw(raw: Any) -> ProbabilityIntervalView | None:
+    """Native ``ProbabilityIntervalSection`` → view (``None`` passes through)."""
+    if raw is None:
+        return None
+    return ProbabilityIntervalView(
+        level=raw.level,
+        lower=raw.lower,
+        upper=raw.upper,
+        unavailable=raw.unavailable,
+    )
+
+
+def _distribution_atoms_from_raw(sec_estimate: Any) -> tuple[DistributionAtomView, ...] | None:
+    """Native distribution atoms with their bounded probability intervals."""
+    atoms = getattr(sec_estimate, "distribution_atoms", None)
+    if atoms is None:
+        return None
+    return tuple(
+        DistributionAtomView(
+            outcomes=tuple((str(name), value) for name, value in atom.outcomes),
+            conditioning=tuple((str(name), value) for name, value in atom.conditioning),
+            probability=float(atom.probability),
+            se_bootstrap=atom.se_bootstrap,
+            interval=_probability_interval_from_raw(atom.interval),
+        )
+        for atom in atoms
     )
 
 
@@ -494,6 +525,10 @@ def _wrap_ate(
             family_contrast_interval=getattr(sec_estimate, "family_contrast_interval", None),
             candidate_selection=getattr(sec_estimate, "candidate_selection", None),
             evalue=getattr(sec_estimate, "evalue", None),
+            distribution=_distribution_atoms_from_raw(sec_estimate),
+            mean_interval=_probability_interval_from_raw(
+                getattr(sec_estimate, "mean_interval", None)
+            ),
         ),
         posterior=posterior,
         unit_effects=getattr(raw, "unit_effects", None),

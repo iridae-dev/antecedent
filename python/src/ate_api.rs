@@ -2214,6 +2214,8 @@ pub(crate) fn ate_result_from_analysis(
         assumption_count: result.estimate.assumptions.len(),
         derivation_step_count: result.identification.derivation.steps.len(),
     };
+    let (distribution_atoms, mean_interval) =
+        crate::distribution_sections(names, result.distribution.as_ref());
     let estimate = EstimateSection {
         ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
         se_analytic: result.estimate.se_analytic,
@@ -2293,6 +2295,8 @@ pub(crate) fn ate_result_from_analysis(
                 })
             }),
         evalue: result.estimate.evalue,
+        distribution_atoms,
+        mean_interval,
     };
     let posterior = PosteriorSection {
         effect_mean: posterior_effect_mean,

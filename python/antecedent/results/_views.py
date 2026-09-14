@@ -17,6 +17,8 @@ __all__ = [
     "MediationView",
     "TemporalMediationSliceView",
     "TemporalMediationGridView",
+    "ProbabilityIntervalView",
+    "DistributionAtomView",
     "EstimateView",
     "ConflictSummaryView",
     "PosteriorView",
@@ -121,6 +123,61 @@ class TemporalMediationGridView:
 
 
 @dataclass(frozen=True)
+class ProbabilityIntervalView:
+    """Bounded interval for one interventional probability.
+
+    Frequentist distribution cells publish a logit-scale delta-method interval
+    from the bootstrap SE, so both bounds lie in ``[0, 1]``. When the plug-in
+    probability is exactly 0 or 1 (or the bootstrap failed) no interval exists:
+    ``lower``/``upper``/``level`` are ``None`` and ``unavailable`` names why.
+    Do not rebuild one as ``probability ± z * se``; that can leave ``[0, 1]``.
+    """
+
+    level: float | None
+    lower: float | None
+    upper: float | None
+    unavailable: str | None = None
+
+    @property
+    def bounds(self) -> tuple[float, float] | None:
+        """``(lower, upper)``, or ``None`` when no interval could be formed."""
+        if self.lower is None or self.upper is None:
+            return None
+        return (self.lower, self.upper)
+
+    def __repr__(self) -> str:
+        return f"<ProbabilityIntervalView {fmt_probability_interval(self)}>"
+
+
+def fmt_probability_interval(interval: ProbabilityIntervalView) -> str:
+    """``ci95=[lo, hi]`` or ``ci=unavailable (reason)``."""
+    bounds = interval.bounds
+    if bounds is None or interval.level is None:
+        return f"ci=unavailable ({interval.unavailable or 'unknown'})"
+    return f"ci{round(interval.level * 100)}=[{fmt_float(bounds[0])}, {fmt_float(bounds[1])}]"
+
+
+@dataclass(frozen=True)
+class DistributionAtomView:
+    """One interventional-distribution atom ``P(outcomes | do(x)[, conditioning])``."""
+
+    outcomes: tuple[tuple[str, float | None], ...]
+    conditioning: tuple[tuple[str, float | None], ...]
+    probability: float
+    se_bootstrap: float | None = None
+    interval: ProbabilityIntervalView | None = None
+
+    def __repr__(self) -> str:
+        cells = ", ".join(f"{name}={fmt_float(value)}" for name, value in self.outcomes)
+        given = ", ".join(f"{name}={fmt_float(value)}" for name, value in self.conditioning)
+        label = f"P({cells} | {given})" if given else f"P({cells})"
+        parts = [f"{label}={fmt_float(self.probability)}"]
+        if self.interval is not None:
+            parts.append(fmt_probability_interval(self.interval))
+        return f"<DistributionAtomView {' '.join(parts)}>"
+
+
+@dataclass(frozen=True)
 class EstimateView:
     ate: float | None
     se_analytic: float
@@ -145,8 +202,20 @@ class EstimateView:
     family_contrast_interval: tuple[float, float, float] | None = None
     candidate_selection: Any = None
     evalue: float | None = None
+    #: Interventional-distribution atoms, each with its bounded probability
+    #: interval (Frequentist) — ``None`` for other queries.
+    distribution: tuple[DistributionAtomView, ...] | None = None
+    #: Bounded interval for ``ate`` when it is the probability ``P(Y = 1 | do(x))``
+    #: of a binary ``{0, 1}`` outcome; ``None`` otherwise.
+    mean_interval: ProbabilityIntervalView | None = None
 
     def __repr__(self) -> str:
+        if self.mean_interval is not None:
+            return (
+                f"<EstimateView ate={fmt_float(self.ate)} "
+                f"{fmt_probability_interval(self.mean_interval)} "
+                f"estimator={self.estimator_id!r} method={self.method!r}>"
+            )
         se = self.se_bootstrap if self.se_bootstrap is not None else self.se_analytic
         se_text = fmt_se(se)
         label = "mean_ite" if self.estimator_id == "gcm.fit" else "ate"
@@ -547,6 +616,9 @@ class AnalysisResult:
         se_text = fmt_se(se)
         if self.unit_effects is not None:
             parts = [verdict, f"mean_ite={fmt_float(self.effect)}"]
+        elif self.estimate.mean_interval is not None:
+            interval_text = fmt_probability_interval(self.estimate.mean_interval)
+            parts = [verdict, f"effect={fmt_float(self.effect)} {interval_text}"]
         elif se_text is None:
             parts = [verdict, f"effect={fmt_float(self.effect)} se=unavailable"]
         else:
