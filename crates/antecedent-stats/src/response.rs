@@ -554,7 +554,7 @@ mod tests {
         for (&xi, &yi) in x.iter().zip(y) {
             let dx = xi - at;
             let w = (-0.5 * (dx / h).powi(2)).exp();
-            let row: [f64; N] = std::array::from_fn(|k| dx.powi(k as i32));
+            let row: [f64; N] = std::array::from_fn(|k| dx.powi(i32::try_from(k).unwrap()));
             for j in 0..N {
                 rhs[j] += w * row[j] * yi;
                 for k in 0..N {
