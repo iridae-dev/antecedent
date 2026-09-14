@@ -886,7 +886,7 @@ mod tests {
             .unwrap_err();
             assert!(
                 err.to_string().starts_with(
-                    "refused: Path and distribution queries execute only on a supplied"
+                    "refused: Path-specific queries execute only on a supplied static Dag"
                 ),
                 "PathSpecificEffect/{graph}: {err}"
             );
