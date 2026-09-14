@@ -279,6 +279,7 @@ cargo bench -p antecedent-state --bench state_append -- --test
 cargo bench -p antecedent-estimate --bench response_interference -- --test
 cargo bench -p antecedent-estimate --bench temporal_response -- --test
 cargo bench -p antecedent --bench staged_handle -- --test
+cargo bench -p antecedent --bench temporal_zero_replicates -- --test
 
 if command -v cargo-deny >/dev/null 2>&1; then
   echo "== cargo deny check =="
