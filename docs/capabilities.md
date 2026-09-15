@@ -357,15 +357,17 @@ The sweep separates designs whose estimating score forgets within a few lags
 from designs where treatment and residual are both persistent. With a
 short-memory score (an MA(3) treatment, or the confounded lag DGP for
 multi-step Sustained) and AR(1) residuals up to ρ = 0.95, one-series intervals
-covered 0.871–0.928 at nominal 0.90 for every n from 40 to 400 (2000
+covered 0.878–0.932 at nominal 0.90 for every n from 40 to 400 (2000
 replicates per cell), and the warning is quiet from n = 160. With an AR(1)
 treatment as well, Pulse, mediation Total/Direct and multi-step Sustained
-covered 0.75–0.85 wherever the series was short for that memory (n ≤ 60 at
-ρ ≥ 0.8, up to n = 160 at ρ ≥ 0.9, n = 400 at ρ = 0.95); the warning fires on
-at least 91% of the replicates of every cell below 0.855. The mixture threshold
-is higher because a non-causal completion that omits a persistent confounder is
-biased in finite samples (TemporalCpdag Pulse covered 0.68–0.89 at ρ ≥ 0.9 up
-to n = 400); no block length removes a bias, and the warning is the boundary.
+covered 0.778–0.896 wherever the series was short for that memory (n ≤ 60 at
+ρ ≥ 0.8, up to n = 160 at ρ ≥ 0.9, n = 400 at ρ = 0.95; 19 of those 44 cells
+below 0.855); the warning fires on at least 91% of the replicates of every
+cell below 0.855. The mixture threshold is higher because a non-causal
+completion that omits a persistent confounder is biased in finite samples
+(TemporalCpdag Pulse covered 0.685–0.905 at ρ ≥ 0.9 up to n = 400,
+0.685–0.878 at n ≤ 160); no block length removes a bias, and the warning is
+the boundary.
 
 Temporal response surfaces and observation / Sequence tuple bands use their own
 block rule, `max(max(span, ceil(sqrt(n))), min(ceil(b_PW·n^(1/6)), n/3))` with
