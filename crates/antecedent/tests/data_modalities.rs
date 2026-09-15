@@ -458,20 +458,36 @@ fn panel_response_curve_uses_unit_cluster_bands() {
 }
 
 #[test]
-fn bayesian_panel_response_stays_refused() {
+fn bayesian_panel_response_uses_unit_cluster_bands() {
     let panel = PanelData::try_new(Arc::from([
         PanelUnit { unit_id: 0, series: xy_series(80, 0.1) },
         PanelUnit { unit_id: 1, series: xy_series(80, 0.4) },
+        PanelUnit { unit_id: 2, series: xy_series(80, 0.7) },
     ]))
     .unwrap();
-    let err = Study::panel(panel)
+    let result = Study::panel(panel)
         .graph(lagged_xy_graph())
         .query(CausalQuery::Response(panel_mean_curve_query()))
-        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
         .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
         .build()
-        .unwrap_err();
-    assert!(err.to_string().contains("single-series response likelihood"), "{err}");
+        .unwrap()
+        .run(&ExecutionContext::for_tests(3))
+        .unwrap();
+    let response = result.response.as_ref().expect("Bayesian panel response surface");
+    let antecedent_core::ResponseIdentification::PointIdentified(
+        antecedent_core::ResponseValue::Surface { mean, .. },
+    ) = &response.estimate
+    else {
+        panic!("expected a point-identified surface, got {:?}", response.estimate);
+    };
+    assert!(mean.iter().all(|value| value.is_finite()));
+    assert!(
+        (mean[1] - mean[0] - 0.8).abs() < 0.25,
+        "Bayesian unit-average pulse contrast should stay near 0.8, got {:?}",
+        mean
+    );
 }
 
 #[test]
@@ -503,36 +519,99 @@ fn panel_class_pulse_uses_completion_masses() {
 }
 
 #[test]
-fn bayesian_panel_class_pulse_stays_refused() {
+fn bayesian_panel_class_pulse_uses_completion_masses() {
     let panel = PanelData::try_new(Arc::from([
-        PanelUnit { unit_id: 0, series: xy_series(80, 0.1) },
-        PanelUnit { unit_id: 1, series: xy_series(80, 0.4) },
+        PanelUnit { unit_id: 0, series: xy_series(180, 0.1) },
+        PanelUnit { unit_id: 1, series: xy_series(180, 0.4) },
+        PanelUnit { unit_id: 2, series: xy_series(180, 0.7) },
     ]))
     .unwrap();
-    let err = Study::panel(panel)
+    let result = Study::panel(panel)
         .graph(TemporalCpdag::from_temporal_dag(&lagged_xy_graph()))
         .temporal_query(pulse_query())
-        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
         .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
         .build()
-        .unwrap_err();
-    assert!(err.to_string().contains("series class-posterior is not a panel class model"), "{err}");
+        .unwrap()
+        .run(&ExecutionContext::for_tests(4))
+        .unwrap();
+    assert!((result.estimate.ate - 0.8).abs() < 0.15, "ate={}", result.estimate.ate);
+    assert!(
+        result.structural_response.is_some(),
+        "Bayesian class Pulse must publish completion masses"
+    );
+    assert!(
+        result.diagnostics.iter().any(|item| {
+            item.code.as_ref() == "estimate.temporal_effect.panel.class.bayesian_units"
+        }),
+        "missing Bayesian panel class diagnostic"
+    );
 }
 
 #[test]
-fn incomplete_class_panel_response_stays_refused() {
+fn panel_class_response_uses_completion_surfaces() {
     let panel = PanelData::try_new(Arc::from([
         PanelUnit { unit_id: 0, series: xy_series(80, 0.1) },
         PanelUnit { unit_id: 1, series: xy_series(80, 0.4) },
+        PanelUnit { unit_id: 2, series: xy_series(80, 0.7) },
     ]))
     .unwrap();
-    let err = Study::panel(panel)
+    let result = Study::panel(panel)
         .graph(TemporalCpdag::from_temporal_dag(&lagged_xy_graph()))
         .query(CausalQuery::Response(panel_mean_curve_query()))
         .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
         .build()
-        .unwrap_err();
-    assert!(err.to_string().contains("incomplete temporal classes"), "{err}");
+        .unwrap()
+        .run(&ExecutionContext::for_tests(5))
+        .unwrap();
+    let response = result.response.as_ref().expect("panel class response surface");
+    let antecedent_core::ResponseIdentification::PointIdentified(
+        antecedent_core::ResponseValue::Surface { mean, .. },
+    ) = &response.estimate
+    else {
+        panic!("expected a point-identified surface, got {:?}", response.estimate);
+    };
+    assert!(mean.iter().all(|value| value.is_finite()));
+    assert!(
+        (mean[1] - mean[0] - 0.8).abs() < 0.15,
+        "class-mixed unit-average pulse contrast should stay near 0.8, got {:?}",
+        mean
+    );
+    assert!(result.structural_response.is_some(), "class response must publish completion masses");
+}
+
+#[test]
+fn panel_class_multi_step_sustained_uses_completion_masses() {
+    let panel = PanelData::try_new(Arc::from([
+        PanelUnit { unit_id: 0, series: xy_series(180, 0.1) },
+        PanelUnit { unit_id: 1, series: xy_series(180, 0.4) },
+        PanelUnit { unit_id: 2, series: xy_series(180, 0.7) },
+    ]))
+    .unwrap();
+    let query = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::sustained(-1, 0))
+        .with_horizon_steps(1)
+        .with_max_history_lag(Some(1));
+    let result = Study::panel(panel)
+        .graph(TemporalCpdag::from_temporal_dag(&lagged_xy_graph()))
+        .temporal_query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(6))
+        .unwrap();
+    assert!(result.estimate.ate.is_finite(), "ate={}", result.estimate.ate);
+    assert!(result.structural_response.is_some(), "multi-step class Sustained must publish masses");
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|item| item.code.as_ref() == "estimate.temporal.sustained_window"),
+        "missing sequential window diagnostic"
+    );
 }
 
 #[test]
