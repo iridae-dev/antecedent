@@ -202,15 +202,15 @@ run_ignored_derivative ade_skewed_heteroskedastic_treatment_probe
 run_ignored_derivative point_derivative_frequentist_curvature_nominal_90_coverage
 run_ignored_derivative point_derivative_bayesian_curvature_nominal_90_coverage
 run_ignored_derivative point_derivative_order_2_frequentist_curvature_nominal_90_coverage
-# Boundary cell: measured 0.885 at 2000 replicates.
-run_ignored_derivative point_derivative_order_2_bayesian_curvature_boundary_within_band
+run_ignored_derivative point_derivative_order_2_bayesian_curvature_nominal_90_coverage
 run_ignored_derivative semi_elasticity_log_treatment_frequentist_nominal_90_coverage
 run_ignored_derivative semi_elasticity_log_treatment_bayesian_nominal_90_coverage
 run_ignored_derivative semi_elasticity_log_outcome_bayesian_nominal_90_coverage
 run_ignored_derivative elasticity_bayesian_nominal_90_coverage
-# Boundary cells: the GAM-gradient band is centred but 4-5% narrow (0.871-0.894 per coordinate).
+# Boundary cell: coordinate 0 of the GAM-gradient band measures 0.883 at 2000
+# replicates on the gate's seeds; the band covers 0.892-0.897 over 10 000 designs.
 run_ignored_derivative response_jacobian_bayesian_boundary_within_band
-run_ignored_derivative directional_derivative_bayesian_boundary_within_band
+run_ignored_derivative directional_derivative_bayesian_nominal_90_coverage
 
 echo "== 1.9 Bayesian temporal Pulse / Sustained under serial dependence (antecedent) =="
 run_ignored_bayes_temporal() {
