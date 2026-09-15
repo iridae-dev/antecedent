@@ -14,7 +14,19 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/v110_licensed_compiler.rs"
 evidence_assertion = "every_licensed_cell_inspects_as_a_first_class_contract"
-notes = "Cartesian inspect only. Identification remains Unavailable. Does not close preview→execute→claim→consume for every cell."
+notes = "Cartesian inspect only. Identification remains Unavailable. Lifecycle close is compiler.e2e_licensed_cells."
+
+[[capabilities]]
+id = "compiler.e2e_licensed_cells"
+group = "artifacts"
+description = "Every licensed 5-tuple completes inspect→preview→execute→claim→consume"
+status = "done"
+evidence_kind = "internal_cross_check"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/v110_licensed_compiler.rs"
+evidence_assertion = "every_licensed_cell_completes_the_compiler_path"
+limitations = "Composition-seam evidence on synthetic licensed-coordinate fixtures. Independent consume must accept a verified program. Does not inherit parent-estimator oracle evidence or interval calibration. TemporalPag uses the identified_pag envelope fixture so execute cannot terminate as an unidentified refuse. Python .study/.export retention is not claimed for every cell."
+notes = "341 cells. Claim identity must differ from program identity. Parent estimator evidence is not inherited."
 
 [[capabilities]]
 id = "compiler.inspect_does_not_identify"
