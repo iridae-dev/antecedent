@@ -159,3 +159,16 @@ pub enum AssumptionStatus {
     /// Not empirically testable from available data.
     Untestable,
 }
+
+impl AssumptionStatus {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Declared => "declared",
+            Self::Supported => "supported",
+            Self::Contradicted => "contradicted",
+            Self::Untestable => "untestable",
+        }
+    }
+}

@@ -1,7 +1,7 @@
 //! Core types shared across the Antecedent workspace.
 //!
 //! `antecedent-core` owns identifiers, schemas, assumptions, provenance,
-//! diagnostics, errors, and execution policy. It must not depend on numerical,
+//! contract identities, diagnostics, errors, and execution policy. It must not depend on numerical,
 //! graph-algorithm, Arrow, or Python crates.
 //!
 //! # Names at the boundary, IDs on the hot path
@@ -34,34 +34,47 @@
 #![warn(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
 pub mod assumption;
+pub mod claim;
 pub mod diagnostic;
 pub mod error;
 pub mod execution;
 pub mod identification;
+pub mod identity;
 pub mod ids;
 pub mod intervention;
 pub mod node;
+pub mod obligation;
 pub mod plan;
 pub mod provenance;
 pub mod query;
+pub mod reasoning;
 pub mod response;
 pub mod schema;
 pub mod temporal;
 pub mod tolerance;
+pub mod transform;
 pub mod value;
 
 pub use assumption::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, ParametricAssumption, PriorAssumption,
 };
+pub use claim::{
+    AcceptanceReport, ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, HandoffReceipt,
+};
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
 pub use execution::{
     AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy, CancellationToken,
-    CausalRng, Determinism, ExecutionContext, KernelPolicy, MemoryBudget, MonteCarloBudget,
-    MonteCarloError, NonZeroThreadCount, Parallelism, ProgressSink, RngFactory,
+    CausalRng, Determinism, ExecutionContext, ExecutionReceipt, ExecutionRequestState,
+    KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError, NonZeroThreadCount,
+    Parallelism, ProgressSink, RequestIdentity, RngFactory,
 };
 pub use identification::IdentificationStatus;
+pub use identity::{
+    ContractIdentities, IDENTITY_FORMAT, IDENTITY_FORMAT_TAG, IdentityDomain, IdentityRef,
+    SemanticDigest,
+};
 pub use ids::{
     CategoryDomainId, ComponentId, DistributionRef, DynamicRuleId, EnvironmentId, Lag, ModelId,
     QueryId, RegimeId, StateVersion, VariableId,
@@ -71,11 +84,12 @@ pub use intervention::{
     SequencedIntervention, StochasticPolicy, TemporalPolicy,
 };
 pub use node::NodeRef;
+pub use obligation::{ObligationKind, ObligationRecord, ObligationScope};
 pub use plan::{
     BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,
     LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
 };
-pub use provenance::{ArtifactId, ProvenanceGraph, ProvenanceNode};
+pub use provenance::{ArtifactId, ProvenanceError, ProvenanceGraph, ProvenanceNode};
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AssignmentDesign, AttributionComponents,
     AverageEffectQuery, CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery,
@@ -90,6 +104,10 @@ pub use query::{
     TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec, TransportQuery,
     UnitChangeQuery,
 };
+pub use reasoning::{
+    AssumptionSlot, IdentificationSlot, ReasoningView, SlotAvailability, SupportSlot,
+    UncertaintyComponent, UncertaintySlot, UncertaintySource,
+};
 pub use response::{
     CausalResponse, HorizonIdentification, IdentifiedSet, ResponseEnvelope, ResponseIdentification,
     ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
@@ -101,6 +119,10 @@ pub use schema::{
 };
 pub use temporal::{TemporalIndexError, TemporalIndexer, TemporalNodeKey};
 pub use tolerance::ToleranceClass;
+pub use transform::{
+    LayerEffect, SemanticLayer, TransformEffect, TransformIntent, TransformationReport,
+    intent_effects,
+};
 pub use value::Value;
 
 /// Library crate version string from Cargo.

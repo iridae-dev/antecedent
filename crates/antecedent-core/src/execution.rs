@@ -496,6 +496,100 @@ impl ExecutionContext {
     }
 }
 
+/// Host request identity: scoped to the complete scientific + execution inputs.
+///
+/// A key reused for different inputs is a conflict. The host owns scheduling;
+/// this record only names what the engine considered one logical request.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct RequestIdentity {
+    /// Caller-supplied idempotency key.
+    pub idempotency_key: crate::identity::SemanticDigest,
+    /// Program identity the request was bound to.
+    pub program: crate::identity::SemanticDigest,
+    /// Data-snapshot identity the request was bound to.
+    pub data_snapshot: crate::identity::SemanticDigest,
+    /// Execution-lineage identity (seed, threads, backend, version).
+    pub execution: crate::identity::SemanticDigest,
+}
+
+impl RequestIdentity {
+    /// Construct a complete request identity.
+    #[must_use]
+    pub const fn new(
+        idempotency_key: crate::identity::SemanticDigest,
+        program: crate::identity::SemanticDigest,
+        data_snapshot: crate::identity::SemanticDigest,
+        execution: crate::identity::SemanticDigest,
+    ) -> Self {
+        Self { idempotency_key, program, data_snapshot, execution }
+    }
+
+    /// Whether `other` reuses this key for a different scientific request.
+    #[must_use]
+    pub fn conflicts_with(&self, other: &Self) -> bool {
+        self.idempotency_key == other.idempotency_key
+            && (self.program != other.program
+                || self.data_snapshot != other.data_snapshot
+                || self.execution != other.execution)
+    }
+}
+
+/// Lifecycle of an external execution request. Distinct from scientific result status.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[non_exhaustive]
+pub enum ExecutionRequestState {
+    /// Accepted but not started.
+    Pending,
+    /// Currently executing.
+    Running,
+    /// Finished with a published scientific result.
+    Completed,
+    /// Refused before or during execution (scientific or license).
+    Refused,
+    /// Failed without publishing a completed claim.
+    Failed,
+    /// Cancelled; diagnostics may be retained, a claim must not be published.
+    Cancelled,
+}
+
+impl ExecutionRequestState {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Running => "running",
+            Self::Completed => "completed",
+            Self::Refused => "refused",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    /// Whether this state may publish a completed claim.
+    #[must_use]
+    pub const fn publishes_claim(self) -> bool {
+        matches!(self, Self::Completed)
+    }
+}
+
+/// Receipt for one host request. Cancellation or failure cannot mark a claim current.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExecutionReceipt {
+    /// Request identity this receipt answers.
+    pub request: RequestIdentity,
+    /// Lifecycle state.
+    pub state: ExecutionRequestState,
+}
+
+impl ExecutionReceipt {
+    /// Construct a receipt.
+    #[must_use]
+    pub const fn new(request: RequestIdentity, state: ExecutionRequestState) -> Self {
+        Self { request, state }
+    }
+}
+
 impl core::fmt::Debug for ExecutionContext {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("ExecutionContext")
@@ -548,6 +642,28 @@ mod tests {
         assert!(!token.is_cancelled());
         clone.cancel();
         assert!(token.is_cancelled());
+    }
+
+    #[test]
+    fn request_identity_conflicts_on_reused_key() {
+        let key = crate::identity::SemanticDigest::from_bytes([1; 32]);
+        let program = crate::identity::SemanticDigest::from_bytes([2; 32]);
+        let data = crate::identity::SemanticDigest::from_bytes([3; 32]);
+        let execution = crate::identity::SemanticDigest::from_bytes([4; 32]);
+        let first = RequestIdentity::new(key, program, data, execution);
+        let same = RequestIdentity::new(key, program, data, execution);
+        let changed = RequestIdentity::new(
+            key,
+            program,
+            crate::identity::SemanticDigest::from_bytes([5; 32]),
+            execution,
+        );
+        assert!(!first.conflicts_with(&same));
+        assert!(first.conflicts_with(&changed));
+        assert!(!ExecutionRequestState::Cancelled.publishes_claim());
+        assert!(ExecutionRequestState::Completed.publishes_claim());
+        let receipt = ExecutionReceipt::new(first, ExecutionRequestState::Cancelled);
+        assert_eq!(receipt.state.as_str(), "cancelled");
     }
 
     #[test]

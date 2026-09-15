@@ -44,3 +44,20 @@ pub enum IdentificationStatus {
     /// diagnostic, not a scientific open-back-door.
     NotIdentified,
 }
+
+impl IdentificationStatus {
+    /// Stable `snake_case` name used by contracts and the artifact wire.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NonparametricallyIdentified => "nonparametrically_identified",
+            Self::IdentifiedUnderParametricRestrictions => {
+                "identified_under_parametric_restrictions"
+            }
+            Self::IdentifiedUnderPriorRestrictions => "identified_under_prior_restrictions",
+            Self::PartiallyIdentified => "partially_identified",
+            Self::GraphDependent => "graph_dependent",
+            Self::NotIdentified => "not_identified",
+        }
+    }
+}
