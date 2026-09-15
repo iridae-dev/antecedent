@@ -658,6 +658,9 @@ impl ContinuousResponseEstimator {
                 let mut scalars = Vec::with_capacity(draws_n);
                 let mut corrected_scalars = Vec::with_capacity(draws_n);
                 let mut vectors: Vec<Vec<f64>> = Vec::with_capacity(draws_n);
+                // Per-sample effective degrees of freedom of the GAM draws, for
+                // the HC1-type spread correction (`inflate_draws_by_edf`).
+                let mut edf_sum = vec![0.0; samples.len()];
                 for _ in 0..draws_n {
                     if ctx.cancellation.is_cancelled() {
                         return Err(EstimationError::unsupported("Bayesian derivative cancelled"));
@@ -701,9 +704,10 @@ impl ContinuousResponseEstimator {
                         }
                         ResponseFunctional::DirectionalDerivative { at, direction, .. } => {
                             let mut values = Vec::with_capacity(samples.len());
-                            for sample in &samples {
+                            for (s, sample) in samples.iter().enumerate() {
                                 let fit =
                                     self.fit_outcome_target_weighted(sample, Some(&weights))?;
+                                edf_sum[s] += fit.edf_approx;
                                 let (_, gradient) =
                                     Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
                                 values.push(
@@ -714,9 +718,10 @@ impl ContinuousResponseEstimator {
                         }
                         ResponseFunctional::Jacobian { at, scale, treatments, outcomes } => {
                             let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
-                            for sample in &samples {
+                            for (s, sample) in samples.iter().enumerate() {
                                 let fit =
                                     self.fit_outcome_target_weighted(sample, Some(&weights))?;
+                                edf_sum[s] += fit.edf_approx;
                                 let (level, gradient) =
                                     Self::plugin_gradient_at_fit(&fit, sample, at, Some(&weights))?;
                                 for (j, raw) in gradient.into_iter().enumerate() {
@@ -742,7 +747,11 @@ impl ContinuousResponseEstimator {
                     let mut lower = vec![0.0; dim];
                     let mut upper = vec![0.0; dim];
                     for j in 0..dim {
-                        let col: Vec<f64> = vectors.iter().map(|row| row[j]).collect();
+                        let mut col: Vec<f64> = vectors.iter().map(|row| row[j]).collect();
+                        // Columns are outcome-major (Jacobian) or one per outcome
+                        // (directional); either way the outcome index is j·S/dim.
+                        let edf = edf_sum[j * samples.len() / dim] / draws_n as f64;
+                        inflate_draws_by_edf(&mut col, n, edf);
                         let (mean, lo, hi, _) = summarize_scalar_draws(&col, level)?;
                         means[j] = mean;
                         lower[j] = lo;
@@ -775,7 +784,7 @@ impl ContinuousResponseEstimator {
                     if point_derivative {
                         "Dirichlet(1,...,1)/Exp(1) row-weight posterior of the Kennedy-DR point derivative: every draw refits the cross-fitted additive-GAM outcome and Gaussian treatment nuisances on its weighted training folds, rebuilds the pseudo-outcome, and evaluates the weighted local quadratic (posterior mean = reported value) and its robust bias-corrected coordinate at the same caller-fixed bandwidth (local-cubic slope for a first derivative, local-quartic level and curvature otherwise) (quantiles = credible interval, SD = standard_error). Held fixed: the caller bandwidth, fold assignment, spline knots, and penalty. Not a frozen-pseudo-outcome reweight. Estimator identity stays estimate.response.point_derivative"
                     } else {
-                        "Dirichlet(1,...,1)/Exp(1) row-weight posterior of the additive-GAM plug-in gradient: every draw refits the GAM coefficients under the draw's row weights with fixed knots and penalty; pointwise quantile bands. The band inherits the additive-surface restriction and any penalized-spline smoothing bias at the evaluation point; no nuisance-selection uncertainty"
+                        "Dirichlet(1,...,1)/Exp(1) row-weight posterior of the additive-GAM plug-in gradient: every draw refits the GAM coefficients under the draw's row weights with fixed knots and penalty; the draw spread is inflated around the posterior mean by sqrt(n/(n − edf)) (the row-weight spread is an HC0 sandwich, which understates a fitted-coefficient functional's variance by the fit's leverage; edf is the penalized fit's effective degrees of freedom), and the pointwise band takes exchangeable-rank (type-6) quantiles of the draws. The band inherits the additive-surface restriction and any penalized-spline smoothing bias at the evaluation point; no nuisance-selection uncertainty"
                     },
                     provenance,
                 )
@@ -1960,6 +1969,23 @@ fn bootstrap_weights(n: usize, rng: &mut CausalRng) -> Vec<f64> {
     weights
 }
 
+/// Posterior mean, equal-tailed credible interval, and SD of a scalar's draws.
+///
+/// The interval uses *exchangeable-rank* quantiles (Hyndman–Fan type 6: the
+/// `p`-quantile sits at rank `p·(D + 1)` of the `D` sorted draws), not the
+/// `1 + p·(D − 1)` interpolation of a sample quantile. The reason is what a
+/// credible interval built from finitely many draws claims: when the posterior
+/// is calibrated the truth is exchangeable with the draws, and the interval
+/// between order statistics `r` and `s` then covers it with probability exactly
+/// `(s − r)/(D + 1)`, whatever the posterior's shape. Rank `p·(D + 1)` makes
+/// that probability the level. The sample-quantile ranks sit about one order
+/// statistic inside on each side, which at `D = 200` and a 90% level is about
+/// one coverage point (0.890 expected) and at the interactive tier's `D = 64`
+/// almost three (0.873); the exchangeable ranks give 0.900 at either count,
+/// at the price of an interval that is wider on average by 1% (`D = 200`) or
+/// 4% (`D = 64`) than the large-`D` limit. Ranks below 1 or above `D` clamp to
+/// the extreme draws, which is the only case where the rule under-covers, and
+/// a caller can widen it with more draws.
 fn summarize_scalar_draws(
     values: &[f64],
     level: f64,
@@ -1974,13 +2000,52 @@ fn summarize_scalar_draws(
         (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (values.len() - 1) as f64).sqrt();
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
-    let quantile = |p: f64| {
-        let x = p * (sorted.len() - 1) as f64;
-        let lo = x.floor() as usize;
-        let hi = x.ceil() as usize;
-        sorted[lo] + (sorted[hi] - sorted[lo]) * (x - lo as f64)
-    };
+    let quantile = |p: f64| exchangeable_rank_quantile(&sorted, p);
     Ok((mean, quantile((1.0 - level) / 2.0), quantile((1.0 + level) / 2.0), sd))
+}
+
+/// Type-6 quantile of `sorted` (see [`summarize_scalar_draws`]): linear
+/// interpolation at one-based rank `p·(D + 1)`, clamped to `[1, D]`.
+fn exchangeable_rank_quantile(sorted: &[f64], p: f64) -> f64 {
+    let d = sorted.len();
+    let rank = (p * (d + 1) as f64).clamp(1.0, d as f64);
+    let lo = rank.floor() as usize;
+    let hi = rank.ceil() as usize;
+    let frac = rank - lo as f64;
+    sorted[lo - 1] + (sorted[hi - 1] - sorted[lo - 1]) * frac
+}
+
+/// Inflate `draws` around their mean by `sqrt(n / (n − edf))`, the
+/// degrees-of-freedom correction of a row-weight posterior spread.
+///
+/// A Dirichlet(1, …, 1) row-weight (Rubin Bayesian-bootstrap) posterior of a
+/// fitted-coefficient functional `c'β̂` has, to first order in the weights,
+/// the spread of `Σ_i w_i a_i e_i` with `a = B(B'B + λP)⁻¹c` the functional's
+/// influence direction and `e` the full-sample residuals: its variance is the
+/// HC0 sandwich `Σ_i a_i² e_i²`. Under homoskedastic errors `E[e_i²] =
+/// σ²(1 − h_ii)`, so the sandwich understates the sampling variance
+/// `σ² Σ a_i²` by the leverage `h_ii` of the rows that carry the functional;
+/// replacing each row's leverage by the average `tr(H)/n = edf/n` gives the
+/// HC1 factor `n/(n − edf)`, with `edf` the effective degrees of freedom of
+/// the penalized fit (the penalty lowers the hat-matrix trace, so the
+/// correction is smaller for a smoother fit). The correction is exact when
+/// leverage is flat across the rows the functional loads on and conservative
+/// when those rows sit at lower-than-average leverage (interior evaluation
+/// points of a spline); it does not repair a mis-centred posterior. Its size
+/// is bounded by the coefficient-to-row ratio: with the default six-function
+/// bases on three columns (`edf ≈ 14`) and 1000 rows the factor is 1.007, so
+/// the band widens by under one percent; the correction matters at small
+/// samples or wide bases, not here.
+fn inflate_draws_by_edf(draws: &mut [f64], n: usize, edf: f64) {
+    let n = n as f64;
+    if draws.len() < 2 || !(edf.is_finite() && edf >= 0.0 && edf < n) {
+        return;
+    }
+    let factor = (n / (n - edf)).sqrt();
+    let mean = draws.iter().sum::<f64>() / draws.len() as f64;
+    for v in draws {
+        *v = mean + (*v - mean) * factor;
+    }
 }
 
 fn scalar_uncertainty(sd: f64, level: f64, lo: f64, hi: f64) -> ResponseUncertainty {
@@ -3161,6 +3226,85 @@ mod tests {
     use antecedent_data::{TableView, TabularData};
 
     use super::*;
+
+    /// Minimal deterministic uniform stream (`SplitMix64`) for exchangeability checks.
+    fn uniform_stream(mut state: u64) -> impl FnMut() -> f64 {
+        move || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            z ^= z >> 31;
+            (z >> 11) as f64 / 9_007_199_254_740_992.0
+        }
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)] // Exact ranks land on exact draws.
+    fn exchangeable_rank_quantile_sits_at_p_times_d_plus_one() {
+        let sorted: Vec<f64> = (1..=9).map(f64::from).collect();
+        assert_eq!(exchangeable_rank_quantile(&sorted, 0.5), 5.0);
+        assert_eq!(exchangeable_rank_quantile(&sorted, 0.1), 1.0);
+        assert!((exchangeable_rank_quantile(&sorted, 0.25) - 2.5).abs() < 1e-12);
+        // Ranks outside [1, D] clamp to the extreme draws.
+        assert_eq!(exchangeable_rank_quantile(&sorted, 0.01), 1.0);
+        assert_eq!(exchangeable_rank_quantile(&sorted, 0.99), 9.0);
+        // Wider than the sample-quantile (type 7) rule on both sides.
+        let ramp: Vec<f64> = (0..200).map(f64::from).collect();
+        let type7 = |p: f64| p * 199.0;
+        assert!(exchangeable_rank_quantile(&ramp, 0.05) < type7(0.05));
+        assert!(exchangeable_rank_quantile(&ramp, 0.95) > type7(0.95));
+    }
+
+    #[test]
+    fn exchangeable_rank_interval_covers_an_exchangeable_truth_at_the_level() {
+        // With the truth exchangeable with the draws, the type-6 interval
+        // covers at the level for any draw count; the type-7 interval of 20
+        // draws covers about 0.81 at a 90% level.
+        let mut u = uniform_stream(0x5EED);
+        let trials = 20_000;
+        for draws_n in [20usize, 64, 200] {
+            let (mut covered, mut covered_type7) = (0u32, 0u32);
+            for _ in 0..trials {
+                let truth = u();
+                let draws: Vec<f64> = (0..draws_n).map(|_| u()).collect();
+                let (_, lo, hi, _) = summarize_scalar_draws(&draws, 0.9).unwrap();
+                covered += u32::from(truth >= lo && truth <= hi);
+                let mut sorted = draws;
+                sorted.sort_by(f64::total_cmp);
+                let type7 = |p: f64| {
+                    let x = p * (sorted.len() - 1) as f64;
+                    let (l, h) = (x.floor() as usize, x.ceil() as usize);
+                    sorted[l] + (sorted[h] - sorted[l]) * (x - l as f64)
+                };
+                covered_type7 += u32::from(truth >= type7(0.05) && truth <= type7(0.95));
+            }
+            let rate = f64::from(covered) / f64::from(trials);
+            assert!((rate - 0.9).abs() < 0.01, "draws={draws_n}: type-6 coverage {rate}");
+            if draws_n == 20 {
+                let rate7 = f64::from(covered_type7) / f64::from(trials);
+                assert!(rate7 < 0.84, "draws=20: type-7 coverage {rate7} should be ≈ 0.81");
+            }
+        }
+    }
+
+    #[test]
+    fn inflate_draws_by_edf_scales_spread_and_keeps_mean() {
+        let mut draws = vec![1.0, 2.0, 4.0, 5.0];
+        inflate_draws_by_edf(&mut draws, 100, 20.0);
+        let factor = (100.0_f64 / 80.0).sqrt();
+        let expect = |v: f64| 3.0 + (v - 3.0) * factor;
+        for (got, raw) in draws.iter().zip([1.0, 2.0, 4.0, 5.0]) {
+            assert!((got - expect(raw)).abs() < 1e-12);
+        }
+        assert!((draws.iter().sum::<f64>() / 4.0 - 3.0).abs() < 1e-12);
+        // Degenerate edf (≥ n or non-finite) leaves the draws alone.
+        for edf in [100.0, 150.0, f64::NAN, -1.0] {
+            let mut untouched = vec![1.0, 2.0, 4.0, 5.0];
+            inflate_draws_by_edf(&mut untouched, 100, edf);
+            assert_eq!(untouched, vec![1.0, 2.0, 4.0, 5.0], "edf={edf}");
+        }
+    }
 
     #[test]
     fn bayesian_point_derivative_refits_nuisances_per_draw() {
