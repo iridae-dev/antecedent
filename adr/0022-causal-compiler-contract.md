@@ -165,3 +165,45 @@ records and inspection methods. Existing prepare / estimate / refresh /
 retarget / refute entry points keep their contracts. Evidence and
 consuming gates for composition are follow-on work on this decision, not a
 parallel assurance registry.
+
+## Appendix: 1.10 public inventory and owner binding
+
+Additive companions only. No `CausalProgram` builder. No second taxonomy.
+
+| Record | Crate | Owner / existing product |
+| --- | --- | --- |
+| `IdentityDomain`, `SemanticDigest`, `IdentityRef`, `ContractIdentities` | `antecedent-core` | Layered identity; digests computed in IO |
+| `IDENTITY_FORMAT` / `IDENTITY_FORMAT_TAG` | `antecedent-core` | Encoding version beside every digest |
+| `SlotAvailability`, four reasoning slots, `ReasoningView` | `antecedent-core` | Projects `IdentificationResult`, `support::classify`, result uncertainty, `AssumptionRecord` |
+| `ObligationRecord` / scope / kind | `antecedent-core` | Extends `AssumptionRecord`; not a parallel assumption list |
+| `TransformIntent`, `TransformEffect`, `TransformationReport` | `antecedent-core` | Preview/apply compose `PreparedStudy::{refresh,retarget}` |
+| `ClaimEnvelope`, `AcceptanceReport`, `HandoffReceipt` | `antecedent-core` | Portable claim over contract + one execution |
+| `RequestIdentity`, `ExecutionReceipt`, `ExecutionRequestState` | `antecedent-core` | Host request identity around `ExecutionContext` |
+| `CausalContract` | `antecedent` | Companion of `Study` / `PreparedStudy` |
+| Identity / contract wires, `verify_contract_against_body` | `antecedent-io` | Existing CBOR sections; consume rehashes stored payloads |
+| `DbnAtomIdentityWire` | `antecedent-io` | Projects `GraphPosterior` lag+contemporaneous masks onto `TemporalGraphWire` plus the local envelope key |
+| Storage content digest | `antecedent-data` | `OwnedColumnarStorage` construction |
+| Python `PreparedAnalysis.contract` / `preview_transform` / `artifacts.accept` | `antecedent-py` | String views of the same records; typed errors stay in `errors.py` |
+
+Namespace snapshots and artifact readers stay on the existing
+`analysis_result` container. Old artifacts without a contract section
+remain readable and are not promoted.
+
+### Data-dependent prepare products
+
+Sharp RD stays the ADR 0020 identify-per-click exception. Prepare does
+not cache a sharp-RD identification product; each estimate click
+re-identifies with the declared `rd_config` (running variable, cutoff,
+bandwidth) as premises.
+
+Other data-dependent prepare products reuse a *named* product, not a
+blanket “prepared means structural”:
+
+| Product | Reused | Premises | Not reused as identification |
+| --- | --- | --- | --- |
+| Cached static/temporal/ADMG identification | Identification + product identities | Query, accepted graph, observation contract | Scores, folds, posteriors |
+| AIPW / cell-AIPW score table | Identification certificate | Certified adjustment set, row alignment, declared weight parents | A new target population |
+| Shared batch design / folds | Rebound on refresh | Schema + row index | Identification |
+| Empirical support / overlap | Execution report | Current snapshot | Matrix license |
+| Temporal regularity | Support / snapshot identity | Represented time | `I(h)` |
+| Bayesian draws / prior mapping | Inference binding | `prior_bank` compatibility | Identification status or mass |
