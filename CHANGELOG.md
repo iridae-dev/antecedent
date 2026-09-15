@@ -148,6 +148,11 @@ was not available, published as boundary records with a runtime disclosure.
   block length, dispersion and kernel-bias factors) at 1e-9 relative in Rust
   and Python; a determinism guard, with coverage still evidenced by the weekly
   temporal response calibration gate.
+- The Bayesian temporal tempering factor fits its REML residual model once
+  per design (cached by content) with an O(q²p²) likelihood and a
+  Newton-polished optimum; the n = 800 temporal-response, sustained-window and
+  mediation posteriors are back within 1.5× of 1.8.0 (they had been 8–15×
+  slower, and ~100× after the REML change).
 - Bayesian prior and posterior predictive checks follow the latency tier
   (50 Interactive / 200 Standard / 400 Report replicates) and run once per
   distinct fitted design across graph-posterior and class-envelope atoms.
