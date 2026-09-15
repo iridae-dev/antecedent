@@ -99,7 +99,8 @@ pub use query::*;
 pub use result::{AnalysisIdentification, StructuralWeightBasis, StudyResult};
 pub use support::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, cell_coordinate,
-    classify, licensed_neighbors, refused_message, support_cell_from_coordinate,
+    classify, licensed_neighbors, licensed_support_cells, refused_message,
+    support_cell_from_coordinate,
 };
 
 // Strategy helpers and peer APIs: use `antecedent::estimate`, `antecedent::discovery`,

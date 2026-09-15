@@ -48,6 +48,9 @@ run_and_count "antecedent v110_contract" \
 run_and_count "antecedent v110 licensed families" \
   cargo test -p antecedent --test v110_contract licensed_family_ -- --nocapture
 
+run_and_count "antecedent v110 licensed compiler inspect" \
+  cargo test -p antecedent --test v110_licensed_compiler -- --nocapture
+
 run_and_count "antecedent prepared identify counts" \
   cargo test -p antecedent --test prepared_analysis prepared_second_shot_reuses_identification -- --nocapture
 

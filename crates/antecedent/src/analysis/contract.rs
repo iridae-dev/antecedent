@@ -1046,9 +1046,9 @@ fn reasoning_view(
 }
 
 fn matrix_coordinate(study: &Study) -> Option<String> {
-    let cell = crate::support::support_cell(
+    let cell = crate::support::support_cell_named(
         &study.query,
-        study.graph.class(),
+        crate::support::matrix_graph_class(&study.graph, &study.query, study.tiered.as_ref()),
         study.structure_source,
         &study.inference,
         study.refute,
