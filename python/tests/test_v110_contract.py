@@ -238,8 +238,8 @@ def test_four_slots_agree_between_inspect_and_prepared_contract() -> None:
     assert inspected.support.payload["matrix_coordinate"] == contract["matrix_coordinate"]
     assert inspected.claim_id == reasoned.claim_id == contract["program"]
     assert inspected.data_version == reasoned.data_version == contract["data_snapshot"]
-    assert inspected.identification.summary.startswith("unavailable:")
-    assert inspected.identification.available is False
+    assert inspected.identification.available is True
+    assert prepared.preflight().identification.available is False
     assert reasoned.identification.available is True
     assert reasoned.identification.payload["identified_mass"] == 1.0
     assert reasoned.rendering_limitation() is None

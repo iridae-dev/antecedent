@@ -8,8 +8,8 @@ Day-1 surface::
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
     )
 
-The root namespace is deliberately small: it holds the three verbs (:func:`analyze`,
-:func:`identify`, :func:`estimate`), the accepted-structure and result types,
+The root namespace is deliberately small: it holds the analysis verbs (:func:`analyze`, :func:`prepare`,
+:func:`identify`, :func:`estimate`) and :func:`load`, the accepted-structure and result types,
 the first-class typed queries, the five graph classes, the inference / identifier /
 estimator selectors, and the two error names most callers catch. The twelve
 root-exported stage modules are:
@@ -104,6 +104,7 @@ if getattr(_native_module, "__build_optimized__", True) is False:
         RuntimeWarning,
         stacklevel=2,
     )
+from ._workflow import load, prepare
 from .accepted_graph import AcceptedGraph
 from .errors import CausalError, ReviewRequired
 from .identify import Identification, estimate, identify
@@ -135,6 +136,8 @@ from .results import AnalysisResult
 __all__ = [
     # Verbs
     "analyze",
+    "prepare",
+    "load",
     "identify",
     "estimate",
     # Structure and results

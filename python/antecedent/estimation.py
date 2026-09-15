@@ -11,6 +11,7 @@ from functools import partial
 from types import SimpleNamespace
 from typing import Any, Literal, TypedDict, cast
 
+from ._api import describe_refusal
 from ._coerce import coerce_latency, coerce_refute
 from ._data import as_columns, ingest_columns, try_as_arrow_c_columns
 from ._native import (
@@ -93,13 +94,11 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
-from .results._slots import slots_from_prepared
 from .results import (
     AnalysisResult,
-    ConsumerIntent,
-    ReasoningSlots,
     CausalResponseView,
     ConflictSummaryView,
+    ConsumerIntent,
     DistributionAtomView,
     EffectEnvelope,
     EstimateView,
@@ -112,6 +111,7 @@ from .results import (
     PredictiveCheckReport,
     PriorSensitivityReport,
     ProbabilityIntervalView,
+    ReasoningSlots,
     RefutationReport,
     ResponseEnvelopeView,
     ResponseUncertainty,
@@ -334,7 +334,10 @@ def _wrap_ate(
     calls resolve to ``None`` on the temporal DTO exactly as the old
     `_wrap_temporal` left them.
     """
-    slots = slots_from_prepared(prepared)
+    execution = None if prepared is None else prepared._native.snapshot()
+    slots = (
+        None if execution is None else ReasoningSlots.from_contract(execution.execution_contract())
+    )
 
     def _conflict_from_raw(r: Any) -> ConflictSummaryView | None:
         ids = getattr(r, "conflict_source_ids", None)
@@ -596,6 +599,7 @@ def _wrap_ate(
         ),
         _raw=raw,
         _prepared=prepared,
+        _execution=execution,
         reasoning=slots,
         claim_id=None if slots is None else slots.claim_id,
         data_version=None if slots is None else slots.data_version,
@@ -1372,7 +1376,10 @@ def _wrap_prepared_response(
     prepared: Any | None = None,
 ) -> CausalResponseView:
     """Build a :class:`CausalResponseView` from a prepared-response native DTO."""
-    slots = slots_from_prepared(prepared)
+    execution = None if prepared is None else prepared._native.snapshot()
+    slots = (
+        None if execution is None else ReasoningSlots.from_contract(execution.execution_contract())
+    )
     from typing import cast
 
     response = (
@@ -1485,6 +1492,8 @@ def _wrap_prepared_response(
         allowlist_reason=getattr(raw, "allowlist_reason", None),
         allowlist_parent=getattr(raw, "allowlist_parent", None),
         diagnostics=tuple(getattr(raw, "diagnostics", ()) or ()),
+        _prepared=prepared,
+        _execution=execution,
         reasoning=slots,
         claim_id=None if slots is None else slots.claim_id,
         data_version=None if slots is None else slots.data_version,
@@ -1498,6 +1507,27 @@ def _prepared_columns(data: Any) -> tuple[list[str], list[Any], bool]:
         return names, columns, True
     names, columns = as_columns(data)
     return names, columns, False
+
+
+_PreparedQuery = (
+    AverageEffect
+    | ResponseCurve
+    | ConditionalEffect
+    | PathSpecificEffect
+    | InterventionalDistribution
+    | InterventionResponse
+    | PulseEffect
+    | SustainedEffect
+    | MediationEffect
+    | Counterfactual
+    | PointDerivative
+    | Elasticity
+    | SemiElasticity
+    | AverageDerivative
+    | DirectionalDerivative
+    | ResponseJacobian
+    | TemporalMediationEffect
+)
 
 
 class PreparedAnalysis:
@@ -1530,51 +1560,19 @@ class PreparedAnalysis:
         native: Any,
         *,
         kind: Literal["average", "response_curve", "intervention_response"] = "average",
-        query: AverageEffect
-        | ResponseCurve
-        | ConditionalEffect
-        | PathSpecificEffect
-        | InterventionalDistribution
-        | InterventionResponse
-        | PulseEffect
-        | SustainedEffect
-        | MediationEffect
-        | Counterfactual
-        | PointDerivative
-        | Elasticity
-        | SemiElasticity
-        | AverageDerivative
-        | DirectionalDerivative
-        | ResponseJacobian
-        | TemporalMediationEffect
-        | None = None,
+        query: _PreparedQuery | None = None,
     ) -> None:
         self._native = native
         self._kind = kind
         self._query = query
 
     @classmethod
+    @describe_refusal
     def prepare(
         cls,
         data: Mapping[str, Any] | Any,
         *,
-        query: AverageEffect
-        | ResponseCurve
-        | ConditionalEffect
-        | PathSpecificEffect
-        | InterventionalDistribution
-        | InterventionResponse
-        | PulseEffect
-        | SustainedEffect
-        | MediationEffect
-        | Counterfactual
-        | PointDerivative
-        | Elasticity
-        | SemiElasticity
-        | AverageDerivative
-        | DirectionalDerivative
-        | ResponseJacobian
-        | TemporalMediationEffect,
+        query: _PreparedQuery,
         graph: Dag | Sequence[tuple[str, str]] | Any | None = None,
         discovery: Any | None = None,
         inference: Frequentist | Bayesian | None = None,
@@ -1711,7 +1709,10 @@ class PreparedAnalysis:
             estimator = str(estimator)
         if latency is not None:
             latency = coerce_latency(latency)  # type: ignore[assignment]
-        names, columns = ingest_columns(data)
+        if isinstance(query, AverageEffect) and discovery is None:
+            names, columns, _ = _prepared_columns(data)
+        else:
+            names, columns = ingest_columns(data)
         if discovery is not None:
             if graph is not None:
                 raise CausalValueError(
@@ -2454,8 +2455,8 @@ class PreparedAnalysis:
                     kind, parameters = "categorical", list(spec.probabilities)
                 elif isinstance(spec, (intervention_specs.Soft, intervention_specs.Sequence)):
                     raise CausalUnsupportedError(
-                        f"{type(spec).__name__} interventions require a structural/temporal "
-                        "model and are not estimable by response.intervention_gcomp"
+                        f"{type(spec).__name__} interventions require a temporal response cell "
+                        "(set horizons=...) and are not estimable by response.intervention_gcomp"
                     )
                 else:
                     raise TypeError(
@@ -3053,7 +3054,28 @@ class PreparedAnalysis:
         return dict(self._native.contract())
 
     def inspect(self) -> ReasoningSlots:
-        """Four slots without using cached identification."""
+        """Everything known about this prepared study, including cached identification."""
+        from dataclasses import replace
+
+        from .results._execution import Answer
+
+        return replace(
+            self.reasoning(),
+            answer=Answer("unavailable", detail="not_executed"),
+            calibration=self.calibration,
+        )
+
+    @property
+    def calibration(self):
+        """Calibration availability for this prepared study."""
+        from .results._execution import CalibrationInfo
+
+        return CalibrationInfo(
+            reason="No execution-bound calibration evidence is retained by this study."
+        )
+
+    def preflight(self) -> ReasoningSlots:
+        """Cheap structural-only inspection; identification and fitting are not run."""
         return ReasoningSlots.from_contract(self._native.inspect())
 
     def reasoning(self) -> ReasoningSlots:
@@ -3102,14 +3124,26 @@ class PreparedAnalysis:
             kernels=raw.get("kernels") or None,
         )
 
+    @describe_refusal
     def estimate(
         self,
-        data: Mapping[str, Any] | Any,
+        data: Mapping[str, Any] | Any = None,
         *,
-        seed: int = 1,
-        threads: int = 1,
+        seed: int | None = None,
+        threads: int | None = None,
     ) -> AnalysisResult | CausalResponseView:
         """Re-estimate without recompiling (same schema as prepare)."""
+        seed = getattr(self, "_seed", 1) if seed is None else seed
+        threads = getattr(self, "_threads", 1) if threads is None else threads
+        if data is None:
+            response = self._kind in ("response_curve", "intervention_response")
+            fn = self._native.estimate_response_bound if response else self._native.estimate_bound
+            raw = fn(seed=seed, threads=threads)
+            return (
+                _wrap_prepared_response(raw, query=cast(Any, self._query), prepared=self)
+                if response
+                else _wrap_ate(raw, prepared=self)
+            )
         if isinstance(self._query, ResponseCurve) and self._query.observation is not None:
             from .observation import Complete, _ensure_latent_schema_column
 
@@ -3134,6 +3168,7 @@ class PreparedAnalysis:
         raw = fn(names, columns, seed=seed, threads=threads)
         return _wrap_ate(raw, prepared=self)
 
+    @describe_refusal
     def retarget(
         self,
         weights: Any,
@@ -3147,7 +3182,7 @@ class PreparedAnalysis:
         Requires a prepared AllObserved iid AIPW or cell-AIPW score table.
         Nonempty ``depends_on`` needs a directed graph (DAG or ADMG) so
         descendant closure can be checked. Nonconstant weights require a
-        nonempty ``depends_on``. ``analyze()`` does not return a retarget handle.
+        nonempty ``depends_on``. The result of ``analyze()`` exposes its retained study when this route supports preparation.
         """
         import numpy as np
 
@@ -3159,14 +3194,17 @@ class PreparedAnalysis:
         )
         return _wrap_ate(raw, prepared=self)
 
+    @describe_refusal
     def refresh(
         self,
         data: Mapping[str, Any] | Any,
         *,
-        seed: int = 1,
-        threads: int = 1,
+        seed: int | None = None,
+        threads: int | None = None,
     ) -> AnalysisResult | CausalResponseView:
         """Replace retained data and re-estimate."""
+        seed = getattr(self, "_seed", 1) if seed is None else seed
+        threads = getattr(self, "_threads", 1) if threads is None else threads
         if isinstance(self._query, ResponseCurve) and self._query.observation is not None:
             from .observation import Complete, _ensure_latent_schema_column
 
@@ -3191,6 +3229,7 @@ class PreparedAnalysis:
         raw = fn(names, columns, seed=seed, threads=threads)
         return _wrap_ate(raw, prepared=self)
 
+    @describe_refusal
     def refute(
         self,
         data: Mapping[str, Any] | Any,

@@ -32,6 +32,8 @@ import antecedent
 _EXPECTED_ALL = {
     # Verbs
     "analyze",
+    "prepare",
+    "load",
     "identify",
     "estimate",
     # Structure and results
@@ -214,6 +216,7 @@ _EXPECTED_STAGE_ALL = {
         "CausalUnsupportedError",
         "CausalValidateError",
         "CausalValueError",
+        "RenderingLimitation",
         "PendingEdge",
         "ReviewRequired",
         "build_review_error",

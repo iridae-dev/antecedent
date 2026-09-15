@@ -58,7 +58,7 @@ def test_prepared_reestimate_matches_fresh_analyze():
     assert abs(via_result.ate - fresh.ate) < 1e-12
 
 
-def test_oneshot_analyze_result_cannot_refresh():
+def test_oneshot_analyze_result_retains_study():
     data, edges = _confounded_scm(n=200, seed=5)
     result = antecedent.analyze(
         data,
@@ -67,8 +67,8 @@ def test_oneshot_analyze_result_cannot_refresh():
         latency="interactive",
         seed=1,
     )
-    with pytest.raises(TypeError, match="PreparedAnalysis"):
-        result.refresh(data)
+    assert isinstance(result.study, antecedent.estimation.PreparedAnalysis)
+    assert result.refresh(data).effect == pytest.approx(result.effect)
 
 
 def test_prepared_prior_transfer_validates_artifact_at_estimation():

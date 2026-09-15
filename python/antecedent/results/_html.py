@@ -214,6 +214,8 @@ def _analysis_result_body(result: AnalysisResult) -> str:
         f'<span class="antecedent-ar-label">Adjustment set</span>{chips}'
         f"</div>"
         f"{slots}"
+        '<div class="antecedent-ar-row"><span class="antecedent-ar-label">Calibration</span>'
+        f"<span>{_esc(result.calibration.status)}: {_esc(result.calibration.reason)}</span></div>"
         f"{refute_table}"
         f"</div>"
     )

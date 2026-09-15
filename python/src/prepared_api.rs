@@ -80,6 +80,22 @@ fn contract_to_map(
     if let Some(slot) = contract.reasoning.identification.as_ref() {
         out.insert("identified_mass".into(), slot.identified_mass.to_string());
         out.insert("unidentified_mass".into(), slot.unidentified_mass.to_string());
+        out.insert("unevaluable_mass".into(), slot.unevaluable_mass.to_string());
+        out.insert("incomplete_search_mass".into(), slot.incomplete_search_mass.to_string());
+        out.insert("full_mass_scope".into(), slot.full_mass_scope.to_string());
+        out.insert("search_capped".into(), slot.search_capped.to_string());
+    }
+    if let Some(slot) = contract.reasoning.uncertainty.as_ref() {
+        let components: Vec<_> = slot.components.iter().map(|c| serde_json::json!({
+            "source": c.source.as_str(), "target": c.target.to_string(), "omitted": c.omitted
+        })).collect();
+        out.insert("uncertainty_components".into(), serde_json::json!(components).to_string());
+    }
+    if let Some(slot) = contract.reasoning.assumptions.as_ref() {
+        let obligations: Vec<_> = slot.obligations.iter().map(|o| serde_json::json!({
+            "id": o.id.to_string(), "scope": o.scope.as_str(), "kind": o.kind.as_str(), "status": o.status.as_str()
+        })).collect();
+        out.insert("assumption_obligations".into(), serde_json::json!(obligations).to_string());
     }
     out.insert("uncertainty".into(), contract.reasoning.uncertainty.label(|_| "available".into()));
     out.insert(
@@ -116,14 +132,29 @@ pub struct PyPreparedAnalysis {
     inner: Arc<PreparedStudy>,
     names: Vec<String>,
     /// Last estimate result retained for second-click refute.
-    last: Option<antecedent::StudyResult>,
+    last: Option<Arc<antecedent::StudyResult>>,
+    last_study: Option<Arc<PreparedStudy>>,
+    last_seed: u64,
+    last_threads: u32,
+    last_retargeted: bool,
+    borrowed_bytes: Option<u64>,
     /// When true, estimate/refresh clicks use series data (`estimate_series`).
     series: bool,
 }
 
 impl PyPreparedAnalysis {
     pub(crate) fn from_study(prepared: PreparedStudy, names: Vec<String>) -> Self {
-        Self { inner: Arc::new(prepared), names, last: None, series: false }
+        Self {
+            inner: Arc::new(prepared),
+            names,
+            last: None,
+            last_study: None,
+            last_seed: 1,
+            last_threads: 1,
+            last_retargeted: false,
+            borrowed_bytes: None,
+            series: false,
+        }
     }
 
     fn finish_ate_estimate(
@@ -133,10 +164,10 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
     ) -> PyResult<AteAnalysisResult> {
-        let inner = Arc::clone(&self.inner);
+        let mut inner = (*self.inner).clone();
         let out_names = self.names.clone();
         let series = self.series;
-        let (mapped, result) = detach_catch(py, move || {
+        let (mapped, result, bound) = detach_catch(py, move || {
             let ctx = py_execution_context_ext(
                 seed,
                 threads,
@@ -146,14 +177,18 @@ impl PyPreparedAnalysis {
             );
             let result = if series {
                 let series_data = series_from_tabular(data)?;
-                inner.estimate_series(&series_data, &ctx).map_err(py_err)?
+                inner.refresh_series(series_data, &ctx).map_err(py_err)?
             } else {
-                inner.estimate(&data, &ctx).map_err(py_err)?
+                inner.refresh(data, &ctx).map_err(py_err)?
             };
             let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
-            Ok((mapped, result))
+            Ok((mapped, result, Arc::new(inner)))
         })?;
-        self.last = Some(result);
+        self.last_study = Some(bound);
+        self.last = Some(Arc::new(result));
+        self.last_seed = seed;
+        self.last_threads = threads;
+        self.last_retargeted = false;
         Ok(mapped)
     }
 
@@ -164,10 +199,10 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
     ) -> PyResult<ResponseAnalysisResult> {
-        let inner = Arc::clone(&self.inner);
+        let mut inner = (*self.inner).clone();
         let out_names = self.names.clone();
         let series = self.series;
-        let (mapped, result) = detach_catch(py, move || {
+        let (mapped, result, bound) = detach_catch(py, move || {
             let ctx = py_execution_context_ext(
                 seed,
                 threads,
@@ -177,14 +212,18 @@ impl PyPreparedAnalysis {
             );
             let result = if series {
                 let series_data = series_from_tabular(data)?;
-                inner.estimate_series(&series_data, &ctx).map_err(py_err)?
+                inner.refresh_series(series_data, &ctx).map_err(py_err)?
             } else {
-                inner.estimate(&data, &ctx).map_err(py_err)?
+                inner.refresh(data, &ctx).map_err(py_err)?
             };
             let mapped = response_from_study(&out_names, &result)?;
-            Ok((mapped, result))
+            Ok((mapped, result, Arc::new(inner)))
         })?;
-        self.last = Some(result);
+        self.last_study = Some(bound);
+        self.last = Some(Arc::new(result));
+        self.last_seed = seed;
+        self.last_threads = threads;
+        self.last_retargeted = false;
         Ok(mapped)
     }
 
@@ -216,7 +255,12 @@ impl PyPreparedAnalysis {
             Ok((inner, mapped, result))
         })?;
         self.inner = Arc::new(updated);
-        self.last = Some(result);
+        self.borrowed_bytes = None;
+        self.last_study = Some(Arc::clone(&self.inner));
+        self.last = Some(Arc::new(result));
+        self.last_seed = seed;
+        self.last_threads = threads;
+        self.last_retargeted = false;
         Ok(mapped)
     }
 
@@ -248,7 +292,12 @@ impl PyPreparedAnalysis {
             Ok((inner, mapped, result))
         })?;
         self.inner = Arc::new(updated);
-        self.last = Some(result);
+        self.borrowed_bytes = None;
+        self.last_study = Some(Arc::clone(&self.inner));
+        self.last = Some(Arc::new(result));
+        self.last_seed = seed;
+        self.last_threads = threads;
+        self.last_retargeted = false;
         Ok(mapped)
     }
 
@@ -267,7 +316,8 @@ impl PyPreparedAnalysis {
             .ok_or_else(|| PyValueError::new_err("call estimate/refresh before refute"))?;
         let refute_suite = suite_from_refute(Some(&suite))?;
         let cancel_token = cancel.map(|c| c.inner);
-        let inner = Arc::clone(&self.inner);
+        let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
+        let inner = Arc::clone(&bound);
         let out_names = self.names.clone();
         let (mapped, result) = detach_catch(py, move || {
             let ctx = py_execution_context_ext(
@@ -281,13 +331,122 @@ impl PyPreparedAnalysis {
             let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
             Ok((mapped, result))
         })?;
-        self.last = Some(result);
+        self.last_study = Some(bound);
+        self.last = Some(Arc::new(result));
+        self.last_seed = seed;
+        self.last_threads = threads;
         Ok(mapped)
     }
 }
 
 #[pymethods]
 impl PyPreparedAnalysis {
+    /// Inspection of the frozen execution, using the executed reasoning slots.
+    fn execution_contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        let result = self
+            .last
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("estimate before inspecting an execution"))?;
+        let inner = self.last_study.as_ref().unwrap_or(&self.inner);
+        let mut contract = inner.contract().map_err(py_err)?;
+        let ctx = py_execution_context_ext(
+            self.last_seed,
+            self.last_threads,
+            None,
+            None,
+            Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+        );
+        let claim = result.claim(&contract, &ctx).map_err(py_err)?;
+        contract.reasoning = claim.reasoning;
+        let mut report = contract_to_map(&contract, inner.schema(), inner.query());
+        if self.last_retargeted {
+            // Target weights have no canonical contract payload yet.
+            report.remove("program");
+            report.remove("target");
+        }
+        Ok(report)
+    }
+
+    /// Frozen reference to the last execution, sharing immutable Rust resources.
+    fn snapshot(&self) -> PyResult<Self> {
+        let last = self
+            .last
+            .clone()
+            .ok_or_else(|| PyValueError::new_err("estimate before taking a result snapshot"))?;
+        Ok(Self {
+            inner: self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner)),
+            names: self.names.clone(),
+            last: Some(last),
+            last_study: self.last_study.clone(),
+            last_seed: self.last_seed,
+            last_threads: self.last_threads,
+            last_retargeted: self.last_retargeted,
+            borrowed_bytes: self.borrowed_bytes,
+            series: self.series,
+        })
+    }
+
+    /// Execute the retained data without crossing cell buffers through Python again.
+    #[pyo3(signature = (*, seed=1, threads=1))]
+    fn estimate_bound(
+        &mut self,
+        py: Python<'_>,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<AteAnalysisResult> {
+        let borrowed_bytes = self.borrowed_bytes;
+        let inner = Arc::clone(&self.inner);
+        let names = self.names.clone();
+        let (mapped, result) = detach_catch(py, move || {
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let mut result = inner.estimate_retained(&ctx).map_err(py_err)?;
+            result.performance.bytes_borrowed = borrowed_bytes;
+            let mapped = ate_result_from_analysis(&names, result.clone(), false)?;
+            Ok((mapped, result))
+        })?;
+        self.last_study = Some(Arc::clone(&self.inner));
+        self.last = Some(Arc::new(result));
+        self.last_seed = seed;
+        self.last_threads = threads;
+        self.last_retargeted = false;
+        Ok(mapped)
+    }
+
+    #[pyo3(signature = (*, seed=1, threads=1))]
+    fn estimate_response_bound(
+        &mut self,
+        py: Python<'_>,
+        seed: u64,
+        threads: u32,
+    ) -> PyResult<ResponseAnalysisResult> {
+        let inner = Arc::clone(&self.inner);
+        let names = self.names.clone();
+        let (mapped, result) = detach_catch(py, move || {
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let result = inner.estimate_retained(&ctx).map_err(py_err)?;
+            let mapped = response_from_study(&names, &result)?;
+            Ok((mapped, result))
+        })?;
+        self.last_study = Some(Arc::clone(&self.inner));
+        self.last = Some(Arc::new(result));
+        self.last_seed = seed;
+        self.last_threads = threads;
+        self.last_retargeted = false;
+        Ok(mapped)
+    }
+
     /// Compile once from tabular columns + DAG edges (static AverageEffect).
     #[staticmethod]
     #[pyo3(signature = (
@@ -345,7 +504,7 @@ impl PyPreparedAnalysis {
         let composed_prior =
             composed_prior.map(crate::prior_bank::owned_composed_prior_from_dict).transpose()?;
         let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let (data, borrowed_bytes) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
             None => None,
@@ -406,7 +565,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes,
+                series: false,
+            })
         })
     }
 
@@ -498,7 +667,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: false,
+            })
         })
     }
 
@@ -614,7 +793,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: false,
+            })
         })
     }
 
@@ -730,7 +919,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: false,
+            })
         })
     }
 
@@ -977,7 +1176,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: false,
+            })
         })
     }
 
@@ -1120,7 +1329,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = study.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: false,
+            })
         })
     }
 
@@ -1189,7 +1408,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = study.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: false,
+            })
         })
     }
 
@@ -1300,7 +1529,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: false,
+            })
         })
     }
 
@@ -1489,7 +1728,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: true })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: true,
+            })
         })
     }
 
@@ -1599,7 +1848,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: true })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: true,
+            })
         })
     }
 
@@ -1889,7 +2148,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: true })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: true,
+            })
         })
     }
 
@@ -1970,7 +2239,17 @@ impl PyPreparedAnalysis {
             )?;
             let analysis = builder.build().map_err(py_err)?;
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: false,
+            })
         })
     }
 
@@ -2098,7 +2377,17 @@ impl PyPreparedAnalysis {
             )?;
             let analysis = builder.build().map_err(py_err)?;
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: true })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: true,
+            })
         })
     }
 
@@ -2230,7 +2519,17 @@ impl PyPreparedAnalysis {
             )?;
             let analysis = builder.build().map_err(py_err)?;
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: true })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: true,
+            })
         })
     }
 
@@ -2352,7 +2651,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: false,
+            })
         })
     }
 
@@ -2450,7 +2759,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: false,
+            })
         })
     }
 
@@ -2562,7 +2881,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: false,
+            })
         })
     }
 
@@ -2836,7 +3165,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: false,
+            })
         })
     }
 
@@ -2931,7 +3270,17 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self { inner: Arc::new(prepared), names, last: None, series: false })
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: false,
+            })
         })
     }
 
@@ -2945,6 +3294,7 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
     ) -> PyResult<AteAnalysisResult> {
+        let changes_target = weights.windows(2).any(|w| w[0].to_bits() != w[1].to_bits());
         let inner = Arc::clone(&self.inner);
         let out_names = self.names.clone();
         let (mapped, result) = detach_catch(py, move || {
@@ -2969,7 +3319,11 @@ impl PyPreparedAnalysis {
             let mapped = ate_result_from_analysis(&out_names, result.clone(), false)?;
             Ok((mapped, result))
         })?;
-        self.last = Some(result);
+        self.last_study = Some(Arc::clone(&self.inner));
+        self.last = Some(Arc::new(result));
+        self.last_seed = seed;
+        self.last_threads = threads;
+        self.last_retargeted = changes_target;
         Ok(mapped)
     }
 
@@ -3221,17 +3575,27 @@ impl PyPreparedAnalysis {
         py: Python<'py>,
         artifact_id: &str,
     ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
+        if self.last_retargeted {
+            return Err(py_err(antecedent::CausalError::Unsupported {
+                message: "contracted export of retargeted weights is unavailable: the target-weight identity is not retained in the portable contract",
+            }));
+        }
         let result = self.last.as_ref().ok_or_else(|| {
             PyValueError::new_err("estimate before exporting a contracted artifact")
         })?;
         let ctx = crate::py_execution_context_ext(
-            1,
-            1,
+            self.last_seed,
+            self.last_threads,
             None,
             None,
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
         );
-        let bytes = self.inner.encode_contracted_result(result, artifact_id, &ctx).map_err(py_err)?;
+        let bytes = self
+            .last_study
+            .as_ref()
+            .unwrap_or(&self.inner)
+            .encode_contracted_result(result, artifact_id, &ctx)
+            .map_err(py_err)?;
         Ok(pyo3::types::PyBytes::new(py, &bytes))
     }
 
@@ -3483,7 +3847,17 @@ fn prepare_class_response(
         Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
     );
     let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-    Ok(PyPreparedAnalysis { inner: Arc::new(prepared), names, last: None, series: false })
+    Ok(PyPreparedAnalysis {
+        inner: Arc::new(prepared),
+        names,
+        last: None,
+        last_study: None,
+        last_seed: 1,
+        last_threads: 1,
+        last_retargeted: false,
+        borrowed_bytes: None,
+        series: false,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3574,7 +3948,17 @@ fn prepare_class_conditional(
         Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
     );
     let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-    Ok(PyPreparedAnalysis { inner: Arc::new(prepared), names, last: None, series: false })
+    Ok(PyPreparedAnalysis {
+        inner: Arc::new(prepared),
+        names,
+        last: None,
+        last_study: None,
+        last_seed: 1,
+        last_threads: 1,
+        last_retargeted: false,
+        borrowed_bytes: None,
+        series: false,
+    })
 }
 
 fn apply_inference(
@@ -3748,7 +4132,17 @@ fn prepare_temporal_class_effect(
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
         );
         let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-        Ok(PyPreparedAnalysis { inner: Arc::new(prepared), names, last: None, series: true })
+        Ok(PyPreparedAnalysis {
+            inner: Arc::new(prepared),
+            names,
+            last: None,
+            last_study: None,
+            last_seed: 1,
+            last_threads: 1,
+            last_retargeted: false,
+            borrowed_bytes: None,
+            series: true,
+        })
     })
 }
 
@@ -3757,168 +4151,6 @@ fn hard_value(intervention: &Intervention) -> Option<f64> {
         Intervention::Set { value, .. } => value.as_f64(),
         _ => None,
     }
-}
-
-fn identification_status_wire(
-    status: antecedent_core::IdentificationStatus,
-) -> antecedent_io::IdentificationStatusWire {
-    match status {
-        antecedent_core::IdentificationStatus::NonparametricallyIdentified => {
-            antecedent_io::IdentificationStatusWire::NonparametricallyIdentified
-        }
-        antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions => {
-            antecedent_io::IdentificationStatusWire::IdentifiedUnderParametricRestrictions
-        }
-        antecedent_core::IdentificationStatus::IdentifiedUnderPriorRestrictions => {
-            antecedent_io::IdentificationStatusWire::IdentifiedUnderPriorRestrictions
-        }
-        antecedent_core::IdentificationStatus::PartiallyIdentified => {
-            antecedent_io::IdentificationStatusWire::PartiallyIdentified
-        }
-        antecedent_core::IdentificationStatus::GraphDependent => {
-            antecedent_io::IdentificationStatusWire::GraphDependent
-        }
-        antecedent_core::IdentificationStatus::NotIdentified => {
-            antecedent_io::IdentificationStatusWire::NotIdentified
-        }
-    }
-}
-
-fn mediation_grid_wire(
-    grid: &antecedent::estimate::TemporalMediationGrid,
-) -> antecedent_io::TemporalMediationGridWire {
-    let interval = |summary: antecedent_estimate::MediationPosteriorSummary| {
-        antecedent_io::MediationPosteriorSummaryWire {
-            mean: summary.mean,
-            standard_deviation: summary.standard_deviation,
-            q025: summary.q025,
-            q975: summary.q975,
-        }
-    };
-    antecedent_io::TemporalMediationGridWire {
-        slices: grid
-            .slices
-            .iter()
-            .map(|slice| {
-                let uncertainty = match &slice.uncertainty {
-                    antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
-                        standard_error,
-                    }
-                    | antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
-                        requested: standard_error,
-                        ..
-                    } => antecedent_io::TemporalMediationUncertaintyWire::FrequentistPointwise {
-                        standard_error: *standard_error,
-                    },
-                    antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
-                        requested,
-                        total,
-                        direct,
-                        mediated,
-                        n_draws,
-                        backend,
-                    } => antecedent_io::TemporalMediationUncertaintyWire::BayesianPointwise {
-                        requested: interval(*requested),
-                        total: interval(*total),
-                        direct: interval(*direct),
-                        mediated: interval(*mediated),
-                        n_draws: u64::try_from(*n_draws).unwrap_or(u64::MAX),
-                        backend: backend.to_string(),
-                    },
-                    _ => antecedent_io::TemporalMediationUncertaintyWire::Unavailable,
-                };
-                antecedent_io::TemporalMediationSliceWire {
-                    horizon: slice.horizon,
-                    identification_status: identification_status_wire(slice.identification_status),
-                    method: slice.method.to_string(),
-                    adjustment: slice
-                        .adjustment
-                        .iter()
-                        .map(|key| antecedent_io::HorizonAdjustmentNodeWire {
-                            variable: key.variable.raw(),
-                            offset: key.offset,
-                        })
-                        .collect(),
-                    effect: slice.estimate.effect.ate,
-                    total: slice.estimate.total,
-                    direct: slice.estimate.direct,
-                    mediated: slice.estimate.mediated,
-                    uncertainty,
-                    identified_set: slice
-                        .identified_set
-                        .map(|identified| [identified.lower, identified.upper]),
-                    diagnostics: slice
-                        .diagnostics
-                        .iter()
-                        .map(antecedent_io::diagnostic_to_wire)
-                        .collect(),
-                }
-            })
-            .collect(),
-        joint_posterior: grid.joint_posterior,
-    }
-}
-
-fn structural_response_wire(
-    mixture: &antecedent::result::StructuralResponseMixture,
-) -> PyResult<antecedent_io::StructuralResponseMixtureWire> {
-    let weight_basis = antecedent_io::StructuralWeightBasisWire::from(mixture.weight_basis);
-    Ok(antecedent_io::StructuralResponseMixtureWire {
-        weight_basis,
-        atoms: mixture
-            .atoms
-            .iter()
-            .map(|atom| {
-                Ok(antecedent_io::StructuralResponseAtomWire {
-                    graph_key: atom.graph_key,
-                    weight: atom.weight,
-                    identification_status: identification_status_wire(atom.status),
-                    value: atom.value.as_ref().map(antecedent_io::response_value_to_wire),
-                    posterior_artifact: atom
-                        .posterior
-                        .as_ref()
-                        .map(|posterior| {
-                            antecedent_io::encode_causal_posterior_bytes(
-                                posterior,
-                                "structural_atom",
-                            )
-                        })
-                        .transpose()
-                        .map_err(py_err)?,
-                    response: atom
-                        .response
-                        .as_ref()
-                        .map(antecedent_io::causal_response_to_wire)
-                        .transpose()
-                        .map_err(py_err)?,
-                })
-            })
-            .collect::<PyResult<Vec<_>>>()?,
-        identified_mass: mixture.identified_mass,
-        unidentified_mass: mixture.unidentified_mass,
-        unevaluable_mass: mixture.unevaluable_mass,
-        subsampled_out_mass: mixture.subsampled_out_mass,
-        identified_set: mixture.identified_set.as_ref().map(|envelope| {
-            antecedent_io::ResponseEnvelopeWire {
-                grid: envelope.grid.to_vec(),
-                dimension: u64::try_from(envelope.dimension).unwrap_or(u64::MAX),
-                lower: envelope.lower.to_vec(),
-                upper: envelope.upper.to_vec(),
-            }
-        }),
-        identified_set_interval: mixture
-            .identified_set_interval
-            .as_ref()
-            .map(antecedent_io::identified_set_interval_to_wire)
-            .transpose()
-            .map_err(py_err)?,
-        conditional_on_identified: mixture
-            .conditional_on_identified
-            .as_ref()
-            .map(antecedent_io::response_value_to_wire),
-        full_mass_scope: mixture.full_mass_scope,
-        truncated_atoms: u64::try_from(mixture.truncated_atoms).unwrap_or(u64::MAX),
-    })
 }
 
 fn composite_result_wire(
@@ -3990,7 +4222,7 @@ fn composite_result_wire(
             }
         }
     }
-    Ok(antecedent_io::AnalysisResultWire {
+    let mut wire = antecedent_io::AnalysisResultWire {
         query: antecedent_io::causal_query_to_wire(query).map_err(py_err)?,
         identification,
         identification_variables,
@@ -4002,23 +4234,11 @@ fn composite_result_wire(
         assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
         diagnostics: result.diagnostics.iter().map(antecedent_io::diagnostic_to_wire).collect(),
         refutations: result.refutations.iter().map(antecedent_io::refutation_to_wire).collect(),
-        response: result
-            .response
-            .as_ref()
-            .map(antecedent_io::causal_response_to_wire)
-            .transpose()
-            .map_err(py_err)?,
-        posterior_artifact: result
-            .posterior
-            .as_ref()
-            .map(|posterior| antecedent_io::encode_causal_posterior_bytes(posterior, artifact_id))
-            .transpose()
-            .map_err(py_err)?,
-        mediation_grid: result.mediation_grid.as_ref().map(mediation_grid_wire),
-        structural_response: result
-            .structural_response
-            .as_ref()
-            .map(structural_response_wire)
-            .transpose()?,
-    })
+        response: None,
+        posterior_artifact: None,
+        mediation_grid: None,
+        structural_response: None,
+    };
+    result.fill_analysis_result_payloads(&mut wire, artifact_id).map_err(py_err)?;
+    Ok(wire)
 }
