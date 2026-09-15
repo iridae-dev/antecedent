@@ -11,6 +11,27 @@ from typing import Any, Literal
 
 from ..errors import RenderingLimitation
 
+
+def _identity_hex(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    try:
+        return bytes(value).hex()
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _nested(mapping: Mapping[str, Any], *keys: str) -> Any:
+    current: Any = mapping
+    for key in keys:
+        if not isinstance(current, Mapping) or key not in current:
+            return None
+        current = current[key]
+    return current
+
+
 __all__ = [
     "ConsumerIntent",
     "ReasoningSlots",
@@ -80,14 +101,38 @@ class ReasoningSlots:
     program_id: str | None
     #: Execution claim identity (`contract["claim"]["claim_id"]`). Distinct from program_id.
     claim_id: str | None
-    data_version: str | None
+    target_id: str | None = None
+    identification_id: str | None = None
+    identification_product_id: str | None = None
+    inference_binding_id: str | None = None
+    observation_id: str | None = None
+    data_snapshot_id: str | None = None
+    execution_id: str | None = None
+    score_reuse_id: str | None = None
+    target_weights_id: str | None = None
+    data_version: str | None = None
+    contract: dict[str, Any] | None = None
     answer: Any = None
     calibration: Any = None
     diagnostics: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         """Structured report using native booleans, numbers, and explicit unavailable slots."""
-        return json_value(self)
+        payload = json_value(self)
+        contract = self.contract if isinstance(self.contract, Mapping) else {}
+        population = contract.get("population") or contract.get("target_population")
+        payload["target"] = {
+            "query": {
+                "target_population": population,
+                "kind": contract.get("query_kind"),
+                "treatment": contract.get("treatment"),
+                "outcome": contract.get("outcome"),
+            }
+        }
+        payload["inference_binding"] = (
+            contract.get("inference_binding") or self.inference_binding_id
+        )
+        return payload
 
     @classmethod
     def from_contract(cls, contract: Mapping[str, str]) -> ReasoningSlots:
@@ -130,9 +175,120 @@ class ReasoningSlots:
                 if "assumption_obligations" in contract
                 else None,
             ),
-            program_id=contract.get("program"),
-            claim_id=contract.get("claim_id"),
-            data_version=contract.get("data_snapshot"),
+            program_id=contract.get("program") or _nested(contract, "identities", "program"),
+            claim_id=contract.get("claim_id") or _nested(contract, "claim", "claim_id"),
+            target_id=contract.get("target") or _nested(contract, "identities", "target"),
+            identification_id=contract.get("identification")
+            or _nested(contract, "identities", "identification"),
+            identification_product_id=contract.get("identification_product")
+            or _nested(contract, "identities", "identification_product"),
+            inference_binding_id=contract.get("inference_binding")
+            or _nested(contract, "identities", "inference_binding"),
+            observation_id=contract.get("observation")
+            or _nested(contract, "identities", "observation"),
+            data_snapshot_id=contract.get("data_snapshot")
+            or _nested(contract, "identities", "data_snapshot"),
+            execution_id=_nested(contract, "identities", "execution"),
+            score_reuse_id=_nested(contract, "identities", "score_reuse"),
+            target_weights_id=_nested(contract, "identities", "target_weights"),
+            data_version=contract.get("data_snapshot")
+            or _nested(contract, "identities", "data_snapshot"),
+            contract=dict(contract) if contract else None,
+        )
+
+    @classmethod
+    def from_result_section(
+        cls,
+        section: Mapping[str, Any],
+        body: Mapping[str, Any] | None = None,
+        *,
+        answer: Any = None,
+        calibration: Any = None,
+    ) -> ReasoningSlots:
+        """Inspect a portable execution contract. One owner for loaded identities."""
+        reasoning = section.get("reasoning") if isinstance(section.get("reasoning"), Mapping) else {}
+        identities = (
+            section.get("identities") if isinstance(section.get("identities"), Mapping) else {}
+        )
+        claim = section.get("claim") if isinstance(section.get("claim"), Mapping) else {}
+        body = body if isinstance(body, Mapping) else {}
+
+        def slot(name: str) -> SlotView:
+            raw = reasoning.get(name)
+            raw = raw if isinstance(raw, Mapping) else {}
+            value = raw.get("value")
+            return SlotView(
+                value is not None,
+                raw.get("unavailable") if isinstance(raw.get("unavailable"), str) else None,
+                (value.get("status", "available") if isinstance(value, Mapping) else "unavailable"),
+                dict(value) if isinstance(value, Mapping) else {},
+            )
+
+        identification = slot("identification")
+        support = slot("support")
+        uncertainty = slot("uncertainty")
+        assumptions = slot("assumptions")
+        details = dict(uncertainty.payload)
+        if body.get("standard_error") is not None:
+            details["standard_error"] = body["standard_error"]
+        response = body.get("response") or {}
+        if isinstance(response, Mapping) and response.get("uncertainty") is not None:
+            details["response"] = response["uncertainty"]
+            if response["uncertainty"] != "none" and not uncertainty.available:
+                uncertainty = SlotView(True, None, "response_specific", details)
+            else:
+                uncertainty = SlotView(
+                    uncertainty.available, uncertainty.reason, uncertainty.summary, details
+                )
+        else:
+            uncertainty = SlotView(
+                uncertainty.available, uncertainty.reason, uncertainty.summary, details
+            )
+        structural = body.get("structural_response") or {}
+        if isinstance(structural, Mapping) and structural.get("identified_set_interval") is not None:
+            details = dict(uncertainty.payload)
+            details["identified_set_interval"] = structural["identified_set_interval"]
+            uncertainty = SlotView(
+                uncertainty.available, uncertainty.reason, uncertainty.summary, details
+            )
+        if isinstance(response, Mapping) and response.get("support") is not None:
+            support = SlotView(
+                support.available,
+                support.reason,
+                support.summary,
+                {**support.payload, "execution": response["support"]},
+            )
+        assumptions = SlotView(
+            assumptions.available,
+            assumptions.reason,
+            assumptions.summary,
+            {**assumptions.payload, "records": body.get("assumptions", [])},
+        )
+        return cls(
+            identification=identification,
+            support=support,
+            uncertainty=uncertainty,
+            assumptions=assumptions,
+            program_id=_identity_hex(identities.get("program")),
+            claim_id=_identity_hex(claim.get("claim_id")),
+            target_id=_identity_hex(identities.get("target")),
+            identification_id=_identity_hex(identities.get("identification")),
+            identification_product_id=_identity_hex(identities.get("identification_product")),
+            inference_binding_id=_identity_hex(identities.get("inference_binding")),
+            observation_id=_identity_hex(identities.get("observation")),
+            data_snapshot_id=_identity_hex(identities.get("data_snapshot")),
+            execution_id=_identity_hex(identities.get("execution")),
+            score_reuse_id=_identity_hex(identities.get("score_reuse")),
+            target_weights_id=_identity_hex(identities.get("target_weights")),
+            data_version=_identity_hex(identities.get("data_snapshot")),
+            contract=dict(section),
+            answer=answer,
+            calibration=calibration,
+            diagnostics=tuple(
+                f"{d.get('code', '')}: {d.get('message', '')}"
+                for d in body.get("diagnostics", [])
+                if isinstance(d, Mapping)
+            ),
         )
 
     def rendering_limitation(self) -> str | None:

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 if TYPE_CHECKING:
     from .._native import ScoreInferenceSection, ScoreTableSection, ValidationFailureSection
 
+from .._verdict import verdict_for
 from ..ids import Refute
 from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct, fmt_se
@@ -35,17 +36,6 @@ __all__ = [
     "AnalysisResult",
 ]
 
-# Every status the native identification strategies are known to emit for an
-# identified estimand, plus the deterministic GCM counterfactual path (which
-# never runs the backdoor/frontdoor/IV search and so has no "identified"
-# substring at all). Anything that looks like a negation (not/un/partial) is
-# treated as not identified; unrecognised statuses default to not identified
-# rather than risk a false "identified" claim on a status this library has
-# not seen yet.
-_IDENTIFIED_STATUSES = frozenset({"nonparametricallyidentified", "gcm.parametric"})
-_NOT_IDENTIFIED_MARKERS = ("not_identified", "notidentified", "not identified", "unidentified")
-
-
 @dataclass(frozen=True)
 class IdentificationView:
     status: str
@@ -56,23 +46,11 @@ class IdentificationView:
     horizon_adjustment_sets: tuple[tuple[str, ...], ...] | None = None
 
     def __bool__(self) -> bool:
-        """``True`` when the estimand is identified.
-
-        See the module-level status tables above for what counts as
-        identified — this is a judgment call over engine status strings,
-        not an exact spec, so it defaults closed (not identified) on any
-        status it does not recognise.
-        """
-        normalized = self.status.strip().lower()
-        if normalized in _IDENTIFIED_STATUSES:
-            return True
-        negated = _NOT_IDENTIFIED_MARKERS + ("partial",)
-        if any(marker in normalized for marker in negated):
-            return False
-        return "identified" in normalized
+        """``True`` when the single verdict table reports identified."""
+        return verdict_for(self.status) == "identified"
 
     def __repr__(self) -> str:
-        verdict = "identified" if self else "not identified"
+        verdict = verdict_for(self.status)
         adjustment = f" adjustment_set={self.adjustment_set!r}" if self.adjustment_set else ""
         return f"<IdentificationView {verdict} method={self.method!r}{adjustment}>"
 
@@ -502,6 +480,10 @@ class PerformanceView:
     early_stopped: bool = False
     stage_timings: dict[str, int] | None = None
     bytes_borrowed: int | None = None
+
+    @property
+    def bootstrap_requested(self) -> int | None:
+        return self.bootstrap_replicates_requested
 
     def __repr__(self) -> str:
         bits: list[str] = []

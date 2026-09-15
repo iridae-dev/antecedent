@@ -28,6 +28,7 @@ from dataclasses import dataclass
 
 from ._native import (
     CausalAttributionError,
+    CausalCancelledError as CausalCancelled,
     CausalCancelledError,
     CausalCompileError,
     CausalCounterfactualError,
@@ -43,7 +44,7 @@ from ._native import (
     CausalReviewError,
     CausalSerializationError,
     CausalStateError,
-    CausalUnsupportedError,
+    CausalUnsupportedError as _NativeUnsupported,
     CausalValidateError,
 )
 from ._native import set_review_error_class as _set_review_error_class
@@ -62,6 +63,15 @@ class CausalTypeError(CausalValidateError, TypeError):
     caller-supplied argument (``graph=``, ``query=``, ``refute=``,
     ``latency=``, a discovery config, ...) is the wrong Python type.
     """
+
+
+class CausalUnsupportedError(_NativeUnsupported):
+    """Native unsupported refusal, with an optional closed reason code."""
+
+    def __init__(self, message: str = "", *, reason_code: str | None = None) -> None:
+        text = f"reason={reason_code}: {message}" if reason_code else message
+        super().__init__(text)
+        self.reason_code = reason_code
 
 
 class RenderingLimitation(CausalUnsupportedError):
@@ -185,6 +195,7 @@ def pending_edges(err: BaseException) -> tuple[PendingEdge, ...]:
 
 __all__ = [
     "CausalAttributionError",
+    "CausalCancelled",
     "CausalCancelledError",
     "CausalCompileError",
     "CausalCounterfactualError",

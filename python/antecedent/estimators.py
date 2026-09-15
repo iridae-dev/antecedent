@@ -74,6 +74,10 @@ GlmFamilyName = Literal[
 _SE_KINDS_NEEDING_LAG = ("newey_west", "panel_cluster_hac")
 
 
+def _omit_empty(out: dict[str, Any]) -> dict[str, Any] | None:
+    return out or None
+
+
 class _Unset:
     """Sentinel distinguishing "field not set" from an explicit ``None``.
 
@@ -302,7 +306,7 @@ class LinearAdjustment:
             out["fit_lambda"] = self.fit_lambda
         if self.fit_c is not None:
             out["fit_c"] = self.fit_c
-        return out
+        return _omit_empty(out)
 
 
 @dataclass(frozen=True, slots=True)
@@ -330,7 +334,7 @@ class PropensityWeighting:
         if self.bootstrap is not None:
             out["bootstrap_replicates"] = self.bootstrap
         out.update(_wire_glm_options(self.glm_options))
-        return out
+        return _omit_empty(out)
 
 
 @dataclass(frozen=True, slots=True)
@@ -388,7 +392,7 @@ class PropensityMatching:
             out["caliper"] = self.caliper
         if self.caliper_scale is not None:
             out["caliper_scale"] = self.caliper_scale
-        return out
+        return _omit_empty(out)
 
 
 @dataclass(frozen=True, slots=True)
@@ -414,7 +418,7 @@ class PropensityStratification:
         out.update(_wire_glm_options(self.glm_options))
         if self.n_strata is not None:
             out["n_strata"] = self.n_strata
-        return out
+        return _omit_empty(out)
 
 
 @dataclass(frozen=True, slots=True)
@@ -456,7 +460,7 @@ class DistanceMatching:
         out.update(_wire_glm_options(self.glm_options))
         if self.caliper is not None:
             out["caliper"] = self.caliper
-        return out
+        return _omit_empty(out)
 
 
 @dataclass(frozen=True, slots=True)
@@ -494,7 +498,7 @@ class Aipw:
             panel_times=self.panel_times,
         )
         out.update(_wire_glm_options(self.glm_options))
-        return out
+        return _omit_empty(out)
 
 
 @dataclass(frozen=True, slots=True)
@@ -535,7 +539,7 @@ class GlmAdjustment:
         out.update(_wire_glm_options(self.glm_options))
         if self.family is not None:
             out["family"] = self.family
-        return out
+        return _omit_empty(out)
 
 
 @dataclass(frozen=True, slots=True)
@@ -562,12 +566,12 @@ class FrontdoorTwoStage:
         return str(Estimator.FRONTDOOR_TWO_STAGE)
 
     def _wire(self) -> dict[str, Any]:
-        return _wire_se_common(
+        return _omit_empty(_wire_se_common(
             bootstrap=self.bootstrap,
             se=self.se,
             se_lag=self.se_lag,
             cluster_ids=self.cluster_ids,
-        )
+        ))
 
 
 @dataclass(frozen=True, slots=True)
@@ -595,14 +599,14 @@ class IvWald:
         return str(Estimator.IV_WALD)
 
     def _wire(self) -> dict[str, Any]:
-        return _wire_se_common(
+        return _omit_empty(_wire_se_common(
             bootstrap=self.bootstrap,
             se=self.se,
             se_lag=self.se_lag,
             cluster_ids=self.cluster_ids,
             multiway_ids=self.multiway_ids,
             panel_times=self.panel_times,
-        )
+        ))
 
 
 @dataclass(frozen=True, slots=True)
@@ -630,14 +634,14 @@ class Iv2Sls:
         return str(Estimator.IV_2SLS)
 
     def _wire(self) -> dict[str, Any]:
-        return _wire_se_common(
+        return _omit_empty(_wire_se_common(
             bootstrap=self.bootstrap,
             se=self.se,
             se_lag=self.se_lag,
             cluster_ids=self.cluster_ids,
             multiway_ids=self.multiway_ids,
             panel_times=self.panel_times,
-        )
+        ))
 
 
 @dataclass(frozen=True, slots=True)

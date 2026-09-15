@@ -16,7 +16,7 @@ top of ``_analyze.analyze``, as the single supported-query check.
 path — see its own docstring for why unifying it with the graph-coercion
 logic that IS wired (``estimation._static_edges`` / ``_lagged_edges``, plus
 the ``Pag``/``Cpdag``/``Admg`` special-casing in
-``_analyze.handle_static_ate``) was judged too risky to do blind (no test run
+``PreparedAnalysis.prepare``) was judged too risky to do blind (no test run
 to confirm no regression across the many call sites those two functions
 already serve). It is kept, tested, and documented as a graph-coercion
 reference implementation rather than deleted.
@@ -30,7 +30,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from .data import EventFrame
+from .data import EventFrame, MultiEnvFrame, PanelFrame
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 
@@ -48,13 +48,10 @@ def coerce_data(value: Any) -> tuple[list[str], list[NDArray[np.float64]]]:
       ``Mapping[str, array-like]``, a pandas DataFrame, or an equivalent
       frame-like object exposing ``columns`` + ``to_numpy``.
 
-    ``PanelFrame`` and ``MultiEnvFrame`` are deliberately **not** accepted
-    here: both hold more than one table (per-unit / per-environment column
-    lists), and there is no existing single-table interpretation of either to
-    preserve — coercing one would mean inventing a selection/pooling policy
-    that does not exist in the code today. Callers needing those shapes use
-    :func:`antecedent._data.as_multi_env_columns` or index the frame's
-    per-unit/per-environment columns directly.
+    ``PanelFrame`` and ``MultiEnvFrame`` are accepted: they return the shared
+    ``names`` and the first unit / environment columns so a caller can inspect
+    the schema. :class:`PreparedAnalysis` dispatches those frames to
+    ``prepare_panel`` / ``prepare_multi_env``.
     """
     from ._data import as_columns, to_f64
 
@@ -63,6 +60,10 @@ def coerce_data(value: Any) -> tuple[list[str], list[NDArray[np.float64]]]:
         return [str(n) for n in names], [to_f64(c) for c in columns]
     if isinstance(value, EventFrame):
         return list(value.names), [to_f64(c) for c in value.columns]
+    if isinstance(value, PanelFrame):
+        return list(value.names), [to_f64(c) for c in value.unit_columns[0]]
+    if isinstance(value, MultiEnvFrame):
+        return list(value.names), [to_f64(c) for c in value.env_columns[0]]
     return as_columns(value)
 
 

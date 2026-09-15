@@ -463,6 +463,9 @@ impl IntoCausalPyErr for RustCausalError {
             Self::Data(e) => CausalDataError::new_err(e.to_string()),
             Self::Graph(e) => CausalGraphError::new_err(e.to_string()),
             Self::Design(e) => CausalDesignError::new_err(e.to_string()),
+            Self::Callback { name, message } => {
+                CausalDesignError::new_err(format!("callback {name}: {message}"))
+            }
             Self::State(e) => match &e {
                 antecedent::state::StateError::CacheBudget { .. } => {
                     CausalResourceError::new_err(e.to_string())
@@ -2213,10 +2216,48 @@ fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+#[pyfunction]
+fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
+    let dict = PyDict::new(py);
+    dict.set_item("bootstrap", 199)?;
+    dict.set_item("refute", "placebo")?;
+    dict.set_item("latency", py.None())?;
+    dict.set_item("n_draws", 1000)?;
+    Ok(dict.into())
+}
+
+#[pyfunction]
+fn identification_status_names() -> Vec<String> {
+    use antecedent_core::IdentificationStatus as S;
+    fn name(status: S) -> String {
+        match status {
+            S::NonparametricallyIdentified
+            | S::IdentifiedUnderParametricRestrictions
+            | S::IdentifiedUnderPriorRestrictions
+            | S::PartiallyIdentified
+            | S::GraphDependent
+            | S::NotIdentified => format!("{status:?}"),
+        }
+    }
+    [
+        S::NonparametricallyIdentified,
+        S::IdentifiedUnderParametricRestrictions,
+        S::IdentifiedUnderPriorRestrictions,
+        S::PartiallyIdentified,
+        S::GraphDependent,
+        S::NotIdentified,
+    ]
+    .into_iter()
+    .map(name)
+    .collect()
+}
+
 fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
     m.add_function(wrap_pyfunction!(set_review_error_class, m)?)?;
+    m.add_function(wrap_pyfunction!(omitted_defaults, m)?)?;
+    m.add_function(wrap_pyfunction!(identification_status_names, m)?)?;
     ate_api::register(m)?;
     discovery_api::register(m)?;
     temporal_api::register(m)?;

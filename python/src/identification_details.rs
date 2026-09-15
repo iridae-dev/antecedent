@@ -114,14 +114,22 @@ pub(crate) fn to_json(
             point["weight"] = json!(1.0);
             json!({"kind":"point", "cases":[point]})
         }
-        Identification::CpdagEnvelope { envelope: e, .. } => envelope(e, &[], names, |g| {
-            let text = antecedent_io::dag_to_json(g, Some(names)).map_err(error)?;
-            serde_json::from_str(&text).map_err(error)
-        })?,
-        Identification::Envelope { envelope: e, .. } => envelope(e, &[], names, |g| {
-            let text = antecedent_io::pag_to_json(g, Some(names)).map_err(error)?;
-            serde_json::from_str(&text).map_err(error)
-        })?,
+        Identification::CpdagEnvelope { envelope: e, .. } => {
+            let mut payload = envelope(e, &[], names, |g| {
+                let text = antecedent_io::dag_to_json(g, Some(names)).map_err(error)?;
+                serde_json::from_str(&text).map_err(error)
+            })?;
+            payload["kind"] = json!("cpdag_envelope");
+            payload
+        }
+        Identification::Envelope { envelope: e, .. } => {
+            let mut payload = envelope(e, &[], names, |g| {
+                let text = antecedent_io::pag_to_json(g, Some(names)).map_err(error)?;
+                serde_json::from_str(&text).map_err(error)
+            })?;
+            payload["kind"] = json!("envelope");
+            payload
+        }
         Identification::TemporalEnvelope { envelope: e, .. } => {
             let mut payload = envelope(&e.envelope, &e.indexers, names, |g| match g {
                 antecedent_identify::TemporalCompletionGraph::Dag(dag) => {
@@ -157,6 +165,7 @@ pub(crate) fn to_json(
             payload["completion_keys"] = json!(
                 e.envelope.cases.iter().map(|case| case.graph.fingerprint()).collect::<Vec<_>>()
             );
+            payload["kind"] = json!("temporal_envelope");
             payload
         }
         _ => return Err(error("unsupported identification payload")),

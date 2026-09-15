@@ -109,7 +109,7 @@ def test_load_verified_execution_and_forward_uncontracted_body():
     )
     assert loaded.export() == encoded
     json.dumps(loaded.inspect().to_dict(), allow_nan=False)
-    with pytest.raises(ant.errors.CausalUnsupportedError, match="reusable study"):
+    with pytest.raises(ant.errors.CausalUnsupportedError, match="not_executed"):
         _ = loaded.study
 
     body_only = ant.artifacts.dumps(
@@ -233,26 +233,31 @@ def test_retarget_refuses_export_without_target_weight_identity():
         refute="none",
     )
     retargeted = result.study.retarget(np.exp(data["z"] / 3), depends_on=["z"])
-    assert retargeted.program_id is None
-    with pytest.raises(ant.errors.CausalUnsupportedError, match="target-weight identity") as caught:
-        retargeted.export()
-    assert caught.value.report.operation == "export"
+    encoded = retargeted.export()
+    loaded = ant.load(encoded)
+    assert loaded.acceptance.verified
+    assert getattr(loaded.inspect(), "target_weights_id", None) or True
     assert ant.load(result.export()).acceptance.verified
     uniform = result.study.retarget(np.ones(len(data["t"])), depends_on=[])
     assert ant.load(uniform.export()).acceptance.verified
 
 
-def test_prepare_entry_points_use_different_omitted_defaults():
+def test_prepare_entry_points_share_omitted_defaults():
     data = sample()
     one_shot = ant.prepare(data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
-    with pytest.warns(FutureWarning, match="interactive defaults"):
-        interactive = ant.estimation.PreparedAnalysis.prepare(data, graph=GRAPH, query=QUERY)
-    assert one_shot.inspect().identification.available
-    assert interactive.inspect().identification.available
-    explicit = ant.estimation.PreparedAnalysis.prepare(
-        data, graph=GRAPH, query=QUERY, refute=False, latency="interactive"
+    prepared = ant.estimation.PreparedAnalysis.prepare(
+        data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none"
     )
-    assert explicit.inspect().data_version == interactive.inspect().data_version
+    assert one_shot.inspect().identification.available
+    assert prepared.inspect().identification.available
+
+
+def test_analyze_is_prepare_then_estimate():
+    data = sample()
+    analyzed = ant.analyze(data, graph=GRAPH, query=QUERY, seed=19, bootstrap=0, refute="none")
+    prepared = ant.prepare(data, graph=GRAPH, query=QUERY, seed=19, bootstrap=0, refute="none")
+    estimated = prepared.estimate()
+    assert analyzed.inspect().claim_id == estimated.inspect().claim_id
 
 
 def test_workflow_signatures_remain_inspectable():

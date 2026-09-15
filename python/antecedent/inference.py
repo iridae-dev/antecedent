@@ -52,12 +52,16 @@ class Bayesian:
         under-specified draw counts are floored in Rust.
     """
 
-    n_draws: int = 1000
+    n_draws: int | None = None
     prior_scale: float = 10.0
     prior_from: bytes | ComposedPrior | None = None
     mapping: PriorMapping | None = None
     backend: Literal["laplace", "conjugate", "hmc"] = "laplace"
     kind: Literal["bayesian"] = "bayesian"
+
+    @property
+    def n_draws_explicit(self) -> bool:
+        return self.n_draws is not None
 
 
 @dataclass(frozen=True, slots=True)

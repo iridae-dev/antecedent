@@ -22,7 +22,7 @@ fn bind_dag(builder: StudyBuilder, dag: Dag, accepted: bool) -> StudyBuilder {
     if accepted { builder.graph(AcceptedGraph::from(dag)) } else { builder.graph(dag) }
 }
 
-fn parse_rd_config<F>(
+pub(crate) fn parse_rd_config<F>(
     estimator: Option<&str>,
     running_variable: Option<&str>,
     cutoff: Option<f64>,
@@ -49,7 +49,7 @@ where
 
 /// `rd.sharp` design from the resolved triple plus the optional configured SE kind
 /// (`None` keeps [`antecedent::RdConfig`]'s HC1 default).
-fn rd_design(
+pub(crate) fn rd_design(
     running_variable: VariableId,
     cutoff: f64,
     bandwidth: f64,
@@ -139,7 +139,7 @@ fn finish_static_ate(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     gil: AteGil,
@@ -241,7 +241,7 @@ fn run_static_ate_from_builder(
     names: &[String],
     mut builder: antecedent::StudyBuilder,
     inference: Option<&str>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
     prior_mapping: Option<antecedent_io::PriorMapping>,
@@ -253,46 +253,15 @@ fn run_static_ate_from_builder(
     include_posterior_artifact: bool,
     bytes_borrowed: Option<u64>,
 ) -> PyResult<AteAnalysisResult> {
-    if let Some(mode) = inference {
-        let mut cfg = match mode.to_ascii_lowercase().as_str() {
-            "bayesian" | "bayesian.laplace" | "laplace" => {
-                BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale)
-            }
-            "bayesian.conjugate" | "conjugate" => {
-                BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale)
-            }
-            "bayesian.hmc" | "hmc" => {
-                BayesianConfig::hmc().n_draws(n_draws).prior_scale(prior_scale)
-            }
-            "frequentist" => {
-                builder = builder.inference(InferenceMode::Frequentist);
-                let analysis = builder.build().map_err(py_err)?;
-                let ctx = py_execution_context_ext(
-                    seed,
-                    threads,
-                    cancel.clone(),
-                    progress.clone(),
-                    Some(PY_DEFAULT_CACHE_MAX_BYTES),
-                );
-                let mut result = analysis.run(&ctx).map_err(py_err)?;
-                if let Some(n) = bytes_borrowed {
-                    result.performance.bytes_borrowed = Some(n);
-                }
-                return ate_result_from_analysis(names, result, include_posterior_artifact);
-            }
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "unknown inference mode {other:?}; use frequentist|bayesian|conjugate|hmc"
-                )));
-            }
-        };
-        if let Some(comp) = composed_prior {
-            cfg = crate::prior_bank::apply_owned_composed_prior(cfg, comp)?;
-        } else if let Some(bytes) = prior_artifact {
-            cfg = cfg.prior_from_artifact(bytes.to_vec(), prior_mapping);
-        }
-        builder = builder.inference(InferenceMode::Bayesian(cfg));
-    }
+    builder = crate::temporal_api::apply_temporal_inference_transfer(
+        builder,
+        inference,
+        n_draws,
+        prior_scale,
+        prior_artifact,
+        prior_mapping,
+        composed_prior,
+    )?;
     let analysis = builder.build().map_err(py_err)?;
     let ctx =
         py_execution_context_ext(seed, threads, cancel, progress, Some(PY_DEFAULT_CACHE_MAX_BYTES));
@@ -541,7 +510,7 @@ pub(crate) fn panel_discovery_builder(
 /// Run static ATE: identify → estimate → optional refute .
 ///
 /// Parse optional `target_population` dict from Python (`kind` + fields).
-fn parse_target_population(spec: Option<&Bound<'_, PyDict>>) -> PyResult<Option<TargetPopulation>> {
+pub(crate) fn parse_target_population(spec: Option<&Bound<'_, PyDict>>) -> PyResult<Option<TargetPopulation>> {
     let Some(d) = spec else {
         return Ok(None);
     };
@@ -689,7 +658,7 @@ fn parse_population_registry(
     identifier=None,
     estimator=None,
     inference=None,
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     prior_artifact=None,
     prior_mapping=None,
@@ -726,7 +695,7 @@ fn analyze_ate(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     prior_mapping: Option<&Bound<'_, PyDict>>,
@@ -818,7 +787,7 @@ fn analyze_ate(
     identifier=None,
     estimator=None,
     inference=None,
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     prior_artifact=None,
     prior_mapping=None,
@@ -851,7 +820,7 @@ fn analyze_ate_arrow_c(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     prior_mapping: Option<&Bound<'_, PyDict>>,
@@ -1215,7 +1184,7 @@ fn analyze_ate_typed_graph(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -1286,7 +1255,7 @@ fn run_ate_with_graph_input(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     suite: RefuteSuite,
@@ -1382,7 +1351,7 @@ fn run_ate_with_graph_input(
 #[pyo3(signature = (
     names, columns, graph, treatment, outcome, *,
     control_level=0.0, active_level=1.0, identifier=None, estimator=None,
-    inference=None, n_draws=1000, prior_scale=10.0,
+    inference=None, n_draws=None, prior_scale=10.0,
     prior_artifact=None, refute=None, validators=None,
     running_variable=None,
     cutoff=None,
@@ -1404,7 +1373,7 @@ fn analyze_ate_pag(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -1455,7 +1424,7 @@ fn analyze_ate_pag(
 #[pyo3(signature = (
     names, columns, graph, treatment, outcome, *,
     control_level=0.0, active_level=1.0, identifier=None, estimator=None,
-    inference=None, n_draws=1000, prior_scale=10.0,
+    inference=None, n_draws=None, prior_scale=10.0,
     prior_artifact=None, refute=None, validators=None,
     running_variable=None,
     cutoff=None,
@@ -1477,7 +1446,7 @@ fn analyze_ate_cpdag(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -1528,7 +1497,7 @@ fn analyze_ate_cpdag(
 #[pyo3(signature = (
     names, columns, graph, treatment, outcome, *,
     control_level=0.0, active_level=1.0, identifier=None, estimator=None,
-    inference=None, n_draws=1000, prior_scale=10.0,
+    inference=None, n_draws=None, prior_scale=10.0,
     prior_artifact=None, refute=None, validators=None,
     running_variable=None,
     cutoff=None,
@@ -1550,7 +1519,7 @@ fn analyze_ate_admg(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -1603,7 +1572,7 @@ macro_rules! typed_ate_arrow_c {
         #[pyo3(signature = (
                             names, columns, graph, treatment, outcome, *,
                             control_level=0.0, active_level=1.0, identifier=None, estimator=None,
-                            inference=None, n_draws=1000, prior_scale=10.0,
+                            inference=None, n_draws=None, prior_scale=10.0,
                             prior_artifact=None, refute=None, validators=None,
                             running_variable=None,
                             cutoff=None,
@@ -1625,7 +1594,7 @@ macro_rules! typed_ate_arrow_c {
             identifier: Option<String>,
             estimator: Option<String>,
             inference: Option<String>,
-            n_draws: usize,
+            n_draws: Option<usize>,
             prior_scale: f64,
             prior_artifact: Option<Vec<u8>>,
             refute: Option<Bound<'_, PyAny>>,
@@ -1698,7 +1667,7 @@ typed_ate_arrow_c!(analyze_ate_admg_arrow_c, graphs::Admg, Admg, admg);
     identifier=None,
     estimator=None,
     inference=None,
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     prior_artifact=None,
     refute=None,
@@ -1738,7 +1707,7 @@ fn analyze_ate_discover(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -2974,7 +2943,7 @@ fn identify_structure(
     control_level=0.0,
     active_level=1.0,
     inference="conjugate",
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     refute=None,
     seed=1,
@@ -2993,7 +2962,7 @@ fn analyze_ate_graph_posterior(
     control_level: f64,
     active_level: f64,
     inference: &str,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,

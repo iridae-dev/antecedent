@@ -83,6 +83,14 @@ def test_evaluate_decision_utility_callback():
     assert eu.posterior_regret == pytest.approx(0.0)
 
 
+def test_evaluate_decision_utility_failure_is_typed():
+    def boom(_actions, _outcomes):
+        raise RuntimeError("utility exploded")
+
+    with pytest.raises(antecedent.errors.CausalDesignError, match="callback utility"):
+        antecedent.design.evaluate_decision([0.0, 1.0], [2.0, 4.0], boom)
+
+
 def test_custom_validator_on_analyze_ate():
     rng = np.random.default_rng(3)
     n = 120
