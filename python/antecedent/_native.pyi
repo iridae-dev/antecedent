@@ -73,6 +73,11 @@ class AteAnalysisResult:
     structural_identified_mass: float | None
     structural_unidentified_mass: float | None
     structural_unevaluable_mass: float | None
+    structural_identified_set: tuple[float, float] | None
+    structural_identified_set_interval: tuple[float, float] | None
+    structural_identified_set_interval_level: float | None
+    structural_identified_set_interval_method: str | None
+    structural_identified_set_interval_truncated: bool | None
     certificate_json: str | None
     unit_effects: list[float] | None
     assumptions: list[str]
@@ -118,10 +123,13 @@ class AteAnalysisResult:
     prior_sensitivity_alphas: list[float] | None
     prior_sensitivity_means: list[float] | None
     prior_sensitivity_sds: list[float] | None
+    prior_sensitivity_family: str | None
+    prior_sensitivity_variance_multipliers: list[float] | None
     conflict_source_ids: list[str] | None
     conflict_alphas_requested: list[float] | None
     conflict_alphas_applied: list[float] | None
     posterior_unidentified_mass: float | None
+    posterior_subsampled_out_mass: float | None
     latency_mode: str | None
     wall_time_ns: int | None
     bootstrap_replicates_requested: int | None
@@ -197,6 +205,8 @@ class ResponseAnalysisResult:
     provenance_id: str
     identified_mass: float | None
     unidentified_mass: float | None
+    unevaluable_mass: float | None
+    subsampled_out_mass: float | None
     completion_count: int | None
     truncated_completions: int | None
     enumeration_capped: bool | None
@@ -353,6 +363,25 @@ class EstimateSection:
     family_contrast_interval: tuple[float, float, float] | None
     candidate_selection: CandidateSelectionSection | None
     evalue: float | None
+    distribution_atoms: list[DistributionAtomSection] | None
+    mean_interval: ProbabilityIntervalSection | None
+
+class ProbabilityIntervalSection:
+    """Bounded interval for one interventional probability, or why none exists."""
+
+    level: float | None
+    lower: float | None
+    upper: float | None
+    unavailable: str | None
+
+class DistributionAtomSection:
+    """One interventional-distribution atom and its probability interval."""
+
+    outcomes: list[tuple[str, float | None]]
+    conditioning: list[tuple[str, float | None]]
+    probability: float
+    se_bootstrap: float | None
+    interval: ProbabilityIntervalSection | None
 
 class CandidateSelectionSection:
     screen_id: str
@@ -376,6 +405,7 @@ class PosteriorSection:
     backend: str | None
     artifact: bytes | list[int] | None
     unidentified_mass: float | None
+    subsampled_out_mass: float | None
 
 class ValidationFailureSection:
     validator: str
@@ -422,6 +452,7 @@ class PosteriorArtifact:
     backend_id: str
     identification: str
     unidentified_mass: float
+    subsampled_out_mass: float
     converged: bool
     hessian_condition: float
     quantity_names: list[str]
@@ -441,6 +472,7 @@ class PosteriorArtifact:
         converged: bool = True,
         hessian_condition: float = ...,
         treatment_contrast: float | None = None,
+        subsampled_out_mass: float = 0.0,
     ) -> None: ...
     def __array__(
         self,
@@ -461,6 +493,7 @@ class PosteriorArtifact:
         converged: bool = True,
         hessian_condition: float = ...,
         treatment_contrast: float | None = None,
+        subsampled_out_mass: float = 0.0,
     ) -> PosteriorArtifact: ...
 
 class DiscoveredLink:
@@ -575,6 +608,7 @@ class AnalysisResult:
     posterior_backend: str | None
     posterior_artifact: bytes | None
     posterior_unidentified_mass: float | None
+    posterior_subsampled_out_mass: float | None
     mediation_total: float | None
     mediation_direct: float | None
     mediation_mediated: float | None
@@ -605,6 +639,11 @@ class AnalysisResult:
     structural_identified_mass: float | None
     structural_unidentified_mass: float | None
     structural_unevaluable_mass: float | None
+    structural_identified_set: tuple[float, float] | None
+    structural_identified_set_interval: tuple[float, float] | None
+    structural_identified_set_interval_level: float | None
+    structural_identified_set_interval_method: str | None
+    structural_identified_set_interval_truncated: bool | None
 
 TemporalAnalysisResult = AnalysisResult
 
@@ -694,7 +733,7 @@ class PreparedAnalysis:
         composed_prior: dict[str, Any] | None = None,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int | None = 50,
+        bootstrap: int | None = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -739,7 +778,7 @@ class PreparedAnalysis:
         composed_prior: dict[str, Any] | None = None,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -764,7 +803,7 @@ class PreparedAnalysis:
         composed_prior: dict[str, Any] | None = None,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -809,7 +848,7 @@ class PreparedAnalysis:
         prior_scale: float = 10.0,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -833,7 +872,7 @@ class PreparedAnalysis:
         prior_scale: float = 10.0,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -878,7 +917,7 @@ class PreparedAnalysis:
         prior_scale: float = 10.0,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -928,6 +967,7 @@ class PreparedAnalysis:
         prior_mapping: dict[str, Any] | None = None,
         composed_prior: dict[str, Any] | None = None,
         seed: int = 1,
+        bootstrap: int | None = None,
         threads: int = 1,
         accepted: bool = False,
         observation_kind: str | None = None,
@@ -1093,6 +1133,7 @@ class PreparedAnalysis:
         prior_scale: float = 10.0,
         refute: bool | str | None = None,
         seed: int = 1,
+        bootstrap: int = 0,
         threads: int = 1,
         posterior: GraphPosterior | None = None,
     ) -> PreparedAnalysis: ...
@@ -1118,6 +1159,7 @@ class PreparedAnalysis:
         prior_scale: float = 10.0,
         refute: bool | str | None = None,
         seed: int = 1,
+        bootstrap: int = 0,
         threads: int = 1,
         posterior: GraphPosterior | None = None,
     ) -> PreparedAnalysis: ...
@@ -1140,7 +1182,7 @@ class PreparedAnalysis:
         prior_mapping: dict[str, Any] | None = None,
         composed_prior: dict[str, Any] | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -1161,7 +1203,7 @@ class PreparedAnalysis:
         max_len: int = 16,
         refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 50,
+        bootstrap: int = 199,
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
@@ -1537,7 +1579,7 @@ def analyze_ate_many(
     estimator: str | None = None,
     refute: bool | str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     latency: str | None = None,
     screen_id: str | None = None,
@@ -1573,7 +1615,7 @@ def prepare_ate_batch(
     estimator: str | None = None,
     refute: bool | str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     latency: str | None = None,
     screen_id: str | None = None,
@@ -1593,7 +1635,7 @@ def prepare_cells_batch(
     estimator: str | None = None,
     refute: bool | str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     latency: str | None = None,
     screen_id: str | None = None,
@@ -1628,7 +1670,7 @@ def analyze_ate(
     bandwidth: float | None = None,
     estimator_config: dict[str, Any] | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     target_population: dict[str, Any] | None = None,
     outcome_functional: dict[str, Any] | None = None,
@@ -1687,7 +1729,7 @@ def analyze_ate_arrow_c(
     bandwidth: float | None = None,
     estimator_config: dict[str, Any] | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     latency: str | None = None,
     cancel: CancellationToken | None = None,
@@ -1910,6 +1952,7 @@ def analyze_temporal_response(
     treatment_lag: int = 1,
     max_history_lag: int | None = None,
     seed: int = 1,
+    bootstrap: int | None = None,
     threads: int = 1,
     accepted: bool = False,
     refute: bool | str | None = None,
@@ -1924,7 +1967,17 @@ def analyze_temporal_response(
     assumption_kind: str | None = None,
     assumption_variables: list[str] = [],
     structural_model: str | None = None,
-) -> ResponseAnalysisResult: ...
+) -> ResponseAnalysisResult:
+    """Temporal dose × horizon / intervention-path response (Frequentist).
+
+    ``bootstrap`` is the joint circular-block replicate count behind the pointwise
+    band and the simultaneous band (``response.simultaneous_band.*`` support
+    diagnostics). ``None`` keeps the Study default (199); ``0`` returns the point
+    surface with no band and an ``estimate.temporal_response.band_withheld``
+    warning.
+    """
+    ...
+
 def analyze_response_pag(
     names: list[str],
     columns: Sequence[Any],
@@ -2091,7 +2144,7 @@ def analyze_path_specific(
     max_paths: int = 64,
     max_len: int = 16,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     refute: bool | str | None = None,
 ) -> AteAnalysisResult: ...
@@ -2108,7 +2161,7 @@ def analyze_conditional(
     refute: bool | str | None = None,
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
     accepted: bool = False,
     outcome_functional: dict[str, Any] | None = None,
@@ -2218,7 +2271,7 @@ def analyze_ate_discover(
     bandwidth: float | None = None,
     estimator_config: dict[str, Any] | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_graph_posterior(
@@ -2900,7 +2953,7 @@ def analyze_ate_pag_arrow_c(
     estimator_config: dict[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_pag(
@@ -2926,7 +2979,7 @@ def analyze_ate_pag(
     estimator_config: dict[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_cpdag_arrow_c(
@@ -2952,7 +3005,7 @@ def analyze_ate_cpdag_arrow_c(
     estimator_config: dict[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_cpdag(
@@ -2978,7 +3031,7 @@ def analyze_ate_cpdag(
     estimator_config: dict[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_admg_arrow_c(
@@ -3004,7 +3057,7 @@ def analyze_ate_admg_arrow_c(
     estimator_config: dict[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def analyze_ate_admg(
@@ -3030,7 +3083,7 @@ def analyze_ate_admg(
     estimator_config: dict[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 50,
+    bootstrap: int | None = 199,
     threads: int = 1,
 ) -> AteAnalysisResult: ...
 def dag_from_dot(dot: str) -> tuple[int, list[tuple[int, int]]]: ...

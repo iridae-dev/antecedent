@@ -31,7 +31,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .data import EventFrame
-from .errors import CausalTypeError, CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 
 def coerce_data(value: Any) -> tuple[list[str], list[NDArray[np.float64]]]:
@@ -143,8 +143,10 @@ def coerce_query(value: Any) -> Any:
     discriminator; anything without one is not a supported query type.
     """
     from .query import (
+        AnomalyAttribution,
         AverageDerivative,
         AverageEffect,
+        ChangeAttribution,
         ConditionalEffect,
         Counterfactual,
         DirectionalDerivative,
@@ -161,6 +163,12 @@ def coerce_query(value: Any) -> Any:
         SustainedEffect,
         TemporalMediationEffect,
     )
+
+    if isinstance(value, (AnomalyAttribution, ChangeAttribution)):
+        raise CausalUnsupportedError(
+            "AnomalyAttribution and ChangeAttribution are licensed on the Rust "
+            "Study API only; analyze() does not take them"
+        )
 
     valid = (
         AverageEffect,

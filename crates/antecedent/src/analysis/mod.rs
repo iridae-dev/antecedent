@@ -22,7 +22,7 @@ pub use batch::{
     BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
     CellFamilyContrast, PreparedBatch, SharedBatchDesign, SharedCovariateDesign,
 };
-pub use builder::{RdConfig, RefuteSuite, StudyBuilder};
+pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
 pub use execute::Study;
 pub use latency::{
     ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS,

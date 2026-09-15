@@ -411,3 +411,107 @@ fn sequence_refuses_prior_transfer_without_a_new_filter() {
         .unwrap_err();
     assert!(err.to_string().contains(needle), "{err}");
 }
+
+fn graph_x2y() -> TemporalDag {
+    let mut graph = TemporalDag::empty();
+    let x2 = ensure_lagged(&mut graph, VariableId::from_raw(0), antecedent_core::Lag::from_raw(2))
+        .unwrap();
+    let y0 =
+        ensure_lagged(&mut graph, VariableId::from_raw(1), antecedent_core::Lag::CONTEMPORANEOUS)
+            .unwrap();
+    graph.insert_directed(x2, y0).unwrap();
+    graph
+}
+
+fn lag2_pulse_query() -> TemporalEffectQuery {
+    TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-2))
+        .with_horizon_steps(1)
+}
+
+fn run_transfer(
+    graph: TemporalDag,
+    query: TemporalEffectQuery,
+    bytes: Vec<u8>,
+    mapping: Option<PriorMapping>,
+) -> Result<antecedent::result::StudyResult, antecedent::CausalError> {
+    Study::series(series_xy(200, 0.05, 29))
+        .graph(graph)
+        .temporal_query(query)
+        .inference(InferenceMode::Bayesian(bayes(64).prior_from_artifact(bytes, mapping)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(29))
+}
+
+#[test]
+fn lag_one_source_refuses_lag_two_target_without_a_named_mapping() {
+    let (source, bytes) = fit_pulse(series_xy(200, 0.05, 31), 64, 31);
+    let source_names: Vec<String> = source
+        .posterior
+        .as_ref()
+        .unwrap()
+        .draws
+        .schema
+        .quantities
+        .iter()
+        .filter_map(|q| match q {
+            antecedent_prob::PosteriorQuantityKind::Coefficient { name, .. } => {
+                name.as_ref().map(ToString::to_string)
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(source_names, ["intercept", "coef_pressure@lag1"]);
+
+    // Default, identical-subspace and effect-functional transfer all bind by
+    // position / treatment coefficient: a lag-1 source must not land on lag 2.
+    for mapping in [
+        None,
+        Some(PriorMapping::IdenticalCoefficientSubspace),
+        Some(PriorMapping::EffectFunctional { source_quantity: "ate".into() }),
+    ] {
+        let err = run_transfer(graph_x2y(), lag2_pulse_query(), bytes.clone(), mapping.clone())
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("temporal prior transfer refused") && msg.contains("coef_pressure@lag2"),
+            "{mapping:?}: {msg}"
+        );
+    }
+    // The explicit named bridge is the declared exception.
+    let named = run_transfer(
+        graph_x2y(),
+        lag2_pulse_query(),
+        bytes.clone(),
+        Some(PriorMapping::NamedParameters {
+            pairs: vec![("coef_pressure@lag1".into(), "coef_pressure@lag2".into())],
+        }),
+    )
+    .expect("named lag mapping is an explicit bridge");
+    assert!(named.posterior.is_some());
+    // Same-lag transfer still binds.
+    assert!(run_transfer(graph_xy(), pulse_query(), bytes, None).is_ok());
+
+    // A temporal artifact without lag-aware names (pre-1.9) fails closed even at the
+    // same lag: its lag structure cannot be checked.
+    let mut legacy = source.posterior.clone().unwrap();
+    let stripped: Vec<_> = legacy
+        .draws
+        .schema
+        .quantities
+        .iter()
+        .map(|q| match q {
+            antecedent_prob::PosteriorQuantityKind::Coefficient { index, .. } => {
+                antecedent_prob::PosteriorQuantityKind::Coefficient { index: *index, name: None }
+            }
+            other => other.clone(),
+        })
+        .collect();
+    legacy.draws.schema.quantities = Arc::from(stripped);
+    let legacy_bytes = antecedent::io::encode_causal_posterior_bytes(&legacy, "legacy").unwrap();
+    let err = run_transfer(graph_xy(), pulse_query(), legacy_bytes, None).unwrap_err();
+    assert!(err.to_string().contains("no lag-aware coefficient names"), "{err}");
+}

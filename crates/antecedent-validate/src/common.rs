@@ -168,6 +168,49 @@ pub trait EffectRefit: std::fmt::Debug {
         extra_contemporaneous: &[VariableId],
         ctx: &ExecutionContext,
     ) -> Result<EffectEstimate, ValidationError>;
+
+    /// Prepare the composed estimator once on the original series so resampling
+    /// checks can refit it on lag-aligned rows (each row keeping its original lag
+    /// window) instead of rebuilding lags on a resampled raw series. `None` when
+    /// this refitter has no aligned-row evaluation.
+    fn prepare_aligned(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Option<Result<AlignedRefit, ValidationError>> {
+        let _ = (data, ctx);
+        None
+    }
+}
+
+/// Refit of a composed estimator on a row map of its lag-aligned rows
+/// (`None` when the fit fails).
+pub type AlignedRowEstimate = Box<dyn FnMut(&[usize]) -> Option<f64>>;
+
+/// A composed temporal estimator prepared for evaluation on lag-aligned rows.
+pub struct AlignedRefit {
+    /// Lag-aligned rows of the prepared design.
+    pub rows: usize,
+    /// Circular-block length, in aligned rows, of the interval being checked (the
+    /// same rule that interval's block bootstrap uses, e.g.
+    /// [`antecedent_estimate::dependence_block_length`] over its estimating scores).
+    pub block_length: usize,
+    /// When [`Self::estimate`] is not the estimator whose point estimate is checked
+    /// but a stand-in for it (e.g. the least-squares contrast for a posterior
+    /// mean), what it stands in for and when that is valid; reported with the check.
+    pub stand_in: Option<Arc<str>>,
+    /// Refit on the aligned rows of a row map.
+    pub estimate: AlignedRowEstimate,
+}
+
+impl std::fmt::Debug for AlignedRefit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AlignedRefit")
+            .field("rows", &self.rows)
+            .field("block_length", &self.block_length)
+            .field("stand_in", &self.stand_in)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Inputs shared by effect refuters.

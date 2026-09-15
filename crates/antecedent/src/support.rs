@@ -263,7 +263,9 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
         }
         CausalQuery::Transport(_) => Some("TransportQuery"),
         CausalQuery::Interference(_) => Some("InterferenceQuery"),
-        // Attribution queries and any later `CausalQuery` variant stay off the axis.
+        CausalQuery::AnomalyAttribution(_) => Some("AnomalyAttribution"),
+        CausalQuery::ChangeAttribution(_) => Some("ChangeAttribution"),
+        // Mechanism/unit-change and any later CausalQuery variant stay off the axis.
         _ => None,
     }
 }
@@ -714,13 +716,7 @@ mod tests {
                 "none",
                 "Graph-posterior derivative mixtures are not staged",
             ),
-            (
-                "Counterfactual",
-                "accepted",
-                "Frequentist",
-                "none",
-                "Staged counterfactuals require an explicit Dag",
-            ),
+            ("Counterfactual", "graph_posterior", "Frequentist", "none", "graph-posterior"),
             (
                 "Counterfactual",
                 "explicit",
@@ -747,6 +743,30 @@ mod tests {
         );
         assert_eq!(
             classify(cell("Counterfactual", "Dag", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("Counterfactual", "Dag", "accepted", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("Counterfactual", "Dag", "accepted", "Bayesian", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("AnomalyAttribution", "Dag", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("ChangeAttribution", "Dag", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("TransportQuery", "Admg", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("InterferenceQuery", "Dag", "explicit", "Frequentist", "none")),
             CellStatus::Licensed
         );
     }
@@ -870,20 +890,45 @@ mod tests {
 
     #[test]
     fn closed_path_and_distribution_on_explicit_admg_pag_is_enforced() {
-        for query in ["PathSpecificEffect", "InterventionalDistribution"] {
-            for graph in ["Admg", "Pag"] {
-                let status = classify(cell(query, graph, "explicit", "Frequentist", "none"));
-                assert_eq!(status, CellStatus::Refused, "{query}/{graph}");
-                let err =
-                    refuse_if_not_applicable(cell(query, graph, "explicit", "Frequentist", "none"))
-                        .unwrap_err();
-                assert!(
-                    err.to_string().starts_with(
-                        "refused: Path and distribution queries execute only on a supplied"
-                    ),
-                    "{query}/{graph}: {err}"
-                );
-            }
+        for graph in ["Admg", "Pag"] {
+            let status =
+                classify(cell("PathSpecificEffect", graph, "explicit", "Frequentist", "none"));
+            assert_eq!(status, CellStatus::Refused, "PathSpecificEffect/{graph}");
+            let err = refuse_if_not_applicable(cell(
+                "PathSpecificEffect",
+                graph,
+                "explicit",
+                "Frequentist",
+                "none",
+            ))
+            .unwrap_err();
+            assert!(
+                err.to_string().starts_with(
+                    "refused: Path-specific queries execute only on a supplied static Dag"
+                ),
+                "PathSpecificEffect/{graph}: {err}"
+            );
+        }
+        assert_eq!(
+            classify(cell("InterventionalDistribution", "Admg", "explicit", "Frequentist", "none")),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell("InterventionalDistribution", "Pag", "explicit", "Frequentist", "none")),
+            CellStatus::Refused
+        );
+        for validation in ["cheap", "full"] {
+            assert_eq!(
+                classify(cell(
+                    "InterventionalDistribution",
+                    "Admg",
+                    "explicit",
+                    "Frequentist",
+                    validation
+                )),
+                CellStatus::Refused,
+                "Admg distribution {validation}"
+            );
         }
     }
 
@@ -1177,10 +1222,9 @@ mod tests {
         assert!(matches!(classify(off), CellStatus::NotApplicable { .. }));
     }
 
-    /// The ADMG collapse is scoped to `AverageEffect`: `compile.rs` wires no other
-    /// query against `GraphClass::Admg` (`CausalQuery::Distribution` requires a
-    /// literal `as_dag()` and errors for any ADMG, bidirected or not), so applying
-    /// the collapse there would license a cell the engine cannot run.
+    /// The ADMG collapse is scoped to `AverageEffect`. Distribution on Admg is a
+    /// separate licensed cell (general ID, no DAG coercion); collapse must not
+    /// rewrite that class to Dag.
     #[test]
     fn admg_collapse_does_not_apply_outside_average_effect() {
         let mut admg = Admg::with_variables(2);

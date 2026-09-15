@@ -40,6 +40,9 @@ bash scripts/gate_docs_support_matrix.sh
 echo "== evidence reachability (cited fixtures execute; deviations ratchet) =="
 bash scripts/gate_evidence_reachability.sh
 
+echo "== coverage citations name existing test fns =="
+bash scripts/gate_coverage_citations.sh
+
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   echo "== prior feature gates =="
   bash scripts/gate_estimate_ci.sh
@@ -279,6 +282,7 @@ cargo bench -p antecedent-state --bench state_append -- --test
 cargo bench -p antecedent-estimate --bench response_interference -- --test
 cargo bench -p antecedent-estimate --bench temporal_response -- --test
 cargo bench -p antecedent --bench staged_handle -- --test
+cargo bench -p antecedent --bench temporal_zero_replicates -- --test
 
 if command -v cargo-deny >/dev/null 2>&1; then
   echo "== cargo deny check =="

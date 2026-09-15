@@ -7,6 +7,406 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-09-15
+
+Every licensed cell was reviewed for mathematical correctness and for claims
+that exceed the code or the evidence
+([review](docs/v1.9-cell-review.md)). Licensed intervals are now checked by
+repeated-sampling coverage; intervals that missed were fixed or, where a fix
+was not available, published as boundary records with a runtime disclosure.
+
+### Added
+
+- Two-sided calibration gate: 400 replicates per target (200 for the
+  bootstrap Hájek IPW target) with a `level ± 3·MCSE` band, so under- and
+  over-coverage both fail (±4.5 points at a 90% level and 400 replicates).
+  Any cell more than 2 points under its level is re-run at 2000 replicates and
+  must reach `level − 2·MCSE` there; cells still below it are named boundary
+  cells asserting their measured band
+  (`docs/short-series-thresholds.md`). The gate is weekly and manual (not
+  per-PR CI), and the workflow runs it in eight shards
+  (`ANTECEDENT_CALIBRATION_SHARD=k/N`) so each runner stays under its timeout.
+  Multi-atom targets use fixtures whose identified atoms disagree. Temporal
+  targets add AR(1) residuals and short series. Every gate group runs and
+  failures are listed at the end. `scripts/gate_calibration.sh` builds in
+  release and runs weekly and on manual dispatch
+  (`.github/workflows/calibration.yml`); `gate_release.sh` does not run it.
+- Coverage evidence for cells that had none: static CPDAG/PAG envelopes,
+  ConditionalEffect, static graph-posterior mixtures, responses, mediation,
+  path-specific effects, interventional distributions, counterfactuals,
+  derivatives, CoDetermined/Unknown tiers, front-door, 2SLS, AIPW ATT/ATC,
+  DBN posteriors, temporal class envelopes, temporal mediation and temporal
+  responses. Cells measured outside their gated scope are recorded as
+  boundary records and disclosed at runtime, not gated.
+- Newly licensed cells (330 → 341):
+  - `Counterfactual` × `Dag` × accepted, Frequentist and Bayesian, `none`:
+    the explicit-Dag estimator on an `AcceptedGraph`, cross-checked equal to
+    the explicit result.
+  - `InterventionalDistribution` × `Admg` × explicit and accepted, Frequentist
+    and Bayesian, `none`: unconditional finite-discrete tables through general
+    ID. Frequentist atoms publish a logit-bounded probability interval (bounded
+    to `[0, 1]`; not partial-identification bounds). Pinned against a binary
+    front-door SCM with a latent confounder
+    (`conformance/estimate/admg_frontdoor_distribution`). Rust Study API only;
+    the Python distribution entry points take DAG edges and refuse an Admg.
+  - `TemporalMediationEffect` × `TemporalDag` × `graph_posterior` ×
+    Frequentist × `none`, single horizon: Total, Direct and Mediated are
+    fixed-weight means over evaluable DBN atoms, each atom with its own
+    `S(h)`; requested replicates refit every atom on one shared circular-block
+    replicate, so the SEs describe the aggregate. Without usable replicates
+    the SE is withheld (`estimate.dbn_posterior.mediation.uncertainty_withheld`).
+    cheap/full stay refused.
+  - `AnomalyAttribution` and `ChangeAttribution` × `Dag` × explicit ×
+    Frequentist × `none`: GCM scores / distribution-change Shapley on a
+    supplied Dag. Identification is parametric (`gcm.parametric`); estimator
+    `gcm.fit`. Sampling uncertainty is unavailable. Rust Study API only.
+  - `TransportQuery` × `Admg` × explicit × Frequentist × `none`: implemented
+    sID subset (Direct / S-admissible) plus binary trial-to-target IPW.
+    RecursiveFactorization and NotCertified refuse. Rust Study API only.
+  - `InterferenceQuery` × `Dag` × explicit × Frequentist × `none`:
+    design-based HT/Hájek NeighborCount under Bernoulli assignment. Variance
+    is the Young bound, not Aronow–Samii. The Dag binds schema/outcome; it
+    does not identify the contrast. Rust Study API only.
+- Python root `__all__` is 52 names: `AnomalyAttribution` and
+  `ChangeAttribution` are exported for the query axis. `analyze()` refuses
+  both; `TransportQuery` / `InterferenceQuery` stay stage modules.
+- Prepared panel Pulse/Sustained on an explicit or accepted `TemporalDag`
+  prepares once and refreshes with new panel data; panel `ResponseCurve` /
+  `InterventionResponse` stays refused because scalar panel SEs do not license
+  response bands.
+- Simultaneous bands over the dose × horizon grid for temporal responses
+  (`response.simultaneous_band.*`), Frequentist and Bayesian.
+  Observation-adjusted and complete-data Sequence overlays publish bands
+  from a tuple-level bootstrap of the unfolded sequential g-comp.
+  Python reads them as `CausalResponseView.simultaneous_band`.
+- Python `bootstrap=` on Frequentist temporal `ResponseCurve` /
+  `InterventionResponse`, through `analyze()` and `PreparedAnalysis.prepare()`.
+  Omitted, it follows the latency tier as Pulse / Sustained do (`analyze()`
+  without a tier runs 199 replicates, the count the temporal response and
+  class/DBN mixture gates use; the plain TemporalDag Pulse/Sustained and
+  temporal mediation gates run 100); `bootstrap=0` returns the point surface
+  and the `estimate.temporal_response.band_withheld` warning. Response routes
+  that do not use bootstrap replicates refuse `bootstrap=` instead of ignoring
+  it.
+- Identified-set confidence intervals (Imbens–Manski) on temporal class
+  structural mixtures, including the no-`ClassPrior` path
+  (`identified_set_interval`; Python `structural_identified_set_interval`).
+  Frequentist intervals use per-completion endpoints (the SD of the min / max
+  under-covered a noisy completion next to a precise one); Bayesian
+  completions draw from independent seed streams; intervals over a capped
+  completion enumeration carry `truncated` and a warning; Python exposes
+  `structural_identified_set_interval_method` / `_truncated`. Serialized in
+  artifact format 0.5; 0.4 artifacts migrate unchanged.
+- New diagnostics on temporal response bands: `response.temporal.block_length`
+  (the block record), `response.temporal.block_length_capped`,
+  `response.temporal.pointwise_band_few_replicates` (fewer than 40 surviving
+  replicates), and `response.temporal.block.persistence_boundary`, a warning on
+  every band that states the gated dependence scope and the measured coverage
+  beyond it.
+- `response.intervention_target_penalized_fallback` records when the
+  unpenalized treatment-spline target fit failed and the g-computation level
+  came from the penalized nuisance fit.
+- `refute.bayesian.prior_sensitivity.not_mixed` warns when envelope prior
+  sensitivity could not be mixed across completions; the envelope diagnostic no
+  longer claims it was evaluated.
+- Posterior predictive checks on temporal `full` add a lag-1 residual
+  autocorrelation discrepancy.
+- Identified multi-completion PAG fixtures, static
+  (`conformance/estimate/pag_ate_envelope_identified`) and temporal, with
+  numpy references. Path-specific edge g-formula fixture
+  (`conformance/estimate/path_specific_edge_gformula`), including a
+  shared-descendant case.
+- `rd.sharp` offers HC0–HC3 standard errors (`RdConfig::with_se_kind`) and
+  defaults to HC1. Python selects the kind through
+  `estimator_config={"se_kind": ...}` or `SharpRd(se=...)`.
+- Frequentist DBN-posterior Pulse and Sustained effects are reachable from
+  Python (`analyze(discovery=...)`, `PreparedAnalysis.prepare(discovery=...)`),
+  with the shared-block replicate count following `bootstrap` or the latency
+  tier, and carry `structural_response`.
+- `subsampled_out_mass` on `StructuralResponseMixture` and `CausalPosterior`
+  (artifact wire field omitted when zero; older artifacts read as 0; Python
+  `ResponseResult`, `result.posterior`, `EffectEnvelope`, `PosteriorArtifact`).
+  `StructuralResponseMixture` is not `#[non_exhaustive]`, so code that builds
+  it as a struct literal must add the field.
+- The support-matrix gate fails a staged licensed row without a named
+  evidence test, and rejects an `#[ignore]`d citation (calibration tests run
+  only under `scripts/gate_calibration.sh`, so they are cited in `limitations`
+  as weekly-gate coverage, never as `evidence_test`). The frozen, shrink-only
+  exemption list for rows licensed before the rule
+  (`parity/_evidence_test_backlog.txt`) is empty: all 341 licensed rows name a
+  test that `cargo test` executes.
+
+### Removed
+
+- `antecedent_identify::identify_tiered_envelope`: a caller graph alongside a
+  tier background is refused at build, so the path had no callers.
+
+### Changed
+
+- The temporal dose × horizon conformance fixture pins the seeded
+  circular-block bands (pointwise and simultaneous edges, critical value,
+  block length, dispersion and kernel-bias factors) at 1e-9 relative in Rust
+  and Python; a determinism guard, with coverage still evidenced by the weekly
+  temporal response calibration gate.
+- The Bayesian temporal tempering factor fits its REML residual model once
+  per design (cached by content) with an O(q²p²) likelihood and a
+  Newton-polished optimum; the n = 800 temporal-response, sustained-window and
+  mediation posteriors are back within 1.5× of 1.8.0 (they had been 8–15×
+  slower, and ~100× after the REML change).
+- Bayesian prior and posterior predictive checks follow the latency tier
+  (50 Interactive / 200 Standard / 400 Report replicates) and run once per
+  distinct fitted design across graph-posterior and class-envelope atoms.
+- `Float64Column::new` establishes the NaN/validity invariant in one pass and
+  re-wrapping a constructed buffer no longer rescans (`F64Buffer::is_nan_free`).
+- Linear-adjustment fits compute `(XᵀX)⁻¹` once for the analytic SE and the
+  influence function.
+- TemporalDag Pulse and multi-step Sustained no longer size dependence-aware
+  circular blocks (score refits plus Politis–White scans) when no bootstrap
+  replicates are drawn; the scan is lag-lazy and the `bootstrap.ci_coverage`
+  refuter reuses the published length. The Interactive tier is 4–20× faster
+  (Pulse n=2000 0.60 → 0.11 ms; Sustained n=100k 178 → 10 ms); zero-replicate
+  diagnostics report the rule length and say so. The bench
+  `temporal_zero_replicates` guards it.
+- Serially dependent rows: Frequentist temporal SEs for plain TemporalDag
+  Pulse/Sustained, temporal mediation, DBN posteriors, class envelopes,
+  multi-step sequential, and the `bootstrap.ci_coverage` refuter resample
+  circular blocks of lag-aligned rows, not the raw series. The block length
+  is `max(span, ⌈n^{1/3}⌉)`, lengthened to Politis–White × `n^{1/6}` (cap
+  `n/3`) when any estimating score is persistently dependent: the target
+  influence, a mixture score, or any normal-equation score of any fitted
+  regression, residuals included (single-window and class/DBN paths included).
+  The replicate SD is scaled by the circular-Bartlett 95% fixed-b ratio
+  `cv_95(ℓ/n)/1.96` at every nominal level (including the gated 90% cells), so
+  the interval is a normal interval around a 95%-inflated SE rather than the
+  90% fixed-b critical-value interval, and by the Bartlett kernel-bias factor
+  of the interval's estimating scores (`antecedent_estimate::kernel_bias_scale`:
+  the AR(1)-prewhitened long-run variance over the Bartlett variance at the
+  block length, 1.01–1.05 on persistent scores, at most 1.01 on short-memory
+  ones); provenance diagnostics print both factors. iid analytic SEs on these cells are NaN;
+  a short-series warning fires when the series is short for the estimating
+  score's dependence.
+- Temporal response surfaces and observation / Sequence tuple bands use their
+  own dependence-aware block rule, `max(max(span, ⌈√n⌉), min(⌈b_PW·n^{1/6}⌉,
+  n/3))`, with `b_PW` read from the level's normal-equation scores and centered
+  covariate columns, on all four paths (complete-data surface,
+  observation-adjusted surface, Sequence and class-observation tuple bands).
+  Every horizon of a replicate is refit on the same calendar times over the
+  window all horizons can evaluate. They publish no band without bootstrap
+  replicates (`estimate.temporal_response.band_withheld`). AR(1) ρ = 0.9
+  residuals are a boundary record (0.887–0.943 pointwise, 0.877 simultaneous at
+  nominal 0.95), disclosed on every band; a persistent AR(1) φ = 0.9 treatment
+  is gated for the dose curve.
+- The static Kennedy-DR multiplier band, the Gaussian max-t band and the
+  temporal sup-t band read their critical value at one `⌈level·(B+1)⌉` rank.
+- `estimate.temporal.circular_block_se.short_series` uses a threshold per SE
+  family, set from a coverage sweep over AR(1) persistence and series length
+  ([thresholds](docs/short-series-thresholds.md)): 45 score effective rows for
+  Pulse / single-step Sustained, 40 for temporal mediation, 40 for multi-step
+  Sustained and 155 for class and DBN mixtures, where the statistic is the
+  smaller of a lag-1 and a block-length reading over every estimating score
+  (every atom's, for mixtures). It replaces one floor of 100: short-memory
+  designs that cover nominally stop warning from n = 160, and
+  persistent-treatment designs and mixtures with a biased non-causal completion
+  that under-cover now warn. Multi-step Sustained on one TemporalDag reports its
+  circular-block provenance and the warning. The mediation threshold rose from
+  35 to 40 when the sweep was re-measured on the current SE construction.
+- The default bootstrap replicate count is 199 (was 50): the Rust `Study`
+  default, the Python `standard` latency tier and untiered `analyze()`.
+- `rd.sharp` reports the HC1 residual-sandwich standard error by default
+  (assumption `rd.sharp.conventional_robust_se`); the classical homoskedastic
+  SE is an explicit opt-in via
+  `RdConfig::with_se_kind(AnalyticSeKind::Homoskedastic)` and records
+  `rd.sharp.homoskedastic_se`. Point estimates are unchanged; `se_analytic`
+  changes for every `rd.sharp` result.
+- `AnalyticSeKind::Hc2` / `Hc3` on AIPW, Wald IV and the other
+  influence-function SE paths return an error instead of the HC1 value; use
+  `Hc0` or `Hc1`. `Hc0` on those paths now computes the uncorrected
+  `√(Σ(ψ − ψ̄)²)/n` (it returned HC1).
+- Bayesian temporal likelihoods (Pulse, Sustained, class and DBN atoms,
+  temporal responses per horizon, and both temporal mediation mechanisms) are
+  tempered by a serial-dependence factor κ. The result is a generalized
+  posterior and is labelled as one. κ is the design-conditional variance ratio
+  of the effect's combination under an AR(q ≤ 4) residual fitted by REML (the
+  OLS-residual Yule–Walker and kernel fits were biased toward independence by
+  the projection), times n/(n − tr(HR)) for the residual scale the projection
+  removes, times exp(τ²/2) for the delta-method spread of log κ; the
+  prewhitened Newey–West ratio remains only as a bound, and κ stays 1 on exact
+  fits. Nominal-90% coverage is 0.873–0.907 for Pulse and Sustained and
+  0.895–0.945 for temporal mediation under AR(2)(0.3, 0.5), ARMA(1,1) and
+  MA(2) treatment and residual at n = 60–400 (AR(2) Pulse was 0.81 at n = 60
+  and 0.87 at n = 160), with AR(1) and iid cells unchanged in band and 3–17%
+  shorter. Long memory is still not corrected. Temporal mediation tempers the
+  mediator along its path slope and the outcome at the largest ratio over its
+  direct, mediated and total directions.
+- Posterior predictive replicates include observation noise drawn from the
+  fitted likelihood (Gaussian residual draw, Bernoulli, Poisson) with the
+  family's inverse link. A residual prior without a finite mean scores only
+  the one-sided dispersion tail. A failing serial axis on a tempered
+  posterior reports κ instead of reading as a refutation of the interval.
+- Bayesian `full` prior sensitivity and prior predictive checks use the
+  prior in force. A staged or transferred prior is perturbed by a
+  variance-multiplier grid; the isotropic grid applies only when no prior
+  was supplied.
+- Temporal prior transfer fingerprints lag coordinates and coefficient
+  names. Index-only transfer between different lag structures, and transfer
+  from artifacts without coefficient names, fail closed.
+- Multi-atom refuters compare each atom with its own estimate, not the
+  pooled mixture.
+- `bootstrap.ci_coverage` resamples lag-aligned rows with the block length
+  of the interval it checks. When a Bayesian posterior mean sits more than
+  0.25 posterior SD from the least-squares contrast it refits, the check is
+  not applicable instead of reporting a spurious refutation. On Bayesian
+  cells it places the posterior mean inside a least-squares bootstrap
+  interval; its messages no longer say it checks the published credible
+  interval.
+- The temporal selected-AIPW observation outcome model conditions on the
+  columns of the downstream design, restoring orthogonality. Its cross-fitting
+  folds are contiguous time blocks keyed by each tuple's source position, so a
+  resampled copy never trains the nuisance that predicts itself.
+- Observation-adjusted Sequences whose unfolded design reads the outcome at a
+  nonzero lag are refused: the observation correction replaces the outcome
+  column with pseudo-outcomes, which would enter that design as an
+  error-in-variables regressor.
+- Static CPDAG/PAG Bayesian envelopes publish the posterior of the
+  frozen-weight mixture functional. Probability-weighted mixtures (graph
+  posteriors, `ClassPrior`) keep the model average over graph-specific
+  effects.
+- Point-derivative intervals are robust bias-corrected; the Bayesian point
+  derivative refits nuisances every draw. Second derivatives take their
+  bias-corrected curvature and level from a local quartic (order-2 coverage
+  0.695 → 0.880), and the log-outcome scale's bias-corrected level comes from
+  the same quartic.
+- ConditionalEffect SEs include the sampling variance of the modifier mean.
+- Static graph-posterior Frequentist ATE/CATE SEs use joint
+  influence-function covariance across atoms instead of NaN. Graph-posterior
+  responses publish the joint-IF SE only for a scalar aggregate; a
+  multi-atom curve withholds its band.
+- Prepared handles record the data modality they were compiled for and
+  refuse the other modalities at estimate and refresh; `refresh_series` commits
+  new data only after estimation succeeds; panel prepare refuses units whose
+  time-index regularity disagrees.
+- Python prepared `TemporalMediationEffect` with `bootstrap=None` follows the
+  latency tier for its circular-block replicates instead of running none.
+  Python graph-posterior static responses and ADMG distributions are refused
+  with a message that they are licensed in the Rust Study API only.
+- Supplying `.graph()` together with `.tiered_background()` is a conflict.
+- Frequentist interventional distributions publish a logit-bounded 95%
+  interval for every atom probability, formed on the logit scale from that
+  atom's bootstrap SE, instead of only a bootstrap SE of the mean. A symmetric
+  `mean ± z·se` could leave `[0, 1]` near 0 and 1. A binary outcome's mean
+  carries its `Y = 1` atom's interval. A plug-in probability of exactly 0 or
+  1 publishes no interval and warns `estimate.distribution.interval_unavailable`.
+  400-replicate coverage at the 199-replicate default is 0.935–0.950 at
+  0.035, 0.465 and 0.965. Rust:
+  `InterventionalDistributionEstimate::atom_uncertainty` / `mean_interval`;
+  Python: `EstimateView.distribution` / `mean_interval`, and result reprs
+  print the interval instead of `± se` for these cells.
+- The ATT/ATC analytic SE is documented as not doubly robust: the point
+  estimate is, but under one-model misspecification the SE omits
+  nuisance-estimation terms.
+
+### Fixed
+
+- Bayesian derivative credible intervals take exchangeable-rank (type-6)
+  quantiles of their draws, which cover at the level for any draw count; the
+  GAM-gradient band also inflates its draw spread by the fit's degrees of
+  freedom (`sqrt(n/(n − edf))`, under 1% at the defaults). The directional and
+  order-2 point-derivative cells return to nominal gates (0.893/0.890 and
+  0.896 at 2000 replicates); the Jacobian band remains a named boundary on one
+  coordinate (0.883 on the gate's seeds; 0.892–0.897 over 10 000 designs).
+- Temporal response bands carry a per-cell parametric kernel-bias factor
+  (`response.temporal.kernel_bias_factor`) and a short-series warning
+  (`response.temporal.block.short_series`, below 15 effective rows). The shift
+  response under an AR(1) φ=0.9 treatment is gated (0.943 / 0.948 at nominal
+  0.95; 0.910 / 0.912 before). AR(1) ρ=0.9 residuals remain a disclosed
+  boundary (0.887–0.943 / 0.877 at n=160): the persistent part is 15% of the
+  residual and its long-run ratio is not estimable at n ≤ 1000.
+- Production contexts (`ExecutionContext::production`, hence every Python
+  `analyze`) enabled an adaptive bootstrap budget that stopped once one
+  replicate changed the running SE by under 1%. Every static bootstrap SE
+  stopped at 10–24 replicates whatever `bootstrap=` requested (about 15–22%
+  Monte Carlo error on the SE), the default change 50→199 had no effect on
+  static cells, and the static linear mediation SE was identical at B=199 and
+  B=800. The Laplace draw budget had the same defect through a quantile-width
+  rule. Production now evaluates the full request, as the calibration gates
+  do; `bootstrap_replicates_ok` and `early_stopped` are truthful. The opt-in
+  `AdaptiveBootstrapBudget` stops only once the relative Monte Carlo SE of the
+  bootstrap SE (`1/√(2(B−1))`) is at most `se_rel_epsilon` (201 replicates at
+  the 5% default); `AdaptiveDrawBudget` uses its ESS target alone. Bootstrap
+  SEs are more precise and bootstrapped runs take roughly the replicate ratio
+  longer (8–17× at the default 199, single-threaded: OLS ATE n=100k
+  0.14 s→1.9 s, AIPW n=100k 2.4 s→42 s, IPW 0.5 s→8 s).
+- Graph atoms left out of the Interactive latency tier's 16-atom subsample
+  were reported as unidentified mass. They are now `subsampled_out_mass` on the
+  Frequentist and Bayesian graph-posterior ATE, graph-posterior responses,
+  DBN-posterior ATE and mediation, and CPDAG/PAG Bayesian class envelopes; the
+  envelope diagnostic lists the skipped atoms, and Bayesian graph-posterior and
+  DBN-posterior ATE results report `GraphDependent` whenever unidentified or
+  subsampled-out mass is present.
+- A graph posterior that lists the same DAG more than once (for example an
+  equal-weight bootstrap or MCMC ensemble passed sample by sample) now weights
+  that DAG by its combined mass once in Frequentist ATE/CATE and
+  graph-posterior response mixtures; a DAG listed k times entered with k² times
+  its per-sample weight and identified mass could exceed 1. Bayesian static
+  envelopes and DBN posteriors were already correct, and the built-in samplers
+  already merge repeated graphs.
+- The lagged-outcome regressor refusal covers every observation-adjusted
+  temporal design, not only Sequences (no current identification path reaches
+  it for curves; the guard is defense in depth).
+- Null Float64 cells (Arrow nulls, and NumPy/pandas NaN, which become Arrow
+  nulls on the way in) were stored as 0.0 and could enter estimators that read
+  column values directly — such as ResponseCurve, GCM fitting and attribution —
+  as observed zeros; with zero-copy Arrow C-data import, masked pyarrow values
+  could be used as observations. Missing Float64 cells now always hold NaN and
+  are excluded like a dropped row, and a fixed-size-list row with a null
+  element is treated as missing.
+- A NaN in a Float64 column is now always a missing cell (validity cleared),
+  so data built from raw f64 slices (`from_f64_columns`, `try_from_schema_f64`,
+  `TimeSeriesData::from_f64_columns`) or non-null Arrow NaN values no longer
+  fails the ATE as rank deficient or returns a NaN effect; such rows are
+  dropped from complete-case estimates like nulls, and temporal paths fail
+  closed with `IncompleteSeries`.
+- The recanting-witness check refused any node on both a selected and an
+  unselected path. It now applies the exact Avin–Shpitser–Pearl criterion: a
+  treatment child that starts both a selected and an unselected directed path.
+  Graphs whose shared node is reached through different treatment children,
+  and natural effects with a post-mediator node, are identified.
+- Linear natural indirect effects record `mediation.no_interaction`: the
+  estimate is total − direct (the total natural indirect effect) while
+  identification certifies the pure one; they coincide only without
+  treatment–mediator interaction.
+- Python `analyze(..., bootstrap=N)` was silently ignored on temporal
+  responses and on static CPDAG/PAG and TieredBackground responses, and
+  `PreparedAnalysis.prepare()` dropped it on every response. Every response
+  route now either uses it or refuses it.
+- Temporal mediation omitted mediator–outcome confounders from its
+  adjustment set, biasing the mediated effect.
+- Path-specific effects returned the total effect when another directed
+  path existed; they now use the edge g-formula.
+- The linear-adjustment influence function centred the treatment instead
+  of residualizing it, understating static envelope SEs.
+- AIPW ATT/ATC standard errors on the residualized branch, Kennedy-DR
+  response-curve bands, and penalized g-computation response levels
+  missed nominal coverage.
+- The shared circular-block mixture SE was inflated 1.35–2.3× by lag windows
+  spanning block junctions.
+- The temporal response surface bootstrap drew block starts on the full series
+  axis and wrapped them per horizon, breaking calendar alignment after a wrap;
+  a tuple band no longer carries the inner fit's zero-replicate withholding
+  note, and the class-observation note says when the class band comes from the
+  outer bootstrap.
+- Python native responses reported unevaluable mass inside
+  `unidentified_mass`; they now carry `unevaluable_mass` separately.
+- The unevaluable share of a multi-step class-prior mixture is no longer
+  counted as unidentified mass on the posterior.
+- `docs/priors.md` no longer implies that dropping posterior covariance is
+  conservative for every linear combination of coefficients, and describes the
+  catalog's temporal-coordinate check as opt-in: nothing populates it, and
+  external prior-bank compose performs no lag check.
+- Limitations text now matches behaviour: PAG rows no longer cite withdrawn
+  evidence, ADMG rows no longer say Bayesian is refused, and evidence kinds
+  claim a known-truth comparison only where one runs.
+
 ## [1.8.0] — 2026-09-13
 
 ### Added
@@ -2005,7 +2405,8 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/iridae-dev/antecedent/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/iridae-dev/antecedent/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/iridae-dev/antecedent/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/iridae-dev/antecedent/compare/v1.5.0...v1.6.0

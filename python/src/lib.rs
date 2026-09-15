@@ -73,8 +73,14 @@ pub(crate) fn parse_within_tier(
 
 type MechanismWireEntry = (String, Option<f64>, Option<Vec<f64>>, Option<f64>);
 type ModelBundleSummary = (Vec<String>, Vec<(u32, u32)>, usize);
-type PriorSensitivityFields =
-    (Option<Vec<f64>>, Option<Vec<f64>>, Option<Vec<f64>>, Option<Vec<f64>>);
+type PriorSensitivityFields = (
+    Option<Vec<f64>>,
+    Option<Vec<f64>>,
+    Option<Vec<f64>>,
+    Option<Vec<f64>>,
+    Option<String>,
+    Option<Vec<f64>>,
+);
 type ConflictSummaryFields = (Option<Vec<String>>, Option<Vec<f64>>, Option<Vec<f64>>);
 
 use std::any::Any;
@@ -596,6 +602,48 @@ pub(crate) fn public_adjustment_set(
     }
 }
 
+/// Scalar identified set `[lower, upper]` of a class-aware result and its
+/// interval: endpoints, level, construction, and truncation flag (1.9, C-3).
+#[derive(Default)]
+pub(crate) struct IdentifiedSetFields {
+    pub set: Option<(f64, f64)>,
+    pub interval: Option<(f64, f64)>,
+    pub level: Option<f64>,
+    /// Wire tag of the construction (`imbens_manski_shared_block` or
+    /// `product_posterior_envelope_quantile`).
+    pub method: Option<String>,
+    /// The set spans a capped (retained-only) completion enumeration.
+    pub truncated: Option<bool>,
+}
+
+pub(crate) fn identified_set_fields(result: &antecedent::StudyResult) -> IdentifiedSetFields {
+    let Some(mixture) = result.structural_response.as_ref() else {
+        return IdentifiedSetFields::default();
+    };
+    let set = mixture
+        .identified_set
+        .as_ref()
+        .filter(|set| set.lower.len() == 1 && set.upper.len() == 1)
+        .map(|set| (set.lower[0], set.upper[0]));
+    let interval = mixture.identified_set_interval.as_ref();
+    IdentifiedSetFields {
+        set,
+        interval: interval.map(|i| (i.lower, i.upper)),
+        level: interval.map(|i| i.level),
+        method: interval.and_then(|i| identified_set_method_tag(i.method)),
+        truncated: interval.map(|i| i.truncated),
+    }
+}
+
+/// Wire tag of an identified-set interval construction (`None` for one the
+/// artifact format has no tag for, which the artifact encoder refuses too).
+fn identified_set_method_tag(
+    method: antecedent_estimate::IdentifiedSetIntervalMethod,
+) -> Option<String> {
+    let wire = antecedent_io::IdentifiedSetIntervalMethodWire::try_from_method(method).ok()?;
+    serde_json::to_value(wire).ok()?.as_str().map(str::to_owned)
+}
+
 pub(crate) fn evidence_status_parts(
     status: Option<antecedent::CellStatus>,
 ) -> (Option<String>, Option<String>, Option<String>) {
@@ -620,6 +668,22 @@ pub(crate) struct AteAnalysisResult {
     pub(crate) structural_unidentified_mass: Option<f64>,
     #[pyo3(get)]
     pub(crate) structural_unevaluable_mass: Option<f64>,
+    /// Scalar identified set `(lower, upper)` over identified completions.
+    #[pyo3(get)]
+    pub(crate) structural_identified_set: Option<(f64, f64)>,
+    /// Interval for the identified set at `structural_identified_set_interval_level`
+    /// (construction in `structural_identified_set_interval_method`).
+    #[pyo3(get)]
+    pub(crate) structural_identified_set_interval: Option<(f64, f64)>,
+    #[pyo3(get)]
+    pub(crate) structural_identified_set_interval_level: Option<f64>,
+    /// `imbens_manski_shared_block` (Frequentist coverage of the true
+    /// completion's effect) or `product_posterior_envelope_quantile` (Bayesian).
+    #[pyo3(get)]
+    pub(crate) structural_identified_set_interval_method: Option<String>,
+    /// The set spans a capped completion enumeration (retained completions only).
+    #[pyo3(get)]
+    pub(crate) structural_identified_set_interval_truncated: Option<bool>,
     #[pyo3(get)]
     pub(crate) certificate_json: Option<String>,
     #[pyo3(get)]
@@ -749,6 +813,13 @@ pub(crate) struct AteAnalysisResult {
     prior_sensitivity_means: Option<Vec<f64>>,
     #[pyo3(get)]
     prior_sensitivity_sds: Option<Vec<f64>>,
+    /// Perturbed prior family: `isotropic_scale`, `external_alpha`, or
+    /// `resolved_prior_variance`.
+    #[pyo3(get)]
+    prior_sensitivity_family: Option<String>,
+    /// Variance multipliers around the resolved prior (resolved-prior family only).
+    #[pyo3(get)]
+    prior_sensitivity_variance_multipliers: Option<Vec<f64>>,
     #[pyo3(get)]
     conflict_source_ids: Option<Vec<String>>,
     #[pyo3(get)]
@@ -757,6 +828,8 @@ pub(crate) struct AteAnalysisResult {
     conflict_alphas_applied: Option<Vec<f64>>,
     #[pyo3(get)]
     posterior_unidentified_mass: Option<f64>,
+    #[pyo3(get)]
+    posterior_subsampled_out_mass: Option<f64>,
     #[pyo3(get)]
     latency_mode: Option<String>,
     #[pyo3(get)]
@@ -903,24 +976,19 @@ impl RefutationReportView {
 // --- Nested result sections --------------------------------------------------------
 //
 // `AteAnalysisResult` (static) and `temporal_api::AnalysisResult` are both flat DTOs
-// with a lot of field-name overlap. These section pyclasses give both a shared,
-// structured view — `result.identification`, `result.estimate`, `result.posterior`,
-// `result.validation`, `result.performance` — mirroring the nested dataclasses in
-// `antecedent.results._views` field-for-field, so the Python wrapper that used to
-// hand-copy ~60 flat attributes per DTO can instead copy one section object per view.
-//
-// Purely additive: every existing flat field on both DTOs stays exactly where it is.
-// These are read-only companions built from the same underlying `StudyResult`, not a
-// replacement wire format. The temporal DTO genuinely lacks some of the fields the
-// static one has (see each section's doc comment for which); those come through as
-// `None` on the temporal side rather than a fabricated zero or empty string.
+// with a lot of field-name overlap. `shared_study_sections` is the one
+// `StudyResult →` section builder; facades only attach modality extras (ATE
+// posterior artifacts, temporal mediation grids). Nested sections mirror
+// `antecedent.results._views`. Flat fields stay in place and are filled from
+// the same builder so 1.9 fields (`structural_identified_set_interval`,
+// `distribution.mean_interval`) have a single owner.
 
 /// Identification section (mirrors `antecedent.results.IdentificationView`).
 ///
 /// Identical shape on both DTOs — the temporal facade always populates every field.
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
-struct IdentificationSection {
+pub(crate) struct IdentificationSection {
     /// Identification status string (e.g. `"NonparametricallyIdentified"`).
     #[pyo3(get)]
     status: String,
@@ -945,24 +1013,24 @@ struct IdentificationSection {
 /// temporal facade has no overlap report to draw them from.
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
-struct EstimateSection {
+pub(crate) struct EstimateSection {
     /// Scalar contrast when one exists. Function-valued results omit it.
     #[pyo3(get)]
-    ate: Option<f64>,
+    pub(crate) ate: Option<f64>,
     #[pyo3(get)]
-    se_analytic: f64,
+    pub(crate) se_analytic: f64,
     #[pyo3(get)]
-    se_bootstrap: Option<f64>,
+    pub(crate) se_bootstrap: Option<f64>,
     #[pyo3(get)]
-    estimator_id: String,
+    pub(crate) estimator_id: String,
     #[pyo3(get)]
-    method: String,
+    pub(crate) method: String,
     /// Effective sample size under overlap weighting. `None` on the temporal DTO.
     #[pyo3(get)]
-    overlap_ess: Option<f64>,
+    pub(crate) overlap_ess: Option<f64>,
     /// Minimum estimated propensity score. `None` on the temporal DTO.
     #[pyo3(get)]
-    overlap_propensity_min: Option<f64>,
+    pub(crate) overlap_propensity_min: Option<f64>,
     /// Per-arm / per-threshold interventional means or exceedance probabilities.
     #[pyo3(get)]
     functional_means: Option<Vec<f64>>,
@@ -998,6 +1066,340 @@ struct EstimateSection {
     candidate_selection: Option<CandidateSelectionSection>,
     #[pyo3(get)]
     evalue: Option<f64>,
+    /// Interventional-distribution atoms with their probability intervals.
+    /// `None` for non-distribution queries.
+    #[pyo3(get)]
+    distribution_atoms: Option<Vec<DistributionAtomSection>>,
+    /// Bounded interval for the interventional mean of a binary `{0, 1}`
+    /// outcome (the probability `P(Y = 1 | do(x))`). `None` otherwise.
+    #[pyo3(get)]
+    mean_interval: Option<ProbabilityIntervalSection>,
+}
+
+/// Bounded interval for one interventional probability, or the reason none
+/// could be formed.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct ProbabilityIntervalSection {
+    /// Nominal two-sided level; `None` when unavailable.
+    #[pyo3(get)]
+    level: Option<f64>,
+    /// Lower bound in `[0, 1]`; `None` when unavailable.
+    #[pyo3(get)]
+    lower: Option<f64>,
+    /// Upper bound in `[0, 1]`; `None` when unavailable.
+    #[pyo3(get)]
+    upper: Option<f64>,
+    /// Machine-readable reason when no interval could be formed.
+    #[pyo3(get)]
+    unavailable: Option<String>,
+}
+
+impl ProbabilityIntervalSection {
+    pub(crate) fn new(interval: antecedent_estimate::ProbabilityInterval) -> Self {
+        match interval {
+            antecedent_estimate::ProbabilityInterval::Bounded { level, lower, upper } => Self {
+                level: Some(level),
+                lower: Some(lower),
+                upper: Some(upper),
+                unavailable: None,
+            },
+            antecedent_estimate::ProbabilityInterval::Unavailable(reason) => Self {
+                level: None,
+                lower: None,
+                upper: None,
+                unavailable: Some(reason.as_str().to_string()),
+            },
+        }
+    }
+}
+
+/// One interventional-distribution atom.
+#[pyclass(skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct DistributionAtomSection {
+    /// `(outcome name, level)` pairs in query order.
+    #[pyo3(get)]
+    outcomes: Vec<(String, Option<f64>)>,
+    /// `(conditioning name, level)` pairs; empty when unconditional.
+    #[pyo3(get)]
+    conditioning: Vec<(String, Option<f64>)>,
+    /// Estimated probability (posterior mean in Bayesian mode).
+    #[pyo3(get)]
+    probability: f64,
+    /// Frequentist bootstrap SE of this probability.
+    #[pyo3(get)]
+    se_bootstrap: Option<f64>,
+    /// Frequentist bounded interval; `None` when no bootstrap ran.
+    #[pyo3(get)]
+    interval: Option<ProbabilityIntervalSection>,
+}
+
+/// Distribution atoms and the binary-mean interval for the estimate section.
+pub(crate) fn distribution_sections(
+    names: &[String],
+    distribution: Option<&antecedent_estimate::InterventionalDistributionEstimate>,
+) -> (Option<Vec<DistributionAtomSection>>, Option<ProbabilityIntervalSection>) {
+    let Some(dist) = distribution else {
+        return (None, None);
+    };
+    let named = |pairs: &[(antecedent_core::VariableId, antecedent_core::Value)]| {
+        pairs
+            .iter()
+            .map(|(id, value)| {
+                let name =
+                    names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()));
+                (name, value.as_f64())
+            })
+            .collect::<Vec<_>>()
+    };
+    let atoms = dist
+        .atoms
+        .iter()
+        .enumerate()
+        .map(|(i, atom)| {
+            let uncertainty = dist.atom_uncertainty.get(i);
+            DistributionAtomSection {
+                outcomes: named(&atom.outcomes),
+                conditioning: named(&atom.conditioning),
+                probability: atom.probability,
+                se_bootstrap: uncertainty.and_then(|u| u.se_bootstrap),
+                interval: uncertainty.map(|u| ProbabilityIntervalSection::new(u.interval)),
+            }
+        })
+        .collect();
+    let mean = dist.mean_interval.map(ProbabilityIntervalSection::new);
+    (Some(atoms), mean)
+}
+
+/// Shared `StudyResult →` sections. Static and temporal facades attach extras only.
+pub(crate) struct SharedStudySections {
+    pub identification: IdentificationSection,
+    pub estimate: EstimateSection,
+    pub posterior: PosteriorSection,
+    pub validation: ValidationSection,
+    pub performance: PerformanceSection,
+    pub identified_set: IdentifiedSetFields,
+    pub identification_status: String,
+    pub method: String,
+    pub adjustment_set: Vec<String>,
+    pub estimator_id: String,
+    pub plan_id: String,
+    pub modality: String,
+    pub refutations: Vec<RefutationReportView>,
+    pub evidence_status: Option<String>,
+    pub allowlist_reason: Option<String>,
+    pub allowlist_parent: Option<String>,
+    pub structural_weight_basis: Option<String>,
+    pub structural_identified_mass: Option<f64>,
+    pub structural_unidentified_mass: Option<f64>,
+    pub structural_unevaluable_mass: Option<f64>,
+}
+
+impl SharedStudySections {
+    pub(crate) fn with_posterior_artifact(mut self, artifact: Option<Vec<u8>>) -> Self {
+        self.posterior.artifact = artifact;
+        self
+    }
+}
+
+pub(crate) fn shared_study_sections(
+    names: &[String],
+    result: &antecedent::StudyResult,
+    estimator_id: String,
+) -> PyResult<SharedStudySections> {
+    let adjustment_set: Vec<String> = public_adjustment_set(
+        result.identification.status,
+        result
+            .estimand
+            .adjustment_set
+            .iter()
+            .map(|id| {
+                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
+            })
+            .collect(),
+    );
+    let identification_status = format!("{:?}", result.identification.status);
+    let method = result.estimand.method.to_string();
+    let refutations: Vec<RefutationReportView> =
+        result.refutations.iter().map(RefutationReportView::from).collect();
+    let plan_id = result.logical_plan.plan_id.to_string();
+    let modality = format!("{:?}", result.logical_plan.data_classification);
+    let latency_mode =
+        result.performance.latency_mode.as_ref().map(std::string::ToString::to_string);
+    let bootstrap_replicates_ok =
+        result.performance.bootstrap_replicates_ok.or(result.estimate.bootstrap_replicates_ok);
+    let cancelled = result.performance.cancelled || result.estimate.bootstrap_cancelled;
+    let stage_timings: Vec<(String, u64)> =
+        result.performance.stage_timings_ns.iter().map(|(s, ns)| (s.to_string(), *ns)).collect();
+    let identification = IdentificationSection {
+        status: identification_status.clone(),
+        method: method.clone(),
+        adjustment_set: adjustment_set.clone(),
+        assumption_count: result.estimate.assumptions.len(),
+        derivation_step_count: result.identification.derivation.steps.len(),
+    };
+    let (distribution_atoms, mean_interval) =
+        distribution_sections(names, result.distribution.as_ref());
+    let overlap_ess = result.estimate.overlap_report.as_ref().and_then(|r| r.ess);
+    let overlap_propensity_min = result.estimate.overlap_report.as_ref().map(|r| r.propensity_min);
+    let estimate = EstimateSection {
+        ate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
+        se_analytic: result.estimate.se_analytic,
+        se_bootstrap: result.estimate.se_bootstrap,
+        estimator_id: estimator_id.clone(),
+        method: method.clone(),
+        overlap_ess,
+        overlap_propensity_min,
+        functional_means: result
+            .estimate
+            .score_inference
+            .as_ref()
+            .map(|s| s.raw_means.clone())
+            .or_else(|| {
+                result
+                    .estimate
+                    .score_table
+                    .as_ref()
+                    .and_then(|t| t.summarize(None).ok().map(|s| s.means.to_vec()))
+            }),
+        joint_covariance: result
+            .estimate
+            .joint_covariance
+            .as_ref()
+            .map(|c| (0..c.dim).map(|i| (0..c.dim).map(|j| c.get(i, j)).collect()).collect()),
+        score_inference: result.estimate.score_inference.as_ref().map(ScoreInferenceSection::from),
+        scenario_effects: result.estimate.scenario_effects.as_ref().map(|v| v.to_vec()),
+        scenario_intervals: result.estimate.scenario_intervals.as_ref().map(|v| v.to_vec()),
+        exceedance_cdf: result.estimate.exceedance_cdf.as_ref().map(|v| v.to_vec()),
+        monotone_rearranged: result.estimate.monotone_rearranged,
+        interaction_structurally_zero: result
+            .response
+            .as_ref()
+            .map(|r| r.interaction_structurally_zero)
+            .or(Some(result.estimate.interaction_structurally_zero)),
+        score_table: result.estimate.score_table.as_ref().map(|t| ScoreTableSection {
+            n_rows: t.n_rows,
+            n_folds: t.n_folds,
+            provenance: t.nuisance_provenance.to_string(),
+            columns: t.columns.iter().map(|c| (c.arm, c.threshold)).collect(),
+            scores: t.scores.to_vec(),
+            row_index: t.row_index.to_vec(),
+            fold_ids: t.fold_ids.to_vec(),
+            adjustment_set: t.adjustment_set.iter().map(|v| v.raw()).collect(),
+            observed_arm: t.observed_arm.to_vec(),
+            propensities: t.propensities.to_vec(),
+            observed_outcome: t.observed_outcome.to_vec(),
+            treatment: t.treatment.raw(),
+            intervened: t.intervened.iter().map(|v| v.raw()).collect(),
+        }),
+        simultaneous_interval: result.estimate.simultaneous_interval,
+        adjusted_p_values: result.estimate.adjusted_p_values,
+        family_contrast: result.estimate.family_contrast,
+        family_contrast_interval: result.estimate.family_contrast_interval,
+        candidate_selection: result
+            .estimate
+            .candidate_selection
+            .as_ref()
+            .map(|s| CandidateSelectionSection {
+                screen_id: s.screen_id.to_string(),
+                procedure: s.procedure.to_string(),
+                winner_index: s.winner_index,
+                family_size: s.family_size,
+                screen_rows: s.screen_rows.to_vec(),
+                estimate_rows: s.estimate_rows.to_vec(),
+                disjoint: s.disjoint,
+            })
+            .or_else(|| {
+                result.candidate_selection.as_ref().map(|s| CandidateSelectionSection {
+                    screen_id: s.screen_id.to_string(),
+                    procedure: s.procedure.as_str().to_string(),
+                    winner_index: s.winner_index,
+                    family_size: s.family_size,
+                    screen_rows: s.screen_rows.to_vec(),
+                    estimate_rows: s.estimate_rows.to_vec(),
+                    disjoint: s.disjoint,
+                })
+            }),
+        evalue: result.estimate.evalue,
+        distribution_atoms,
+        mean_interval,
+    };
+    let (
+        posterior_effect_mean,
+        posterior_effect_sd,
+        posterior_q025,
+        posterior_q975,
+        posterior_n_draws,
+        posterior_p_below_zero,
+        posterior_backend,
+    ) = if let Some(post) = result.posterior.as_ref() {
+        let eq = post.effect_column();
+        let p_below = eq.map(|_| post.probability_below(0.0)).transpose().map_err(py_err)?;
+        (
+            eq.map(|i| post.summaries.mean[i]),
+            eq.map(|i| post.summaries.sd[i]),
+            eq.map(|i| post.summaries.q025[i]),
+            eq.map(|i| post.summaries.q975[i]),
+            Some(post.draws.n_draws),
+            p_below,
+            Some(post.diagnostics.backend_id.to_string()),
+        )
+    } else {
+        (None, None, None, None, None, None, None)
+    };
+    let posterior = PosteriorSection {
+        effect_mean: posterior_effect_mean,
+        effect_sd: posterior_effect_sd,
+        q025: posterior_q025,
+        q975: posterior_q975,
+        n_draws: posterior_n_draws,
+        p_below_zero: posterior_p_below_zero,
+        backend: posterior_backend,
+        artifact: None,
+        unidentified_mass: result.posterior.as_ref().map(|p| p.unidentified_mass),
+        subsampled_out_mass: result.posterior.as_ref().map(|p| p.subsampled_out_mass),
+    };
+    let validation = ValidationSection::from_reports(refutations.clone(), &result.diagnostics);
+    let performance = PerformanceSection {
+        plan_id: plan_id.clone(),
+        modality: modality.clone(),
+        peak_memory_bytes: result.physical_plan.estimated_peak_memory_bytes,
+        latency_mode,
+        wall_time_ns: result.performance.wall_time_ns,
+        bootstrap_replicates_requested: result.performance.bootstrap_replicates_requested,
+        bootstrap_replicates_ok,
+        n_draws: result.performance.n_draws,
+        cancelled,
+        early_stopped: result.performance.early_stopped,
+        stage_timings,
+        bytes_borrowed: result.performance.bytes_borrowed,
+    };
+    let (evidence_status, allowlist_reason, allowlist_parent) =
+        evidence_status_parts(result.support_status);
+    let structural = result.structural_response.as_ref();
+    Ok(SharedStudySections {
+        identification,
+        estimate,
+        posterior,
+        validation,
+        performance,
+        identified_set: identified_set_fields(result),
+        identification_status,
+        method,
+        adjustment_set,
+        estimator_id,
+        plan_id,
+        modality,
+        refutations,
+        evidence_status,
+        allowlist_reason,
+        allowlist_parent,
+        structural_weight_basis: structural.map(|mixture| mixture.weight_basis.as_str().into()),
+        structural_identified_mass: structural.map(|m| m.identified_mass),
+        structural_unidentified_mass: structural.map(|m| m.unidentified_mass),
+        structural_unevaluable_mass: structural.map(|m| m.unevaluable_mass),
+    })
 }
 
 /// Typed candidate-selection provenance on a batch result.
@@ -1107,26 +1509,30 @@ impl From<&antecedent_estimate::scores::ScoreInference> for ScoreInferenceSectio
 /// flat DTOs already carry these fields as `Option`.
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
-struct PosteriorSection {
+pub(crate) struct PosteriorSection {
     #[pyo3(get)]
-    effect_mean: Option<f64>,
+    pub(crate) effect_mean: Option<f64>,
     #[pyo3(get)]
-    effect_sd: Option<f64>,
+    pub(crate) effect_sd: Option<f64>,
     #[pyo3(get)]
-    q025: Option<f64>,
+    pub(crate) q025: Option<f64>,
     #[pyo3(get)]
-    q975: Option<f64>,
+    pub(crate) q975: Option<f64>,
     #[pyo3(get)]
-    n_draws: Option<usize>,
+    pub(crate) n_draws: Option<usize>,
     #[pyo3(get)]
-    p_below_zero: Option<f64>,
+    pub(crate) p_below_zero: Option<f64>,
     #[pyo3(get)]
-    backend: Option<String>,
+    pub(crate) backend: Option<String>,
     /// Serialized posterior artifact bytes, when requested and available.
     #[pyo3(get)]
-    artifact: Option<Vec<u8>>,
+    pub(crate) artifact: Option<Vec<u8>>,
     #[pyo3(get)]
-    unidentified_mass: Option<f64>,
+    pub(crate) unidentified_mass: Option<f64>,
+    /// Identified graph mass the Interactive tier left out of the envelope
+    /// subsample (not evaluated; not unidentified).
+    #[pyo3(get)]
+    pub(crate) subsampled_out_mass: Option<f64>,
 }
 
 /// Validation section (mirrors the `passed` / `ran` / `count` / `reports` fields of
@@ -1140,13 +1546,13 @@ struct PosteriorSection {
 /// `refutation_passed` fields exactly.
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
-struct ValidationSection {
+pub(crate) struct ValidationSection {
     #[pyo3(get)]
-    passed: bool,
+    pub(crate) passed: bool,
     #[pyo3(get)]
-    ran: bool,
+    pub(crate) ran: bool,
     #[pyo3(get)]
-    count: usize,
+    pub(crate) count: usize,
     /// Per-refuter records, one per validator run.
     #[pyo3(get)]
     reports: Vec<RefutationReportView>,
@@ -1171,7 +1577,7 @@ impl ValidationSection {
     /// rule. Kept as a plain function (not tied to `RefutationReport` internals) so
     /// both `ate_result_from_analysis` and `analysis_result_from_run` call the exact
     /// same logic instead of maintaining two copies of the aggregate rule.
-    fn from_reports(
+    pub(crate) fn from_reports(
         reports: Vec<RefutationReportView>,
         diagnostics: &[antecedent_core::Diagnostic],
     ) -> Self {
@@ -1206,30 +1612,30 @@ impl ValidationSection {
 /// `temporal_api.rs` for exactly which fields and why).
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
-struct PerformanceSection {
+pub(crate) struct PerformanceSection {
     #[pyo3(get)]
-    plan_id: String,
+    pub(crate) plan_id: String,
     #[pyo3(get)]
-    modality: String,
+    pub(crate) modality: String,
     #[pyo3(get)]
-    peak_memory_bytes: Option<u64>,
+    pub(crate) peak_memory_bytes: Option<u64>,
     #[pyo3(get)]
-    latency_mode: Option<String>,
+    pub(crate) latency_mode: Option<String>,
     #[pyo3(get)]
-    wall_time_ns: Option<u64>,
+    pub(crate) wall_time_ns: Option<u64>,
     #[pyo3(get)]
-    bootstrap_replicates_requested: Option<u32>,
+    pub(crate) bootstrap_replicates_requested: Option<u32>,
     #[pyo3(get)]
-    bootstrap_replicates_ok: Option<u32>,
+    pub(crate) bootstrap_replicates_ok: Option<u32>,
     #[pyo3(get)]
-    n_draws: Option<u32>,
+    pub(crate) n_draws: Option<u32>,
     #[pyo3(get)]
-    cancelled: bool,
+    pub(crate) cancelled: bool,
     #[pyo3(get)]
-    early_stopped: bool,
+    pub(crate) early_stopped: bool,
     /// `(stage name, elapsed nanoseconds)` pairs. Empty when not recorded.
     #[pyo3(get)]
-    stage_timings: Vec<(String, u64)>,
+    pub(crate) stage_timings: Vec<(String, u64)>,
     /// Arrow CDI bytes borrowed at ingest (`None` when not an Arrow path).
     #[pyo3(get)]
     bytes_borrowed: Option<u64>,
@@ -1256,6 +1662,9 @@ struct PosteriorArtifact {
     identification: String,
     #[pyo3(get)]
     unidentified_mass: f64,
+    /// Identified graph mass a latency tier left out of the envelope subsample.
+    #[pyo3(get)]
+    subsampled_out_mass: f64,
     #[pyo3(get)]
     converged: bool,
     #[pyo3(get)]
@@ -1287,6 +1696,7 @@ impl PosteriorArtifact {
         converged=true,
         hessian_condition=f64::NAN,
         treatment_contrast=None,
+        subsampled_out_mass=0.0,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -1303,6 +1713,7 @@ impl PosteriorArtifact {
         converged: bool,
         hessian_condition: f64,
         treatment_contrast: Option<f64>,
+        subsampled_out_mass: f64,
     ) -> Self {
         Self {
             n_draws,
@@ -1314,6 +1725,7 @@ impl PosteriorArtifact {
             backend_id,
             identification,
             unidentified_mass,
+            subsampled_out_mass,
             converged,
             hessian_condition,
             quantity_names,
@@ -1346,6 +1758,7 @@ impl PosteriorArtifact {
         converged=true,
         hessian_condition=f64::NAN,
         treatment_contrast=None,
+        subsampled_out_mass=0.0,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn from_moments(
@@ -1361,6 +1774,7 @@ impl PosteriorArtifact {
         converged: bool,
         hessian_condition: f64,
         treatment_contrast: Option<f64>,
+        subsampled_out_mass: f64,
     ) -> Self {
         Self {
             n_draws,
@@ -1372,6 +1786,7 @@ impl PosteriorArtifact {
             backend_id,
             identification,
             unidentified_mass,
+            subsampled_out_mass,
             converged,
             hessian_condition,
             quantity_names,
@@ -1819,6 +2234,8 @@ fn register_native_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<IdentificationSection>()?;
     m.add_class::<EstimateSection>()?;
     m.add_class::<CandidateSelectionSection>()?;
+    m.add_class::<DistributionAtomSection>()?;
+    m.add_class::<ProbabilityIntervalSection>()?;
     m.add_class::<ScoreTableSection>()?;
     m.add_class::<ScoreInferenceSection>()?;
     m.add_class::<PosteriorSection>()?;

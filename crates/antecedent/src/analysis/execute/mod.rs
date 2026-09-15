@@ -64,7 +64,7 @@ pub(super) use crate::gcm::{
     fit_gcm, mechanism_change_detection,
 };
 pub(super) use crate::inference::{
-    BayesianConfig, InferenceMode, resolve_bayesian_prior, resolve_bayesian_prior_with_conflict,
+    BayesianConfig, InferenceMode, resolve_bayesian_prior_with_conflict,
 };
 pub(super) use crate::planner::{
     LogicalAnalysisPlan, PhysicalExecutionPlan, StaticAteCompileInput,
@@ -178,6 +178,15 @@ pub struct Study {
     pub(crate) continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
     /// Shared fold assignment / covariate design when this study is part of a batch.
     pub(crate) shared_batch_design: Option<std::sync::Arc<super::batch::SharedBatchDesign>>,
+    /// Selection diagram frozen for a transport query.
+    pub(crate) selection_diagram: Option<antecedent_graph::SelectionDiagram>,
+    /// Trial columns frozen for a transport query.
+    pub(crate) transport_trial: Option<super::builder::TransportTrialSpec>,
+    /// Network + assignment frozen for an interference query.
+    pub(crate) interference: Option<super::builder::InterferenceSpec>,
+    /// Prepare-time transport formula + certificate.
+    pub(crate) transport_identification_cache:
+        Option<std::sync::Arc<antecedent_identify::TransportIdentification>>,
 }
 
 impl std::fmt::Debug for Study {
@@ -231,23 +240,59 @@ impl std::fmt::Debug for Study {
                 &self.dbn_posterior_identification_cache.is_some(),
             )
             .field("shared_batch_design_is_some", &self.shared_batch_design.is_some())
+            .field("selection_diagram_is_some", &self.selection_diagram.is_some())
+            .field("transport_trial_is_some", &self.transport_trial.is_some())
+            .field("interference_is_some", &self.interference.is_some())
+            .field(
+                "transport_identification_cache_is_some",
+                &self.transport_identification_cache.is_some(),
+            )
             .finish()
     }
 }
 
 mod attribution_path;
 mod bayesian_path;
+mod class_envelope_se;
 mod compile;
+mod dbn_mediation_frequentist;
 mod dispatch;
+mod identified_set_diagnostics;
 mod pag_path;
 mod panel_path;
 mod response_path;
 mod sequential_validation;
 mod static_path;
 mod temporal_path;
+mod transport_interference_path;
+mod tuple_bootstrap;
 include!("execute_helpers.rs");
 
-pub(crate) use response_path::{class_aware_response_supported, response_witness_ate};
+pub(super) use class_envelope_se::{
+    TemporalAtomDesign, envelope_shared_block_diagnostics, shared_block_mixture_message,
+    shared_circular_block_mixture_se,
+};
+#[cfg(test)]
+pub(super) use class_envelope_se::{
+    circular_block_length, mixture_block_length, shared_circular_block_mixture_se_with_length,
+};
+pub(super) use identified_set_diagnostics::{
+    IDENTIFIED_SET_INTERVAL_LEVEL, completion_fit_seed, identified_set_interval_diagnostics,
+    posterior_identified_set_interval, same_fitted_mechanisms, same_fitted_problem,
+};
+pub(super) use tuple_bootstrap::{
+    TupleObservationTarget, TupleReplicates, TupleSurface, tuple_block_observation_replicates,
+};
+
+pub(crate) use static_path::DistributionGraph;
+pub(crate) use transport_interference_path::live_transport_identification;
+
+pub(crate) use response_path::{
+    class_aware_response_supported, graph_posterior_response_supported, response_witness_ate,
+};
+
+#[cfg(test)]
+mod block_length_tests;
 
 #[cfg(test)]
 mod envelope_se_tests {
@@ -264,6 +309,182 @@ mod envelope_se_tests {
     fn mix_weighted_analytic_se_is_nan_if_any_atom_is_nonfinite() {
         assert!(mix_weighted_analytic_se([(0.5, 0.1), (0.5, f64::NAN)]).is_nan());
         assert!(mix_weighted_analytic_se([(1.0, f64::INFINITY)]).is_nan());
+    }
+}
+
+#[cfg(test)]
+mod envelope_refuter_target_tests {
+    //! R-3: envelope refuters compare each atom with its own estimate.
+    use antecedent_discovery::set_edge;
+    use antecedent_prob::InferenceDiagnostics;
+
+    use super::*;
+
+    fn known_truth_data(n: usize) -> TabularData {
+        let (mut t, mut y, mut z) = (Vec::new(), Vec::new(), Vec::new());
+        for _ in 0..(n / 16) {
+            for (zv, tv, count) in [(0.0, 0.0, 6), (0.0, 1.0, 2), (1.0, 0.0, 2), (1.0, 1.0, 6)] {
+                for row in 0..count {
+                    let epsilon = if row % 2 == 0 { -0.2 } else { 0.2 };
+                    t.push(tv);
+                    z.push(zv);
+                    y.push(2.0 * tv + 2.0 * zv + epsilon);
+                }
+            }
+        }
+        TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap()
+    }
+
+    /// Two identified atoms fit on the same rows: unadjusted (effect 3) and
+    /// Z-adjusted (effect 2), at weights 0.5 / 0.3.
+    fn fitted_atoms(data: &TabularData, ctx: &ExecutionContext) -> Vec<EnvelopeRefuteAtom> {
+        let direct = set_edge(0, 3, 0, 1, true);
+        let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+        let gp = GraphPosterior::new(
+            3,
+            vec![0.5, 0.3],
+            vec![direct, adjusted],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            1.0,
+            InferenceDiagnostics::analytic("r3_refuter_targets"),
+            0,
+        )
+        .unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let identified =
+            crate::analysis::prepared::build_graph_posterior_identification_cache(&gp, &query, ctx)
+                .unwrap();
+        identified
+            .atoms
+            .iter()
+            .map(|atom| {
+                let original = crate::strategy_table::estimate_static_effect(
+                    &crate::estimator_spec::EstimatorSpec::Default(
+                        EstimatorId::LinearAdjustmentAte,
+                    ),
+                    data,
+                    &atom.estimand,
+                    &query,
+                    atom.identification.required_assumptions.clone(),
+                    0,
+                    None,
+                    None,
+                    ctx,
+                    &mut StaticEstimateWorkspaces::default(),
+                )
+                .unwrap();
+                EnvelopeRefuteAtom {
+                    key: atom.key,
+                    weight: identified_weight_for_key(&identified.graphs, atom.key),
+                    estimand: atom.estimand.clone(),
+                    indexer: None,
+                    original,
+                }
+            })
+            .collect()
+    }
+
+    fn data_subset(
+        data: &TabularData,
+        atoms: &[EnvelopeRefuteAtom],
+        ctx: &ExecutionContext,
+    ) -> antecedent_validate::RefutationReport {
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let (reports, _) = run_envelope_effect_refuters(
+            data,
+            &query,
+            atoms,
+            &mut EstimationWorkspace::default(),
+            ctx,
+            RefuteSuite::Full,
+            "linear.adjustment.ate",
+            &[],
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        reports.into_iter().find(|r| r.refuter.as_ref() == "data.subset").expect("data.subset")
+    }
+
+    #[test]
+    fn envelope_refuters_compare_each_atom_with_its_own_estimate() {
+        let ctx = ExecutionContext::for_tests(5);
+        let data = known_truth_data(320);
+        let atoms = fitted_atoms(&data, &ctx);
+        assert_eq!(atoms.len(), 2);
+        let effects: Vec<f64> = atoms.iter().map(|a| a.original.ate).collect();
+        assert!((effects[0] - effects[1]).abs() > 0.9, "atoms must disagree: {effects:?}");
+        let pooled = atoms.iter().map(|a| a.weight * a.original.ate).sum::<f64>()
+            / atoms.iter().map(|a| a.weight).sum::<f64>();
+        assert!((pooled - 2.625).abs() < 1e-8);
+
+        // Stable atoms with different effects pass against their own estimates;
+        // the mixed original_ate is the mass-weighted mean of what was compared.
+        let stable = data_subset(&data, &atoms, &ctx);
+        assert!(stable.passed, "stable heterogeneous atoms must pass: {stable:?}");
+        assert!((stable.original_ate - pooled).abs() < 1e-8);
+
+        // The pre-1.9 targeting (every atom against the pooled mixture) rejects
+        // the same stable atoms: this is the defect R-3 removes.
+        let mut pooled_target = fitted_atoms(&data, &ctx);
+        for atom in &mut pooled_target {
+            atom.original.ate = pooled;
+        }
+        assert!(!data_subset(&data, &pooled_target, &ctx).passed);
+
+        // An atom whose own refits do not reproduce its reported estimate is
+        // still refuted, and unanimity fails the mixture even though the other
+        // atom passes.
+        let mut unstable = fitted_atoms(&data, &ctx);
+        unstable[1].original.ate += 0.5;
+        let report = data_subset(&data, &unstable, &ctx);
+        assert!(!report.passed, "a refuted atom must fail the mixture: {report:?}");
+        assert!(report.failure_condition.is_some());
+        let alone = data_subset(&data, &unstable[..1], &ctx);
+        assert!(alone.passed, "the other atom passes on its own: {alone:?}");
+    }
+
+    #[test]
+    fn single_atom_graph_posterior_keeps_its_se_without_omission_diagnostic() {
+        // D-4: one contributing atom omits nothing, so the between-atom
+        // omission diagnostic must not fire.
+        let direct = set_edge(0, 3, 0, 1, true);
+        let gp = GraphPosterior::new(
+            3,
+            vec![1.0],
+            vec![direct],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            1.0,
+            InferenceDiagnostics::analytic("d4_single_atom"),
+            0,
+        )
+        .unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let result = Study::tabular(known_truth_data(160))
+            .graph_posterior(gp)
+            .query(query)
+            .refute(RefuteSuite::None)
+            .inference(InferenceMode::Frequentist)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(2))
+            .unwrap();
+        assert!(result.estimate.se_analytic.is_finite());
+        assert!(result.diagnostics.iter().all(|d| {
+            d.code.as_ref() != "estimate.envelope.se_omits_between_atom_variance"
+                && d.code.as_ref() != "estimate.graph_posterior.joint_if_se"
+        }));
     }
 }
 
@@ -765,11 +986,27 @@ mod identify_only_tests {
                 }),
                 "fresh Frequentist mixture must retain unidentified mass"
             );
+            // R-11 / C-1: both identified atoms are fit on the same rows, so the
+            // mixture SE comes from their joint influence-function covariance and
+            // nothing is omitted.
             assert!(
-                fresh.diagnostics.iter().any(|d| {
-                    d.code.as_ref() == "estimate.envelope.se_omits_between_atom_variance"
+                fresh.estimate.se_analytic.is_finite() && fresh.estimate.se_analytic > 0.0,
+                "Frequentist mixture SE must use joint IF covariance, got {}",
+                fresh.estimate.se_analytic
+            );
+            assert!((click.estimate.se_analytic - fresh.estimate.se_analytic).abs() < 1e-12);
+            assert!(
+                fresh
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code.as_ref() == "estimate.graph_posterior.joint_if_se"),
+                "joint-IF SE must be disclosed"
+            );
+            assert!(
+                fresh.diagnostics.iter().all(|d| {
+                    d.code.as_ref() != "estimate.envelope.se_omits_between_atom_variance"
                 }),
-                "Frequentist mixture SE must disclose omitted between-atom variance"
+                "nothing is omitted when every atom is IF-aligned"
             );
             assert_eq!(cached_count(&fresh), 0);
             assert_eq!(cached_count(&click), 1);
@@ -929,10 +1166,10 @@ mod identify_only_tests {
 
     #[test]
     fn bidirected_admg_non_ate_refuses_at_build_with_matrix_id() {
-        // Every non-AverageEffect query on an ADMG is now a closed cell, so
-        // the refusal fires at `build()` with the stable matrix reason.
-        // identify_only's own ADMG guard stays as defense in depth but is no
-        // longer reachable through the public builder.
+        // ADMG InterventionalDistribution is licensed only at validation
+        // none; the cheap/full cells are closed, so the refusal fires at
+        // `build()` with the stable matrix reason. identify_only's own ADMG
+        // guard stays as defense in depth.
         let mut admg = Admg::with_variables(2);
         admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -943,7 +1180,7 @@ mod identify_only_tests {
         let err = Study::tabular(toy_data())
             .graph(admg)
             .query(CausalQuery::Distribution(query))
-            .refute(RefuteSuite::None)
+            .refute(RefuteSuite::Cheap)
             .build()
             .unwrap_err();
         assert!(
@@ -969,5 +1206,27 @@ mod identify_only_tests {
             &err,
             "identify_only supports static DAG and ADMG graphs only.",
         );
+    }
+}
+
+#[cfg(test)]
+mod envelope_validation_diagnostic_tests {
+    use super::*;
+
+    #[test]
+    fn prior_sensitivity_is_claimed_only_when_it_mixed() {
+        let mixed = envelope_validation_diagnostics("a,b", Some(true));
+        assert_eq!(mixed.len(), 1);
+        assert!(mixed[0].message.contains("prior-sensitivity evaluated"));
+        let unmixed = envelope_validation_diagnostics("a,b", Some(false));
+        assert!(!unmixed[0].message.contains("prior-sensitivity evaluated"), "{unmixed:?}");
+        let warning = unmixed
+            .iter()
+            .find(|d| d.code.as_ref() == "refute.bayesian.prior_sensitivity.not_mixed")
+            .expect("not-mixed warning");
+        assert_eq!(warning.severity, DiagnosticSeverity::Warning);
+        let cheap = envelope_validation_diagnostics("a,b", None);
+        assert_eq!(cheap.len(), 1);
+        assert!(!cheap[0].message.contains("prior-sensitivity"));
     }
 }

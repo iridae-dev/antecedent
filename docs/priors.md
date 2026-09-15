@@ -13,7 +13,7 @@ catalog.filter(target) → rank(similarity)
   → map(effect|named params) → power-prior / mixture (α_k, w_k)
   → apply transport policy → PriorSet + assumptions
   → analyze(..., inference=Bayesian(prior_from=…))
-  → prior PPC + prior sensitivity (α grid when banked)
+  → prior PPC + prior sensitivity against the prior in force
 ```
 
 1. Wrap posterior artifacts with `PriorSourceMeta` / `PriorSource`.
@@ -23,8 +23,23 @@ catalog.filter(target) → rank(similarity)
 4. `compose_external_priors(...)` builds a `ComposedPrior` (optional
    `ConflictPolicy`, `TransportPolicy`).
 5. Pass the composed prior as `Bayesian(prior_from=...)`.
-6. With `refute="full"`, the ATE path attaches an **α-multiplier** sensitivity
-   grid (not isotropic scales) when an external compose is present.
+6. With `refute="full"`, prior sensitivity perturbs the prior that produced the
+   reported posterior, and the report records which family was perturbed
+   (`PriorSensitivitySummary.family`, refuter id):
+   - external compose → **α-multiplier** grid on the post-conflict alphas
+     (`external_alpha`, `prior_sensitivity_alpha`);
+   - any other staged prior (`prior=` or a transferred `prior_from=` artifact)
+     → coefficient **variance multipliers** `{0.25, 0.5, 1, 2, 4, 10}` around
+     that prior, means kept (`resolved_prior_variance`,
+     `prior_sensitivity_resolved_prior`);
+   - no prior supplied → the isotropic scale grid, because the isotropic
+     `prior_scale` prior *is* the prior in force (`isotropic_scale`,
+     `prior_sensitivity`).
+
+   The prior predictive check simulates from the same prior in force. Static,
+   class-envelope, graph-posterior, DBN and temporal paths share this
+   resolution; multi-step Sustained windows and Bayesian mediation refuse
+   transfer, so their isotropic per-mechanism prior is the one checked.
 
 Python example: [`examples/python/prior_bank_surveys.py`](https://github.com/iridae-dev/antecedent/blob/main/examples/python/prior_bank_surveys.py)
 (Rust: [`examples/rust/prior_bank_surveys.rs`](https://github.com/iridae-dev/antecedent/blob/main/examples/rust/prior_bank_surveys.rs)).
@@ -47,6 +62,67 @@ Python example: [`examples/python/prior_bank_surveys.py`](https://github.com/iri
   `source_populations=`) with `target_population=` so compose reads
   `tags["population"]` via `populations_from_prior_sources` — callers need not
   thread population tags manually when catalog meta is available.
+
+## Coefficient priors are diagonal
+
+`GaussianCoefficientPrior` stores a mean and a **diagonal** scale (`V0`) per
+coefficient; there is no off-diagonal prior covariance. Hydrating a prior from
+a posterior artifact (`IdenticalCoefficientSubspace`, `EffectFunctional`,
+`NamedParameters`, and every power / mixture compose built on them) reads only
+the per-coefficient posterior **means and standard deviations**, so posterior
+correlation between coefficients is **dropped**. Each coefficient's prior
+variance equals its source marginal variance, so no single coefficient is
+more tightly constrained than the source said. That does **not** hold for
+linear combinations: dropping the covariance replaces `Σ` by `diag(Σ)`, and
+`diag(Σ) − Σ` is not positive semidefinite in general, so a combination
+along which the source was uncertain because of correlated coefficients can
+receive a *tighter* prior than the source supports. For two coefficients the
+transferred variance of `β₁ ± β₂` is `σ₁² + σ₂²` instead of
+`σ₁² + σ₂² ± 2σ₁₂`: positive source correlation makes the transferred prior on
+the sum too narrow, negative correlation (typical of collinear lags such as
+`coef_x@lag1` and `coef_x@lag2`) makes the prior on their difference too
+narrow. Inspect the source's posterior correlation before transferring a
+strongly correlated source, or down-weight it (`α`).
+
+## Temporal transfer is lag-aware
+
+Temporal Pulse / single-step Sustained designs carry lag-aware coefficient
+names (`intercept`, `coef_<treatment>@lag<k>`, `coef_<covariate>@lag<k>`, lags
+relative to the design's outcome anchor), and so do the posterior artifacts
+they produce. On such a target:
+
+- identical-subspace transfer requires the source names to equal the target's
+  (same lags, same covariates, same order);
+- effect-functional transfer requires the source to carry the target's
+  treatment coefficient (same variable at the same lag);
+- a source artifact without coefficient names (written before 1.9) is refused;
+- an explicit `NamedParameters` mapping is the declared bridge between
+  different lags and is always honoured (names are validated at hydrate).
+
+These checks run when a posterior artifact is hydrated against the target
+design (`prior_from=` / `prior_artifact`), because they compare the
+artifact's coefficient names with the target's.
+
+The catalog offers an additional, **opt-in** check:
+`EstimandFingerprint.temporal` (`TemporalCoordinates`: treatment lags,
+horizon, optional coefficient names). When the *target* fingerprint carries
+temporal coordinates, `compatible_with` rejects a source whose metadata has
+none (`temporal_coordinates_missing`, the case for pre-1.9 metadata) or
+different ones (`temporal_coordinates_mismatch`) unless the source declares a
+`NamedParameters` mapping. Nothing in the library populates these
+coordinates: analyses do not attach them to the posteriors they produce, and
+the Python prior-bank API (`PriorSourceMeta` dicts, `compatible_with`) cannot
+set them. Rust callers that bank temporal posteriors must attach them with
+`EstimandFingerprint::with_temporal` on both the source metadata and the
+target; otherwise the catalog applies no lag check. Metadata without the
+field still decodes.
+
+`compose_external_priors(...)` / `Bayesian(prior_from=<composed prior>)`
+performs **no** lag check: its sources are already-mapped coefficient priors
+(`ExternalPriorSource.prior`) that carry no coefficient names, so aligning
+each source's lags with the target design is the caller's responsibility
+(in Rust, hydrate each source with `hydrate_prior` against the target's
+coefficient names first, which applies the name checks above).
 
 ## What callers must supply
 

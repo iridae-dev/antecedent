@@ -3,8 +3,10 @@
 # support_licensed.toml. See adr/0020-support-matrix-and-prepared-workflow.md.
 
 queries = [
+  "AnomalyAttribution",
   "AverageDerivative",
   "AverageEffect",
+  "ChangeAttribution",
   "ConditionalEffect",
   "Counterfactual",
   "DirectionalDerivative",

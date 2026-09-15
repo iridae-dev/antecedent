@@ -106,7 +106,7 @@ impl CausalPayloadWire {
     }
 }
 
-/// Encode one existing causal wire payload as a format-0.4 artifact.
+/// Encode one existing causal wire payload as a stable-format artifact.
 ///
 /// # Errors
 ///

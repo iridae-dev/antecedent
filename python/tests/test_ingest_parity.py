@@ -124,3 +124,72 @@ def test_arrow_nulls_are_invalid_rows_not_zero():
     zero_r = antecedent.analyze(zero_filled, graph=edges, query=q, latency="interactive", seed=1)
     assert math.isfinite(arrow_r.ate)
     assert abs(arrow_r.ate - zero_r.ate) > 1e-3
+
+
+def _response_curve_scm(n: int = 300, seed: int = 29) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    x = rng.normal(size=n)
+    a = 0.7 * x + rng.normal(size=n)
+    y = 2.0 * a + x + rng.normal(scale=0.2, size=n)
+    return {"x": x, "a": a, "y": y}
+
+
+def _response_curve_values(data) -> list[float]:
+    result = antecedent.analyze(
+        data,
+        query=antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
+        graph=[("x", "a"), ("x", "y"), ("a", "y")],
+        seed=1,
+    )
+    return [float(v) for row in result.response.values for v in row]
+
+
+@pytest.mark.parametrize("column", ["x", "a", "y"])
+@pytest.mark.parametrize("source", ["numpy_nan", "pandas_nan", "arrow_null", "arrow_nan"])
+def test_missing_cell_matches_dropped_row_for_response_curve(source, column):
+    """A NaN / null cell is excluded like a dropped row, never read as 0.0."""
+    data = _response_curve_scm()
+    missing = 37
+    dropped = {k: np.delete(v, missing) for k, v in data.items()}
+    if source == "arrow_nan":
+        # A non-null Arrow NaN value is a missing cell too, not an observation.
+        holed = {k: v.copy() for k, v in data.items()}
+        holed[column][missing] = np.nan
+        holed = pa.table({k: pa.array(v, type=pa.float64()) for k, v in holed.items()})
+        assert holed.column(column).null_count == 0
+    elif source == "arrow_null":
+        mask = np.zeros(len(data[column]), dtype=bool)
+        mask[missing] = True
+        holed = pa.table(
+            {
+                k: pa.array(v, type=pa.float64(), mask=mask if k == column else None)
+                for k, v in data.items()
+            }
+        )
+    else:
+        holed = {k: v.copy() for k, v in data.items()}
+        holed[column][missing] = np.nan
+        if source == "pandas_nan":
+            pd = pytest.importorskip("pandas")
+            holed = pd.DataFrame(holed)
+    assert _response_curve_values(holed) == pytest.approx(
+        _response_curve_values(dropped), rel=1e-9, abs=1e-12
+    )
+
+
+@pytest.mark.parametrize("column", ["t", "y", "z"])
+def test_arrow_nan_value_matches_dropped_row_for_ate(column):
+    """An Arrow NaN value (null_count 0) is dropped like a null, for every role."""
+    data, edges = _confounded_scm(n=400, seed=5)
+    missing = 37
+    dropped = {k: np.delete(v, missing) for k, v in data.items()}
+    holed = {k: v.copy() for k, v in data.items()}
+    holed[column][missing] = np.nan
+    table = _as_table(holed)
+    q = antecedent.AverageEffect(treatment="t", outcome="y")
+    arrow_r = antecedent.analyze(table, graph=edges, query=q, latency="interactive", seed=1)
+    numpy_r = antecedent.analyze(holed, graph=edges, query=q, latency="interactive", seed=1)
+    dropped_r = antecedent.analyze(dropped, graph=edges, query=q, latency="interactive", seed=1)
+    assert math.isfinite(arrow_r.ate)
+    assert arrow_r.ate == pytest.approx(dropped_r.ate, rel=1e-9, abs=1e-12)
+    assert arrow_r.ate == pytest.approx(numpy_r.ate, rel=1e-9, abs=1e-12)

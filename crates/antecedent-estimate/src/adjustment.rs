@@ -136,6 +136,22 @@ pub struct EffectEstimate {
     pub evalue: Option<f64>,
     /// Candidate-selection screen recorded on a batch family (artifact payload).
     pub candidate_selection: Option<CandidateSelectionRecord>,
+    /// Circular-block geometry of a one-series block-bootstrap SE (the block
+    /// length the estimator chose and the lag-aligned rows it resampled).
+    pub block_resampling: Option<BlockResampling>,
+}
+
+/// Circular-block geometry an estimator used for its one-series bootstrap SE.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BlockResampling {
+    /// Circular-block length in lag-aligned rows.
+    pub block_length: usize,
+    /// Lag-aligned rows resampled.
+    pub rows: usize,
+    /// Bartlett kernel-bias factor of the target influence at `block_length`
+    /// (`antecedent_estimate::kernel_bias_scale`), applied to the SE together
+    /// with the fixed-b factor.
+    pub kernel_bias: f64,
 }
 
 /// Screen / estimate split recorded on a batch result artifact.
@@ -194,6 +210,7 @@ impl EffectEstimate {
             influence: None,
             evalue: None,
             candidate_selection: None,
+            block_resampling: None,
         }
     }
 
@@ -241,6 +258,7 @@ impl EffectEstimate {
             influence: None,
             evalue: None,
             candidate_selection: None,
+            block_resampling: None,
         }
     }
 
@@ -614,15 +632,20 @@ impl LinearAdjustmentAte {
             .treatment_column()
             .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
         let ate = gcomp_or_coef_ate(problem, &coefficients, t_col)?;
-        let n = problem.design.nrows as f64;
-        let p = problem.design.ncols as f64;
+        let nrows = problem.design.nrows;
+        let ncols = problem.design.ncols;
+        let n = nrows as f64;
+        let p = ncols as f64;
+        // `(XᵀX)⁻¹` once: the homoskedastic SE reads its treatment diagonal and
+        // the influence function its treatment row.
+        let xtx_inv = gram_inverse(&problem.design.matrix, nrows, ncols);
         let se_coef = if !analytic_se_ok {
             f64::NAN
         } else if let Some(se) = residual_sandwich_coef_se(
             self.se_kind,
             &problem.design.matrix,
-            problem.design.nrows,
-            problem.design.ncols,
+            nrows,
+            ncols,
             &residuals,
             t_col,
             self.cluster_ids.as_deref(),
@@ -632,22 +655,19 @@ impl LinearAdjustmentAte {
             se
         } else {
             let sigma2 = rss / (n - p).max(1.0);
-            analytic_se_treatment(
-                &problem.design.matrix,
-                problem.design.nrows,
-                problem.design.ncols,
-                t_col,
-                sigma2,
-            )
+            xtx_inv
+                .as_ref()
+                .map_or(f64::NAN, |inv| (sigma2 * inv[t_col * ncols + t_col].max(0.0)).sqrt())
         };
         let se_analytic = se_coef * problem.treatment_delta.abs();
         let influence = treatment_coef_influence(
             &problem.design.matrix,
-            problem.design.nrows,
-            problem.design.ncols,
+            nrows,
+            ncols,
             t_col,
             &residuals,
             problem.treatment_delta,
+            xtx_inv.as_deref(),
         );
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
@@ -787,6 +807,9 @@ impl LinearAdjustmentAte {
 
     /// [`Self::ate_on_row_indices`] using caller-owned gather buffers.
     ///
+    /// Here `row_src` may be shorter than the design (a sub-window resample); the
+    /// buffers must hold `row_src.len()` rows (`x_boot`: `row_src.len() · ncols`).
+    ///
     /// # Errors
     ///
     /// Shape mismatch, out-of-range source row, or fit failure.
@@ -814,18 +837,21 @@ impl LinearAdjustmentAte {
         x_boot: &mut [f64],
         y_boot: &mut [f64],
     ) -> Result<Vec<f64>, EstimationError> {
-        let n = problem.design.nrows;
+        let rows = problem.design.nrows;
         let p = problem.design.ncols;
-        if row_src.len() != n || y_boot.len() != n || x_boot.len() != n * p {
-            return Err(EstimationError::data_msg("row resample buffers must match the design"));
+        // Output rows follow the row map, which may be a sub-window of the design
+        // (a multi-design shared time window); every source row must exist.
+        let n = row_src.len();
+        if y_boot.len() != n || x_boot.len() != n * p {
+            return Err(EstimationError::data_msg("row resample buffers must match the row map"));
         }
         for (r, &src) in row_src.iter().enumerate() {
-            if src >= n {
+            if src >= rows {
                 return Err(EstimationError::data_msg("row resample index out of range"));
             }
             y_boot[r] = problem.design.outcome[src];
             for c in 0..p {
-                x_boot[c * n + r] = problem.design.matrix[c * n + src];
+                x_boot[c * n + r] = problem.design.matrix[c * rows + src];
             }
         }
         match self.fit_kind {
@@ -945,22 +971,25 @@ pub(crate) fn intervention_f64(intervention: &Intervention) -> Result<f64, Estim
     }
 }
 
-fn analytic_se_treatment(
-    x_colmajor: &[f64],
-    nrows: usize,
-    ncols: usize,
-    t_col: usize,
-    sigma2: f64,
-) -> f64 {
+/// `(XᵀX)⁻¹` (row-major) of a column-major design; `None` when singular.
+fn gram_inverse(x_colmajor: &[f64], nrows: usize, ncols: usize) -> Option<Vec<f64>> {
     let mut xtx = vec![0.0; ncols * ncols];
     form_xtx(x_colmajor, nrows, ncols, &mut xtx);
-    let Some(inv) = invert_square(&xtx, ncols) else {
-        return f64::NAN;
-    };
-    (sigma2 * inv[t_col * ncols + t_col].max(0.0)).sqrt()
+    invert_square(&xtx, ncols)
 }
 
 /// Frisch–Waugh influence of the treatment coefficient, scaled by `delta`.
+///
+/// `ψ_i = δ · n · [(XᵀX)⁻¹ x_i]_T · e_i`, which equals
+/// `δ · n · t̃_i e_i / Σ t̃²` with `t̃` the treatment residualized on every
+/// other design column. Centering the treatment alone (`t − t̄`) is only the
+/// unadjusted IF: with covariates correlated with the treatment it understates
+/// the variance by `1 − R²(T | Z)`. Non-invertible designs (`xtx_inv` is
+/// `None`) return NaN so a downstream mixture SE fails closed instead of
+/// reporting zero.
+///
+/// The leverage `[(XᵀX)⁻¹ x_i]_T` accumulates one design column at a time
+/// (contiguous, vectorizable) rather than striding across columns per row.
 fn treatment_coef_influence(
     matrix: &[f64],
     nrows: usize,
@@ -968,22 +997,27 @@ fn treatment_coef_influence(
     t_col: usize,
     residuals: &[f64],
     delta: f64,
+    xtx_inv: Option<&[f64]>,
 ) -> Vec<f64> {
     if nrows == 0 || residuals.len() != nrows || t_col >= ncols {
         return vec![0.0; residuals.len()];
     }
-    let t = &matrix[t_col * nrows..t_col * nrows + nrows];
-    let t_mean = t.iter().sum::<f64>() / nrows as f64;
-    let mut ss = 0.0;
-    for &ti in t {
-        let d = ti - t_mean;
-        ss += d * d;
+    let Some(inv) = xtx_inv else {
+        return vec![f64::NAN; nrows];
+    };
+    let row = &inv[t_col * ncols..t_col * ncols + ncols];
+    let scale = delta * nrows as f64;
+    let mut psi = vec![0.0; nrows];
+    for (c, &w) in row.iter().enumerate() {
+        let column = &matrix[c * nrows..(c + 1) * nrows];
+        for (slot, &x) in psi.iter_mut().zip(column) {
+            *slot += w * x;
+        }
     }
-    if ss <= 0.0 {
-        return vec![0.0; nrows];
+    for (slot, &e) in psi.iter_mut().zip(residuals) {
+        *slot = scale * *slot * e;
     }
-    let scale = delta * nrows as f64 / ss;
-    residuals.iter().zip(t.iter()).map(|(&e, &ti)| e * (ti - t_mean) * scale).collect()
+    psi
 }
 
 impl crate::estimator::Estimator<TabularData> for LinearAdjustmentAte {
@@ -1150,6 +1184,38 @@ mod tests {
         let identity: Vec<usize> = (0..prep.design.nrows).collect();
         let resampled = est.ate_on_row_indices(&prep, &mut ws, &identity).unwrap();
         assert!((resampled - effect.ate).abs() < 1e-12);
+    }
+
+    /// The shared Gram inverse and the column-wise leverage pass reproduce the
+    /// row-by-row Frisch–Waugh influence `δ·n·[(XᵀX)⁻¹x_i]_T·e_i` and the
+    /// homoskedastic SE `√(σ²·[(XᵀX)⁻¹]_TT)` exactly.
+    #[test]
+    fn influence_and_homoskedastic_se_match_the_row_wise_gram_formula() {
+        let (data, estimand) = toy();
+        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        let (n, p) = (prep.design.nrows, prep.design.ncols);
+        let t_col = prep.design.treatment_column().unwrap();
+        let fit = prep.design.fit_ols(&est.backend, &mut ws.ols).unwrap();
+        let mut xtx = vec![0.0; p * p];
+        form_xtx(&prep.design.matrix, n, p, &mut xtx);
+        let inv = invert_square(&xtx, p).unwrap();
+        let sigma2 = fit.rss / (n - p) as f64;
+        let se = (sigma2 * inv[t_col * p + t_col]).sqrt() * prep.treatment_delta.abs();
+        assert_eq!(effect.se_analytic.to_bits(), se.to_bits());
+        let influence = effect.influence.as_ref().unwrap();
+        let row = &inv[t_col * p..(t_col + 1) * p];
+        let scale = prep.treatment_delta * n as f64;
+        for i in 0..n {
+            let leverage: f64 = (0..p).map(|c| row[c] * prep.design.matrix[c * n + i]).sum();
+            let expected = scale * leverage * fit.residuals[i];
+            assert!((influence[i] - expected).abs() == 0.0, "row {i}");
+        }
     }
 
     #[test]

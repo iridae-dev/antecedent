@@ -15,6 +15,13 @@ estimation.
 The [support matrix](support-matrix.md) is authoritative. A capability present
 in the codebase is not necessarily a licensed `analyze()` combination.
 
+The 1.9 matrix is the 1.8 cells plus calibrated intervals, accepted-Dag
+`Counterfactual`, ADMG `InterventionalDistribution`, Frequentist
+DBN-posterior `TemporalMediationEffect`, and four staged cells at validation
+`none` (Rust `Study` only): `AnomalyAttribution` / `ChangeAttribution` on an
+explicit Dag, `TransportQuery` on an explicit Admg, and `InterferenceQuery`
+on an explicit Dag.
+
 The 1.6 matrix keeps the 1.5 licensed cells and adds temporal policy
 cells: per-horizon `TemporalMediationEffect`, multi-step and joint `Sequence`
 overlays, observation-adjusted temporal curves (Frequentist IPCW pairs and
@@ -37,8 +44,8 @@ standard errors mixed by frozen completion weights. Scalar Dag
 contrast; plugin g-comp cheap is overlap only and full is overlap plus sampling-stability of the g-comp level.
 `ResponseCurve` cheap/full stay n/a. Frequentist DBN Pulse/Sustained
 mixtures use shared outer-block replicates; TemporalCpdag/TemporalPag
-class-envelope between-atom variance remains undisclosed pending 1.9
-calibration.
+class-envelope between-atom variance is licensed in 1.9 (shared
+circular-block mixture SE; unidentified mass retained).
 
 The 1.4 matrix licenses the 1.3 families plus:
 
@@ -214,7 +221,7 @@ The following are current product boundaries or explicit matrix refusals:
 - no temporal graph-posterior response surface or Bayesian response bands over
   incomplete temporal classes; static DAG graph-posterior responses and
   Frequentist DBN Pulse/Sustained mixtures are licensed;
-- no Bayesian or partial-graph derivative cells;
+- no partial-graph derivative cells;
 - no Bayesian envelope on incomplete `TemporalCpdag`/`TemporalPag` (1.7);
 - no exact DAG pseudo-posterior enumeration beyond six nodes;
 - no automatic estimator choice and no prior that can rescue identification.

@@ -20,12 +20,29 @@ pub const STANDARD_N_DRAWS: usize = 1000;
 pub const REPORT_N_DRAWS: usize = 4000;
 /// Interactive bootstrap replicates (analytic / Laplace only).
 pub const INTERACTIVE_BOOTSTRAP: u32 = 0;
-/// Standard bootstrap replicates (Python / backlog science default).
-pub const STANDARD_BOOTSTRAP: u32 = 50;
+/// Standard bootstrap replicates (coverage-gated circular-block count).
+pub const STANDARD_BOOTSTRAP: u32 = 199;
 /// Report-tier bootstrap replicates.
 pub const REPORT_BOOTSTRAP: u32 = 200;
 /// Interactive max identified graphs in a graph×effect envelope subsample.
 pub const INTERACTIVE_MAX_ENVELOPE_GRAPHS: usize = 16;
+/// Interactive prior / posterior predictive-check replicates.
+pub const INTERACTIVE_PREDICTIVE_SIMS: u32 = 50;
+/// Standard predictive-check replicates (the pre-tier default).
+pub const STANDARD_PREDICTIVE_SIMS: u32 = 200;
+/// Report-tier predictive-check replicates.
+pub const REPORT_PREDICTIVE_SIMS: u32 = 400;
+
+/// Predictive-check replicates for a latency tier; an unset tier keeps the
+/// Standard count.
+#[must_use]
+pub const fn predictive_check_sims(mode: Option<LatencyMode>) -> u32 {
+    match mode {
+        Some(LatencyMode::Interactive) => INTERACTIVE_PREDICTIVE_SIMS,
+        Some(LatencyMode::Report) => REPORT_PREDICTIVE_SIMS,
+        Some(LatencyMode::Standard) | None => STANDARD_PREDICTIVE_SIMS,
+    }
+}
 
 /// Latency tier controlling known-equivalent compute budgets.
 ///
@@ -35,9 +52,10 @@ pub const INTERACTIVE_MAX_ENVELOPE_GRAPHS: usize = 16;
 pub enum LatencyMode {
     /// Analytic SE or conjugate/Laplace + few draws; no bootstrap; cheap refute; no HMC.
     Interactive,
-    /// Current science defaults (`bootstrap=50`, `n_draws=1000`, placebo+RCC).
+    /// Current science defaults (`bootstrap=199`, `n_draws=1000`, placebo+RCC).
     Standard,
-    /// More replicates / draws / full validation suite; HMC allowed.
+    /// More posterior draws and the full validation suite; HMC allowed. The bootstrap
+    /// count (200) is effectively the Standard count (199), not a larger resample.
     Report,
 }
 

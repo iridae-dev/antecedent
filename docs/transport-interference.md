@@ -2,7 +2,12 @@
 
 Antecedent 0.5 adds two causal settings that should not be hidden behind an
 ordinary target-population flag. Both use specialized stage APIs because they
-change what information identifies the estimand.
+change what information identifies the estimand. 1.9 licenses one cell of
+each on the staged `Study` path at validation `none` (not `analyze()`):
+`TransportQuery` × `Admg` × explicit × Frequentist (Direct / S-admissible
+sID plus binary trial-to-target IPW), and `InterferenceQuery` × `Dag` ×
+explicit × Frequentist (NeighborCount HT/Hájek, Young variance). The
+[support matrix](support-matrix.md) is the license.
 
 ## Structural transport is not prior transfer
 
@@ -85,6 +90,10 @@ provenance record preserve that distinction; no coverage theorem is claimed.
 
 ## Scope boundaries
 
+- The licensed 1.9 cells are the implemented sID subset plus Dahabreh IPW
+  (transport) and NeighborCount under Bernoulli assignment (interference).
+  RecursiveFactorization, NotCertified, Aronow–Samii variance, cheap/full,
+  Bayesian, accepted, and graph-posterior stay refused.
 - Multi-source meta-transport is not part of 0.5.
 - `NotCertified` is not a non-transportability theorem.
 - The network is treated as fixed and supplied by the caller.

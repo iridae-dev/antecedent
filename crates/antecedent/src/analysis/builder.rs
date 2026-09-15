@@ -19,8 +19,8 @@ use antecedent_core::{
     VariableId,
 };
 use antecedent_data::{
-    DiscoveryEstimationSplit, EventData, MultiEnvironmentData, PanelData, TableView, TabularData,
-    TimeSeriesData,
+    DiscoveryEstimationSplit, EventData, MultiEnvironmentData, NetworkData, PanelData, TableView,
+    TabularData, TimeSeriesData,
 };
 use antecedent_discovery::GraphPosterior;
 use antecedent_estimate::{ContinuousResponseOptions, OverlapPolicy};
@@ -71,6 +71,35 @@ impl RefuteSuite {
     }
 }
 
+/// Trial membership and known probabilities for a licensed [`CausalQuery::Transport`] cell.
+#[derive(Clone, Debug)]
+pub struct TransportTrialSpec {
+    /// Source-trial membership (`true` = source experiment row).
+    pub trial: VariableId,
+    /// P(S=1 | X) on every row, strictly inside (0, 1).
+    pub selection_probability: VariableId,
+    /// P(A=1 | X, S=1) on trial rows; unread on target rows.
+    pub treatment_probability: VariableId,
+}
+
+/// Fixed network and realized assignment for a licensed [`CausalQuery::Interference`] cell.
+#[derive(Clone, Debug)]
+pub struct InterferenceSpec {
+    /// Unit table plus incoming exposure edges.
+    pub network: NetworkData,
+    /// Realized binary assignment in unit-row order.
+    pub assignment: Arc<[bool]>,
+}
+
+/// Refusal for panel data paired with a [`CausalQuery::Response`] query.
+///
+/// Checked at build, compile, and prepare; one message keeps them in step.
+pub(crate) const PANEL_RESPONSE_REFUSAL: &str = concat!(
+    "panel ResponseCurve / InterventionResponse is not licensed in 1.9: scalar panel ",
+    "Pulse/Sustained SEs do not license response bands, and the single-series response ",
+    "likelihood is not a panel model",
+);
+
 #[derive(Clone, Debug)]
 pub(crate) enum DataInput {
     Tabular(TabularData),
@@ -94,13 +123,31 @@ pub struct RdConfig {
     pub cutoff: f64,
     /// Symmetric bandwidth around the cutoff (`|R − cutoff| ≤ bandwidth` is retained).
     pub bandwidth: f64,
+    /// Analytic SE kind for the jump coefficient. `Hc1` (default) and `Hc0`/`Hc2`/`Hc3`
+    /// use the heteroskedasticity-robust residual sandwich; `Homoskedastic` is an
+    /// explicit opt-in that assumes a constant outcome variance inside the window.
+    /// Label-based kinds are refused at execute.
+    pub se_kind: antecedent_estimate::AnalyticSeKind,
 }
 
 impl RdConfig {
-    /// Construct an RD design configuration.
+    /// Construct an RD design configuration (HC1 analytic SE).
     #[must_use]
     pub const fn new(running_variable: VariableId, cutoff: f64, bandwidth: f64) -> Self {
-        Self { running_variable, cutoff, bandwidth }
+        Self {
+            running_variable,
+            cutoff,
+            bandwidth,
+            se_kind: antecedent_estimate::AnalyticSeKind::Hc1,
+        }
+    }
+
+    /// Select the analytic SE kind (e.g. [`antecedent_estimate::AnalyticSeKind::Homoskedastic`]
+    /// to opt into the classical constant-variance formula).
+    #[must_use]
+    pub const fn with_se_kind(mut self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self {
+        self.se_kind = se_kind;
+        self
     }
 }
 
@@ -126,6 +173,19 @@ fn stub_accepted_graph_for(data: &DataInput, n_vars: usize) -> Result<AcceptedGr
         DataInput::MultiEnv(_) | DataInput::Panel(_) => Err(CausalError::Unsupported {
             message: "graph-posterior analysis supports tabular or temporal/event data only",
         }),
+    }
+}
+
+/// Marker: the study structure came from [`StudyBuilder::graph`].
+#[derive(Clone, Copy, Debug)]
+struct CallerGraph;
+
+/// A caller graph and a tier background both describe the study structure.
+fn tiered_graph_conflict() -> CausalError {
+    CausalError::Conflict {
+        what: "graph",
+        detail: "both .graph(..) and .tiered_background(..) were set; the tier background \
+                 materializes its own closure ADMG / PAG, so supply exactly one structure input",
     }
 }
 
@@ -262,6 +322,9 @@ pub struct StudyBuilder {
     custom_validators: Vec<Arc<dyn CustomEffectValidator>>,
     /// Optional tier-rule background (fast-path generalized adjustment).
     tiered: Option<antecedent_graph::TieredBackground>,
+    /// Set when [`Self::graph`] is called. A caller graph and a tier background
+    /// are two sources of truth for one structure; build refuses the pair.
+    caller_graph: Option<CallerGraph>,
     /// Refused at build: coarsened continuous coordinate is not a point CDE.
     continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
     /// Optional latency tier (maps to known-equivalent budgets unless overridden).
@@ -270,6 +333,12 @@ pub struct StudyBuilder {
     compute_budget: ComputeBudget,
     /// Optional progressive stage-result sink (Identify → Point → Uncertainty → Validate).
     stage_sink: Option<Arc<dyn super::stage::StageResultSink>>,
+    /// Selection-node targets for a transport query (empty = Direct).
+    selection_targets: Option<Arc<[VariableId]>>,
+    /// Trial columns for a transport query.
+    transport_trial: Option<TransportTrialSpec>,
+    /// Network + assignment for an interference query.
+    interference: Option<InterferenceSpec>,
 }
 
 impl std::fmt::Debug for StudyBuilder {
@@ -279,6 +348,7 @@ impl std::fmt::Debug for StudyBuilder {
             .field("data", &"<data>")
             .field("graph", &self.graph)
             .field("tiered", &self.tiered)
+            .field("caller_graph", &self.caller_graph)
             .field("graph_posterior", &self.graph_posterior)
             .field("class_prior", &self.class_prior)
             .field("max_completions", &self.max_completions)
@@ -304,6 +374,9 @@ impl std::fmt::Debug for StudyBuilder {
             .field("latency_mode", &self.latency_mode)
             .field("compute_budget", &self.compute_budget)
             .field("stage_sink_is_some", &self.stage_sink.is_some())
+            .field("selection_targets", &self.selection_targets)
+            .field("transport_trial", &self.transport_trial)
+            .field("interference", &self.interference)
             .finish()
     }
 }
@@ -320,7 +393,7 @@ impl StudyBuilder {
             query: None,
             refute: RefuteSuite::PlaceboAndRcc,
             refute_explicit: false,
-            bootstrap_replicates: 50,
+            bootstrap_replicates: 199,
             bootstrap_explicit: false,
             split: None,
             identifier: None,
@@ -336,10 +409,14 @@ impl StudyBuilder {
             population_registry: None,
             custom_validators: Vec::new(),
             tiered: None,
+            caller_graph: None,
             continuous_cell: None,
             latency_mode: None,
             compute_budget: ComputeBudget::new(),
             stage_sink: None,
+            selection_targets: None,
+            transport_trial: None,
+            interference: None,
         }
     }
 
@@ -353,11 +430,16 @@ impl StudyBuilder {
     /// until the class-preserving temporal identifier lands — use the fallible
     /// [`AcceptedGraph::temporal_cpdag`] first. [`antecedent_graph::TemporalPag`]
     /// is the same: use [`AcceptedGraph::temporal_pag`].
+    ///
+    /// Mutually exclusive with [`Self::tiered_background`], which materializes
+    /// its own structure: setting both, in either order, is refused
+    /// ([`CausalError::Conflict`]).
     #[must_use]
     pub fn graph(mut self, structure: impl crate::IntoGraphInput) -> Self {
         let (graph, source) = structure.into_graph_input();
         self.graph = Some(graph);
         self.structure_source = Some(source);
+        self.caller_graph = Some(CallerGraph);
         self
     }
 
@@ -367,13 +449,21 @@ impl StudyBuilder {
     /// `generalized.adjustment`. Unknown keeps two canonical sets as an
     /// envelope. Materializes the background as the study graph.
     ///
+    /// Mutually exclusive with [`Self::graph`]: the background *is* the study
+    /// structure, so a caller graph set before or after it is refused rather
+    /// than silently ignored by the tier route.
+    ///
     /// # Errors
     ///
-    /// Missing tabular schema or invalid tier geometry.
+    /// Missing tabular schema, invalid tier geometry, or
+    /// [`CausalError::Conflict`] when [`Self::graph`] was already called.
     pub fn tiered_background(
         mut self,
         background: antecedent_graph::TieredBackground,
     ) -> Result<Self, CausalError> {
+        if self.caller_graph.is_some() {
+            return Err(tiered_graph_conflict());
+        }
         let schema = match &self.data {
             DataInput::Tabular(data) => data.schema().clone(),
             DataInput::Temporal(data) | DataInput::Event(data) => data.schema().clone(),
@@ -598,6 +688,27 @@ impl StudyBuilder {
         self
     }
 
+    /// Selection-node targets for [`CausalQuery::Transport`] (empty = Direct formula).
+    #[must_use]
+    pub fn selection_targets(mut self, targets: impl Into<Arc<[VariableId]>>) -> Self {
+        self.selection_targets = Some(targets.into());
+        self
+    }
+
+    /// Trial membership and known probabilities for [`CausalQuery::Transport`].
+    #[must_use]
+    pub fn transport_trial(mut self, spec: TransportTrialSpec) -> Self {
+        self.transport_trial = Some(spec);
+        self
+    }
+
+    /// Fixed network and realized assignment for [`CausalQuery::Interference`].
+    #[must_use]
+    pub fn interference(mut self, spec: InterferenceSpec) -> Self {
+        self.interference = Some(spec);
+        self
+    }
+
     /// Configure frequentist vs Bayesian inference.
     ///
     /// For static backdoor ATE, [`InferenceMode::Bayesian`] selects estimator
@@ -659,7 +770,15 @@ impl StudyBuilder {
     /// estimator. `compile` refuses `rd.sharp` without this.
     #[must_use]
     pub fn rd_config(mut self, running_variable: VariableId, cutoff: f64, bandwidth: f64) -> Self {
-        self.rd = Some(RdConfig { running_variable, cutoff, bandwidth });
+        self.rd = Some(RdConfig::new(running_variable, cutoff, bandwidth));
+        self
+    }
+
+    /// Full `rd.sharp` design, including the analytic SE kind
+    /// ([`RdConfig::with_se_kind`]). Replaces any earlier [`Self::rd_config`].
+    #[must_use]
+    pub fn rd_design(mut self, config: RdConfig) -> Self {
+        self.rd = Some(config);
         self
     }
 
@@ -703,6 +822,9 @@ impl StudyBuilder {
                     });
                 }
             }
+        }
+        if self.caller_graph.is_some() && self.tiered.is_some() {
+            return Err(tiered_graph_conflict());
         }
         let data = self.data;
         if self.class_prior.is_some() && self.graph_posterior.is_some() {
@@ -1076,6 +1198,9 @@ impl StudyBuilder {
                 _ => {}
             }
         }
+        if matches!((&data, &query), (DataInput::Panel(_), CausalQuery::Response(_))) {
+            return Err(CausalError::Unsupported { message: PANEL_RESPONSE_REFUSAL });
+        }
         if self.class_prior.is_some() && matches!(inference, crate::InferenceMode::Frequentist) {
             return Err(CausalError::Unsupported {
                 message: "class_prior is a structural probability over class members and \
@@ -1100,6 +1225,61 @@ impl StudyBuilder {
             Some(crate::support::refuse_if_not_applicable(cell)?)
         } else {
             None
+        };
+
+        let (selection_diagram, transport_trial, interference) = match &query {
+            CausalQuery::Transport(_) => {
+                if self.interference.is_some() {
+                    return Err(CausalError::Unsupported {
+                        message: "interference network is not used by TransportQuery",
+                    });
+                }
+                let admg = graph.as_admg().ok_or(CausalError::Unsupported {
+                    message: "TransportQuery requires a supplied Admg",
+                })?;
+                let targets = self.selection_targets.clone().unwrap_or_default();
+                let diagram = antecedent_graph::SelectionDiagram::try_new(admg.clone(), targets)
+                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                let trial = self.transport_trial.clone().ok_or(CausalError::Unsupported {
+                    message: "TransportQuery requires StudyBuilder::transport_trial",
+                })?;
+                (Some(diagram), Some(trial), None)
+            }
+            CausalQuery::Interference(_) => {
+                if self.transport_trial.is_some() || self.selection_targets.is_some() {
+                    return Err(CausalError::Unsupported {
+                        message: "transport trial columns are not used by InterferenceQuery",
+                    });
+                }
+                let spec = self.interference.clone().ok_or(CausalError::Unsupported {
+                    message: "InterferenceQuery requires StudyBuilder::interference",
+                })?;
+                let DataInput::Tabular(units) = &data else {
+                    return Err(CausalError::Unsupported {
+                        message: "InterferenceQuery requires tabular unit data",
+                    });
+                };
+                if spec.network.units().row_count() != units.row_count()
+                    || spec.assignment.len() != units.row_count()
+                {
+                    return Err(CausalError::Compile {
+                        message: "interference network, assignment, and unit table row counts \
+                                  must match"
+                            .into(),
+                    });
+                }
+                (None, None, Some(spec))
+            }
+            _ if self.transport_trial.is_some()
+                || self.selection_targets.is_some()
+                || self.interference.is_some() =>
+            {
+                return Err(CausalError::Unsupported {
+                    message: "selection_targets / transport_trial / interference are only valid \
+                              for TransportQuery or InterferenceQuery",
+                });
+            }
+            _ => (None, None, None),
         };
 
         Ok(Study {
@@ -1139,6 +1319,10 @@ impl StudyBuilder {
             tiered: self.tiered,
             continuous_cell: self.continuous_cell,
             shared_batch_design: None,
+            selection_diagram,
+            transport_trial,
+            interference,
+            transport_identification_cache: None,
         })
     }
 }

@@ -504,8 +504,6 @@ def identify(
         from .estimation import _static_edges
 
         supplied = graph.graph if isinstance(graph, AcceptedGraph) else graph
-        if isinstance(query, Counterfactual) and isinstance(graph, AcceptedGraph):
-            raise TypeError("Counterfactual requires an explicit Dag")
         if not isinstance(supplied, (Dag, list, tuple)):
             raise TypeError("these staged kinds require a Dag")
         resolved_names = (

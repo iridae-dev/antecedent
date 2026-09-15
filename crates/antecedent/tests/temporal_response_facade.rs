@@ -150,68 +150,85 @@ fn temporal_dose_horizon_surface_matches_fixture_and_prepared_path() {
         ),
     })
     .with_temporal(temporal_spec(&fixture));
-    let study = Study::series(series.clone())
-        .graph(graph)
-        .query(CausalQuery::Response(query))
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap();
-    let ctx = ExecutionContext::for_tests(21);
+    // The accepted-structure axis runs the same temporal backdoor and g-computation
+    // path as the explicit TemporalDag; both must reproduce the fixture surface.
+    for accepted in [false, true] {
+        let builder = Study::series(series.clone());
+        let builder = if accepted {
+            builder.graph(antecedent::AcceptedGraph::temporal_dag(graph.clone()))
+        } else {
+            builder.graph(graph.clone())
+        };
+        let study = builder
+            .query(CausalQuery::Response(query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        assert_eq!(
+            study.structure_source().as_str(),
+            if accepted { "accepted" } else { "explicit" }
+        );
+        let ctx = ExecutionContext::for_tests(21);
 
-    let direct = study.run(&ctx).unwrap();
-    let prepared = study.prepare(&ctx).unwrap();
-    let click = prepared.estimate_series(&series, &ctx).unwrap();
+        let direct = study.run(&ctx).unwrap();
+        let prepared = study.prepare(&ctx).unwrap();
+        let click = prepared.estimate_series(&series, &ctx).unwrap();
 
-    assert_surface(&direct, &expected, atol, "estimate.temporal_response.gcomp");
-    assert_surface(&click, &expected, atol, "estimate.temporal_response.gcomp");
-    let expected_grid: Vec<f64> = fixture["contract"]["surface"]["grid_pairs"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .flat_map(|pair| pair.as_array().unwrap().iter().map(|value| value.as_f64().unwrap()))
-        .collect();
-    let ResponseIdentification::PointIdentified(ResponseValue::Surface { grid, dimension, .. }) =
-        &direct.response.as_ref().unwrap().estimate
-    else {
-        unreachable!()
-    };
-    assert_eq!(*dimension, 2);
-    assert_eq!(grid.as_ref(), expected_grid.as_slice());
-    let support = &direct.response.as_ref().unwrap().support;
-    assert_eq!(support.status, SupportStatus::Supported);
-    let expected_cells: Vec<SupportStatus> = fixture["contract"]["support"]["point_status"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|value| match value.as_str().unwrap() {
-            "supported" => SupportStatus::Supported,
-            "weak_overlap" => SupportStatus::WeakOverlap,
-            "extrapolative" => SupportStatus::Extrapolative,
-            "outside_empirical_support" => SupportStatus::OutsideEmpiricalSupport,
-            other => panic!("unknown fixture support cell {other}"),
-        })
-        .collect();
-    assert_eq!(support.point_status.as_ref().map(AsRef::as_ref), Some(expected_cells.as_slice()));
-    assert!(
-        direct.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"),
-        "fresh execution must identify"
-    );
-    assert!(
-        click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
-        "prepared estimate_series must reuse identification"
-    );
+        assert_surface(&direct, &expected, atol, "estimate.temporal_response.gcomp");
+        assert_surface(&click, &expected, atol, "estimate.temporal_response.gcomp");
+        let expected_grid: Vec<f64> = fixture["contract"]["surface"]["grid_pairs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|pair| pair.as_array().unwrap().iter().map(|value| value.as_f64().unwrap()))
+            .collect();
+        let ResponseIdentification::PointIdentified(ResponseValue::Surface {
+            grid, dimension, ..
+        }) = &direct.response.as_ref().unwrap().estimate
+        else {
+            unreachable!()
+        };
+        assert_eq!(*dimension, 2);
+        assert_eq!(grid.as_ref(), expected_grid.as_slice());
+        let support = &direct.response.as_ref().unwrap().support;
+        assert_eq!(support.status, SupportStatus::Supported);
+        let expected_cells: Vec<SupportStatus> = fixture["contract"]["support"]["point_status"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| match value.as_str().unwrap() {
+                "supported" => SupportStatus::Supported,
+                "weak_overlap" => SupportStatus::WeakOverlap,
+                "extrapolative" => SupportStatus::Extrapolative,
+                "outside_empirical_support" => SupportStatus::OutsideEmpiricalSupport,
+                other => panic!("unknown fixture support cell {other}"),
+            })
+            .collect();
+        assert_eq!(
+            support.point_status.as_ref().map(AsRef::as_ref),
+            Some(expected_cells.as_slice())
+        );
+        assert!(
+            direct.diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached"),
+            "fresh execution must identify"
+        );
+        assert!(
+            click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+            "prepared estimate_series must reuse identification"
+        );
 
-    let surface = direct.response.as_ref().unwrap();
-    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
-        &surface.estimate
-    else {
-        unreachable!()
-    };
-    let projection = mean[2] - mean[0];
-    let expected_projection =
-        fixture["contract"]["pulse_effect_projection"]["contrast"].as_f64().unwrap();
-    assert!((projection - expected_projection).abs() <= atol);
+        let surface = direct.response.as_ref().unwrap();
+        let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+            &surface.estimate
+        else {
+            unreachable!()
+        };
+        let projection = mean[2] - mean[0];
+        let expected_projection =
+            fixture["contract"]["pulse_effect_projection"]["contrast"].as_f64().unwrap();
+        assert!((projection - expected_projection).abs() <= atol);
+    }
 }
 
 #[test]
@@ -429,16 +446,15 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
             .unwrap()
     };
 
+    // One series: the Pulse publishes only the circular-block bootstrap SE (1.9
+    // R-1). With no replicates there is no calibrated SE, so none is published.
     let pulse_analytic = run_pulse(0);
     let pulse_boot = run_pulse(40);
-    let se_pulse_a = pulse_analytic.estimate.se_analytic;
+    assert!(pulse_analytic.estimate.se_analytic.is_nan(), "iid OLS SE must not be published");
+    assert!(pulse_analytic.estimate.se_bootstrap.is_none());
     let se_pulse_b = pulse_boot.estimate.se_bootstrap.expect("pulse bootstrap SE");
-    assert!(se_pulse_a.is_finite() && se_pulse_a > 0.0, "analytic pulse se={se_pulse_a}");
     assert!(se_pulse_b.is_finite() && se_pulse_b > 0.0, "bootstrap pulse se={se_pulse_b}");
-    assert!(
-        (se_pulse_a - se_pulse_b).abs() > 1e-8,
-        "Pulse must use Study bootstrap when replicates > 0 (analytic={se_pulse_a}, boot={se_pulse_b})"
-    );
+    assert!(pulse_boot.estimate.se_analytic.is_nan());
 
     let se_sustained_b = run_sustained(40).estimate.se_bootstrap.expect("sustained bootstrap SE");
     assert!(se_sustained_b.is_finite() && se_sustained_b > 0.0);
@@ -448,14 +464,17 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
         "Pulse and single-step Sustained SEs must be comparable (pulse={se_pulse_b}, sustained={se_sustained_b})"
     );
 
-    let hw_a = pointwise_halfwidths(&run_surface(0));
-    let hw_b = pointwise_halfwidths(&run_surface(40));
-    assert!(hw_a.iter().all(|w| w.is_finite() && *w > 0.0), "analytic surface bands={hw_a:?}");
-    assert!(hw_b.iter().all(|w| w.is_finite() && *w > 0.0), "bootstrap surface bands={hw_b:?}");
+    // The surface follows the same rule: no replicates, no band.
+    let surface_analytic = run_surface(0);
     assert!(
-        hw_a.iter().zip(&hw_b).any(|(a, b)| (a - b).abs() > 1e-8),
-        "surface SEs must follow Study bootstrap (analytic={hw_a:?}, boot={hw_b:?})"
+        matches!(
+            surface_analytic.response.as_ref().expect("response").uncertainty,
+            ResponseUncertainty::None
+        ),
+        "the analytic surface band must not be published"
     );
+    let hw_b = pointwise_halfwidths(&run_surface(40));
+    assert!(hw_b.iter().all(|w| w.is_finite() && *w > 0.0), "bootstrap surface bands={hw_b:?}");
     let z = 1.959_963_984_540_054;
     let surface_se = hw_b.iter().copied().fold(0.0_f64, f64::max) / z;
     let ratio = se_pulse_b / surface_se;
@@ -481,17 +500,39 @@ fn temporal_intervention_path_matches_fixture() {
         interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
     })
     .with_temporal(temporal_spec(&fixture));
-    let result = Study::series(series)
-        .graph(graph)
-        .query(CausalQuery::Response(query))
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(22))
-        .unwrap();
-
-    assert_surface(&result, &expected, atol, "estimate.temporal_response.intervention_gcomp");
+    // Explicit and accepted TemporalDag share the intervention g-computation path;
+    // both the fresh run and the prepared click must reproduce the fixture path.
+    for accepted in [false, true] {
+        let builder = Study::series(series.clone());
+        let builder = if accepted {
+            builder.graph(antecedent::AcceptedGraph::temporal_dag(graph.clone()))
+        } else {
+            builder.graph(graph.clone())
+        };
+        let study = builder
+            .query(CausalQuery::Response(query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        assert_eq!(
+            study.structure_source().as_str(),
+            if accepted { "accepted" } else { "explicit" }
+        );
+        let ctx = ExecutionContext::for_tests(22);
+        let fresh = study.run(&ctx).unwrap();
+        let click = study.prepare(&ctx).unwrap().estimate_series(&series, &ctx).unwrap();
+        for result in [&fresh, &click] {
+            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            assert_surface(
+                result,
+                &expected,
+                atol,
+                "estimate.temporal_response.intervention_gcomp",
+            );
+        }
+        assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    }
 }
 
 // ---- GAP3: fixture keys that exist but were never read ----
@@ -1012,18 +1053,41 @@ fn joint_sequence_refuses_when_a_coordinate_is_the_outcome() {
     assert!(err.to_string().contains("same variable"), "unexpected error content: {err}");
 }
 
+fn fixture_f64s(value: &serde_json::Value) -> Vec<f64> {
+    value.as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
+}
+
+fn assert_close_rel(actual: &[f64], expected: &[f64], rtol: f64, label: &str) {
+    assert_eq!(actual.len(), expected.len(), "{label}: length");
+    for (index, (&a, &e)) in actual.iter().zip(expected).enumerate() {
+        assert!(
+            (a - e).abs() <= rtol * e.abs().max(1.0),
+            "{label}[{index}]={a:?}, pinned={e:?}, rtol={rtol}"
+        );
+    }
+}
+
+/// With zero replicates the dose×horizon surface keeps its point values and
+/// publishes no band: the analytic OLS band the fixture pinned before 1.9
+/// treated lag-aligned rows as independent and is no longer published.
+/// Requested replicates publish the joint circular-block bands, and the
+/// fixture's `block_band` pins every value of that seeded run (pointwise and
+/// simultaneous edges, critical value, block length, dispersion and
+/// kernel-bias factors) as a determinism guard — on this noiseless period-4
+/// DGP the rule block is a multiple of the period, so the band collapses to
+/// the point surface; coverage is the weekly gate.
 #[test]
-fn temporal_dose_horizon_bands_match_fixture() {
+fn temporal_dose_horizon_point_and_block_bands_match_fixture() {
     use antecedent_core::ResponseUncertainty;
 
     let fixture = fixture();
     let (series, graph) = temporal_fixture_series();
-    let doses: Vec<f64> = fixture["contract"]["dose_grid"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|value| value.as_f64().unwrap())
-        .collect();
+    let doses = fixture_f64s(&fixture["contract"]["dose_grid"]);
+    let atol = fixture["tolerance"]["atol"].as_f64().unwrap();
+    let rtol = fixture["tolerance"]["band_rtol"].as_f64().unwrap();
+    let pin = &fixture["contract"]["block_band"];
+    let seed = pin["seed"].as_u64().unwrap();
+    let replicates = u32::try_from(pin["replicates"].as_u64().unwrap()).unwrap();
     let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: VariableId::from_raw(1),
         treatment: ContinuousDomain::new(
@@ -1032,46 +1096,116 @@ fn temporal_dose_horizon_bands_match_fixture() {
         ),
     })
     .with_temporal(temporal_spec(&fixture));
-    let result = Study::series(series)
-        .graph(graph)
-        .query(CausalQuery::Response(query))
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(21))
-        .unwrap();
-    let response = result.response.as_ref().expect("response payload");
-    let ResponseUncertainty::PointwiseBand { lower, upper, .. } = &response.uncertainty else {
-        panic!("expected pointwise bands");
+    let run = |replicates| {
+        Study::series(series.clone())
+            .graph(graph.clone())
+            .query(CausalQuery::Response(query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(replicates)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(seed))
+            .unwrap()
     };
-    let expected_lower: Vec<f64> = fixture["contract"]["surface"]["lower"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|value| value.as_f64().unwrap())
-        .collect();
-    let expected_upper: Vec<f64> = fixture["contract"]["surface"]["upper"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|value| value.as_f64().unwrap())
-        .collect();
-    let atol = fixture["tolerance"]["atol"].as_f64().unwrap();
-    for (i, (&lo, &hi)) in lower.iter().zip(upper.iter()).enumerate() {
+    let analytic = run(0);
+    let response = analytic.response.as_ref().expect("response payload");
+    assert!(matches!(response.uncertainty, ResponseUncertainty::None), "no analytic band");
+    assert!(
+        response
+            .support
+            .warnings
+            .iter()
+            .any(|w| w.code.as_ref() == "estimate.temporal_response.band_withheld"),
+        "the withheld band must be diagnosed"
+    );
+
+    let boot = run(replicates);
+    let response = boot.response.as_ref().expect("response payload");
+    assert_surface(
+        &boot,
+        &fixture_f64s(&fixture["contract"]["surface"]["mean"]),
+        atol,
+        "estimate.temporal_response.gcomp",
+    );
+    let ResponseUncertainty::PointwiseBand { level, lower, upper } = &response.uncertainty else {
+        panic!("expected the circular-block pointwise band");
+    };
+    assert!((level - pin["level"].as_f64().unwrap()).abs() <= rtol);
+    assert_close_rel(lower, &fixture_f64s(&pin["pointwise_lower"]), rtol, "pointwise_lower");
+    assert_close_rel(upper, &fixture_f64s(&pin["pointwise_upper"]), rtol, "pointwise_upper");
+    let widths: Vec<f64> = lower.iter().zip(upper.iter()).map(|(lo, hi)| hi - lo).collect();
+    assert!(widths.iter().all(|width| *width >= 0.0), "band edges must not cross");
+    // Retired |dose|-scaled analytic band vanished only at dose zero.
+    if widths[2..].iter().any(|width| *width > 1e-8) {
         assert!(
-            (lo - expected_lower[i]).abs() <= atol,
-            "lower[{i}]={lo}, expected={}",
-            expected_lower[i]
-        );
-        assert!(
-            (hi - expected_upper[i]).abs() <= atol,
-            "upper[{i}]={hi}, expected={}",
-            expected_upper[i]
+            widths[..2].iter().all(|width| *width > 1e-8),
+            "dose-zero width must not vanish alone"
         );
     }
-    // dose=0 horizon=1: index 0 — band width must be strictly positive (regression guard).
-    assert!(upper[0] - lower[0] > 0.0, "dose=0 band width must be positive");
+
+    assert_block_band_diagnostics(response, pin, replicates, rtol, lower, upper);
+}
+
+/// Pin every support diagnostic of the seeded block band: the simultaneous
+/// edges and critical value, the block-length record (with the dispersion
+/// factor), and the per-cell kernel-bias factors and effective rows.
+fn assert_block_band_diagnostics(
+    response: &antecedent_core::CausalResponse,
+    pin: &serde_json::Value,
+    replicates: u32,
+    rtol: f64,
+    pointwise_lower: &[f64],
+    pointwise_upper: &[f64],
+) {
+    let diagnostic = |id: &str| -> &[f64] {
+        response
+            .support
+            .diagnostics
+            .iter()
+            .find(|d| d.id.as_ref() == id)
+            .unwrap_or_else(|| panic!("support diagnostic {id} must be published"))
+            .values
+            .as_ref()
+    };
+    let pinned = |key: &str| fixture_f64s(&pin[key]);
+    let simultaneous_lower = diagnostic("response.simultaneous_band.lower");
+    let simultaneous_upper = diagnostic("response.simultaneous_band.upper");
+    assert_close_rel(simultaneous_lower, &pinned("simultaneous_lower"), rtol, "simultaneous_lower");
+    assert_close_rel(simultaneous_upper, &pinned("simultaneous_upper"), rtol, "simultaneous_upper");
+    assert_close_rel(
+        diagnostic("response.simultaneous_band.critical"),
+        &[
+            pin["level"].as_f64().unwrap(),
+            pin["simultaneous_critical"].as_f64().unwrap(),
+            f64::from(replicates),
+        ],
+        rtol,
+        "simultaneous_critical",
+    );
+    assert!(
+        simultaneous_lower.iter().zip(pointwise_lower).all(|(s, p)| s <= p)
+            && simultaneous_upper.iter().zip(pointwise_upper).all(|(s, p)| s >= p),
+        "the simultaneous band must contain the pointwise band"
+    );
+
+    let block = &pin["block_length"];
+    let record: Vec<f64> = ["length", "rule", "testing", "rows", "dispersion_factor"]
+        .iter()
+        .map(|key| block[key].as_f64().unwrap())
+        .collect();
+    assert_close_rel(diagnostic("response.temporal.block_length"), &record, rtol, "block_length");
+    assert_close_rel(
+        diagnostic("response.temporal.kernel_bias_factor"),
+        &pinned("kernel_bias_factor"),
+        rtol,
+        "kernel_bias_factor",
+    );
+    assert_close_rel(
+        diagnostic("response.temporal.effective_rows"),
+        &pinned("effective_rows"),
+        rtol,
+        "effective_rows",
+    );
 }
 
 #[test]

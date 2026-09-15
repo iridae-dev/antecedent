@@ -139,7 +139,7 @@ description = "Propensity base, matching, stratification, weighting"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/propensity_ipw"
-limitations = "assert_recovers checks the synthetic true_effect; the DoWhy reference is present but never compared."
+limitations = "assert_recovers checks the synthetic true_effect. The recorded DoWhy reference SE is not compared: at 0.273 (n=800) it is about five times the Monte Carlo sampling SD of any IPW estimator on the stated SCM, so it cannot calibrate this estimator; see SE_NOT_COMPARABLE in crates/antecedent/tests/estimate_conformance.rs."
 owner = "estimate"
 
 [[capabilities]]
@@ -159,7 +159,7 @@ description = "Doubly robust"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/aipw"
-limitations = "assert_recovers checks the synthetic true_effect; the DoWhy reference is present but never compared. IF-level double robustness has single-draw oracle-nuisance tests in aipw.rs; no Monte Carlo misspecification study."
+limitations = "assert_recovers checks the synthetic true_effect. The recorded DoWhy reference block ran backdoor.propensity_score_weighting, not AIPW, so neither its estimate nor its SE is compared (SE_NOT_COMPARABLE in estimate_conformance.rs). IF-level double robustness has single-draw oracle-nuisance tests in aipw.rs; no Monte Carlo misspecification study."
 owner = "estimate"
 
 [[capabilities]]
@@ -169,7 +169,7 @@ description = "Instrumental variables"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/iv_2sls"
-limitations = "assert_recovers checks the synthetic true_effect; the DoWhy reference is present but never compared."
+limitations = "assert_recovers checks the synthetic true_effect. The reported SE is compared with the recorded DoWhy reference SE for both iv.2sls (iv_2sls) and iv.wald (iv_wald) after sqrt(n) rescaling (DoWhy ran its own n=800 draw), with |ln ratio| <= ln 1.5: generous enough for two draws, tight enough to fail constant-factor SE bugs of 2 or more. The DoWhy point estimate is not compared."
 owner = "estimate"
 
 [[capabilities]]
@@ -189,7 +189,7 @@ description = "Two-stage regression"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/frontdoor"
-limitations = "assert_recovers checks the synthetic true_effect; the DoWhy reference is present but never compared."
+limitations = "assert_recovers checks the synthetic true_effect. The reported SE is compared with the recorded DoWhy reference SE after sqrt(n) rescaling (DoWhy ran its own n=800 draw), with |ln ratio| <= ln 1.5: generous enough for two draws, tight enough to fail constant-factor SE bugs of 2 or more. The DoWhy point estimate is not compared."
 owner = "estimate"
 
 [[capabilities]]

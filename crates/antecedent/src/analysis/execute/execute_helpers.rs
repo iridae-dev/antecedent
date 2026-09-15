@@ -1,7 +1,7 @@
 // Free functions supporting Study execute paths.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-pub(super) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, VariableId), CausalError> {
+pub(crate) fn gcm_query_vars(query: &CausalQuery) -> Result<(VariableId, VariableId), CausalError> {
     match query {
         CausalQuery::Counterfactual(q) => {
             let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Compile {
@@ -44,6 +44,8 @@ pub(super) enum AnalysisRoute {
     TemporalEffect,
     PanelTemporalEffect,
     MultiEnvTemporalEffect,
+    Transport,
+    Interference,
 }
 
 #[derive(Clone, Copy)]
@@ -99,6 +101,8 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         (DataModality::MultiEnv, CausalQuery::TemporalEffect(_)) => {
             AnalysisRoute::MultiEnvTemporalEffect
         }
+        (DataModality::Tabular, CausalQuery::Transport(_)) => AnalysisRoute::Transport,
+        (DataModality::Tabular, CausalQuery::Interference(_)) => AnalysisRoute::Interference,
         _ => return None,
     })
 }
@@ -216,90 +220,168 @@ pub(super) fn nan_effect() -> EffectEstimate {
     )
 }
 
-pub(super) fn integer_cube_root_ceil(n: usize) -> usize {
-    if n <= 1 {
-        return n;
-    }
-    let mut low = 1usize;
-    let mut high = n;
-    while low < high {
-        let middle = low + (high - low) / 2;
-        if middle.saturating_mul(middle).saturating_mul(middle) >= n {
-            high = middle;
-        } else {
-            low = middle + 1;
-        }
-    }
-    low
+/// Identified atoms the Interactive latency tier's graph budget left out of the
+/// stratified subsample. They were never estimated, so their mass is neither
+/// unidentified nor unevaluable; it is reported on its own.
+#[derive(Clone, Debug, Default)]
+pub(super) struct InteractiveSubsampleDrop {
+    /// Graph keys of the dropped identified atoms, in ensemble order.
+    pub(super) keys: Vec<u64>,
+    /// Absolute weight of the dropped atoms (same units as the ensemble weights).
+    pub(super) mass: f64,
 }
 
-/// Interactive graph×effect: stratified subsample of Identified graphs; leftover
-/// identified mass is flipped to Unidentified (never silent renormalize to 1).
+/// Most dropped keys a subsample diagnostic lists before summarizing the rest.
+const SUBSAMPLE_DIAGNOSTIC_KEY_LIMIT: usize = 16;
+
+/// Stratified Interactive subsample returning the dropped identified atoms.
+///
+/// The returned ensemble has the dropped atoms flagged Unidentified so every
+/// downstream mixture excludes them without a fit; callers must report
+/// [`InteractiveSubsampleDrop::mass`] as subsampled-out mass rather than as
+/// unidentified mass (for an envelope posterior, via
+/// [`report_subsampled_out_mass`]). Outside the Interactive tier (or when the
+/// identified atoms fit the budget) nothing is dropped.
 ///
 /// Call this **after** resolving the shared envelope prior from the first
 /// identified atom in original order ([`resolve_envelope_prior_anchor`]), and
 /// **before** per-graph estimation so dropped atoms never pay a fit. Subsample
 /// must not move the prior anchor (0.6.0 semantics).
-pub(super) fn maybe_interactive_subsample_graphs(
+pub(super) fn interactive_subsample_graphs_accounted(
     latency_mode: Option<LatencyMode>,
     graphs: WeightedGraphSamples,
     ctx: &ExecutionContext,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Result<WeightedGraphSamples, CausalError> {
+) -> Result<(WeightedGraphSamples, InteractiveSubsampleDrop), CausalError> {
     if latency_mode != Some(LatencyMode::Interactive) {
-        return Ok(graphs);
+        return Ok((graphs, InteractiveSubsampleDrop::default()));
     }
     let mut rng = ctx.rng.stream(0xE11E_u64);
     let sub = graphs
         .stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)
         .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let keys: Vec<u64> = graphs
+        .identified
+        .iter()
+        .zip(sub.graphs.identified.iter())
+        .zip(graphs.graph_keys.iter())
+        .filter(|((before, after), _)| {
+            **before == GraphIdentFlag::Identified && **after != GraphIdentFlag::Identified
+        })
+        .map(|(_, key)| *key)
+        .collect();
+    let drop = InteractiveSubsampleDrop { keys, mass: sub.leftover_identified_mass };
     if sub.approximate {
-        diagnostics.push(Diagnostic::new(
-            "estimate.envelope.interactive_subsample",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "approximate=true leftover_identified_mass={} max_identified={}",
-                sub.leftover_identified_mass, INTERACTIVE_MAX_ENVELOPE_GRAPHS
-            ),
-        ));
+        diagnostics.push(interactive_subsample_diagnostic(&drop, graphs.total_weight()));
     }
-    Ok(sub.graphs)
+    Ok((sub.graphs, drop))
 }
 
-/// Interactive graph×effect subsample: stratified Identified selection; leftover
-/// identified mass flips to Unidentified (never silent renormalize). Filters
-/// `per_graph` draws to keys that remain Identified after selection.
+/// `estimate.envelope.interactive_subsample`: which identified atoms the
+/// Interactive tier skipped, why, and where their mass is reported.
+fn interactive_subsample_diagnostic(
+    drop: &InteractiveSubsampleDrop,
+    total_weight: f64,
+) -> Diagnostic {
+    let listed = drop
+        .keys
+        .iter()
+        .take(SUBSAMPLE_DIAGNOSTIC_KEY_LIMIT)
+        .map(u64::to_string)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let more = drop.keys.len().saturating_sub(SUBSAMPLE_DIAGNOSTIC_KEY_LIMIT);
+    let listed = if more > 0 { format!("{listed}, +{more} more") } else { listed };
+    let fraction = if total_weight > 0.0 { drop.mass / total_weight } else { f64::NAN };
+    Diagnostic::new(
+        "estimate.envelope.interactive_subsample",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!(
+            "approximate=true leftover_identified_mass={} subsampled_out_mass={fraction} \
+             subsampled_out_atoms={} max_identified={}; the Interactive latency tier mixes at \
+             most {} identified graph atoms, so these identified atoms were left out of the \
+             mixture: [{listed}]; their mass is reported as subsampled_out_mass, not as \
+             unidentified or unevaluable mass; rerun at the Standard or Report tier to include \
+             every identified atom",
+            drop.mass,
+            drop.keys.len(),
+            INTERACTIVE_MAX_ENVELOPE_GRAPHS,
+            INTERACTIVE_MAX_ENVELOPE_GRAPHS,
+        ),
+    )
+}
+
+/// Interactive graph×effect subsample for paths that fit every atom first:
+/// stratified Identified selection as in [`interactive_subsample_graphs_accounted`],
+/// then `per_graph` draws filtered to keys that remain Identified.
 pub(super) fn maybe_interactive_envelope_subsample(
     latency_mode: Option<LatencyMode>,
     graphs: WeightedGraphSamples,
     per_graph: Vec<GraphEffectDraws>,
     ctx: &ExecutionContext,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Result<(WeightedGraphSamples, Vec<GraphEffectDraws>), CausalError> {
-    if latency_mode != Some(LatencyMode::Interactive) {
-        return Ok((graphs, per_graph));
+) -> Result<(WeightedGraphSamples, Vec<GraphEffectDraws>, InteractiveSubsampleDrop), CausalError> {
+    let (graphs, drop) =
+        interactive_subsample_graphs_accounted(latency_mode, graphs, ctx, diagnostics)?;
+    // Same trigger as the subsample's own `approximate` flag.
+    if drop.mass <= 0.0 {
+        return Ok((graphs, per_graph, drop));
     }
-    let mut rng = ctx.rng.stream(0xE11E_u64);
-    let sub = graphs
-        .stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
-    if !sub.approximate {
-        return Ok((sub.graphs, per_graph));
-    }
-    let keep_keys = identified_envelope_keys(&sub.graphs);
+    let keep_keys = identified_envelope_keys(&graphs);
     let filtered: Vec<GraphEffectDraws> =
         per_graph.into_iter().filter(|g| keep_keys.contains(&g.graph_key)).collect();
-    diagnostics.push(Diagnostic::new(
-        "estimate.envelope.interactive_subsample",
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
+    Ok((graphs, filtered, drop))
+}
+
+/// Split the Interactive subsample's skipped mass out of an envelope posterior.
+///
+/// [`antecedent_estimate::aggregate_effect_envelope`] sees the subsampled
+/// ensemble, where dropped atoms carry the Unidentified flag, so its
+/// `unidentified_mass` counts them. This restores `unidentified_mass` to the
+/// pre-subsample ensemble's share (atoms on which identification, or on paths
+/// that demote failed fits, estimation failed) and reports the dropped share as
+/// `subsampled_out_mass`. The identified mixture covers the remainder, so the
+/// three categories sum to one. Mass the mixture does not cover, of either
+/// kind, leaves the posterior graph-dependent.
+pub(super) fn report_subsampled_out_mass(
+    posterior: &mut CausalPosterior,
+    pre_subsample: &WeightedGraphSamples,
+    drop: &InteractiveSubsampleDrop,
+) {
+    let total = pre_subsample.total_weight();
+    if !(total.is_finite() && total > 0.0) {
+        return;
+    }
+    posterior.unidentified_mass = pre_subsample.unidentified_mass() / total;
+    posterior.subsampled_out_mass = drop.mass / total;
+    debug_assert!(
+        (pre_subsample.identified_mass() - drop.mass) / total
+            + posterior.unidentified_mass
+            + posterior.subsampled_out_mass
+            <= 1.0 + 1e-9
+    );
+    if posterior.unidentified_mass > 0.0 || posterior.subsampled_out_mass > 0.0 {
+        posterior.identification = IdentificationStatus::GraphDependent;
+    }
+}
+
+/// Envelope mass summary for a Bayesian graph envelope: unidentified mass and,
+/// when the Interactive tier skipped atoms, their subsampled-out mass as a
+/// separate field (the message is unchanged when nothing was skipped).
+pub(super) fn envelope_mass_diagnostic(
+    code: impl Into<Arc<str>>,
+    posterior: &CausalPosterior,
+) -> Diagnostic {
+    let message = if posterior.subsampled_out_mass > 0.0 {
         format!(
-            "approximate=true leftover_identified_mass={} max_identified={}",
-            sub.leftover_identified_mass, INTERACTIVE_MAX_ENVELOPE_GRAPHS
-        ),
-    ));
-    Ok((sub.graphs, filtered))
+            "unidentified_mass={}, subsampled_out_mass={}",
+            posterior.unidentified_mass, posterior.subsampled_out_mass
+        )
+    } else {
+        format!("unidentified_mass={}", posterior.unidentified_mass)
+    };
+    Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message)
 }
 
 /// Resolve the shared envelope prior from a prepared Bayesian problem.
@@ -369,7 +451,10 @@ impl super::Study {
                 InferenceMode::Bayesian(c) => Some(c),
                 InferenceMode::Frequentist => None,
             } {
-                if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() || cfg.prior.is_some() {
+                if cfg.prior_artifact.is_some()
+                    || cfg.external_compose.is_some()
+                    || cfg.prior.is_some()
+                {
                     return Err(CausalError::Unsupported {
                         message: "functional Bayesian prior transfer requires a declared \
                                   functional mapping; a backdoor coefficient artifact cannot \
@@ -423,29 +508,65 @@ pub(super) struct EnvelopeAtomFit {
     pub weight: f64,
     pub estimand: IdentifiedEstimand,
     pub indexer: Option<TemporalIndexer>,
+    /// Resolved coefficient prior this atom was fitted under (`None` = isotropic).
+    pub prior: Option<PriorSet>,
 }
 
-/// Estimand + mass needed to mix Frequentist or Bayesian envelope refuters.
+/// Estimand, mass, and the atom's own fitted effect needed to mix Frequentist or
+/// Bayesian envelope refuters.
+///
+/// `original` is this atom's own estimate (posterior mean / SD for Bayesian
+/// atoms). Refuters compare each atom's perturbation refits against it, never
+/// against the pooled mixture: a stable atom whose effect differs from the
+/// pooled value is not a refutation.
 pub(super) struct EnvelopeRefuteAtom {
     pub key: u64,
     pub weight: f64,
     pub estimand: IdentifiedEstimand,
     pub indexer: Option<TemporalIndexer>,
+    pub original: EffectEstimate,
 }
 
-impl From<&EnvelopeAtomFit> for EnvelopeRefuteAtom {
-    fn from(atom: &EnvelopeAtomFit) -> Self {
-        Self {
+impl EnvelopeRefuteAtom {
+    /// Refute atom for a Bayesian envelope fit; `original` is that atom's posterior summary.
+    pub(super) fn from_fit(atom: &EnvelopeAtomFit) -> Result<Self, CausalError> {
+        Ok(Self {
             key: atom.key,
             weight: atom.weight,
             estimand: atom.estimand.clone(),
             indexer: atom.indexer.clone(),
-        }
+            original: effect_from_posterior(&atom.posterior)?,
+        })
     }
 }
 
-pub(super) fn envelope_refute_atoms(fits: &[EnvelopeAtomFit]) -> Vec<EnvelopeRefuteAtom> {
-    fits.iter().map(EnvelopeRefuteAtom::from).collect()
+pub(super) fn envelope_refute_atoms(
+    fits: &[EnvelopeAtomFit],
+) -> Result<Vec<EnvelopeRefuteAtom>, CausalError> {
+    fits.iter().map(EnvelopeRefuteAtom::from_fit).collect()
+}
+
+/// Disclose a non-finite envelope SE: with several contributing atoms the joint
+/// SE was not formed ([`envelope_se_omits_between_atom_variance`]); with one
+/// atom that atom's own analytic SE is unavailable.
+pub(super) fn envelope_se_omission_diagnostic(
+    contributing_atoms: usize,
+    se: f64,
+) -> Option<Diagnostic> {
+    if se.is_finite() {
+        return None;
+    }
+    Some(if contributing_atoms > 1 {
+        envelope_se_omits_between_atom_variance()
+    } else {
+        Diagnostic::new(
+            "estimate.envelope.single_atom_se_unavailable",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            "the single contributing atom publishes no analytic SE, so the envelope \
+             carries none; request bootstrap replicates for a resampled SE",
+        )
+    })
 }
 
 /// The legacy diagnostic code is retained for downstream consumers.
@@ -460,6 +581,40 @@ pub(super) fn envelope_se_omits_between_atom_variance() -> Diagnostic {
          retains its own uncertainty. Completion weights are modeling choices, \
          not evidence that the averaged effect is identified across graphs",
     )
+}
+
+/// Warning shared by every one-series circular-block interval when the
+/// estimating score's effective rows fall below the threshold of its SE family
+/// ([`antecedent_estimate::CircularBlockFamily::min_effective_rows`]).
+pub(super) fn short_series_warning(
+    effective_rows: f64,
+    family: antecedent_estimate::CircularBlockFamily,
+) -> Option<Diagnostic> {
+    family.is_short_series(effective_rows).then(|| {
+        Diagnostic::new(
+            "estimate.temporal.circular_block_se.short_series",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "estimating-score effective rows {effective_rows:.1} < {} (the {} \
+                 threshold): the series may be too short for its serial dependence, and the \
+                 circular-block interval may under-cover",
+                family.min_effective_rows(),
+                family.label(),
+            ),
+        )
+    })
+}
+
+pub(super) fn temporal_class_block_span<'a>(
+    indexers: impl IntoIterator<Item = &'a TemporalIndexer>,
+) -> usize {
+    indexers
+        .into_iter()
+        .map(|indexer| indexer.history() as usize + indexer.horizon() as usize)
+        .max()
+        .unwrap_or(1)
+        .max(1)
 }
 
 /// Embed complete-case influences into the original row universe before mixing.
@@ -505,8 +660,11 @@ pub(super) fn attach_class_conditional_functional_grid(
 ) -> Result<EffectEstimate, CausalError> {
     let _ = ctx;
     let Some(thresholds) = super::helpers::conditional_thresholds(
-        data, query, atoms.iter().flat_map(|(_, e)| e.adjustment_set.iter().copied()),
-    )? else {
+        data,
+        query,
+        atoms.iter().flat_map(|(_, e)| e.adjustment_set.iter().copied()),
+    )?
+    else {
         return Ok(estimate);
     };
     if atoms.is_empty() {
@@ -541,7 +699,8 @@ pub(super) fn attach_class_conditional_functional_grid(
             }
             let mut transformed_query = query.clone();
             transformed_query.inner.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
-            let (_point, scores) = est.estimate_with_arm_scores(&data_c, estimand, &transformed_query)?;
+            let (_point, scores) =
+                est.estimate_with_arm_scores(&data_c, estimand, &transformed_query)?;
             arm0 += w * (1.0 - scores.means[0]);
             arm1 += w * (1.0 - scores.means[1]);
             mass += w;
@@ -557,12 +716,17 @@ pub(super) fn attach_class_conditional_functional_grid(
             }
             for arm in 0..2 {
                 let (events, supported) = super::helpers::tail_event_support(
-                    &scores.treatment, &scores.row_index, &y_orig, arm, threshold,
+                    &scores.treatment,
+                    &scores.row_index,
+                    &y_orig,
+                    arm,
+                    threshold,
                 );
                 minimum_events[arm] = minimum_events[arm].min(events);
                 supported_in_all[arm] &= supported;
-                let count = scores.treatment.iter()
-                    .filter(|&&t| (t - arm as f64).abs() <= 1e-12).count() as f64;
+                let count =
+                    scores.treatment.iter().filter(|&&t| (t - arm as f64).abs() <= 1e-12).count()
+                        as f64;
                 minimum_arm_counts[arm] = minimum_arm_counts[arm].min(count);
             }
         }
@@ -614,8 +778,10 @@ pub(super) fn attach_class_conditional_functional_grid(
     if thresholds.len() == 1 {
         // Scalar exceedance and its CDFs must describe the same fitted functional.
         out.ate = mixed_cdf[0] - mixed_cdf[1];
-        let contrast: Vec<_> = mixed_columns[0].iter().zip(&mixed_columns[1]).map(|(a, b)| a - b).collect();
-        out.se_analytic = antecedent_estimate::joint_influence_covariance(&[&contrast], None)?.se(0);
+        let contrast: Vec<_> =
+            mixed_columns[0].iter().zip(&mixed_columns[1]).map(|(a, b)| a - b).collect();
+        out.se_analytic =
+            antecedent_estimate::joint_influence_covariance(&[&contrast], None)?.se(0);
         out.influence = Some(contrast.into());
         out.se_bootstrap = None;
         out.simultaneous_interval = None;
@@ -636,7 +802,14 @@ pub(super) fn attach_class_conditional_functional_grid(
         out.simultaneous_interval = None;
     }
     if let Some(tau) = query.inner.outcome_functional.quantile_level() {
-        super::helpers::attach_conditional_quantile(&mut out, &thresholds, &raw_cdf, &mixed_columns, &threshold_supported, tau)?;
+        super::helpers::attach_conditional_quantile(
+            &mut out,
+            &thresholds,
+            &raw_cdf,
+            &mixed_columns,
+            &threshold_supported,
+            tau,
+        )?;
     }
     Ok(out)
 }
@@ -763,7 +936,16 @@ pub(super) fn mix_prior_sensitivity_summaries(
 ) -> Option<antecedent_prob::PriorSensitivitySummary> {
     let first = items.first()?.1;
     let n = first.effect_means.len();
-    if n == 0 || items.iter().any(|(_, s)| s.effect_means.len() != n) {
+    // Grids of different families (or different grids) are not comparable points.
+    if n == 0
+        || items.iter().any(|(_, s)| {
+            s.effect_means.len() != n
+                || s.family != first.family
+                || s.prior_scales != first.prior_scales
+                || s.alphas != first.alphas
+                || s.variance_multipliers != first.variance_multipliers
+        })
+    {
         return None;
     }
     let mut w_sum = 0.0;
@@ -790,11 +972,34 @@ pub(super) fn mix_prior_sensitivity_summaries(
         sds[i] = (second[i] / w_sum - means[i] * means[i]).max(0.0).sqrt();
     }
     Some(antecedent_prob::PriorSensitivitySummary {
+        family: first.family,
         prior_scales: Arc::clone(&first.prior_scales),
         alphas: Arc::clone(&first.alphas),
+        variance_multipliers: Arc::clone(&first.variance_multipliers),
         effect_means: Arc::from(means),
         effect_sds: Arc::from(sds),
     })
+}
+
+/// Whether the atom's posterior check adds the serial-dependence axis.
+fn temporal_predictive_check(atom: &EnvelopeAtomFit, refute: RefuteSuite) -> bool {
+    matches!(refute, RefuteSuite::Full) && atom.indexer.is_some()
+}
+
+/// Whether two envelope atoms would produce identical predictive-check reports:
+/// same fitted problem, prior, posterior draws and check variant (the temporal
+/// axis also reads the posterior's tempering note).
+fn same_predictive_check_inputs(
+    a: &EnvelopeAtomFit,
+    b: &EnvelopeAtomFit,
+    refute: RefuteSuite,
+) -> bool {
+    let temporal = temporal_predictive_check(a, refute);
+    temporal == temporal_predictive_check(b, refute)
+        && a.prior == b.prior
+        && a.posterior.draws == b.posterior.draws
+        && (!temporal || a.posterior.diagnostics.notes == b.posterior.diagnostics.notes)
+        && same_fitted_problem(&a.prep, &b.prep)
 }
 
 /// Run PPC (and, under `full`, prior-sensitivity) on identified envelope atoms.
@@ -809,6 +1014,7 @@ pub(super) fn run_envelope_bayesian_full_validation(
     mixture_posterior: &mut CausalPosterior,
     estimate_ate: f64,
     ctx: &ExecutionContext,
+    predictive_sims: u32,
     refutations: &mut Vec<antecedent_validate::RefutationReport>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<Vec<PredictiveCheckReport>, CausalError> {
@@ -821,23 +1027,35 @@ pub(super) fn run_envelope_bayesian_full_validation(
     if matches!(refute, RefuteSuite::None) || atoms.is_empty() {
         return Ok(predictive_checks);
     }
-    let mut prior_items = Vec::with_capacity(atoms.len());
-    let mut post_items = Vec::with_capacity(atoms.len());
-    for atom in atoms {
-        let ppc_prior = est
-            .prior
-            .clone()
-            .unwrap_or_else(|| PriorSet::weakly_informative(atom.prep.design.ncols));
-        let prior_rep = PriorPredictiveCheck {
-            n_sims: 200,
-            seed: ctx.rng.master_seed(),
-            ..PriorPredictiveCheck::new()
+    let mut prior_items: Vec<(f64, PredictiveCheckReport)> = Vec::with_capacity(atoms.len());
+    let mut post_items: Vec<(f64, PredictiveCheckReport)> = Vec::with_capacity(atoms.len());
+    for (j, atom) in atoms.iter().enumerate() {
+        // Both checks are deterministic in (design, prior, posterior draws, seed),
+        // so atoms that fitted the same problem under the same prior — graphs
+        // sharing an adjustment set — replicate the same outcomes: run once.
+        if let Some(i) = (0..j).find(|&i| same_predictive_check_inputs(&atoms[i], atom, refute)) {
+            prior_items.push((atom.weight, prior_items[i].1.clone()));
+            post_items.push((atom.weight, post_items[i].1.clone()));
+            continue;
         }
-        .check_with_prior(&atom.prep, &ppc_prior, ctx)
-        .map_err(CausalError::from)?;
-        let post_rep = PosteriorPredictiveCheck::new()
-            .check(&atom.prep, &atom.posterior)
+        // Each atom's checks use the prior that atom was actually fitted under.
+        let atom_est = BayesianGComputationAte { prior: atom.prior.clone(), ..est.clone() };
+        let ppc_prior = atom_est.prior_in_force(atom.prep.design.ncols);
+        let prior_rep = PriorPredictiveCheck::for_estimator(&atom_est, ctx)
+            .with_n_sims(predictive_sims)
+            .check_with_prior(&atom.prep, &ppc_prior, ctx)
             .map_err(CausalError::from)?;
+        // Temporal atoms (lag indexer present) add the serial-dependence discrepancy
+        // under `full`; exchangeable static rows keep the two-axis check.
+        let post_check =
+            PosteriorPredictiveCheck::for_estimator(&atom_est, ctx).with_n_sims(predictive_sims);
+        let post_rep = if temporal_predictive_check(atom, refute) {
+            post_check
+                .check_temporal(&atom.prep, &atom.posterior, ctx.rng.master_seed())
+                .map_err(CausalError::from)?
+        } else {
+            post_check.check(&atom.prep, &atom.posterior).map_err(CausalError::from)?
+        };
         prior_items.push((atom.weight, prior_rep));
         post_items.push((atom.weight, post_rep));
     }
@@ -852,6 +1070,8 @@ pub(super) fn run_envelope_bayesian_full_validation(
         predictive_checks.push(mixed);
     }
 
+    // `Some(mixed)` under `full`: whether the per-completion sensitivity grids mixed.
+    let mut sensitivity_mixed = None;
     if matches!(refute, RefuteSuite::Full) {
         let mut ws = BayesianGCompWorkspace::default();
         let mut owned = Vec::with_capacity(atoms.len());
@@ -859,9 +1079,10 @@ pub(super) fn run_envelope_bayesian_full_validation(
         // so keep the first one rather than paying for a second full evaluation.
         let mut grid = None;
         for atom in atoms {
+            let atom_est = BayesianGComputationAte { prior: atom.prior.clone(), ..est.clone() };
             let (summary, sens) = evaluate_bayesian_prior_sensitivity(
                 cfg,
-                est,
+                &atom_est,
                 &atom.prep,
                 atom.status,
                 &atom.posterior,
@@ -872,9 +1093,9 @@ pub(super) fn run_envelope_bayesian_full_validation(
             grid.get_or_insert(sens);
         }
         let sens_items: Vec<_> = owned.iter().map(|(w, s)| (*w, s)).collect();
-        if let (Some(mixed), Some(sens)) =
-            (mix_prior_sensitivity_summaries(&sens_items), grid.as_ref())
-        {
+        let mixed = mix_prior_sensitivity_summaries(&sens_items);
+        sensitivity_mixed = Some(mixed.is_some());
+        if let (Some(mixed), Some(sens)) = (mixed, grid.as_ref()) {
             refutations.push(sens.to_report(&mixed, estimate_ate));
             *mixture_posterior = with_prior_sensitivity(mixture_posterior.clone(), mixed);
         }
@@ -882,35 +1103,75 @@ pub(super) fn run_envelope_bayesian_full_validation(
 
     let atom_keys: String =
         atoms.iter().map(|atom| format!("{:x}", atom.key)).collect::<Vec<_>>().join(",");
-    diagnostics.push(Diagnostic::new(
+    diagnostics.extend(envelope_validation_diagnostics(&atom_keys, sensitivity_mixed));
+    Ok(predictive_checks)
+}
+
+/// Diagnostics describing what the class-envelope Bayesian validation evaluated.
+///
+/// `sensitivity_mixed` is `None` without a prior-sensitivity pass (`cheap`), and
+/// otherwise whether the per-completion sensitivity summaries shared one grid and
+/// so produced a mixture-weighted report. Grids of different perturbed-prior
+/// families (a transferred prior on some completions, the isotropic scale on
+/// others) are not comparable points, so no prior-sensitivity report is published
+/// and the diagnostics say so rather than claiming it was evaluated.
+pub(super) fn envelope_validation_diagnostics(
+    atom_keys: &str,
+    sensitivity_mixed: Option<bool>,
+) -> Vec<Diagnostic> {
+    let summary = match sensitivity_mixed {
+        Some(true) => format!(
+            "PPC and prior-sensitivity evaluated per identified completion [{atom_keys}]; \
+             reports are mixture-weighted by graph posterior mass"
+        ),
+        Some(false) => format!(
+            "PPC evaluated per identified completion [{atom_keys}]; reports are \
+             mixture-weighted by graph posterior mass. Prior sensitivity was computed per \
+             completion but no prior-sensitivity report is published (see \
+             refute.bayesian.prior_sensitivity.not_mixed)"
+        ),
+        None => format!(
+            "PPC evaluated per identified completion [{atom_keys}]; reports are \
+             mixture-weighted by graph posterior mass"
+        ),
+    };
+    let mut out = vec![Diagnostic::new(
         "refute.bayesian.ppc.envelope",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
-        if matches!(refute, RefuteSuite::Full) {
+        summary,
+    )];
+    if sensitivity_mixed == Some(false) {
+        out.push(Diagnostic::new(
+            "refute.bayesian.prior_sensitivity.not_mixed",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
             format!(
-                "PPC and prior-sensitivity evaluated per identified completion [{atom_keys}]; \
-                 reports are mixture-weighted by graph posterior mass"
-            )
-        } else {
-            format!(
-                "PPC evaluated per identified completion [{atom_keys}]; reports are \
-                 mixture-weighted by graph posterior mass"
-            )
-        },
-    ));
-    Ok(predictive_checks)
+                "prior sensitivity was not reported: the identified completions [{atom_keys}] \
+                 perturbed incomparable grids (different prior families, e.g. a transferred \
+                 prior on some completions and the isotropic scale on others, or different grid \
+                 points), so no mixture-weighted summary exists; the result carries no \
+                 prior-sensitivity evidence"
+            ),
+        ));
+    }
+    out
 }
 
 /// Run cheap/full effect refuters on every contributing envelope atom and mix.
 ///
 /// Each atom is validated on its own estimand (and lag indexer, for DBN atoms)
-/// against the mixture effect. Reports of the same refuter id are mixed by
-/// posterior mass. Validators that are `NotApplicable` on every contributing
-/// atom surface once; a check that applies to only a subset mixes that subset.
+/// against that atom's own estimate ([`EnvelopeRefuteAtom::original`]), so a
+/// stable atom whose effect differs from the pooled mixture is not reported as
+/// a refutation. Reports of the same refuter id are mixed by posterior mass;
+/// the mixed `original_ate` is therefore the mass-weighted mean of the per-atom
+/// estimates that were actually compared (over the atoms that produced that
+/// report), and the mixed check passes only if every contributing atom passes.
+/// Validators that are `NotApplicable` on every contributing atom surface once;
+/// a check that applies to only a subset mixes that subset.
 pub(super) fn run_envelope_effect_refuters(
     data: &TabularData,
     query: &AverageEffectQuery,
-    estimate: &EffectEstimate,
     atoms: &[EnvelopeRefuteAtom],
     workspace: &mut EstimationWorkspace,
     ctx: &ExecutionContext,
@@ -955,7 +1216,7 @@ pub(super) fn run_envelope_effect_refuters(
             data,
             &atom.estimand,
             query,
-            estimate,
+            &atom.original,
             workspace,
             None,
             ctx,
@@ -1003,9 +1264,10 @@ pub(super) fn run_envelope_effect_refuters(
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         format!(
-            "effect refuters evaluated each contributing graph atom [{atom_keys}] against the \
-             mixture effect; reports mix by envelope mass and pass only if every contributing \
-             atom passes"
+            "effect refuters evaluated each contributing graph atom [{atom_keys}] against that \
+             atom's own estimate, not the pooled mixture; reports mix by envelope mass (the \
+             mixed original_ate is the mass-weighted mean of the per-atom estimates compared) \
+             and pass only if every contributing atom passes"
         ),
     ));
     Ok((reports, diagnostics))
@@ -1200,6 +1462,112 @@ pub(super) fn admg_to_dag(admg: &Admg) -> Result<Dag, CausalError> {
     Ok(dag)
 }
 
+/// Copy inference notes from `sources` onto `target` (deduplicated), so a mixture or
+/// composed posterior still records its atoms' dependence correction / draw floor.
+pub(super) fn merge_posterior_notes<'a>(
+    target: &mut CausalPosterior,
+    sources: impl IntoIterator<Item = &'a CausalPosterior>,
+) {
+    for source in sources {
+        for note in &source.diagnostics.notes {
+            if !target.diagnostics.notes.contains(note) {
+                target.diagnostics.notes.push(Arc::clone(note));
+            }
+        }
+    }
+}
+
+/// Result diagnostics derived from posterior inference notes.
+///
+/// - `estimate.bayesian.temporal.dependence_correction`: the likelihood was tempered
+///   for serial dependence (R-9); lists every fitted `κ̂`.
+/// - `estimate.bayesian.hmc_draw_floor`: the HMC draw floor raised the requested
+///   draw count (B-5).
+pub(super) fn posterior_note_diagnostics<'a>(
+    posteriors: impl IntoIterator<Item = &'a CausalPosterior>,
+) -> Vec<Diagnostic> {
+    let mut kappas = Vec::new();
+    let mut floors = Vec::new();
+    let mut capped = 0usize;
+    let mut inestimable = 0usize;
+    let mut seen = std::collections::HashSet::new();
+    for post in posteriors {
+        for note in &post.diagnostics.notes {
+            if !seen.insert(Arc::clone(note)) {
+                continue;
+            }
+            let single = std::slice::from_ref(note);
+            if let Some(kappa) = antecedent_estimate::tempering_kappa_from_notes(single) {
+                kappas.push(kappa);
+            }
+            if antecedent_estimate::tempering_capped_from_notes(single) {
+                capped += 1;
+            }
+            if antecedent_estimate::tempering_inestimable_from_notes(single) {
+                inestimable += 1;
+            }
+            if let Some(floor) = antecedent_estimate::hmc_draw_floor_from_notes(single) {
+                floors.push(floor);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    if !kappas.is_empty() {
+        let list = kappas.iter().map(|k| format!("{k:.3}")).collect::<Vec<_>>().join(", ");
+        out.push(Diagnostic::new(
+            "estimate.bayesian.temporal.dependence_correction",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "generalized (power) posterior with a serial-dependence correction: each \
+                 Gaussian likelihood on time-ordered rows is tempered by 1/kappa, kappa = the \
+                 larger of the autoregressive-prewhitened Newey-West long-run-variance ratio of \
+                 the targeted slope score (scaled by its squared fixed-b factor) and the \
+                 autoregressive-residual variance ratio given the design (AR(1), plus a \
+                 BIC-selected AR(q) up to order 4), floored at 1 (kappa = [{list}] over {} \
+                 fit(s)); this corrects short-memory serial dependence in the outcome residual, \
+                 not long memory, heteroskedasticity or a misspecified mean",
+                kappas.len()
+            ),
+        ));
+    }
+    if inestimable > 0 {
+        out.push(Diagnostic::new(
+            "estimate.bayesian.temporal.tempering_inestimable",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "long-run-variance tempering could not be estimated on {inestimable} fit(s) \
+                 (n < max(8, p+2)); the published credible interval is the iid posterior and \
+                 is likely too narrow"
+            ),
+        ));
+    }
+    if capped > 0 {
+        out.push(Diagnostic::new(
+            "estimate.bayesian.temporal.tempering_capped",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "long-run-variance tempering hit the n/(p+2) cap on {capped} fit(s); kappa is \
+                 known to be too small and the published credible interval is still too narrow"
+            ),
+        ));
+    }
+    if let Some(&(requested, used)) = floors.first() {
+        out.push(Diagnostic::new(
+            "estimate.bayesian.hmc_draw_floor",
+            DiagnosticKind::Execution,
+            DiagnosticSeverity::Info,
+            format!(
+                "HMC draw floor raised n_draws from {requested} to {used} so the MCMC \
+                 publication gate (R-hat <= 1.01, bulk/tail ESS >= 100 per chain) is reachable"
+            ),
+        ));
+    }
+    out
+}
+
 pub(super) fn bayesian_gcomp(
     cfg: &BayesianConfig,
     ctx: &ExecutionContext,
@@ -1226,11 +1594,9 @@ pub(super) fn apply_temporal_prior_sensitivity(
 ) -> Result<antecedent_estimate::CausalPosterior, CausalError> {
     let mut est = bayesian_temporal_gcomp(cfg, ctx);
     let mut ws = BayesianGCompWorkspace::default();
-    if let Some(ext) = cfg.external_compose.as_ref() {
-        est.inner.prior = Some(ext.composed.prior.clone());
-    } else {
-        est.inner.prior = resolve_bayesian_prior(cfg, bprep)?;
-    }
+    // Same resolution (and conflict shrink) as the fit, so the grid perturbs the
+    // prior in force rather than a fresh isotropic one.
+    est.inner.prior = resolve_bayesian_prior_with_conflict(cfg, bprep, Some(ctx))?.0;
     let (summary, sens) = evaluate_bayesian_prior_sensitivity(
         cfg, &est.inner, bprep, status, posterior, &mut ws, ctx,
     )?;
@@ -1389,6 +1755,17 @@ impl super::Study {
         }
         push_aipw_score_kind(&mut diagnostics, args.estimator_id, &args.estimate);
         push_grid_scalar_cleared(&mut diagnostics, &args.estimate);
+        let structural_posteriors = extras
+            .structural_response
+            .iter()
+            .flat_map(|mixture| mixture.atoms.iter().filter_map(|atom| atom.posterior.as_ref()));
+        for diagnostic in
+            posterior_note_diagnostics(extras.posterior.iter().chain(structural_posteriors))
+        {
+            if diagnostics.iter().all(|d| d.code != diagnostic.code) {
+                diagnostics.push(diagnostic);
+            }
+        }
         let (id_artifact, id_op) = extras.identify_provenance.unwrap_or_else(|| {
             let (a, b) = identify_provenance_step(args.identifier_id);
             provenance_ids(a, b)
@@ -1464,7 +1841,9 @@ impl super::Study {
         });
         let is_quantile = match &self.query {
             CausalQuery::AverageEffect(q) => q.outcome_functional.quantile_level().is_some(),
-            CausalQuery::ConditionalEffect(q) => q.inner.outcome_functional.quantile_level().is_some(),
+            CausalQuery::ConditionalEffect(q) => {
+                q.inner.outcome_functional.quantile_level().is_some()
+            }
             CausalQuery::Response(q) => q.outcome_functional.quantile_level().is_some(),
             _ => false,
         };
@@ -1482,10 +1861,11 @@ impl super::Study {
         result.structural_response = extras.structural_response;
         result.support_status = self.support_status;
         result.structure_source = self.structure_source;
-        if !is_quantile && self
-            .tiered
-            .as_ref()
-            .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
+        if !is_quantile
+            && self
+                .tiered
+                .as_ref()
+                .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
         {
             if let DataInput::Tabular(data) = &self.data {
                 super::helpers::attach_tiered_evalue(
@@ -1543,19 +1923,26 @@ pub(super) fn bootstrap_has_enough_successes(completed: usize, attempted: usize)
 
 // Aggregation consumes only effect draws. Keep each contributing model's
 // prior/estimation restrictions on the resulting mixture as well.
-pub(super) fn retain_envelope_assumptions(posterior: &mut CausalPosterior, atoms: &[EnvelopeAtomFit]) {
+pub(super) fn retain_envelope_assumptions(
+    posterior: &mut CausalPosterior,
+    atoms: &[EnvelopeAtomFit],
+) {
     for atom in atoms {
-        posterior.assumptions.entries.extend(atom.posterior.assumptions.entries.iter().cloned().map(|mut record| {
-            match &mut record.assumption {
-                antecedent_core::Assumption::PriorRestriction(prior) => {
-                    prior.description = Arc::from(format!("graph atom {}: {}", atom.key, prior.description));
+        posterior.assumptions.entries.extend(
+            atom.posterior.assumptions.entries.iter().cloned().map(|mut record| {
+                match &mut record.assumption {
+                    antecedent_core::Assumption::PriorRestriction(prior) => {
+                        prior.description =
+                            Arc::from(format!("graph atom {}: {}", atom.key, prior.description));
+                    }
+                    antecedent_core::Assumption::ParametricRestriction(model) => {
+                        model.description =
+                            Arc::from(format!("graph atom {}: {}", atom.key, model.description));
+                    }
+                    _ => {}
                 }
-                antecedent_core::Assumption::ParametricRestriction(model) => {
-                    model.description = Arc::from(format!("graph atom {}: {}", atom.key, model.description));
-                }
-                _ => {}
-            }
-            record
-        }));
+                record
+            }),
+        );
     }
 }

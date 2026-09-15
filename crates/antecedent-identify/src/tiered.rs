@@ -21,7 +21,6 @@ use antecedent_graph::{Admg, DenseNodeId, TieredBackground, WithinTier};
 use crate::generalized::not_identified;
 use crate::joint_response::{joint_adjustment_holds, joint_result, prepare_joint_response};
 
-use crate::envelope::{GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass};
 use crate::error::IdentificationError;
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentifiedEstimand,
@@ -34,15 +33,23 @@ pub const NO_LATENT_TO_OUTCOME: &str = "tiered.no_latent_to_outcome";
 /// known closure ADMG (open back-door, or a drawn treatment↔outcome edge).
 pub const TIERED_JOINT_ADJUSTMENT_REFUSE: &str = "no joint generalized back-door set on the CoDetermined closure ADMG; open back-door or a drawn treatment↔outcome edge";
 
+/// The single-treatment tier closure fails the generalized back-door check on the
+/// supplied ADMG (open back-door, or a drawn treatment↔outcome edge).
+pub const TIERED_ADJUSTMENT_REFUSE: &str = "tier closure is not a generalized back-door set on the CoDetermined ADMG; open back-door or a drawn treatment↔outcome edge";
+
 /// Unknown-tier joint cells have no single ADMG and no cell-AIPW score table.
 pub const TIERED_JOINT_UNKNOWN_REFUSE: &str = "Unknown-tier joint InterventionResponse has no single ADMG; two canonical scenarios are not a cell-AIPW license";
 
 /// Identify an average effect under a declared tier background.
 ///
-/// `CoDetermined` returns one certified generalized-adjustment set. Unknown
-/// returns a two-estimand [`IdentificationResult`] with
-/// [`antecedent_core::IdentificationStatus::GraphDependent`]; callers that
-/// must not collapse should use [`identify_tiered_envelope`].
+/// `CoDetermined` returns one generalized-adjustment set: the `O(p)` tier
+/// closure on the background's own closure ADMG. To certify against a
+/// different ADMG (for example one with an extra treatment↔outcome edge), use
+/// [`identify_tiered_on`], which runs the generalized back-door check. Unknown
+/// returns a two-estimand
+/// [`IdentificationResult`] with
+/// [`antecedent_core::IdentificationStatus::GraphDependent`]; callers must keep
+/// both estimands and never collapse them.
 ///
 /// # Errors
 ///
@@ -52,95 +59,63 @@ pub fn identify_tiered(
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
     match background.within_tier {
-        WithinTier::CoDetermined => identify_closure(background, query),
-        WithinTier::Unknown => {
-            let [pre, closure] =
-                background.unknown_canonical_sets(query.treatment, query.outcome)?;
-            let (estimands, arena) = estimands_for_sets(
-                query,
-                &[
-                    (pre.as_ref(), "tiered.unknown.pretreatment"),
-                    (closure.as_ref(), "tiered.unknown.closure"),
-                ],
-            )?;
-            let mut derivation = DerivationTrace::default();
-            derivation.push(
-                "tiered.unknown.envelope",
-                "pretreatment-only and tier-closure estimated as an envelope; never one set",
-            );
-            let mut result = IdentificationResult::identified(
-                CausalQuery::AverageEffect(query.clone()),
-                estimands,
-                arena,
-                derivation,
-                named_no_latent_assumption(),
-                IdentificationPerformanceRecord { candidates_examined: 2, sets_returned: 2 },
-            );
-            result.status = antecedent_core::IdentificationStatus::GraphDependent;
-            result.diagnostics.push(no_latent_diagnostic());
-            result.diagnostics.push(Diagnostic::new("tiered.unknown.canonical_scenarios", DiagnosticKind::Scientific, DiagnosticSeverity::Warning,
-                "two declared orientation scenarios only: treatment precedes all same-tier peers, or follows all peers; these are not exhaustive completions or bounds over the unknown graph class"));
-            Ok(result)
-        }
+        WithinTier::CoDetermined => identify_closure(background, None, query),
+        WithinTier::Unknown => identify_tiered_unknown(background, query),
     }
 }
 
-/// Unknown envelope: two equally weighted canonical sets, never collapsed.
+/// [`identify_tiered`] checked against an already-materialized ADMG.
+///
+/// `CoDetermined` certifies the tier closure only when it satisfies the
+/// generalized back-door criterion on `admg` (the same check the joint path
+/// runs); a drawn treatment↔outcome edge or an open back-door returns
+/// [`antecedent_core::IdentificationStatus::NotIdentified`]. Unknown ignores
+/// `admg`: two canonical scenarios are not one ADMG.
 ///
 /// # Errors
 ///
-/// Same as [`identify_tiered`].
-pub fn identify_tiered_envelope(
+/// Same as [`identify_tiered`], plus unknown variables in `admg`.
+pub fn identify_tiered_on(
+    background: &TieredBackground,
+    admg: &Admg,
+    query: &AverageEffectQuery,
+) -> Result<IdentificationResult, IdentificationError> {
+    match background.within_tier {
+        WithinTier::CoDetermined => identify_closure(background, Some(admg), query),
+        WithinTier::Unknown => identify_tiered_unknown(background, query),
+    }
+}
+
+fn identify_tiered_unknown(
     background: &TieredBackground,
     query: &AverageEffectQuery,
-    graph: &Admg,
-) -> Result<IdentificationEnvelope<Admg>, IdentificationError> {
+) -> Result<IdentificationResult, IdentificationError> {
     let [pre, closure] = background.unknown_canonical_sets(query.treatment, query.outcome)?;
-    let pre_id = identified_one(query, &pre, "tiered.unknown.pretreatment")?;
-    let clo_id = identified_one(query, &closure, "tiered.unknown.closure")?;
-    let n = u32::try_from(graph.node_count())
-        .map_err(|_| antecedent_graph::GraphError::TooManyNodes)?;
-    let mut before = Admg::with_variables(n);
-    let mut after = Admg::with_variables(n);
-    for (k, tier) in background.tiers.iter().enumerate() {
-        for later in background.tiers.iter().skip(k + 1) {
-            for &a in tier.iter() {
-                for &b in later.iter() {
-                    before.insert_directed(
-                        antecedent_graph::DenseNodeId::from_raw(a.raw()),
-                        antecedent_graph::DenseNodeId::from_raw(b.raw()),
-                    )?;
-                    after.insert_directed(
-                        antecedent_graph::DenseNodeId::from_raw(a.raw()),
-                        antecedent_graph::DenseNodeId::from_raw(b.raw()),
-                    )?;
-                }
-            }
-        }
-        let mut peers = tier.to_vec();
-        peers.sort_by_key(|v| (u8::from(*v != query.treatment), v.raw()));
-        for (i, &a) in peers.iter().enumerate() {
-            for &b in peers.iter().skip(i + 1) {
-                before.insert_directed(
-                    antecedent_graph::DenseNodeId::from_raw(a.raw()),
-                    antecedent_graph::DenseNodeId::from_raw(b.raw()),
-                )?;
-            }
-        }
-        peers.sort_by_key(|v| (u8::from(*v == query.treatment), v.raw()));
-        for (i, &a) in peers.iter().enumerate() {
-            for &b in peers.iter().skip(i + 1) {
-                after.insert_directed(
-                    antecedent_graph::DenseNodeId::from_raw(a.raw()),
-                    antecedent_graph::DenseNodeId::from_raw(b.raw()),
-                )?;
-            }
-        }
-    }
-    Ok(IdentificationEnvelope::from_cases(vec![
-        GraphIdentificationCase { graph: before, result: pre_id, weight: ProbabilityMass(0.5) },
-        GraphIdentificationCase { graph: after, result: clo_id, weight: ProbabilityMass(0.5) },
-    ]))
+    let (estimands, arena) = estimands_for_sets(
+        query,
+        &[
+            (pre.as_ref(), "tiered.unknown.pretreatment"),
+            (closure.as_ref(), "tiered.unknown.closure"),
+        ],
+    )?;
+    let mut derivation = DerivationTrace::default();
+    derivation.push(
+        "tiered.unknown.envelope",
+        "pretreatment-only and tier-closure estimated as an envelope; never one set",
+    );
+    let mut result = IdentificationResult::identified(
+        CausalQuery::AverageEffect(query.clone()),
+        estimands,
+        arena,
+        derivation,
+        named_no_latent_assumption(),
+        IdentificationPerformanceRecord { candidates_examined: 2, sets_returned: 2 },
+    );
+    result.status = antecedent_core::IdentificationStatus::GraphDependent;
+    result.diagnostics.push(no_latent_diagnostic());
+    result.diagnostics.push(Diagnostic::new("tiered.unknown.canonical_scenarios", DiagnosticKind::Scientific, DiagnosticSeverity::Warning,
+        "two declared orientation scenarios only: treatment precedes all same-tier peers, or follows all peers; these are not exhaustive completions or bounds over the unknown graph class"));
+    Ok(result)
 }
 
 /// Joint `do(T…)` on the [`WithinTier::CoDetermined`] closure ADMG.
@@ -233,16 +208,69 @@ fn identify_joint_closure_on(
     Ok(result)
 }
 
+fn node_of(
+    admg: &Admg,
+    variable: antecedent_core::VariableId,
+) -> Result<DenseNodeId, IdentificationError> {
+    admg.nodes()
+        .iter()
+        .position(|n| *n == antecedent_graph::NodeRef::Static(variable))
+        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node index fits")))
+        .ok_or(IdentificationError::UnknownVariable { id: variable })
+}
+
+/// Single-treatment closure. With `admg`, the closure must pass the generalized
+/// back-door check on that graph (the same check as the joint path); without
+/// one, the graph is the background's own closure ADMG, on which the check
+/// holds by construction (every back-door path leaves `T` through an
+/// earlier-tier parent or a same-tier spouse, and each such path meets a
+/// conditioned non-collider in the closure before it can reach `Y`).
 fn identify_closure(
     background: &TieredBackground,
+    admg: Option<&Admg>,
     query: &AverageEffectQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
     let set = background.tier_closure(query.treatment, query.outcome)?;
+    let holds = match admg {
+        None => true,
+        Some(admg) => {
+            let t = node_of(admg, query.treatment)?;
+            let y = node_of(admg, query.outcome)?;
+            let z = set.iter().map(|&v| node_of(admg, v)).collect::<Result<Vec<_>, _>>()?;
+            joint_adjustment_holds(admg, &[t], y, &z, |_, _| true)?
+        }
+    };
+    if !holds {
+        let mut result =
+            not_identified(CausalQuery::AverageEffect(query.clone()), TIERED_ADJUSTMENT_REFUSE);
+        result.required_assumptions = named_no_latent_assumption();
+        result.derivation.push("tiered.closure_admg", TIERED_ADJUSTMENT_REFUSE);
+        result.diagnostics.push(no_latent_diagnostic());
+        result.diagnostics.push(Diagnostic::new(
+            "identify.tiered.adjustment",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            TIERED_ADJUSTMENT_REFUSE,
+        ));
+        return Ok(result);
+    }
     let (estimand, arena) = estimand_for_set(query, &set, "generalized.adjustment")?;
     let mut derivation = DerivationTrace::default();
     derivation.push(
         "tiered.closure",
-        format!("O(p) tier-closure |Z|={} certified as generalized.adjustment", set.len()),
+        if admg.is_some() {
+            format!(
+                "O(p) tier-closure |Z|={} certified as generalized.adjustment by one \
+                 generalized back-door check on the supplied ADMG",
+                set.len()
+            )
+        } else {
+            format!(
+                "O(p) tier-closure |Z|={} certified as generalized.adjustment on the \
+                 background's own closure ADMG",
+                set.len()
+            )
+        },
     );
     let mut result = IdentificationResult::identified(
         CausalQuery::AverageEffect(query.clone()),
@@ -254,34 +282,6 @@ fn identify_closure(
     );
     result.diagnostics.push(no_latent_diagnostic());
     Ok(result)
-}
-
-fn identified_one(
-    query: &AverageEffectQuery,
-    set: &[antecedent_core::VariableId],
-    method: &'static str,
-) -> Result<IdentificationResult, IdentificationError> {
-    let (estimand, arena) = estimand_for_set(query, set, method)?;
-    let mut derivation = DerivationTrace::default();
-    derivation.push(method, format!("|Z|={}", set.len()));
-    Ok(IdentificationResult::identified(
-        CausalQuery::AverageEffect(query.clone()),
-        vec![estimand],
-        arena,
-        derivation,
-        {
-            let mut assumptions = named_no_latent_assumption();
-            assumptions.push(AssumptionRecord {
-                assumption: Assumption::Custom { id: Arc::from(method), description: Arc::from(
-                    if method.ends_with("pretreatment") { "treatment precedes every same-tier peer; all tiers follow a causal order with no cross-tier latent confounding" }
-                    else { "treatment follows every same-tier peer; all tiers follow a causal order with no cross-tier latent confounding" }) },
-                source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("tiered.unknown") },
-                scope: AssumptionScope::Identification, status: AssumptionStatus::Declared,
-            });
-            assumptions
-        },
-        IdentificationPerformanceRecord { candidates_examined: 1, sets_returned: 1 },
-    ))
 }
 
 fn estimand_for_set(
@@ -450,6 +450,70 @@ mod tests {
             &a.assumption,
             Assumption::Custom { id, .. } if id.as_ref() == NO_LATENT_TO_OUTCOME
         )));
+    }
+
+    #[test]
+    fn closure_is_checked_against_the_supplied_admg() {
+        let (schema, background) = bg();
+        let q =
+            AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
+        let mut admg = background.to_admg(&schema).unwrap();
+        let on_closure = identify_tiered_on(&background, &admg, &q).unwrap();
+        assert_eq!(on_closure.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(
+            on_closure.estimands[0].adjustment_set,
+            identify_tiered(&background, &q).unwrap().estimands[0].adjustment_set
+        );
+        let t = DenseNodeId::from_raw(schema.id_of("t").unwrap().raw());
+        let y = DenseNodeId::from_raw(schema.id_of("y").unwrap().raw());
+        admg.insert_bidirected(t, y).unwrap();
+        let refused = identify_tiered_on(&background, &admg, &q).unwrap();
+        assert_eq!(refused.status, IdentificationStatus::NotIdentified);
+        assert!(refused.estimands.is_empty());
+        assert!(refused.diagnostics.iter().any(|d| {
+            d.code.as_ref() == "identify.tiered.adjustment" && d.kind == DiagnosticKind::Scientific
+        }));
+    }
+
+    /// The unchecked `identify_tiered` shortcut relies on the closure passing the
+    /// back-door check on its own closure ADMG; verify that with same-tier
+    /// spouses on both sides of the treatment tier.
+    #[test]
+    fn closure_passes_the_backdoor_check_on_its_own_admg() {
+        let schema = CausalSchemaBuilder::new()
+            .continuous("era")
+            .finish()
+            .continuous("scale")
+            .finish()
+            .continuous("design")
+            .finish()
+            .continuous("t")
+            .finish()
+            .continuous("m")
+            .finish()
+            .continuous("y")
+            .finish()
+            .build()
+            .unwrap();
+        let background = TieredBackground::from_named(
+            &schema,
+            &[vec!["era", "scale"], vec!["design", "t"], vec!["m", "y"]],
+            WithinTier::CoDetermined,
+        )
+        .unwrap();
+        let admg = background.to_admg(&schema).unwrap();
+        for (t, y) in [("t", "y"), ("t", "m"), ("design", "y"), ("era", "y")] {
+            let q =
+                AverageEffectQuery::binary_ate(schema.id_of(t).unwrap(), schema.id_of(y).unwrap());
+            let checked = identify_tiered_on(&background, &admg, &q).unwrap();
+            let shortcut = identify_tiered(&background, &q).unwrap();
+            assert_eq!(
+                checked.status,
+                IdentificationStatus::NonparametricallyIdentified,
+                "{t}->{y}"
+            );
+            assert_eq!(checked.estimands[0].adjustment_set, shortcut.estimands[0].adjustment_set);
+        }
     }
 
     #[test]

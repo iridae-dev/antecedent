@@ -30,7 +30,8 @@ impl TabularData {
     /// Build continuous `f64` columns from named slices (equal length).
     ///
     /// Schema variables are continuous with empty role hints, in iterator order.
-    /// Dense [`VariableId`]s align with column order (`0..n`).
+    /// Dense [`VariableId`]s align with column order (`0..n`). A `NaN` value is a
+    /// missing cell: its row is marked invalid, exactly as a null would be.
     ///
     /// # Errors
     ///
@@ -76,6 +77,8 @@ impl TabularData {
     }
 
     /// Bind named `f64` slices to an existing schema (names must match; order may differ).
+    ///
+    /// `NaN` values are missing cells (their rows are marked invalid).
     ///
     /// # Errors
     ///
@@ -173,6 +176,8 @@ impl TimeSeriesData {
     }
 
     /// Build a regularly sampled series from named `f64` columns.
+    ///
+    /// `NaN` values are missing cells (their rows are marked invalid).
     ///
     /// # Errors
     ///

@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::str::FromStr;
+use std::sync::OnceLock;
 
 use antecedent_core::IdentificationStatus;
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
@@ -10,57 +11,61 @@ use antecedent_identify::IdentificationResult;
 
 use crate::error::CausalError;
 
-/// Every accepted wire name for [`IdentifierId`], in [`IdentifierId::ALL`] order.
-const IDENTIFIER_NAMES: &[&str] = &[
-    "backdoor.adjustment",
-    "backdoor.efficient",
-    "frontdoor",
-    "iv",
-    "rd.sharp",
-    "temporal.backdoor.unfolded",
-    "generalized.adjustment",
-    "general.id",
-    "path_specific.natural",
-    "response.backdoor",
-    "gcm.parametric",
-    "auto",
-];
+/// Wire names in [`IdentifierId::ALL`] order, derived from [`IdentifierId::as_str`].
+fn identifier_names() -> &'static [&'static str] {
+    static NAMES: OnceLock<Vec<&'static str>> = OnceLock::new();
+    NAMES.get_or_init(|| IdentifierId::ALL.iter().map(IdentifierId::as_str).collect()).as_slice()
+}
 
-/// Every accepted wire name for [`EstimatorId`], in [`EstimatorId::ALL`] order.
-const ESTIMATOR_NAMES: &[&str] = &[
-    "linear.adjustment.ate",
-    "propensity.weighting",
-    "propensity.matching",
-    "propensity.stratification",
-    "distance.matching",
-    "aipw",
-    "glm.adjustment",
-    "frontdoor.two_stage",
-    "iv.wald",
-    "iv.2sls",
-    "rd.sharp",
-    "bayesian.gcomp",
-    "conditional.bayesian",
-    "temporal.linear.adjustment",
-    "bayesian.temporal.gcomp",
-    "temporal.sequential.gcomp",
-    "functional.distribution",
-    "functional.effect",
-    "mediation.linear",
-    "conditional.linear.adjustment",
-    "temporal.mediation",
-    "response.temporal.bayesian",
-    "response.bayesian",
-    "temporal.mediation.bayesian",
-    "response.kennedy_dr",
-    "response.riesz_ade",
-    "response.gam_derivative",
-    "response.intervention_gcomp",
-    "cell.aipw",
-    "temporal.response.gcomp",
-    "gcm.fit",
-];
+/// Wire names in [`EstimatorId::ALL`] order, derived from [`EstimatorId::as_str`].
+fn estimator_names() -> &'static [&'static str] {
+    static NAMES: OnceLock<Vec<&'static str>> = OnceLock::new();
+    NAMES.get_or_init(|| EstimatorId::ALL.iter().map(EstimatorId::as_str).collect()).as_slice()
+}
 
+/// Parse a closed-set id by walking [`ALL`] / [`as_str`] so a new variant cannot
+/// compile into `estimator_data` / `identifier_data` and still miss `FromStr`.
+fn parse_closed<T: Copy + PartialEq>(
+    s: &str,
+    all: &'static [T],
+    as_str: fn(&T) -> &'static str,
+    kind: &'static str,
+    expected: &'static [&'static str],
+) -> Result<T, UnknownStrategy> {
+    all.iter().copied().find(|id| as_str(id) == s).ok_or_else(|| UnknownStrategy {
+        kind,
+        got: s.to_string(),
+        expected,
+    })
+}
+
+/// Declare a closed-set id enum together with its `ALL` catalog, both
+/// generated from one variant list.
+///
+/// `FromStr` walks `ALL`, so a variant added to the enum but missing from a
+/// hand-maintained catalog would compile and then fail to parse. Generating
+/// both from the same list makes that omission impossible.
+macro_rules! closed_id_enum {
+    (
+        $(#[$meta:meta])*
+        $vis:vis enum $name:ident {
+            $( $(#[$vmeta:meta])* $variant:ident, )+
+        }
+        all_doc = $all_doc:literal;
+    ) => {
+        $(#[$meta])*
+        $vis enum $name {
+            $( $(#[$vmeta])* $variant, )+
+        }
+
+        impl $name {
+            #[doc = $all_doc]
+            pub const ALL: &'static [$name] = &[ $( Self::$variant, )+ ];
+        }
+    };
+}
+
+closed_id_enum! {
 /// Closed set of identification strategies.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
@@ -87,8 +92,14 @@ pub enum IdentifierId {
     ResponseBackdoor,
     /// Structural-mechanism identification for staged counterfactuals.
     GcmParametric,
+    /// Conservative single-source sID (direct / S-admissible / singleton c-component).
+    TransportSid,
+    /// Design-based interference: assignment design identifies the exposure contrast.
+    InterferenceDesign,
     /// `AutoIdentifier` — all applicable estimands, no silent estimator choice.
     Auto,
+}
+all_doc = "Every closed-set identifier, in declaration order (powers [`UnknownStrategy::expected`]).";
 }
 
 /// Per-identifier data-only facts backing [`IdentifierId::as_str`],
@@ -155,6 +166,16 @@ pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
             is_dag_only: true,
             provenance: ("counterfactual.aap", "counterfactual.aap"),
         },
+        IdentifierId::TransportSid => IdentifierData {
+            name: "transport.sid",
+            is_dag_only: false,
+            provenance: ("identify.transport.sid", "identify.transport.sid"),
+        },
+        IdentifierId::InterferenceDesign => IdentifierData {
+            name: "interference.design",
+            is_dag_only: true,
+            provenance: ("identify.interference.design", "identify.interference.design"),
+        },
         IdentifierId::ResponseBackdoor => IdentifierData {
             name: "response.backdoor",
             is_dag_only: true,
@@ -169,22 +190,6 @@ pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
 }
 
 impl IdentifierId {
-    /// Every closed-set identifier, in declaration order (powers [`UnknownStrategy::expected`]).
-    pub const ALL: &'static [IdentifierId] = &[
-        Self::BackdoorAdjustment,
-        Self::BackdoorEfficient,
-        Self::Frontdoor,
-        Self::Iv,
-        Self::RdSharp,
-        Self::TemporalBackdoorUnfolded,
-        Self::GeneralizedAdjustment,
-        Self::GeneralId,
-        Self::PathSpecificNatural,
-        Self::ResponseBackdoor,
-        Self::GcmParametric,
-        Self::Auto,
-    ];
-
     /// Canonical wire id.
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
@@ -207,25 +212,7 @@ impl FromStr for IdentifierId {
     ///
     /// [`UnknownStrategy`] when `s` does not match any closed-set identifier name.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "backdoor.adjustment" => Ok(Self::BackdoorAdjustment),
-            "backdoor.efficient" => Ok(Self::BackdoorEfficient),
-            "frontdoor" => Ok(Self::Frontdoor),
-            "iv" => Ok(Self::Iv),
-            "rd.sharp" => Ok(Self::RdSharp),
-            "temporal.backdoor.unfolded" => Ok(Self::TemporalBackdoorUnfolded),
-            "generalized.adjustment" => Ok(Self::GeneralizedAdjustment),
-            "general.id" => Ok(Self::GeneralId),
-            "path_specific.natural" => Ok(Self::PathSpecificNatural),
-            "response.backdoor" => Ok(Self::ResponseBackdoor),
-            "gcm.parametric" => Ok(Self::GcmParametric),
-            "auto" => Ok(Self::Auto),
-            other => Err(UnknownStrategy {
-                kind: "identifier",
-                got: other.to_string(),
-                expected: IDENTIFIER_NAMES,
-            }),
-        }
+        parse_closed(s, Self::ALL, Self::as_str, "identifier", identifier_names())
     }
 }
 
@@ -235,6 +222,7 @@ impl std::fmt::Display for IdentifierId {
     }
 }
 
+closed_id_enum! {
 /// Closed set of estimators.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
@@ -301,6 +289,12 @@ pub enum EstimatorId {
     TemporalResponseGcomp,
     /// Fitted additive GCM mechanisms with abduction–action–prediction ITE.
     GcmFit,
+    /// Dahabreh trial-to-target IPW (Direct / S-admissible standardize only).
+    TransportTrialIpw,
+    /// Horvitz–Thompson / Hájek exposure contrast under a known assignment design.
+    InterferenceHtHajek,
+}
+all_doc = "Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).";
 }
 
 impl EstimatorId {
@@ -537,45 +531,22 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "gcm.aap",
             provenance: ("estimate.gcm.fit", "estimate.gcm.fit"),
         },
+        EstimatorId::TransportTrialIpw => EstimatorData {
+            name: "transport.trial_ipw",
+            parallel_task_dimension: "analysis",
+            kernel_label: "transport.trial_ipw",
+            provenance: ("estimate.transport.trial_ipw", "estimate.transport.trial_ipw"),
+        },
+        EstimatorId::InterferenceHtHajek => EstimatorData {
+            name: "interference.ht_hajek",
+            parallel_task_dimension: "analysis",
+            kernel_label: "interference.ht_hajek",
+            provenance: ("estimate.interference.ht_hajek", "estimate.interference.ht_hajek"),
+        },
     }
 }
 
 impl EstimatorId {
-    /// Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).
-    pub const ALL: &'static [EstimatorId] = &[
-        Self::LinearAdjustmentAte,
-        Self::PropensityWeighting,
-        Self::PropensityMatching,
-        Self::PropensityStratification,
-        Self::DistanceMatching,
-        Self::Aipw,
-        Self::GlmAdjustment,
-        Self::FrontDoorTwoStage,
-        Self::IvWald,
-        Self::Iv2Sls,
-        Self::RdSharp,
-        Self::BayesianGcomp,
-        Self::BayesianConditional,
-        Self::TemporalLinearAdjustment,
-        Self::BayesianTemporalGcomp,
-        Self::TemporalSequentialGcomp,
-        Self::FunctionalDistribution,
-        Self::FunctionalEffect,
-        Self::StaticMediationLinear,
-        Self::ConditionalLinearAdjustment,
-        Self::TemporalMediation,
-        Self::TemporalResponseBayesian,
-        Self::ResponseBayesian,
-        Self::BayesianTemporalMediation,
-        Self::ResponseKennedyDr,
-        Self::ResponseRieszAde,
-        Self::ResponseGamDerivative,
-        Self::ResponseInterventionGcomp,
-        Self::CellAipw,
-        Self::TemporalResponseGcomp,
-        Self::GcmFit,
-    ];
-
     /// Canonical wire id.
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
@@ -604,44 +575,7 @@ impl FromStr for EstimatorId {
     ///
     /// [`UnknownStrategy`] when `s` does not match any closed-set estimator name.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "linear.adjustment.ate" => Ok(Self::LinearAdjustmentAte),
-            "propensity.weighting" => Ok(Self::PropensityWeighting),
-            "propensity.matching" => Ok(Self::PropensityMatching),
-            "propensity.stratification" => Ok(Self::PropensityStratification),
-            "distance.matching" => Ok(Self::DistanceMatching),
-            "aipw" => Ok(Self::Aipw),
-            "glm.adjustment" => Ok(Self::GlmAdjustment),
-            "frontdoor.two_stage" => Ok(Self::FrontDoorTwoStage),
-            "iv.wald" => Ok(Self::IvWald),
-            "iv.2sls" => Ok(Self::Iv2Sls),
-            "rd.sharp" => Ok(Self::RdSharp),
-            "bayesian.gcomp" => Ok(Self::BayesianGcomp),
-            "conditional.bayesian" => Ok(Self::BayesianConditional),
-            "temporal.linear.adjustment" => Ok(Self::TemporalLinearAdjustment),
-            "bayesian.temporal.gcomp" => Ok(Self::BayesianTemporalGcomp),
-            "temporal.sequential.gcomp" => Ok(Self::TemporalSequentialGcomp),
-            "functional.distribution" => Ok(Self::FunctionalDistribution),
-            "functional.effect" => Ok(Self::FunctionalEffect),
-            "mediation.linear" => Ok(Self::StaticMediationLinear),
-            "conditional.linear.adjustment" => Ok(Self::ConditionalLinearAdjustment),
-            "temporal.mediation" => Ok(Self::TemporalMediation),
-            "response.temporal.bayesian" => Ok(Self::TemporalResponseBayesian),
-            "response.bayesian" => Ok(Self::ResponseBayesian),
-            "temporal.mediation.bayesian" => Ok(Self::BayesianTemporalMediation),
-            "response.kennedy_dr" => Ok(Self::ResponseKennedyDr),
-            "response.riesz_ade" => Ok(Self::ResponseRieszAde),
-            "response.gam_derivative" => Ok(Self::ResponseGamDerivative),
-            "response.intervention_gcomp" => Ok(Self::ResponseInterventionGcomp),
-            "cell.aipw" => Ok(Self::CellAipw),
-            "temporal.response.gcomp" => Ok(Self::TemporalResponseGcomp),
-            "gcm.fit" => Ok(Self::GcmFit),
-            other => Err(UnknownStrategy {
-                kind: "estimator",
-                got: other.to_string(),
-                expected: ESTIMATOR_NAMES,
-            }),
-        }
+        parse_closed(s, Self::ALL, Self::as_str, "estimator", estimator_names())
     }
 }
 
@@ -945,7 +879,9 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         EstimatorId::FunctionalEffect => {
             matches!(method, EstimandMethod::PathSpecificNatural | EstimandMethod::GeneralId)
         }
-        EstimatorId::GcmFit => false,
+        EstimatorId::GcmFit | EstimatorId::TransportTrialIpw | EstimatorId::InterferenceHtHajek => {
+            false
+        }
     }
 }
 
@@ -1046,21 +982,33 @@ pub fn validate_path_specific_pair(
 
 #[cfg(test)]
 mod names {
-    use super::{ESTIMATOR_NAMES, EstimatorId, IDENTIFIER_NAMES, IdentifierId};
+    use super::{EstimatorId, IdentifierId};
 
     #[test]
-    fn identifier_names_match_all() {
-        assert_eq!(IDENTIFIER_NAMES.len(), IdentifierId::ALL.len());
-        for (name, id) in IDENTIFIER_NAMES.iter().zip(IdentifierId::ALL) {
-            assert_eq!(*name, id.as_str());
+    fn identifier_from_str_roundtrips_all() {
+        for id in IdentifierId::ALL {
+            assert_eq!(id.as_str().parse::<IdentifierId>().unwrap(), *id);
         }
+        assert!("not.an.identifier".parse::<IdentifierId>().is_err());
     }
 
     #[test]
-    fn estimator_names_match_all() {
-        assert_eq!(ESTIMATOR_NAMES.len(), EstimatorId::ALL.len());
-        for (name, id) in ESTIMATOR_NAMES.iter().zip(EstimatorId::ALL) {
-            assert_eq!(*name, id.as_str());
+    fn estimator_from_str_roundtrips_all() {
+        for id in EstimatorId::ALL {
+            assert_eq!(id.as_str().parse::<EstimatorId>().unwrap(), *id);
         }
+        assert!("not.an.estimator".parse::<EstimatorId>().is_err());
+    }
+
+    /// `ALL` is generated from the enum's own variant list, so every variant
+    /// is present exactly once; distinct wire names keep `FromStr` injective.
+    #[test]
+    fn catalogs_have_distinct_wire_names() {
+        let identifiers: std::collections::HashSet<_> =
+            IdentifierId::ALL.iter().map(IdentifierId::as_str).collect();
+        assert_eq!(identifiers.len(), IdentifierId::ALL.len());
+        let estimators: std::collections::HashSet<_> =
+            EstimatorId::ALL.iter().map(EstimatorId::as_str).collect();
+        assert_eq!(estimators.len(), EstimatorId::ALL.len());
     }
 }

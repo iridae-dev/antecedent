@@ -48,7 +48,7 @@ id = "pag.identify.generalized_adjustment"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/identify/generalized_adjustment"
-notes = "GeneralizedAdjustmentIdentifier + IdentificationEnvelope; the mass-weighted PAG ATE and conjugate envelope mean the envelope returns are pinned by conformance/estimate/pag_ate_envelope (1.1)"
+notes = "GeneralizedAdjustmentIdentifier + IdentificationEnvelope; the mass-weighted PAG ATE / ConditionalEffect, their joint-IF SEs and the Bayesian envelope moments over identified multi-completion MAGs are pinned by conformance/estimate/pag_ate_envelope_identified (1.9); conformance/estimate/pag_ate_envelope is negative evidence (invisible treatment edges, refused)"
 
 [[capabilities]]
 id = "pag.discovery.lpcmci"

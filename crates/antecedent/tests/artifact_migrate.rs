@@ -178,6 +178,7 @@ fn posterior_artifact() -> EncodedArtifact {
         q975: vec![1.1],
         identification: "NonparametricallyIdentified".into(),
         unidentified_mass: 0.0,
+        subsampled_out_mass: 0.0,
         backend_id: "laplace".into(),
         converged: true,
         hessian_condition: 1.0,
@@ -269,4 +270,101 @@ fn wire_round_trip_still_decodes() {
     art.write_to(&mut buf).unwrap();
     let migrated = read_and_migrate(buf.as_slice()).unwrap();
     let _: SchemaWire = from_cbor(&migrated.sections[0].data).unwrap();
+}
+
+/// The format-0.5 identified-set interval of a class-aware temporal Pulse
+/// result survives the composite analysis-result artifact.
+#[test]
+fn class_aware_identified_set_interval_survives_the_result_artifact() {
+    use antecedent::{InferenceMode, RefuteSuite, Study};
+    use antecedent_core::{
+        CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
+    };
+    use antecedent_data::TimeSeriesData;
+    use antecedent_graph::TemporalCpdag;
+
+    // t = 0.5 z + u, y_t = 0.8 t_{t-1} + 0.6 z_{t-1} + e; `z_{t-1} — t_{t-1}` is
+    // undirected, so the completions adjust z (0.8) or not (a larger total).
+    let n = 240;
+    let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+    let mut draw = || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        #[allow(clippy::cast_precision_loss)]
+        let u = (state >> 11) as f64 / (1u64 << 53) as f64;
+        u - 0.5
+    };
+    let z: Vec<f64> = (0..n).map(|_| 2.0 * draw()).collect();
+    let t: Vec<f64> = z.iter().map(|z| 0.5 * z + 2.0 * draw()).collect();
+    let mut y = vec![0.0; n];
+    for i in 1..n {
+        y[i] = 0.8 * t[i - 1] + 0.6 * z[i - 1] + draw();
+    }
+    let data = TimeSeriesData::from_f64_columns(
+        [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+        1,
+    )
+    .unwrap();
+    let mut graph = TemporalCpdag::empty();
+    let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let z1 = graph.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+    graph.insert_directed(z1, y0).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_undirected(z1, t1).unwrap();
+    let query = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1);
+    let result = Study::series(data)
+        .graph(graph)
+        .query(CausalQuery::TemporalEffect(query))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(60)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(5))
+        .unwrap();
+    let interval = result
+        .structural_response
+        .as_ref()
+        .and_then(|mixture| mixture.identified_set_interval)
+        .expect("a two-completion class publishes an identified-set interval");
+
+    let query_wire = serde_json::json!({"response": {
+        "functional": {"average_derivative": {"outcome": 1, "treatment": 0, "weighting": "observed"}},
+        "target_population": "all_observed", "observation": "complete", "observation_assumptions": []
+    }});
+    let mut wire: antecedent_io::AnalysisResultWire = serde_json::from_value(serde_json::json!({
+        "query": query_wire,
+        "identification": {"status": "nonparametrically_identified", "query": query_wire,
+            "estimands": [], "arena": {"var_sets": [], "interventions": [], "lists": [], "nodes": []},
+            "derivation": [], "required_assumptions": [], "diagnostics": [],
+            "candidates_examined": 0, "sets_returned": 0},
+        "estimate": null, "standard_error": null, "assumptions": [], "diagnostics": [],
+        "refutations": [], "response": null, "posterior_artifact": null,
+        "mediation_grid": null, "structural_response": {
+            "weight_basis": "completion_enumeration", "atoms": [], "identified_mass": 1.0,
+            "unidentified_mass": 0.0, "unevaluable_mass": 0.0, "identified_set": null,
+            "conditional_on_identified": null, "full_mass_scope": true, "truncated_atoms": 0}
+    }))
+    .unwrap();
+    wire.structural_response.as_mut().unwrap().identified_set_interval =
+        Some(antecedent_io::identified_set_interval_to_wire(&interval).unwrap());
+    let artifact = antecedent_io::encode_analysis_result_artifact(
+        &wire,
+        vec!["t".into(), "y".into(), "z".into()],
+        "identified-set",
+    )
+    .unwrap();
+    let mut bytes = Vec::new();
+    artifact.write_to(&mut bytes).unwrap();
+    let (migrated, _, decoded) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(migrated.manifest.format_version, STABLE_FORMAT);
+    let restored = antecedent_io::identified_set_interval_from_wire(
+        decoded.structural_response.as_ref().unwrap().identified_set_interval.as_ref().unwrap(),
+    )
+    .unwrap();
+    assert_eq!(restored, interval);
 }

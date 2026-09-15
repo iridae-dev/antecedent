@@ -39,8 +39,10 @@ _EXPECTED_ALL = {
     "Identification",
     "AnalysisResult",
     # Queries
+    "AnomalyAttribution",
     "AverageDerivative",
     "AverageEffect",
+    "ChangeAttribution",
     "ConditionalEffect",
     "Counterfactual",
     "DirectionalDerivative",

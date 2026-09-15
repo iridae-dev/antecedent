@@ -17,6 +17,8 @@ __all__ = [
     "MediationView",
     "TemporalMediationSliceView",
     "TemporalMediationGridView",
+    "ProbabilityIntervalView",
+    "DistributionAtomView",
     "EstimateView",
     "ConflictSummaryView",
     "PosteriorView",
@@ -121,6 +123,61 @@ class TemporalMediationGridView:
 
 
 @dataclass(frozen=True)
+class ProbabilityIntervalView:
+    """Bounded interval for one interventional probability.
+
+    Frequentist distribution cells publish a logit-scale delta-method interval
+    from the bootstrap SE, so both bounds lie in ``[0, 1]``. When the plug-in
+    probability is exactly 0 or 1 (or the bootstrap failed) no interval exists:
+    ``lower``/``upper``/``level`` are ``None`` and ``unavailable`` names why.
+    Do not rebuild one as ``probability ± z * se``; that can leave ``[0, 1]``.
+    """
+
+    level: float | None
+    lower: float | None
+    upper: float | None
+    unavailable: str | None = None
+
+    @property
+    def bounds(self) -> tuple[float, float] | None:
+        """``(lower, upper)``, or ``None`` when no interval could be formed."""
+        if self.lower is None or self.upper is None:
+            return None
+        return (self.lower, self.upper)
+
+    def __repr__(self) -> str:
+        return f"<ProbabilityIntervalView {fmt_probability_interval(self)}>"
+
+
+def fmt_probability_interval(interval: ProbabilityIntervalView) -> str:
+    """``ci95=[lo, hi]`` or ``ci=unavailable (reason)``."""
+    bounds = interval.bounds
+    if bounds is None or interval.level is None:
+        return f"ci=unavailable ({interval.unavailable or 'unknown'})"
+    return f"ci{round(interval.level * 100)}=[{fmt_float(bounds[0])}, {fmt_float(bounds[1])}]"
+
+
+@dataclass(frozen=True)
+class DistributionAtomView:
+    """One interventional-distribution atom ``P(outcomes | do(x)[, conditioning])``."""
+
+    outcomes: tuple[tuple[str, float | None], ...]
+    conditioning: tuple[tuple[str, float | None], ...]
+    probability: float
+    se_bootstrap: float | None = None
+    interval: ProbabilityIntervalView | None = None
+
+    def __repr__(self) -> str:
+        cells = ", ".join(f"{name}={fmt_float(value)}" for name, value in self.outcomes)
+        given = ", ".join(f"{name}={fmt_float(value)}" for name, value in self.conditioning)
+        label = f"P({cells} | {given})" if given else f"P({cells})"
+        parts = [f"{label}={fmt_float(self.probability)}"]
+        if self.interval is not None:
+            parts.append(fmt_probability_interval(self.interval))
+        return f"<DistributionAtomView {' '.join(parts)}>"
+
+
+@dataclass(frozen=True)
 class EstimateView:
     ate: float | None
     se_analytic: float
@@ -145,8 +202,20 @@ class EstimateView:
     family_contrast_interval: tuple[float, float, float] | None = None
     candidate_selection: Any = None
     evalue: float | None = None
+    #: Interventional-distribution atoms, each with its bounded probability
+    #: interval (Frequentist) — ``None`` for other queries.
+    distribution: tuple[DistributionAtomView, ...] | None = None
+    #: Bounded interval for ``ate`` when it is the probability ``P(Y = 1 | do(x))``
+    #: of a binary ``{0, 1}`` outcome; ``None`` otherwise.
+    mean_interval: ProbabilityIntervalView | None = None
 
     def __repr__(self) -> str:
+        if self.mean_interval is not None:
+            return (
+                f"<EstimateView ate={fmt_float(self.ate)} "
+                f"{fmt_probability_interval(self.mean_interval)} "
+                f"estimator={self.estimator_id!r} method={self.method!r}>"
+            )
         se = self.se_bootstrap if self.se_bootstrap is not None else self.se_analytic
         se_text = fmt_se(se)
         label = "mean_ite" if self.estimator_id == "gcm.fit" else "ate"
@@ -188,6 +257,10 @@ class PosteriorView:
     unidentified_mass: float | None = None
     envelope: EffectEnvelope | None = None
     conflict: ConflictSummaryView | None = None
+    #: Identified graph mass the Interactive latency tier left out of the
+    #: envelope subsample. Those atoms were not evaluated, so this is neither
+    #: unidentified mass nor part of the published mixture.
+    subsampled_out_mass: float = 0.0
 
     def __repr__(self) -> str:
         if self.effect_mean is None:
@@ -206,6 +279,8 @@ class PosteriorView:
         ]
         if self.unidentified_mass is not None and self.unidentified_mass > 0:
             parts.append(f"unidentified_mass={fmt_pct(self.unidentified_mass)}")
+        if self.subsampled_out_mass > 0:
+            parts.append(f"subsampled_out_mass={fmt_pct(self.subsampled_out_mass)}")
         return f"<PosteriorView {' '.join(parts)}>"
 
     def __array__(self, dtype: Any = None, copy: Any = None) -> Any:
@@ -257,12 +332,21 @@ class EffectEnvelope:
     unidentified_mass: float
     n_draws: int | None
     backend: str | None = None
+    #: Identified graph mass the Interactive latency tier left out of the
+    #: subsample (not evaluated; not unidentified).
+    subsampled_out_mass: float = 0.0
 
     def __repr__(self) -> str:
+        skipped = (
+            f" subsampled_out_mass={fmt_pct(self.subsampled_out_mass)}"
+            if self.subsampled_out_mass > 0
+            else ""
+        )
         return (
             f"<EffectEnvelope mean={fmt_float(self.effect_mean)} sd={fmt_float(self.effect_sd)} "
             f"ci95=[{fmt_float(self.q025)}, {fmt_float(self.q975)}] "
-            f"unidentified_mass={fmt_pct(self.unidentified_mass)} n_draws={self.n_draws}>"
+            f"unidentified_mass={fmt_pct(self.unidentified_mass)}{skipped} "
+            f"n_draws={self.n_draws}>"
         )
 
 
@@ -289,17 +373,28 @@ class PredictiveCheckReport:
 class PriorSensitivityReport:
     """Prior sensitivity grid (Bayesian + ``refute="full"``).
 
-    Isotropic mode fills ``scales``; external prior-bank mode fills ``alphas``
-    (multipliers on post-conflict applied α). Exactly one mode is active.
+    ``family`` names the perturbed prior: ``"isotropic_scale"`` fills ``scales``
+    (only when no prior was supplied, so the isotropic prior is the prior in
+    force); ``"external_alpha"`` fills ``alphas`` (multipliers on post-conflict
+    applied α); ``"resolved_prior_variance"`` fills ``variance_multipliers``
+    (multipliers on the staged / transferred prior's coefficient variances).
+    Exactly one mode is active.
     """
 
     scales: list[float]
     effect_means: list[float]
     effect_sds: list[float]
     alphas: list[float] | None = None
+    variance_multipliers: list[float] | None = None
+    family: str = "isotropic_scale"
 
     def __repr__(self) -> str:
-        mode = "alphas" if self.alphas is not None else "scales"
+        if self.variance_multipliers is not None:
+            mode = "variance_multipliers"
+        elif self.alphas is not None:
+            mode = "alphas"
+        else:
+            mode = "scales"
         return f"<PriorSensitivityReport mode={mode!r} n={len(self.effect_means)}>"
 
 
@@ -484,6 +579,21 @@ class AnalysisResult:
     structural_identified_mass: float | None = None
     structural_unidentified_mass: float | None = None
     structural_unevaluable_mass: float | None = None
+    #: Scalar identified set ``(lower, upper)`` over identified class completions.
+    structural_identified_set: tuple[float, float] | None = None
+    #: Interval for the identified set at ``structural_identified_set_interval_level``
+    #: (1.9, C-3). With method ``"imbens_manski_shared_block"`` (Frequentist) it covers
+    #: the true effect with asymptotic probability at least the level whenever that
+    #: is one retained identified completion's effect; with
+    #: ``"product_posterior_envelope_quantile"`` (Bayesian) every retained
+    #: completion's posterior puts at most ``1 - Φ(c)`` of its mass outside each
+    #: endpoint.
+    structural_identified_set_interval: tuple[float, float] | None = None
+    structural_identified_set_interval_level: float | None = None
+    structural_identified_set_interval_method: str | None = None
+    #: ``True`` when the completion enumeration (or its equivalence audit) was
+    #: capped: the set spans retained completions only.
+    structural_identified_set_interval_truncated: bool | None = None
     _raw: Any = None
     _prepared: Any = None
     query: Any = None
@@ -530,6 +640,9 @@ class AnalysisResult:
         se_text = fmt_se(se)
         if self.unit_effects is not None:
             parts = [verdict, f"mean_ite={fmt_float(self.effect)}"]
+        elif self.estimate.mean_interval is not None:
+            interval_text = fmt_probability_interval(self.estimate.mean_interval)
+            parts = [verdict, f"effect={fmt_float(self.effect)} {interval_text}"]
         elif se_text is None:
             parts = [verdict, f"effect={fmt_float(self.effect)} se=unavailable"]
         else:

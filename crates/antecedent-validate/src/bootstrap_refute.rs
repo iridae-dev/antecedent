@@ -8,9 +8,34 @@
 //!
 //! Report id: `bootstrap.ci_coverage`.
 //!
+//! Static designs use an iid row bootstrap. One-series temporal designs resample
+//! circular blocks of consecutive *lag-aligned* rows of the design prepared once on
+//! the original series (single-window adjustment, and composed refitters that
+//! expose [`crate::common::EffectRefit::prepare_aligned`]), so every row keeps its
+//! lag window, and widen the percentile interval by the circular-Bartlett fixed-b
+//! factor ([`antecedent_estimate::circular_fixed_b_scale`]), matching the
+//! circular-block interval the check is about. The block length is the one that
+//! interval uses: the single-window adjustment's
+//! [`antecedent_estimate::TemporalLinearAdjustment::dependence_block_length`]
+//! ([`antecedent_estimate::dependence_block_length`] over the treatment influence
+//! and every normal-equation score), and a composed refitter's
+//! [`crate::common::AlignedRefit::block_length`]. A composed refitter without
+//! lag-aligned evaluation is `NotApplicable`: a block bootstrap of the raw series
+//! would pair outcomes with regressors from unrelated blocks. When the aligned-row
+//! refit is a stand-in for the checked estimator
+//! ([`crate::common::AlignedRefit::stand_in`], e.g. the least-squares contrast for
+//! a Bayesian posterior mean), a failing report says so.
+//!
+//! On a Bayesian cell the check places the posterior mean inside a least-squares
+//! bootstrap interval; it never looks at the published credible interval, so it
+//! cannot detect a credible interval that is too narrow or too wide.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss, clippy::cast_sign_loss)]
+
+/// RNG stream base for the aligned-row block replicates.
+const BOOTSTRAP_REFUTE_STREAM: u64 = 0xA7E0_0009_0000;
 
 use std::sync::Arc;
 
@@ -25,8 +50,10 @@ use crate::common::{
 };
 use crate::error::ValidationError;
 
-/// IID row bootstrap of the whole `(T, Y, Z…)` design; "passes" if the original point estimate
-/// falls inside the percentile confidence interval of the resampled ATEs.
+/// Row bootstrap of the whole `(T, Y, Z…)` design (iid for static designs, circular
+/// blocks of lag-aligned rows with a fixed-b widening for one-series temporal designs);
+/// "passes" if the original point estimate falls inside the percentile confidence
+/// interval of the resampled ATEs.
 ///
 /// Each replicate refits with `estimator.bootstrap_replicates = 0` (per the internal `fit_once` path)
 /// so this never creates a nested bootstrap pool inside the resample loop.
@@ -46,52 +73,159 @@ impl Default for BootstrapRefute {
     }
 }
 
+/// Largest gap, in published SDs, between the published estimate and the
+/// least-squares contrast for the least-squares block bootstrap to check it.
+const STAND_IN_MAX_GAP_SD: f64 = 0.25;
+
 impl BootstrapRefute {
     fn refute_composed(
         &self,
         problem: &RefutationProblem<'_>,
-        workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<RefutationReport, ValidationError> {
-        let n = problem.data.row_count();
         let temporal = problem.temporal.ok_or(ValidationError::NotApplicable {
             message: "composed bootstrap requires a temporal context",
         })?;
-        let time = temporal.time_index.ok_or(ValidationError::NotApplicable {
-            message: "composed bootstrap requires a series time index",
-        })?;
+        if temporal.time_index.is_none() {
+            return Err(ValidationError::NotApplicable {
+                message: "composed bootstrap requires a series time index",
+            });
+        }
+        // Rebuilding lags on a block-resampled raw series would pair, at every
+        // block junction, an outcome with regressors from an unrelated block, so a
+        // refitter without lag-aligned evaluation is not checked at all.
+        let Some(aligned) = problem.effect_refit.and_then(|r| r.prepare_aligned(problem.data, ctx))
+        else {
+            return Err(ValidationError::NotApplicable {
+                message: "composed refitter has no lag-aligned evaluation; a block bootstrap \
+                          of the raw series would misalign lags at block junctions",
+            });
+        };
+        let mut aligned = aligned?;
+        let boot = antecedent_estimate::row_block_bootstrap_vec(
+            aligned.rows,
+            aligned.block_length,
+            self.replicates,
+            BOOTSTRAP_REFUTE_STREAM,
+            ctx,
+            |rows| (aligned.estimate)(rows).map(|value| vec![value]),
+        );
+        if boot.cancelled {
+            return Err(ValidationError::Cancelled);
+        }
+        if boot.draws.len() < 2 {
+            return Err(ValidationError::estimation_msg(
+                "bootstrap CI coverage: fewer than two block replicates could be fit",
+            ));
+        }
+        let scale = boot.fixed_b();
+        Ok(coverage_report(
+            problem,
+            boot.column(0),
+            self.ci_level,
+            self.replicates,
+            scale,
+            aligned.stand_in.as_deref(),
+        ))
+    }
+
+    /// One-series temporal adjustment: circular blocks of consecutive lag-aligned
+    /// rows of the design prepared once on the original series (every row keeps
+    /// its lag window), the same construction as the interval this refuter checks.
+    fn refute_temporal_series(
+        &self,
+        problem: &RefutationProblem<'_>,
+        temporal: &crate::common::TemporalRefitContext<'_>,
+        time: &antecedent_data::TimeIndex,
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<RefutationReport, ValidationError> {
         let series =
             antecedent_data::TimeSeriesData::try_new(problem.data.storage().clone(), time.clone())?;
-        let length =
-            (temporal.indexer.history() as usize + 1).max((n as f64).cbrt().ceil() as usize).min(n);
-        let mut rng = ctx.rng.stream(0xA7E0_0009_0000_u64);
-        let mut indices = Vec::new();
-        let mut ates = Vec::new();
-        for _ in 0..self.replicates {
-            if ctx.cancellation.is_cancelled() {
-                return Err(ValidationError::Cancelled);
-            }
-            let sampled = antecedent_data::resample_timeseries(
+        let estimator = antecedent_estimate::TemporalLinearAdjustment::new()
+            .with_inner(forced_refit_estimator(&self.estimator));
+        let (prep, rows) = estimator
+            .prepare_aligned(
                 &series,
-                antecedent_data::ResamplingPlan::CircularBlock { length },
-                &mut rng,
-                &mut indices,
-            )?;
-            let table = antecedent_data::TabularData::new(sampled.storage().clone());
-            ates.push(
-                refit_effect(
-                    problem,
-                    &table,
-                    problem.estimand,
-                    &[],
-                    &self.estimator,
-                    workspace,
-                    ctx,
-                )?
-                .ate,
-            );
+                problem.estimand,
+                temporal.temporal_query,
+                temporal.indexer,
+                temporal.split,
+                temporal.kernel_policy,
+            )
+            .map_err(ValidationError::from)?;
+        // The published interval's blocks: sized on every normal-equation score.
+        // A bootstrapped estimate carries the length its interval resampled;
+        // otherwise (no replicates, or a different design) derive it once here.
+        let block = match problem.original.block_resampling {
+            Some(geometry)
+                if problem.original.bootstrap_replicates_ok.is_some()
+                    && geometry.rows == rows.rows =>
+            {
+                geometry.block_length
+            }
+            _ => estimator
+                .dependence_block_length(&prep, temporal.indexer)
+                .map_err(ValidationError::from)?,
+        };
+        let mut x_boot = vec![0.0; rows.rows * prep.design.ncols];
+        let mut y_boot = vec![0.0; rows.rows];
+        // The replicates refit least squares. When the published estimate is
+        // not the least-squares contrast (a Bayesian posterior mean shrunk by
+        // its prior), use it as a stand-in only if the two agree to within
+        // STAND_IN_MAX_GAP_SD published SDs on the full sample.
+        let all_rows: Vec<usize> = (0..rows.rows).collect();
+        let full = estimator
+            .inner
+            .ate_on_row_indices_into(&prep, workspace, &all_rows, &mut x_boot, &mut y_boot)
+            .map_err(ValidationError::from)?;
+        let gap = (full - problem.original.ate).abs();
+        let sd = problem.original.se_analytic;
+        if sd.is_finite() && sd > 0.0 && gap > STAND_IN_MAX_GAP_SD * sd {
+            return Err(ValidationError::NotApplicable {
+                message: "the published estimate differs from the least-squares contrast by \
+                          more than 0.25 of its SD (prior shrinkage), so a least-squares \
+                          block bootstrap would resample a different estimator than the one \
+                          published",
+            });
         }
-        Ok(coverage_report(problem, ates, self.ci_level, self.replicates))
+        let stand_in = (gap > 1e-9 * full.abs().max(1.0)).then_some(
+            "replicates refit the least-squares contrast as a stand-in for the published \
+             estimate, which differs from it by less than 0.25 of its SD; the check places the \
+             point estimate in the least-squares bootstrap interval and does not assess the \
+             published interval's calibration",
+        );
+        let boot = antecedent_estimate::row_block_bootstrap_vec(
+            rows.rows,
+            block,
+            self.replicates,
+            BOOTSTRAP_REFUTE_STREAM,
+            ctx,
+            |row_src| {
+                estimator
+                    .inner
+                    .ate_on_row_indices_into(&prep, workspace, row_src, &mut x_boot, &mut y_boot)
+                    .ok()
+                    .map(|ate| vec![ate])
+            },
+        );
+        if boot.cancelled {
+            return Err(ValidationError::Cancelled);
+        }
+        if boot.draws.len() < 2 {
+            return Err(ValidationError::estimation_msg(
+                "bootstrap CI coverage: fewer than two block replicates could be fit",
+            ));
+        }
+        let scale = boot.fixed_b();
+        Ok(coverage_report(
+            problem,
+            boot.column(0),
+            self.ci_level,
+            self.replicates,
+            scale,
+            stand_in,
+        ))
     }
 
     /// Defaults: 200 replicates, 95% CI.
@@ -105,6 +239,7 @@ impl BootstrapRefute {
     /// # Errors
     ///
     /// Data or estimation failures.
+    #[allow(clippy::too_many_lines)]
     pub fn refute(
         &self,
         problem: &RefutationProblem<'_>,
@@ -136,7 +271,12 @@ impl BootstrapRefute {
             }
         }
         if problem.effect_refit.is_some() {
-            return self.refute_composed(problem, workspace, ctx);
+            return self.refute_composed(problem, ctx);
+        }
+        if let Some(temporal) = problem.temporal.filter(|t| t.panel.is_none()) {
+            if let Some(time) = temporal.time_index {
+                return self.refute_temporal_series(problem, &temporal, time, workspace, ctx);
+            }
         }
         // Resample only complete-case rows so slots that are invalid in the source (whose
         // stored values are sentinels) never enter a replicate as real observations.
@@ -199,7 +339,14 @@ impl BootstrapRefute {
                         &mut y_boot,
                     )?);
                 }
-                return Ok(coverage_report(problem, ates, self.ci_level, self.replicates));
+                return Ok(coverage_report(
+                    problem,
+                    ates,
+                    self.ci_level,
+                    self.replicates,
+                    1.0,
+                    None,
+                ));
             }
         }
         for _ in 0..self.replicates {
@@ -218,15 +365,24 @@ impl BootstrapRefute {
             )?;
             ates.push(est.ate);
         }
-        Ok(coverage_report(problem, ates, self.ci_level, self.replicates))
+        // Panel temporal designs resample stacked rows iid here (no per-unit block
+        // or cluster plan yet); static designs are iid by construction.
+        Ok(coverage_report(problem, ates, self.ci_level, self.replicates, 1.0, None))
     }
 }
 
+/// Percentile interval of the replicate ATEs, each endpoint's distance from the
+/// replicate mean multiplied by `scale` (the fixed-b factor of a circular-block
+/// bootstrap, so the checked interval matches the published one; `1.0` for iid).
+/// `stand_in` describes a replicate estimator that stands in for the checked one
+/// and is appended to a failure condition.
 fn coverage_report(
     problem: &RefutationProblem<'_>,
     mut ates: Vec<f64>,
     ci_level: f64,
     replicates: u32,
+    scale: f64,
+    stand_in: Option<&str>,
 ) -> RefutationReport {
     ates.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let m = ates.len();
@@ -234,9 +390,9 @@ fn coverage_report(
     let hi_frac = 1.0 - lo_frac;
     let lo_idx = ((lo_frac * (m - 1) as f64).round() as usize).min(m - 1);
     let hi_idx = ((hi_frac * (m - 1) as f64).round() as usize).min(m - 1);
-    let lo = ates[lo_idx];
-    let hi = ates[hi_idx];
     let mean_ate = ates.iter().sum::<f64>() / m as f64;
+    let lo = mean_ate - scale * (mean_ate - ates[lo_idx]);
+    let hi = mean_ate + scale * (ates[hi_idx] - mean_ate);
     let width = hi - lo;
     let passed = problem.original.ate >= lo && problem.original.ate <= hi;
     RefutationReport {
@@ -251,9 +407,11 @@ fn coverage_report(
         } else {
             Some(Arc::from(format!(
                 "original ATE {} outside {}% bootstrap CI [{lo}, {hi}] \
-                 (coverage check of the point estimate, not a placebo falsification)",
+                 (the point estimate against its own refit bootstrap interval: neither a placebo \
+                 falsification nor a calibration check of a published credible interval){}",
                 problem.original.ate,
-                ci_level * 100.0
+                ci_level * 100.0,
+                stand_in.map(|note| format!("; {note}")).unwrap_or_default()
             )))
         },
         replicates,

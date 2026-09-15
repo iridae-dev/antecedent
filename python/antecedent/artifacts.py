@@ -1,4 +1,4 @@
-"""Durable format-0.4 artifacts for causal queries and results.
+"""Durable format-0.5 artifacts for causal queries and results.
 
 The payload mapping is the canonical Rust wire representation.  This module only
 adds the versioned container and variable-id/name table; it does not maintain a
@@ -48,7 +48,7 @@ def dumps(
     variable_names: Sequence[str],
     artifact_id: str,
 ) -> bytes:
-    """Encode one canonical query/result wire mapping as a format-0.4 artifact."""
+    """Encode one canonical query/result wire mapping as a format-0.5 artifact."""
 
     # `_encode_causal_artifact` now returns real Python `bytes` at the Rust
     # boundary (PyO3 `PyBytes`), so no `bytes(...)` coercion is needed here.

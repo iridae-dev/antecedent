@@ -1,0 +1,400 @@
+# Short-series thresholds for circular-block intervals
+
+Every Frequentist temporal interval on one series is a fixed-b circular-block
+bootstrap over lag-aligned rows
+([capabilities](capabilities.md#serially-dependent-rows-circular-block-uncertainty)).
+When the series is short for the serial dependence of its estimating score,
+the interval can under-cover, and the result carries
+`estimate.temporal.circular_block_se.short_series`. This page records the
+measurement behind when that warning fires.
+
+## Statistic
+
+The warning reads the *score effective rows*
+(`antecedent_estimate::score_effective_rows`): over every estimating-score
+series of the interval, the smaller of two readings,
+
+* the lag-1 reading `n(1 − r₁)/(1 + r₁)` (an AR(1) variance-inflation
+  equivalent, `r₁` floored at zero), and
+* the block-length reading `n·γ̂₀ / ĝ_b`, with `ĝ_b` the Bartlett long-run
+  variance at the block length the interval resamples with.
+
+The scores are the treatment-coefficient influence (TemporalDag Pulse and
+single-step Sustained), the Total, Direct and Mediated persistence probes
+(temporal mediation: each mechanism residual times the centred treatment, and
+for the mediated path the centred mediator; the partialled influence functions
+size the blocks but predict under-coverage poorly, because partialling on
+lagged design columns removes the treatment's persistence from them while the
+interval still under-covers — on the same sweep they would need a threshold of
+70, which also warns on about 20 nominally covering cells), the contrast influence (multi-step Sustained sequential
+g-computation), and every atom's influence plus the weighted mixture score
+(class envelopes and DBN posteriors). The provenance diagnostic prints the
+statistic; the warning fires below the threshold of the interval's family.
+
+| family | SE path | threshold |
+|---|---|---|
+| single-window adjustment | TemporalDag Pulse / single-step Sustained | 45 |
+| temporal mediation | Total, Direct, Mediated (shared replicate) | 40 |
+| multi-step sequential | TemporalDag multi-step Sustained | 40 |
+| multi-atom mixture | TemporalCpdag / TemporalPag envelopes, DBN posteriors | 155 |
+
+## How the thresholds were set
+
+`crates/antecedent/tests/v19_short_series_measurement.rs` (an ignored
+measurement, not part of the calibration gate) sweeps AR(1) persistence
+ρ ∈ {0.5, 0.8, 0.9, 0.95} and series length n for each family, on a
+short-memory design and a persistent one:
+
+* the short-memory designs are the calibration DGPs (an MA(3) treatment driven
+  through an observed variable, AR(1) residual; or a confounded lag DGP whose
+  adjusted treatment innovation is iid). Their scores forget within a few lags
+  whatever the residual persistence;
+* the persistent designs make the treatment AR(1)(ρ) as well as the residual,
+  so the score is itself close to AR(1)(ρ²).
+
+The effective-row count alone does not tell the two apart: at 25–35 effective
+rows the short-memory designs cover nominally (n = 40–60) while the persistent
+ones fail (n = 60–160). The thresholds therefore follow the persistent designs.
+A threshold is the smallest multiple of 5 at which every cell covering below
+0.855 (the lower edge of the 400-replicate gate band) warns on at least 90% of
+its replicates, taking the larger of the sweep below and an independent
+replication (`ANTECEDENT_SHORT_SERIES_SEED_OFFSET=5000`, 1000 replicates):
+
+| family | sweep | replication | threshold |
+|---|---|---|---|
+| single-window adjustment | 45 | 40 | 45 |
+| temporal mediation | 35 | 40 | 40 |
+| multi-step sequential | 25 | 30 | 40 |
+| multi-atom mixture | 155 | 90 | 155 |
+
+The thresholds were set on the SE construction before the Bartlett
+kernel-bias factor; re-measured with it (the table below), every cell below
+0.855 still warns on at least 91% of its replicates, so they stand.
+
+The multi-step sequential threshold is not the rule's 30: it stays at the 40
+an earlier measurement of the same sweep set (before the SE construction
+changes listed under the table), which warns on more replicates, not fewer.
+The mediation threshold rose from 35 to 40 with that re-measurement: in the
+replication, the AR(1)-treatment Total at ρ = 0.9, n = 160 covered 0.846 and
+warned on fewer than 90% of its replicates at 35.
+
+### What the failure line tolerates
+
+The failure line 0.855 is the lower edge of the calibration gate's
+400-replicate band, not a coverage target. The gate's rule
+(`crates/antecedent/tests/common/calibration.rs`) has three parts:
+
+1. **Band.** The empirical coverage must be within ±3 Monte Carlo SEs of the
+   level at the replicate count: at 400 replicates and a 90% level ±4.5
+   points, [0.855, 0.945]; at 95%, [0.917, 0.983].
+2. **Recheck.** A cell that passes the band at fewer than 1000 replicates but
+   measures more than 2 points under its level prints a `calibration-recheck`
+   line, and `scripts/gate_calibration.sh` re-runs that group at 2000
+   replicates (`ANTECEDENT_CALIBRATION_NSIM=2000`); the re-run's verdict
+   stands. Under exactly nominal coverage about 9% of 90% cells and 4% of 95%
+   cells are rechecked.
+3. **Precision floor.** At 1000 replicates or more the coverage must also
+   reach the one-sided floor `level − 2·MCSE`: 0.887 at 2000 replicates and a
+   90% level, 0.940 at 95%. A cell whose true coverage is the level fails
+   the floor about 2% of the time; a cell 2 points low fails it about 60%
+   of the time, and one 3 points low almost always.
+
+The short-series thresholds are set so that cells *below the band* warn; a
+cell between 0.855 and roughly 0.885 is not caught by the warning. Before the
+recheck rule such a cell could pass a 400-replicate gate even though at 2000
+replicates it measures significantly low; the recheck now fails it, and a
+gated design that still measures below the floor after the SE work below is
+named as a boundary cell (`*_boundary_within_band`): its test asserts the
+band around its *measured* coverage (`CoverageTally::assert_boundary`), with
+the mechanism named at the test.
+
+### Where the remaining shortfall comes from
+
+A 2000-replicate decomposition of the cells that measured 0.86–0.89 (the
+AR(1)-treatment Pulse, mediation Direct and multi-step Sustained designs, the
+MA(3) single-step Sustained at ρ = 0.5, n = 160, and the TemporalCpdag mixture
+at ρ = 0.9, n = 400) found the same picture in every one of them:
+
+* the estimation errors are normal (an oracle interval at the Monte-Carlo SD
+  covers 0.895–0.908; kurtosis 2.8–3.3);
+* the *mean* reported SE is right or slightly high (SE/SD 0.98–1.10 after the
+  kernel-bias factor), so an interval at the mean SE would cover 0.90–0.93;
+* the loss is the replicate SD's own sampling variability: its coefficient of
+  variation is 0.22 at 16 blocks (n = 160) and 0.29–0.36 at 4–5 blocks
+  (persistent scores at n = 400), against the 0.15–0.27 the fixed-b limit at
+  `b = ℓ/n` implies, because the score's effective sample is smaller than
+  `n`. A normal-quantile interval loses about `0.46·cv²` of coverage to that
+  variability — 2 points at cv 0.22, 4–5 at cv 0.3–0.35 — and the fixed-b
+  factor prices only the part the limit sees.
+
+The Bartlett kernel-bias factor removed the part of the shortfall that was an
+SE *level* error (the raw replicate SD sat 7–17% below the fixed-b mean on the
+persistent designs; 2–4% of that was the Bartlett bias of an AR(1)(ρ²) score at
+the block length), worth 0.4–1.2 points per cell. What remains is not an SE
+level error, and no block length or critical-value scaling on the same
+replicate SD removes it without over-covering the short-memory designs that
+already sit at 0.90–0.91; a nested (bootstrap-t) studentization would, at
+roughly the square of the current cost.
+
+### Gate boundary cells
+
+| gate | measured (2000) | mechanism |
+|---|---|---|
+| `frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band` | 0.885 (0.890, 0.905 on other seed streams) | non-causal completion's finite-sample bias against its probability limit (bias/SD −0.20); SE right (SE/SD 1.09) |
+| `frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band` | 0.879 | same mechanism on the DBN Pulse mixture (bias/SD −0.24; SE/SD 1.07) |
+| `temporal_dag_sustained_ar05_n160_boundary_within_band` | 0.874 (0.889, 0.895 on other seed streams) | replicate-SD variability at 16 blocks (cv 0.22); SE/SD 0.97–1.03 |
+| `temporal_dag_pulse_h2_ar05_n60_boundary_within_band` | 0.885 | replicate-SD variability at 58 rows in blocks of 4–6; SE/SD 1.04 |
+| `response_jacobian_bayesian_boundary_within_band` | 0.883 / 0.893 / 0.904 / 0.890 per coordinate | Dirichlet-weight band of the unpenalized additive-GAM gradient with exchangeable-rank quantiles and a degrees-of-freedom inflation: mean half-width within 1% of the sampling SD, conditionally calibrated (0.897–0.901 over 40 000 regenerated outcomes per coordinate), 0.892–0.897 over 10 000 designs; the gate's 2000 seeds are a low block for coordinate 0 (0.894–0.906 on the next four blocks) |
+
+The mixture threshold is set by a different failure. Its SE-driven cells (the
+six-completion TemporalPag envelope at ρ ≥ 0.9, n ≤ 160, and the DBN mixture at
+ρ = 0.95, n ≤ 60) warn from about 30.
+The TemporalCpdag and DBN mixtures fail at ρ ≥ 0.9 through bias, not the SE:
+the non-causal completion omits a persistent confounder, and its finite-sample
+estimate sits 0.2–0.8 of an SD from its probability limit. Only that
+completion's score shows it, as a weak but slowly decaying component that the
+block-length reading sees; catching it at ρ = 0.95, n = 400 takes 155, which
+also warns on mixtures that cover nominally below about n = 400.
+
+The previous rule (one floor of 100 on the lag-1 reading of the single score,
+or of the weighted mixture score) warned, in a 1000-replicate run of the same
+sweep, on every short-memory replicate at n ≤ 100 and on 30–88% at n = 160
+while those designs covered nominally, and on at most 11% of the TemporalCpdag
+bias cells at n = 160 and none at n = 400.
+
+## Table
+
+2000 replicates per cell, nominal 0.90 (band at this count [0.880, 0.920]);
+100 bootstrap replicates per fit for one-series designs, 199 for mixtures.
+
+Measurement conditions: blocks sized on every estimating score (the target
+influence(s), the mixture score, and every normal-equation score of every
+fitted regression, residuals included), the circular-Bartlett fixed-b factor
+(`antecedent_estimate::circular_fixed_b_scale`), the Bartlett kernel-bias
+factor of the target scores (`antecedent_estimate::kernel_bias_scale`: the
+AR(1)-prewhitened long-run variance over the Bartlett variance at the block
+length, 1.01–1.05 on the persistent designs, at most 1.01 on the short-memory
+ones), and fixtures whose noise streams are seeded independently per
+replicate. The kernel-bias factor only widens intervals, so the thresholds set
+before it (below) remain valid: every cell that fails at 0.855 still warns,
+and no quiet cell fails. An earlier run of the same
+sweep, with the non-circular Kiefer–Vogelsang factor and a fixture seeding
+that let pairs of replicates share a noise path, differed from this table by
+at most 1.4 coverage points (0.45 on average) in the designs that draw the
+same datasets under both (MA(3) treatment, confounded DAG, TemporalCpdag,
+DBN), where only the SE changed, and by at most 3.2 points (1.1 on average)
+in the re-seeded persistent designs (AR(1) treatment, TemporalPag).
+
+Mediation lists Total / Direct / Mediated; the other columns describe the
+headline contrast. `bias/SD` and `SE/SD` divide the mean error and the mean
+reported SE by the Monte-Carlo SD of the estimate; `blocks` is the median
+`rows / block length`; `warned` is the share of replicates carrying the
+short-series warning at the thresholds above.
+
+```text
+ANTECEDENT_CALIBRATION_NSIM=2000 cargo test --release -p antecedent \
+  --test v19_short_series_measurement -- --ignored --nocapture
+```
+
+| family | design | ρ | n | coverage | bias/SD | SE/SD | eff. rows q10 / median / q90 | blocks | warned |
+|---|---|---|---|---|---|---|---|---|---|
+| single-window | Pulse h=1, MA(3) treatment | 0.50 | 40 | 0.881 | -0.00 | 1.05 | 20 / 31 / 39 | 6.5 | 1.00 |
+| single-window | Pulse h=1, MA(3) treatment | 0.80 | 40 | 0.878 | +0.05 | 1.06 | 16 / 26 / 39 | 3.9 | 1.00 |
+| single-window | Pulse h=1, MA(3) treatment | 0.90 | 40 | 0.905 | -0.03 | 1.09 | 15 / 24 / 39 | 3.2 | 1.00 |
+| single-window | Pulse h=1, MA(3) treatment | 0.95 | 40 | 0.886 | +0.02 | 1.02 | 14 / 23 / 38 | 3.2 | 1.00 |
+| single-window | Pulse h=1, MA(3) treatment | 0.50 | 60 | 0.893 | +0.01 | 1.06 | 30 / 43 / 59 | 9.8 | 0.56 |
+| single-window | Pulse h=1, MA(3) treatment | 0.80 | 60 | 0.889 | -0.00 | 1.07 | 23 / 36 / 55 | 4.2 | 0.75 |
+| single-window | Pulse h=1, MA(3) treatment | 0.90 | 60 | 0.897 | -0.01 | 1.05 | 21 / 32 / 50 | 3.7 | 0.82 |
+| single-window | Pulse h=1, MA(3) treatment | 0.95 | 60 | 0.906 | +0.03 | 1.01 | 20 / 32 / 50 | 3.1 | 0.83 |
+| single-window | Pulse h=1, MA(3) treatment | 0.50 | 100 | 0.884 | +0.01 | 1.04 | 49 / 69 / 93 | 11.0 | 0.05 |
+| single-window | Pulse h=1, MA(3) treatment | 0.80 | 100 | 0.911 | -0.00 | 1.07 | 36 / 53 / 78 | 5.0 | 0.27 |
+| single-window | Pulse h=1, MA(3) treatment | 0.90 | 100 | 0.908 | -0.00 | 1.07 | 34 / 49 / 72 | 3.8 | 0.38 |
+| single-window | Pulse h=1, MA(3) treatment | 0.95 | 100 | 0.915 | -0.02 | 1.09 | 33 / 48 / 69 | 3.2 | 0.42 |
+| single-window | Pulse h=1, MA(3) treatment | 0.50 | 160 | 0.899 | +0.01 | 1.05 | 80 / 106 / 138 | 15.9 | 0.00 |
+| single-window | Pulse h=1, MA(3) treatment | 0.80 | 160 | 0.901 | +0.02 | 1.08 | 56 / 82 / 111 | 5.7 | 0.02 |
+| single-window | Pulse h=1, MA(3) treatment | 0.90 | 160 | 0.904 | +0.04 | 1.09 | 53 / 76 / 105 | 4.0 | 0.04 |
+| single-window | Pulse h=1, MA(3) treatment | 0.95 | 160 | 0.921 | +0.01 | 1.10 | 50 / 71 / 98 | 3.5 | 0.06 |
+| single-window | Pulse h=1, MA(3) treatment | 0.50 | 400 | 0.887 | -0.00 | 0.99 | 206 / 255 / 304 | 18.1 | 0.00 |
+| single-window | Pulse h=1, MA(3) treatment | 0.80 | 400 | 0.901 | -0.02 | 1.06 | 148 / 195 / 242 | 8.1 | 0.00 |
+| single-window | Pulse h=1, MA(3) treatment | 0.90 | 400 | 0.903 | +0.00 | 1.09 | 134 / 178 / 225 | 5.2 | 0.00 |
+| single-window | Pulse h=1, MA(3) treatment | 0.95 | 400 | 0.908 | -0.03 | 1.10 | 125 / 170 / 213 | 4.4 | 0.00 |
+| single-window | Pulse h=1, AR(1) treatment | 0.50 | 40 | 0.884 | -0.02 | 1.05 | 20 / 30 / 39 | 9.8 | 1.00 |
+| single-window | Pulse h=1, AR(1) treatment | 0.80 | 40 | 0.852 | +0.05 | 0.99 | 12 / 19 / 32 | 6.5 | 1.00 |
+| single-window | Pulse h=1, AR(1) treatment | 0.90 | 40 | 0.827 | +0.04 | 0.93 | 9 / 16 / 27 | 3.9 | 1.00 |
+| single-window | Pulse h=1, AR(1) treatment | 0.95 | 40 | 0.778 | +0.01 | 0.84 | 9 / 15 / 26 | 3.9 | 1.00 |
+| single-window | Pulse h=1, AR(1) treatment | 0.50 | 60 | 0.886 | +0.04 | 1.05 | 29 / 42 / 59 | 9.8 | 0.58 |
+| single-window | Pulse h=1, AR(1) treatment | 0.80 | 60 | 0.861 | +0.02 | 1.03 | 14 / 23 / 38 | 5.9 | 0.96 |
+| single-window | Pulse h=1, AR(1) treatment | 0.90 | 60 | 0.827 | +0.01 | 0.93 | 10 / 18 / 30 | 4.2 | 0.99 |
+| single-window | Pulse h=1, AR(1) treatment | 0.95 | 60 | 0.814 | +0.01 | 0.90 | 9 / 16 / 26 | 3.7 | 0.99 |
+| single-window | Pulse h=1, AR(1) treatment | 0.50 | 100 | 0.894 | +0.02 | 1.05 | 48 / 66 / 90 | 11.0 | 0.07 |
+| single-window | Pulse h=1, AR(1) treatment | 0.80 | 100 | 0.883 | -0.05 | 1.08 | 21 / 32 / 47 | 5.0 | 0.87 |
+| single-window | Pulse h=1, AR(1) treatment | 0.90 | 100 | 0.863 | -0.01 | 1.00 | 14 / 21 / 33 | 4.1 | 0.98 |
+| single-window | Pulse h=1, AR(1) treatment | 0.95 | 100 | 0.842 | +0.03 | 0.95 | 10 / 17 / 28 | 3.5 | 0.99 |
+| single-window | Pulse h=1, AR(1) treatment | 0.50 | 160 | 0.886 | -0.02 | 1.03 | 75 / 100 / 130 | 15.9 | 0.00 |
+| single-window | Pulse h=1, AR(1) treatment | 0.80 | 160 | 0.901 | -0.01 | 1.05 | 30 / 44 / 62 | 6.1 | 0.54 |
+| single-window | Pulse h=1, AR(1) treatment | 0.90 | 160 | 0.870 | +0.01 | 1.03 | 18 / 27 / 41 | 4.2 | 0.94 |
+| single-window | Pulse h=1, AR(1) treatment | 0.95 | 160 | 0.863 | -0.01 | 1.00 | 12 / 19 / 30 | 3.8 | 0.99 |
+| single-window | Pulse h=1, AR(1) treatment | 0.50 | 400 | 0.897 | -0.03 | 1.04 | 192 / 239 / 287 | 18.1 | 0.00 |
+| single-window | Pulse h=1, AR(1) treatment | 0.80 | 400 | 0.897 | -0.01 | 1.08 | 71 / 94 / 121 | 8.1 | 0.00 |
+| single-window | Pulse h=1, AR(1) treatment | 0.90 | 400 | 0.888 | -0.01 | 1.07 | 36 / 50 / 69 | 5.4 | 0.32 |
+| single-window | Pulse h=1, AR(1) treatment | 0.95 | 400 | 0.864 | +0.01 | 1.01 | 21 / 30 / 44 | 4.6 | 0.91 |
+| mediation | mediation, MA(3) treatment | 0.50 | 40 | Total 0.892, Direct 0.911, Mediated 0.916 | -0.04 | 1.10 | 19 / 28 / 39 | 6.5 | 1.00 |
+| mediation | mediation, MA(3) treatment | 0.80 | 40 | Total 0.893, Direct 0.903, Mediated 0.922 | +0.02 | 1.08 | 16 / 24 / 36 | 3.9 | 1.00 |
+| mediation | mediation, MA(3) treatment | 0.90 | 40 | Total 0.901, Direct 0.914, Mediated 0.930 | +0.01 | 1.11 | 15 / 23 / 35 | 3.2 | 1.00 |
+| mediation | mediation, MA(3) treatment | 0.95 | 40 | Total 0.919, Direct 0.916, Mediated 0.932 | -0.03 | 1.15 | 14 / 22 / 35 | 3.2 | 1.00 |
+| mediation | mediation, MA(3) treatment | 0.50 | 60 | Total 0.900, Direct 0.903, Mediated 0.907 | +0.02 | 1.11 | 30 / 42 / 56 | 9.8 | 0.45 |
+| mediation | mediation, MA(3) treatment | 0.80 | 60 | Total 0.896, Direct 0.900, Mediated 0.912 | -0.04 | 1.09 | 22 / 34 / 50 | 4.2 | 0.71 |
+| mediation | mediation, MA(3) treatment | 0.90 | 60 | Total 0.903, Direct 0.917, Mediated 0.932 | +0.01 | 1.09 | 21 / 32 / 48 | 3.3 | 0.78 |
+| mediation | mediation, MA(3) treatment | 0.95 | 60 | Total 0.912, Direct 0.905, Mediated 0.926 | +0.04 | 1.10 | 21 / 31 / 46 | 3.1 | 0.80 |
+| mediation | mediation, MA(3) treatment | 0.50 | 100 | Total 0.890, Direct 0.901, Mediated 0.904 | -0.03 | 1.06 | 48 / 66 / 86 | 11.0 | 0.02 |
+| mediation | mediation, MA(3) treatment | 0.80 | 100 | Total 0.907, Direct 0.905, Mediated 0.916 | -0.01 | 1.13 | 37 / 53 / 74 | 5.0 | 0.17 |
+| mediation | mediation, MA(3) treatment | 0.90 | 100 | Total 0.902, Direct 0.919, Mediated 0.923 | -0.02 | 1.10 | 33 / 49 / 70 | 3.5 | 0.25 |
+| mediation | mediation, MA(3) treatment | 0.95 | 100 | Total 0.916, Direct 0.913, Mediated 0.923 | +0.01 | 1.13 | 32 / 48 / 68 | 3.0 | 0.28 |
+| mediation | mediation, MA(3) treatment | 0.50 | 160 | Total 0.892, Direct 0.898, Mediated 0.914 | +0.02 | 1.05 | 77 / 103 / 132 | 11.4 | 0.00 |
+| mediation | mediation, MA(3) treatment | 0.80 | 160 | Total 0.901, Direct 0.909, Mediated 0.921 | +0.01 | 1.09 | 58 / 80 / 107 | 5.7 | 0.01 |
+| mediation | mediation, MA(3) treatment | 0.90 | 160 | Total 0.915, Direct 0.897, Mediated 0.922 | +0.03 | 1.10 | 52 / 75 / 103 | 4.0 | 0.01 |
+| mediation | mediation, MA(3) treatment | 0.95 | 160 | Total 0.904, Direct 0.909, Mediated 0.921 | +0.02 | 1.06 | 51 / 72 / 101 | 3.4 | 0.02 |
+| mediation | mediation, MA(3) treatment | 0.50 | 400 | Total 0.904, Direct 0.898, Mediated 0.906 | +0.02 | 1.04 | 202 / 252 / 302 | 18.1 | 0.00 |
+| mediation | mediation, MA(3) treatment | 0.80 | 400 | Total 0.900, Direct 0.896, Mediated 0.902 | -0.04 | 1.10 | 146 / 194 / 239 | 7.7 | 0.00 |
+| mediation | mediation, MA(3) treatment | 0.90 | 400 | Total 0.900, Direct 0.901, Mediated 0.902 | -0.01 | 1.07 | 132 / 177 / 221 | 5.2 | 0.00 |
+| mediation | mediation, MA(3) treatment | 0.95 | 400 | Total 0.908, Direct 0.899, Mediated 0.926 | +0.04 | 1.09 | 127 / 172 / 215 | 4.4 | 0.00 |
+| mediation | mediation, AR(1) treatment | 0.50 | 40 | Total 0.897, Direct 0.899, Mediated 0.924 | +0.01 | 1.07 | 18 / 27 / 39 | 6.5 | 1.00 |
+| mediation | mediation, AR(1) treatment | 0.80 | 40 | Total 0.863, Direct 0.875, Mediated 0.935 | -0.01 | 1.02 | 11 / 17 / 28 | 3.9 | 1.00 |
+| mediation | mediation, AR(1) treatment | 0.90 | 40 | Total 0.832, Direct 0.839, Mediated 0.948 | -0.02 | 0.97 | 8 / 13 / 23 | 3.9 | 1.00 |
+| mediation | mediation, AR(1) treatment | 0.95 | 40 | Total 0.810, Direct 0.792, Mediated 0.955 | -0.01 | 0.88 | 7 / 12 / 22 | 3.2 | 1.00 |
+| mediation | mediation, AR(1) treatment | 0.50 | 60 | Total 0.882, Direct 0.899, Mediated 0.905 | -0.02 | 1.05 | 27 / 38 / 54 | 9.8 | 0.55 |
+| mediation | mediation, AR(1) treatment | 0.80 | 60 | Total 0.867, Direct 0.879, Mediated 0.922 | +0.02 | 1.02 | 13 / 21 / 33 | 4.2 | 0.97 |
+| mediation | mediation, AR(1) treatment | 0.90 | 60 | Total 0.862, Direct 0.857, Mediated 0.941 | -0.03 | 1.01 | 9 / 15 / 26 | 3.7 | 0.99 |
+| mediation | mediation, AR(1) treatment | 0.95 | 60 | Total 0.818, Direct 0.821, Mediated 0.950 | -0.03 | 0.89 | 7 / 13 / 23 | 3.3 | 1.00 |
+| mediation | mediation, AR(1) treatment | 0.50 | 100 | Total 0.897, Direct 0.901, Mediated 0.908 | +0.01 | 1.05 | 46 / 62 / 83 | 11.0 | 0.05 |
+| mediation | mediation, AR(1) treatment | 0.80 | 100 | Total 0.890, Direct 0.895, Mediated 0.920 | +0.02 | 1.10 | 20 / 30 / 45 | 5.0 | 0.83 |
+| mediation | mediation, AR(1) treatment | 0.90 | 100 | Total 0.877, Direct 0.865, Mediated 0.937 | -0.00 | 1.04 | 12 / 19 / 30 | 3.8 | 0.98 |
+| mediation | mediation, AR(1) treatment | 0.95 | 100 | Total 0.857, Direct 0.853, Mediated 0.942 | -0.00 | 0.97 | 8 / 14 / 24 | 3.2 | 0.99 |
+| mediation | mediation, AR(1) treatment | 0.50 | 160 | Total 0.902, Direct 0.886, Mediated 0.902 | +0.02 | 1.05 | 73 / 97 / 125 | 11.4 | 0.00 |
+| mediation | mediation, AR(1) treatment | 0.80 | 160 | Total 0.880, Direct 0.900, Mediated 0.909 | +0.01 | 1.08 | 30 / 42 / 60 | 5.7 | 0.44 |
+| mediation | mediation, AR(1) treatment | 0.90 | 160 | Total 0.878, Direct 0.880, Mediated 0.931 | -0.05 | 1.07 | 16 / 25 / 37 | 4.0 | 0.93 |
+| mediation | mediation, AR(1) treatment | 0.95 | 160 | Total 0.850, Direct 0.858, Mediated 0.944 | +0.02 | 1.00 | 10 / 17 / 27 | 3.5 | 0.99 |
+| mediation | mediation, AR(1) treatment | 0.50 | 400 | Total 0.898, Direct 0.909, Mediated 0.922 | -0.00 | 1.03 | 184 / 235 / 282 | 18.1 | 0.00 |
+| mediation | mediation, AR(1) treatment | 0.80 | 400 | Total 0.892, Direct 0.905, Mediated 0.901 | -0.03 | 1.05 | 70 / 93 / 119 | 8.1 | 0.00 |
+| mediation | mediation, AR(1) treatment | 0.90 | 400 | Total 0.886, Direct 0.887, Mediated 0.920 | -0.01 | 1.06 | 36 / 49 / 67 | 5.2 | 0.21 |
+| mediation | mediation, AR(1) treatment | 0.95 | 400 | Total 0.873, Direct 0.866, Mediated 0.915 | +0.00 | 1.03 | 20 / 29 / 42 | 4.6 | 0.87 |
+| sequential | multi-step Sustained, confounded DAG | 0.50 | 40 | 0.916 | -0.01 | 1.15 | 22 / 32 / 38 | 6.3 | 1.00 |
+| sequential | multi-step Sustained, confounded DAG | 0.80 | 40 | 0.913 | +0.01 | 1.11 | 18 / 27 / 38 | 6.3 | 1.00 |
+| sequential | multi-step Sustained, confounded DAG | 0.90 | 40 | 0.912 | +0.02 | 1.08 | 16 / 25 / 38 | 3.8 | 1.00 |
+| sequential | multi-step Sustained, confounded DAG | 0.95 | 40 | 0.907 | -0.02 | 1.07 | 15 / 23 / 36 | 3.8 | 1.00 |
+| sequential | multi-step Sustained, confounded DAG | 0.50 | 60 | 0.902 | +0.01 | 1.10 | 33 / 47 / 58 | 9.7 | 0.27 |
+| sequential | multi-step Sustained, confounded DAG | 0.80 | 60 | 0.888 | -0.02 | 1.07 | 26 / 38 / 55 | 5.8 | 0.59 |
+| sequential | multi-step Sustained, confounded DAG | 0.90 | 60 | 0.921 | -0.01 | 1.10 | 23 / 34 / 50 | 3.6 | 0.71 |
+| sequential | multi-step Sustained, confounded DAG | 0.95 | 60 | 0.924 | -0.01 | 1.08 | 21 / 30 / 44 | 3.6 | 0.82 |
+| sequential | multi-step Sustained, confounded DAG | 0.50 | 100 | 0.894 | -0.03 | 1.03 | 55 / 75 / 98 | 10.9 | 0.01 |
+| sequential | multi-step Sustained, confounded DAG | 0.80 | 100 | 0.914 | -0.02 | 1.11 | 42 / 58 / 78 | 4.9 | 0.07 |
+| sequential | multi-step Sustained, confounded DAG | 0.90 | 100 | 0.911 | -0.03 | 1.09 | 36 / 50 / 69 | 3.8 | 0.20 |
+| sequential | multi-step Sustained, confounded DAG | 0.95 | 100 | 0.915 | -0.01 | 1.07 | 33 / 46 / 64 | 3.2 | 0.29 |
+| sequential | multi-step Sustained, confounded DAG | 0.50 | 160 | 0.895 | -0.05 | 1.04 | 92 / 119 / 151 | 15.8 | 0.00 |
+| sequential | multi-step Sustained, confounded DAG | 0.80 | 160 | 0.912 | -0.02 | 1.11 | 66 / 90 / 116 | 5.6 | 0.00 |
+| sequential | multi-step Sustained, confounded DAG | 0.90 | 160 | 0.906 | -0.02 | 1.11 | 58 / 77 / 100 | 4.2 | 0.00 |
+| sequential | multi-step Sustained, confounded DAG | 0.95 | 160 | 0.916 | +0.01 | 1.10 | 52 / 70 / 91 | 3.5 | 0.01 |
+| sequential | multi-step Sustained, confounded DAG | 0.50 | 400 | 0.897 | -0.01 | 1.02 | 238 / 292 / 345 | 18.1 | 0.00 |
+| sequential | multi-step Sustained, confounded DAG | 0.80 | 400 | 0.895 | +0.05 | 1.06 | 174 / 216 / 258 | 8.1 | 0.00 |
+| sequential | multi-step Sustained, confounded DAG | 0.90 | 400 | 0.908 | -0.03 | 1.09 | 147 / 182 / 217 | 5.4 | 0.00 |
+| sequential | multi-step Sustained, confounded DAG | 0.95 | 400 | 0.906 | +0.03 | 1.08 | 132 / 162 / 194 | 4.6 | 0.00 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.50 | 40 | 0.889 | +0.02 | 1.10 | 15 / 23 / 37 | 6.3 | 1.00 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.80 | 40 | 0.858 | +0.00 | 1.06 | 8 / 14 / 24 | 4.8 | 1.00 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.90 | 40 | 0.834 | +0.00 | 0.99 | 6 / 11 / 20 | 3.8 | 1.00 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.95 | 40 | 0.802 | -0.03 | 0.92 | 6 / 10 / 18 | 3.8 | 1.00 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.50 | 60 | 0.888 | +0.01 | 1.05 | 22 / 33 / 50 | 9.7 | 0.72 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.80 | 60 | 0.875 | +0.00 | 1.08 | 10 / 16 / 27 | 5.8 | 0.99 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.90 | 60 | 0.842 | +0.01 | 1.00 | 7 / 12 / 20 | 3.6 | 1.00 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.95 | 60 | 0.814 | +0.01 | 0.95 | 6 / 10 / 18 | 3.6 | 1.00 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.50 | 100 | 0.882 | +0.00 | 1.05 | 35 / 51 / 70 | 10.9 | 0.20 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.80 | 100 | 0.882 | -0.03 | 1.10 | 14 / 22 / 34 | 4.9 | 0.96 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.90 | 100 | 0.876 | +0.05 | 1.12 | 9 / 15 / 24 | 3.8 | 1.00 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.95 | 100 | 0.839 | +0.04 | 1.01 | 6 / 11 / 19 | 3.2 | 1.00 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.50 | 160 | 0.879 | +0.01 | 1.02 | 58 / 77 / 102 | 13.2 | 0.00 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.80 | 160 | 0.889 | -0.02 | 1.07 | 22 / 32 / 45 | 5.6 | 0.78 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.90 | 160 | 0.875 | -0.01 | 1.07 | 12 / 20 / 30 | 4.2 | 0.99 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.95 | 160 | 0.875 | -0.02 | 1.06 | 8 / 13 / 21 | 3.5 | 1.00 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.50 | 400 | 0.903 | +0.01 | 1.04 | 151 / 184 / 225 | 18.1 | 0.00 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.80 | 400 | 0.895 | -0.02 | 1.08 | 54 / 71 / 91 | 8.1 | 0.01 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.90 | 400 | 0.905 | +0.04 | 1.12 | 27 / 37 / 51 | 5.4 | 0.62 |
+| sequential | multi-step Sustained, AR(1) treatment | 0.95 | 400 | 0.896 | +0.03 | 1.11 | 15 / 22 / 32 | 4.6 | 0.98 |
+| mixture | TemporalPag Pulse, six completions | 0.50 | 60 | 0.890 | +0.01 | 1.07 | 26 / 37 / 52 | 9.8 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.80 | 60 | 0.884 | -0.03 | 1.08 | 12 / 19 / 29 | 4.2 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.90 | 60 | 0.866 | -0.01 | 1.01 | 8 / 14 / 22 | 3.7 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.95 | 60 | 0.837 | -0.01 | 0.91 | 7 / 12 / 19 | 3.3 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.50 | 100 | 0.879 | -0.03 | 1.05 | 43 / 59 / 78 | 11.0 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.80 | 100 | 0.887 | +0.04 | 1.08 | 18 / 27 / 39 | 5.0 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.90 | 100 | 0.878 | -0.01 | 1.07 | 11 / 17 / 27 | 3.5 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.95 | 100 | 0.849 | +0.01 | 0.96 | 8 / 13 / 21 | 3.2 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.50 | 160 | 0.904 | +0.03 | 1.06 | 69 / 91 / 116 | 11.4 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.80 | 160 | 0.900 | +0.02 | 1.10 | 27 / 38 / 53 | 5.1 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.90 | 160 | 0.899 | -0.00 | 1.11 | 15 / 22 / 33 | 3.8 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.95 | 160 | 0.872 | +0.03 | 1.03 | 10 / 16 / 24 | 3.5 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.50 | 400 | 0.895 | +0.02 | 1.04 | 176 / 223 / 266 | 18.1 | 0.03 |
+| mixture | TemporalPag Pulse, six completions | 0.80 | 400 | 0.902 | +0.00 | 1.07 | 65 / 86 / 110 | 7.7 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.90 | 400 | 0.879 | +0.00 | 1.03 | 32 / 45 / 60 | 5.1 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.95 | 400 | 0.895 | -0.01 | 1.09 | 17 / 25 / 37 | 4.4 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.50 | 800 | 0.900 | -0.00 | 1.02 | 362 / 448 / 510 | 21.6 | 0.00 |
+| mixture | TemporalPag Pulse, six completions | 0.80 | 800 | 0.900 | +0.06 | 1.05 | 127 / 167 / 199 | 10.0 | 0.34 |
+| mixture | TemporalPag Pulse, six completions | 0.90 | 800 | 0.900 | -0.02 | 1.07 | 61 / 82 / 104 | 6.4 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.95 | 800 | 0.884 | -0.04 | 1.05 | 32 / 44 / 58 | 5.3 | 1.00 |
+| mixture | TemporalPag Pulse, six completions | 0.50 | 1600 | 0.885 | +0.01 | 1.00 | 732 / 901 / 1005 | 30.8 | 0.00 |
+| mixture | TemporalPag Pulse, six completions | 0.80 | 1600 | 0.901 | +0.04 | 1.06 | 254 / 333 / 381 | 13.7 | 0.00 |
+| mixture | TemporalPag Pulse, six completions | 0.90 | 1600 | 0.899 | +0.03 | 1.07 | 121 / 160 / 192 | 8.5 | 0.42 |
+| mixture | TemporalPag Pulse, six completions | 0.95 | 1600 | 0.894 | +0.02 | 1.04 | 60 / 81 / 101 | 6.6 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.50 | 40 | 0.898 | -0.05 | 1.13 | 21 / 31 / 39 | 6.5 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.80 | 40 | 0.897 | -0.18 | 1.09 | 16 / 25 / 38 | 3.9 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.90 | 40 | 0.824 | -0.47 | 1.04 | 15 / 24 / 38 | 3.2 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.95 | 40 | 0.685 | -0.84 | 0.98 | 15 / 24 / 39 | 3.2 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.50 | 60 | 0.904 | -0.09 | 1.09 | 32 / 45 / 59 | 9.8 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.80 | 60 | 0.890 | -0.19 | 1.06 | 22 / 35 / 52 | 4.2 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.90 | 60 | 0.844 | -0.38 | 1.05 | 19 / 31 / 49 | 3.7 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.95 | 60 | 0.721 | -0.66 | 0.92 | 19 / 31 / 51 | 3.3 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.50 | 100 | 0.900 | -0.02 | 1.07 | 55 / 74 / 96 | 11.0 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.80 | 100 | 0.898 | -0.13 | 1.10 | 32 / 50 / 74 | 5.0 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.90 | 100 | 0.878 | -0.29 | 1.08 | 26 / 42 / 68 | 3.5 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.95 | 100 | 0.814 | -0.47 | 1.02 | 23 / 41 / 68 | 3.2 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.50 | 160 | 0.902 | -0.05 | 1.07 | 88 / 117 / 147 | 11.4 | 0.94 |
+| mixture | TemporalCpdag Pulse, two completions | 0.80 | 160 | 0.906 | -0.17 | 1.11 | 48 / 76 / 105 | 5.7 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.90 | 160 | 0.861 | -0.25 | 1.02 | 34 / 60 / 93 | 4.0 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.95 | 160 | 0.829 | -0.37 | 0.98 | 27 / 52 / 90 | 3.5 | 1.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.50 | 400 | 0.902 | -0.00 | 1.04 | 227 / 288 / 342 | 18.1 | 0.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.80 | 400 | 0.900 | -0.05 | 1.06 | 107 / 170 / 224 | 7.7 | 0.38 |
+| mixture | TemporalCpdag Pulse, two completions | 0.90 | 400 | 0.905 | -0.09 | 1.11 | 61 / 117 / 181 | 5.2 | 0.76 |
+| mixture | TemporalCpdag Pulse, two completions | 0.95 | 400 | 0.848 | -0.21 | 0.98 | 41 / 78 / 153 | 4.4 | 0.91 |
+| mixture | TemporalCpdag Pulse, two completions | 0.50 | 800 | 0.898 | -0.01 | 1.02 | 459 / 570 / 652 | 21.6 | 0.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.80 | 800 | 0.907 | -0.04 | 1.10 | 207 / 319 / 416 | 10.4 | 0.02 |
+| mixture | TemporalCpdag Pulse, two completions | 0.90 | 800 | 0.887 | -0.11 | 1.06 | 115 / 195 / 318 | 6.5 | 0.30 |
+| mixture | TemporalCpdag Pulse, two completions | 0.95 | 800 | 0.875 | -0.19 | 1.04 | 66 / 123 / 245 | 5.3 | 0.68 |
+| mixture | TemporalCpdag Pulse, two completions | 0.50 | 1600 | 0.901 | -0.02 | 1.03 | 939 / 1152 / 1274 | 30.8 | 0.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.80 | 1600 | 0.894 | -0.05 | 1.05 | 400 / 606 / 778 | 14.2 | 0.00 |
+| mixture | TemporalCpdag Pulse, two completions | 0.90 | 1600 | 0.907 | -0.04 | 1.08 | 208 / 349 / 578 | 8.6 | 0.01 |
+| mixture | TemporalCpdag Pulse, two completions | 0.95 | 1600 | 0.883 | -0.13 | 1.04 | 114 / 201 / 381 | 6.6 | 0.28 |
+| mixture | DBN multi-step Sustained, two atoms | 0.50 | 40 | 0.910 | -0.03 | 1.13 | 17 / 24 / 36 | 6.3 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.80 | 40 | 0.901 | -0.14 | 1.09 | 12 / 18 / 28 | 3.8 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.90 | 40 | 0.892 | -0.20 | 1.08 | 10 / 16 / 25 | 3.8 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.95 | 40 | 0.862 | -0.39 | 1.04 | 10 / 16 / 24 | 3.2 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.50 | 60 | 0.912 | -0.03 | 1.11 | 25 / 36 / 50 | 9.7 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.80 | 60 | 0.910 | -0.10 | 1.15 | 15 / 24 / 35 | 4.1 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.90 | 60 | 0.903 | -0.14 | 1.07 | 13 / 20 / 31 | 3.6 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.95 | 60 | 0.859 | -0.35 | 1.02 | 12 / 19 / 30 | 3.2 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.50 | 100 | 0.910 | +0.01 | 1.11 | 43 / 58 / 78 | 10.9 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.80 | 100 | 0.900 | -0.09 | 1.12 | 24 / 35 / 51 | 4.9 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.90 | 100 | 0.904 | -0.17 | 1.12 | 18 / 28 / 42 | 3.8 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.95 | 100 | 0.883 | -0.25 | 1.07 | 16 / 26 / 39 | 3.2 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.50 | 160 | 0.898 | -0.04 | 1.05 | 70 / 92 / 116 | 11.3 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.80 | 160 | 0.907 | -0.05 | 1.12 | 36 / 51 / 70 | 5.6 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.90 | 160 | 0.908 | -0.12 | 1.12 | 25 / 39 / 56 | 4.0 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.95 | 160 | 0.890 | -0.15 | 1.05 | 20 / 33 / 50 | 3.5 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.50 | 400 | 0.906 | -0.01 | 1.07 | 176 / 220 / 267 | 18.1 | 0.03 |
+| mixture | DBN multi-step Sustained, two atoms | 0.80 | 400 | 0.904 | -0.02 | 1.07 | 86 / 118 / 148 | 7.7 | 0.94 |
+| mixture | DBN multi-step Sustained, two atoms | 0.90 | 400 | 0.910 | -0.08 | 1.11 | 52 / 80 / 109 | 5.2 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.95 | 400 | 0.892 | -0.13 | 1.07 | 36 / 61 / 90 | 4.4 | 1.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.50 | 800 | 0.902 | +0.02 | 1.03 | 372 / 447 / 509 | 23.5 | 0.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.80 | 800 | 0.891 | +0.00 | 1.05 | 175 / 229 / 276 | 10.4 | 0.05 |
+| mixture | DBN multi-step Sustained, two atoms | 0.90 | 800 | 0.908 | -0.02 | 1.06 | 97 / 151 / 192 | 6.7 | 0.54 |
+| mixture | DBN multi-step Sustained, two atoms | 0.95 | 800 | 0.902 | -0.08 | 1.08 | 55 / 100 / 151 | 5.3 | 0.92 |
+| mixture | DBN multi-step Sustained, two atoms | 0.50 | 1600 | 0.901 | -0.02 | 1.02 | 764 / 888 / 984 | 30.7 | 0.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.80 | 1600 | 0.895 | -0.02 | 1.04 | 340 / 449 / 516 | 14.1 | 0.00 |
+| mixture | DBN multi-step Sustained, two atoms | 0.90 | 1600 | 0.897 | -0.02 | 1.05 | 184 / 282 / 355 | 8.8 | 0.04 |
+| mixture | DBN multi-step Sustained, two atoms | 0.95 | 1600 | 0.900 | -0.07 | 1.07 | 97 / 170 / 263 | 6.7 | 0.42 |

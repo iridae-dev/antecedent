@@ -12,28 +12,35 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if query.temporal.is_some() || query.observation != ObservationSpec::Complete {
-            return Err(CausalError::Unsupported {
-                message: "static graph-posterior response requires complete observations",
-            });
-        }
+        graph_posterior_response_supported(query)?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
-        if matches!(
-            &query.functional,
-            ResponseFunctional::InterventionResponse { interventions, .. }
-                if interventions.len() != 1
-        ) {
-            return Err(CausalError::Unsupported {
-                message: "graph-posterior InterventionResponse currently requires one intervention coordinate",
-            });
-        }
         let identification_query = AverageEffectQuery::binary_ate(treatment, outcome);
-        let identified = crate::analysis::prepared::build_graph_posterior_identification_cache(
-            graph_posterior,
-            &identification_query,
+        let (identified, identify_cached) =
+            if let Some(cache) = self.graph_posterior_identification_cache.as_deref() {
+                (cache.clone(), true)
+            } else {
+                (
+                    crate::analysis::prepared::build_graph_posterior_identification_cache(
+                        graph_posterior,
+                        &identification_query,
+                        ctx,
+                    )?,
+                    false,
+                )
+            };
+        // Same interactive budget as the graph-posterior ATE path: identified
+        // atoms left out of the stratified subsample are never fit and never
+        // renormalized away; their mass is reported as not evaluated.
+        let mut subsample_notes = Vec::new();
+        let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
+            self.latency_mode,
+            identified.graphs.clone(),
             ctx,
+            &mut subsample_notes,
         )?;
         let mut weighted = Vec::new();
+        // Atom statuses come from the full ensemble: a subsampled-out atom keeps
+        // its identified status and carries no value.
         let mut atoms = identified
             .graphs
             .graph_keys
@@ -55,13 +62,19 @@ impl super::Study {
             .collect::<Vec<_>>();
         let mut primary = None;
         let mut failed_mass = 0.0;
+        // Atom influence columns keep their own complete-case row indices; they
+        // are aligned on the shared data rows before mixing.
+        let mut atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)> = Vec::new();
+        let options = self.response_options.clone().unwrap_or_default();
         for atom in identified.atoms.iter() {
-            let weight = identified_weight_for_key(&identified.graphs, atom.key);
+            // Zero for atoms the interactive subsample dropped.
+            let weight = identified_weight_for_key(&graphs, atom.key);
             if weight <= 0.0 {
                 continue;
             }
-            let estimator =
+            let mut estimator =
                 ContinuousResponseEstimator::new(Arc::clone(&atom.estimand.adjustment_set));
+            estimator.options = options.clone();
             let response = if let InferenceMode::Bayesian(cfg) = &self.inference {
                 let mut bayes = bayesian_gcomp(cfg, ctx);
                 bayes.prior.clone_from(&cfg.prior);
@@ -74,19 +87,27 @@ impl super::Study {
                     ctx,
                 )
             } else {
-                estimator.estimate_identified(
+                match estimator.estimate_identified_scored(
                     data,
                     query,
                     atom.identification.status,
                     atom.identification.required_assumptions.clone(),
-                )
+                ) {
+                    Ok((response, scores)) => {
+                        if let Some(scores) = scores.filter(|s| !s.columns.is_empty()) {
+                            atom_scores.push((weight, scores));
+                        }
+                        Ok(response)
+                    }
+                    Err(err) => Err(err),
+                }
             };
             let Ok(response) = response else {
+                // Identified but not evaluable: the atom keeps its identification
+                // status and has no value, so its mass is unevaluable.
                 failed_mass += weight;
-                if let Some(slot) =
-                    atoms.iter_mut().find(|candidate| candidate.graph_key == atom.key)
-                {
-                    slot.status = IdentificationStatus::NotIdentified;
+                for slot in atoms.iter_mut().filter(|candidate| candidate.graph_key == atom.key) {
+                    slot.status = atom.identification.status;
                 }
                 continue;
             };
@@ -95,9 +116,10 @@ impl super::Study {
                     message: "identified graph-posterior response atom had no numerical value"
                         .into(),
                 })?;
-            if let Some(slot) = atoms.iter_mut().find(|candidate| candidate.graph_key == atom.key) {
+            // A repeated graph is listed once per sample; every listing carries its value.
+            for slot in atoms.iter_mut().filter(|candidate| candidate.graph_key == atom.key) {
                 slot.status = atom.identification.status;
-                slot.value = Some(value);
+                slot.value = Some(value.clone());
             }
             if primary.is_none() {
                 primary = Some((atom.estimand.clone(), atom.identification.clone()));
@@ -108,8 +130,11 @@ impl super::Study {
             message: "graph-posterior response has no evaluable identified atom".into(),
         })?;
         let identified_mass = weighted.iter().map(|(_, weight, _)| weight).sum::<f64>();
-        let total_mass = identified.graphs.total_weight();
-        let unidentified_mass = identified.graphs.unidentified_mass() + failed_mass;
+        let total_mass = graphs.total_weight();
+        // The subsampled ensemble flags dropped atoms Unidentified; the full
+        // ensemble's unidentified mass is the structural one.
+        let unidentified_mass = identified.graphs.unidentified_mass();
+        let subsampled_out_mass = subsample_drop.mass;
         let conditional_values = weighted
             .iter()
             .filter_map(|(_, weight, response)| {
@@ -121,10 +146,35 @@ impl super::Study {
         let conditional = mix_response_values(&conditional_refs)?;
         let structural_set = response_envelope_from_weighted(&weighted);
         let first = &weighted[0].2;
-        let graph_dependent = unidentified_mass > 0.0;
+        // Unevaluable and subsampled-out mass are as incomplete as unidentified
+        // mass: the published value covers only the evaluated atoms.
+        let graph_dependent =
+            unidentified_mass > 0.0 || failed_mass > 0.0 || subsampled_out_mass > 0.0;
         if graph_dependent {
             identification.status = IdentificationStatus::GraphDependent;
         }
+        // Only a scalar aggregate takes the joint-IF SE: for a curve the first
+        // score column is the influence of the first grid point alone.
+        let mixed_if_se = (weighted.len() > 1
+            && matches!(self.inference, InferenceMode::Frequentist)
+            && matches!(conditional, ResponseValue::Scalar(_))
+            && atom_scores.len() == weighted.len())
+        .then(|| mixed_response_scalar_se(&atom_scores, data.row_count()))
+        .flatten();
+        let uncertainty = if weighted.len() == 1 {
+            first.uncertainty.clone()
+        } else if let (Some(se), ResponseValue::Scalar(value)) = (mixed_if_se, &conditional) {
+            let level = options.confidence_level;
+            let z = antecedent_stats::normal_ppf(0.5 + level / 2.0);
+            ResponseUncertainty::Scalar {
+                standard_error: se,
+                level,
+                lower: value - z * se,
+                upper: value + z * se,
+            }
+        } else {
+            ResponseUncertainty::None
+        };
         let response = antecedent_core::CausalResponse {
             estimand: query.functional.clone(),
             identification_status: identification.status,
@@ -140,11 +190,7 @@ impl super::Study {
             } else {
                 ResponseIdentification::PointIdentified(conditional.clone())
             },
-            uncertainty: if weighted.len() == 1 {
-                first.uncertainty.clone()
-            } else {
-                ResponseUncertainty::None
-            },
+            uncertainty,
             support: mix_support_reports(
                 &weighted.iter().map(|(_, _, response)| &response.support).collect::<Vec<_>>(),
             ),
@@ -171,13 +217,44 @@ impl super::Study {
             DiagnosticSeverity::Info,
             format!(
                 "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
-                 failed_atom_mass={}; \
-                 multiple-atom sampling uncertainty is omitted rather than coupling aligned draws",
+                 unevaluable_mass={}; subsampled_out_mass={}; failed estimation and \
+                 atoms the Interactive tier did not evaluate are not mixed into \
+                 unidentified mass",
                 identified_mass / total_mass,
                 unidentified_mass / total_mass,
-                failed_mass / total_mass
+                failed_mass / total_mass,
+                subsampled_out_mass / total_mass
             ),
         )];
+        if weighted.len() > 1 && mixed_if_se.is_none() {
+            diagnostics.push(Diagnostic::new(
+                "estimate.response.graph_posterior.uncertainty_withheld",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                    "multi-atom Bayesian graph-posterior response withholds an aggregate \
+                     credible interval: graph-specific dispersion and uncertainty of a \
+                     frozen-weight aggregate are different objects"
+                } else if !matches!(conditional, ResponseValue::Scalar(_)) {
+                    "multi-atom Frequentist graph-posterior curve withholds an aggregate \
+                     band: the joint-IF SE is published for scalar aggregates only, and \
+                     marginal atom bands are not combined as independent"
+                } else {
+                    "multi-atom Frequentist graph-posterior response withholds an aggregate \
+                     interval because aligned atom influences were unavailable; marginal \
+                     atom SEs are not combined as independent"
+                },
+            ));
+        } else if mixed_if_se.is_some() {
+            diagnostics.push(Diagnostic::new(
+                "estimate.response.graph_posterior.joint_if_se",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "SE of the frozen-weight aggregate from the joint influence-function \
+                 covariance of identified atoms on the shared sample; simultaneous bands \
+                 are not claimed",
+            ));
+        }
         let plugin_scalar = match &conditional {
             ResponseValue::Scalar(value) => *value,
             _ => scalar,
@@ -230,6 +307,10 @@ impl super::Study {
             (Vec::new(), Vec::new())
         };
         diagnostics.extend(refute_diags);
+        diagnostics.extend(subsample_notes);
+        if identify_cached {
+            diagnostics.push(identify_cached_diagnostic());
+        }
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -239,7 +320,7 @@ impl super::Study {
             estimator_id,
             treatment,
             outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics: Vec::new(),
             refutations,
             distribution: None,
@@ -254,9 +335,11 @@ impl super::Study {
                     weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
                     atoms,
                     identified_mass: identified_mass / total_mass,
-                    unidentified_mass: identified.graphs.unidentified_mass() / total_mass,
+                    unidentified_mass: unidentified_mass / total_mass,
                     unevaluable_mass: failed_mass / total_mass,
+                    subsampled_out_mass: subsampled_out_mass / total_mass,
                     identified_set: structural_set,
+                    identified_set_interval: None,
                     conditional_on_identified: Some(conditional),
                     full_mass_scope: true,
                     truncated_atoms: 0,
@@ -1235,7 +1318,9 @@ impl super::Study {
             identified_mass: total_w / total_mass.max(f64::EPSILON),
             unidentified_mass: envelope.unidentified_weight.0 / total_mass.max(f64::EPSILON),
             unevaluable_mass: unestimated_id_mass / total_mass.max(f64::EPSILON),
+            subsampled_out_mass: 0.0,
             identified_set: response_envelope_from_weighted(&weighted),
+            identified_set_interval: None,
             conditional_on_identified: None,
             full_mass_scope: envelope.truncated_completions == 0,
             truncated_atoms: envelope.truncated_completions,
@@ -1321,8 +1406,38 @@ impl super::Study {
             mixed.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );
-        attach_response_influence(&mut estimate, mixed_scores.as_ref())?;
+        // Completions that disagree publish the completion identified set, not a
+        // mass-weighted summary, so the frozen-weight joint-IF SE has no reported
+        // point to attach to. Attaching it anyway left `se_analytic` describing a
+        // mixture the result never states (1.9 calibration finding).
+        let reports_mixed_point = matches!(
+            &mixed.estimate,
+            ResponseIdentification::PointIdentified(
+                ResponseValue::Scalar(_) | ResponseValue::Surface { .. }
+            ) | ResponseIdentification::PartiallyIdentified(
+                ResponseValue::Scalar(_) | ResponseValue::Surface { .. }
+            )
+        );
+        let identified_set_unbanded = !reports_mixed_point
+            && matches!(
+                &mixed.estimate,
+                ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(_))
+            );
+        if reports_mixed_point {
+            attach_response_influence(&mut estimate, mixed_scores.as_ref())?;
+        }
         let mut diagnostics = vec![envelope_diag];
+        if identified_set_unbanded {
+            diagnostics.push(Diagnostic::new(
+                "estimate.envelope.response_identified_set_unbanded",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "completions disagree, so the response is the completion identified set \
+                 (pointwise lower/upper over identified completions); no sampling band and no \
+                 scalar SE are published for it. Per-completion values and enumeration weights \
+                 are in structural_response; a frozen-weight mixture is not reported",
+            ));
+        }
         if envelope.cases.iter().any(|c| {
             c.result
                 .estimands
@@ -1337,10 +1452,15 @@ impl super::Study {
                  Shpitser–Pearl ID after generalized adjustment failed",
             ));
         }
-        if !estimate.se_analytic.is_finite() {
+        if !estimate.se_analytic.is_finite() && !identified_set_unbanded {
             diagnostics.push(envelope_se_omits_between_atom_variance());
         }
-        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        // Disclose only when the envelope actually dropped per-completion
+        // posterior uncertainty; a single contributing completion keeps its own
+        // band and nothing is omitted.
+        let atom_uncertainty_dropped = matches!(mixed.uncertainty, ResponseUncertainty::None)
+            && weighted.iter().any(|(_, _, r)| !matches!(r.uncertainty, ResponseUncertainty::None));
+        if matches!(self.inference, InferenceMode::Bayesian(_)) && atom_uncertainty_dropped {
             diagnostics.push(Diagnostic::new(
                 "estimate.envelope.response_posterior_not_mixed",
                 DiagnosticKind::Scientific,
@@ -1675,13 +1795,17 @@ pub(super) fn mix_support_reports(
         }
         warnings.extend(report.warnings.iter().cloned());
     }
-    antecedent_core::SupportReport {
+    let mut mixed = antecedent_core::SupportReport {
         status,
         query_region: first.query_region.clone(),
         diagnostics: first.diagnostics.clone(),
         warnings,
         point_status: first.point_status.clone(),
-    }
+    };
+    // A simultaneous band belongs to one atom's surface; it stays on that atom and
+    // never describes the mixed class report.
+    antecedent_estimate::clear_simultaneous_band(&mut mixed);
+    mixed
 }
 
 fn support_rank(status: antecedent_core::SupportStatus) -> u8 {
@@ -1732,6 +1856,43 @@ fn attach_response_influence(
         Err(_) => {}
     }
     estimate.influence = scores.columns.first().map(|c| Arc::from(c.as_slice()));
+    Ok(())
+}
+
+/// SE of the frozen-weight mixture of scalar atom responses from the joint
+/// influence of the atoms on the shared data rows. Each atom's influence is
+/// placed on its own complete-case rows ([`mix_response_influences`]), so atoms
+/// that drop different rows are aligned by row index, not by position.
+fn mixed_response_scalar_se(
+    atoms: &[(f64, antecedent_estimate::ResponseInfluence)],
+    full_n: usize,
+) -> Option<f64> {
+    let mixed = mix_response_influences(atoms, full_n)?;
+    let column = mixed.columns.first()?;
+    antecedent_estimate::joint_influence_covariance(&[column.as_slice()], None)
+        .ok()
+        .map(|cov| cov.se(0))
+        .filter(|se| se.is_finite())
+}
+
+/// The refusals every graph-posterior response shares (fresh run and prepared
+/// handle): a static response on complete observations, and one intervention
+/// coordinate for [`ResponseFunctional::InterventionResponse`].
+pub(crate) fn graph_posterior_response_supported(query: &ResponseQuery) -> Result<(), CausalError> {
+    if query.temporal.is_some() || query.observation != ObservationSpec::Complete {
+        return Err(CausalError::Unsupported {
+            message: "static graph-posterior response requires complete observations",
+        });
+    }
+    if matches!(
+        &query.functional,
+        ResponseFunctional::InterventionResponse { interventions, .. }
+            if interventions.len() != 1
+    ) {
+        return Err(CausalError::Unsupported {
+            message: "graph-posterior InterventionResponse currently requires one intervention coordinate",
+        });
+    }
     Ok(())
 }
 

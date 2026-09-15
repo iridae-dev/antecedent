@@ -138,11 +138,15 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
     assert_eq!(second.identify_demotion.identify_failed, 1);
     assert!(cache.mediation_horizon(3).is_err());
 
+    // The periodic "noise" of this fixture drives the long-run-variance tempering
+    // factor to its n/(p+2) cap; the prior keeps full weight under tempering, so a
+    // scale-10 prior would shrink the nearly collinear mediator slope. The
+    // effectively flat prior of the known-truth conformance keeps the 0.44 anchor.
     let study = Study::series(series.clone())
         .graph_posterior(posterior)
         .query(CausalQuery::Mediation(query))
         .inference(InferenceMode::Bayesian(
-            BayesianConfig::conjugate().n_draws(1024).prior_scale(10.0),
+            BayesianConfig::conjugate().n_draws(1024).prior_scale(1_000_000.0),
         ))
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)

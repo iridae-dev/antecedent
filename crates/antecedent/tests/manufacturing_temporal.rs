@@ -401,7 +401,45 @@ fn manufacturing_dbn_posterior_frequentist_shared_block_bootstrap() {
     assert!(result.diagnostics.iter().any(|diagnostic| {
         diagnostic.code.as_ref() == "estimate.dbn_posterior.frequentist"
             && diagnostic.message.contains("shared circular-block")
+            // I-5: same aggregate-interval statement as the class-envelope diagnostic.
+            && diagnostic.message.contains(
+                "the interval is for the reported aggregate, not a distribution over \
+                 graph-specific effects",
+            )
     }));
+    // Structural mass accounting rides the result like the DBN mediation mixture.
+    let structural = result.structural_response.as_ref().expect("structural mixture");
+    assert_eq!(
+        structural.weight_basis,
+        antecedent::result::StructuralWeightBasis::PosteriorProbability
+    );
+    assert_eq!(structural.atoms.len(), weights.len());
+    let identified_truth = pin["identified_mass"].as_f64().unwrap();
+    let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
+    assert!((structural.identified_mass - identified_truth).abs() < 1e-12);
+    assert!((structural.unidentified_mass - unidentified_truth).abs() < 1e-12);
+    assert!(structural.unevaluable_mass.abs() < f64::EPSILON);
+    assert!(structural.subsampled_out_mass.abs() < f64::EPSILON);
+    let evaluated: Vec<_> = structural.atoms.iter().filter(|atom| atom.value.is_some()).collect();
+    assert_eq!(evaluated.len(), 1);
+    assert!((evaluated[0].weight - identified_truth).abs() < 1e-12);
+    assert_eq!(
+        structural
+            .atoms
+            .iter()
+            .filter(|atom| atom.status == IdentificationStatus::NotIdentified)
+            .count(),
+        1
+    );
+    match structural.conditional_on_identified.as_ref() {
+        Some(antecedent_core::ResponseValue::Scalar(value)) => {
+            assert!((value - result.estimate.ate).abs() < 1e-12);
+        }
+        other => panic!("expected a scalar conditional summary, got {other:?}"),
+    }
+    let set = structural.identified_set.as_ref().expect("identified set");
+    assert!((set.lower[0] - result.estimate.ate).abs() < 1e-12);
+    assert!((set.upper[0] - result.estimate.ate).abs() < 1e-12);
 }
 
 #[test]
@@ -673,6 +711,276 @@ fn manufacturing_dbn_posterior_bayesian_mediation_envelope() {
     for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
         assert_dbn_mediation_known_truth_mixture(suite);
     }
+}
+
+/// Frequentist DBN-posterior mediation on the known-truth mixture: the one
+/// identified atom (weight 0.7) carries the mediated effect 0.8 × 0.55 = 0.44;
+/// the autoregressive atom (0.3) is unidentified and its mass is retained as a
+/// structured field, not only in a diagnostic. The shared circular-block
+/// bootstrap supplies Total/Direct/Mediated SEs from the same replicates.
+#[test]
+fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_mediation"];
+    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+    let weights: Vec<f64> =
+        pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
+    let identified_truth = pin["identified_mass"].as_f64().unwrap();
+    let effect_truth = pin["expected_effect_given_identified"].as_f64().unwrap();
+    let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
+    assert_eq!(pin["contrast"], "mediated");
+    let (series, q) = mediation_series(n);
+    let gp = known_truth_dbn_mediation_posterior(pin, &weights);
+    let (ctx, sink) = recording_ctx(pin["seed"].as_u64().unwrap());
+    let analysis = Study::series(series.clone())
+        .graph_posterior(gp)
+        .query(CausalQuery::Mediation(q))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(40)
+        .build()
+        .unwrap();
+    let fresh = analysis.clone().run(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 1);
+    let prepared = analysis.prepare(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 2);
+    let click = prepared.estimate_series(&series, &ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 2);
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert_eq!(click.estimate.se_bootstrap, fresh.estimate.se_bootstrap);
+    assert_eq!(cached_count(&fresh), 0);
+    assert_eq!(cached_count(&click), 1);
+
+    // Known truth: the requested (mediated) contrast of the identified atom.
+    assert!(
+        (fresh.estimate.ate - effect_truth).abs() < tolerance,
+        "mediated {} vs truth {effect_truth}",
+        fresh.estimate.ate
+    );
+    assert_eq!(fresh.identification.status, IdentificationStatus::GraphDependent);
+    assert_eq!(fresh.logical_plan.identifier.as_deref(), Some("temporal.mediation"));
+    assert_eq!(fresh.logical_plan.estimator.as_deref(), Some("temporal.mediation"));
+
+    // Dependence-honest SE from the shared circular-block replicates.
+    let se = fresh.estimate.se_bootstrap.expect("Frequentist DBN mediation SE");
+    assert!(se.is_finite() && se > 0.0, "se {se}");
+    assert!(fresh.estimate.se_analytic.is_nan());
+    let ok = fresh.estimate.bootstrap_replicates_ok.expect("replicates recorded");
+    assert!((20..=40).contains(&ok), "replicates_ok {ok}");
+    assert!(
+        fresh
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.dbn_posterior.mediation.shared_block")
+    );
+    assert!(
+        fresh
+            .diagnostics
+            .iter()
+            .all(|d| d.code.as_ref() != "estimate.dbn_posterior.mediation.uncertainty_withheld")
+    );
+    let grid = fresh.mediation_grid.as_ref().expect("mediation grid");
+    let slice = &grid.slices[0];
+    match &slice.uncertainty {
+        antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+            requested,
+            block,
+        } => {
+            assert_eq!(*requested, Some(se));
+            assert_eq!(block.mediated, Some(se));
+            for component in [block.total, block.direct] {
+                assert!(component.is_some_and(|v| v.is_finite() && v > 0.0), "{block:?}");
+            }
+            assert_eq!(block.replicates_ok, ok);
+        }
+        other => panic!("expected shared block uncertainty, got {other:?}"),
+    }
+
+    // Unidentified mass is a structured field, not only diagnostic text.
+    let structural = fresh.structural_response.as_ref().expect("structured posterior mass");
+    assert!((structural.unidentified_mass - unidentified_truth).abs() < 1e-12);
+    assert!((structural.identified_mass - identified_truth).abs() < 1e-12);
+    assert!(structural.unevaluable_mass.abs() < 1e-15);
+    assert_eq!(structural.atoms.len(), 2);
+    let identified_atoms: Vec<_> =
+        structural.atoms.iter().filter(|atom| atom.value.is_some()).collect();
+    assert_eq!(identified_atoms.len(), 1);
+    assert!((identified_atoms[0].weight - identified_truth).abs() < 1e-12);
+
+    let mediation = fresh.mediation.as_ref().expect("Frequentist DBN mediation envelope");
+    assert!((mediation.effect.ate - fresh.estimate.ate).abs() < 1e-12);
+    assert!((mediation.mediated.unwrap() - fresh.estimate.ate).abs() < 1e-12);
+    // OLS product-of-coefficients identity on the shared regressors.
+    let (total, direct, mediated) =
+        (mediation.total.unwrap(), mediation.direct.unwrap(), mediation.mediated.unwrap());
+    assert!((total - (direct + mediated)).abs() < 1e-9, "{total} vs {direct} + {mediated}");
+}
+
+/// Without replicates the aggregate SE is withheld with a warning; no iid SE
+/// is substituted on the serially dependent lagged rows.
+#[test]
+fn manufacturing_dbn_posterior_frequentist_mediation_withholds_se_without_replicates() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_mediation"];
+    let weights: Vec<f64> =
+        pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let (series, q) = mediation_series(usize::try_from(pin["n"].as_u64().unwrap()).unwrap());
+    let result = Study::series(series)
+        .graph_posterior(known_truth_dbn_mediation_posterior(pin, &weights))
+        .query(CausalQuery::Mediation(q))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(5))
+        .unwrap();
+    assert!(result.estimate.se_bootstrap.is_none());
+    assert!(result.estimate.se_analytic.is_nan());
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.dbn_posterior.mediation.uncertainty_withheld")
+    );
+    assert!(matches!(
+        result.mediation_grid.as_ref().unwrap().slices[0].uncertainty,
+        antecedent_estimate::TemporalMediationUncertainty::Unavailable
+    ));
+}
+
+/// Two identified DBN atoms (the known-truth atom and a variant adding the
+/// lagged mediator edge `M_{t-1} → Y_t`) plus the unidentified atom: the
+/// published contrasts are the fixed-weight means of the atom fits, and one
+/// shared circular-block replicate refits both atoms for all three SEs.
+#[test]
+fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicate() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_mediation"];
+    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+    let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
+    let effect_truth = pin["expected_effect_given_identified"].as_f64().unwrap();
+    let c = pin["identified_atom"]["contemporaneous_mask"].as_u64().unwrap();
+    let l = pin["identified_atom"]["lag_mask"].as_u64().unwrap();
+    let unidentified_l = pin["unidentified_atom"]["lag_mask"].as_u64().unwrap();
+    // Lag-mask bit `from * 3 + to`: M_{t-1} → Y_t is bit 5.
+    let lagged_mediator = l | (1 << 5);
+    let weights = [0.5, 0.3, 0.2];
+    let zeros = vec![0.0; 9];
+    let gp = GraphPosterior::new(
+        3,
+        weights.to_vec(),
+        vec![c, c, c],
+        zeros.clone(),
+        zeros,
+        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+        InferenceDiagnostics::analytic("known_truth_mixtures"),
+        0,
+    )
+    .unwrap()
+    .with_lagged_marginals(1, vec![0.2, 1.0, 1.0, 0.0, 0.0, 0.3, 0.0, 0.0, 0.0])
+    .unwrap()
+    .with_lag_masks(vec![l, lagged_mediator, unidentified_l])
+    .unwrap()
+    .with_algorithm("known_truth_fixture");
+    let (series, q) = mediation_series(n);
+    let result = Study::series(series)
+        .graph_posterior(gp)
+        .query(CausalQuery::Mediation(q))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(40)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(pin["seed"].as_u64().unwrap()))
+        .unwrap();
+    let structural = result.structural_response.as_ref().expect("structured posterior mass");
+    assert!((structural.identified_mass - 0.8).abs() < 1e-12, "{structural:?}");
+    assert!((structural.unidentified_mass - 0.2).abs() < 1e-12);
+    assert!(structural.unevaluable_mass.abs() < 1e-15);
+    let atom_values: Vec<(f64, f64)> = structural
+        .atoms
+        .iter()
+        .filter_map(|atom| match atom.value {
+            Some(antecedent_core::ResponseValue::Scalar(v)) => Some((atom.weight, v)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(atom_values.len(), 2);
+    let mixed = atom_values.iter().map(|(w, v)| w * v).sum::<f64>() / 0.8;
+    assert!((result.estimate.ate - mixed).abs() < 1e-12, "{} vs {mixed}", result.estimate.ate);
+    // The known-truth atom recovers 0.44; the lagged-mediator atom is a
+    // different graph with its own S(h) and its own (graph-specific) value.
+    assert!((atom_values[0].1 - effect_truth).abs() < tolerance, "{atom_values:?}");
+    assert!((atom_values[0].1 - atom_values[1].1).abs() > 1e-6, "{atom_values:?}");
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "identify.dbn_posterior.atom_horizon_sets_differ")
+    );
+    let lower = atom_values.iter().map(|(_, v)| *v).fold(f64::INFINITY, f64::min);
+    let upper = atom_values.iter().map(|(_, v)| *v).fold(f64::NEG_INFINITY, f64::max);
+    let set = structural.identified_set.as_ref().expect("atom range");
+    assert_eq!((set.lower[0], set.upper[0]), (lower, upper));
+    let se = result.estimate.se_bootstrap.expect("mixture SE");
+    assert!(se.is_finite() && se > 0.0);
+    match &result.mediation_grid.as_ref().unwrap().slices[0].uncertainty {
+        antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+            requested,
+            block,
+        } => {
+            assert_eq!(*requested, Some(se));
+            assert!(block.total.is_some_and(|v| v > 0.0) && block.direct.is_some_and(|v| v > 0.0));
+        }
+        other => panic!("expected shared block uncertainty, got {other:?}"),
+    }
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.dbn_posterior.mediation.shared_block")
+    );
+}
+
+#[test]
+fn manufacturing_dbn_posterior_frequentist_mediation_refuses_multi_horizon() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_mediation"];
+    let weights: Vec<f64> =
+        pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let (series, query) = mediation_series(usize::try_from(pin["n"].as_u64().unwrap()).unwrap());
+    let mut query = query;
+    query.horizons = Arc::from([1u32, 2]);
+    let posterior = known_truth_dbn_mediation_posterior(pin, &weights);
+    let err = Study::series(series)
+        .graph_posterior(posterior)
+        .query(CausalQuery::Mediation(query))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(43))
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("one horizon") || err.to_string().contains("multi-horizon"),
+        "{err}"
+    );
 }
 
 #[test]
@@ -1290,6 +1598,39 @@ fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::result::StudyR
     );
     assert!(subset.passed, "data.subset refuter should pass on this design");
     assert_eq!(subset.replicates, 20);
+}
+
+/// Validation `none` on both structure axes for Pulse and single-step
+/// Sustained: the staged click recovers the fixture's pulse / sustained
+/// projection contrast and runs no refuter.
+#[test]
+fn dose_horizon_pulse_and_sustained_none_all_structures() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/response/temporal_dose_horizon/expected.json"
+    ))
+    .unwrap();
+    let atol = fixture["tolerance"]["atol"].as_f64().unwrap();
+    for (key, query) in [
+        ("pulse_effect_projection", dose_horizon_pulse_query()),
+        ("sustained_effect_projection", dose_horizon_sustained_query()),
+    ] {
+        let truth = fixture["contract"][key]["contrast"].as_f64().unwrap();
+        for accepted in [false, true] {
+            let result = run_temporal_frequentist_case(accepted, query.clone(), RefuteSuite::None)
+                .unwrap_or_else(|e| panic!("{key} accepted={accepted}: {e}"));
+            assert_dose_horizon_ate(&result);
+            assert!(
+                (result.estimate.ate - truth).abs() <= atol,
+                "{key} accepted={accepted}: ate={} truth={truth}",
+                result.estimate.ate
+            );
+            assert!(
+                result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+                "{key} accepted={accepted}: the prepared click must reuse identification"
+            );
+            assert!(result.refutations.is_empty(), "{key} accepted={accepted}: none runs nothing");
+        }
+    }
 }
 
 #[test]

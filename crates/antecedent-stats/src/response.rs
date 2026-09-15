@@ -286,6 +286,186 @@ fn fit_local_quadratic(
     })
 }
 
+/// Robust bias-corrected (RBC) companion of a Gaussian-kernel local quadratic.
+///
+/// Calonico, Cattaneo & Titiunik (2014) correct the leading smoothing bias of an
+/// order-`p` local-polynomial estimate of the `ν`-th derivative with a
+/// higher-order fit at a pilot bandwidth `b`, and studentize by the variance of
+/// the bias-corrected statistic rather than of the uncorrected one. With
+/// `b = h` (`ρ = 1`) the bias-corrected estimator is numerically the matching
+/// coefficient of the higher-order fit at `h`: the order-`p` regression of `Y`
+/// minus the fitted higher powers returns the higher-order fit's lower
+/// coefficients, because its weighted residuals are orthogonal to every lower
+/// power. Its robust variance is therefore that fit's Eicker–White sandwich.
+///
+/// Which higher order removes the leading bias depends on the parity of
+/// `p − ν`. The order-`p` bias is `h^{p+1−ν}·B_{p+1}·m^{(p+1)} +
+/// h^{p+2−ν}·B_{p+2}·m^{(p+2)} + …`, and for a symmetric kernel in the interior
+/// `B_{p+1}` vanishes when `p − ν` is even. For the local quadratic (`p = 2`):
+///
+/// - `ν = 1` (`p − ν` odd): the leading term involves `m'''`, so the correction
+///   is a local cubic.
+/// - `ν = 0` and `ν = 2` (`p − ν` even): the leading bias is `h^{4−ν}·m^{(4)}`,
+///   which a local cubic does not remove (its level and second-derivative
+///   biases are of the same order as the quadratic's). The correction is a
+///   local quartic.
+///
+/// The resulting interval is centered at the bias-corrected coordinate, not at
+/// the local-quadratic point estimate, and is wider than the conventional
+/// interval: it pays for the bias estimate's variance instead of ignoring the
+/// bias.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LocalPolynomialBiasCorrected {
+    /// Bias-corrected level (local-quartic intercept).
+    pub value: f64,
+    /// Bias-corrected first derivative (local-cubic slope).
+    pub first_derivative: f64,
+    /// Bias-corrected second derivative (local-quartic curvature).
+    pub second_derivative: f64,
+    /// Heteroskedasticity-robust standard error of the bias-corrected level.
+    pub robust_standard_error: f64,
+    /// Heteroskedasticity-robust standard error of the bias-corrected first derivative.
+    pub robust_first_derivative_standard_error: f64,
+    /// Heteroskedasticity-robust standard error of the bias-corrected second derivative.
+    pub robust_second_derivative_standard_error: f64,
+}
+
+/// Robust bias-corrected local-quadratic coordinates at `at` (see
+/// [`LocalPolynomialBiasCorrected`]). `observation_weights`, when present,
+/// multiply the kernel weights and must be finite and nonnegative.
+///
+/// # Errors
+///
+/// Shape mismatch, non-finite input, invalid bandwidth or weights, too little
+/// effective kernel weight for five coefficients, or a singular local design.
+pub fn gaussian_local_quadratic_bias_corrected(
+    x: &[f64],
+    y: &[f64],
+    at: f64,
+    bandwidth: f64,
+    observation_weights: Option<&[f64]>,
+) -> Result<LocalPolynomialBiasCorrected, StatsError> {
+    if x.len() != y.len() || x.len() < 5 {
+        return Err(StatsError::Shape {
+            message: "local bias correction requires aligned x/y with n >= 5",
+        });
+    }
+    if !at.is_finite()
+        || !bandwidth.is_finite()
+        || bandwidth <= 0.0
+        || x.iter().chain(y).any(|v| !v.is_finite())
+    {
+        return Err(StatsError::Shape { message: "local bias-correction inputs must be finite" });
+    }
+    if let Some(weights) = observation_weights {
+        if weights.len() != x.len() || weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+            return Err(StatsError::Shape { message: "invalid local bias-correction weights" });
+        }
+    }
+    let (cubic, cubic_se) = robust_local_polynomial::<4>(x, y, at, bandwidth, observation_weights)?;
+    let (quartic, quartic_se) =
+        robust_local_polynomial::<5>(x, y, at, bandwidth, observation_weights)?;
+    // Derivative ν of a fitted polynomial in u = (x − at)/h is ν!·γ_ν / h^ν.
+    let first_scale = 1.0 / bandwidth;
+    let second_scale = 2.0 / (bandwidth * bandwidth);
+    Ok(LocalPolynomialBiasCorrected {
+        value: quartic[0],
+        first_derivative: cubic[1] * first_scale,
+        second_derivative: quartic[2] * second_scale,
+        robust_standard_error: quartic_se[0],
+        robust_first_derivative_standard_error: cubic_se[1] * first_scale,
+        robust_second_derivative_standard_error: quartic_se[2] * second_scale,
+    })
+}
+
+/// Gaussian-kernel local polynomial with `N` coefficients in the scaled power
+/// basis `u = (x − at)/h`, returning the coefficients and their Eicker–White
+/// sandwich standard errors. Inputs are validated by the caller.
+fn robust_local_polynomial<const N: usize>(
+    x: &[f64],
+    y: &[f64],
+    at: f64,
+    bandwidth: f64,
+    observation_weights: Option<&[f64]>,
+) -> Result<([f64; N], [f64; N]), StatsError> {
+    // Scaled powers keep the Gram well conditioned; the coefficient on u^k is
+    // h^k times the coefficient on (x − at)^k.
+    let mut gram = [[0.0; N]; N];
+    let mut rhs = [0.0; N];
+    let mut rows = Vec::with_capacity(x.len());
+    let mut weight_sum = 0.0;
+    for (i, (&xi, &yi)) in x.iter().zip(y).enumerate() {
+        let u = (xi - at) / bandwidth;
+        let w = (-0.5 * u * u).exp() * observation_weights.map_or(1.0, |w| w[i]);
+        let mut row = [1.0; N];
+        for k in 1..N {
+            row[k] = row[k - 1] * u;
+        }
+        for j in 0..N {
+            rhs[j] += w * row[j] * yi;
+            for k in 0..N {
+                gram[j][k] += w * row[j] * row[k];
+            }
+        }
+        weight_sum += w;
+        rows.push((w, row, yi));
+    }
+    if weight_sum <= N as f64 {
+        return Err(StatsError::Backend(format!(
+            "local response window has too little effective weight for a local polynomial of order {}",
+            N - 1
+        )));
+    }
+    let inverse = inverse_small(gram).ok_or_else(|| {
+        StatsError::Backend(format!("singular local response design of order {}", N - 1))
+    })?;
+    let gamma: [f64; N] = std::array::from_fn(|j| (0..N).map(|k| inverse[j][k] * rhs[k]).sum());
+    let mut influence_ss = [0.0; N];
+    for &(w, row, yi) in &rows {
+        let residual = yi - row.iter().zip(gamma).map(|(a, b)| a * b).sum::<f64>();
+        for (k, ss) in influence_ss.iter_mut().enumerate() {
+            let hat = inverse[k].iter().zip(row).map(|(c, v)| c * v).sum::<f64>();
+            *ss += (w * hat * residual).powi(2);
+        }
+    }
+    Ok((gamma, influence_ss.map(f64::sqrt)))
+}
+
+/// Gauss–Jordan inverse with partial pivoting for a small dense matrix.
+fn inverse_small<const N: usize>(a: [[f64; N]; N]) -> Option<[[f64; N]; N]> {
+    let mut m = a;
+    let mut out = [[0.0; N]; N];
+    for (i, row) in out.iter_mut().enumerate() {
+        row[i] = 1.0;
+    }
+    let scale = a.iter().flatten().fold(0.0_f64, |acc, v| acc.max(v.abs())).max(f64::MIN_POSITIVE);
+    for col in 0..N {
+        let pivot = (col..N).max_by(|&r, &s| m[r][col].abs().total_cmp(&m[s][col].abs()))?;
+        if !m[pivot][col].is_finite() || m[pivot][col].abs() <= f64::EPSILON * scale * 64.0 {
+            return None;
+        }
+        m.swap(col, pivot);
+        out.swap(col, pivot);
+        let p = m[col][col];
+        for k in 0..N {
+            m[col][k] /= p;
+            out[col][k] /= p;
+        }
+        for r in 0..N {
+            if r != col {
+                let factor = m[r][col];
+                if factor != 0.0 {
+                    for k in 0..N {
+                        m[r][k] -= factor * m[col][k];
+                        out[r][k] -= factor * out[col][k];
+                    }
+                }
+            }
+        }
+    }
+    Some(out)
+}
+
 fn matvec(a: [[f64; 3]; 3], b: [f64; 3]) -> [f64; 3] {
     std::array::from_fn(|i| (0..3).map(|j| a[i][j] * b[j]).sum())
 }
@@ -333,6 +513,89 @@ mod tests {
         assert!((fit.first_derivative - 4.4).abs() < 1e-10);
         assert!((fit.second_derivative - 6.0).abs() < 1e-10);
         assert!(fit.local_ess > 20.0);
+    }
+
+    #[test]
+    fn bias_corrected_fit_is_exact_on_a_cubic_where_the_quadratic_is_biased() {
+        let x: Vec<f64> = (0..201).map(|i| -2.0 + 4.0 * f64::from(i) / 200.0).collect();
+        let y: Vec<f64> = x.iter().map(|v| 1.0 + 2.0 * v + 0.5 * v * v + v.powi(3)).collect();
+        let at = 0.3;
+        let truth_first = 2.0 + at + 3.0 * at * at;
+        let quadratic = gaussian_local_quadratic(&x, &y, at, 0.5).unwrap();
+        let corrected = gaussian_local_quadratic_bias_corrected(&x, &y, at, 0.5, None).unwrap();
+        assert!((quadratic.first_derivative - truth_first).abs() > 0.1);
+        assert!((corrected.first_derivative - truth_first).abs() < 1e-9);
+        assert!((corrected.second_derivative - (1.0 + 6.0 * at)).abs() < 1e-9);
+        assert!((corrected.value - (1.0 + 2.0 * at + 0.5 * at * at + at.powi(3))).abs() < 1e-10);
+    }
+
+    #[test]
+    fn second_derivative_correction_is_exact_on_a_quartic_where_the_cubic_is_biased() {
+        // A local cubic leaves the second-derivative bias of the quadratic at the
+        // same order (the m'''' term); the quartic correction removes it.
+        let x: Vec<f64> = (0..201).map(|i| -2.0 + 4.0 * f64::from(i) / 200.0).collect();
+        let y: Vec<f64> = x.iter().map(|v| 1.0 + v + v.powi(4)).collect();
+        let (at, h) = (0.3, 0.5);
+        let truth_second = 12.0 * at * at;
+        let quadratic = gaussian_local_quadratic(&x, &y, at, h).unwrap();
+        let (cubic, _) = robust_local_polynomial::<4>(&x, &y, at, h, None).unwrap();
+        let cubic_second = 2.0 * cubic[2] / (h * h);
+        let corrected = gaussian_local_quadratic_bias_corrected(&x, &y, at, h, None).unwrap();
+        assert!((quadratic.second_derivative - truth_second).abs() > 0.5);
+        assert!((cubic_second - truth_second).abs() > 0.5);
+        assert!((corrected.second_derivative - truth_second).abs() < 1e-8);
+        assert!((corrected.value - (1.0 + at + at.powi(4))).abs() < 1e-10);
+    }
+
+    /// Unscaled Gaussian-kernel local polynomial coefficients on (x − at)^k.
+    fn unscaled_fit<const N: usize>(x: &[f64], y: &[f64], at: f64, h: f64) -> [f64; N] {
+        let mut gram = [[0.0; N]; N];
+        let mut rhs = [0.0; N];
+        for (&xi, &yi) in x.iter().zip(y) {
+            let dx = xi - at;
+            let w = (-0.5 * (dx / h).powi(2)).exp();
+            let row: [f64; N] = std::array::from_fn(|k| dx.powi(i32::try_from(k).unwrap()));
+            for j in 0..N {
+                rhs[j] += w * row[j] * yi;
+                for k in 0..N {
+                    gram[j][k] += w * row[j] * row[k];
+                }
+            }
+        }
+        let inv = inverse_small(gram).unwrap();
+        std::array::from_fn(|j| (0..N).map(|k| inv[j][k] * rhs[k]).sum())
+    }
+
+    #[test]
+    fn bias_corrected_fit_equals_the_two_step_correction_at_rho_one() {
+        // CCT two-step: fit the higher-order coefficients at pilot bandwidth
+        // b = h, remove their contribution, refit the quadratic. At ρ = 1 this is
+        // the higher-order fit: cubic for the first derivative, quartic for the
+        // level and the second derivative.
+        let x: Vec<f64> = (0..301).map(|i| -3.0 + 6.0 * f64::from(i) / 300.0).collect();
+        let y: Vec<f64> = x
+            .iter()
+            .enumerate()
+            .map(|(i, v)| v.sin() * 2.0 + 0.3 * (1.9 * i as f64).cos())
+            .collect();
+        let (at, h) = (0.4, 0.6);
+        let corrected = gaussian_local_quadratic_bias_corrected(&x, &y, at, h, None).unwrap();
+        let cubic = unscaled_fit::<4>(&x, &y, at, h);
+        let adjusted: Vec<f64> =
+            x.iter().zip(&y).map(|(xi, yi)| yi - cubic[3] * (xi - at).powi(3)).collect();
+        let two_step = gaussian_local_quadratic(&x, &adjusted, at, h).unwrap();
+        assert!((two_step.first_derivative - corrected.first_derivative).abs() < 1e-8);
+        let quartic = unscaled_fit::<5>(&x, &y, at, h);
+        let adjusted: Vec<f64> = x
+            .iter()
+            .zip(&y)
+            .map(|(xi, yi)| yi - quartic[3] * (xi - at).powi(3) - quartic[4] * (xi - at).powi(4))
+            .collect();
+        let two_step = gaussian_local_quadratic(&x, &adjusted, at, h).unwrap();
+        assert!((two_step.second_derivative - corrected.second_derivative).abs() < 1e-7);
+        assert!((two_step.value - corrected.value).abs() < 1e-9);
+        assert!(corrected.robust_first_derivative_standard_error > 0.0);
+        assert!(corrected.robust_second_derivative_standard_error > 0.0);
     }
 
     #[test]

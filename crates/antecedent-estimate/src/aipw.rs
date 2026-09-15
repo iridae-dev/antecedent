@@ -20,8 +20,15 @@
 //! same cross-fitted score table as `retarget`. ATT/ATC, trim, and clustered SE
 //! stay on the residualized full-sample path and do not export that table.
 //!
-//! Analytic SEs on the residualized path correct ψ for parametric nuisances.
-//! They are still not valid for flexible / nonparametric nuisances; default
+//! Analytic SEs on the residualized path correct ψ for parametric nuisances:
+//! ATE-type targets project ψ off the logistic scores; ATT/ATC use the
+//! centered efficient influence function `(N_i − τ·T_i)/π`. That function
+//! accounts for the estimated propensity and arm share only when *both*
+//! nuisance models are consistent: the ATT/ATC point estimate stays doubly
+//! robust, but its analytic SE does not, because under a misspecified
+//! propensity or outcome model the estimator's influence function picks up
+//! nuisance-estimation terms the efficient influence function omits.
+//! The analytic SEs are also not valid for flexible / nonparametric nuisances; default
 //! inference is the 200-replicate bootstrap, which refits ê, μ̂₀, and μ̂₁ on
 //! every resample.
 //!
@@ -336,7 +343,20 @@ impl AipwAte {
         } else {
             workspace.psi.iter().sum::<f64>() / workspace.psi.len() as f64
         };
-        residualize_aipw_psi(&mut workspace.psi, &t_used, &e_used, &design_used, ncols)?;
+        if matches!(
+            problem.target_population,
+            TargetPopulation::Treated | TargetPopulation::Untreated
+        ) {
+            // ATT/ATC: when both nuisances are consistent, the centered DR score
+            // is the efficient influence function (Hahn 1998); under one-model
+            // misspecification it omits nuisance terms, so this SE is not doubly
+            // robust even though the point estimate is. The estimand depends on the propensity
+            // (it averages over the treated / control law), so E[ψ·S_γ] ≠ 0 and
+            // projecting ψ off the logistic scores would remove genuine variance.
+            center_population_psi(&mut workspace.psi, &t_used, &problem.target_population, ate);
+        } else {
+            residualize_aipw_psi(&mut workspace.psi, &t_used, &e_used, &design_used, ncols)?;
+        }
         let se_analytic = crate::se::influence_se_kind(
             self.se_kind,
             &workspace.psi,
@@ -721,6 +741,42 @@ fn aipw_psi(
         }
     }
     Ok(())
+}
+
+/// Turn ATT/ATC plug-in terms into influence functions.
+///
+/// `aipw_psi` returns `N_i / π̂` for ATT (`N_i = T(Y − μ₀) − (1−T)·e/(1−e)·(Y − μ₀)`)
+/// and the mirror image over `1 − π̂` for ATC, whose mean is the estimate. The
+/// estimate divides by the *estimated* arm share, so its influence function is
+/// `(N_i − τ·T_i) / π` (ATC: `(N_i − τ·(1−T_i)) / π₀`), which is the efficient
+/// DR influence function and needs no propensity-score projection when both
+/// nuisance models are consistent (with one misspecified it omits the
+/// nuisance-estimation terms, so the analytic SE is not doubly robust). Before 1.9
+/// the plug-in terms were used as the IF (dropping `−τ·T_i/π`) and then
+/// projected off the logistic scores; at nominal 0.95 that measured 0.980 ATT /
+/// 0.863 ATC coverage (`calibration_coverage::aipw_at{t,c}_hc1_ci_coverage`).
+/// ATE / predicate targets already average over every row and are unchanged.
+fn center_population_psi(
+    psi: &mut [f64],
+    treatment: &[f64],
+    target: &TargetPopulation,
+    estimate: f64,
+) {
+    let n = treatment.len() as f64;
+    let arm_indicator =
+        |t: f64, treated: bool| -> f64 { if (t > 0.5) == treated { 1.0 } else { 0.0 } };
+    let treated = match target {
+        TargetPopulation::Treated => true,
+        TargetPopulation::Untreated => false,
+        _ => return,
+    };
+    let share = treatment.iter().map(|&t| arm_indicator(t, treated)).sum::<f64>() / n;
+    if share <= 0.0 {
+        return;
+    }
+    for (value, &t) in psi.iter_mut().zip(treatment) {
+        *value -= estimate * arm_indicator(t, treated) / share;
+    }
 }
 
 /// Orthogonalize AIPW ψ against the propensity score so `se_analytic` is not

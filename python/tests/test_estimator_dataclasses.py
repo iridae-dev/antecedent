@@ -105,6 +105,35 @@ def test_sharp_rd_valid_instance_wire_and_estimator_id():
     assert cfg._wire() == {"running_variable": "r", "cutoff": 0.0, "bandwidth": 1.5}
 
 
+def test_sharp_rd_se_wires_as_se_kind_and_rejects_unknown_kinds():
+    cfg = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5, se="homoskedastic")
+    assert cfg._wire() == {
+        "running_variable": "r",
+        "cutoff": 0.0,
+        "bandwidth": 1.5,
+        "se_kind": "homoskedastic",
+    }
+    with pytest.raises(ValueError, match="SharpRd se must be one of"):
+        SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5, se="cluster")  # type: ignore[arg-type]
+
+
+def test_sharp_rd_se_reaches_the_estimator_through_public_analyze():
+    names, columns = _rd_data()
+    data = {"t": columns[0], "y": columns[1], "r": columns[2]}
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
+
+    def fit(se):
+        cfg = SharpRd(running_variable="r", cutoff=0.0, bandwidth=1.5, se=se)
+        return antecedent.analyze(
+            data, graph=[], query=query, seed=26, bootstrap=0, refute=False, estimator=cfg
+        ).estimate
+
+    default, hc1, homoskedastic = fit(None), fit("hc1"), fit("homoskedastic")
+    assert default.se_analytic == hc1.se_analytic
+    assert homoskedastic.ate == hc1.ate
+    assert homoskedastic.se_analytic != hc1.se_analytic
+
+
 # --- real round-trips through analyze() / analyze_ate --------------------------------------
 
 

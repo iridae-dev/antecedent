@@ -292,14 +292,16 @@ def handle_temporal_mediation(
     from .estimation import _lagged_edges, _wrap_temporal
 
     if isinstance(discovery, (GraphPosterior, DbnPosterior)):
-        if not isinstance(inference, Bayesian):
+        if not isinstance(inference, (Bayesian, Frequentist)):
             raise TypeError(
-                "graph-posterior discovery requires inference=Bayesian(...) "
-                "for temporal mediation mixture"
+                "graph-posterior discovery requires inference=Bayesian(...) or "
+                "Frequentist() for a temporal mediation mixture"
             )
         from .estimation import PreparedAnalysis, _bayesian_inference_kwargs, _wrap_ate
 
-        if isinstance(discovery, DbnPosterior):
+        # DBN discovery and the single-horizon Frequentist mixture (shared
+        # circular-block SE over atoms) run through the prepared handle.
+        if isinstance(discovery, DbnPosterior) or isinstance(inference, Frequentist):
             prepared = PreparedAnalysis.prepare(
                 data,
                 query=query,
@@ -430,9 +432,16 @@ def handle_response(
     bootstrap_requested: bool,
     seed: int,
     threads: int,
+    bootstrap: int | None = None,
     structure_accepted: bool = False,
 ) -> Any:
-    """Identify and estimate a complete-observation continuous response."""
+    """Identify and estimate a complete-observation continuous response.
+
+    ``bootstrap`` is the latency-resolved replicate count. Only Frequentist
+    temporal surfaces resample (joint circular-block pointwise and simultaneous
+    bands; ``0`` withholds the band); every other route refuses an explicitly
+    requested bootstrap rather than dropping it.
+    """
     from .estimation import _response_support_bounds, _static_edges, _support_point_status
     from .query import coerce_outcome_functional
     from .results import (
@@ -464,11 +473,16 @@ def handle_response(
 
     if discovery is not None:
         if isinstance(discovery, (*_GRAPH_POSTERIOR_DISCOVERY, GraphPosterior)):
+            if getattr(query, "is_temporal", False):
+                raise CausalUnsupportedError(
+                    "refused: temporal response mixtures over a graph posterior are not "
+                    "licensed; they need query-specific composite evaluators"
+                )
             raise CausalUnsupportedError(
-                "refused: Graph-posterior response is a contract choice, not typed "
-                "impossibility: the ATE envelope (retained unidentified mass) is the "
-                "same object a curve arm would use. This cut does not license a "
-                "response mixture."
+                "refused: the graph-posterior response mixture (static ResponseCurve / "
+                "one-coordinate InterventionResponse over DAG atoms) is licensed in the "
+                "Rust Study API only; the Python API does not expose a graph-posterior "
+                "response entry point yet"
             )
         raise ValueError("response queries do not yet support discovery=")
     if isinstance(inference, Bayesian):
@@ -505,7 +519,18 @@ def handle_response(
     # generalized-adjustment envelope as ATE). Derivatives still refuse here
     # because a Pag/Admg never reaches native `_analyze_response`. The Admg
     # literal is pinned against parity/support_closed.toml.
-    if isinstance(graph, (Admg, Cpdag, Pag)) and not getattr(query, "is_temporal", False):
+    is_temporal = bool(getattr(query, "is_temporal", False))
+    # Only Frequentist temporal surfaces resample; every static route refuses a
+    # requested bootstrap here rather than dropping it on a staged path below.
+    if bootstrap_requested and not is_temporal:
+        if isinstance(query, InterventionResponse) and (
+            estimator == "cell.aipw" or isinstance(graph, TieredBackground)
+        ):
+            raise CausalUnsupportedError(
+                "cell.aipw uses analytic influence uncertainty, not bootstrap"
+            )
+        raise ValueError("response queries do not yet expose bootstrap= through analyze()")
+    if isinstance(graph, (Admg, Cpdag, Pag)) and not is_temporal:
         if isinstance(query, (ResponseCurve, InterventionResponse)):
             if isinstance(graph, Admg):
                 raise CausalUnsupportedError(
@@ -527,8 +552,12 @@ def handle_response(
                 structure_accepted=structure_accepted,
             )
         raise CausalUnsupportedError("refused: Derivatives require a supplied static Dag.")
-    if getattr(query, "is_temporal", False):
-        from .estimation import _lagged_edges, _wrap_prepared_response
+    if is_temporal:
+        from .estimation import (
+            _lagged_edges,
+            _temporal_response_bootstrap,
+            _wrap_prepared_response,
+        )
 
         if not isinstance(graph, (TemporalDag, list, tuple)):
             raise TypeError(
@@ -605,6 +634,7 @@ def handle_response(
             treatment_lag=query.treatment_lag,
             max_history_lag=query.max_history_lag,
             seed=seed,
+            bootstrap=_temporal_response_bootstrap(bootstrap, inference),
             threads=threads,
             accepted=structure_accepted,
             refute=refute if refute_requested else False,
@@ -614,10 +644,6 @@ def handle_response(
     if estimator == "cell.aipw" and isinstance(query, InterventionResponse):
         if estimator_config is not None:
             raise CausalUnsupportedError("cell.aipw does not accept response estimator_config")
-        if bootstrap_requested:
-            raise CausalUnsupportedError(
-                "cell.aipw uses analytic influence uncertainty, not bootstrap"
-            )
         return _staged_prepared_result(
             data,
             query,
@@ -718,8 +744,6 @@ def handle_response(
             )
     if validators is not None:
         raise ValueError("response queries do not accept scalar ATE validators")
-    if bootstrap_requested:
-        raise ValueError("response queries do not yet expose bootstrap= through analyze()")
     mechanism = getattr(query, "observation", None)
     # Complete() is the documented "outcome is observed directly" spelling and
     # must be treated exactly like no mechanism at all everywhere below --
@@ -947,6 +971,7 @@ def handle_response(
             raw.truncated_completions,
             raw.enumeration_capped,
             cast(Literal["full_class", "examined_completions"], raw.mass_scope),
+            unevaluable_mass=float(getattr(raw, "unevaluable_mass", None) or 0.0),
         )
     identification_operation = (
         "identify.generalized_adjustment" if isinstance(graph, Pag) else "identify.response"
@@ -1017,8 +1042,8 @@ def handle_counterfactual(
     del data, query, graph, seed, threads
     if discovery is not None:
         raise CausalUnsupportedError(
-            "refused: Staged counterfactuals require an explicit Dag; accepted and "
-            "graph-posterior structures are refused."
+            "refused: Staged counterfactuals require a supplied Dag; graph-posterior "
+            "structures are refused."
         )
     raise CausalUnsupportedError("refused: Counterfactual requires a supplied static Dag.")
 
@@ -1036,6 +1061,7 @@ def handle_distribution(
     threads: int,
 ) -> Any:
     from .estimation import (
+        ADMG_DISTRIBUTION_RUST_ONLY,
         _static_edges,
         _wrap_ate,
     )
@@ -1046,8 +1072,9 @@ def handle_distribution(
             "refused: Graph-posterior path and distribution mixtures are not staged. "
             "For a reviewed discovered Dag, pass graph=AcceptedGraph(...)."
         )
-    else:
-        edges = _static_edges(graph)
+    if isinstance(graph, Admg):
+        raise CausalUnsupportedError(ADMG_DISTRIBUTION_RUST_ONLY)
+    edges = _static_edges(graph)
     names, columns = ingest_columns(data)
     raw = _analyze_distribution(
         names,
@@ -1130,13 +1157,11 @@ def handle_supplied_graph_posterior(
 ) -> Any:
     from .estimation import _bayesian_inference_kwargs, _wrap_ate
 
-    if isinstance(query, (PulseEffect, SustainedEffect)) and not isinstance(inference, Bayesian):
+    # Frequentist Pulse / Sustained mix DBN atoms with a shared circular-block
+    # SE over `bootstrap` replicates (already resolved from the latency tier).
+    if not isinstance(inference, (Frequentist, Bayesian)):
         raise TypeError(
-            "graph-posterior discovery requires inference=Bayesian(...) for temporal effect mixture"
-        )
-    if isinstance(query, AverageEffect) and not isinstance(inference, (Frequentist, Bayesian)):
-        raise TypeError(
-            "graph-posterior AverageEffect requires inference=Frequentist() or Bayesian(...)"
+            "graph-posterior discovery requires inference=Frequentist() or Bayesian(...)"
         )
     if not isinstance(query, (AverageEffect, PulseEffect, SustainedEffect)):
         raise TypeError(
@@ -1906,12 +1931,14 @@ def _handle_series_discover(
     from .estimation import _discovery_algorithm, _wrap_temporal
 
     if isinstance(discovery, DbnPosterior):
-        if not isinstance(inference, Bayesian):
+        if not isinstance(inference, (Bayesian, Frequentist)):
             raise TypeError(
-                "discovery=DbnPosterior(...) requires inference=Bayesian(...) "
-                "for temporal effect mixture"
+                "discovery=DbnPosterior(...) requires inference=Bayesian(...) or "
+                "Frequentist() for a temporal effect mixture"
             )
-        if getattr(query, "window", None) is not None:
+        # Sustained windows and the Frequentist mixture (shared circular-block
+        # SE over atoms) run through the prepared handle.
+        if getattr(query, "window", None) is not None or isinstance(inference, Frequentist):
             from .estimation import PreparedAnalysis
 
             prepared = PreparedAnalysis.prepare(
@@ -2059,6 +2086,7 @@ _KIND_HANDLER_KEYS: dict[str, tuple[Callable[..., Any], tuple[str, ...]]] = {
                 "bootstrap_requested",
                 "seed",
                 "threads",
+                "bootstrap",
                 "structure_accepted",
             ),
         )
@@ -2410,7 +2438,7 @@ def analyze(
                 "this staged query path does not support " + ", ".join(unsupported)
             )
         is_response = kind in {"response_curve", "intervention_response"}
-        if is_response and bootstrap_requested:
+        if is_response and bootstrap_requested and isinstance(inference, Bayesian):
             raise CausalUnsupportedError(
                 "Bayesian responses use posterior intervals; bootstrap is unsupported"
             )
@@ -2432,7 +2460,13 @@ def analyze(
             estimator=estimator,
             refute=suite,
             seed=seed,
-            bootstrap=0 if kind == "counterfactual" else bootstrap,
+            # Bayesian responses carry posterior intervals (a requested bootstrap was
+            # refused above); Frequentist temporal-class responses resample.
+            bootstrap=(
+                0
+                if kind == "counterfactual" or (is_response and isinstance(inference, Bayesian))
+                else bootstrap
+            ),
             threads=threads,
             latency=latency,
             class_prior=class_prior,

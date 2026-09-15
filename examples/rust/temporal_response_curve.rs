@@ -108,7 +108,9 @@ fn main() -> Result<(), CausalError> {
     let result = Study::series(series)
         .graph(g)
         .query(CausalQuery::Response(query))
-        .bootstrap_replicates(0)
+        // The band comes from joint circular-block replicates of the whole surface;
+        // zero replicates publish the point surface with no band.
+        .bootstrap_replicates(100)
         .refute(RefuteSuite::None)
         .build()?
         .run(&ExecutionContext::for_tests(42))?;

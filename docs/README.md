@@ -2,7 +2,7 @@
 
 Antecedent’s narrative docs. The identification-first engine covers contrasts and
 continuous causal responses; observation, transport, and interference stay
-explicit stage contracts. Package version **1.8.0**.
+explicit stage contracts. Package version **1.9.0**.
 
 | Doc | Contents |
 |-----|----------|
@@ -14,12 +14,15 @@ explicit stage contracts. Package version **1.8.0**.
 | [Comparison](comparison.md) | Antecedent vs. DoWhy, EconML, Tigramite, causal-learn — and when to use each |
 | [Architecture](architecture.md) | Invariants, crates, analysis pipeline, execution model |
 | [Development](development.md) | CI vs local gates, tests, performance rules, versions |
-| [Artifacts](artifacts.md) | Wire format, migration, graph interchange (including response format 0.4) |
+| [Artifacts](artifacts.md) | Wire format, migration, graph interchange (format 0.5) |
 | [Prior bank](priors.md) | External prior catalog, compose, conflict, transport |
 | [API naming](api_naming.md) | Rust ↔ Python capability dictionary |
 | [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
 | [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
 | [Security review](security_review.md) | Unsafe, deps, licensing evidence |
+| [1.9.0 release notes](release-notes/v1.9.0.md) | Calibration of licensed intervals; ADMG distributions, accepted-Dag counterfactuals, Frequentist DBN mediation, staged attribution / transport / interference |
+| [1.9 licensed-cell review](v1.9-cell-review.md) | Per-cell correctness and honesty review and the status of each finding |
+| [Short-series thresholds](short-series-thresholds.md) | Coverage sweep behind the circular-block short-series warning |
 | [1.8.0 release notes](release-notes/v1.8.0.md) | Bayesian remainder: functional path/distribution/ADMG, mediation, CF, derivatives, CATE mixtures |
 | [1.8 evidence ledger](v1.8-evidence.md) | Query-aware inference, Rubin row-law functionals, mapped NDE hydrate, identified-conditional envelopes |
 | [1.7.0 release notes](release-notes/v1.7.0.md) | Class-preserving Bayesian incomplete-temporal Pulse, Sustained, curves, Sequence, mediation |

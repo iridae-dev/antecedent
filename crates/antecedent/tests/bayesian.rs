@@ -373,20 +373,9 @@ fn prior_sensitivity() {
     }
 }
 
-#[test]
-fn temporal_pulse() {
-    use antecedent_core::{Lag, TemporalEffectQuery, TemporalPolicy};
-    use antecedent_data::{
-        Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
-        TimeSeriesData, ValidityBitmap,
-    };
-
-    let expected = load_expected("temporal_pulse");
-    let true_ate = expected["expected_ate"].as_f64().unwrap();
-    let tol = expected["tolerance"].as_f64().unwrap();
-    let n = usize::try_from(expected["n"].as_u64().unwrap()).expect("fixture n");
-    let n_draws = usize::try_from(expected["n_draws"].as_u64().unwrap()).expect("fixture n_draws");
-
+/// The `temporal_pulse` fixture's series and lag-1 `TemporalDag`:
+/// `defect_t = expected_ate * pressure_{t-1}`, `pressure_t = sin(0.04 t)`.
+fn pulse_scm_series(n: usize, true_ate: f64) -> (TimeSeriesData, TemporalDag) {
     let mut b = CausalSchemaBuilder::new();
     b.add_variable(
         "pressure",
@@ -444,6 +433,17 @@ fn temporal_pulse() {
     let p1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
     let d0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     g.insert_directed(p1, d0).unwrap();
+    (series, g)
+}
+
+#[test]
+fn temporal_pulse() {
+    let expected = load_expected("temporal_pulse");
+    let true_ate = expected["expected_ate"].as_f64().unwrap();
+    let tol = expected["tolerance"].as_f64().unwrap();
+    let n = usize::try_from(expected["n"].as_u64().unwrap()).expect("fixture n");
+    let n_draws = usize::try_from(expected["n_draws"].as_u64().unwrap()).expect("fixture n_draws");
+    let (series, g) = pulse_scm_series(n, true_ate);
     let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1);
@@ -470,6 +470,79 @@ fn temporal_pulse() {
         let bytes = encode_causal_posterior_bytes(post, "temporal-pulse").unwrap();
         let (meta, _) = decode_causal_posterior_bytes(&bytes).unwrap();
         assert_eq!(meta.n_draws as usize, post.draws.n_draws);
+    }
+}
+
+/// Bayesian `PulseEffect × TemporalDag` on every licensed coordinate: explicit
+/// and accepted structure × `none` / `cheap` / `full`, through the staged
+/// `prepare` → `estimate_series` handle. The posterior mean must recover the
+/// `temporal_pulse` fixture's effect. `none` runs no report; cheap runs the
+/// E-value (overlap is not applicable to a lag-aligned design) plus prior and
+/// posterior predictive checks; full adds the stability refuters (the
+/// contiguous-window data subset among them) and prior sensitivity.
+#[test]
+fn temporal_pulse_staged_all_structures_and_suites() {
+    let expected = load_expected("temporal_pulse");
+    let true_ate = expected["expected_ate"].as_f64().unwrap();
+    let tol = expected["tolerance"].as_f64().unwrap();
+    let n = usize::try_from(expected["n"].as_u64().unwrap()).expect("fixture n");
+    let n_draws = usize::try_from(expected["n_draws"].as_u64().unwrap()).expect("fixture n_draws");
+    let (series, g) = pulse_scm_series(n, true_ate);
+    let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1);
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            let label = format!("accepted={accepted} suite={suite:?}");
+            let builder = Study::series(series.clone())
+                .temporal_query(q.clone())
+                .inference(InferenceMode::Bayesian(
+                    BayesianConfig::conjugate().n_draws(n_draws).prior_scale(100.0),
+                ))
+                .refute(suite)
+                .bootstrap_replicates(0);
+            let builder = if accepted {
+                builder.graph(AcceptedGraph::temporal_dag(g.clone()))
+            } else {
+                builder.graph(g.clone())
+            };
+            let study = builder.build().unwrap();
+            assert_eq!(
+                study.structure_source().as_str(),
+                if accepted { "accepted" } else { "explicit" }
+            );
+            let ctx = ExecutionContext::for_tests(42);
+            let result = study.prepare(&ctx).unwrap().estimate_series(&series, &ctx).unwrap();
+            assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+            assert!(
+                result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+                "{label}: the prepared click must reuse identification"
+            );
+            let post = result.posterior.as_ref().expect("posterior");
+            let mean = post.summaries.mean[post.effect_column().unwrap()];
+            assert!((mean - true_ate).abs() < tol, "{label}: mean={mean} expected={true_ate}");
+            let names: Vec<&str> = result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
+            let has_check = |kind| result.predictive_checks.iter().any(|c| c.kind == kind);
+            if suite == RefuteSuite::None {
+                assert!(names.is_empty(), "{label}: {names:?}");
+                assert!(result.predictive_checks.is_empty(), "{label}");
+            } else {
+                assert!(names.contains(&"sensitivity.evalue"), "{label}: {names:?}");
+                assert!(!names.contains(&"overlap.assessment"), "{label}: {names:?}");
+                assert!(has_check(FacadeKind::Prior), "{label}: prior PPC must run");
+                assert!(has_check(FacadeKind::Posterior), "{label}: posterior PPC must run");
+                assert_eq!(
+                    names.contains(&"data.subset"),
+                    suite == RefuteSuite::Full,
+                    "{label}: the stability refuters run under full only: {names:?}"
+                );
+                assert_eq!(
+                    post.prior_sensitivity.is_some(),
+                    suite == RefuteSuite::Full,
+                    "{label}: prior sensitivity runs under full only"
+                );
+            }
+        }
     }
 }
 
@@ -717,16 +790,8 @@ fn temporal_sustained_accepted_none() {
 ///
 /// **Known gap** (found while earning this cell, not fixed here — this test
 /// file cannot touch `execute/temporal_path.rs`): unlike the static Bayesian
-/// path (`execute_bayesian`, which pushes into both `refutations` *and*
-/// `result.predictive_checks`), `execute_temporal` folds the prior/posterior
-/// predictive checks into `refutations` only (as `RefutationReport`s named
-/// `"prior_predictive"` / `"posterior_predictive"`) and never populates
-/// `StudyResult::predictive_checks`. The PPC computation itself genuinely
-/// runs (this is not the `execute_pag_bayesian`-style "claims a check it
-/// skips" bug) — the check's *result* is just not surfaced through the field
-/// callers would normally read it from. Assert against `refutations`, and
-/// assert the gap explicitly so a future fix is visible as a test change
-/// here, not a silent pass.
+/// path (`execute_bayesian`). Temporal Pulse / single-step Sustained now
+/// surfaces the same reports on `StudyResult::predictive_checks`.
 #[test]
 fn temporal_sustained_explicit_cheap() {
     let result = run_staged_sustained(false, RefuteSuite::Cheap).expect("staged estimate_series");
@@ -742,11 +807,13 @@ fn temporal_sustained_explicit_cheap() {
         result.refutations
     );
     assert!(result.refutations.iter().all(|r| r.comparison.is_finite()));
-    // Gap: `execute_temporal` never populates `predictive_checks` (see doc comment above).
     assert!(
-        result.predictive_checks.is_empty(),
-        "if this starts failing, execute_temporal now populates predictive_checks — \
-         update this test to assert on it instead of refutations and drop this comment"
+        result.predictive_checks.iter().any(|c| c.kind == FacadeKind::Prior),
+        "temporal cheap must surface prior PPC on predictive_checks"
+    );
+    assert!(
+        result.predictive_checks.iter().any(|c| c.kind == FacadeKind::Posterior),
+        "temporal cheap must surface posterior PPC on predictive_checks"
     );
     // Prior sensitivity is Full-only; cheap must not add it.
     assert!(
@@ -763,7 +830,8 @@ fn temporal_sustained_accepted_cheap() {
     assert!(result.refutations.iter().any(|r| r.refuter.as_ref() == "prior_predictive"));
     assert!(result.refutations.iter().any(|r| r.refuter.as_ref() == "posterior_predictive"));
     assert!(result.refutations.iter().all(|r| r.comparison.is_finite()));
-    assert!(result.predictive_checks.is_empty());
+    assert!(result.predictive_checks.iter().any(|c| c.kind == FacadeKind::Prior));
+    assert!(result.predictive_checks.iter().any(|c| c.kind == FacadeKind::Posterior));
 }
 
 /// `RefuteSuite::Full` now completes for Bayesian `TemporalDag` effect queries
@@ -821,6 +889,13 @@ fn temporal_sustained_accepted_full_completes_with_data_subset_refuter() {
 /// pins that the refuter genuinely passes with a healthy, well-away-from-`alpha`
 /// p-value on this now-non-degenerate estimator, and not merely "happens to be >=
 /// 0.05" by an accident that a future change could silently erode.
+///
+/// 1.9: the Bayesian temporal likelihood is tempered by the serial-dependence
+/// long-run-variance ratio (R-9); on this iid-noise fixture κ̂ is just above 1, which
+/// moved `original_ate` by ~1.5e-6 and the p-value by ~3.5e-4. Combining the
+/// fixed-b-scaled HAC ratio with the AR(1)-residual ratio moved it another ~2.1e-6 and the p-value by ~5.1e-4;
+/// the REML autoregressive factor with its residual-scale term (κ̂ = n/(n − p) on iid
+/// residuals) moved it a further ~3.4e-6 and the p-value by ~8.2e-4.
 fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::StudyResult) {
     let subset = result
         .refutations
@@ -828,7 +903,7 @@ fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::StudyResult) {
         .find(|r| r.refuter.as_ref() == "data.subset")
         .expect("data.subset refuter must have run under RefuteSuite::Full");
     assert!(
-        (subset.original_ate - 0.703_919_322_460_684).abs() < 1e-9,
+        (subset.original_ate - 0.703_919_477_006_649_8).abs() < 1e-9,
         "unexpected original_ate: {}",
         subset.original_ate
     );
@@ -840,7 +915,7 @@ fn assert_full_suite_data_subset_refuter_ran(result: &antecedent::StudyResult) {
         subset.refuted_ate
     );
     assert!(
-        (subset.comparison - 0.850_007_214_382_272_2).abs() < 1e-6,
+        (subset.comparison - 0.850_044_046_957_791).abs() < 1e-6,
         "expected a large p-value: with real additive noise the replicate spread across \
          contiguous windows is on the order of the estimator's own standard error, so the \
          ~6.2e-4 shift between original and subset ATE is unremarkable; got {}",
@@ -893,6 +968,7 @@ fn prior_bank_catalog() {
             q975: vec![1.0; n_q],
             identification: "NonparametricallyIdentified".into(),
             unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
             backend_id: "laplace".into(),
             converged: true,
             hessian_condition: 1.0,

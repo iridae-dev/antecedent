@@ -240,7 +240,7 @@ impl PyPreparedAnalysis {
         composed_prior=None,
         refute=None,
         seed=1,
-        bootstrap=50,
+        bootstrap=199,
         threads=1,
         latency=None,
         accepted=false,
@@ -454,7 +454,7 @@ impl PyPreparedAnalysis {
         composed_prior=None,
         refute=None,
         seed=1,
-        bootstrap=50,
+        bootstrap=199,
         threads=1,
         latency=None,
         accepted=false,
@@ -570,7 +570,7 @@ impl PyPreparedAnalysis {
         composed_prior=None,
         refute=None,
         seed=1,
-        bootstrap=50,
+        bootstrap=199,
         threads=1,
         latency=None,
         accepted=false,
@@ -829,7 +829,7 @@ impl PyPreparedAnalysis {
         prior_scale=10.0,
         refute=None,
         seed=1,
-        bootstrap=50,
+        bootstrap=199,
         threads=1,
         latency=None,
         accepted=false,
@@ -1236,6 +1236,10 @@ impl PyPreparedAnalysis {
     }
 
     /// Compile once for a temporal ResponseCurve / InterventionResponse (series data).
+    ///
+    /// Frequentist `bootstrap` is the joint circular-block replicate count behind the
+    /// pointwise and simultaneous bands: `None` keeps the `Study` default (199), `0`
+    /// publishes no band and warns `estimate.temporal_response.band_withheld`.
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -1259,6 +1263,7 @@ impl PyPreparedAnalysis {
         prior_mapping=None,
         composed_prior=None,
         seed=1,
+        bootstrap=None,
         threads=1,
         accepted=false,
         class_graph=None,
@@ -1300,6 +1305,7 @@ impl PyPreparedAnalysis {
         prior_mapping: Option<&Bound<'_, PyDict>>,
         composed_prior: Option<&Bound<'_, PyDict>>,
         seed: u64,
+        bootstrap: Option<u32>,
         threads: u32,
         accepted: bool,
         class_graph: Option<Bound<'_, PyAny>>,
@@ -1386,8 +1392,10 @@ impl PyPreparedAnalysis {
             } else {
                 builder.graph(dag)
             };
-            builder =
-                builder.query(query).refute(antecedent::RefuteSuite::None).bootstrap_replicates(0);
+            builder = builder.query(query).refute(antecedent::RefuteSuite::None);
+            if let Some(replicates) = bootstrap {
+                builder = builder.bootstrap_replicates(replicates);
+            }
             builder = crate::temporal_api::apply_temporal_inference_transfer(
                 builder,
                 Some(inference.as_deref().unwrap_or("frequentist")),
@@ -1897,7 +1905,10 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Compile once for licensed Pulse/Sustained × DBN graph_posterior × Bayesian.
+    /// Compile once for licensed Pulse/Sustained × DBN graph_posterior.
+    ///
+    /// Bayesian mixes per-atom posteriors; Frequentist mixes atom estimates with
+    /// a shared circular-block SE from `bootstrap` replicates (`0` withholds it).
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -1920,6 +1931,7 @@ impl PyPreparedAnalysis {
         prior_scale=10.0,
         refute=None,
         seed=1,
+        bootstrap=0,
         threads=1,
         posterior=None,
     ))]
@@ -1945,6 +1957,7 @@ impl PyPreparedAnalysis {
         prior_scale: f64,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
+        bootstrap: u32,
         threads: u32,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
     ) -> PyResult<Self> {
@@ -2000,11 +2013,13 @@ impl PyPreparedAnalysis {
                 )
                 .map_err(py_err)?
             };
+            // Frequentist atoms share one circular-block bootstrap for the
+            // mixture SE; the Bayesian mixture uses posterior draws instead.
             let mut builder = Study::series(series)
                 .graph_posterior(gp)
                 .temporal_query(q)
                 .refute(suite)
-                .bootstrap_replicates(0);
+                .bootstrap_replicates(bootstrap);
             builder = crate::temporal_api::apply_temporal_inference(
                 builder,
                 Some(inference.as_deref().unwrap_or("conjugate")),
@@ -2018,7 +2033,11 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Compile once for licensed TemporalMediationEffect × DBN graph_posterior × Bayesian.
+    /// Compile once for licensed TemporalMediationEffect × DBN graph_posterior.
+    ///
+    /// Bayesian mixes per-atom posteriors; single-horizon Frequentist mixes atom
+    /// estimates with a shared circular-block SE from `bootstrap` replicates
+    /// (`0` withholds the SE).
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -2041,6 +2060,7 @@ impl PyPreparedAnalysis {
         prior_scale=10.0,
         refute=None,
         seed=1,
+        bootstrap=0,
         threads=1,
         posterior=None,
     ))]
@@ -2066,6 +2086,7 @@ impl PyPreparedAnalysis {
         prior_scale: f64,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
+        bootstrap: u32,
         threads: u32,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
     ) -> PyResult<Self> {
@@ -2124,11 +2145,13 @@ impl PyPreparedAnalysis {
                 )
                 .map_err(py_err)?
             };
+            // Frequentist atoms share one circular-block bootstrap for the
+            // mixture SE; the Bayesian mixture uses posterior draws instead.
             let mut builder = Study::series(series)
                 .graph_posterior(gp)
                 .query(CausalQuery::Mediation(q))
                 .refute(suite)
-                .bootstrap_replicates(0);
+                .bootstrap_replicates(bootstrap);
             builder = crate::temporal_api::apply_temporal_inference(
                 builder,
                 Some(inference.as_deref().unwrap_or("conjugate")),
@@ -2382,7 +2405,7 @@ impl PyPreparedAnalysis {
         prior_mapping=None,
         composed_prior=None,
         seed=1,
-        bootstrap=50,
+        bootstrap=199,
         threads=1,
         latency=None,
         accepted=false,
@@ -2493,7 +2516,7 @@ impl PyPreparedAnalysis {
         prior_scale=10.0,
         refute=None,
         seed=1,
-        bootstrap=50,
+        bootstrap=199,
         threads=1,
         latency=None,
         accepted=false,
@@ -2577,7 +2600,7 @@ impl PyPreparedAnalysis {
         prior_scale=10.0,
         refute=None,
         seed=1,
-        bootstrap=50,
+        bootstrap=199,
         threads=1,
         latency=None,
         accepted=false,
@@ -2658,7 +2681,7 @@ impl PyPreparedAnalysis {
         max_len=16,
         refute=None,
         seed=1,
-        bootstrap=50,
+        bootstrap=199,
         threads=1,
         latency=None,
         accepted=false,
@@ -3644,6 +3667,10 @@ fn mediation_grid_wire(
                 let uncertainty = match &slice.uncertainty {
                     antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
                         standard_error,
+                    }
+                    | antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+                        requested: standard_error,
+                        ..
                     } => antecedent_io::TemporalMediationUncertaintyWire::FrequentistPointwise {
                         standard_error: *standard_error,
                     },
@@ -3699,18 +3726,7 @@ fn mediation_grid_wire(
 fn structural_response_wire(
     mixture: &antecedent::result::StructuralResponseMixture,
 ) -> PyResult<antecedent_io::StructuralResponseMixtureWire> {
-    let weight_basis = match mixture.weight_basis {
-        antecedent::result::StructuralWeightBasis::PosteriorProbability => {
-            antecedent_io::StructuralWeightBasisWire::PosteriorProbability
-        }
-        antecedent::result::StructuralWeightBasis::CompletionEnumeration => {
-            antecedent_io::StructuralWeightBasisWire::CompletionEnumeration
-        }
-        antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior => {
-            antecedent_io::StructuralWeightBasisWire::CallerSuppliedClassPrior
-        }
-        _ => antecedent_io::StructuralWeightBasisWire::CompletionEnumeration,
-    };
+    let weight_basis = antecedent_io::StructuralWeightBasisWire::from(mixture.weight_basis);
     Ok(antecedent_io::StructuralResponseMixtureWire {
         weight_basis,
         atoms: mixture
@@ -3745,6 +3761,7 @@ fn structural_response_wire(
         identified_mass: mixture.identified_mass,
         unidentified_mass: mixture.unidentified_mass,
         unevaluable_mass: mixture.unevaluable_mass,
+        subsampled_out_mass: mixture.subsampled_out_mass,
         identified_set: mixture.identified_set.as_ref().map(|envelope| {
             antecedent_io::ResponseEnvelopeWire {
                 grid: envelope.grid.to_vec(),
@@ -3753,6 +3770,12 @@ fn structural_response_wire(
                 upper: envelope.upper.to_vec(),
             }
         }),
+        identified_set_interval: mixture
+            .identified_set_interval
+            .as_ref()
+            .map(antecedent_io::identified_set_interval_to_wire)
+            .transpose()
+            .map_err(py_err)?,
         conditional_on_identified: mixture
             .conditional_on_identified
             .as_ref()

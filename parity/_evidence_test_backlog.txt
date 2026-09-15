@@ -1,0 +1,13 @@
+# Frozen backlog: staged licensed rows that predate the evidence_test rule.
+#
+# scripts/gate_support_matrix.sh requires every staged row of
+# parity/support_licensed.toml to name its executing evidence
+# (evidence_test + evidence_assertion). Rows listed here were licensed before
+# that rule (1.9, R-13) and are exempt until someone names their test. The list
+# only shrinks: a row that gains evidence must be deleted here in the same
+# change, and new rows may not be added. Format: query|graph_class|structure|
+# inference|validation.
+#
+# A listed row names no executing test; its known_truth_fixture and
+# limitations say what supports it. The derivative rows are not listed: they
+# name their evidence.

@@ -1,4 +1,4 @@
-"""Cross-language conformance for format-0.4 causal payload artifacts."""
+"""Cross-language conformance for format-0.5 causal payload artifacts."""
 
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def test_every_response_functional_crosses_rust_and_python(functional: object) -
         "query", payload, variable_names=["a", "b", "y"], artifact_id="response-query"
     )
     decoded = artifacts.loads(encoded)
-    assert decoded.format_version == (0, 4)
+    assert decoded.format_version == (0, 5)
     assert decoded.payload == payload
     assert (
         artifacts.loads(
@@ -632,7 +632,7 @@ def test_temporal_response_result_crosses_rust_and_python() -> None:
             artifact_id="temporal-response",
         )
     )
-    assert decoded.format_version == (0, 4)
+    assert decoded.format_version == (0, 5)
     assert decoded.payload == payload
 
 
@@ -852,3 +852,67 @@ def test_composite_analysis_artifact_can_be_reencoded() -> None:
     )
     assert second.payload == first.payload
     assert second.payload_kind == "analysis_result"
+
+
+def test_identified_set_interval_survives_export_and_reencode() -> None:
+    """Format 0.5: a class-aware Pulse result keeps its Imbens-Manski interval."""
+    import antecedent
+    import numpy as np
+
+    rng = np.random.default_rng(3)
+    n = 240
+    z = rng.normal(size=n)
+    t = 0.5 * z + rng.normal(size=n)
+    y = np.zeros(n)
+    y[1:] = 0.8 * t[:-1] + 0.6 * z[:-1] + 0.5 * rng.normal(size=n - 1)
+    data = {"t": t, "y": y, "z": z}
+    graph = antecedent.graph.TemporalCpdag.from_lagged_edges(
+        ["t", "y", "z"], [("z", 1, "y", 0), ("t", 1, "y", 0)], [("z", 1, "t", 1)]
+    )
+    prepared = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        graph=graph,
+        query=antecedent.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1, active_level=1.0),
+        inference=antecedent.Frequentist(),
+        refute=False,
+        bootstrap=60,
+        seed=5,
+    )
+    result = prepared.estimate(data, seed=5)
+    assert result.structural_identified_set_interval is not None
+    assert result.structural_identified_set_interval_method == "imbens_manski_shared_block"
+    assert result.structural_identified_set_interval_truncated is False
+
+    decoded = artifacts.loads(prepared.export_artifact())
+    assert decoded.format_version == (0, 5)
+    interval = decoded.payload["structural_response"]["identified_set_interval"]
+    assert interval["method"] == "imbens_manski_shared_block"
+    # A complete CPDAG enumeration: the truncation flag is omitted (false).
+    assert "truncated" not in interval
+    assert (interval["lower"], interval["upper"]) == pytest.approx(
+        result.structural_identified_set_interval
+    )
+    assert interval["level"] == pytest.approx(result.structural_identified_set_interval_level)
+    assert interval["lower"] <= interval["bound_lower"] <= interval["bound_upper"]
+    assert interval["bound_upper"] <= interval["upper"]
+    assert interval["completions"] == 2
+
+    again = artifacts.loads(
+        artifacts.dumps(
+            decoded.payload_kind,
+            decoded.payload,
+            variable_names=decoded.variable_names,
+            artifact_id="again",
+        )
+    )
+    assert again.payload == decoded.payload
+
+    corrupt = json.loads(json.dumps(decoded.payload))
+    corrupt["structural_response"]["identified_set_interval"]["level"] = 1.5
+    with pytest.raises(CausalSerializationError, match="identified-set interval"):
+        artifacts.dumps(
+            decoded.payload_kind,
+            corrupt,
+            variable_names=decoded.variable_names,
+            artifact_id="corrupt",
+        )

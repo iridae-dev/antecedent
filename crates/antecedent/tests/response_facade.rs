@@ -271,32 +271,44 @@ fn intervention_response_conforms_to_known_truth_fixture() {
 
     // Exercise both the direct `Study::run` path and the prepared handle (which is
     // what the licensed cell actually uses on the Python `PreparedAnalysis` surface),
-    // and pin both against the same fixture truth.
-    let study = Study::tabular(data.clone())
-        .graph(graph.clone())
-        .query(CausalQuery::Response(query.clone()))
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap();
-    let direct = study.run(&ExecutionContext::for_tests(52)).unwrap();
-    let prepared = study.prepare(&ExecutionContext::for_tests(52)).unwrap();
-    let via_prepared = prepared.estimate(&data, &ExecutionContext::for_tests(52)).unwrap();
-
+    // on the explicit and the accepted structure axis, and pin every run against the
+    // same fixture truth.
     let truth = fixture["contract"]["true_response"].as_f64().unwrap();
     let tolerance = fixture["tolerance"]["truth_absolute"].as_f64().unwrap();
-    for (label, result) in [("direct", &direct), ("prepared", &via_prepared)] {
-        let response = result.response.as_ref().unwrap();
-        assert_eq!(response.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
-        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
-            response.estimate
-        else {
-            panic!("{label}: expected scalar intervention response");
+    for accepted in [false, true] {
+        let builder = Study::tabular(data.clone());
+        let builder = if accepted {
+            builder.graph(antecedent::AcceptedGraph::dag(graph.clone()))
+        } else {
+            builder.graph(graph.clone())
         };
-        assert!(
-            (value - truth).abs() <= tolerance,
-            "{label}: value={value} truth={truth} tolerance={tolerance}"
+        let study = builder
+            .query(CausalQuery::Response(query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        assert_eq!(
+            study.structure_source().as_str(),
+            if accepted { "accepted" } else { "explicit" }
         );
+        let direct = study.run(&ExecutionContext::for_tests(52)).unwrap();
+        let prepared = study.prepare(&ExecutionContext::for_tests(52)).unwrap();
+        let via_prepared = prepared.estimate(&data, &ExecutionContext::for_tests(52)).unwrap();
+        for (label, result) in [("direct", &direct), ("prepared", &via_prepared)] {
+            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            let response = result.response.as_ref().unwrap();
+            assert_eq!(response.provenance_id.as_ref(), "estimate.response.intervention_gcomp");
+            let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
+                response.estimate
+            else {
+                panic!("{label}: expected scalar intervention response");
+            };
+            assert!(
+                (value - truth).abs() <= tolerance,
+                "{label} accepted={accepted}: value={value} truth={truth} tolerance={tolerance}"
+            );
+        }
     }
 }
 
@@ -386,17 +398,8 @@ fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contr
             assert!(!matches!(response.uncertainty, ResponseUncertainty::None));
         }
     }
-    let curve = Study::tabular(data.clone())
+    let average = Study::tabular(data.clone())
         .graph(graph.clone())
-        .query(CausalQuery::Response(curve_query))
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(51))
-        .unwrap();
-    let average = Study::tabular(data)
-        .graph(graph)
         .query(AverageEffectQuery::with_levels(
             VariableId::from_raw(0),
             VariableId::from_raw(1),
@@ -409,22 +412,51 @@ fn two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contr
         .unwrap()
         .run(&ExecutionContext::for_tests(51))
         .unwrap();
-    let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
-        &curve.response.as_ref().unwrap().estimate
-    else {
-        panic!("expected a point-identified two-point response");
-    };
-    let curve_contrast = mean[1] - mean[0];
     let average_effect = average.effect();
     let contrast_tolerance = fixture["tolerance"]["contrast_absolute"].as_f64().unwrap();
     let truth_tolerance = fixture["tolerance"]["truth_absolute"].as_f64().unwrap();
     let truth = fixture["contract"]["true_contrast"].as_f64().unwrap();
-    assert!(
-        (curve_contrast - average_effect).abs() <= contrast_tolerance,
-        "curve contrast {curve_contrast} and AverageEffect {average_effect} exceed the documented tolerance {contrast_tolerance}"
-    );
-    assert!((curve_contrast - truth).abs() <= truth_tolerance);
     assert!((average_effect - truth).abs() <= truth_tolerance);
+    // Frequentist curve on the explicit and the accepted structure axis, through the
+    // prepared handle: both must reproduce the shared linear contract.
+    for accepted in [false, true] {
+        let builder = Study::tabular(data.clone());
+        let builder = if accepted {
+            builder.graph(antecedent::AcceptedGraph::dag(graph.clone()))
+        } else {
+            builder.graph(graph.clone())
+        };
+        let study = builder
+            .query(CausalQuery::Response(curve_query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        assert_eq!(
+            study.structure_source().as_str(),
+            if accepted { "accepted" } else { "explicit" }
+        );
+        let ctx = ExecutionContext::for_tests(51);
+        let fresh = study.clone().run(&ctx).unwrap();
+        let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+        for curve in [&fresh, &click] {
+            assert_eq!(curve.support_status.unwrap().as_str(), "licensed");
+            let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+                &curve.response.as_ref().unwrap().estimate
+            else {
+                panic!("expected a point-identified two-point response");
+            };
+            let curve_contrast = mean[1] - mean[0];
+            assert!(
+                (curve_contrast - average_effect).abs() <= contrast_tolerance,
+                "accepted={accepted}: curve contrast {curve_contrast} and AverageEffect {average_effect} exceed the documented tolerance {contrast_tolerance}"
+            );
+            assert!(
+                (curve_contrast - truth).abs() <= truth_tolerance,
+                "accepted={accepted}: curve contrast {curve_contrast} vs truth {truth}"
+            );
+        }
+    }
 }
 
 fn mean_curve_study() -> (antecedent_data::TabularData, Dag, ResponseQuery) {
@@ -521,6 +553,55 @@ fn graph_posterior_response_retains_probability_atoms_and_mass() {
         assert_eq!(structural.atoms.len(), gp.n_graphs);
         assert!(result.response.is_some());
     }
+}
+
+#[test]
+fn prepared_graph_posterior_response_reuses_identification() {
+    let (data, _graph, query) = mean_curve_study();
+    let ctx = ExecutionContext::for_tests(1);
+    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
+    let gp = antecedent::discovery::discover_exact_dag_posterior(
+        &data,
+        &vars,
+        &antecedent::discovery::BayesianDiscoverParams::default(),
+        &ctx,
+    )
+    .unwrap();
+    let study = Study::tabular(data.clone())
+        .graph_posterior(gp)
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.clone().run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let second = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(
+        fresh.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
+        0
+    );
+    assert_eq!(
+        first.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
+        1
+    );
+    assert_eq!(
+        second.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count(),
+        1
+    );
+    let structural = first.structural_response.as_ref().expect("structural");
+    assert!(fresh.diagnostics.iter().any(|d| d.message.contains("unevaluable_mass")
+        || d.code.as_ref() == "estimate.response.graph_posterior"));
+    assert!(
+        first
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.response.graph_posterior.joint_if_se"
+                || d.code.as_ref() == "estimate.response.graph_posterior.uncertainty_withheld")
+    );
+    assert!((structural.identified_mass + structural.unidentified_mass - 1.0).abs() <= 1.0 + 1e-9);
 }
 
 #[test]
@@ -625,4 +706,957 @@ fn curve_joint_influence_has_sample_mean_scaling() {
     } else {
         panic!("expected pointwise curve band");
     }
+}
+
+/// Frozen continuous-treatment law of `known_truth_mixtures.static_response`:
+/// every treatment level carries four rows `Z = slope·T ± offset`,
+/// `Y = 1 + 2T + 1.5Z ± noise`, so within-level deviations cancel exactly and
+/// both atoms' regressions are exact.
+fn known_truth_response_data(pin: &serde_json::Value) -> TabularData {
+    let levels = usize::try_from(pin["treatment_levels"].as_u64().unwrap()).unwrap();
+    let span = pin["treatment_span"].as_f64().unwrap();
+    let slope = pin["z_slope"].as_f64().unwrap();
+    let offset = pin["z_offset"].as_f64().unwrap();
+    let noise = pin["outcome_noise"].as_f64().unwrap();
+    let (mut t, mut y, mut z) = (Vec::new(), Vec::new(), Vec::new());
+    for k in 0..levels {
+        let tv = -span + 2.0 * span * k as f64 / (levels - 1) as f64;
+        for (z_sign, e_sign) in [(1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)] {
+            let zv = slope * tv + z_sign * offset;
+            t.push(tv);
+            z.push(zv);
+            y.push(1.0 + 2.0 * tv + 1.5 * zv + e_sign * noise);
+        }
+    }
+    TabularData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())])
+        .unwrap()
+}
+
+fn known_truth_mixture_posterior(weights: &[f64]) -> antecedent_discovery::GraphPosterior {
+    use antecedent_discovery::set_edge;
+    let direct = set_edge(0, 3, 0, 1, true);
+    let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+    let unidentified = set_edge(0, 3, 1, 0, true);
+    antecedent_discovery::GraphPosterior::new(
+        3,
+        weights.to_vec(),
+        vec![direct, adjusted, unidentified],
+        vec![0.0; 9],
+        vec![0.0; 9],
+        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+        antecedent_prob::InferenceDiagnostics::analytic("known_truth_mixtures"),
+        0,
+    )
+    .unwrap()
+}
+
+fn response_values(value: &ResponseValue) -> Vec<f64> {
+    match value {
+        ResponseValue::Scalar(v) => vec![*v],
+        ResponseValue::Surface { mean, .. } => mean.to_vec(),
+        other => panic!("expected a scalar or surface response, got {other:?}"),
+    }
+}
+
+/// D-2 (1.9 cell review): numeric known-truth pin of the static graph-posterior
+/// response `conditional_on_identified` mean for `InterventionResponse` and
+/// `ResponseCurve`, Frequentist and Bayesian. Only the Frequentist scalar
+/// aggregate carries a joint-IF SE; curves and Bayesian aggregates withhold
+/// their multi-atom interval, so these cells carry numeric pins, not coverage.
+#[test]
+#[allow(clippy::too_many_lines)]
+fn graph_posterior_response_known_truth_conditional_on_identified() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["static_response"];
+    let floats = |key: &str| -> Vec<f64> {
+        pin[key].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
+    };
+    let weights = floats("posterior_weights");
+    let grid = floats("treatment_grid");
+    let atom_curves =
+        [floats("identified_atom_curve_direct"), floats("identified_atom_curve_adjusted")];
+    let expected_curve = floats("expected_conditional_on_identified_curve");
+    let identified_mass = weights[0] + weights[1];
+    for (g, value) in expected_curve.iter().enumerate() {
+        let recomputed =
+            (weights[0] * atom_curves[0][g] + weights[1] * atom_curves[1][g]) / identified_mass;
+        assert!((recomputed - value).abs() < 1e-12, "fixture arithmetic at grid point {g}");
+    }
+    let data = known_truth_response_data(pin);
+    let t = VariableId::from_raw(0);
+    let y = VariableId::from_raw(1);
+    let curve = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: y,
+        treatment: ContinuousDomain::new(t, GridSpec::Values(grid.clone().into())),
+    });
+    let active = pin["intervention_level"].as_f64().unwrap();
+    let level_index = grid.iter().position(|&v| (v - active).abs() < 1e-12).unwrap();
+    let level = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: y,
+        interventions: Arc::from([Intervention::set(t, Value::f64(active))]),
+    });
+    let draws = usize::try_from(pin["bayesian_n_draws"].as_u64().unwrap()).unwrap();
+    for (mode, inference, tolerance) in [
+        (
+            "frequentist",
+            InferenceMode::Frequentist,
+            pin["frequentist_abs_tolerance"].as_f64().unwrap(),
+        ),
+        (
+            "bayesian",
+            InferenceMode::Bayesian(
+                BayesianConfig::conjugate()
+                    .n_draws(draws)
+                    .prior_scale(pin["bayesian_prior_scale"].as_f64().unwrap()),
+            ),
+            pin["bayesian_abs_tolerance"].as_f64().unwrap(),
+        ),
+    ] {
+        for (label, query, expected_values) in [
+            ("ResponseCurve", curve.clone(), expected_curve.clone()),
+            ("InterventionResponse", level.clone(), vec![expected_curve[level_index]]),
+        ] {
+            let result = Study::tabular(data.clone())
+                .graph_posterior(known_truth_mixture_posterior(&weights))
+                .query(CausalQuery::Response(query))
+                .inference(inference.clone())
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ExecutionContext::for_tests(pin["seed"].as_u64().unwrap()))
+                .unwrap();
+            let structural = result.structural_response.as_ref().expect("structural response");
+            assert!(
+                (structural.unidentified_mass
+                    - pin["expected_unidentified_mass"].as_f64().unwrap())
+                .abs()
+                    < 1e-12,
+                "{mode} {label}: unidentified mass must stay out of the mean"
+            );
+            let got = response_values(
+                structural.conditional_on_identified.as_ref().expect("conditional mean"),
+            );
+            // Each identified atom keeps its own graph-specific value.
+            let atom_values: Vec<Vec<f64>> = structural
+                .atoms
+                .iter()
+                .filter_map(|atom| atom.value.as_ref().map(response_values))
+                .collect();
+            assert_eq!(atom_values.len(), 2, "{mode} {label}: two identified atoms");
+            for (atom, pinned) in atom_values.iter().zip(&atom_curves) {
+                let pinned: Vec<f64> = if label == "ResponseCurve" {
+                    pinned.clone()
+                } else {
+                    vec![pinned[level_index]]
+                };
+                for (a, b) in atom.iter().zip(&pinned) {
+                    assert!((a - b).abs() < tolerance, "{mode} {label} atom value {a} vs {b}");
+                }
+            }
+            assert_eq!(got.len(), expected_values.len(), "{mode} {label}");
+            for (g, (a, b)) in got.iter().zip(&expected_values).enumerate() {
+                assert!(
+                    (a - b).abs() < tolerance,
+                    "{mode} {label} conditional_on_identified[{g}]={a}, pinned {b}"
+                );
+            }
+            let uncertainty = &result.response.as_ref().unwrap().uncertainty;
+            let has_diagnostic = |code: &str| {
+                result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref() == code)
+            };
+            if mode == "frequentist" && label == "InterventionResponse" {
+                // A scalar frozen-weight aggregate takes the joint-IF SE of
+                // the identified atoms on the shared sample.
+                let ResponseUncertainty::Scalar { standard_error, lower, upper, .. } = uncertainty
+                else {
+                    panic!("{mode} {label}: joint-IF aggregate SE expected, got {uncertainty:?}");
+                };
+                assert!(standard_error.is_finite() && *standard_error > 0.0);
+                assert!(lower < &got[0] && &got[0] < upper, "{mode} {label}: interval brackets");
+                assert!(has_diagnostic("estimate.response.graph_posterior.joint_if_se"));
+            } else {
+                assert!(
+                    matches!(uncertainty, ResponseUncertainty::None),
+                    "{mode} {label}: multi-atom aggregate uncertainty is withheld"
+                );
+                assert!(
+                    has_diagnostic("estimate.response.graph_posterior.uncertainty_withheld"),
+                    "{mode} {label}: withheld aggregate interval is disclosed"
+                );
+            }
+        }
+    }
+    // Frequentist InterventionResponse cheap/full: the plugin-level refuters run
+    // on the same frozen law and the pinned conditional-on-identified level holds.
+    let tolerance = pin["frequentist_abs_tolerance"].as_f64().unwrap();
+    for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+        let result = Study::tabular(data.clone())
+            .graph_posterior(known_truth_mixture_posterior(&weights))
+            .query(CausalQuery::Response(level.clone()))
+            .inference(InferenceMode::Frequentist)
+            .refute(suite)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(pin["seed"].as_u64().unwrap()))
+            .unwrap();
+        let structural = result.structural_response.as_ref().expect("structural response");
+        let got = response_values(structural.conditional_on_identified.as_ref().unwrap());
+        assert!(
+            (got[0] - expected_curve[level_index]).abs() < tolerance,
+            "{suite:?} InterventionResponse conditional_on_identified={}, pinned {}",
+            got[0],
+            expected_curve[level_index]
+        );
+        assert!(!result.refutations.is_empty(), "{suite:?} must run plugin-level refuters");
+    }
+}
+
+/// E-4 (1.9 cell review): the static class-envelope response discloses
+/// `estimate.envelope.response_posterior_not_mixed` only when per-completion
+/// posterior uncertainty was actually dropped, not for a single completion.
+#[test]
+fn class_response_posterior_not_mixed_fires_only_when_uncertainty_is_dropped() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let data = known_truth_response_data(&expected["static_response"]);
+    let (t, y, z) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
+    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(vec![-0.5, 0.0, 0.5].into()),
+        ),
+    });
+    let run = |undirected: bool| {
+        let mut cpdag = antecedent_graph::Cpdag::with_variables(3);
+        cpdag.insert_directed(z, y).unwrap();
+        cpdag.insert_directed(t, y).unwrap();
+        if undirected {
+            cpdag.insert_undirected(z, t).unwrap();
+        } else {
+            cpdag.insert_directed(z, t).unwrap();
+        }
+        Study::tabular(data.clone())
+            .graph(cpdag)
+            .query(CausalQuery::Response(query.clone()))
+            .inference(InferenceMode::Bayesian(
+                BayesianConfig::conjugate().n_draws(128).prior_scale(1_000.0),
+            ))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(4))
+            .unwrap()
+    };
+    let fires = |result: &antecedent::StudyResult| {
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "estimate.envelope.response_posterior_not_mixed")
+    };
+    let single = run(false);
+    assert!(
+        !matches!(single.response.as_ref().unwrap().uncertainty, ResponseUncertainty::None),
+        "a single completion keeps its own posterior band"
+    );
+    assert!(!fires(&single), "nothing is omitted for a single completion");
+    let multi = run(true);
+    assert!(matches!(multi.response.as_ref().unwrap().uncertainty, ResponseUncertainty::None));
+    assert!(fires(&multi), "dropped per-completion bands must be disclosed");
+}
+
+/// `t`, `y`, `z1`, `z2` with `Y = 1 + 2T + 1.5·Z1 + 0.5·Z2 + e` and `T` driven
+/// by both covariates; `valid[k](i)` marks `z{k+1}` observed at row `i`.
+#[allow(clippy::many_single_char_names)]
+fn two_covariate_response_data(n: usize, valid: [&dyn Fn(usize) -> bool; 2]) -> TabularData {
+    use antecedent_core::{CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet};
+    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["t", "y", "z1", "z2"] {
+        b.add_variable(
+            name,
+            antecedent_core::ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let (mut t, mut y, mut z1, mut z2) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for i in 0..n {
+        let a = (0.37 * i as f64).sin();
+        let c = (0.23 * i as f64 + 1.0).cos();
+        let tv = 0.6 * a + 0.4 * c + 0.5 * (0.91 * i as f64).sin();
+        // A missing cell is both invalid in the bitmap and NaN in the buffer.
+        z1.push(if valid[0](i) { a } else { f64::NAN });
+        z2.push(if valid[1](i) { c } else { f64::NAN });
+        t.push(tv);
+        y.push(1.0 + 2.0 * tv + 1.5 * a + 0.5 * c + 0.3 * (1.7 * i as f64).cos());
+    }
+    let bitmap = |valid: &dyn Fn(usize) -> bool| {
+        let mut bytes = vec![0u8; n.div_ceil(8)];
+        for i in (0..n).filter(|&i| valid(i)) {
+            bytes[i / 8] |= 1 << (i % 8);
+        }
+        let bitmap = ValidityBitmap::from_bytes(bytes, n).unwrap();
+        for i in 0..n {
+            assert_eq!(bitmap.is_valid(i), valid(i), "bitmap bit order");
+        }
+        bitmap
+    };
+    let columns = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(2), Arc::from(z1), bitmap(valid[0])).unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(VariableId::from_raw(3), Arc::from(z2), bitmap(valid[1])).unwrap(),
+        ),
+    ];
+    TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap())
+}
+
+/// Two identified DAG atoms: `z1` confounds `t → y` in the first, `z2` in the second.
+fn two_adjustment_posterior(weights: [f64; 2]) -> antecedent_discovery::GraphPosterior {
+    use antecedent_discovery::set_edge;
+    let first = set_edge(set_edge(set_edge(0, 4, 0, 1, true), 4, 2, 0, true), 4, 2, 1, true);
+    let second = set_edge(set_edge(set_edge(0, 4, 0, 1, true), 4, 3, 0, true), 4, 3, 1, true);
+    antecedent_discovery::GraphPosterior::new(
+        4,
+        weights.to_vec(),
+        vec![first, second],
+        vec![0.0; 16],
+        vec![0.0; 16],
+        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+        antecedent_prob::InferenceDiagnostics::analytic("two_adjustment_posterior"),
+        0,
+    )
+    .unwrap()
+}
+
+/// Atoms that drop different complete-case rows (missing `z1` early, missing
+/// `z2` late, equal counts) are mixed on the shared data rows by their row
+/// indices, not by position; the interval honours `confidence_level`.
+#[test]
+#[allow(clippy::too_many_lines)]
+fn graph_posterior_response_joint_if_aligns_atom_rows_by_index() {
+    let n = 160;
+    let data = two_covariate_response_data(n, [&|i| i >= 12, &|i| i < n - 12]);
+    let t = VariableId::from_raw(0);
+    let y = VariableId::from_raw(1);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: y,
+        interventions: Arc::from([Intervention::set(t, Value::f64(0.25))]),
+    });
+    let options = ContinuousResponseOptions { confidence_level: 0.9, ..Default::default() };
+    let weights = [0.55, 0.45];
+    let result = Study::tabular(data.clone())
+        .graph_posterior(two_adjustment_posterior(weights))
+        .query(CausalQuery::Response(query.clone()))
+        .inference(InferenceMode::Frequentist)
+        .response_options(options.clone())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(9))
+        .unwrap();
+
+    // Independent per-atom fits with each atom's own adjustment set.
+    let atoms: Vec<(f64, antecedent_estimate::ResponseInfluence)> = [2u32, 3]
+        .iter()
+        .map(|&z| {
+            let mut est =
+                antecedent_estimate::ContinuousResponseEstimator::new(vec![VariableId::from_raw(
+                    z,
+                )]);
+            est.options = options.clone();
+            let (response, scores) = est
+                .estimate_identified_scored(
+                    &data,
+                    &query,
+                    antecedent_core::IdentificationStatus::NonparametricallyIdentified,
+                    antecedent_core::AssumptionSet::default(),
+                )
+                .unwrap();
+            let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
+                response.estimate
+            else {
+                panic!("scalar atom response expected");
+            };
+            (value, scores.unwrap())
+        })
+        .collect();
+    assert_eq!(atoms[0].1.row_index.len(), n - 12);
+    assert_eq!(atoms[1].1.row_index.len(), n - 12);
+    assert_ne!(atoms[0].1.row_index, atoms[1].1.row_index);
+    let structural = result.structural_response.as_ref().unwrap();
+    let published: Vec<f64> = structural
+        .atoms
+        .iter()
+        .map(|atom| match atom.value.as_ref() {
+            Some(ResponseValue::Scalar(v)) => *v,
+            other => panic!("identified scalar atom expected, got {other:?}"),
+        })
+        .collect();
+    for ((value, _), got) in atoms.iter().zip(&published) {
+        assert!((value - got).abs() < 1e-12, "atom value {got} vs independent fit {value}");
+    }
+
+    // Row-aligned frozen-weight mixture: each atom's centred influence sits on
+    // its own data rows, scaled to the full sample.
+    let mass: f64 = weights.iter().sum();
+    let mut aligned = vec![0.0; n];
+    let mut positional = vec![0.0; n - 12];
+    for ((_, scores), weight) in atoms.iter().zip(weights) {
+        let column = &scores.columns[0];
+        let rows = column.len();
+        let center = column.iter().sum::<f64>() / rows as f64;
+        for (&row, &value) in scores.row_index.iter().zip(column) {
+            aligned[row as usize] += weight / mass * (value - center) * n as f64 / rows as f64;
+        }
+        for (slot, value) in positional.iter_mut().zip(column) {
+            *slot += weight / mass * value;
+        }
+    }
+    let se =
+        antecedent_estimate::joint_influence_covariance(&[aligned.as_slice()], None).unwrap().se(0);
+    let positional_se =
+        antecedent_estimate::joint_influence_covariance(&[positional.as_slice()], None)
+            .unwrap()
+            .se(0);
+    assert!((se - positional_se).abs() > 1e-3 * se, "fixture must separate the two mixings");
+    let ResponseUncertainty::Scalar { standard_error, level, lower, upper } =
+        result.response.as_ref().unwrap().uncertainty
+    else {
+        panic!("scalar joint-IF aggregate interval expected");
+    };
+    assert!((standard_error - se).abs() < 1e-10 * se, "{standard_error} vs aligned {se}");
+    assert!((level - 0.9).abs() < 1e-15);
+    let point = (weights[0] * atoms[0].0 + weights[1] * atoms[1].0) / mass;
+    let z = antecedent_stats::normal_ppf(0.95);
+    assert!((lower - (point - z * se)).abs() < 1e-10);
+    assert!((upper - (point + z * se)).abs() < 1e-10);
+}
+
+/// An identified atom whose estimation fails is unevaluable: its mass is
+/// reported separately, the atom keeps its identification status, and the
+/// result is graph-dependent rather than point-identified.
+#[test]
+fn graph_posterior_response_failed_atom_is_graph_dependent() {
+    let n = 160;
+    let data = two_covariate_response_data(n, [&|_| true, &|_| false]);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.25))]),
+    });
+    let result = Study::tabular(data)
+        .graph_posterior(two_adjustment_posterior([0.6, 0.4]))
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(4))
+        .unwrap();
+    let structural = result.structural_response.as_ref().unwrap();
+    assert!((structural.identified_mass - 0.6).abs() < 1e-12);
+    assert!((structural.unevaluable_mass - 0.4).abs() < 1e-12);
+    assert!(structural.unidentified_mass.abs() < 1e-15);
+    let failed = &structural.atoms[1];
+    assert!(failed.value.is_none());
+    assert_ne!(failed.status, antecedent_core::IdentificationStatus::NotIdentified);
+    let graph_dependent = antecedent_core::IdentificationStatus::GraphDependent;
+    assert_eq!(result.identification.status, graph_dependent);
+    let response = result.response.as_ref().unwrap();
+    assert_eq!(response.identification_status, graph_dependent);
+    assert!(
+        matches!(response.estimate, ResponseIdentification::GraphDependent(_)),
+        "{:?}",
+        response.estimate
+    );
+}
+
+/// The prepared handle refuses what every graph-posterior response click
+/// refuses, before building the posterior identification cache.
+#[test]
+fn prepared_graph_posterior_response_refuses_multi_coordinate_intervention() {
+    let data = two_covariate_response_data(80, [&|_| true, &|_| true]);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([
+            Intervention::set(VariableId::from_raw(0), Value::f64(0.25)),
+            Intervention::set(VariableId::from_raw(2), Value::f64(0.0)),
+        ]),
+    });
+    let study = Study::tabular(data)
+        .graph_posterior(two_adjustment_posterior([0.5, 0.5]))
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let (ctx, stages) = {
+        #[derive(Default)]
+        struct Stages(std::sync::Mutex<Vec<String>>);
+        impl antecedent_core::ProgressSink for Stages {
+            fn report(&self, _fraction: f64, stage: &str) {
+                self.0.lock().unwrap().push(stage.to_owned());
+            }
+        }
+        let stages = Arc::new(Stages::default());
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.progress = Some(Arc::clone(&stages) as Arc<dyn antecedent_core::ProgressSink>);
+        (ctx, stages)
+    };
+    let err = study.prepare(&ctx).unwrap_err();
+    assert!(err.to_string().contains("one intervention coordinate"), "{err}");
+    assert!(
+        stages.0.lock().unwrap().iter().all(|stage| stage != "identify.compute"),
+        "no posterior identification before the refusal"
+    );
+}
+
+/// Graph posterior with twice the Interactive cap of distinct backdoor-identified
+/// atoms plus one reverse-causal (unidentified) atom, all equally weighted.
+fn interactive_budget_fixture() -> (TabularData, antecedent_discovery::GraphPosterior, usize) {
+    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    use antecedent_discovery::set_edge;
+
+    let n = 200;
+    let wave = |i: usize, period: f64| (i as f64 / period).sin();
+    let z: Vec<f64> = (0..n).map(|i| wave(i, 17.0)).collect();
+    let covariates: Vec<Vec<f64>> =
+        [5.0, 7.0, 9.0, 13.0].iter().map(|p| (0..n).map(|i| wave(i, *p)).collect()).collect();
+    let treatment: Vec<f64> = (0..n).map(|i| z[i] + (i as f64 / 11.0).cos()).collect();
+    let outcome: Vec<f64> = (0..n)
+        .map(|i| {
+            1.0 + 2.0 * treatment[i]
+                + 0.8 * z[i]
+                + covariates.iter().map(|c| 0.2 * c[i]).sum::<f64>()
+        })
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("treatment", treatment.as_slice()),
+        ("outcome", outcome.as_slice()),
+        ("z", z.as_slice()),
+        ("c1", covariates[0].as_slice()),
+        ("c2", covariates[1].as_slice()),
+        ("c3", covariates[2].as_slice()),
+        ("c4", covariates[3].as_slice()),
+    ])
+    .unwrap();
+    // T -> Y, an optional confounder Z -> {T, Y}, and any subset of four
+    // outcome-only parents: 32 distinct backdoor-identified atoms (no
+    // instrument or front-door candidates), twice the interactive cap.
+    let n_vars = 7;
+    let mut masks: Vec<u64> = (0u32..32)
+        .map(|subset| {
+            let mut mask = set_edge(0, n_vars, 0, 1, true);
+            if subset & 1 != 0 {
+                mask = set_edge(mask, n_vars, 2, 0, true);
+                mask = set_edge(mask, n_vars, 2, 1, true);
+            }
+            for covariate in 0..4 {
+                if subset & (2 << covariate) != 0 {
+                    mask = set_edge(mask, n_vars, 3 + covariate, 1, true);
+                }
+            }
+            mask
+        })
+        .collect();
+    let n_identified = masks.len();
+    assert!(n_identified >= 2 * INTERACTIVE_MAX_ENVELOPE_GRAPHS);
+    // One reverse-causal Y -> T atom: structurally unidentified, never subsampled.
+    masks.push(set_edge(0, n_vars, 1, 0, true));
+    let weight = 1.0 / masks.len() as f64;
+    let gp = antecedent_discovery::GraphPosterior::new(
+        n_vars,
+        vec![weight; masks.len()],
+        masks,
+        vec![0.0; n_vars * n_vars],
+        vec![0.0; n_vars * n_vars],
+        32.0,
+        antecedent_prob::InferenceDiagnostics::analytic("test"),
+        0,
+    )
+    .unwrap();
+    (data, gp, n_identified)
+}
+
+const SUBSAMPLE_DIAGNOSTIC: &str = "estimate.envelope.interactive_subsample";
+
+/// Interactive latency caps the graph-posterior response mixture at the same
+/// stratified subsample as the graph-posterior ATE. Identified atoms left out
+/// of the subsample are reported as subsampled-out mass: not unidentified, not
+/// unevaluable, never renormalized away.
+#[test]
+fn interactive_graph_posterior_response_subsamples_like_the_ate_path() {
+    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+
+    let (data, gp, n_identified) = interactive_budget_fixture();
+    let n_atoms = n_identified + 1;
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.25))]),
+    });
+    let ctx = ExecutionContext::for_tests(9);
+    let run = |latency: antecedent::LatencyMode| {
+        Study::tabular(data.clone())
+            .graph_posterior(gp.clone())
+            .query(CausalQuery::Response(query.clone()))
+            .inference(InferenceMode::Frequentist)
+            .latency_mode(latency)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    };
+    let unidentified = 1.0 / n_atoms as f64;
+    let full = run(antecedent::LatencyMode::Standard);
+    assert!(full.diagnostics.iter().all(|d| d.code.as_ref() != SUBSAMPLE_DIAGNOSTIC));
+    let full_mix = full.structural_response.as_ref().unwrap();
+    assert!((full_mix.unidentified_mass - unidentified).abs() < 1e-12);
+    assert!(full_mix.subsampled_out_mass.abs() < 1e-12);
+
+    let interactive = run(antecedent::LatencyMode::Interactive);
+    let note = interactive
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == SUBSAMPLE_DIAGNOSTIC)
+        .expect("subsample diagnostic");
+    let dropped = n_identified - INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    assert!(note.message.contains(&format!("subsampled_out_atoms={dropped}")), "{}", note.message);
+    assert!(note.message.contains("Interactive latency tier"), "{}", note.message);
+    assert!(note.message.contains("reported as subsampled_out_mass"), "{}", note.message);
+    let mix = interactive.structural_response.as_ref().unwrap();
+    let evaluated = mix.atoms.iter().filter(|atom| atom.value.is_some()).count();
+    assert_eq!(evaluated, INTERACTIVE_MAX_ENVELOPE_GRAPHS);
+    // Dropped atoms are identified but carry no value; the reverse-causal atom
+    // is the only NotIdentified one, exactly as in the Standard run.
+    let not_identified = mix
+        .atoms
+        .iter()
+        .filter(|atom| atom.status == antecedent_core::IdentificationStatus::NotIdentified)
+        .count();
+    assert_eq!(not_identified, 1);
+    let skipped = mix
+        .atoms
+        .iter()
+        .filter(|atom| {
+            atom.value.is_none()
+                && atom.status != antecedent_core::IdentificationStatus::NotIdentified
+        })
+        .count();
+    assert_eq!(skipped, dropped);
+    assert!((mix.unidentified_mass - unidentified).abs() < 1e-12, "{}", mix.unidentified_mass);
+    assert!(mix.unevaluable_mass.abs() < 1e-12);
+    assert!(
+        (mix.subsampled_out_mass - dropped as f64 / n_atoms as f64).abs() < 1e-12,
+        "{}",
+        mix.subsampled_out_mass
+    );
+    assert!(
+        (mix.identified_mass
+            + mix.unidentified_mass
+            + mix.unevaluable_mass
+            + mix.subsampled_out_mass
+            - 1.0)
+            .abs()
+            < 1e-9
+    );
+    let envelope = interactive
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "estimate.response.graph_posterior")
+        .unwrap();
+    assert!(envelope.message.contains("subsampled_out_mass="), "{}", envelope.message);
+    assert_eq!(
+        interactive.identification.status,
+        antecedent_core::IdentificationStatus::GraphDependent
+    );
+}
+
+/// The Frequentist graph-posterior ATE reports atoms the Interactive subsample
+/// dropped as subsampled-out mass, separate from structural unidentified mass,
+/// and stays graph-dependent.
+#[test]
+fn interactive_graph_posterior_ate_reports_subsampled_out_mass_separately() {
+    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+
+    let (data, gp, n_identified) = interactive_budget_fixture();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let ctx = ExecutionContext::for_tests(9);
+    let run = |latency: antecedent::LatencyMode| {
+        Study::tabular(data.clone())
+            .graph_posterior(gp.clone())
+            .query(query.clone())
+            .inference(InferenceMode::Frequentist)
+            .latency_mode(latency)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    };
+    let envelope_masses = |result: &antecedent::StudyResult| {
+        let message = &result
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "estimate.graph_posterior.envelope")
+            .expect("envelope diagnostic")
+            .message;
+        let field = |name: &str| -> f64 {
+            let tail = message.split(&format!(" {name}=")).nth(1).expect(name);
+            tail.split([',', ' ']).next().unwrap().parse().unwrap()
+        };
+        (field("unidentified_mass"), field("subsampled_out_mass"))
+    };
+    let unidentified = 1.0 / (n_identified + 1) as f64;
+
+    let full = run(antecedent::LatencyMode::Standard);
+    let (full_unidentified, full_dropped) = envelope_masses(&full);
+    assert!((full_unidentified - unidentified).abs() < 1e-12);
+    assert!(full_dropped.abs() < 1e-12);
+
+    let interactive = run(antecedent::LatencyMode::Interactive);
+    assert!(interactive.diagnostics.iter().any(|d| d.code.as_ref() == SUBSAMPLE_DIAGNOSTIC));
+    let (interactive_unidentified, dropped_mass) = envelope_masses(&interactive);
+    let dropped = n_identified - INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    assert!(
+        (interactive_unidentified - unidentified).abs() < 1e-12,
+        "dropped atoms must not be reported as unidentified: {interactive_unidentified}"
+    );
+    assert!((dropped_mass - dropped as f64 / (n_identified + 1) as f64).abs() < 1e-12);
+    assert_eq!(
+        interactive.identification.status,
+        antecedent_core::IdentificationStatus::GraphDependent
+    );
+}
+
+/// The Bayesian graph-posterior ATE reports atoms the Interactive subsample
+/// dropped as posterior subsampled-out mass, keeps unidentified mass at the
+/// full ensemble's share, and stays graph-dependent.
+#[test]
+fn interactive_bayesian_graph_posterior_ate_reports_subsampled_out_mass_separately() {
+    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+
+    let (data, gp, n_identified) = interactive_budget_fixture();
+    let n_atoms = n_identified + 1;
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let ctx = ExecutionContext::for_tests(9);
+    let run = |latency: antecedent::LatencyMode| {
+        Study::tabular(data.clone())
+            .graph_posterior(gp.clone())
+            .query(query.clone())
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+            .latency_mode(latency)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    };
+    let unidentified = 1.0 / n_atoms as f64;
+
+    let full = run(antecedent::LatencyMode::Standard);
+    assert!(full.diagnostics.iter().all(|d| d.code.as_ref() != SUBSAMPLE_DIAGNOSTIC));
+    let full_post = full.posterior.as_ref().unwrap();
+    assert!((full_post.unidentified_mass - unidentified).abs() < 1e-12);
+    assert!(full_post.subsampled_out_mass.abs() < 1e-12);
+
+    let interactive = run(antecedent::LatencyMode::Interactive);
+    let note = interactive
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == SUBSAMPLE_DIAGNOSTIC)
+        .expect("subsample diagnostic");
+    assert!(note.message.contains("reported as subsampled_out_mass"), "{}", note.message);
+    assert!(!note.message.contains("folds"), "{}", note.message);
+    let post = interactive.posterior.as_ref().unwrap();
+    let dropped = n_identified - INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    assert!(
+        (post.unidentified_mass - unidentified).abs() < 1e-12,
+        "dropped atoms must not be reported as unidentified: {}",
+        post.unidentified_mass
+    );
+    assert!(
+        (post.subsampled_out_mass - dropped as f64 / n_atoms as f64).abs() < 1e-12,
+        "{}",
+        post.subsampled_out_mass
+    );
+    let mixed = INTERACTIVE_MAX_ENVELOPE_GRAPHS as f64 / n_atoms as f64;
+    assert!((mixed + post.unidentified_mass + post.subsampled_out_mass - 1.0).abs() < 1e-12);
+    assert_eq!(post.identification, antecedent_core::IdentificationStatus::GraphDependent);
+    let envelope = interactive
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "estimate.graph_posterior.envelope")
+        .expect("envelope diagnostic");
+    assert!(
+        envelope.message.contains(&format!("subsampled_out_mass={}", post.subsampled_out_mass)),
+        "{}",
+        envelope.message
+    );
+
+    // The posterior artifact carries the split.
+    let bytes = antecedent_io::encode_causal_posterior_bytes(post, "subsampled").unwrap();
+    let (wire, _) = antecedent_io::decode_causal_posterior_bytes(&bytes).unwrap();
+    assert!((wire.subsampled_out_mass - post.subsampled_out_mass).abs() < f64::EPSILON);
+    assert!((wire.unidentified_mass - post.unidentified_mass).abs() < f64::EPSILON);
+    // The result's status follows the posterior's: uncovered mass of either
+    // kind leaves the mixture graph-dependent, at every tier.
+    for result in [&full, &interactive] {
+        assert_eq!(
+            result.identification.status,
+            antecedent_core::IdentificationStatus::GraphDependent
+        );
+    }
+}
+
+/// CPDAG whose Markov equivalence class has more completions than the
+/// Interactive graph budget: an undirected star centred on the treatment, with
+/// the outcome and seventeen covariates as leaves (one completion per root).
+fn interactive_star_cpdag_fixture() -> (TabularData, antecedent_graph::Cpdag) {
+    let n = 200_usize;
+    let n_leaves = 17_u32;
+    let wave = |i: usize, period: f64| (i as f64 / period).sin();
+    let leaves: Vec<Vec<f64>> = (0..n_leaves)
+        .map(|k| (0..n).map(|i| wave(i, 3.0 + f64::from(k) * 1.7)).collect())
+        .collect();
+    let noise = |i: usize, salt: usize| ((i * 7919 + salt * 104_729) % 101) as f64 / 101.0 - 0.5;
+    let treatment: Vec<f64> =
+        (0..n).map(|i| 0.3 * leaves[0][i] + 0.2 * leaves[1][i] + 0.5 * noise(i, 1)).collect();
+    let outcome: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * treatment[i] + 0.3 * noise(i, 2)).collect();
+    let names: Vec<String> = (0..n_leaves).map(|k| format!("l{k}")).collect();
+    let mut columns: Vec<(&str, &[f64])> =
+        vec![("treatment", treatment.as_slice()), ("outcome", outcome.as_slice())];
+    for (name, values) in names.iter().zip(&leaves) {
+        columns.push((name.as_str(), values.as_slice()));
+    }
+    let data = TabularData::from_f64_columns(columns).unwrap();
+    let n_vars = 2 + n_leaves;
+    let mut cpdag = antecedent_graph::Cpdag::with_variables(n_vars);
+    let centre = DenseNodeId::from_raw(0);
+    for leaf in 1..n_vars {
+        cpdag.insert_undirected(centre, DenseNodeId::from_raw(leaf)).unwrap();
+    }
+    (data, cpdag)
+}
+
+/// The Bayesian CPDAG class envelope at Interactive latency reports the
+/// completions its subsample skipped as subsampled-out mass, keeps
+/// unidentified mass at the full class's share, and stays graph-dependent.
+#[test]
+fn interactive_bayesian_cpdag_envelope_reports_subsampled_out_mass_separately() {
+    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+
+    let (data, cpdag) = interactive_star_cpdag_fixture();
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let ctx = ExecutionContext::for_tests(5);
+    let run = |latency: antecedent::LatencyMode| {
+        Study::tabular(data.clone())
+            .graph(cpdag.clone())
+            .query(query.clone())
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+            .latency_mode(latency)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap()
+    };
+    let class_masses = |result: &antecedent::StudyResult| {
+        let message = &result
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "identify.cpdag.envelope")
+            .expect("class envelope diagnostic")
+            .message;
+        let field = |name: &str| -> f64 {
+            let tail = message.split(&format!(" {name}=")).nth(1).expect(name);
+            tail.split([',', ' ']).next().unwrap().parse().unwrap()
+        };
+        let cases = message.split("cases=").nth(1).unwrap().trim().parse::<usize>().unwrap();
+        (field("identified_mass"), field("unidentified_mass"), cases)
+    };
+
+    let full = run(antecedent::LatencyMode::Standard);
+    assert!(full.diagnostics.iter().all(|d| d.code.as_ref() != SUBSAMPLE_DIAGNOSTIC));
+    let (identified_weight, unidentified_weight, cases) = class_masses(&full);
+    let total = identified_weight + unidentified_weight;
+    let unidentified = unidentified_weight / total;
+    let full_post = full.posterior.as_ref().unwrap();
+    assert!((full_post.unidentified_mass - unidentified).abs() < 1e-12);
+    assert!(full_post.subsampled_out_mass.abs() < 1e-12);
+
+    let interactive = run(antecedent::LatencyMode::Interactive);
+    let note = interactive
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == SUBSAMPLE_DIAGNOSTIC)
+        .expect("subsample diagnostic");
+    assert!(note.message.contains("reported as subsampled_out_mass"), "{}", note.message);
+    let post = interactive.posterior.as_ref().unwrap();
+    // Every completion carries equal enumeration weight.
+    let n_identified = (0..=cases)
+        .find(|k| (*k as f64 / cases as f64 - identified_weight / total).abs() < 1e-9)
+        .expect("equal completion weights");
+    assert!(
+        n_identified > INTERACTIVE_MAX_ENVELOPE_GRAPHS,
+        "{n_identified} identified completions"
+    );
+    let dropped = n_identified - INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    assert!(note.message.contains(&format!("subsampled_out_atoms={dropped}")), "{}", note.message);
+    assert!(
+        (post.unidentified_mass - unidentified).abs() < 1e-12,
+        "skipped completions must not be reported as unidentified: {}",
+        post.unidentified_mass
+    );
+    assert!(
+        (post.subsampled_out_mass - dropped as f64 / cases as f64).abs() < 1e-12,
+        "{}",
+        post.subsampled_out_mass
+    );
+    let mixed = INTERACTIVE_MAX_ENVELOPE_GRAPHS as f64 / cases as f64;
+    assert!((mixed + post.unidentified_mass + post.subsampled_out_mass - 1.0).abs() < 1e-12);
+    assert_eq!(post.identification, antecedent_core::IdentificationStatus::GraphDependent);
+    let envelope = interactive
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "estimate.cpdag.envelope")
+        .expect("envelope mass diagnostic");
+    assert!(
+        envelope.message.contains(&format!("subsampled_out_mass={}", post.subsampled_out_mass)),
+        "{}",
+        envelope.message
+    );
+    assert_eq!(
+        interactive.identification.status,
+        antecedent_core::IdentificationStatus::GraphDependent
+    );
 }

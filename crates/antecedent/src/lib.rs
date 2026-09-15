@@ -81,9 +81,9 @@ pub mod validate;
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
     BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
-    CellFamilyContrast, ComputeBudget, LatencyMode, PreparedBatch, PreparedStudy, RdConfig,
-    RefuteSuite, SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink, Study,
-    StudyBuilder,
+    CellFamilyContrast, ComputeBudget, InterferenceSpec, LatencyMode, PreparedBatch, PreparedStudy,
+    RdConfig, RefuteSuite, SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink,
+    Study, StudyBuilder, TransportTrialSpec,
 };
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};
@@ -380,9 +380,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn end_to_end_interventional_distribution() {
-        // Discrete confounding table matching functional_distribution unit test.
+    /// `(z, t, y, count)` rows over columns `t, y, z` with `z -> t`, `z -> y`,
+    /// `t -> y`; returns the Frequentist `P(y | do(t = 1))` study result.
+    fn run_binary_distribution(combos: &[(f64, f64, f64, usize)]) -> StudyResult {
         let mut b = CausalSchemaBuilder::new();
         for name in ["t", "y", "z"] {
             b.add_variable(
@@ -396,20 +396,10 @@ mod tests {
             .unwrap();
         }
         let schema = b.build().unwrap();
-        let combos = [
-            (0.0, 0.0, 0.0, 21),
-            (0.0, 0.0, 1.0, 9),
-            (0.0, 1.0, 0.0, 4),
-            (0.0, 1.0, 1.0, 16),
-            (1.0, 0.0, 0.0, 12),
-            (1.0, 0.0, 1.0, 3),
-            (1.0, 1.0, 0.0, 14),
-            (1.0, 1.0, 1.0, 21),
-        ];
         let mut t_vals = Vec::new();
         let mut y_vals = Vec::new();
         let mut z_vals = Vec::new();
-        for (z, t, y, count) in combos {
+        for &(z, t, y, count) in combos {
             for _ in 0..count {
                 z_vals.push(z);
                 t_vals.push(t);
@@ -417,32 +407,17 @@ mod tests {
             }
         }
         let n = t_vals.len();
-        let cols = vec![
+        let column = |raw: u32, values: Vec<f64>| {
             OwnedColumn::Float64(
                 Float64Column::new(
-                    VariableId::from_raw(0),
-                    Arc::from(t_vals),
+                    VariableId::from_raw(raw),
+                    Arc::from(values),
                     ValidityBitmap::all_valid(n),
                 )
                 .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(1),
-                    Arc::from(y_vals),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-            OwnedColumn::Float64(
-                Float64Column::new(
-                    VariableId::from_raw(2),
-                    Arc::from(z_vals),
-                    ValidityBitmap::all_valid(n),
-                )
-                .unwrap(),
-            ),
-        ];
+            )
+        };
+        let cols = vec![column(0, t_vals), column(1, y_vals), column(2, z_vals)];
         let data =
             TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
         let mut dag = Dag::with_variables(3);
@@ -460,7 +435,22 @@ mod tests {
             .estimator(EstimatorId::FunctionalDistribution)
             .build()
             .unwrap();
-        let result = analysis.run(&ExecutionContext::for_tests(0)).unwrap();
+        analysis.run(&ExecutionContext::for_tests(0)).unwrap()
+    }
+
+    #[test]
+    fn end_to_end_interventional_distribution() {
+        // Discrete confounding table matching functional_distribution unit test.
+        let result = run_binary_distribution(&[
+            (0.0, 0.0, 0.0, 21),
+            (0.0, 0.0, 1.0, 9),
+            (0.0, 1.0, 0.0, 4),
+            (0.0, 1.0, 1.0, 16),
+            (1.0, 0.0, 0.0, 12),
+            (1.0, 0.0, 1.0, 3),
+            (1.0, 1.0, 0.0, 14),
+            (1.0, 1.0, 1.0, 21),
+        ]);
         // Frozen expectation: read from the conformance fixture rather than
         // duplicating its numbers here. The fixture was previously loaded by
         // nothing — this test hardcoded the same values, so the two could
@@ -472,9 +462,60 @@ mod tests {
         assert_eq!(fx["method"], "general.id");
         assert_eq!(fx["estimator"], "functional.distribution");
         let (mean, tol) = (fx["mean"].as_f64().unwrap(), fx["tolerance"].as_f64().unwrap());
-        let dist = result.distribution.expect("distribution payload");
+        let dist = result.distribution.as_ref().expect("distribution payload");
         assert!((dist.mean - mean).abs() < tol, "mean={}", dist.mean);
         assert!(result.estimate.ate.is_finite());
+        // Every atom probability carries a bounded interval inside [0, 1], and
+        // the binary mean's interval is the `Y = 1` atom's.
+        assert_eq!(dist.atom_uncertainty.len(), dist.atoms.len());
+        for (atom, u) in dist.atoms.iter().zip(dist.atom_uncertainty.iter()) {
+            let (lo, hi) = u.interval.bounds().expect("interior atoms are bounded");
+            assert!(0.0 < lo && lo < atom.probability && atom.probability < hi && hi < 1.0);
+        }
+        let (lo, hi) = dist.mean_interval.and_then(|i| i.bounds()).expect("mean interval");
+        assert!(lo < dist.mean && dist.mean < hi);
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == "estimate.distribution.interval_unavailable")
+        );
+    }
+
+    #[test]
+    fn boundary_interventional_probability_reports_unavailable_interval() {
+        // `y` never occurs under `t = 1`: `P(y = 1 | do(t = 1)) = 0` and
+        // `P(y = 0 | do(t = 1)) = 1`. Neither can carry an interval.
+        let result = run_binary_distribution(&[
+            (0.0, 0.0, 0.0, 20),
+            (0.0, 0.0, 1.0, 10),
+            (0.0, 1.0, 0.0, 20),
+            (1.0, 0.0, 0.0, 12),
+            (1.0, 0.0, 1.0, 8),
+            (1.0, 1.0, 0.0, 30),
+        ]);
+        let dist = result.distribution.as_ref().expect("distribution payload");
+        assert_eq!(dist.atom_uncertainty.len(), dist.atoms.len());
+        for u in dist.atom_uncertainty.iter() {
+            assert_eq!(
+                u.interval,
+                antecedent_estimate::ProbabilityInterval::Unavailable(
+                    antecedent_estimate::ProbabilityIntervalUnavailable::BoundaryEstimate
+                )
+            );
+        }
+        assert_eq!(
+            dist.mean_interval,
+            Some(antecedent_estimate::ProbabilityInterval::Unavailable(
+                antecedent_estimate::ProbabilityIntervalUnavailable::BoundaryEstimate
+            ))
+        );
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "estimate.distribution.interval_unavailable")
+            .expect("unavailable intervals are disclosed");
+        assert!(diagnostic.message.contains("boundary_estimate"), "{}", diagnostic.message);
     }
 
     #[test]

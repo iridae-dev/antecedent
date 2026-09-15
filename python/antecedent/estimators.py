@@ -44,7 +44,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Final, Literal
+from typing import Any, Final, Literal, get_args
 
 from .errors import CausalValueError
 from .ids import Estimator
@@ -60,6 +60,8 @@ SeKind = Literal[
     "newey_west",
     "panel_cluster_hac",
 ]
+RdSeKind = Literal["hc1", "homoskedastic", "hc0", "hc2", "hc3"]
+"""Analytic SE kinds :class:`SharpRd` accepts (``hc1`` is the default)."""
 FitKind = Literal["ols", "ridge", "lasso", "huber"]
 GlmFamilyName = Literal[
     "binomial_logit",
@@ -648,11 +650,18 @@ class SharpRd:
     producing an empty ``_wire()``. This retires the three loose
     ``running_variable``/``cutoff``/``bandwidth`` kwargs on ``analyze()`` in
     favor of one typed, validated config.
+
+    ``se`` selects the analytic SE of the jump coefficient: ``None`` keeps the
+    ``hc1`` residual sandwich default; ``hc0``/``hc2``/``hc3`` are the other
+    heteroskedasticity-robust variants and ``homoskedastic`` opts into the
+    classical constant-variance formula. Cluster-, multiway-, and lag-based
+    kinds do not apply to the single local-linear fit and are rejected.
     """
 
     running_variable: str | None = None
     cutoff: float | None = None
     bandwidth: float | None = None
+    se: RdSeKind | None = None
 
     def __post_init__(self) -> None:
         missing = [
@@ -672,6 +681,10 @@ class SharpRd:
         assert self.bandwidth is not None  # narrowed by the check above
         if self.bandwidth <= 0:
             raise ValueError(f"SharpRd bandwidth must be positive, got {self.bandwidth!r}")
+        if self.se is not None and self.se not in get_args(RdSeKind):
+            raise ValueError(
+                f"SharpRd se must be one of {', '.join(get_args(RdSeKind))}; got {self.se!r}"
+            )
 
     @property
     def estimator_id(self) -> str:
@@ -682,6 +695,7 @@ class SharpRd:
             "running_variable": self.running_variable,
             "cutoff": self.cutoff,
             "bandwidth": self.bandwidth,
+            **({"se_kind": self.se} if self.se is not None else {}),
         }
 
 
@@ -699,6 +713,7 @@ __all__ = [
     "PropensityMatching",
     "PropensityStratification",
     "PropensityWeighting",
+    "RdSeKind",
     "SeKind",
     "SharpRd",
     "UNSET",

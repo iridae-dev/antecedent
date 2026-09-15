@@ -41,11 +41,12 @@ pub mod transport_interference_wire;
 pub mod wire;
 
 pub use analysis_result_artifact::{
-    AnalysisResultHeader, AnalysisResultWire, MediationPosteriorSummaryWire,
-    StructuralResponseAtomWire, StructuralResponseMixtureWire, StructuralWeightBasisWire,
-    TemporalIdentificationWire, TemporalMediationGridWire, TemporalMediationSliceWire,
-    TemporalMediationUncertaintyWire, decode_analysis_result_artifact,
-    encode_analysis_result_artifact,
+    AnalysisResultHeader, AnalysisResultWire, IdentifiedSetIntervalMethodWire,
+    IdentifiedSetIntervalWire, MediationPosteriorSummaryWire, StructuralResponseAtomWire,
+    StructuralResponseMixtureWire, StructuralWeightBasisWire, TemporalIdentificationWire,
+    TemporalMediationGridWire, TemporalMediationSliceWire, TemporalMediationUncertaintyWire,
+    decode_analysis_result_artifact, encode_analysis_result_artifact,
+    identified_set_interval_from_wire, identified_set_interval_to_wire,
 };
 pub use analysis_wire::{
     DiagnosticWire, EffectEstimateWire, IdentificationResultWire, IdentifiedEstimandWire,
@@ -118,7 +119,7 @@ pub use posterior_convert::{
 pub use prior_bank::{
     CompatibilityRejectReason, CompatibilityReport, DesignVariableRole, DesignVariableSummary,
     EstimandFingerprint, PRIOR_SOURCE_META_SECTION, PriorArtifactBody, PriorCatalog, PriorMapping,
-    PriorSourceMeta, PriorSourceRef, TargetDesign, attach_prior_source_meta,
+    PriorSourceMeta, PriorSourceRef, TargetDesign, TemporalCoordinates, attach_prior_source_meta,
     decode_prior_source_meta, encode_prior_source_meta, extract_prior_source_meta,
     posterior_has_named_effect,
 };

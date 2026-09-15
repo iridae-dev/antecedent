@@ -15,6 +15,9 @@ use std::sync::Arc;
 #[derive(Clone, Debug)]
 pub struct F64Buffer {
     inner: F64BufferInner,
+    /// Known to hold no `NaN` (set by a scan that found none; the values are
+    /// immutable, so the fact survives clones and re-wraps).
+    nan_free: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -87,13 +90,28 @@ impl F64Buffer {
     /// Owned buffer.
     #[must_use]
     pub fn owned(values: impl Into<Arc<[f64]>>) -> Self {
-        Self { inner: F64BufferInner::Owned(values.into()) }
+        Self { inner: F64BufferInner::Owned(values.into()), nan_free: false }
     }
 
     /// Foreign-backed buffer.
     #[must_use]
     pub fn foreign(buf: ForeignF64Buffer) -> Self {
-        Self { inner: F64BufferInner::Foreign(buf) }
+        Self { inner: F64BufferInner::Foreign(buf), nan_free: false }
+    }
+
+    /// Whether the values are known to hold no `NaN`.
+    ///
+    /// Set once a full scan found none (the buffer is immutable, so the fact is
+    /// carried by clones and by columns re-wrapping this buffer). `false` means
+    /// unknown, not "holds a `NaN`".
+    #[must_use]
+    pub const fn is_nan_free(&self) -> bool {
+        self.nan_free
+    }
+
+    /// Record that a full scan found no `NaN`.
+    pub(crate) const fn mark_nan_free(&mut self) {
+        self.nan_free = true;
     }
 
     /// Whether this buffer borrows foreign memory.

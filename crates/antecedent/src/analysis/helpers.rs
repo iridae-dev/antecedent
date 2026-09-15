@@ -98,6 +98,8 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         change_attribution: args.change_attribution,
         mechanism_change: args.mechanism_change,
         unit_change: args.unit_change,
+        transport: None,
+        interference: None,
         refutations: args.refutations,
         predictive_checks: Vec::new(),
         diagnostics: args.diagnostics,
@@ -768,6 +770,40 @@ pub(crate) fn conditional_thresholds(
     Ok(Some(antecedent_estimate::empirical_threshold_grid(&y, 19)?))
 }
 
+/// Whether binary 0/1 ConditionalEffect exceedance/quantile uses cross-fitted AIPW scores.
+#[must_use]
+pub(crate) fn conditional_uses_crossfit_aipw(query: &ConditionalEffectQuery) -> bool {
+    let functional = &query.inner.outcome_functional;
+    if functional.thresholds().is_none() && functional.quantile_level().is_none() {
+        return false;
+    }
+    matches!(
+        (&query.inner.control, &query.inner.active),
+        (Intervention::Set { value: c, .. }, Intervention::Set { value: a, .. })
+            if c.as_f64() == Some(0.0) && a.as_f64() == Some(1.0)
+    )
+}
+
+/// Name the estimator that actually produced a ConditionalEffect exceedance or
+/// quantile on binary 0/1 arms.
+///
+/// Those cells record `aipw` (not `conditional.linear.adjustment`): the scalar,
+/// arm CDFs, and influence columns come from cross-fitted AIPW scores with the
+/// modifier added to the adjustment set. Non-binary levels and mean
+/// ConditionalEffect keep the linear plugin.
+pub(crate) fn conditional_score_estimator_diagnostic(
+    query: &ConditionalEffectQuery,
+) -> Option<Diagnostic> {
+    conditional_uses_crossfit_aipw(query).then(|| {
+        Diagnostic::new(
+            "estimate.conditional.crossfit_aipw_scores",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "binary-arm conditional exceedance/quantile: the scalar, arm CDFs, and influence columns are cross-fitted AIPW scores (logistic propensity and per-arm outcome regressions on the modifier plus the adjustment set, standardized over the observed modifier distribution), not the conditional.linear.adjustment T×W interaction model named in the plan; the analytic SE is the AIPW influence-function SE",
+        )
+    })
+}
+
 /// Publish the actual conditional grid, whose coordinates have no score-table payload.
 pub(crate) fn conditional_quantile_grid_diagnostic(
     data: &TabularData,
@@ -1152,7 +1188,15 @@ pub(crate) fn projection_diagnostic(full_cols: usize, projected_cols: usize) -> 
     ))
 }
 
-/// Full-suite prior sensitivity: α-grid when external compose is present, else isotropic scale.
+/// Full-suite prior sensitivity around the prior actually in force.
+///
+/// - external prior-bank compose → α-multiplier grid on the post-conflict alphas;
+/// - any other resolved prior on `est` (explicit `cfg.prior`, a transferred
+///   `cfg.prior_artifact`) → variance-multiplier grid around that prior;
+/// - no prior supplied → isotropic scale grid (the isotropic prior *is* the prior in force).
+///
+/// `est.prior` must hold the resolved prior the reported posterior used; the
+/// summary's [`antecedent_prob::PriorSensitivityFamily`] records which family was perturbed.
 pub(crate) fn evaluate_bayesian_prior_sensitivity(
     cfg: &crate::inference::BayesianConfig,
     est: &antecedent_estimate::BayesianGComputationAte,
@@ -1182,6 +1226,11 @@ pub(crate) fn evaluate_bayesian_prior_sensitivity(
                 ExternalAlphaSensitivity { sources: &ext.sources, alphas_applied: &alphas_applied },
             )
             .map_err(CausalError::from)?;
+        Ok((summary, sens))
+    } else if est.prior.is_some() {
+        let sens = PriorSensitivity::standard_resolved_grid();
+        let (summary, _) =
+            sens.evaluate_resolved_prior(est, prep, status, ws, ctx).map_err(CausalError::from)?;
         Ok((summary, sens))
     } else {
         let sens = PriorSensitivity::standard_grid();

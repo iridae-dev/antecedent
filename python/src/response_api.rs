@@ -82,6 +82,15 @@ pub(crate) struct ResponseAnalysisResult {
     identified_mass: Option<f64>,
     #[pyo3(get)]
     unidentified_mass: Option<f64>,
+    /// Mass identified in theory but not evaluable by the estimator; separate
+    /// from [`Self::unidentified_mass`].
+    #[pyo3(get)]
+    unevaluable_mass: Option<f64>,
+    /// Mass on identified atoms the Interactive latency tier never evaluated;
+    /// separate from both [`Self::unidentified_mass`] and
+    /// [`Self::unevaluable_mass`].
+    #[pyo3(get)]
+    subsampled_out_mass: Option<f64>,
     #[pyo3(get)]
     completion_count: Option<usize>,
     #[pyo3(get)]
@@ -374,6 +383,8 @@ fn analyze_response_pag(
             // for this estimator; preserve their weight as unidentified execution mass.
             identified_mass: Some(estimable_mass / total_mass),
             unidentified_mass: Some((total_mass - estimable_mass) / total_mass),
+            unevaluable_mass: Some(0.0),
+            subsampled_out_mass: Some(0.0),
             completion_count: Some(envelope.cases.len()),
             truncated_completions: Some(envelope.truncated_completions),
             enumeration_capped: Some(enumeration_capped),
@@ -778,26 +789,16 @@ pub(crate) fn response_result(
             .collect(),
         provenance_id: response.provenance_id.to_string(),
         identified_mass: structural.map(|mixture| mixture.identified_mass),
-        unidentified_mass: structural
-            .map(|mixture| mixture.unidentified_mass + mixture.unevaluable_mass),
+        unidentified_mass: structural.map(|mixture| mixture.unidentified_mass),
+        unevaluable_mass: structural.map(|mixture| mixture.unevaluable_mass),
+        subsampled_out_mass: structural.map(|mixture| mixture.subsampled_out_mass),
         completion_count: structural.map(|mixture| mixture.atoms.len()),
         truncated_completions: structural.map(|mixture| mixture.truncated_atoms),
         enumeration_capped: structural.map(|mixture| !mixture.full_mass_scope),
         mass_scope: structural.map(|mixture| {
             if mixture.full_mass_scope { "full_class" } else { "examined_completions" }.into()
         }),
-        weight_basis: structural.map(|mixture| match mixture.weight_basis {
-            antecedent::result::StructuralWeightBasis::PosteriorProbability => {
-                "posterior_probability".into()
-            }
-            antecedent::result::StructuralWeightBasis::CompletionEnumeration => {
-                "completion_enumeration".into()
-            }
-            antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior => {
-                "caller_supplied_class_prior".into()
-            }
-            _ => "completion_enumeration".into(),
-        }),
+        weight_basis: structural.map(|mixture| mixture.weight_basis.as_str().into()),
         atom_keys: structural
             .map(|mixture| mixture.atoms.iter().map(|atom| atom.graph_key).collect())
             .unwrap_or_default(),
@@ -1019,13 +1020,18 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
 }
 
 /// Temporal dose × horizon / intervention-path response (ADR 0021).
+///
+/// `bootstrap` is the number of joint circular-block replicates behind the pointwise
+/// and simultaneous bands; `None` keeps the `Study` default (199) and `0` publishes the
+/// point surface with no band plus an `estimate.temporal_response.band_withheld`
+/// warning.
 #[pyfunction]
 #[pyo3(signature = (
     names, columns, edges, kind, treatments, outcomes, *,
     grid=None, intervention_kinds=None, intervention_parameters=None,
     horizons, policy=crate::temporal_license::DEFAULT_POLICY,
     treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG, max_history_lag=None,
-    seed=1, threads=1, accepted=false, refute=None,
+    seed=1, bootstrap=None, threads=1, accepted=false, refute=None,
     observation_kind=None, latent=None, observed=None, censoring=None, event=None,
     lower=None, upper=None, indicator=None, assumption_kind=None,
     assumption_variables=Vec::new(), structural_model=None
@@ -1047,6 +1053,7 @@ fn analyze_temporal_response(
     treatment_lag: u32,
     max_history_lag: Option<u32>,
     seed: u64,
+    bootstrap: Option<u32>,
     threads: u32,
     accepted: bool,
     refute: Option<Bound<'_, PyAny>>,
@@ -1125,14 +1132,12 @@ fn analyze_temporal_response(
         let mut builder = Study::series(series);
         builder =
             if accepted { builder.graph(AcceptedGraph::from(dag)) } else { builder.graph(dag) };
-        // Response queries are analytic on the facade: `analyze()` refuses `bootstrap=`
-        // for them (see `_analyze.py`), and the static response path is analytic too.
-        // Since 0.9.1 the temporal surface honors the builder's `bootstrap_replicates`
-        // (default 50), so pin it to 0 here — otherwise this public path would silently
-        // return seed-dependent bootstrap bands that disagree with the analytic
-        // conformance pin and the `Study`-level surface test. Explicit bootstrap stays a
-        // core `Study` knob; the facade does not yet expose it.
-        builder = builder.bootstrap_replicates(0);
+        // Frequentist temporal surfaces publish a band only from joint circular-block
+        // replicates; zero replicates keep the point surface and withhold the band
+        // (`estimate.temporal_response.band_withheld`). `None` keeps the Study default.
+        if let Some(replicates) = bootstrap {
+            builder = builder.bootstrap_replicates(replicates);
+        }
         let analysis = builder.query(causal_query).refute(suite).build().map_err(py_err)?;
         let ctx = py_execution_context(seed, threads);
         let result = analysis.run(&ctx).map_err(py_err)?;
@@ -1147,15 +1152,22 @@ fn analyze_temporal_response(
                 names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
             })
             .collect();
-        response_result(
-            response,
+        let diagnostics =
+            result.diagnostics.iter().map(|d| format!("{}: {}", d.code, d.message)).collect();
+        Ok(attach_study_response_meta(
+            response_result(
+                response,
+                None,
+                treatments,
+                outcomes,
+                adjustment_set,
+                &names,
+                result.support_status,
+            )?,
             None,
-            treatments,
-            outcomes,
-            adjustment_set,
-            &names,
-            result.support_status,
-        )
+            None,
+            diagnostics,
+        ))
     })
 }
 

@@ -79,6 +79,126 @@ impl EffectRefit for SequentialRefitter<'_> {
         )?
         .0)
     }
+
+    /// Refits evaluate the OLS contrast on lag-aligned rows of the original series,
+    /// in circular blocks of the Frequentist contrast interval's length
+    /// ([`antecedent_estimate::SequentialContrastDesign::block_length`]).
+    ///
+    /// For Bayesian refits the replicate OLS contrast stands in for the posterior
+    /// mean ([`least_squares_stand_in`]); an informative coefficient prior has no
+    /// aligned-row posterior-mean evaluation, and the check is not applicable.
+    fn prepare_aligned(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Option<
+        Result<antecedent_validate::common::AlignedRefit, antecedent_validate::ValidationError>,
+    > {
+        if self.bayes.is_some_and(|bayes| bayes.prior.is_some()) {
+            return Some(Err(antecedent_validate::ValidationError::NotApplicable {
+                message: "a composed Bayesian contrast under an informative coefficient prior \
+                          has no lag-aligned posterior-mean refit",
+            }));
+        }
+        let mut time = self.time.clone();
+        time.length = data.row_count();
+        let prepared = TimeSeriesData::try_new(data.storage().clone(), time)
+            .map_err(antecedent_validate::ValidationError::from)
+            .and_then(|series| {
+                antecedent_estimate::SequentialContrastDesign::prepare(
+                    &series,
+                    &self.atom.graph,
+                    &self.atom.indexer,
+                    &self.atom.estimand,
+                    self.query,
+                    self.atom.status,
+                    ctx,
+                )
+                .map_err(antecedent_validate::ValidationError::from)
+            });
+        let stand_in = self.bayes.map(least_squares_stand_in);
+        let design = match prepared {
+            Ok(design) => design,
+            Err(error) => return Some(Err(error)),
+        };
+        if self.bayes.is_some() && !stand_in_is_faithful(&design, &self.atom.estimate) {
+            return Some(Err(antecedent_validate::ValidationError::NotApplicable {
+                message: "prior shrinkage separates the posterior mean from the least-squares \
+                          contrast by more than 0.25 posterior SD, so the least-squares \
+                          stand-in would resample a different estimator than the posterior mean",
+            }));
+        }
+        let rows = design.aligned_rows().rows;
+        // A bootstrapped Frequentist contrast carries the length its interval
+        // resampled; otherwise derive it once from the prepared design.
+        let block_length = match self.atom.estimate.block_resampling {
+            Some(geometry)
+                if self.bayes.is_none()
+                    && self.atom.estimate.bootstrap_replicates_ok.is_some()
+                    && geometry.rows == rows =>
+            {
+                geometry.block_length
+            }
+            _ => design.block_length(),
+        };
+        Some(Ok(antecedent_validate::common::AlignedRefit {
+            rows,
+            block_length,
+            stand_in,
+            estimate: Box::new(move |rows| design.estimate_on_rows(rows).ok()),
+        }))
+    }
+}
+
+/// Largest gap, in posterior SDs, between the Bayesian posterior mean and the
+/// least-squares contrast on the same rows for the stand-in to be used.
+///
+/// The posterior mean is a Monte Carlo average, so even without shrinkage it
+/// sits about `1/sqrt(draws)` SDs from least squares (0.1 at 100 draws); 0.25
+/// leaves that noise room while a tight scale moves the mean by many SDs.
+const STAND_IN_MAX_GAP_SD: f64 = 0.25;
+
+/// Whether the least-squares contrast on all aligned rows is within
+/// [`STAND_IN_MAX_GAP_SD`] posterior SDs of the published posterior mean.
+///
+/// Under a tight isotropic scale the ridge shrinkage `κ̂/s²` moves the posterior
+/// mean away from least squares; the bootstrap check would then compare the
+/// published mean against the wrong estimator and report a spurious refutation.
+/// A missing or degenerate posterior SD leaves the stand-in in place.
+fn stand_in_is_faithful(
+    design: &antecedent_estimate::SequentialContrastDesign,
+    posterior: &EffectEstimate,
+) -> bool {
+    let sd = posterior.se_analytic;
+    if !(sd.is_finite() && sd > 0.0) {
+        return true;
+    }
+    let all_rows: Vec<usize> = (0..design.aligned_rows().rows).collect();
+    design
+        .estimate_on_rows(&all_rows)
+        .is_ok_and(|ls| (ls - posterior.ate).abs() <= STAND_IN_MAX_GAP_SD * sd)
+}
+
+/// Why the least-squares contrast stands in for a Bayesian sequential posterior mean
+/// in `bootstrap.ci_coverage`.
+///
+/// Each mechanism's likelihood is tempered by `1/κ̂` under the isotropic prior
+/// `β | σ² ~ N(0, σ² s² I)`, so its posterior mean is the ridge fit
+/// `(X'X + (κ̂/s²) I)⁻¹ X'y`: tempering multiplies the prior's relative weight by
+/// `κ̂`, and the stand-in is exact only up to `O(κ̂/(n s²))` shrinkage.
+fn least_squares_stand_in(bayes: &BayesianGComputationAte) -> Arc<str> {
+    Arc::from(format!(
+        "bootstrap.ci_coverage refit the least-squares contrast on block-resampled \
+         lag-aligned rows as a stand-in for the posterior mean: with each mechanism's \
+         likelihood tempered by 1/kappa under the isotropic prior (scale {}), the posterior \
+         mean is the ridge fit (X'X + kappa/scale^2 I)^-1 X'y, the least-squares fit up to \
+         O(kappa/(n scale^2)) shrinkage; the check is not applicable when that shrinkage \
+         moves the posterior mean more than 0.25 posterior SD from least squares, or under an \
+         informative coefficient prior. It asks whether the posterior mean lies inside that \
+         least-squares bootstrap interval; it does not test the published credible interval, \
+         so it cannot detect a miscalibrated (too narrow or too wide) posterior",
+        bayes.prior_scale
+    ))
 }
 
 type SequentialValidationResults =
@@ -94,6 +214,7 @@ pub(super) fn validate_sequential(
     posterior: Option<&mut CausalPosterior>,
     original: f64,
     ctx: &ExecutionContext,
+    predictive_sims: u32,
 ) -> Result<SequentialValidationResults, CausalError> {
     let table = TabularData::new(data.storage().clone());
     let mut average = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
@@ -142,30 +263,50 @@ pub(super) fn validate_sequential(
         let outcomes = validation.run(&problem, &mut EstimationWorkspace::default(), ctx)?;
         diagnostics
             .extend(crate::analysis::helpers::validator_not_applicable_diagnostics(&outcomes));
+        if let Some(estimator) = bayes {
+            let checked = ValidationSuite::reports_only(&outcomes)
+                .iter()
+                .any(|report| report.refuter.as_ref() == "bootstrap.ci_coverage");
+            let code = "refute.bootstrap.ci_coverage.least_squares_stand_in";
+            if checked && !diagnostics.iter().any(|d: &Diagnostic| d.code.as_ref() == code) {
+                diagnostics.push(Diagnostic::new(
+                    code,
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    least_squares_stand_in(estimator).to_string(),
+                ));
+            }
+        }
         for report in ValidationSuite::reports_only(&outcomes) {
             reports.entry(Arc::clone(&report.refuter)).or_default().push((atom.weight, report));
         }
         if let Some(estimator) = bayes.filter(|_| suite != RefuteSuite::None) {
+            // Multi-step prior transfer is refused before fitting, so the isotropic
+            // per-mechanism prior (`prior_scale`) is the prior in force. Refuse rather
+            // than validate against a prior the mechanisms were not fitted under.
+            if estimator.prior.is_some() {
+                return Err(CausalError::Unsupported {
+                    message: "multi-step sustained validation requires isotropic per-mechanism priors",
+                });
+            }
             for mechanism in &atom.mechanisms {
-                let prior = PriorSet {
-                    specs: vec![antecedent_prob::PriorSpec::GaussianCoefficients(
-                        antecedent_prob::GaussianCoefficientPrior::isotropic(
-                            mechanism.prepared.design.ncols,
-                            estimator.prior_scale,
-                        ),
-                    )],
-                    contrast: None,
-                    categorical: Vec::new(),
-                    restrictions: Vec::new(),
+                let prior = estimator.prior_in_force(mechanism.prepared.design.ncols);
+                let prior = PriorPredictiveCheck::for_estimator(estimator, ctx)
+                    .with_n_sims(predictive_sims)
+                    .check_with_prior(&mechanism.prepared, &prior, ctx)?;
+                // Mechanism rows are time-ordered: `full` adds the lag-1 residual
+                // autocorrelation discrepancy (C-4).
+                let post_check = PosteriorPredictiveCheck::for_estimator(estimator, ctx)
+                    .with_n_sims(predictive_sims);
+                let post = if suite == RefuteSuite::Full {
+                    post_check.check_temporal(
+                        &mechanism.prepared,
+                        &mechanism.posterior,
+                        ctx.rng.master_seed(),
+                    )?
+                } else {
+                    post_check.check(&mechanism.prepared, &mechanism.posterior)?
                 };
-                let prior = PriorPredictiveCheck {
-                    n_sims: 200,
-                    seed: ctx.rng.master_seed(),
-                    ..PriorPredictiveCheck::new()
-                }
-                .check_with_prior(&mechanism.prepared, &prior, ctx)?;
-                let post = PosteriorPredictiveCheck::new()
-                    .check(&mechanism.prepared, &mechanism.posterior)?;
                 priors.entry(mechanism.variable).or_default().push((atom.weight, prior));
                 posts.entry(mechanism.variable).or_default().push((atom.weight, post));
             }
@@ -193,10 +334,11 @@ pub(super) fn validate_sequential(
                 sensitivity.push((
                     atom.weight,
                     antecedent_prob::PriorSensitivitySummary {
+                        family: antecedent_prob::PriorSensitivityFamily::IsotropicScale,
                         prior_scales: Arc::clone(&grid.scales),
-                        alphas: Arc::from([]),
                         effect_means: means.into(),
                         effect_sds: sds.into(),
+                        ..Default::default()
                     },
                 ));
             }

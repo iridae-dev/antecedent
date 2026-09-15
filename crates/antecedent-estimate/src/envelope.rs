@@ -3,7 +3,13 @@
 //! Aggregates per-graph effect posteriors using [`WeightedGraphSamples`].
 //! Published moments and draws are the identified-atom BMA (`P(τ | identified)`).
 //! Unidentified mass is a separate, non-renormalized axis on the result and is
-//! never redistributed into that effect posterior.
+//! never redistributed into that effect posterior. The aggregators see only
+//! identification flags, so atoms a latency tier flagged out of a subsample land
+//! in `unidentified_mass` here; callers that subsample move that share to
+//! [`CausalPosterior::subsampled_out_mass`].
+//! [`aggregate_mixture_functional_envelope`] instead publishes the posterior of
+//! the frozen-weight mixture functional, for equivalence-class envelopes whose
+//! weights the data cannot update.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -237,6 +243,7 @@ pub fn aggregate_effect_envelope(
     });
 
     Ok(CausalPosterior {
+        subsampled_out_mass: 0.0,
         draws,
         summaries,
         identification,
@@ -250,10 +257,199 @@ pub fn aggregate_effect_envelope(
     })
 }
 
+/// Posterior of the frozen-weight mixture functional `Σ_g w̄_g τ_g` over
+/// identified envelope atoms that were fitted on the same rows.
+///
+/// [`aggregate_effect_envelope`] publishes the identified-atom BMA: each draw
+/// first picks a completion, so its spread includes the disagreement *between*
+/// completions. That is the right object when the weights are data-updated
+/// graph probabilities. For a Markov-equivalence envelope the weights are a
+/// frozen enumeration the data cannot update, and the reported number is the
+/// mixture functional itself; its interval must describe uncertainty in that
+/// functional, not the spread of completion-specific effects.
+///
+/// Draws are coupled across atoms with an empirical Gaussian copula (rank
+/// matching, Iman–Conover): correlated standard normals with the atoms'
+/// sampling correlation (`correlation`, row-major `k × k` in `per_graph`
+/// order, e.g. from their influence functions on the shared rows) fix the
+/// joint ranks, and each atom's own posterior draws are permuted onto those
+/// ranks. Every atom keeps its exact marginal posterior (prior included);
+/// identical estimands (correlation 1) move together. The mean equals the
+/// BMA mean exactly; the SD is the empirical SD of the coupled mixture draws.
+/// Unidentified mass stays a separate, non-renormalized axis.
+///
+/// # Errors
+///
+/// Everything [`aggregate_effect_envelope`] refuses, a correlation matrix of
+/// the wrong size, or non-finite / out-of-range correlations.
+pub fn aggregate_mixture_functional_envelope(
+    graphs: &WeightedGraphSamples,
+    per_graph: &[GraphEffectDraws],
+    correlation: &[f64],
+    diagnostics: InferenceDiagnostics,
+) -> Result<CausalPosterior, EstimationError> {
+    let mut posterior =
+        aggregate_effect_envelope(graphs, per_graph, diagnostics, EnvelopeOptions::default())?;
+    let k = per_graph.len();
+    if correlation.len() != k * k
+        || correlation.iter().any(|r| !r.is_finite() || r.abs() > 1.0 + 1e-9)
+    {
+        return Err(EstimationError::stats_msg(
+            "mixture-functional coupling needs a finite k×k correlation over the fitted atoms",
+        ));
+    }
+    let mut weights = vec![0.0; k];
+    for i in 0..graphs.n_samples {
+        if graphs.identified[i] != GraphIdentFlag::Identified {
+            continue;
+        }
+        if let Some(pos) = per_graph.iter().position(|g| g.graph_key == graphs.graph_keys[i]) {
+            weights[pos] += graphs.weights[i];
+        }
+    }
+    let mass: f64 = weights.iter().sum();
+    if mass <= 0.0 {
+        return Err(EstimationError::stats_msg("no identified mass for effect envelope"));
+    }
+    let atoms: Vec<(f64, &[f64])> = weights
+        .iter()
+        .zip(per_graph)
+        .map(|(w, g)| (w / mass, g.effect_draws.as_ref()))
+        .filter(|(w, _)| *w > 0.0)
+        .collect();
+    let kept: Vec<usize> = (0..k).filter(|&g| weights[g] > 0.0).collect();
+    let sub: Vec<f64> =
+        kept.iter().flat_map(|&a| kept.iter().map(move |&b| correlation[a * k + b])).collect();
+    let mixture = couple_mixture_functional_draws(&atoms, &sub, 0x4D49_5846_554E_4354)?;
+    let n = mixture.len() as f64;
+    let mean = posterior.summaries.mean[0];
+    let sd = (mixture.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1.0).max(1.0)).sqrt();
+    let schema = posterior.draws.schema.clone();
+    posterior.draws = PosteriorDraws::from_column_major(schema, mixture.len(), mixture)
+        .map_err(EstimationError::from)?;
+    let mut summaries = posterior.draws.summarize();
+    summaries.mean = Arc::from([mean]);
+    summaries.sd = Arc::from([sd]);
+    posterior.summaries = summaries;
+    let mut assumptions = AssumptionSet::new();
+    assumptions.push(AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from("envelope.mixture_functional"),
+            description: Arc::from(
+                "Published effect draws are the posterior of the frozen-weight mixture \
+                 functional sum_g w_g tau_g over identified completions (each completion's \
+                 own posterior, coupled across completions by their sampling correlation on \
+                 the shared rows). They are not a distribution over completion-specific \
+                 effects. Unidentified mass is retained as a separate, non-renormalized axis.",
+            ),
+        }),
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("estimate.aggregate_mixture_functional_envelope"),
+        },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    });
+    posterior.assumptions = assumptions;
+    Ok(posterior)
+}
+
+/// Rank-coupled mixture draws `Σ_g w_g τ_g^(d)` (weights already normalized).
+///
+/// # Errors
+///
+/// Empty or ragged draws, or a correlation of the wrong size.
+#[allow(clippy::many_single_char_names)]
+pub fn couple_mixture_functional_draws(
+    atoms: &[(f64, &[f64])],
+    correlation: &[f64],
+    seed: u64,
+) -> Result<Vec<f64>, EstimationError> {
+    let k = atoms.len();
+    if k == 0 || correlation.len() != k * k {
+        return Err(EstimationError::stats_msg("coupling needs atoms and a k×k correlation"));
+    }
+    let n = atoms[0].1.len();
+    if n == 0 || atoms.iter().any(|(_, d)| d.len() != n) {
+        return Err(EstimationError::stats_msg("coupled atoms need equal, nonempty draw counts"));
+    }
+    // Positive-semidefinite Cholesky: a zero pivot marks an atom that is a
+    // linear function of earlier ones (e.g. an identical estimand).
+    let mut l = vec![0.0; k * k];
+    for j in 0..k {
+        let mut s = correlation[j * k + j];
+        for p in 0..j {
+            s -= l[j * k + p] * l[j * k + p];
+        }
+        let pivot = if s > 1e-12 { s.sqrt() } else { 0.0 };
+        l[j * k + j] = pivot;
+        for i in (j + 1)..k {
+            let mut v = correlation[i * k + j];
+            for p in 0..j {
+                v -= l[i * k + p] * l[j * k + p];
+            }
+            l[i * k + j] = if pivot > 0.0 { v / pivot } else { 0.0 };
+        }
+    }
+    let mut rng = CausalRng::from_seed(seed);
+    let mut normal = move || {
+        let u1 = rng.next_f64().max(1e-300);
+        let u2 = rng.next_f64();
+        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
+    };
+    let mut latent = vec![0.0; n * k];
+    let mut e = vec![0.0; k];
+    for d in 0..n {
+        for x in &mut e {
+            *x = normal();
+        }
+        for i in 0..k {
+            latent[d * k + i] = (0..=i).map(|p| l[i * k + p] * e[p]).sum();
+        }
+    }
+    let mut mixture = vec![0.0; n];
+    let mut order: Vec<usize> = (0..n).collect();
+    for (g, (w, draws)) in atoms.iter().enumerate() {
+        let mut sorted = draws.to_vec();
+        sorted.sort_by(f64::total_cmp);
+        order.sort_by(|&a, &b| latent[a * k + g].total_cmp(&latent[b * k + g]));
+        for (rank, &d) in order.iter().enumerate() {
+            mixture[d] += w * sorted[rank];
+        }
+    }
+    Ok(mixture)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use antecedent_prob::InferenceDiagnostics;
+
+    #[test]
+    fn coupled_mixture_keeps_marginals_and_tracks_correlation() {
+        let n: usize = 4000;
+        let a: Vec<f64> = (0..n).map(|i| (i as f64 + 0.5) / n as f64 - 0.5).collect();
+        let b: Vec<f64> = a.iter().map(|x| 3.0 * x + 1.0).collect();
+        // Perfect coupling: the mixture is the quantile average.
+        let perfect =
+            couple_mixture_functional_draws(&[(0.5, &a), (0.5, &b)], &[1.0, 1.0, 1.0, 1.0], 7)
+                .unwrap();
+        let mut sorted = perfect.clone();
+        sorted.sort_by(f64::total_cmp);
+        for (i, v) in sorted.iter().enumerate() {
+            assert!((v - 0.5 * (a[i] + b[i])).abs() < 1e-12);
+        }
+        // Independence shrinks the spread; perfect coupling does not.
+        let sd = |v: &[f64]| {
+            let m = v.iter().sum::<f64>() / v.len() as f64;
+            (v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / v.len() as f64).sqrt()
+        };
+        let independent =
+            couple_mixture_functional_draws(&[(0.5, &a), (0.5, &b)], &[1.0, 0.0, 0.0, 1.0], 7)
+                .unwrap();
+        assert!(sd(&independent) < 0.8 * sd(&perfect));
+        let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+        assert!((mean(&independent) - mean(&perfect)).abs() < 1e-12);
+    }
 
     fn aggregate(
         weights: Vec<f64>,
@@ -531,7 +727,10 @@ mod tests {
             EnvelopeOptions::default(),
         )
         .unwrap();
-        // Mass honesty: unidentified = original UID + leftover identified, / total.
+        // Mass honesty: the aggregator only sees flags, so every atom outside
+        // the mixture (original UID + leftover identified) is uncovered mass.
+        // Study paths then split the leftover out as subsampled_out_mass.
+        assert!(approx.subsampled_out_mass.abs() < f64::EPSILON);
         let expected_uid =
             (graphs.unidentified_mass() + sub.leftover_identified_mass) / graphs.total_weight();
         let mass_err = (approx.unidentified_mass - expected_uid).abs();

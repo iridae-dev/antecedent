@@ -4,6 +4,7 @@ from . import _html  # noqa: F401 — side effect: attaches _repr_html_ to the v
 from ._views import (
     AnalysisResult,
     ConflictSummaryView,
+    DistributionAtomView,
     EffectEnvelope,
     EstimateView,
     IdentificationView,
@@ -14,6 +15,7 @@ from ._views import (
     PosteriorView,
     PredictiveCheckReport,
     PriorSensitivityReport,
+    ProbabilityIntervalView,
     RefutationReport,
     TemporalMediationGridView,
     TemporalMediationSliceView,
@@ -26,6 +28,7 @@ from .response import (
     ResponseValidationCheck,
     ResponseValidationView,
     ResponseView,
+    SimultaneousBand,
     SupportDiagnostic,
     SupportReport,
 )
@@ -36,6 +39,8 @@ __all__ = [
     "TemporalMediationGridView",
     "TemporalMediationSliceView",
     "EstimateView",
+    "ProbabilityIntervalView",
+    "DistributionAtomView",
     "ConflictSummaryView",
     "PosteriorView",
     "EffectEnvelope",
@@ -53,6 +58,7 @@ __all__ = [
     "ResponseView",
     "ResponseValidationCheck",
     "ResponseValidationView",
+    "SimultaneousBand",
     "SupportDiagnostic",
     "SupportReport",
 ]

@@ -10,7 +10,8 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity,
     IdentificationStatus, ObservationAssumption, ObservationSpec, ParametricAssumption,
-    ResponseFunctional, ResponseQuery, ResponseUncertainty, SupportDiagnostic, VariableId,
+    ResponseFunctional, ResponseQuery, ResponseUncertainty, SupportDiagnostic, TemporalNodeKey,
+    VariableId,
 };
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_stats::{
@@ -63,6 +64,169 @@ struct CrossFittedSelectedNuisances {
     outcome_predictions: Vec<f64>,
 }
 
+/// How selected-AIPW cross-fitting folds are assigned to observation rows.
+#[derive(Clone, Copy)]
+enum FoldLayout<'a> {
+    /// Row `i` of an exchangeable table goes to fold `i % folds`.
+    Interleaved,
+    /// Row `i` sits at series position `positions[i]` in `0..span` and goes to the
+    /// contiguous time block `positions[i]·folds / span`. Repeated positions (a block
+    /// bootstrap drawing the same tuple twice) share a fold, and a validation row's
+    /// serial neighbours mostly share its fold rather than training its nuisances.
+    TimeBlocks { positions: &'a [usize], span: usize },
+}
+
+impl FoldLayout<'_> {
+    fn fold_of(self, row: usize, folds: usize) -> usize {
+        match self {
+            Self::Interleaved => row % folds,
+            Self::TimeBlocks { positions, span } => (positions[row] * folds / span).min(folds - 1),
+        }
+    }
+}
+
+/// Extra selected-AIPW outcome-model regressors: the downstream design columns the
+/// declared observation conditioning set does not already carry.
+struct OutcomeModelExtras {
+    /// Column-major `rows × ncols`, aligned with the observation table rows.
+    values: Vec<f64>,
+    ncols: usize,
+    /// Leading table rows whose extra regressors fall before the series start. Those rows
+    /// keep the conditioning-only outcome model.
+    lead: usize,
+}
+
+/// Regressors of every horizon's lag-aligned response design, as offsets relative to
+/// the outcome time: the treatment at the policy offset and each identified adjustment
+/// node, for a curve or single Set / Shift / Soft temporal response.
+///
+/// These are the columns the selected-AIPW outcome nuisance must condition on for the
+/// pseudo-outcome regression to stay orthogonal to the estimated selection probability
+/// (see [`ObservationMechanismEstimator::adjust_temporal_series`]).
+///
+/// # Errors
+///
+/// A query without a temporal attachment or treatment/outcome pair, a horizon count that
+/// differs from `identifications`, or an adjustment node missing from its indexer.
+pub fn temporal_curve_outcome_regressors(
+    query: &ResponseQuery,
+    identifications: &[(&antecedent_expr::IdentifiedEstimand, &antecedent_data::TemporalIndexer)],
+) -> Result<Vec<TemporalNodeKey>, EstimationError> {
+    let temporal = query.temporal.as_ref().ok_or_else(|| {
+        EstimationError::unsupported(
+            "temporal observation correction requires ResponseQuery.temporal",
+        )
+    })?;
+    if temporal.horizons.len() != identifications.len() {
+        return Err(EstimationError::unsupported(
+            "temporal observation regressors need one identification per horizon",
+        ));
+    }
+    let (treatment, _) = query.functional.primary_pair().ok_or_else(|| {
+        EstimationError::unsupported("response query has no treatment/outcome pair")
+    })?;
+    let treatment_offset = temporal.treatment_offset()?;
+    let mut keys = Vec::new();
+    for (&horizon, &(estimand, indexer)) in temporal.horizons.iter().zip(identifications) {
+        let outcome_offset = i32::try_from(horizon.saturating_sub(1)).unwrap_or(i32::MAX);
+        keys.push(TemporalNodeKey {
+            variable: treatment,
+            offset: treatment_offset.saturating_sub(outcome_offset),
+        });
+        for &dense in estimand.adjustment_set.iter() {
+            let key = indexer
+                .key_of(dense.raw())
+                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+            keys.push(TemporalNodeKey {
+                variable: key.variable,
+                offset: key.offset.saturating_sub(outcome_offset),
+            });
+        }
+    }
+    keys.sort();
+    keys.dedup();
+    Ok(keys)
+}
+
+/// Parents of the outcome's stationary mechanism in `graph`, as offsets relative to the
+/// outcome time: the regressors of the unfolded sequential outcome regression that a
+/// Sequence overlay refits.
+///
+/// The outcome itself is also listed at `−lag` for every lagged edge out of the outcome
+/// into a mechanism that can reach the outcome (its own or an ancestor's), i.e. every lag
+/// at which the outcome can enter the unfolded Sequence design as a regressor.
+/// [`ObservationMechanismEstimator::adjust_temporal_series`] refuses regressors that carry
+/// the outcome at a nonzero offset: the correction replaces the outcome column with
+/// pseudo-outcomes, which would then be regressors (errors in variables).
+/// The selected-AIPW outcome nuisance never conditions on outcome columns.
+#[must_use]
+pub fn temporal_sequence_outcome_regressors(
+    graph: &antecedent_graph::TemporalDag,
+    outcome: VariableId,
+) -> Vec<TemporalNodeKey> {
+    let mut keys = Vec::new();
+    // Template variables with a directed path to the outcome (the outcome included).
+    let mut reaches_outcome = vec![outcome];
+    loop {
+        let before = reaches_outcome.len();
+        for edge in graph.edges() {
+            let Some((from, to)) = edge.parent_child() else {
+                continue;
+            };
+            let (Some(from_key), Some(to_key)) = (graph.temporal_key(from), graph.temporal_key(to))
+            else {
+                continue;
+            };
+            if reaches_outcome.contains(&to_key.variable)
+                && !reaches_outcome.contains(&from_key.variable)
+            {
+                reaches_outcome.push(from_key.variable);
+            }
+        }
+        if reaches_outcome.len() == before {
+            break;
+        }
+    }
+    for edge in graph.edges() {
+        let Some((from, to)) = edge.parent_child() else {
+            continue;
+        };
+        let (Some(from_key), Some(to_key)) = (graph.temporal_key(from), graph.temporal_key(to))
+        else {
+            continue;
+        };
+        if from_key.variable == outcome
+            && from_key.offset < to_key.offset
+            && reaches_outcome.contains(&to_key.variable)
+        {
+            keys.push(TemporalNodeKey {
+                variable: outcome,
+                offset: from_key.offset.saturating_sub(to_key.offset),
+            });
+        }
+    }
+    for (index, _) in graph.nodes().iter().enumerate() {
+        let id = antecedent_graph::DenseNodeId::from_raw(u32::try_from(index).unwrap_or(u32::MAX));
+        let Some(key) = graph.temporal_key(id) else {
+            continue;
+        };
+        if key.variable != outcome {
+            continue;
+        }
+        for &parent in graph.parents(id) {
+            if let Some(parent_key) = graph.temporal_key(parent) {
+                keys.push(TemporalNodeKey {
+                    variable: parent_key.variable,
+                    offset: parent_key.offset.saturating_sub(key.offset),
+                });
+            }
+        }
+    }
+    keys.sort();
+    keys.dedup();
+    keys
+}
+
 /// Pseudo-outcome representation produced by a supported observation mechanism.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ObservationAdjustedOutcome {
@@ -101,9 +265,11 @@ impl ObservationMechanismEstimator {
     /// left censoring with delayed entry and interval censoring/truncation are refused here.
     ///
     /// Under [`SelectedOutcomeCorrection::Aipw`] both nuisances are cross-fit over
-    /// `crossfit_folds` deterministic row-index folds, so no row's pseudo-value is built
-    /// from a model that saw it — the sample-splitting condition the AIPW double-robustness
-    /// argument assumes. A fold that cannot support either model is refused, never silently
+    /// `crossfit_folds` deterministic row-index folds (row `i` in fold `i % folds`), so no
+    /// row's pseudo-value is built from a model that saw it — the sample-splitting
+    /// condition the AIPW double-robustness argument assumes. The temporal entry points
+    /// ([`Self::adjust_temporal_series`], [`Self::adjust_temporal_anchors`]) use
+    /// contiguous time-block folds keyed by series position instead. A fold that cannot support either model is refused, never silently
     /// refit in sample. [`SelectedOutcomeCorrection::Ipw`] deliberately keeps its in-sample
     /// maximum-likelihood propensity, which is the published estimator.
     ///
@@ -120,6 +286,17 @@ impl ObservationMechanismEstimator {
         query: &ResponseQuery,
         delayed_entry: Option<VariableId>,
     ) -> Result<ObservationAdjustedOutcome, EstimationError> {
+        self.adjusted_outcome_with_extras(data, query, delayed_entry, None, FoldLayout::Interleaved)
+    }
+
+    fn adjusted_outcome_with_extras(
+        &self,
+        data: &TabularData,
+        query: &ResponseQuery,
+        delayed_entry: Option<VariableId>,
+        extras: Option<&OutcomeModelExtras>,
+        layout: FoldLayout<'_>,
+    ) -> Result<ObservationAdjustedOutcome, EstimationError> {
         query.validate()?;
         self.validate_options()?;
         match &query.observation {
@@ -129,7 +306,7 @@ impl ObservationMechanismEstimator {
                         "delayed entry applies only to right-censoring IPCW",
                     ));
                 }
-                self.selected(data, query, *observed, *indicator)
+                self.selected(data, query, *observed, *indicator, extras, layout)
             }
             ObservationSpec::RightCensored { observed, censoring, event, .. } => {
                 self.censored(data, query, *observed, *censoring, *event, delayed_entry, false)
@@ -296,6 +473,23 @@ impl ObservationMechanismEstimator {
     /// Selected and conditional-censoring pairs must name the treatment and every
     /// such variable.
     ///
+    /// `outcome_regressors` are the columns (offsets relative to the outcome time) of the
+    /// downstream response regressions that will consume the pseudo-outcome
+    /// ([`temporal_curve_outcome_regressors`] / [`temporal_sequence_outcome_regressors`]).
+    /// The selected-AIPW outcome nuisance conditions on the declared set at the policy
+    /// offset **and** on those columns. With the declared set alone, a downstream design
+    /// that also regresses on, e.g., the treatment at a second lag leaves the pseudo-outcome
+    /// residual `Y − m` correlated with that regressor, so the downstream coefficients are
+    /// protected only by the selection model and are first-order sensitive to its
+    /// estimation error (not orthogonal in `π̂`). With the downstream columns in `m`,
+    /// `E[Y* | design] = E[Y | design, R = 1]` whatever `π̂`, which equals the latent
+    /// regression when selection is ignorable given the design columns. The selection
+    /// model keeps the declared set. Censoring IPCW and plain selected IPW ignore
+    /// `outcome_regressors`; so do columns of the observed outcome or indicator (they are
+    /// not completely observed) and columns already in the declared set at the policy
+    /// offset. Rows whose extra regressors would fall before the series start keep the
+    /// declared-set outcome model.
+    ///
     /// # Errors
     ///
     /// Unlicensed pair, missing containment, delayed entry, or primitive failure.
@@ -304,6 +498,7 @@ impl ObservationMechanismEstimator {
         data: &TimeSeriesData,
         query: &ResponseQuery,
         adjustment: &[VariableId],
+        outcome_regressors: &[TemporalNodeKey],
     ) -> Result<(TimeSeriesData, ObservationAdjustedOutcome), EstimationError> {
         query.validate()?;
         query.require_licensed_temporal_observation()?;
@@ -327,13 +522,25 @@ impl ObservationMechanismEstimator {
             EstimationError::unsupported("response query has no treatment/outcome pair")
         })?;
         require_temporal_observation_containment(query, treatment, adjustment)?;
+        require_unlagged_outcome_regressor(outcome, outcome_regressors)?;
         let conditioning = temporal_conditioning_ids(query)?;
         let (table, start) = if conditioning.is_empty() {
             (TabularData::new(data.storage().clone()), 0)
         } else {
             lag_aligned_observation_table(data, conditioning, offset)?
         };
-        let subset = self.adjusted_outcome(&table, query, None)?;
+        let extras = self.outcome_model_extras(
+            data,
+            query,
+            offset,
+            outcome_regressors,
+            &(start..data.row_count()).collect::<Vec<_>>(),
+        )?;
+        // Contiguous time-block folds over the lag-aligned rows `start..n`.
+        let positions: Vec<usize> = (0..table.row_count()).collect();
+        let layout = FoldLayout::TimeBlocks { positions: &positions, span: positions.len().max(1) };
+        let subset =
+            self.adjusted_outcome_with_extras(&table, query, None, extras.as_ref(), layout)?;
         let mut values = data.float64_values(outcome)?;
         let mut weights = vec![0.0; values.len()];
         if start == 0 {
@@ -351,6 +558,222 @@ impl ObservationMechanismEstimator {
             ObservationAdjustedOutcome { values: values.clone(), weights, method: subset.method };
         let series = data.with_replaced_float(outcome, Arc::from(values))?;
         Ok((series, adjusted))
+    }
+
+    /// Tuple-level replicate of [`Self::adjust_temporal_series`] for block bootstraps.
+    ///
+    /// `anchors` are outcome-time row indices of `data` (repeats allowed, in resample
+    /// order). Each anchor contributes its whole lag-aligned observation row — the
+    /// outcome and indicators at the anchor, the conditioning set at the policy treatment
+    /// offset — so no replicate row pairs values from different resampled blocks. The
+    /// observation nuisance is refit on exactly those rows; the returned pseudo-outcomes
+    /// align with `anchors`. Selected-AIPW folds are the same contiguous time blocks as
+    /// [`Self::adjust_temporal_series`], keyed by each anchor's source position, so a
+    /// tuple drawn more than once lands in a single fold and never trains the nuisance
+    /// that predicts its own copy. `outcome_regressors` are as in
+    /// [`Self::adjust_temporal_series`]; every anchor must reach all of them
+    /// ([`Self::observation_row_lag`]).
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`Self::adjust_temporal_series`], or an anchor whose lag-aligned
+    /// row does not exist.
+    pub fn adjust_temporal_anchors(
+        &self,
+        data: &TimeSeriesData,
+        query: &ResponseQuery,
+        adjustment: &[VariableId],
+        outcome_regressors: &[TemporalNodeKey],
+        anchors: &[usize],
+    ) -> Result<Vec<f64>, EstimationError> {
+        query.validate()?;
+        query.require_licensed_temporal_observation()?;
+        if query.observation == ObservationSpec::Complete {
+            return Err(EstimationError::unsupported(
+                "complete outcomes do not require observation-mechanism correction",
+            ));
+        }
+        let temporal = query.temporal.as_ref().ok_or_else(|| {
+            EstimationError::unsupported(
+                "temporal observation correction requires ResponseQuery.temporal",
+            )
+        })?;
+        let offset = temporal.treatment_offset()?;
+        if offset > 0 {
+            return Err(EstimationError::unsupported(
+                "temporal observation conditioning cannot use a future treatment offset",
+            ));
+        }
+        let (treatment, _) = query.functional.primary_pair().ok_or_else(|| {
+            EstimationError::unsupported("response query has no treatment/outcome pair")
+        })?;
+        require_temporal_observation_containment(query, treatment, adjustment)?;
+        let conditioning = temporal_conditioning_ids(query)?;
+        let lag = if conditioning.is_empty() { 0 } else { offset.unsigned_abs() as usize };
+        let n = data.row_count();
+        if anchors.iter().any(|&anchor| anchor < lag || anchor >= n) {
+            return Err(EstimationError::unsupported(
+                "temporal observation anchor has no lag-aligned observation row",
+            ));
+        }
+        let extras = self.outcome_model_extras(data, query, offset, outcome_regressors, anchors)?;
+        if extras.as_ref().is_some_and(|extras| extras.lead > 0) {
+            return Err(EstimationError::unsupported(
+                "temporal observation anchor has no lag-aligned outcome-model row",
+            ));
+        }
+        let covariates = gather_anchor_columns(data, conditioning, anchors, lag)?;
+        match &query.observation {
+            ObservationSpec::Selected { observed, indicator, .. } => {
+                if conditioning.iter().any(|id| id == observed || id == indicator) {
+                    return Err(EstimationError::unsupported(
+                        "observation-model conditions cannot include observed outcome or indicator",
+                    ));
+                }
+                let y = gather_anchor_column(data, *observed, anchors, 0)?;
+                let r = gather_anchor_column(data, *indicator, anchors, 0)?;
+                let positions: Vec<usize> = anchors.iter().map(|&anchor| anchor - lag).collect();
+                let layout = FoldLayout::TimeBlocks { positions: &positions, span: n - lag };
+                Ok(self
+                    .selected_from_columns(
+                        &y,
+                        &r,
+                        &covariates,
+                        conditioning.len(),
+                        extras.as_ref(),
+                        layout,
+                    )?
+                    .values)
+            }
+            ObservationSpec::RightCensored { observed, censoring, event, .. }
+            | ObservationSpec::LeftCensored { observed, censoring, event, .. } => {
+                if conditioning.iter().any(|v| [observed, censoring, event].contains(&v)) {
+                    return Err(EstimationError::unsupported(
+                        "censoring conditioning cannot include recorded outcome, censoring time, or event indicator",
+                    ));
+                }
+                let y = gather_anchor_column(data, *observed, anchors, 0)?;
+                let c = gather_anchor_column(data, *censoring, anchors, 0)?;
+                let d = gather_anchor_column(data, *event, anchors, 0)?;
+                let reverse = matches!(query.observation, ObservationSpec::LeftCensored { .. });
+                Ok(self
+                    .censored_from_columns(
+                        &y,
+                        &c,
+                        &d,
+                        &covariates,
+                        conditioning.len(),
+                        None,
+                        reverse,
+                    )?
+                    .values)
+            }
+            _ => Err(EstimationError::unsupported(
+                "temporal observation correction supports selected and left/right censoring only",
+            )),
+        }
+    }
+
+    /// Largest lag (in rows before the outcome time) an observation row reads: the
+    /// declared conditioning set at the policy offset and, for selected AIPW, every
+    /// retained outcome-model regressor. Tuple bootstraps start their anchors at least
+    /// this far into the series.
+    ///
+    /// # Errors
+    ///
+    /// A query without a supported observation assumption or temporal attachment.
+    pub fn observation_row_lag(
+        &self,
+        query: &ResponseQuery,
+        outcome_regressors: &[TemporalNodeKey],
+    ) -> Result<usize, EstimationError> {
+        if query.observation == ObservationSpec::Complete {
+            return Ok(0);
+        }
+        let offset = query
+            .temporal
+            .as_ref()
+            .ok_or_else(|| {
+                EstimationError::unsupported(
+                    "temporal observation correction requires ResponseQuery.temporal",
+                )
+            })?
+            .treatment_offset()?;
+        let conditioning = temporal_conditioning_ids(query)?;
+        let base = if conditioning.is_empty() { 0 } else { offset.unsigned_abs() as usize };
+        let extra = self
+            .retained_outcome_regressors(query, offset, outcome_regressors)?
+            .iter()
+            .map(|key| key.offset.unsigned_abs() as usize)
+            .max()
+            .unwrap_or(0);
+        Ok(base.max(extra))
+    }
+
+    /// Outcome-model regressors kept for the selected-AIPW nuisance (see
+    /// [`Self::adjust_temporal_series`]); empty for every other correction.
+    fn retained_outcome_regressors(
+        &self,
+        query: &ResponseQuery,
+        offset: i32,
+        outcome_regressors: &[TemporalNodeKey],
+    ) -> Result<Vec<TemporalNodeKey>, EstimationError> {
+        let ObservationSpec::Selected { latent, observed, indicator } = &query.observation else {
+            return Ok(Vec::new());
+        };
+        if self.options.selected_correction != SelectedOutcomeCorrection::Aipw {
+            return Ok(Vec::new());
+        }
+        let conditioning = exact_outcome_independence(query)?;
+        let mut keys: Vec<TemporalNodeKey> = outcome_regressors
+            .iter()
+            .copied()
+            .filter(|key| {
+                key.offset <= 0
+                    && ![*latent, *observed, *indicator].contains(&key.variable)
+                    && !(key.offset == offset && conditioning.contains(&key.variable))
+            })
+            .collect();
+        keys.sort();
+        keys.dedup();
+        Ok(keys)
+    }
+
+    /// Column-major extra outcome-model regressors for the observation rows whose outcome
+    /// times are `rows` (series indices, in table order).
+    fn outcome_model_extras(
+        &self,
+        data: &TimeSeriesData,
+        query: &ResponseQuery,
+        offset: i32,
+        outcome_regressors: &[TemporalNodeKey],
+        rows: &[usize],
+    ) -> Result<Option<OutcomeModelExtras>, EstimationError> {
+        let keys = self.retained_outcome_regressors(query, offset, outcome_regressors)?;
+        if keys.is_empty() || rows.is_empty() {
+            return Ok(None);
+        }
+        let reach = keys.iter().map(|key| key.offset.unsigned_abs() as usize).max().unwrap_or(0);
+        let lead = rows.iter().take_while(|&&row| row < reach).count();
+        if rows[lead..].iter().any(|&row| row < reach) {
+            return Err(EstimationError::unsupported(
+                "temporal observation rows must reach every outcome-model regressor",
+            ));
+        }
+        let mut values = Vec::with_capacity(rows.len() * keys.len());
+        for key in &keys {
+            let lag = key.offset.unsigned_abs() as usize;
+            let full = data.float64_values(key.variable)?;
+            for &row in rows {
+                values.push(if row >= lag { full[row - lag] } else { f64::NAN });
+            }
+        }
+        if values.chunks(rows.len()).any(|column| column[lead..].iter().any(|v| !v.is_finite())) {
+            return Err(EstimationError::unsupported(
+                "observation-model covariates must be completely observed and finite",
+            ));
+        }
+        Ok(Some(OutcomeModelExtras { values, ncols: keys.len(), lead }))
     }
 
     /// Evaluate the opt-in Gaussian likelihood for the query's observation mechanism.
@@ -406,6 +829,8 @@ impl ObservationMechanismEstimator {
         query: &ResponseQuery,
         observed_id: VariableId,
         indicator_id: VariableId,
+        extras: Option<&OutcomeModelExtras>,
+        layout: FoldLayout<'_>,
     ) -> Result<ObservationAdjustedOutcome, EstimationError> {
         let conditioning = exact_outcome_independence(query)?;
         if conditioning.iter().any(|id| *id == observed_id || *id == indicator_id) {
@@ -416,13 +841,32 @@ impl ObservationMechanismEstimator {
         let observed = data.float64_values(observed_id)?;
         let indicator = data.float64_values(indicator_id)?;
         let covariates = read_complete_columns(data, conditioning)?;
+        self.selected_from_columns(
+            &observed,
+            &indicator,
+            &covariates,
+            conditioning.len(),
+            extras,
+            layout,
+        )
+    }
+
+    fn selected_from_columns(
+        &self,
+        observed: &[f64],
+        indicator: &[f64],
+        covariates: &[f64],
+        n_cov: usize,
+        extras: Option<&OutcomeModelExtras>,
+        layout: FoldLayout<'_>,
+    ) -> Result<ObservationAdjustedOutcome, EstimationError> {
         if indicator.iter().all(|&r| r == 1.0) {
             if observed.iter().any(|value| !value.is_finite()) {
                 return Err(EstimationError::unsupported("selected outcomes must be finite"));
             }
             return Ok(ObservationAdjustedOutcome {
-                values: observed,
-                weights: vec![1.0; data.row_count()],
+                values: observed.to_vec(),
+                weights: vec![1.0; observed.len()],
                 method: Arc::from("observation.selected.complete_collapse.v1"),
             });
         }
@@ -432,9 +876,9 @@ impl ObservationMechanismEstimator {
             // efficient — cross-fitting here would deviate from the citation to no end.
             SelectedOutcomeCorrection::Ipw => {
                 let fit = fit_observation_logistic(
-                    &indicator,
-                    &covariates,
-                    conditioning.len(),
+                    indicator,
+                    covariates,
+                    n_cov,
                     self.options.observation_probability_floor,
                 )?;
                 (fit.probabilities, None)
@@ -443,14 +887,14 @@ impl ObservationMechanismEstimator {
             // double-robustness and asymptotic-linearity arguments assume the nuisances were
             // not fit on the row they are evaluated at.
             SelectedOutcomeCorrection::Aipw => {
-                let nuisances =
-                    self.crossfit_selected_nuisances(&observed, &indicator, &covariates)?;
+                let nuisances = self
+                    .crossfit_selected_nuisances(observed, indicator, covariates, extras, layout)?;
                 (nuisances.probabilities, Some(nuisances.outcome_predictions))
             }
         };
         let values = selected_outcome_pseudo_values(
-            &observed,
-            &indicator,
+            observed,
+            indicator,
             &probabilities,
             outcome_predictions.as_deref(),
         )?;
@@ -471,20 +915,39 @@ impl ObservationMechanismEstimator {
 
     /// Fit both selected-outcome nuisances out of fold.
     ///
-    /// Folds are the deterministic row-index folds used elsewhere in this crate. Every row
-    /// receives a probability and an outcome prediction from a model fit without it. A fold
+    /// Folds follow `layout`: the deterministic row-index folds used elsewhere in this
+    /// crate for exchangeable rows, contiguous time blocks for temporal rows. Every row
+    /// receives a probability and an outcome prediction from a model fit without it (or any
+    /// copy of it: repeated positions share a fold). A fold
     /// whose training rows cannot support either model is refused rather than quietly
     /// falling back to an in-sample fit, which would reintroduce exactly the bias the
     /// splitting removes.
+    ///
+    /// With `extras`, the outcome regression also conditions on those columns (the
+    /// selection model does not); rows before `extras.lead` keep the conditioning-only
+    /// outcome regression, fit on the same training fold.
     fn crossfit_selected_nuisances(
         &self,
         observed: &[f64],
         indicator: &[f64],
         covariates: &[f64],
+        extras: Option<&OutcomeModelExtras>,
+        layout: FoldLayout<'_>,
     ) -> Result<CrossFittedSelectedNuisances, EstimationError> {
         let n = indicator.len();
         let folds = self.options.crossfit_folds;
         let ncols = if n == 0 { 0 } else { covariates.len() / n };
+        if extras.is_some_and(|extras| extras.values.len() != n * extras.ncols) {
+            return Err(EstimationError::unsupported(
+                "outcome-model regressors must align with observation rows",
+            ));
+        }
+        // Declared conditioning columns followed by the extra outcome-model columns.
+        let augmented = extras.map(|extras| {
+            let mut values = covariates.to_vec();
+            values.extend_from_slice(&extras.values);
+            (values, ncols + extras.ncols, extras.lead)
+        });
         if folds > n {
             return Err(EstimationError::unsupported(
                 "cross-fitting folds cannot exceed observed rows",
@@ -492,9 +955,10 @@ impl ObservationMechanismEstimator {
         }
         let mut probabilities = vec![f64::NAN; n];
         let mut outcome_predictions = vec![f64::NAN; n];
+        let fold_of: Vec<usize> = (0..n).map(|row| layout.fold_of(row, folds)).collect();
         for fold in 0..folds {
-            let train: Vec<usize> = (0..n).filter(|i| i % folds != fold).collect();
-            let valid: Vec<usize> = (0..n).filter(|i| i % folds == fold).collect();
+            let train: Vec<usize> = (0..n).filter(|&i| fold_of[i] != fold).collect();
+            let valid: Vec<usize> = (0..n).filter(|&i| fold_of[i] == fold).collect();
             if valid.is_empty() {
                 continue;
             }
@@ -511,17 +975,43 @@ impl ObservationMechanismEstimator {
                     "a cross-fitting fold cannot support the observation model; reduce crossfit_folds or supply more rows covering both observed and unobserved outcomes",
                 )
             })?;
+            let lead = augmented.as_ref().map_or(0, |(_, _, lead)| *lead);
             let train_observed: Vec<f64> = train.iter().map(|&i| observed[i]).collect();
-            let coefficients = fit_selected_outcome_regression(
-                &train_observed,
-                &train_indicator,
-                &train_covariates,
-                ncols,
-            )?;
+            let base = if augmented.is_none() || valid.iter().any(|&row| row < lead) {
+                Some(fit_selected_outcome_regression(
+                    &train_observed,
+                    &train_indicator,
+                    &train_covariates,
+                    ncols,
+                )?)
+            } else {
+                None
+            };
+            let augmented_fit = augmented
+                .as_ref()
+                .map(|(values, width, lead)| {
+                    let rows: Vec<usize> = train.iter().copied().filter(|&i| i >= *lead).collect();
+                    let train_values = subset_colmajor(values, n, *width, &rows);
+                    let train_observed: Vec<f64> = rows.iter().map(|&i| observed[i]).collect();
+                    let train_indicator: Vec<f64> = rows.iter().map(|&i| indicator[i]).collect();
+                    fit_selected_outcome_regression(
+                        &train_observed,
+                        &train_indicator,
+                        &train_values,
+                        *width,
+                    )
+                })
+                .transpose()?;
             for &row in &valid {
                 let features = covariate_row(covariates, n, ncols, row);
                 probabilities[row] = fit.probability_at(&features)?;
-                outcome_predictions[row] = predict_linear(&coefficients, &features);
+                outcome_predictions[row] = match (&augmented, &augmented_fit, &base) {
+                    (Some((values, width, lead)), Some(coefficients), _) if row >= *lead => {
+                        predict_linear(coefficients, &covariate_row(values, n, *width, row))
+                    }
+                    (_, _, Some(coefficients)) => predict_linear(coefficients, &features),
+                    _ => f64::NAN,
+                };
             }
         }
         if probabilities.iter().chain(&outcome_predictions).any(|value| !value.is_finite()) {
@@ -566,7 +1056,35 @@ impl ObservationMechanismEstimator {
         let observed = data.float64_values(observed_id)?;
         let censoring = data.float64_values(censoring_id)?;
         let event = data.float64_values(event_id)?;
-        if observed.iter().chain(&censoring).any(|v| !v.is_finite()) {
+        let covariates = if conditioning.is_empty() {
+            Vec::new()
+        } else {
+            read_complete_columns(data, conditioning)?
+        };
+        let entry_values = delayed_entry.map(|id| data.float64_values(id)).transpose()?;
+        self.censored_from_columns(
+            &observed,
+            &censoring,
+            &event,
+            &covariates,
+            conditioning.len(),
+            entry_values.as_deref(),
+            reverse,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn censored_from_columns(
+        &self,
+        observed: &[f64],
+        censoring: &[f64],
+        event: &[f64],
+        covariates: &[f64],
+        n_cov: usize,
+        delayed_entry: Option<&[f64]>,
+        reverse: bool,
+    ) -> Result<ObservationAdjustedOutcome, EstimationError> {
+        if observed.iter().chain(censoring).any(|v| !v.is_finite()) {
             return Err(EstimationError::unsupported(
                 "censoring times and recorded outcomes must be finite",
             ));
@@ -582,21 +1100,19 @@ impl ObservationMechanismEstimator {
         }
         let transformed: Vec<f64> =
             observed.iter().map(|&value| if reverse { -value } else { value }).collect();
-        let entry_values = delayed_entry.map(|id| data.float64_values(id)).transpose()?;
-        let weights = if conditioning.is_empty() {
+        let weights = if n_cov == 0 {
             kaplan_meier_ipcw(
                 &transformed,
-                &event,
-                entry_values.as_deref(),
+                event,
+                delayed_entry,
                 self.options.censoring_survival_floor,
             )?
         } else {
-            let covariates = read_complete_columns(data, conditioning)?;
             antecedent_stats::cox_ipcw(
                 &transformed,
-                &event,
-                &covariates,
-                conditioning.len(),
+                event,
+                covariates,
+                n_cov,
                 self.options.censoring_survival_floor,
             )?
             .weights
@@ -609,7 +1125,7 @@ impl ObservationMechanismEstimator {
         Ok(ObservationAdjustedOutcome {
             values,
             weights,
-            method: Arc::from(if !conditioning.is_empty() {
+            method: Arc::from(if n_cov > 0 {
                 if reverse {
                     "observation.left_censored.cox_ipcw_sign_reversal.v1"
                 } else {
@@ -624,6 +1140,27 @@ impl ObservationMechanismEstimator {
             }),
         })
     }
+}
+
+/// Refusal for an observation-adjusted temporal response whose downstream design reads
+/// the outcome at a nonzero lag.
+pub const LAGGED_OUTCOME_REGRESSOR_REFUSAL: &str = "observation-adjusted temporal responses require the outcome to enter the unfolded design only at the outcome time; a lagged outcome regressor would be replaced by pseudo-outcomes (errors in variables)";
+
+/// Refuse an observation-adjusted temporal response whose downstream design carries the
+/// outcome at a nonzero lag: a Sequence overlay's unfolded outcome regression (see
+/// [`temporal_sequence_outcome_regressors`]) or a curve / Set / Shift design whose
+/// lag-aligned adjustment set holds a lagged outcome (see
+/// [`temporal_curve_outcome_regressors`]). The correction replaces the outcome column by
+/// pseudo-outcomes, so every lagged outcome regressor would be a noisy proxy of the latent
+/// outcome and attenuate its coefficient.
+fn require_unlagged_outcome_regressor(
+    outcome: VariableId,
+    outcome_regressors: &[TemporalNodeKey],
+) -> Result<(), EstimationError> {
+    if outcome_regressors.iter().any(|key| key.variable == outcome && key.offset != 0) {
+        return Err(EstimationError::unsupported(LAGGED_OUTCOME_REGRESSOR_REFUSAL));
+    }
+    Ok(())
 }
 
 fn temporal_conditioning_ids(query: &ResponseQuery) -> Result<&[VariableId], EstimationError> {
@@ -744,6 +1281,38 @@ fn censoring_independence(query: &ResponseQuery) -> Result<&[VariableId], Estima
             Err(EstimationError::unsupported("conditional censoring requires IndependentGiven(Z)"))
         }
     }
+}
+
+fn gather_anchor_column(
+    data: &TimeSeriesData,
+    id: VariableId,
+    anchors: &[usize],
+    shift: usize,
+) -> Result<Vec<f64>, EstimationError> {
+    let full = data.float64_values(id)?;
+    Ok(anchors.iter().map(|&anchor| full[anchor - shift]).collect())
+}
+
+fn gather_anchor_columns(
+    data: &TimeSeriesData,
+    ids: &[VariableId],
+    anchors: &[usize],
+    shift: usize,
+) -> Result<Vec<f64>, EstimationError> {
+    let mut values = Vec::with_capacity(anchors.len() * ids.len());
+    for &id in ids {
+        let full = data.float64_values(id)?;
+        for &anchor in anchors {
+            let value = full[anchor - shift];
+            if !value.is_finite() {
+                return Err(EstimationError::unsupported(
+                    "observation-model covariates must be completely observed and finite",
+                ));
+            }
+            values.push(value);
+        }
+    }
+    Ok(values)
 }
 
 fn read_complete_columns(
@@ -1317,5 +1886,199 @@ mod tests {
             got.iter().zip(&expected).all(|(a, b)| (a - b).abs() <= atol),
             "ObservationMechanismEstimator primitives must consume observation_primitives, got {got:?} expected {expected:?}"
         );
+    }
+
+    /// Two-lag selected series: `Y_s = 1 + 2 T_{s-1} + 1.5 T_{s-2}` (no noise), selection
+    /// on `T_{s-1}` only; unselected outcomes are recorded as 0.
+    fn two_lag_selected_series(n: usize) -> TimeSeriesData {
+        let t: Vec<f64> = (0..n).map(|i| ((i * 37 + 11) % 101) as f64 / 50.0 - 1.0).collect();
+        let lag = |s: usize, l: usize| s.checked_sub(l).map_or(0.0, |i| t[i]);
+        let r: Vec<f64> = (0..n).map(|s| f64::from(lag(s, 1) > -0.4 || (s * 13) % 7 < 3)).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|s| if r[s] == 1.0 { 1.0 + 2.0 * lag(s, 1) + 1.5 * lag(s, 2) } else { 0.0 })
+            .collect();
+        TimeSeriesData::from_f64_columns(
+            [("t", t.as_slice()), ("y", y.as_slice()), ("r", r.as_slice())],
+            1,
+        )
+        .unwrap()
+    }
+
+    fn temporal_selected_query(horizons: Vec<u32>) -> ResponseQuery {
+        response_query(VariableId::from_raw(1), VariableId::from_raw(0))
+            .with_temporal(
+                antecedent_core::TemporalResponseSpec::new(
+                    horizons,
+                    antecedent_core::TemporalPolicy::pulse(-1),
+                    None,
+                )
+                .unwrap(),
+            )
+            .with_observation(
+                ObservationSpec::Selected {
+                    latent: VariableId::from_raw(1),
+                    observed: VariableId::from_raw(1),
+                    indicator: VariableId::from_raw(2),
+                },
+                [ObservationAssumption::OutcomeIndependentGiven(Arc::from([
+                    VariableId::from_raw(0),
+                ]))],
+            )
+    }
+
+    #[test]
+    fn selected_aipw_outcome_model_conditions_on_the_downstream_design_columns() {
+        let data = two_lag_selected_series(240);
+        let t = data.float64_values(VariableId::from_raw(0)).unwrap();
+        let r = data.float64_values(VariableId::from_raw(2)).unwrap();
+        let query = temporal_selected_query(vec![1]);
+        let estimator = ObservationMechanismEstimator::default();
+        let key = |offset| TemporalNodeKey { variable: VariableId::from_raw(0), offset };
+        // An unselected row's pseudo-outcome is the outcome-model prediction. With T@-2 in
+        // the outcome model it is the noiseless latent outcome; with the declared T@-1 alone
+        // it cannot track T@-2.
+        let (_, with_design) =
+            estimator.adjust_temporal_series(&data, &query, &[], &[key(-1), key(-2)]).unwrap();
+        let (_, declared_only) =
+            estimator.adjust_temporal_series(&data, &query, &[], &[key(-1)]).unwrap();
+        let mut worst_design = 0.0_f64;
+        let mut worst_declared = 0.0_f64;
+        for s in 2..t.len() {
+            if r[s] == 0.0 {
+                let latent = 1.0 + 2.0 * t[s - 1] + 1.5 * t[s - 2];
+                worst_design = worst_design.max((with_design.values[s] - latent).abs());
+                worst_declared = worst_declared.max((declared_only.values[s] - latent).abs());
+            }
+        }
+        assert!(worst_design < 1e-8, "design-column outcome model misses: {worst_design}");
+        assert!(worst_declared > 0.5, "declared-set outcome model cannot track T@-2");
+        // Row 1 has no T@-2: it keeps the declared-set outcome model, never a NaN.
+        assert!(with_design.values[1].is_finite());
+        // The observation row now reaches two rows back; anchors must respect that.
+        assert_eq!(estimator.observation_row_lag(&query, &[key(-1), key(-2)]).unwrap(), 2);
+        assert_eq!(estimator.observation_row_lag(&query, &[key(-1)]).unwrap(), 1);
+        let anchors: Vec<usize> = (1..t.len()).collect();
+        assert!(
+            estimator
+                .adjust_temporal_anchors(&data, &query, &[], &[key(-1), key(-2)], &anchors)
+                .is_err()
+        );
+        let anchors: Vec<usize> = (2..t.len()).collect();
+        let replicate = estimator
+            .adjust_temporal_anchors(&data, &query, &[], &[key(-1), key(-2)], &anchors)
+            .unwrap();
+        assert!(
+            replicate.iter().zip(&with_design.values[2..]).all(|(a, b)| (a - b).abs() < 1e-8),
+            "on noiseless rows the exact outcome model makes the replicate fold-invariant"
+        );
+    }
+
+    /// Noisy one-lag selected series: `Y_s = 1 + 2 T_{s-1} + ε_s`, selection on `T_{s-1}`.
+    fn noisy_selected_series(n: usize) -> TimeSeriesData {
+        let t: Vec<f64> = (0..n).map(|i| ((i * 37 + 11) % 101) as f64 / 50.0 - 1.0).collect();
+        let lag = |s: usize| s.checked_sub(1).map_or(0.0, |i| t[i]);
+        let r: Vec<f64> = (0..n).map(|s| f64::from(lag(s) > -0.4 || (s * 13) % 7 < 3)).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|s| {
+                let noise = ((s * 53 + 7) % 97) as f64 / 48.0 - 1.0;
+                if r[s] == 1.0 { 1.0 + 2.0 * lag(s) + noise } else { 0.0 }
+            })
+            .collect();
+        TimeSeriesData::from_f64_columns(
+            [("t", t.as_slice()), ("y", y.as_slice()), ("r", r.as_slice())],
+            1,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn replicate_folds_follow_source_positions_so_duplicated_tuples_share_a_fold() {
+        let n = 200;
+        let data = noisy_selected_series(n);
+        let query = temporal_selected_query(vec![1]);
+        let estimator = ObservationMechanismEstimator::default();
+        let (_, series) = estimator.adjust_temporal_series(&data, &query, &[], &[]).unwrap();
+        // Every distinct anchor once, in order: the replicate uses the same time-block
+        // folds as the full-series fit and reproduces it exactly.
+        let anchors: Vec<usize> = (1..n).collect();
+        let replicate =
+            estimator.adjust_temporal_anchors(&data, &query, &[], &[], &anchors).unwrap();
+        assert!(replicate.iter().zip(&series.values[1..]).all(|(a, b)| (a - b).abs() < 1e-10));
+        // A block bootstrap that draws every tuple twice, adjacently: copies share a fold,
+        // so both receive the same out-of-fold nuisances (a copy in the training fold
+        // would make the two pseudo-values differ).
+        let doubled: Vec<usize> = (1..n).flat_map(|anchor| [anchor, anchor]).collect();
+        let replicate =
+            estimator.adjust_temporal_anchors(&data, &query, &[], &[], &doubled).unwrap();
+        for pair in replicate.chunks(2) {
+            assert!((pair[0] - pair[1]).abs() < 1e-12, "duplicated tuple split across folds");
+        }
+        let folds = estimator.options.crossfit_folds;
+        let positions: Vec<usize> = doubled.iter().map(|&anchor| anchor - 1).collect();
+        let layout = FoldLayout::TimeBlocks { positions: &positions, span: n - 1 };
+        let fold_of: Vec<usize> =
+            (0..doubled.len()).map(|row| layout.fold_of(row, folds)).collect();
+        assert!(fold_of.windows(2).all(|w| w[0] <= w[1]), "time-block folds are contiguous");
+        assert_eq!(fold_of.last().copied(), Some(folds - 1));
+    }
+
+    #[test]
+    fn sequence_regressors_flag_every_lag_at_which_the_outcome_feeds_its_ancestry() {
+        // T@-1 → Y@0, Y@-2 → T@0 (lagged outcome into an ancestral mechanism), and
+        // Y@-1 → Z@0 with Z a pure descendant (not in the outcome's design).
+        let (t, y, z) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(3));
+        let mut graph = antecedent_graph::TemporalDag::empty();
+        let lagged = |graph: &mut antecedent_graph::TemporalDag, v, lag| {
+            antecedent_graph::ensure_lagged(graph, v, antecedent_core::Lag::from_raw(lag)).unwrap()
+        };
+        let (t1, t0, y0, y1, y2, z0) = (
+            lagged(&mut graph, t, 1),
+            lagged(&mut graph, t, 0),
+            lagged(&mut graph, y, 0),
+            lagged(&mut graph, y, 1),
+            lagged(&mut graph, y, 2),
+            lagged(&mut graph, z, 0),
+        );
+        graph.insert_directed(t1, y0).unwrap();
+        graph.insert_directed(y2, t0).unwrap();
+        graph.insert_directed(y1, z0).unwrap();
+        let keys = temporal_sequence_outcome_regressors(&graph, y);
+        let key = |variable, offset| TemporalNodeKey { variable, offset };
+        assert_eq!(keys, vec![key(t, -1), key(y, -2)]);
+        let err = require_unlagged_outcome_regressor(y, &keys).unwrap_err();
+        assert!(err.to_string().contains(LAGGED_OUTCOME_REGRESSOR_REFUSAL), "{err}");
+        assert!(require_unlagged_outcome_regressor(y, &[key(t, -1), key(y, 0)]).is_ok());
+    }
+
+    #[test]
+    fn downstream_design_columns_follow_the_curve_horizons_and_sequence_parents() {
+        let mut graph = antecedent_graph::TemporalDag::empty();
+        let y0 = antecedent_graph::ensure_lagged(
+            &mut graph,
+            VariableId::from_raw(1),
+            antecedent_core::Lag::CONTEMPORANEOUS,
+        )
+        .unwrap();
+        for lag in [1, 2] {
+            let t = antecedent_graph::ensure_lagged(
+                &mut graph,
+                VariableId::from_raw(0),
+                antecedent_core::Lag::from_raw(lag),
+            )
+            .unwrap();
+            graph.insert_directed(t, y0).unwrap();
+        }
+        let key = |offset| TemporalNodeKey { variable: VariableId::from_raw(0), offset };
+        assert_eq!(
+            temporal_sequence_outcome_regressors(&graph, VariableId::from_raw(1)),
+            vec![key(-2), key(-1)]
+        );
+        // Plain IPW and censoring never take extra outcome-model columns.
+        let ipw = ObservationMechanismEstimator::new(ObservationEstimatorOptions {
+            selected_correction: SelectedOutcomeCorrection::Ipw,
+            ..ObservationEstimatorOptions::default()
+        });
+        let query = temporal_selected_query(vec![1]);
+        assert_eq!(ipw.observation_row_lag(&query, &[key(-1), key(-2)]).unwrap(), 1);
     }
 }

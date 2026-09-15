@@ -113,8 +113,11 @@ def test_counterfactual_stages_and_artifact():
     assert wire.payload["standard_error"] is None
     assert wire.payload["unit_effects"] == result.unit_effects
     assert wire.payload["support"]
-    with pytest.raises(CausalUnsupportedError):
-        PreparedAnalysis.prepare(data, graph=ac.AcceptedGraph(dag), query=q)
+    # An accepted DAG runs the same GCM path as the explicit one.
+    accepted = PreparedAnalysis.prepare(data, graph=ac.AcceptedGraph(dag), query=q).estimate(data)
+    assert accepted.estimate.estimator_id == "gcm.fit"
+    assert accepted.effect == pytest.approx(result.effect, abs=1e-12)
+    assert accepted.unit_effects == pytest.approx(result.unit_effects, abs=1e-12)
 
 
 @pytest.mark.parametrize(
@@ -429,8 +432,12 @@ def test_v13_named_refusals():
     data, dag = fixture()
     cf = ac.Counterfactual("a", "y", control_level=0.2, active_level=0.8)
     med = ac.MediationEffect("a", "y", mediators=["m"], contrast="natural_direct")
-    with pytest.raises(CausalUnsupportedError, match="explicit Dag"):
-        ac.analyze(data, graph=ac.AcceptedGraph(dag), query=cf, refute="none")
+    accepted_cf = ac.analyze(data, graph=ac.AcceptedGraph.from_graph(dag), query=cf, refute="none")
+    assert accepted_cf.effect == pytest.approx(
+        ac.analyze(data, graph=dag, query=cf, refute="none").effect
+    )
+    with pytest.raises(CausalUnsupportedError, match="cheap/full"):
+        ac.analyze(data, graph=dag, query=cf, refute="cheap")
     med_bayes = ac.analyze(
         data, graph=dag, query=med, inference=ac.Bayesian(n_draws=64), refute="none"
     )

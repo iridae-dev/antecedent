@@ -473,8 +473,17 @@ pub(crate) fn influence_se_kind(
             let n = psi.len() as f64;
             crate::util::sample_std(psi) / n.sqrt()
         }
-        AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 | AnalyticSeKind::Hc2 | AnalyticSeKind::Hc3 => {
-            hetero_influence_se(psi)
+        AnalyticSeKind::Hc1 => hetero_influence_se(psi),
+        // HC0 drops the n/(n−1) small-sample factor: √(Σ(ψ−ψ̄)²) / n.
+        AnalyticSeKind::Hc0 => {
+            let n = psi.len() as f64;
+            hetero_influence_se(psi) * ((n - 1.0) / n).sqrt()
+        }
+        AnalyticSeKind::Hc2 | AnalyticSeKind::Hc3 => {
+            return Err(EstimationError::unsupported(
+                "Hc2/Hc3 leverage corrections are not implemented for influence-function SEs; \
+                 use Hc0 (√(Σ(ψ−ψ̄)²)/n) or Hc1 (√(Σ(ψ−ψ̄)²/(n(n−1))))",
+            ));
         }
         AnalyticSeKind::Cluster => {
             let groups_full = require_clusters(cluster_ids, nrows)?;
@@ -566,6 +575,30 @@ mod tests {
             1,
         );
         assert!((se - permuted).abs() < 1e-12);
+    }
+
+    #[test]
+    fn influence_se_kind_refuses_hc2_hc3() {
+        let psi = [1.0, -1.0, 0.5];
+        for kind in [AnalyticSeKind::Hc2, AnalyticSeKind::Hc3] {
+            let err = influence_se_kind(kind, &psi, 3, None, None, None, None).unwrap_err();
+            assert!(err.to_string().contains("Hc2/Hc3"), "kind={kind:?} err={err}");
+        }
+        let se = influence_se_kind(AnalyticSeKind::Hc1, &psi, 3, None, None, None, None).unwrap();
+        assert!((se - hetero_influence_se(&psi)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn influence_hc0_is_the_uncorrected_sandwich_not_hc1() {
+        let psi = [1.0, 2.0, 4.0, 7.0];
+        let n = psi.len() as f64;
+        let mean = psi.iter().sum::<f64>() / n;
+        let sum_sq = psi.iter().map(|v| (v - mean).powi(2)).sum::<f64>();
+        let hc0 = influence_se_kind(AnalyticSeKind::Hc0, &psi, 4, None, None, None, None).unwrap();
+        let hc1 = influence_se_kind(AnalyticSeKind::Hc1, &psi, 4, None, None, None, None).unwrap();
+        assert!((hc0 - sum_sq.sqrt() / n).abs() < 1e-12);
+        assert!((hc1 - (sum_sq / (n * (n - 1.0))).sqrt()).abs() < 1e-12);
+        assert!(hc0 < hc1);
     }
 
     #[test]

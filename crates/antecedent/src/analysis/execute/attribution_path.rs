@@ -138,7 +138,7 @@ impl super::Study {
                     "gcm.counterfactual.bayesian",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    "Dirichlet row-weight posterior of fitted GCM mechanisms, conditional on the selected families and empirical support; each draw abducts–acts–predicts on the original units; published unit_effects are the posterior mean of those per-unit ITEs.",
+                    "Dirichlet row-weight posterior of fitted GCM mechanisms, conditional on the selected families and empirical support; each draw abducts–acts–predicts on the original units; published unit_effects are the posterior mean of those per-unit ITEs. The posterior effect draws, standard error, and credible interval describe mean_ite (the average contrast over the observed units) and carry mechanism-refit uncertainty only: abducted disturbances are recomputed from the observed rows, not drawn, so this is neither a predictive interval for any single unit's effect nor an interval for a population average beyond the observed units, and unit_effects carry no interval.",
                 )
             } else {
                 Diagnostic::new(
@@ -195,9 +195,17 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let _ = ctx;
         let started = Instant::now();
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let outcome = *query.targets.first().unwrap_or(&VariableId::from_raw(0));
+        let (_, _, identify_cached) =
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                Ok(parametric_scm_identification(
+                    CausalQuery::AnomalyAttribution(query.clone()),
+                    outcome,
+                    outcome,
+                ))
+            })?;
         let fitted = fit_gcm(graph.clone(), data)?;
         let scores = anomaly_attribution(
             &fitted.model,
@@ -205,7 +213,6 @@ impl super::Study {
             query.targets.iter().copied(),
             query.max_units,
         )?;
-        let outcome = *query.targets.first().unwrap_or(&VariableId::from_raw(0));
         Ok(self.finish_gcm(
             physical,
             CausalQuery::AnomalyAttribution(query.clone()),
@@ -215,6 +222,7 @@ impl super::Study {
             started,
             GcmSlot::Anomaly(scores),
             Vec::new(),
+            identify_cached,
         ))
     }
 
@@ -228,6 +236,14 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+        let (_, _, identify_cached) =
+            identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
+                Ok(parametric_scm_identification(
+                    CausalQuery::ChangeAttribution(query.clone()),
+                    query.outcome,
+                    query.outcome,
+                ))
+            })?;
         let fitted = fit_gcm(graph.clone(), data)?;
         let result = attribute_distribution_change(
             &fitted.model,
@@ -251,6 +267,7 @@ impl super::Study {
             started,
             GcmSlot::Change(result),
             Vec::new(),
+            identify_cached,
         ))
     }
 
@@ -282,6 +299,7 @@ impl super::Study {
             started,
             GcmSlot::Mechanism(detections),
             Vec::new(),
+            false,
         ))
     }
 
@@ -306,6 +324,7 @@ impl super::Study {
             started,
             GcmSlot::Unit(result),
             Vec::new(),
+            false,
         ))
     }
 
@@ -319,6 +338,7 @@ impl super::Study {
         started: Instant,
         slot: GcmSlot,
         diagnostics: Vec<Diagnostic>,
+        identify_cached: bool,
     ) -> StudyResult {
         let (identification, estimand) = parametric_scm_identification(query, treatment, outcome);
         self.finish_identified_execute(IdentifiedExecuteFinish {
@@ -330,7 +350,7 @@ impl super::Study {
             estimator_id: EstimatorId::GcmFit,
             treatment,
             outcome,
-            identify_cached: false,
+            identify_cached,
             extra_diagnostics: Vec::new(),
             refutations: Vec::new(),
             distribution: None,
@@ -357,7 +377,7 @@ fn counterfactual_posterior(
     assumptions.push(antecedent_core::AssumptionRecord {
         assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
             id: Arc::from("counterfactual.weighted_mechanisms"),
-            description: Arc::from("Dirichlet row-weight posterior of standard mechanism fits, conditional on selected mechanism families and empirical support; abduction is repeated on the original units for every draw. This is not a parametric coefficient-prior posterior."),
+            description: Arc::from("Dirichlet row-weight posterior of standard mechanism fits, conditional on selected mechanism families and empirical support; abduction is repeated on the original units for every draw. This is not a parametric coefficient-prior posterior. The interval is for mean_ite over the observed units and reflects mechanism-refit uncertainty only; it is not a unit-level predictive interval."),
         }),
         source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from("gcm.fit.bayesian") },
         scope: antecedent_core::AssumptionScope::Estimation,
@@ -377,6 +397,7 @@ fn counterfactual_posterior(
     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
     let summaries = draws.summarize();
     Ok(CausalPosterior {
+        subsampled_out_mass: 0.0,
         draws,
         summaries,
         identification,
