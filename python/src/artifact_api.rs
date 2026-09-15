@@ -5,6 +5,7 @@ use antecedent_io::{
     TransportEffectEstimateWire, TransportIdentificationWire, decode_analysis_result_artifact,
     decode_causal_payload_artifact, encode_causal_payload_artifact,
 };
+use antecedent_io::executed_functional_labels;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Serialize;
@@ -196,6 +197,10 @@ fn accept_analysis_result_contract(
         out.insert("program".into(), antecedent_io::digest_hex(&contract.identities.program));
         out.insert("target".into(), antecedent_io::digest_hex(&contract.identities.target));
         out.insert("graph_class".into(), contract.graph_class.clone());
+        out.insert("variable_names".into(), contract.target.schema.variable_names().join(","));
+        for (key, value) in executed_functional_labels(&contract.target.query) {
+            out.insert(key, value);
+        }
     }
     Ok(out)
 }
