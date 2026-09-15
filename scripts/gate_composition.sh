@@ -38,14 +38,62 @@ run_and_count "antecedent-core request identity" \
 run_and_count "antecedent v110_contract" \
   cargo test -p antecedent --test v110_contract -- --nocapture
 
+# New licensed-coordinate tests must keep the licensed_family_ prefix
+# so this filter remains the composition enrollment list.
+# 1.10 leftover B/C now included: Pulse/Sustained Bayes + cheap/full,
+# static InterventionResponse, PathSpecific Bayes, TemporalCpdag/Pag,
+# identifying TemporalPag Pulse/response, GP temporal Pulse encode,
+# RightCensored / Interval / Truncated observation pairs, and
+# prior-mapping / catalog transfer variants.
+run_and_count "antecedent v110 licensed families" \
+  cargo test -p antecedent --test v110_contract licensed_family_ -- --nocapture
+
 run_and_count "antecedent prepared identify counts" \
   cargo test -p antecedent --test prepared_analysis prepared_second_shot_reuses_identification -- --nocapture
+
+run_and_count "antecedent prepared family contracts" \
+  cargo test -p antecedent --test prepared_analysis -- --nocapture \
+  'prepared_conditional_effect_reestimate_matches_fresh|prepared_conditional_bayesian_records_bayesian_estimator|prepared_path_specific_reestimate_matches_fresh|prepared_distribution_reestimate_matches_fresh|prepare_accepts_temporal_effect_query_and_reuses_identification'
 
 run_and_count "antecedent-io identity encoding" \
   cargo test -p antecedent-io --lib encoding_rule_changes_change_the_advertised_digest -- --nocapture
 
 run_and_count "antecedent-io dbn atom identity" \
   cargo test -p antecedent-io --lib dbn_atom_identity_includes_lags_namespace_and_execution_key -- --nocapture
+
+run_and_count "antecedent-io score reuse identity" \
+  cargo test -p antecedent-io --lib score_reuse_keys_are_stricter_than_identification -- --nocapture
+
+run_and_count "antecedent-state expected-version publish" \
+  cargo test -p antecedent-state --lib refresh_results_at_rejects_a_stale_expected_version -- --nocapture
+
+run_and_count "antecedent prepared series refresh atomicity" \
+  cargo test -p antecedent --lib failed_series_refresh_leaves_handle_unchanged -- --nocapture
+
+run_and_count "antecedent v110 series/state reuse" \
+  cargo test -p antecedent --test v110_contract -- --nocapture \
+  'failed_series_refresh_then_estimate_on_old_data|temporal_state_events_keep_lineage_and_refuse_stale_publish'
+
+run_and_count "antecedent v15 score/batch reuse keys" \
+  cargo test -p antecedent --test v15_numeric_pins -- --nocapture \
+  'prepared_batch_shares_fold_object_and_covariate_design|replacement_data_changes_score_reuse_not_identification'
+
+run_and_count "antecedent-core capability reports" \
+  cargo test -p antecedent-core --lib capability -- --nocapture
+
+run_and_count "antecedent support neighbors" \
+  cargo test -p antecedent --lib licensed_neighbors_keep_graph_class_and_never_relabel -- --nocapture
+
+run_and_count "antecedent v110 capability reports" \
+  cargo test -p antecedent --test v110_contract -- --nocapture \
+  capability_
+
+run_and_count "antecedent-core claim handoffs" \
+  cargo test -p antecedent-core --lib claim -- --nocapture
+
+run_and_count "antecedent v110 claim handoffs" \
+  cargo test -p antecedent --test v110_contract -- --nocapture \
+  'claim_handoff_|derived_claim_'
 
 if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
   echo "SKIP_PYTHON_SMOKE=1; skipping Python v110 contract tests"

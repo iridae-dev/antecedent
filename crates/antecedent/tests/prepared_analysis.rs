@@ -13,14 +13,15 @@ use antecedent::{
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalRng, CausalSchemaBuilder, ConditionalEffectQuery,
     ExecutionContext, Intervention, InterventionalDistributionQuery, Lag, MeasurementSpec,
-    MediationContrast, MediationQuery, PathSpecificEffectQuery, RoleHint, SmallRoleSet, Value,
-    ValueType, VariableId,
+    MediationContrast, MediationQuery, PathSpecificEffectQuery, RoleHint, SmallRoleSet,
+    TransformIntent, Value, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TabularData, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
 use antecedent_graph::{Admg, Dag, DenseNodeId, Pag, TemporalDag, ensure_lagged};
+use antecedent_io::{causal_query_to_wire, consume_analysis_result, executed_functional_labels};
 
 /// Confounded linear SCM with structural ATE = 2.
 fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
@@ -414,6 +415,19 @@ fn prepare_accepts_temporal_effect_query_and_reuses_identification() {
         "prepared TemporalEffect estimate_series must reuse identification"
     );
     assert!(click.estimate.ate.is_finite());
+    assert!((click.effect() - 0.5).abs() < 0.15);
+    let contract = prepared.contract().unwrap();
+    assert!(contract.identities.identification_product.is_some());
+    let bytes = prepared.encode_contracted_result(&click, "prepared-pulse", &ctx).unwrap();
+    let consumed = consume_analysis_result(&bytes).unwrap();
+    assert!(consumed.acceptance.accepts_as_verified_program());
+    let labels: std::collections::HashMap<_, _> = executed_functional_labels(
+        &consumed.contract.as_ref().expect("verified contract").target.query,
+    )
+    .into_iter()
+    .collect();
+    assert_eq!(labels["query_kind"], "temporal_effect");
+    assert!(labels["temporal_coordinates"].contains("horizon:1"));
 }
 
 #[test]
@@ -622,6 +636,36 @@ fn distribution_fixture() -> (TabularData, Dag, InterventionalDistributionQuery)
     (data, g, query)
 }
 
+fn assert_prepared_contract_consume(
+    prepared: &PreparedStudy,
+    result: &antecedent::StudyResult,
+    ctx: &ExecutionContext,
+    artifact_id: &str,
+    query_kind: &str,
+) {
+    let inspected_id = prepared.contract().unwrap().identities.target;
+    let preview = prepared.preview_transform(TransformIntent::CompatibleDataReplace).unwrap();
+    assert!(!preview.refused);
+    let contract = prepared.contract().unwrap();
+    assert_eq!(inspected_id, contract.identities.target);
+    let claim = result.claim(&contract, ctx).unwrap();
+    assert_eq!(claim.identities.program, contract.identities.program);
+    let bytes = prepared.encode_contracted_result(result, artifact_id, ctx).unwrap();
+    let consumed = consume_analysis_result(&bytes).unwrap();
+    assert!(consumed.acceptance.accepts_as_verified_program());
+    let labels: std::collections::HashMap<_, _> = executed_functional_labels(
+        &consumed.contract.as_ref().expect("verified contract").target.query,
+    )
+    .into_iter()
+    .collect();
+    assert_eq!(labels["query_kind"], query_kind);
+    assert_eq!(
+        executed_functional_labels(&causal_query_to_wire(prepared.query()).unwrap()),
+        executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
+    );
+    assert_eq!(consumed.body.estimate, Some(result.effect()));
+}
+
 fn assert_cached_only_on_prepared(
     fresh: &antecedent::StudyResult,
     prepared_clicks: &[&antecedent::StudyResult],
@@ -657,6 +701,8 @@ fn prepared_conditional_effect_reestimate_matches_fresh() {
     assert_eq!(second.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
     assert_eq!(first.estimand.adjustment_set, fresh.estimand.adjustment_set);
     assert_cached_only_on_prepared(&fresh, &[&first, &second]);
+    assert!((first.effect() - 3.0).abs() < 1e-8);
+    assert_prepared_contract_consume(&prepared, &first, &ctx, "prepared-ce", "conditional_effect");
 }
 
 #[test]
@@ -678,6 +724,14 @@ fn prepared_conditional_bayesian_records_bayesian_estimator() {
     assert_eq!(click.logical_plan.estimator.as_deref(), Some("conditional.bayesian"));
     assert_eq!(click.estimate.ate.to_bits(), fresh.estimate.ate.to_bits());
     assert_cached_only_on_prepared(&fresh, &[&click]);
+    assert!((click.effect() - 3.0).abs() < 0.15);
+    assert_prepared_contract_consume(
+        &prepared,
+        &click,
+        &ctx,
+        "prepared-ce-b",
+        "conditional_effect",
+    );
 }
 
 #[test]
@@ -705,6 +759,7 @@ fn prepared_path_specific_reestimate_matches_fresh() {
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
     assert!(fresh.refutations.is_empty(), "path-specific must not wrap ATE refuters");
     assert_cached_only_on_prepared(&fresh, &[&first, &second]);
+    assert_prepared_contract_consume(&prepared, &first, &ctx, "prepared-path", "path_specific");
 }
 
 #[test]
@@ -735,6 +790,8 @@ fn prepared_distribution_reestimate_matches_fresh() {
     assert_eq!(first.estimand.method.as_ref(), fresh.estimand.method.as_ref());
     assert!(fresh.refutations.is_empty(), "distribution must not wrap ATE refuters");
     assert_cached_only_on_prepared(&fresh, &[&first, &second]);
+    assert!((first_dist.mean - 0.7).abs() < 0.08);
+    assert_prepared_contract_consume(&prepared, &first, &ctx, "prepared-dist", "distribution");
 }
 
 /// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) refuses

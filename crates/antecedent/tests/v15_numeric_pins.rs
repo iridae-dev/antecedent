@@ -2161,6 +2161,14 @@ fn prepared_batch_shares_fold_object_and_covariate_design() {
         t1.scores.as_ref(),
         "different outcomes must not share residualization"
     );
+    let design_key0 = prepared.plans()[0].batch_share_identity().unwrap().expect("batch share");
+    let design_key1 = prepared.plans()[1].batch_share_identity().unwrap().expect("batch share");
+    assert_eq!(design_key0, design_key1, "shared design is one reuse key");
+    assert_eq!(design_key0, prepared.batch_share_identity().unwrap().expect("batch share"));
+    let score0 = prepared.plans()[0].score_reuse_identity().unwrap().expect("score key");
+    let score1 = prepared.plans()[1].score_reuse_identity().unwrap().expect("score key");
+    assert_ne!(score0, score1, "shared design is not a shared nuisance fit");
+    assert_ne!(score0, design_key0);
     let results = prepared.estimate(&data, &ctx).unwrap();
     assert!(
         results
@@ -3535,4 +3543,32 @@ fn pag_two_atom_conditional_quantile_retains_joint_influence() {
     assert!(result.diagnostics.iter().any(|d| d.message.contains("cases=2")));
     let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
     assert!((click.estimate.ate - result.estimate.ate).abs() < 1e-10);
+}
+
+#[test]
+fn replacement_data_changes_score_reuse_not_identification() {
+    let (data_a, graph, query, _, _) = confounded_hetero(400, 215);
+    let (data_b, _, _, _, _) = confounded_hetero(400, 216);
+    assert_eq!(data_a.row_count(), data_b.row_count());
+    assert_eq!(data_a.schema(), data_b.schema());
+    let ctx = ExecutionContext::for_tests(215);
+    let mut prepared = Study::tabular(data_a)
+        .graph(graph)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let before = prepared.contract().unwrap().identities;
+    let score_before = prepared.score_reuse_identity().unwrap().expect("score key");
+    prepared.refresh(data_b, &ctx).unwrap();
+    let after = prepared.contract().unwrap().identities;
+    let score_after = prepared.score_reuse_identity().unwrap().expect("score key");
+    assert_eq!(before.identification, after.identification);
+    assert_eq!(before.program, after.program);
+    assert_ne!(before.data_snapshot, after.data_snapshot);
+    assert_ne!(score_before, score_after, "same schema and n do not reuse scores");
 }
