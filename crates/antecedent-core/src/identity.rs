@@ -43,6 +43,9 @@ pub enum IdentityDomain {
     Execution,
     /// Portable claim envelope over a program and one result.
     Claim,
+    /// Score-table, fold, nuisance, and shared-draw reuse. Stricter than
+    /// identification: matching names and shapes are not this layer.
+    ScoreReuse,
 }
 
 impl IdentityDomain {
@@ -59,6 +62,7 @@ impl IdentityDomain {
             Self::DataSnapshot => "data_snapshot",
             Self::Execution => "execution",
             Self::Claim => "claim",
+            Self::ScoreReuse => "score_reuse",
         }
     }
 
@@ -75,6 +79,7 @@ impl IdentityDomain {
             Self::DataSnapshot => "antecedent.identity.data_snapshot.v1",
             Self::Execution => "antecedent.identity.execution.v1",
             Self::Claim => "antecedent.identity.claim.v1",
+            Self::ScoreReuse => "antecedent.identity.score_reuse.v1",
         }
     }
 }
@@ -219,6 +224,7 @@ mod tests {
             IdentityDomain::DataSnapshot,
             IdentityDomain::Execution,
             IdentityDomain::Claim,
+            IdentityDomain::ScoreReuse,
         ];
         let mut keys = std::collections::BTreeSet::new();
         let mut names = std::collections::BTreeSet::new();
@@ -227,7 +233,7 @@ mod tests {
             assert!(names.insert(domain.as_str()));
             assert!(domain.derive_key().contains(domain.as_str()) || domain.as_str().contains('_'));
         }
-        assert_eq!(keys.len(), 9);
+        assert_eq!(keys.len(), 10);
     }
 
     #[test]

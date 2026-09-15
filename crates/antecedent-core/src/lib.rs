@@ -34,6 +34,7 @@
 #![warn(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
 pub mod assumption;
+pub mod capability;
 pub mod claim;
 pub mod diagnostic;
 pub mod error;
@@ -59,16 +60,23 @@ pub use assumption::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, ParametricAssumption, PriorAssumption,
 };
+pub use capability::{
+    BlockedOperation, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
+    OperationReport, PremiseChange, SemanticApplicability,
+};
 pub use claim::{
-    AcceptanceReport, ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, HandoffReceipt,
+    AcceptanceReport, ClaimCompatibility, ClaimDomainAxis, ClaimDomains, ClaimEnvelope,
+    ClaimFreshness, ClaimKind, ClaimOperation, ConsumerProfile, DerivedClaim, DerivedClaimOutcome,
+    DomainStatus, EvidenceDependence, HandoffReceipt, HostOperation, SharedEvidenceRef,
+    claim_compatibility, compose_claims,
 };
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
 pub use execution::{
     AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy, CancellationToken,
     CausalRng, Determinism, ExecutionContext, ExecutionReceipt, ExecutionRequestState,
-    KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError, NonZeroThreadCount,
-    Parallelism, ProgressSink, RequestIdentity, RngFactory,
+    KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError, NonZeroThreadCount, Parallelism,
+    ProgressSink, RequestIdentity, RngFactory,
 };
 pub use identification::IdentificationStatus;
 pub use identity::{
