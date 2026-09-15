@@ -263,9 +263,17 @@ impl super::Study {
                 )?;
                 plan.record.data_classification = DataClassification::Panel;
                 plan.record.estimator =
-                    Some(Arc::from(EstimatorId::TemporalResponseGcomp.as_str()));
+                    Some(Arc::from(if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                        EstimatorId::TemporalResponseBayesian.as_str()
+                    } else {
+                        EstimatorId::TemporalResponseGcomp.as_str()
+                    }));
                 Ok(plan)
             }
+            (
+                Some(AnalysisRoute::PanelTemporalResponse),
+                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+            ) => self.compile_logical_panel_class_response(),
             (
                 Some(AnalysisRoute::PanelTemporalEffect),
                 GraphClass::TemporalCpdag | GraphClass::TemporalPag,
@@ -623,7 +631,7 @@ impl super::Study {
                 GraphClass::TemporalCpdag | GraphClass::TemporalPag,
             ) => self.compile_temporal_class(ctx),
             (
-                Some(AnalysisRoute::PanelTemporalEffect),
+                Some(AnalysisRoute::PanelTemporalEffect | AnalysisRoute::PanelTemporalResponse),
                 GraphClass::TemporalCpdag | GraphClass::TemporalPag,
             ) => self.compile_logical()?.compile_physical(ctx),
             (
@@ -755,8 +763,38 @@ impl super::Study {
             DataClassification::Panel,
             "panel_cpdag_effect",
             "panel_pag_effect",
-            false,
+            true,
         )
+    }
+
+    fn compile_logical_panel_class_response(&self) -> Result<LogicalAnalysisPlan, CausalError> {
+        let DataInput::Panel(panel) = &self.data else { unreachable!() };
+        super::super::builder::refuse_unlicensed_panel_route(
+            &self.query,
+            self.graph.class(),
+            &self.inference,
+        )?;
+        let CausalQuery::Response(q) = &self.query else { unreachable!() };
+        let mut plan = compile_logical_temporal_response(
+            panel_compile_series(panel)?,
+            &TemporalDag::empty(),
+            q,
+            false,
+        )?;
+        plan.record.data_classification = DataClassification::Panel;
+        plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
+        plan.record.estimator =
+            Some(Arc::from(if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                EstimatorId::TemporalResponseBayesian.as_str()
+            } else {
+                EstimatorId::TemporalResponseGcomp.as_str()
+            }));
+        plan.record.plan_id = Arc::from(match self.graph.class() {
+            GraphClass::TemporalCpdag => "panel_cpdag_response",
+            GraphClass::TemporalPag => "panel_pag_response",
+            _ => "panel_class_response",
+        });
+        Ok(plan)
     }
 
     fn compile_logical_temporal_class(&self) -> Result<LogicalAnalysisPlan, CausalError> {

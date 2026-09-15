@@ -25,10 +25,10 @@ position-derived keys are not durable semantic identity.
 
 Frequentist panel `ResponseCurve` / `InterventionResponse` on a supplied
 `TemporalDag` is a licensed data route: per-unit surfaces, equal-weight
-average, between-unit pointwise bands. Bayesian panel response, and panel
-Pulse / Sustained / response on `TemporalCpdag` / `TemporalPag`, remain
-separately gated. The compiler foundation must not depend on opening
-those remaining cells.
+average, between-unit pointwise bands. Bayesian panel response, panel class
+Pulse / multi-step Sustained, and panel class response use their own panel
+contracts. Panel multi-step Sequence overlays stay on the series sequential
+owner.
 
 ## Decision
 
@@ -152,13 +152,11 @@ Frequentist panel `ResponseCurve` / `InterventionResponse` on a supplied
 `TemporalDag` is licensed via per-unit surfaces and between-unit pointwise
 bands. Frequentist panel Pulse / single-step Sustained on `TemporalCpdag` /
 `TemporalPag` fits each identified completion with panel cluster SEs and
-mixes by completion mass. The following routes stay refused unless a later
-promotion supplies each route's own contract:
-
-- Bayesian panel `ResponseCurve` / `InterventionResponse`
-- Bayesian panel Pulse / Sustained on `TemporalCpdag` / `TemporalPag`
-- panel response on `TemporalCpdag` / `TemporalPag`
-- panel multi-step Sustained on `TemporalCpdag` / `TemporalPag`
+mixes by completion mass. Bayesian panel response uses per-unit Bayesian
+surfaces. Bayesian panel class Pulse and multi-step panel Sustained fit each
+completion on panel units and mix by mass. Panel class response averages
+unit surfaces per completion and mixes by mass. Panel multi-step Sequence
+overlays stay on the series sequential owner.
 
 Shipped panel Pulse / single-step Sustained on explicit or accepted
 `TemporalDag` already use `PanelClusterHac`; they are not an iid-SE defect.

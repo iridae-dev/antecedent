@@ -145,9 +145,12 @@ supplied `TemporalDag` averages per-unit temporal-response surfaces and
 publishes between-unit pointwise bands; the series simultaneous band is
 withheld. Frequentist panel Pulse / single-step Sustained on a supplied
 `TemporalCpdag` / `TemporalPag` fits each identified completion with panel
-cluster SEs and mixes by completion mass. Bayesian panel response, Bayesian
-panel class Pulse, panel class response, and multi-step panel Sustained stay
-refused.
+cluster SEs and mixes by completion mass. Bayesian panel response averages
+per-unit Bayesian surfaces with between-unit pointwise bands. Bayesian panel
+class Pulse and multi-step panel Sustained fit each completion on panel units
+and mix by mass. Panel class response averages unit surfaces per completion
+and mixes by mass. Units are not stacked; a temporal class is not completed
+onto the DAG executor.
 
 Unconditional finite-discrete `InterventionalDistribution` on an explicit or
 accepted ADMG is licensed at validation `none` via general ID (bidirected

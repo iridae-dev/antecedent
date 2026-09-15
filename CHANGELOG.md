@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `PreparedStudy::contract` binds cached identification products;
   `StudyResult::claim` is the first-class execution envelope. Remaining
   panel class promotions (Bayesian panel response/class, panel class
-  response, multi-step panel Sustained) stay a separately gated workstream.
+  response, multi-step panel Sustained) now have their own panel contracts.
 - Contract identification now separates acceptance history from graph semantics:
   reaccepting an unchanged graph preserves program identity, while acceptance
   version, discovery algorithm, and original binding remain inspectable.
@@ -45,8 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   between-unit pointwise bands. The series simultaneous band is withheld.
   Frequentist panel Pulse / single-step Sustained on `TemporalCpdag` /
   `TemporalPag` fits each identified completion with panel cluster SEs and
-  mixes by completion mass. Bayesian panel response, Bayesian panel class
-  Pulse, panel class response, and multi-step panel Sustained stay refused.
+  mixes by completion mass. Bayesian panel response averages per-unit
+  Bayesian surfaces. Bayesian panel class Pulse and multi-step panel
+  Sustained fit each completion on panel units and mix by mass. Panel
+  class response averages unit surfaces per completion and mixes by mass.
 
 ## [1.9.0] — 2026-09-15
 
