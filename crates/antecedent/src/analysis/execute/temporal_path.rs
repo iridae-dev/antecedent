@@ -3624,7 +3624,7 @@ impl super::Study {
     }
 
     /// Whether the prepared class cache holds a certificate for every horizon.
-    fn temporal_class_cache_covers(&self, horizons: &[u32]) -> bool {
+    pub(crate) fn temporal_class_cache_covers(&self, horizons: &[u32]) -> bool {
         self.temporal_class_identification_cache.as_deref().is_some_and(|cache| {
             horizons
                 .iter()
@@ -3896,6 +3896,7 @@ pub(crate) fn temporal_class_structural_mixture(
     let mut atoms = Vec::with_capacity(envelope.cases.len());
     let mut identified_weight = 0.0;
     let mut unidentified_weight = 0.0;
+    let mut unevaluable_weight = 0.0;
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
     for (i, case) in envelope.cases.iter().enumerate() {
@@ -3907,6 +3908,8 @@ pub(crate) fn temporal_class_structural_mixture(
                 lo = lo.min(v);
                 hi = hi.max(v);
             }
+        } else if identification_status_ok_for_case(case.result.status) {
+            unevaluable_weight += weight;
         } else {
             unidentified_weight += weight;
         }
@@ -3919,7 +3922,7 @@ pub(crate) fn temporal_class_structural_mixture(
             value: value.map(ResponseValue::Scalar),
         });
     }
-    let total = identified_weight + unidentified_weight;
+    let total = identified_weight + unidentified_weight + unevaluable_weight;
     let identified_set = if lo.is_finite() && hi.is_finite() {
         Some(antecedent_core::ResponseEnvelope {
             grid: Arc::from([0.0]),
@@ -3930,12 +3933,17 @@ pub(crate) fn temporal_class_structural_mixture(
     } else {
         None
     };
+    let (identified_mass, unidentified_mass, unevaluable_mass) = if total > 0.0 {
+        (identified_weight / total, unidentified_weight / total, unevaluable_weight / total)
+    } else {
+        (0.0, 0.0, 0.0)
+    };
     crate::result::StructuralResponseMixture {
         weight_basis,
         atoms,
-        identified_mass: identified_weight / total,
-        unidentified_mass: unidentified_weight / total,
-        unevaluable_mass: 0.0,
+        identified_mass,
+        unidentified_mass,
+        unevaluable_mass,
         subsampled_out_mass: 0.0,
         identified_set,
         identified_set_interval: None,

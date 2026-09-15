@@ -1389,7 +1389,15 @@ pub(crate) fn identification_status_ok_for_case(status: IdentificationStatus) ->
         IdentificationStatus::NonparametricallyIdentified
             | IdentificationStatus::PartiallyIdentified
             | IdentificationStatus::IdentifiedUnderParametricRestrictions
-            | IdentificationStatus::IdentifiedUnderPriorRestrictions
+    )
+}
+
+/// Statuses that license a unique point estimand in a class mixture.
+pub(crate) fn identification_status_ok_for_point_mix(status: IdentificationStatus) -> bool {
+    matches!(
+        status,
+        IdentificationStatus::NonparametricallyIdentified
+            | IdentificationStatus::IdentifiedUnderParametricRestrictions
     )
 }
 

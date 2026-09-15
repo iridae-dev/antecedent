@@ -516,8 +516,16 @@ impl StudyResult {
             Some(*execution.as_bytes()),
         ))
         .map_err(|err| io_err(&err))?;
-        let identified =
-            reasoning.identification.as_ref().is_some_and(|slot| slot.identified_mass > 0.0);
+        let identified = reasoning.identification.as_ref().is_some_and(|slot| {
+            slot.unidentified_mass == 0.0
+                && slot.unevaluable_mass == 0.0
+                && slot.incomplete_search_mass == 0.0
+                && matches!(
+                    slot.status,
+                    IdentificationStatus::NonparametricallyIdentified
+                        | IdentificationStatus::IdentifiedUnderParametricRestrictions
+                )
+        });
         let support_domain = match (
             contract.support_status,
             reasoning.support.as_ref().and_then(|slot| slot.empirical.as_ref()),
@@ -538,7 +546,7 @@ impl StudyResult {
             ClaimDomains::new(
                 if identified { DomainStatus::Identified } else { DomainStatus::Unknown },
                 support_domain,
-                DomainStatus::Evaluated,
+                if identified { DomainStatus::Evaluated } else { DomainStatus::Unknown },
             ),
             Some(execution),
             [
@@ -1089,11 +1097,7 @@ fn reasoning_view(
         return ReasoningView::structural(support, assumptions);
     }
     let result = cached.expect("checked");
-    let mut slot = IdentificationSlot::identified_singleton(result.status);
-    slot.search_capped = search_capped;
-    if search_capped {
-        slot.full_mass_scope = false;
-    }
+    let slot = identification_slot_from_prepared(study, result, search_capped);
     ReasoningView::new(
         SlotAvailability::Available(slot),
         SlotAvailability::Available(support),
@@ -1583,6 +1587,106 @@ fn identification_slot_from_result(
     Ok(IdentificationSlot::identified_singleton(result.identification.status))
 }
 
+fn identification_slot_from_prepared(
+    study: &Study,
+    result: &IdentificationResult,
+    search_capped: bool,
+) -> IdentificationSlot {
+    if let Some(cache) = study.temporal_class_identification_cache.as_ref() {
+        return slot_from_envelope_weights(
+            result.status,
+            cache.envelope.envelope.identified_weight.0,
+            cache.envelope.envelope.unidentified_weight.0,
+            cache.envelope.envelope.truncated_completions,
+            "completion_enumeration",
+            search_capped,
+        );
+    }
+    if let Some(cache) = study.cpdag_identification_cache.as_ref() {
+        return slot_from_envelope_weights(
+            cache.identification.status,
+            cache.envelope.identified_weight.0,
+            cache.envelope.unidentified_weight.0,
+            cache.envelope.truncated_completions,
+            "completion_enumeration",
+            search_capped,
+        );
+    }
+    if let Some(cache) = study.pag_identification_cache.as_ref() {
+        return slot_from_envelope_weights(
+            cache.identification.status,
+            cache.envelope.identified_weight.0,
+            cache.envelope.unidentified_weight.0,
+            cache.envelope.truncated_completions,
+            "completion_enumeration",
+            search_capped,
+        );
+    }
+    if let Some(cache) = study.graph_posterior_identification_cache.as_ref() {
+        return slot_from_graph_samples(result.status, &cache.graphs, search_capped);
+    }
+    if let Some(cache) = study.dbn_posterior_identification_cache.as_ref() {
+        return slot_from_graph_samples(result.status, &cache.graphs, search_capped);
+    }
+    let mut slot = IdentificationSlot::identified_singleton(result.status);
+    slot.search_capped = search_capped;
+    if search_capped {
+        slot.full_mass_scope = false;
+    }
+    slot
+}
+
+fn slot_from_envelope_weights(
+    status: IdentificationStatus,
+    identified_weight: f64,
+    unidentified_weight: f64,
+    truncated: usize,
+    basis: &'static str,
+    search_capped: bool,
+) -> IdentificationSlot {
+    let total = identified_weight + unidentified_weight;
+    let (identified_mass, unidentified_mass) = if total > 0.0 {
+        (identified_weight / total, unidentified_weight / total)
+    } else {
+        (0.0, 1.0)
+    };
+    IdentificationSlot::new(
+        status,
+        identified_mass,
+        unidentified_mass,
+        0.0,
+        0.0,
+        truncated == 0 && !search_capped,
+        Some(Arc::from(basis)),
+        search_capped || truncated > 0,
+    )
+}
+
+fn slot_from_graph_samples(
+    status: IdentificationStatus,
+    graphs: &antecedent_prob::WeightedGraphSamples,
+    search_capped: bool,
+) -> IdentificationSlot {
+    let identified = graphs.identified_mass();
+    let unidentified = graphs.unidentified_mass();
+    let total = identified + unidentified;
+    let (identified_mass, unidentified_mass) = if total > 0.0 {
+        (identified / total, unidentified / total)
+    } else {
+        (0.0, 1.0)
+    };
+    IdentificationSlot::new(
+        status,
+        identified_mass,
+        unidentified_mass,
+        0.0,
+        0.0,
+        !search_capped,
+        Some(Arc::from("posterior_probability")),
+        search_capped,
+    )
+}
+
 fn projected_mixture_masses(result: &StudyResult) -> Option<(f64, f64, &'static str)> {
     let basis = match result.structure_source {
         StructureSource::GraphPosterior => "posterior_probability",
@@ -1603,7 +1707,7 @@ fn projected_mixture_masses(result: &StudyResult) -> Option<(f64, f64, &'static 
         result.identification.status,
         IdentificationStatus::GraphDependent | IdentificationStatus::PartiallyIdentified
     ) {
-        let unidentified = unidentified_mass_from_diagnostics(&result.diagnostics).unwrap_or(0.0);
+        let unidentified = unidentified_mass_from_diagnostics(&result.diagnostics)?;
         return Some((unidentified, 0.0, basis));
     }
     None
