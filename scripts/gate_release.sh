@@ -56,6 +56,7 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_response_calibration.sh
   bash scripts/gate_causal_artifacts.sh
   bash scripts/gate_estimate_reuse.sh
+  bash scripts/gate_composition.sh
 fi
 
 python3 - <<'PY'

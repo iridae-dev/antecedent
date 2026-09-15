@@ -41,6 +41,7 @@ bash scripts/gate_upstream_names.sh
 bash scripts/gate_response_calibration.sh
 bash scripts/gate_causal_artifacts.sh
 bash scripts/gate_estimate_reuse.sh
+bash scripts/gate_composition.sh   # 1.10 consuming contract/claim tests must actually run
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_support_matrix.sh   # public license cells; default refused

@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- 1.10 contracts-first foundation ([ADR 0022](adr/0022-causal-compiler-contract.md)):
+  domain-separated target / identification / program / inference / observation /
+  data identities, four reasoning slots, transformation-effect reports, a
+  portable claim envelope, and validated provenance ancestry (`try_push` /
+  `validate`). `Study::inspect` is cheap structural classification;
+  `PreparedStudy::contract` binds cached identification products;
+  `StudyResult::claim` is the first-class execution envelope. Panel class
+  promotions stay a separately gated workstream.
+- Contract identification now separates acceptance history from graph semantics:
+  reaccepting an unchanged graph preserves program identity, while acceptance
+  version, discovery algorithm, and original binding remain inspectable.
+  Explicit matching schema bindings resolve to the same semantic premises.
+- Content-based data snapshot identities include typed values, validity, analysis
+  masks, weights, ordered partitions, panel labels, and represented time metadata.
+  Storage retains its digest at construction so inspection does not rescan rows.
+  Full contract-input preview checks detect same-shape refreshes even when the
+  causal program is unchanged; Python previews expose their frozen input IDs.
+- Composite `analysis_result` artifacts may carry an additive
+  `analysis_result.contract` section. Old artifacts stay readable and are not
+  promoted to verified programs. `consume_analysis_result` accepts or refuses
+  from bytes alone. The DAG `AverageEffect` path can export a contracted result
+  that a separate consumer verifies without the originating handle. ADMG
+  front-door identification and latent-confounding non-identification now appear
+  on the same contract slots.
+- Independent consume rehashes stored identification/program/inference payloads
+  against the analysis-result body. Support slots report the existing matrix
+  coordinate. `StudyResult::claim` binds execution identity from
+  `ExecutionContext`. `PreparedStudy::apply_refresh` / `apply_retarget` /
+  `rank_designs` call the 1.5 owners. Host `RequestIdentity` /
+  `ExecutionReceipt` wrap `execution.rs` without a service runtime.
+
 ## [1.9.0] — 2026-09-15
 
 Every licensed cell was reviewed for mathematical correctness and for claims
