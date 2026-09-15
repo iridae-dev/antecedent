@@ -15,7 +15,7 @@ notes = "DOT + JSON + GML + NetworkX DAG interchange in antecedent-io"
 [[capabilities]]
 id = "release.artifact_schema"
 status = "done"
-notes = "Format 0.5 stable (antecedent_io::STABLE_FORMAT); migrates from 0.1, 0.2, 0.3, and 0.4; migrate registry + golden fixtures"
+notes = "Format 0.5 stable (antecedent_io::STABLE_FORMAT); migrates from 0.1, 0.2, 0.3, and 0.4; migrate registry + golden fixtures. 1.10 composition: validate_result_* in crates/antecedent-io/src/analysis_result_artifact.rs binds enclosing query, horizon, and mass. Parent evidence stays artifact-schema, not estimator truth."
 
 [[capabilities]]
 id = "release.wheel_matrix"

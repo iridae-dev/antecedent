@@ -52,6 +52,38 @@ fn staged_handle(c: &mut Criterion) {
         let prepared = study.prepare(&ctx).unwrap();
         c.bench_function(name, |b| b.iter(|| black_box(prepared.estimate(&data, &ctx).unwrap())));
     }
+    let inspect_query =
+        CausalQuery::Response(ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome: VariableId::from_raw(1),
+            treatment: VariableId::from_raw(0),
+            at: 0.0,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        }));
+    let inspect_study = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(inspect_query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .response_options(antecedent_estimate::ContinuousResponseOptions {
+            bandwidth: Some(0.35),
+            ..Default::default()
+        })
+        .build()
+        .unwrap();
+    c.bench_function("inspect_n400", |b| b.iter(|| black_box(inspect_study.inspect().unwrap())));
+    c.bench_function("capability_n400", |b| {
+        b.iter(|| black_box(inspect_study.capability().unwrap()))
+    });
+    let prepared = inspect_study.clone().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&result, "bench-meta", &ctx).unwrap();
+    c.bench_function("metadata_only_artifact_read", |b| {
+        b.iter(|| {
+            let artifact = antecedent_io::EncodedArtifact::read_from(bytes.as_slice()).unwrap();
+            black_box(antecedent_io::decode_analysis_result_contract(&artifact).unwrap())
+        })
+    });
 }
 criterion_group!(benches, staged_handle);
 criterion_main!(benches);

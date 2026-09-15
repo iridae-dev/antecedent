@@ -2,7 +2,9 @@
 
 This page is a readable tour of what exists in Antecedent. The parity manifests
 are the maintained implementation inventory; the [support matrix](support-matrix.md)
-is the public **license** for analysis cells. Presence here does not mean every
+is the public **license** for analysis cells. 1.10 inspect / claim / reuse /
+handoff compositions live in [`parity/compiler.toml`](../parity/compiler.toml)
+and are not analysis-matrix coordinates. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).
 
@@ -138,8 +140,14 @@ effects, and single-horizon Frequentist or Bayesian temporal mediation with
 posterior mixing, and ADMG/CPDAG/PAG posterior ATE atoms are refused.
 
 Panel Pulse/Sustained on an explicit or accepted `TemporalDag` can prepare and
-refresh. Panel `ResponseCurve` / `InterventionResponse` is refused: scalar
-panel SEs do not license response bands.
+refresh. Frequentist panel `ResponseCurve` / `InterventionResponse` on a
+supplied `TemporalDag` averages per-unit temporal-response surfaces and
+publishes between-unit pointwise bands; the series simultaneous band is
+withheld. Frequentist panel Pulse / single-step Sustained on a supplied
+`TemporalCpdag` / `TemporalPag` fits each identified completion with panel
+cluster SEs and mixes by completion mass. Bayesian panel response, Bayesian
+panel class Pulse, panel class response, and multi-step panel Sustained stay
+refused.
 
 Unconditional finite-discrete `InterventionalDistribution` on an explicit or
 accepted ADMG is licensed at validation `none` via general ID (bidirected

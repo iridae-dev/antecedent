@@ -1,0 +1,139 @@
+# 1.10 compiler composition inventory.
+# Status: pending | in_progress | done
+# These are handoff / inspect / claim / reuse operations, not analysis-matrix cells.
+# Parent estimator evidence is not inherited.
+
+library = "antecedent"
+
+[[capabilities]]
+id = "compiler.inspect_licensed_cells"
+group = "inspect"
+description = "Every licensed 5-tuple inspects as a first-class contract"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/v110_licensed_compiler.rs"
+evidence_assertion = "every_licensed_cell_inspects_as_a_first_class_contract"
+notes = "Cartesian inspect only. Identification remains Unavailable. Does not close preview→execute→claim→consume for every cell."
+
+[[capabilities]]
+id = "compiler.inspect_does_not_identify"
+group = "inspect"
+description = "Study inspect and capability do not run identification"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/v110_contract.rs"
+evidence_assertion = "inspect_does_not_identify"
+notes = "Identification-product and uncertainty slots stay Unavailable. Parent: estimate.model.workflow."
+
+[[capabilities]]
+id = "compiler.metadata_read_no_identify"
+group = "inspect"
+description = "Metadata-only artifact reads do not identify"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/v110_contract.rs"
+evidence_assertion = "composition_inspect_and_metadata_read_do_not_identify"
+notes = "decode_analysis_result_contract reads the contract section only."
+
+[[capabilities]]
+id = "compiler.validate_result_bindings"
+group = "artifacts"
+description = "Analysis-result validation binds query, horizon, and mass"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "compiler"
+evidence_test = "crates/antecedent-io/src/analysis_result_artifact.rs"
+evidence_assertion = "validate_result_refuses_wrong_query_ids_and_keeps_the_valid_counterpart"
+notes = "Also: validate_result_refuses_changed_horizon_*, *_inconsistent_atom_totals_*, *_inconsistent_masses_*. Mapped temporal IDs skip raw equality. Parent: release.artifact_schema."
+
+[[capabilities]]
+id = "compiler.claim_handoff"
+group = "claims"
+description = "Sender → restricted → forwarding claim acceptance"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/v110_contract.rs"
+evidence_assertion = "claim_handoff_sender_restricted_forward_preserves_losses"
+notes = "Semantic acceptance is distinct from storage/forwarding. Lossy scalar views cannot recover meaning."
+
+[[capabilities]]
+id = "compiler.request_lifecycle"
+group = "claims"
+description = "Host request identity: duplicate, conflict, cancel, order"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/v110_contract.rs"
+evidence_assertion = "composition_request_lifecycle_duplicate_conflict_cancel_and_order"
+notes = "Only Completed publishes a claim. Changed inputs on a reused key conflict. Parent unit: request_identity_conflicts_on_reused_key."
+
+[[capabilities]]
+id = "compiler.discovery_class"
+group = "discovery"
+description = "Accepted discovery class stays Cpdag / TemporalCpdag"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/v110_contract.rs"
+evidence_assertion = "composition_pc_and_ges_accepted_class_stays_cpdag"
+notes = "Also composition_pcmci_plus_accepted_temporal_cpdag_retains_class. Completing via orient is not the class path. Does not inherit discovery.pc/ges/pcmci_plus oracle kinds."
+
+[[capabilities]]
+id = "compiler.prior_transfer_composition"
+group = "reuse"
+description = "Same-design prior transfer keeps identification and refuses mismatch"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/v110_contract.rs"
+evidence_assertion = "composition_prior_transfer_keeps_identification_and_refuses_mismatch"
+notes = "Does not inherit bayes.prior_bank.temporal_transfer known-truth. Catalog/lag/NamedParameters mismatch stays a conflict diagnostic."
+
+[[capabilities]]
+id = "compiler.prepared_matches_fresh"
+group = "reuse"
+description = "Prepared estimate matches a fresh prepare+estimate"
+status = "done"
+evidence_kind = "internal_cross_check"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/v110_contract.rs"
+evidence_assertion = "composition_prepared_estimate_matches_fresh"
+limitations = "Agreement is between Antecedent's own prepared and fresh paths on one DAG AverageEffect fixture. It is consistency evidence, not independent numerical truth or calibration."
+notes = "Family-level prepared-vs-fresh pins remain in prepared_analysis.rs."
+
+[[capabilities]]
+id = "compiler.adversarial_boundaries"
+group = "evidence"
+description = "Adversarial compositions refuse stronger claims"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/v110_contract.rs"
+evidence_assertion = "composition_adversarial_boundaries_refuse_stronger_claims"
+notes = "Stale preview, ChangeGraph re-ID, unweighted class mass drop, duplicate evidence, unaligned contrast, lossy scalar, pointwise≠simultaneous, refused support."
+
+[[capabilities]]
+id = "compiler.panel_response_cluster_bands"
+group = "panel"
+description = "Frequentist TemporalDag panel response uses unit-cluster bands"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/data_modalities.rs"
+evidence_assertion = "panel_response_curve_uses_unit_cluster_bands"
+notes = "Per-unit TemporalResponseEstimator surfaces, equal-weight average, between-unit pointwise bands. Simultaneous band withheld. Bayesian and TemporalCpdag/Pag panel response stay refused."
+
+[[capabilities]]
+id = "compiler.panel_class_pulse_completion_masses"
+group = "panel"
+description = "Frequentist TemporalCpdag panel Pulse mixes completion masses"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/data_modalities.rs"
+evidence_assertion = "panel_class_pulse_uses_completion_masses"
+notes = "Per-completion panel cluster fit, mix by class mass. Does not complete the class onto the DAG executor. Bayesian and multi-step panel class stay refused."

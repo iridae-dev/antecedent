@@ -15,8 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   portable claim envelope, and validated provenance ancestry (`try_push` /
   `validate`). `Study::inspect` is cheap structural classification;
   `PreparedStudy::contract` binds cached identification products;
-  `StudyResult::claim` is the first-class execution envelope. Panel class
-  promotions stay a separately gated workstream.
+  `StudyResult::claim` is the first-class execution envelope. Remaining
+  panel class promotions (Bayesian panel response/class, panel class
+  response, multi-step panel Sustained) stay a separately gated workstream.
 - Contract identification now separates acceptance history from graph semantics:
   reaccepting an unchanged graph preserves program identity, while acceptance
   version, discovery algorithm, and original binding remain inspectable.
@@ -39,6 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ExecutionContext`. `PreparedStudy::apply_refresh` / `apply_retarget` /
   `rank_designs` call the 1.5 owners. Host `RequestIdentity` /
   `ExecutionReceipt` wrap `execution.rs` without a service runtime.
+- Frequentist panel `ResponseCurve` / `InterventionResponse` on a supplied
+  `TemporalDag` averages per-unit temporal-response surfaces and publishes
+  between-unit pointwise bands. The series simultaneous band is withheld.
+  Frequentist panel Pulse / single-step Sustained on `TemporalCpdag` /
+  `TemporalPag` fits each identified completion with panel cluster SEs and
+  mixes by completion mass. Bayesian panel response, Bayesian panel class
+  Pulse, panel class response, and multi-step panel Sustained stay refused.
 
 ## [1.9.0] — 2026-09-15
 
