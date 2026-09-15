@@ -69,11 +69,11 @@ pub use container::{
 };
 pub use contract_section::{
     AnalysisResultConsumption, AnalysisResultContractWire, AssumptionSlotWire, CONTRACT_SECTION,
-    CONTRACT_SECTION_FORMAT, ClaimSectionWire, ContractIdentitiesWire, IdentificationSlotWire,
-    ObligationSectionWire, ReasoningSectionWire, SlotSectionWire, SupportSlotWire,
-    UncertaintyComponentWire, UncertaintySlotWire, consume_analysis_result,
-    decode_analysis_result_contract, digest_hex, validate_contract_section,
-    verify_contract_against_body,
+    CONTRACT_SECTION_FORMAT, ClaimHostProjection, ClaimSectionWire, ContractIdentitiesWire,
+    IdentificationSlotWire, ObligationSectionWire, ReasoningSectionWire, SlotSectionWire,
+    SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, accept_claim,
+    consume_analysis_result, decode_analysis_result_contract, digest_hex, project_claim_host,
+    project_lossy_scalar, validate_contract_section, verify_contract_against_body,
 };
 pub use contrast_wire::{ContrastBundleWire, RecordedContrastWire};
 pub use convert::{
@@ -107,12 +107,13 @@ pub use identity::{
     ClaimIdentityWire, DataPartitionIdentityWire, DataSnapshotIdentityWire, DbnAtomIdentityWire,
     ExecutionIdentityWire, GraphIdentityWire, IdentificationIdentityWire,
     IdentificationProductWire, InferenceBindingWire, InferentialCommitmentsWire,
-    ObservationIdentityWire, ProgramIdentityWire, TargetIdentityWire, TemporalClassIdentityWire,
-    admg_identity, claim_digest, cpdag_identity, dag_identity, data_snapshot_digest, dbn_atom_digest,
-    dbn_atom_identities, digest_canonical, digest_wire, execution_digest, executed_functional_labels,
-    execution_identity_from_context, identification_digest, identification_product_digest,
-    identification_product_digest_wire, identification_product_wire, inference_binding_digest,
-    observation_digest, observation_identity_wire, pag_identity, program_digest, target_digest,
+    ObservationIdentityWire, ProgramIdentityWire, ScoreReuseIdentityWire, TargetIdentityWire,
+    TemporalClassIdentityWire, admg_identity, claim_digest, cpdag_identity, dag_identity,
+    data_snapshot_digest, dbn_atom_digest, dbn_atom_identities, digest_canonical, digest_wire,
+    executed_functional_labels, execution_digest, execution_identity_from_context,
+    identification_digest, identification_product_digest, identification_product_digest_wire,
+    identification_product_wire, inference_binding_digest, observation_digest,
+    observation_identity_wire, pag_identity, program_digest, score_reuse_digest, target_digest,
     temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity, validate_mixture_masses,
 };
 pub use mechanism_wire::{

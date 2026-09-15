@@ -271,10 +271,9 @@ fn population_label(population: &TargetPopulationWire) -> String {
         TargetPopulationWire::Untreated => "untreated".into(),
         TargetPopulationWire::Environment(id) => format!("environment:{id}"),
         TargetPopulationWire::PredicateNamed(name) => format!("predicate:{name}"),
-        TargetPopulationWire::PredicateRows(rows) => format!(
-            "rows:{}",
-            rows.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
-        ),
+        TargetPopulationWire::PredicateRows(rows) => {
+            format!("rows:{}", rows.iter().map(ToString::to_string).collect::<Vec<_>>().join(","))
+        }
         TargetPopulationWire::CustomDistribution(id) => format!("custom_distribution:{id}"),
     }
 }
@@ -303,7 +302,11 @@ fn intervention_label(intervention: &InterventionWire) -> String {
         InterventionWire::Soft { variable, .. } => format!("soft:{variable}"),
         InterventionWire::Sequence { steps } => format!(
             "sequence:{}",
-            steps.iter().map(|step| intervention_label(&step.intervention)).collect::<Vec<_>>().join(",")
+            steps
+                .iter()
+                .map(|step| intervention_label(&step.intervention))
+                .collect::<Vec<_>>()
+                .join(",")
         ),
     }
 }
@@ -587,20 +590,16 @@ pub fn dbn_atom_identities(
         ));
     }
     let max_lag = posterior.max_lag.unwrap_or(1);
-    let ids: Vec<VariableId> =
-        (0..posterior.n_vars).map(|i| VariableId::from_raw(u32::try_from(i).unwrap_or(u32::MAX))).collect();
+    let ids: Vec<VariableId> = (0..posterior.n_vars)
+        .map(|i| VariableId::from_raw(u32::try_from(i).unwrap_or(u32::MAX)))
+        .collect();
     let mut atoms = Vec::with_capacity(posterior.n_graphs);
     for (index, (&adjacency, &lag_mask)) in
         posterior.adjacency.iter().zip(lag_masks.iter()).enumerate()
     {
-        let graph = temporal_dag_from_dbn_masks(
-            adjacency,
-            lag_mask,
-            posterior.n_vars,
-            max_lag,
-            &ids,
-        )
-        .map_err(|err| IoError::Convert(err.to_string()))?;
+        let graph =
+            temporal_dag_from_dbn_masks(adjacency, lag_mask, posterior.n_vars, max_lag, &ids)
+                .map_err(|err| IoError::Convert(err.to_string()))?;
         atoms.push(DbnAtomIdentityWire {
             format: IDENTITY_FORMAT,
             variables: variables.to_vec(),
@@ -787,11 +786,7 @@ pub fn observation_identity_wire(
     let mut observation: Vec<String> = observation.into_iter().map(Into::into).collect();
     observation.sort();
     observation.dedup();
-    ObservationIdentityWire {
-        format: IDENTITY_FORMAT,
-        schema: schema_to_wire(schema),
-        observation,
-    }
+    ObservationIdentityWire { format: IDENTITY_FORMAT, schema: schema_to_wire(schema), observation }
 }
 
 /// Digest the observation contract.
@@ -845,6 +840,104 @@ pub struct DataSnapshotIdentityWire {
 /// CBOR encode failure.
 pub fn data_snapshot_digest(wire: &DataSnapshotIdentityWire) -> Result<SemanticDigest, IoError> {
     digest_wire(IdentityDomain::DataSnapshot, wire)
+}
+
+/// Score / batch reuse key. Stricter than identification: matching names and
+/// shapes are not enough. Shared design is not shared nuisance fits.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ScoreReuseIdentityWire {
+    /// Identity format.
+    pub format: u16,
+    /// `score_table` or `batch_share`.
+    pub kind: String,
+    /// Identification digest when the key is query-specific.
+    pub identification: Option<[u8; 32]>,
+    /// Data snapshot the scores or folds were fit on.
+    pub data_snapshot: [u8; 32],
+    /// Complete-case row index, or the full-table index for a shared design.
+    pub row_index: Vec<u32>,
+    /// Fold assignment aligned with [`Self::row_index`].
+    pub fold_ids: Vec<u32>,
+    /// Fold count used to assign [`Self::fold_ids`].
+    pub n_folds: u32,
+    /// Certified adjustment set, writer order.
+    pub adjustment_set: Vec<u32>,
+    /// Nuisance provenance tag. Absent on a design-only share key.
+    pub nuisance_provenance: Option<String>,
+    /// Treatment variable. Absent on a design-only share key.
+    pub treatment: Option<u32>,
+    /// Additional intervened coordinates.
+    pub intervened: Vec<u32>,
+    /// Requested bootstrap / shared-draw count.
+    pub bootstrap_replicates: u32,
+}
+
+impl ScoreReuseIdentityWire {
+    /// Query-specific score-table key.
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn score_table(
+        identification: SemanticDigest,
+        data_snapshot: SemanticDigest,
+        row_index: &[u32],
+        fold_ids: &[u32],
+        n_folds: u32,
+        adjustment_set: &[VariableId],
+        nuisance_provenance: &str,
+        treatment: VariableId,
+        intervened: &[VariableId],
+        bootstrap_replicates: u32,
+    ) -> Self {
+        Self {
+            format: IDENTITY_FORMAT,
+            kind: "score_table".into(),
+            identification: Some(*identification.as_bytes()),
+            data_snapshot: *data_snapshot.as_bytes(),
+            row_index: row_index.to_vec(),
+            fold_ids: fold_ids.to_vec(),
+            n_folds,
+            adjustment_set: vars_to_raw(adjustment_set),
+            nuisance_provenance: Some(nuisance_provenance.into()),
+            treatment: Some(treatment.raw()),
+            intervened: vars_to_raw(intervened),
+            bootstrap_replicates,
+        }
+    }
+
+    /// Shared-design key: folds and covariates, not per-query nuisances.
+    #[must_use]
+    pub fn batch_share(
+        data_snapshot: SemanticDigest,
+        fold_ids: &[u32],
+        n_folds: u32,
+        adjustment_set: &[VariableId],
+    ) -> Self {
+        Self {
+            format: IDENTITY_FORMAT,
+            kind: "batch_share".into(),
+            identification: None,
+            data_snapshot: *data_snapshot.as_bytes(),
+            row_index: (0..fold_ids.len())
+                .map(|index| u32::try_from(index).unwrap_or(u32::MAX))
+                .collect(),
+            fold_ids: fold_ids.to_vec(),
+            n_folds,
+            adjustment_set: vars_to_raw(adjustment_set),
+            nuisance_provenance: None,
+            treatment: None,
+            intervened: Vec::new(),
+            bootstrap_replicates: 0,
+        }
+    }
+}
+
+/// Digest a score / batch reuse identity.
+///
+/// # Errors
+///
+/// CBOR encode failure.
+pub fn score_reuse_digest(wire: &ScoreReuseIdentityWire) -> Result<SemanticDigest, IoError> {
+    digest_wire(IdentityDomain::ScoreReuse, wire)
 }
 
 /// Licensed inferential commitments (not numeric knobs).
@@ -989,14 +1082,7 @@ impl ClaimIdentityWire {
         value_bits: Option<u64>,
         execution: Option<[u8; 32]>,
     ) -> Self {
-        Self {
-            format: IDENTITY_FORMAT,
-            program,
-            target,
-            kind: kind.into(),
-            value_bits,
-            execution,
-        }
+        Self { format: IDENTITY_FORMAT, program, target, kind: kind.into(), value_bits, execution }
     }
 }
 
@@ -1272,13 +1358,8 @@ mod tests {
         assert_ne!(inference_binding_digest(&binding).unwrap(), plus_zero);
 
         let claim = ClaimIdentityWire::new([2; 32], [3; 32], "point", Some(0.0f64.to_bits()), None);
-        let flipped = ClaimIdentityWire::new(
-            [2; 32],
-            [3; 32],
-            "point",
-            Some((-0.0f64).to_bits()),
-            None,
-        );
+        let flipped =
+            ClaimIdentityWire::new([2; 32], [3; 32], "point", Some((-0.0f64).to_bits()), None);
         assert_ne!(claim_digest(&claim).unwrap(), claim_digest(&flipped).unwrap());
     }
 
@@ -1344,5 +1425,56 @@ mod tests {
         )
         .unwrap();
         assert!(dbn_atom_identities(&static_posterior, &names).unwrap().is_empty());
+    }
+
+    #[test]
+    fn score_reuse_keys_are_stricter_than_identification() {
+        let identification = SemanticDigest::from_bytes([1; 32]);
+        let snapshot = SemanticDigest::from_bytes([2; 32]);
+        let treatment = VariableId::from_raw(0);
+        let z = VariableId::from_raw(2);
+        let table = ScoreReuseIdentityWire::score_table(
+            identification,
+            snapshot,
+            &[0, 1, 2, 3],
+            &[0, 1, 0, 1],
+            2,
+            &[z],
+            "crossfit.aipw",
+            treatment,
+            &[],
+            0,
+        );
+        let share = ScoreReuseIdentityWire::batch_share(snapshot, &[0, 1, 0, 1], 2, &[z]);
+        let table_digest = score_reuse_digest(&table).unwrap();
+        let share_digest = score_reuse_digest(&share).unwrap();
+        assert_ne!(table_digest, share_digest);
+        assert_eq!(score_reuse_digest(&table).unwrap(), table_digest);
+
+        let mut other_folds = table.clone();
+        other_folds.fold_ids = vec![1, 0, 1, 0];
+        assert_ne!(score_reuse_digest(&other_folds).unwrap(), table_digest);
+
+        let mut other_snapshot = table.clone();
+        other_snapshot.data_snapshot = [3; 32];
+        assert_ne!(score_reuse_digest(&other_snapshot).unwrap(), table_digest);
+
+        let mut other_nuisance = table.clone();
+        other_nuisance.nuisance_provenance = Some("crossfit.cell_aipw".into());
+        assert_ne!(score_reuse_digest(&other_nuisance).unwrap(), table_digest);
+
+        let same_shape = ScoreReuseIdentityWire::score_table(
+            identification,
+            snapshot,
+            &[0, 1, 2, 3],
+            &[0, 1, 0, 1],
+            2,
+            &[z],
+            "crossfit.aipw",
+            treatment,
+            &[],
+            0,
+        );
+        assert_eq!(score_reuse_digest(&same_shape).unwrap(), table_digest);
     }
 }
