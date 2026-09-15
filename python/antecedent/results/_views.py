@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from .._native import ScoreInferenceSection, ScoreTableSection, ValidationFailureSection
 
 from ..ids import Refute
+from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct, fmt_se
 from ._slots import ReasoningSlots, mass_limitation, require_scalar_display
 
@@ -560,7 +561,7 @@ class PhysicalPlanView:
 
 
 @dataclass(frozen=True)
-class AnalysisResult:
+class AnalysisResult(ResultAPI):
     """Nested analysis result matching the Rust facade sections."""
 
     identification: IdentificationView
@@ -597,6 +598,7 @@ class AnalysisResult:
     structural_identified_set_interval_truncated: bool | None = None
     _raw: Any = None
     _prepared: Any = None
+    _execution: Any = field(default=None, repr=False, compare=False)
     query: Any = None
     certificate: dict[str, Any] | None = None
     unit_effects: list[float] | None = None
@@ -635,6 +637,13 @@ class AnalysisResult:
         return self.effect
 
     def __repr__(self) -> str:
+        limitation = self.rendering_limitation()
+        if limitation is not None:
+            mass = self.structural_unidentified_mass
+            if mass is None and self.posterior is not None:
+                mass = self.posterior.unidentified_mass
+            detail = f" unidentified_mass={fmt_pct(mass)}" if mass is not None and mass > 0 else ""
+            return f"<AnalysisResult {self.answer.kind}: {limitation}{detail}>"
         verdict = "identified" if self.identification else "not identified"
         se = (
             self.estimate.se_bootstrap
@@ -666,28 +675,28 @@ class AnalysisResult:
         self,
         data: Mapping[str, Any] | Any,
         *,
-        seed: int = 1,
-        threads: int = 1,
+        seed: int | None = None,
+        threads: int | None = None,
     ) -> AnalysisResult:
         """Re-estimate on new data via the retained prepared handle.
 
-        Only results from :meth:`PreparedAnalysis.estimate` / ``refresh`` support
-        this. One-shot :func:`analyze` results raise ``TypeError``.
+        Equivalent to ``result.study.refresh(data)``. The current result remains
+        unchanged; the returned result captures the refreshed execution.
         """
         if self._prepared is None:
             raise TypeError(
                 "AnalysisResult.refresh requires a result from PreparedAnalysis; "
                 "use PreparedAnalysis.prepare(...) then estimate/refresh"
             )
-        return self._prepared.estimate(data, seed=seed, threads=threads)
+        return self._prepared.refresh(data, seed=seed, threads=threads)
 
     def refute(
         self,
         data: Mapping[str, Any] | Any,
         suite: Refute | Literal["placebo", "full", "cheap"] | bool | str = "placebo",
         *,
-        seed: int = 1,
-        threads: int = 1,
+        seed: int | None = None,
+        threads: int | None = None,
         cancel: Any | None = None,
     ) -> AnalysisResult:
         """Second-click refute via the retained prepared handle."""
@@ -698,7 +707,18 @@ class AnalysisResult:
             )
         if isinstance(suite, Refute):
             suite = str(suite)
-        return self._prepared.refute(data, suite, seed=seed, threads=threads, cancel=cancel)
+        # A result's second-click validation belongs to this execution, even
+        # when the reusable study has since estimated or refreshed other data.
+        from ..estimation import PreparedAnalysis
+
+        frozen = PreparedAnalysis(self._execution.snapshot(), query=self.query)
+        return frozen.refute(
+            data,
+            suite,
+            seed=1 if seed is None else seed,
+            threads=1 if threads is None else threads,
+            cancel=cancel,
+        )
 
     def rendering_limitation(self) -> str | None:
         """Stable id when a point-mean display would misrepresent the claim."""

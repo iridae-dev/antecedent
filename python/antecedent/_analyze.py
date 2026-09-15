@@ -8,11 +8,9 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping, Sequence
-from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
+from typing import Any, Literal, Protocol, cast
 
-if TYPE_CHECKING:
-    from .results import CausalResponseView
-
+from ._api import describe_refusal
 from ._coerce import coerce_latency, coerce_query, coerce_refute
 from ._data import as_columns, as_multi_env_columns, ingest_columns, try_as_arrow_c_columns
 from ._native import CausalUnsupportedError
@@ -145,6 +143,7 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
+from .results import CausalResponseView
 
 _RESPONSE_QUERIES = (
     ResponseCurve,
@@ -2160,6 +2159,7 @@ def _dispatch_kind(data: Any, query: Any, kind: str, kw: dict[str, Any]) -> Any:
     return handler(data, query, **{key: kw[key] for key in keys})
 
 
+@describe_refusal
 def analyze(
     data: Mapping[str, Any] | Any | Sequence[Mapping[str, Any] | Any],
     *,
@@ -2377,6 +2377,140 @@ def analyze(
             )
 
     kind = getattr(query, "kind", "")
+    reusable = (
+        not isinstance(data, (EventFrame, PanelFrame, MultiEnvFrame))
+        and not (isinstance(graph, Admg) and kind == "conditional")
+        and not (
+            discovery is not None
+            and kind not in {"average", "pulse", "sustained", "temporal_mediation"}
+        )
+        and not (
+            isinstance(discovery, GraphPosterior)
+            and (identifier is not None or estimator is not None or return_posterior_artifact)
+        )
+        and not isinstance(graph, TieredBackground)
+        and all(
+            value is None
+            for value in (
+                cancel,
+                on_progress,
+                on_stage,
+                validators,
+                running_variable,
+                cutoff,
+                bandwidth,
+                population_registry,
+                estimator_config,
+            )
+        )
+        and estimator != "rd.sharp"
+        and (
+            discovery is None
+            or isinstance(discovery, (ExactDagPosterior, DbnPosterior, GraphPosterior))
+        )
+        and kind
+        in {
+            "average",
+            "conditional",
+            "response_curve",
+            "intervention_response",
+            "pulse",
+            "sustained",
+            "mediation",
+            "counterfactual",
+            "path_specific",
+            "distribution",
+            "temporal_mediation",
+        }
+    )
+    if (
+        reusable
+        and kind in {"pulse", "sustained"}
+        and not isinstance(graph, (TemporalCpdag, TemporalPag))
+    ):
+        from .estimation import _reject_unsupported_temporal
+
+        _reject_unsupported_temporal(
+            inference=inference, refute=resolved_refute, validators=validators
+        )
+    if reusable:
+        from .estimation import PreparedAnalysis
+
+        response = kind in {"response_curve", "intervention_response"}
+        temporal_response = response and getattr(query, "is_temporal", False)
+        if kind == "counterfactual" and bootstrap_requested:
+            raise CausalUnsupportedError("counterfactual sampling uncertainty is unavailable")
+        response_legacy = response and (
+            discovery is not None
+            or (
+                bool(getattr(query, "observation_assumptions", None))
+                and (
+                    getattr(query, "observation", None) is None
+                    or isinstance(getattr(query, "observation", None), _ObservationComplete)
+                )
+            )
+            or (bootstrap_requested and (not temporal_response or isinstance(inference, Bayesian)))
+            or (not temporal_response and isinstance(graph, Admg))
+            or (
+                not temporal_response
+                and not isinstance(inference, Bayesian)
+                and not isinstance(graph, (Cpdag, Pag))
+                and estimator != "cell.aipw"
+                and (
+                    threads != 1
+                    or identifier not in (None, "response.backdoor")
+                    or estimator
+                    not in (
+                        None,
+                        "response.kennedy_dr"
+                        if kind == "response_curve"
+                        else "response.intervention_gcomp",
+                    )
+                )
+            )
+        )
+        if response_legacy:
+            # Preserve existing response validation and descriptive refusals.
+            reusable = False
+        else:
+            prepared = PreparedAnalysis.prepare(
+                data,
+                query=query,
+                graph=AcceptedGraph(cast(Any, graph)) if structure_accepted else graph,
+                discovery=discovery,
+                inference=inference,
+                identifier=identifier,
+                estimator=estimator,
+                refute="none"
+                if (response or kind == "counterfactual") and not refute_requested
+                else "placebo"
+                if resolved_refute is True
+                else resolved_refute,
+                bootstrap=0
+                if kind == "counterfactual"
+                or (response and not temporal_response)
+                or (response and isinstance(inference, Bayesian))
+                else bootstrap,
+                seed=seed,
+                threads=threads,
+                latency=latency,
+                class_prior=class_prior,
+                max_completions=max_completions,
+            )
+            result = prepared.estimate()
+            if return_posterior_artifact:
+                from dataclasses import replace
+
+                from .results import AnalysisResult
+
+                if not isinstance(result, AnalysisResult) or result.posterior is None:
+                    raise CausalUnsupportedError(
+                        "return_posterior_artifact requires a scalar posterior"
+                    )
+                result = replace(
+                    result, posterior=replace(result.posterior, artifact=prepared.export_artifact())
+                )
+            return result
     # 1.2/1.3 coordinates share the staged Rust execution path, including the
     # frozen structure axis, validation reports and posterior serialization.
     use_prepared = (

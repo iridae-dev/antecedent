@@ -13,6 +13,7 @@ from math import isfinite, isnan
 from typing import Any, Literal
 
 from ..errors import CausalValueError
+from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct
 from ._slots import ReasoningSlots, mass_limitation
 from ._views import IdentificationView
@@ -357,7 +358,7 @@ class SimultaneousBand:
 
 
 @dataclass(frozen=True, slots=True)
-class CausalResponseView:
+class CausalResponseView(ResultAPI):
     """Top-level result projection shared by response-family estimands."""
 
     estimand: object
@@ -378,6 +379,8 @@ class CausalResponseView:
     reasoning: ReasoningSlots | None = None
     claim_id: str | None = None
     data_version: str | None = None
+    _prepared: Any = field(default=None, repr=False, compare=False)
+    _execution: Any = field(default=None, repr=False, compare=False)
 
     @property
     def simultaneous_band(self) -> SimultaneousBand | None:
@@ -393,6 +396,9 @@ class CausalResponseView:
         return SimultaneousBand.from_support(self.support)
 
     def __repr__(self) -> str:
+        limitation = self.rendering_limitation()
+        if limitation is not None:
+            return f"<CausalResponseView {self.answer.kind}: {limitation}>"
         if isinstance(self.estimate, (float, int)):
             estimate = fmt_float(float(self.estimate))
         elif self.response is not None:
@@ -426,7 +432,7 @@ class CausalResponseView:
             if limit is not None:
                 return limit
         mass = None if self.envelope is None else self.envelope.unidentified_mass
-        return mass_limitation(mass)
+        return mass_limitation(mass, identified_set=self.envelope is not None)
 
 
 __all__ = [

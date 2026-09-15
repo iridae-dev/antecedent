@@ -82,9 +82,8 @@ def _assert_common_cell_contract(
     assert fresh.identification.status == click.identification.status == status
     assert fresh.ate == pytest.approx(expected_ate, abs=tolerance)
     assert click.ate == pytest.approx(expected_ate, abs=tolerance)
-    assert all(
-        not diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics
-    )
+    # One-call analysis now executes its retained preparation as well.
+    assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics)
     assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
     if validation_suite is None:
         assert not fresh.validation.reports

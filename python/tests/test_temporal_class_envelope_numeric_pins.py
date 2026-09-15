@@ -115,9 +115,7 @@ def test_temporal_class_pulse_pin(accepted: bool, class_name: str, graph_fn, dia
     assert click.ate == pytest.approx(expected, abs=tol)
     assert any(diag in diagnostic for diagnostic in fresh.diagnostics)
     assert any(diag in diagnostic for diagnostic in click.diagnostics)
-    assert all(
-        not diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics
-    )
+    assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics)
     assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
     assert any(
         "estimate.envelope.se_omits_between_atom_variance" in diagnostic

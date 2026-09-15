@@ -81,30 +81,16 @@ def test_admg_response_literal_matches_support_closed_toml():
     assert str(ei.value) == f"refused: {reason}"
 
 
-def test_accepted_graph_analyze_response_curve_threads_accepted(monkeypatch):
-    """`AcceptedGraph.analyze` with a ResponseCurve must reach native with accepted=True.
-
-    The Dag response sidecar still has no `plan.structure_source` (staged ATE
-    and class-aware results do). Observe `accepted=` at the native call.
-    """
-    captured: dict[str, object] = {}
-    real = antecedent._analyze._analyze_response
-
-    def spy(*args, **kwargs):
-        captured["accepted"] = kwargs.get("accepted")
-        return real(*args, **kwargs)
-
-    monkeypatch.setattr(antecedent._analyze, "_analyze_response", spy)
-
+def test_accepted_graph_analyze_response_curve_threads_accepted():
+    """The retained contract preserves reviewed versus explicit structure."""
     result = _ACCEPTED.analyze(_DATA, query=_CURVE, refute=False, seed=1)
-    assert captured["accepted"] is True
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
+    assert antecedent.artifacts.loads(result.export()).contract["structure_source"] == "accepted"
 
-    captured.clear()
     result = antecedent.analyze(_DATA, graph=_DAG, query=_CURVE, refute=False, seed=1)
-    assert captured["accepted"] is False
     assert result.response is not None
+    assert antecedent.artifacts.loads(result.export()).contract["structure_source"] == "explicit"
 
 
 def test_path_distribution_literals_match_support_closed_toml():

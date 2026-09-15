@@ -35,11 +35,10 @@ result = analyze(
     query=AverageEffect(treatment="price", outcome="sales"),
 )
 
-print(
-    result.identification
-)  # NonparametricallyIdentified via backdoor.adjustment, adjusting for season
-print(result.estimate)  # ate=1.48, analytic and bootstrap standard errors
-print(result.validation)  # refuters ran and passed
+print(result)
+print(result.inspect().to_dict())  # answer, identification, support, uncertainty, assumptions, calibration
+study = result.study              # reuse the preparation from this one call
+repeated = study.estimate()       # retained data; no repeated graph preparation
 ```
 
 The same `analyze()` call scales from this to temporal dose × horizon
@@ -49,6 +48,21 @@ mediation, counterfactuals, and root-cause attribution — see the
 [project README](https://github.com/iridae-dev/antecedent#readme) for worked
 examples and the [documentation](https://antecedent.readthedocs.io/) for the
 full API.
+
+## 1.10 development workflow
+
+The examples on this branch require its source build; older published wheels
+do not provide the new workflow. `analyze(...)` retains a study on supported
+prepared routes. `prepare(...)` creates the same study without estimating;
+`study.estimate()` uses retained data and `study.refresh(new_data)` rebinds
+after success. Earlier results and their exports remain fixed.
+
+`result.inspect().to_dict()` provides a structured report, including explicit
+calibration availability. Failures preserve exception types and attach a
+descriptive `error.report`. `result.export()` and `antecedent.load(...)`
+save and semantically inspect an execution without reconstructing a live study.
+See the [workflow guide](../docs/python-workflow.md) and
+[example setup](../examples/README.md#python-environment-110-branch).
 
 ## 1.9.0
 
@@ -119,7 +133,15 @@ result = antecedent.analyze(
     query=antecedent.AverageEffect(treatment="t", outcome="y"),
     inference=antecedent.Frequentist(),  # or antecedent.Bayesian(...)
 )
-print(result.identification, result.estimate, result.validation)
+print(result.inspect().to_dict())
+study = result.study
+encoded = result.export()
+loaded = antecedent.load(encoded)
+assert loaded.acceptance.verified
+
+# Or stop before estimation with the same ordinary defaults:
+prepared = antecedent.prepare(data, graph=g, query=antecedent.AverageEffect("t", "y"))
+repeated = prepared.estimate()
 
 # Identify without estimating:
 id_only = antecedent.identify(
@@ -137,8 +159,8 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace is frozen at 52 names as of 1.9 (the 50-name 1.7
-contract plus `AnomalyAttribution` and `ChangeAttribution`). Those two
+The root namespace contains 54 names on this branch: the 1.9 contract plus
+`prepare` and `load`. `AnomalyAttribution` and `ChangeAttribution`
 types exist for the query axis; `analyze()` refuses them — the licensed
 cells are Rust `Study` only. `TransportQuery` / `InterferenceQuery` stay
 stage modules (`antecedent.transport`, `antecedent.interference`).

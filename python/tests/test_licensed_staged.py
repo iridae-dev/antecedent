@@ -539,7 +539,7 @@ def test_licensed_graph_posterior_prepare_matches_analyze():
         float(STATIC["expected_unidentified_mass"]), abs=1e-12
     )
     # 1.1: prepare freezes per-atom identification; only the click reuses it.
-    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
 
 
@@ -576,7 +576,7 @@ def test_licensed_graph_posterior_frequentist_prepare_matches_analyze():
     assert abs(click.ate - fresh.ate) < 1e-12
     assert fresh.posterior is None and click.posterior is None
     assert any("unidentified_mass=0.2" in diagnostic for diagnostic in fresh.diagnostics)
-    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
 
 
@@ -625,7 +625,7 @@ def test_licensed_dbn_posterior_prepare_matches_analyze():
         float(TEMPORAL["expected_unidentified_mass"]), abs=1e-12
     )
     # 1.1: prepare freezes per-atom DBN identification; only the click reuses it.
-    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
 
 
@@ -660,7 +660,7 @@ def test_prepared_exact_dag_posterior_discovery_reuses_identification():
     assert click.posterior.unidentified_mass == pytest.approx(
         fresh.posterior.unidentified_mass, abs=1e-12
     )
-    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
 
 
@@ -709,7 +709,7 @@ def test_prepared_dbn_posterior_discovery_reuses_identification():
     assert click.posterior.unidentified_mass == pytest.approx(
         fresh.posterior.unidentified_mass, abs=1e-12
     )
-    assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
+    assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
 
 

@@ -1,0 +1,283 @@
+"""One-call analysis, retained studies, frozen executions, and descriptive reports."""
+
+from __future__ import annotations
+
+import json
+
+import antecedent as ant
+import numpy as np
+import pytest
+
+
+def sample(seed=7):
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=128)
+    t = (rng.uniform(size=128) < 0.5).astype(float)
+    return {"t": t, "y": 2 * t + z + rng.normal(scale=0.1, size=128), "z": z}
+
+
+GRAPH = [("t", "y"), ("z", "y")]
+QUERY = ant.AverageEffect("t", "y")
+
+
+def test_one_call_study_and_frozen_export():
+    data = sample()
+    first = ant.analyze(data, graph=GRAPH, query=QUERY, seed=19, bootstrap=0, refute="none")
+    assert first.study.inspect().identification.available
+    before = first.export()
+    assert ant.artifacts.accept(before)["accepts_as_verified_program"] == "true"
+    assert ant.artifacts.loads(before).contract["execution"]["seed"] == 19
+    old = first.inspect()
+    second = first.study.refresh({**data, "y": data["y"] + data["t"]})
+    assert second.effect == pytest.approx(first.effect + 1.0)
+    assert first.export() == before
+    assert first.inspect() == old
+    assert second.data_version != first.data_version
+    assert ant.artifacts.accept(second.export())["accepts_as_verified_program"] == "true"
+    assert first.study.estimate().effect == pytest.approx(second.effect)
+
+
+def test_estimate_other_data_does_not_rebind_study():
+    data = sample()
+    study = ant.prepare(data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    baseline = study.estimate()
+    other = study.estimate({**data, "y": data["y"] + data["t"]})
+    assert other.data_version != baseline.data_version
+    assert study.inspect().data_version == baseline.data_version
+    assert ant.artifacts.accept(other.export())["accepts_as_verified_program"] == "true"
+    assert study.estimate().effect == pytest.approx(baseline.effect)
+
+
+def test_report_has_json_types_and_explicit_calibration_scope():
+    result = ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    report = result.inspect()
+    assert report.answer.kind == "point"
+    assert report.answer.value == result.effect
+    assert report.calibration.status == "unavailable"
+    assert report.uncertainty.available
+    json.dumps(report.to_dict(), allow_nan=False)
+
+
+def test_response_retains_study_and_exports_own_execution():
+    data = sample()
+    data["t"] = np.random.default_rng(8).normal(size=128)
+    data["y"] = 2 * data["t"] + data["z"]
+    result = ant.analyze(
+        data,
+        graph=GRAPH,
+        query=ant.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
+        refute="none",
+        bootstrap=0,
+    )
+    assert result.study is not None
+    assert result.answer.kind == "response"
+    encoded = result.export()
+    result.study.refresh({**data, "y": data["y"] + 1.0})
+    assert result.export() == encoded
+    assert ant.artifacts.accept(encoded)["accepts_as_verified_program"] == "true"
+    loaded = ant.load(encoded)
+    assert loaded.artifact.payload["response"] is not None
+    assert loaded.inspect().uncertainty.available
+
+
+def test_refusal_retains_description_without_changing_exception_type():
+    with pytest.raises(ant.CausalError) as caught:
+        ant.prepare(sample(), graph=None, query=QUERY)
+    report = caught.value.report
+    assert report.operation == "prepare"
+    assert "graph" in report.message
+    assert report.query is QUERY
+    assert report.identification == "unavailable"
+    json.dumps(report.to_dict())
+
+
+def test_load_verified_execution_and_forward_uncontracted_body():
+    result = ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    encoded = result.export()
+    loaded = ant.load(encoded)
+    assert loaded.acceptance.verified
+    assert loaded.answer.value == result.effect
+    assert loaded.inspect().data_version == result.data_version
+    assert (
+        loaded.inspect().uncertainty.payload["components"]
+        == result.inspect().uncertainty.payload["components"]
+    )
+    assert loaded.export() == encoded
+    json.dumps(loaded.inspect().to_dict(), allow_nan=False)
+    with pytest.raises(ant.errors.CausalUnsupportedError, match="reusable study"):
+        _ = loaded.study
+
+    body_only = ant.artifacts.dumps(
+        "analysis_result",
+        loaded.artifact.payload,
+        variable_names=loaded.artifact.variable_names,
+        artifact_id="body-only",
+    )
+    unverified = ant.load(body_only)
+    assert not unverified.acceptance.verified
+    assert not unverified.inspect().identification.available
+    assert unverified.answer.kind == "unavailable"
+    assert unverified.export() == body_only
+
+
+def test_load_in_an_independent_python_process(tmp_path):
+    import subprocess
+    import sys
+
+    result = ant.analyze(sample(), graph=GRAPH, query=QUERY, seed=23, bootstrap=0, refute="none")
+    path = tmp_path / "result.ant"
+    path.write_bytes(result.export())
+    code = """import antecedent as ant, json, pathlib, sys
+r = ant.load(pathlib.Path(sys.argv[1]).read_bytes())
+assert r.acceptance.verified
+print(json.dumps(r.inspect().to_dict(), allow_nan=False))
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", code, str(path)], check=True, text=True, capture_output=True
+    )
+    report = json.loads(completed.stdout)
+    assert report["answer"]["value"] == result.effect
+    assert report["data_version"] == result.data_version
+
+
+@pytest.mark.parametrize("latency", [None, "interactive", "standard", "report"])
+def test_one_call_and_explicit_prepare_have_same_defaults(latency):
+    kwargs = dict(graph=GRAPH, query=QUERY, seed=19, bootstrap=4, latency=latency)
+    one = ant.analyze(sample(), **kwargs)
+    two = ant.prepare(sample(), **kwargs).estimate()
+    assert one.effect == two.effect
+    assert one.estimate.se_bootstrap == two.estimate.se_bootstrap
+    assert one.plan.validation_suite == two.plan.validation_suite
+    assert one.validation.count == two.validation.count
+
+
+def test_failed_refresh_retains_previous_binding_and_error_context():
+    study = ant.prepare(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    result = study.estimate()
+    with pytest.raises((ant.CausalError, ValueError)) as caught:
+        study.refresh({"t": np.zeros(2), "y": np.zeros(2), "z": np.zeros(2)})
+    assert caught.value.study is study
+    assert caught.value.report.operation == "refresh"
+    assert study.inspect().data_version == result.data_version
+    assert study.estimate().effect == result.effect
+
+
+def test_partial_and_missing_evidence_are_not_scalar_success():
+    from dataclasses import replace
+
+    result = ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    ident = replace(
+        result.reasoning.identification,
+        payload={**result.reasoning.identification.payload, "unevaluable_mass": 0.25},
+    )
+    partial = replace(result, reasoning=replace(result.reasoning, identification=ident))
+    assert partial.answer.kind == "partial"
+    assert partial.answer.value is None
+    assert "partial" in repr(partial)
+    assert "unevaluable_mass" in partial._repr_html_()
+    empty = replace(
+        result,
+        reasoning=None,
+        estimate=replace(result.estimate, se_analytic=float("nan")),
+        assumptions=None,
+    )
+    assert not empty.inspect().uncertainty.available
+    assert not empty.inspect().assumptions.available
+    json.dumps(empty.inspect().to_dict(), allow_nan=False)
+
+
+def test_refuting_an_old_result_does_not_change_its_export():
+    data = sample()
+    first = ant.analyze(data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    before = first.export()
+    first.study.refresh({**data, "y": data["y"] + data["t"]})
+    checked = first.refute(data, suite="cheap")
+    assert checked.effect == first.effect
+    assert checked.data_version == first.data_version
+    assert first.export() == before
+    assert ant.load(checked.export()).acceptance.verified
+
+
+def test_contracted_posterior_keeps_draws_and_native_uncertainty_target():
+    result = ant.analyze(
+        sample(),
+        graph=GRAPH,
+        query=QUERY,
+        bootstrap=0,
+        refute="none",
+        inference=ant.Bayesian(n_draws=32, backend="conjugate"),
+    )
+    loaded = ant.load(result.export())
+    assert loaded.acceptance.verified
+    assert loaded.artifact.payload["posterior_artifact"]
+    assert any(
+        c["source"] == "parameter" and c["target"] == "posterior"
+        for c in loaded.inspect().uncertainty.payload["components"]
+    )
+    json.dumps(result.inspect().to_dict(), allow_nan=False)
+
+
+def test_retarget_refuses_export_without_target_weight_identity():
+    data = sample()
+    result = ant.analyze(
+        data,
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=QUERY,
+        estimator="aipw",
+        bootstrap=0,
+        refute="none",
+    )
+    retargeted = result.study.retarget(np.exp(data["z"] / 3), depends_on=["z"])
+    assert retargeted.claim_id is None
+    with pytest.raises(ant.errors.CausalUnsupportedError, match="target-weight identity") as caught:
+        retargeted.export()
+    assert caught.value.report.operation == "export"
+    assert ant.load(result.export()).acceptance.verified
+    uniform = result.study.retarget(np.ones(len(data["t"])), depends_on=[])
+    assert ant.load(uniform.export()).acceptance.verified
+
+
+def test_workflow_signatures_remain_inspectable():
+    import inspect
+    import typing
+
+    for fn in (ant.analyze, ant.prepare, ant.load, ant.estimation.PreparedAnalysis.estimate):
+        assert typing.get_type_hints(fn)["return"] is not None
+        assert "kwargs" not in inspect.signature(fn).parameters
+
+
+def test_response_envelope_does_not_render_as_an_unrestricted_curve():
+    t = np.random.default_rng(31).integers(0, 2, size=160).astype(float)
+    data = {"t": t, "y": 2 * t + np.random.default_rng(32).normal(size=160)}
+    graph = ant.Cpdag.from_directed_undirected(["t", "y"], directed=[], undirected=[("t", "y")])
+    result = ant.analyze(
+        data,
+        graph=graph,
+        query=ant.InterventionResponse("y", intervention=ant.intervention.Set("t", 1.0)),
+        bootstrap=0,
+        refute="none",
+    )
+    assert result.envelope is not None
+    assert result.answer.kind == "partial"
+    assert "partial" in repr(result)
+    assert result.answer.value is None
+
+
+def test_cpdag_partial_identification_with_full_mass_stays_partial():
+    z = np.linspace(0.0, 1.0, 200)
+    t = (z > 0.5).astype(float)
+    graph = ant.Cpdag.from_directed_undirected(
+        ["t", "y", "z"], [("z", "y"), ("t", "y")], [("z", "t")]
+    )
+    result = ant.analyze(
+        {"t": t, "y": 1 + 2 * t + 3 * z, "z": z},
+        graph=graph,
+        query=QUERY,
+        refute="none",
+        bootstrap=0,
+    )
+    assert result.inspect().identification.payload["identified_mass"] == 1.0
+    assert result.answer.kind == "partial"
+    assert result.answer.value is None
+    with pytest.raises(ant.errors.RenderingLimitation, match="identified_set"):
+        result.display_effect()

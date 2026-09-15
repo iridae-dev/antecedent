@@ -1,11 +1,11 @@
 //! Python bridge for standalone format-0.5 causal wire artifacts.
 
+use antecedent_io::executed_functional_labels;
 use antecedent_io::{
     CausalPayloadWire, CausalQueryWire, CausalResponseWire, InterferenceEstimateWire,
     TransportEffectEstimateWire, TransportIdentificationWire, decode_analysis_result_artifact,
     decode_causal_payload_artifact, encode_causal_payload_artifact,
 };
-use antecedent_io::executed_functional_labels;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Serialize;

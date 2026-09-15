@@ -56,9 +56,7 @@ def _assert_mixture_contract(
     assert fresh.posterior is not None and click.posterior is not None
     assert fresh.posterior.unidentified_mass == pytest.approx(unidentified_mass, abs=1e-12)
     assert click.posterior.unidentified_mass == pytest.approx(unidentified_mass, abs=1e-12)
-    assert all(
-        not diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics
-    )
+    assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics)
     assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
     if validation_suite is None:
         assert not fresh.validation.reports
@@ -133,9 +131,7 @@ def _assert_frequentist_mixture_contract(
     assert any(
         f"unidentified_mass={unidentified_mass}" in diagnostic for diagnostic in fresh.diagnostics
     )
-    assert all(
-        not diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics
-    )
+    assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics)
     assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
     if validation_suite is None:
         assert not fresh.validation.reports

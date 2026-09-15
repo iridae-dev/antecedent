@@ -773,7 +773,7 @@ pub(crate) fn response_result(
             .support
             .warnings
             .iter()
-            .map(|warning| warning.message.to_string())
+            .map(|warning| format!("{}: {}", warning.code, warning.message))
             .collect(),
         identification: format!("{:?}", response.identification_status),
         adjustment_set: crate::public_adjustment_set(
