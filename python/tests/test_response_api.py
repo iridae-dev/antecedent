@@ -200,7 +200,8 @@ def test_response_curve_graph_posterior_is_refused():
     z = np.linspace(0.0, 1.0, n, dtype=np.float64)
     t = z + 0.1
     y = 1.0 + 2.0 * t + z
-    with pytest.raises(CausalUnsupportedError, match="refused: Graph-posterior response"):
+    # Licensed on the Rust Study API; the Python API has no entry point yet.
+    with pytest.raises(CausalUnsupportedError, match="Rust Study API only"):
         antecedent.analyze(
             {"t": t, "y": y, "z": z},
             discovery=antecedent.discovery.ExactDagPosterior(),

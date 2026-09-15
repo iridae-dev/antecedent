@@ -11,8 +11,8 @@ use antecedent_core::{
     ResponseValue, VariableId,
 };
 use antecedent_estimate::{
-    CausalPosterior, EffectEstimate, InterventionalDistributionEstimate, TemporalMediationEstimate,
-    TemporalMediationGrid,
+    CausalPosterior, EffectEstimate, InterferenceEstimate, InterventionalDistributionEstimate,
+    TemporalMediationEstimate, TemporalMediationGrid, TransportEffectEstimate,
 };
 use antecedent_identify::{IdentificationResult, IdentifiedEstimand};
 use antecedent_io::{AnalysisTraceWire, DerivationStepWire, assumptions_to_wire};
@@ -42,6 +42,28 @@ pub enum StructuralWeightBasis {
     /// Caller-declared mass over class members. Not a graph posterior and not
     /// completion enumeration.
     CallerSuppliedClassPrior,
+}
+
+impl StructuralWeightBasis {
+    /// Snake-case name used by the bindings and the result artifact wire format.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::PosteriorProbability => "posterior_probability",
+            Self::CompletionEnumeration => "completion_enumeration",
+            Self::CallerSuppliedClassPrior => "caller_supplied_class_prior",
+        }
+    }
+}
+
+impl From<StructuralWeightBasis> for antecedent_io::StructuralWeightBasisWire {
+    fn from(basis: StructuralWeightBasis) -> Self {
+        match basis {
+            StructuralWeightBasis::PosteriorProbability => Self::PosteriorProbability,
+            StructuralWeightBasis::CompletionEnumeration => Self::CompletionEnumeration,
+            StructuralWeightBasis::CallerSuppliedClassPrior => Self::CallerSuppliedClassPrior,
+        }
+    }
 }
 
 /// One structural atom in a graph-dependent response.
@@ -74,8 +96,25 @@ pub struct StructuralResponseMixture {
     pub unidentified_mass: f64,
     /// Fraction identified in theory but not evaluable by the selected estimator.
     pub unevaluable_mass: f64,
+    /// Fraction on identified atoms that were never evaluated because the
+    /// Interactive latency tier's graph budget left them out of the stratified
+    /// subsample. Neither unidentified nor a failed estimate; the four masses
+    /// sum to one. Zero outside the Interactive tier.
+    pub subsampled_out_mass: f64,
     /// Pointwise range over identified atom point responses.
     pub identified_set: Option<ResponseEnvelope>,
+    /// Interval for a scalar [`Self::identified_set`] that adds sampling
+    /// uncertainty to the point bounds (1.9, C-3). Published on class-aware
+    /// temporal Pulse / Sustained effects. Frequentist: an Imbens–Manski interval
+    /// with per-completion endpoints from the shared circular-block replicates,
+    /// covering the true effect with asymptotic probability at least the stated
+    /// level whenever it is one retained identified completion's effect.
+    /// Bayesian: product-posterior envelope quantiles from independently seeded
+    /// per-completion posterior draws (every retained completion's posterior puts
+    /// at most `1 − Φ(c)` of its mass outside each endpoint). When the completion
+    /// enumeration was capped the interval is still published, flagged
+    /// `truncated`, with a warning diagnostic.
+    pub identified_set_interval: Option<antecedent_estimate::IdentifiedSetInterval>,
     /// Probability-weighted summary, only for posterior-probability or caller-
     /// supplied class-prior weights when unidentified mass is zero.
     pub conditional_on_identified: Option<ResponseValue>,
@@ -103,6 +142,10 @@ pub struct StudyResult {
     ///
     /// For [`CausalQuery::Distribution`](antecedent_core::CausalQuery::Distribution) this holds the
     /// interventional mean of the first numeric outcome when defined (`ate` field), else NaN.
+    /// Its `se_bootstrap` is the mean's bootstrap SE; do not form `ate ± z·se` for a
+    /// probability — the bounded per-atom intervals are
+    /// [`InterventionalDistributionEstimate::atom_uncertainty`], and a binary outcome's
+    /// mean interval is [`InterventionalDistributionEstimate::mean_interval`].
     pub estimate: EffectEstimate,
     /// Function-valued causal response for [`CausalQuery::Response`](antecedent_core::CausalQuery::Response).
     pub response: Option<CausalResponse>,
@@ -128,6 +171,10 @@ pub struct StudyResult {
     pub mechanism_change: Option<Vec<MechanismChangeDetection>>,
     /// Unit-change attribution.
     pub unit_change: Option<UnitChangeResult>,
+    /// Trial-to-target transport estimate when the query was transport.
+    pub transport: Option<TransportEffectEstimate>,
+    /// Design-based interference estimate when the query was interference.
+    pub interference: Option<InterferenceEstimate>,
     /// Refutation reports (may be empty).
     pub refutations: Vec<RefutationReport>,
     /// Prior/posterior predictive check reports (Bayesian path; may be empty).
@@ -219,6 +266,23 @@ impl StudyResult {
                 .support_status
                 .and_then(crate::support::CellStatus::allowlist_parent)
                 .map(str::to_string),
+        }
+    }
+}
+
+#[cfg(test)]
+mod weight_basis_tests {
+    use super::StructuralWeightBasis;
+
+    #[test]
+    fn as_str_matches_the_wire_spelling() {
+        for basis in [
+            StructuralWeightBasis::PosteriorProbability,
+            StructuralWeightBasis::CompletionEnumeration,
+            StructuralWeightBasis::CallerSuppliedClassPrior,
+        ] {
+            let wire = antecedent_io::StructuralWeightBasisWire::from(basis);
+            assert_eq!(serde_json::to_value(wire).unwrap(), basis.as_str());
         }
     }
 }

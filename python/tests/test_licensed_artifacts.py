@@ -266,6 +266,65 @@ _QUERY_PAYLOADS["Counterfactual"] = (
     ["t", "y"],
 )
 _QUERY_PAYLOADS["MediationEffect"] = _QUERY_PAYLOADS["TemporalMediationEffect"]
+_QUERY_PAYLOADS["AnomalyAttribution"] = (
+    {
+        "anomaly_attribution": {
+            "targets": [1],
+            "unit_rows": None,
+            "max_units": 100,
+        }
+    },
+    ["t", "y"],
+)
+_QUERY_PAYLOADS["ChangeAttribution"] = (
+    {
+        "change_attribution": {
+            "outcome": 1,
+            "baseline": {"time_range": {"start": 0, "end": 40}},
+            "comparison": {"time_range": {"start": 40, "end": 80}},
+            "components": "mechanisms",
+            "allocation": {
+                "shapley": {
+                    "mode": "monte_carlo",
+                    "n": 2000,
+                    "max_exact_components": 12,
+                    "allow_exact_override": False,
+                    "seed": 0,
+                }
+            },
+            "max_components": 64,
+        }
+    },
+    ["t", "y"],
+)
+_QUERY_PAYLOADS["TransportQuery"] = (
+    {
+        "transport": {
+            "response": _QUERY_PAYLOADS["ResponseCurve"][0]["response"],
+            "source_population": "trial",
+            "target_population": "target",
+            "source_experiments": [0],
+        }
+    },
+    ["t", "y"],
+)
+_QUERY_PAYLOADS["InterferenceQuery"] = (
+    {
+        "interference": {
+            "assignment": {"bernoulli": {"probabilities": [0.4, 0.6]}},
+            "exposure": "neighbor_count",
+            "functional": {
+                "exposure_contrast": {
+                    "outcome": 1,
+                    "from": {"own": 0.0, "neighbors": 0.0},
+                    "to": {"own": 0.0, "neighbors": 1.0},
+                }
+            },
+            "probability_draws": 500,
+        }
+    },
+    ["t", "y"],
+)
 
 
 @pytest.mark.parametrize("query", _licensed_queries())

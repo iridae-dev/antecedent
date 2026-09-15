@@ -34,10 +34,16 @@ structures = ["graph_posterior"]
 reason = "Graph-posterior path and distribution mixtures are not staged."
 
 [[closed]]
-queries = ["PathSpecificEffect", "InterventionalDistribution"]
+queries = ["PathSpecificEffect"]
 graph_classes = ["Admg", "Cpdag", "Pag"]
 structures = ["accepted"]
-reason = "Accepted path and distribution queries require a Dag."
+reason = "Accepted path queries require a Dag."
+
+[[closed]]
+queries = ["InterventionalDistribution"]
+graph_classes = ["Cpdag", "Pag"]
+structures = ["accepted"]
+reason = "Accepted InterventionalDistribution is licensed on Dag and Admg; Cpdag/Pag remain refused."
 
 [[closed]]
 queries = ["MediationEffect"]
@@ -45,9 +51,87 @@ graph_classes = ["Admg", "Cpdag", "Pag"]
 reason = "MediationEffect requires a supplied static Dag."
 
 [[closed]]
-queries = ["TransportQuery", "InterferenceQuery"]
-graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
-reason = "Stage transport and interference APIs are not licensed analyze cells; sID outside the implemented subset is NotCertified."
+queries = ["AnomalyAttribution", "ChangeAttribution"]
+graph_classes = ["Admg", "Cpdag", "Pag"]
+reason = "AnomalyAttribution and ChangeAttribution require a supplied static Dag."
+
+[[closed]]
+queries = ["AnomalyAttribution", "ChangeAttribution"]
+graph_classes = ["Dag"]
+structures = ["accepted", "graph_posterior"]
+reason = "Attribution is licensed only for an explicit Dag at validation none."
+
+[[closed]]
+queries = ["AnomalyAttribution", "ChangeAttribution"]
+graph_classes = ["Dag"]
+inferences = ["Bayesian"]
+reason = "Attribution has no Bayesian draw path; the licensed cells are Frequentist."
+
+[[closed]]
+queries = ["AnomalyAttribution", "ChangeAttribution"]
+graph_classes = ["Dag"]
+validations = ["cheap", "full"]
+reason = "Attribution has no native refuter suite; ATE refuters do not apply."
+
+[[closed]]
+queries = ["TransportQuery"]
+graph_classes = ["Dag", "Cpdag", "Pag"]
+reason = "Licensed TransportQuery is Admg-only; selection diagrams are ADMGs. Recursive sID outside the implemented subset is NotCertified."
+
+[[closed]]
+queries = ["TransportQuery"]
+graph_classes = ["Admg"]
+structures = ["accepted"]
+reason = "TransportQuery is licensed only for an explicit Admg at validation none."
+
+[[closed]]
+queries = ["TransportQuery"]
+graph_classes = ["Admg"]
+structures = ["graph_posterior"]
+inferences = ["Bayesian"]
+reason = "TransportQuery graph-posterior mixtures are not staged."
+
+[[closed]]
+queries = ["TransportQuery"]
+graph_classes = ["Admg"]
+inferences = ["Bayesian"]
+reason = "TransportQuery has no Bayesian trial-to-target estimator."
+
+[[closed]]
+queries = ["TransportQuery"]
+graph_classes = ["Admg"]
+validations = ["cheap", "full"]
+reason = "TransportQuery has no native refuter suite; ATE refuters do not apply."
+
+[[closed]]
+queries = ["InterferenceQuery"]
+graph_classes = ["Admg", "Cpdag", "Pag"]
+reason = "Licensed InterferenceQuery is Dag-only; the graph binds schema/outcome, it does not identify the contrast."
+
+[[closed]]
+queries = ["InterferenceQuery"]
+graph_classes = ["Dag"]
+structures = ["accepted"]
+reason = "InterferenceQuery is licensed only for an explicit Dag at validation none."
+
+[[closed]]
+queries = ["InterferenceQuery"]
+graph_classes = ["Dag"]
+structures = ["graph_posterior"]
+inferences = ["Bayesian"]
+reason = "InterferenceQuery graph-posterior mixtures are not staged."
+
+[[closed]]
+queries = ["InterferenceQuery"]
+graph_classes = ["Dag"]
+inferences = ["Bayesian"]
+reason = "InterferenceQuery is design-based Frequentist; there is no Bayesian randomization estimator."
+
+[[closed]]
+queries = ["InterferenceQuery"]
+graph_classes = ["Dag"]
+validations = ["cheap", "full"]
+reason = "InterferenceQuery has no native refuter suite; ATE refuters do not apply."
 
 [[closed]]
 queries = ["ConditionalEffect"]
@@ -58,13 +142,20 @@ reason = "ConditionalEffect on Admg has no compile arm; Dag, Cpdag, and Pag are 
 queries = ["PathSpecificEffect"]
 graph_classes = ["Admg", "Pag"]
 structures = ["explicit"]
-reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above)."
+reason = "Path-specific queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above)."
 
 [[closed]]
 queries = ["InterventionalDistribution"]
-graph_classes = ["Admg", "Pag"]
+graph_classes = ["Pag"]
 structures = ["explicit"]
-reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Admg/Pag hits the same static-Dag requirement (accepted/graph-posterior Admg and Pag are already refused above)."
+reason = "Path and distribution queries execute only on a supplied static Dag or Admg; a directly supplied Pag hits the static-Dag/Admg requirement."
+
+[[closed]]
+queries = ["InterventionalDistribution"]
+graph_classes = ["Admg"]
+structures = ["explicit"]
+validations = ["cheap", "full"]
+reason = "ADMG InterventionalDistribution is licensed at validation none; cheap/full remain Dag-only."
 
 [[closed]]
 queries = ["TemporalMediationEffect"]
@@ -106,15 +197,26 @@ inferences = ["Frequentist"]
 reason = "Frequentist graph-posterior mixing is licensed only for DAG atoms. ADMG/CPDAG/PAG posterior atoms remain refused."
 
 [[closed]]
-queries = [
-  "TemporalMediationEffect",
-  "ResponseCurve",
-  "InterventionResponse",
-]
+queries = ["ResponseCurve", "InterventionResponse"]
 graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
 structures = ["graph_posterior"]
 inferences = ["Frequentist"]
-reason = "Frequentist DBN-posterior Pulse/Sustained effects are licensed with shared outer block replicates. Temporal mediation and response mixtures require their query-specific composite result evaluators."
+reason = "Frequentist DBN-posterior Pulse/Sustained effects and single-horizon TemporalMediationEffect are licensed. Temporal response mixtures still require their query-specific composite evaluators."
+
+[[closed]]
+queries = ["TemporalMediationEffect"]
+graph_classes = ["TemporalCpdag", "TemporalPag"]
+structures = ["graph_posterior"]
+inferences = ["Frequentist"]
+reason = "Frequentist DBN-posterior mediation is licensed for TemporalDag atoms. TemporalCpdag/TemporalPag posterior atoms need a class-aware combiner that retains unidentified class mass."
+
+[[closed]]
+queries = ["TemporalMediationEffect"]
+graph_classes = ["TemporalDag"]
+structures = ["graph_posterior"]
+inferences = ["Frequentist"]
+validations = ["cheap", "full"]
+reason = "Frequentist DBN-posterior TemporalMediationEffect is licensed at validation none. Mediation refuters are not run per atom against that atom's own contrast and mixed by graph weight on this path (the Bayesian DBN mediation cells do this), so cheap/full stay refused."
 
 # -- 2026-08-19 audit. The following reasons cover cells probed end-to-end
 # (Study::build/run) and confirmed either to refuse at compile (an
@@ -143,7 +245,7 @@ reason = "Graph-posterior response currently executes only static DAG atoms; ADM
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
 graph_classes = ["Cpdag"]
 structures = ["explicit"]
-reason = "Path and distribution queries execute only on a supplied static Dag; a directly supplied Cpdag hits the same static-Dag requirement (Admg/Pag explicit already named above)."
+reason = "Path-specific queries execute only on a supplied static Dag and distribution queries only on a supplied static Dag or Admg; a directly supplied Cpdag hits that requirement (Admg/Pag explicit already named above)."
 
 [[closed]]
 queries = ["AverageEffect"]
@@ -192,8 +294,8 @@ reason = "Graph-posterior derivative mixtures are not staged; the licensed deriv
 [[closed]]
 queries = ["Counterfactual"]
 graph_classes = ["Dag"]
-structures = ["accepted", "graph_posterior"]
-reason = "Staged counterfactuals require an explicit Dag; accepted and graph-posterior structures are refused."
+structures = ["graph_posterior"]
+reason = "Staged counterfactuals require a supplied Dag; graph-posterior structures are refused."
 
 [[closed]]
 queries = ["Counterfactual"]

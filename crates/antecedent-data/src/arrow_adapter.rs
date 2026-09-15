@@ -36,6 +36,8 @@ pub struct ArrowLoadResult {
 ///
 /// Always copies into library-owned buffers (in-process `RecordBatch` path).
 /// Prefer [`tabular_from_arrow_c_columns`] for Arrow C Data Interface zero-copy.
+/// Null cells are invalid and hold `NaN`; a fixed-size-list row with a null
+/// component is an invalid row.
 ///
 /// # Errors
 ///
@@ -136,7 +138,8 @@ fn float64_owned_from_array(
     let mut validity_bytes = vec![0u8; n_rows.div_ceil(8)];
     for row in 0..n_rows {
         if floats.is_null(row) {
-            values.push(0.0);
+            // Missing cells hold NaN so value-only readers never see an observation.
+            values.push(f64::NAN);
         } else {
             values.push(floats.value(row));
             validity_bytes[row / 8] |= 1 << (row % 8);
@@ -162,23 +165,18 @@ fn fixed_vector_from_list(
         .as_any()
         .downcast_ref::<Float64Array>()
         .ok_or(DataError::TypeMismatch { id, expected: "FixedSizeList<float64>" })?;
+    // Validity is per row, so a vector with any null component is a missing row;
+    // every component of a missing row holds NaN.
     let mut flat = Vec::with_capacity(n_rows.saturating_mul(dim));
     let mut validity_bytes = vec![0u8; n_rows.div_ceil(8)];
     for row in 0..n_rows {
-        if list.is_null(row) {
-            flat.extend(std::iter::repeat_n(0.0, dim));
+        let start = row.saturating_mul(dim);
+        if list.is_null(row) || (start..start + dim).any(|idx| floats.is_null(idx)) {
+            flat.extend(std::iter::repeat_n(f64::NAN, dim));
             continue;
         }
         validity_bytes[row / 8] |= 1 << (row % 8);
-        let start = row.saturating_mul(dim);
-        for k in 0..dim {
-            let idx = start + k;
-            if floats.is_null(idx) {
-                flat.push(0.0);
-            } else {
-                flat.push(floats.value(idx));
-            }
-        }
+        flat.extend((start..start + dim).map(|idx| floats.value(idx)));
     }
     let copied = (flat.len() * core::mem::size_of::<f64>() + validity_bytes.len()) as u64;
     let col = FixedVectorColumn::new(
@@ -193,7 +191,9 @@ fn fixed_vector_from_list(
 /// Load float64 columns from Arrow C Data Interface exports, preferring zero-copy.
 ///
 /// Consumes each [`ArrowCColumn`]'s FFI structs. Contiguous float64 value buffers
-/// are borrowed; validity bitmaps are copied into library storage.
+/// are borrowed; validity bitmaps are copied into library storage. A column with
+/// nulls is borrowed only when every null slot already holds `NaN`; otherwise its
+/// values are copied with `NaN` written under each null.
 ///
 /// # Errors
 ///
@@ -261,6 +261,7 @@ pub fn tabular_from_arrow_c_columns(
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp)] // values are copied bit-for-bit
 mod tests {
     use antecedent_core::VariableId;
     use arrow_array::ffi::to_ffi;
@@ -327,6 +328,101 @@ mod tests {
                 assert!((c.values[0] - 1.0).abs() < f64::EPSILON);
                 assert!((c.values[1] - 2.0).abs() < f64::EPSILON);
                 assert!((c.values[4] - 5.0).abs() < f64::EPSILON);
+            }
+            _ => panic!("expected FixedVector"),
+        }
+    }
+
+    fn float_col(data: &TabularData, id: u32) -> &Float64Column {
+        match data.column(VariableId::from_raw(id)).unwrap() {
+            crate::column::ColumnView::Float64(c) => c,
+            _ => panic!("expected float"),
+        }
+    }
+
+    #[test]
+    fn arrow_null_float64_cell_reads_nan_on_every_path() {
+        let schema = Schema::new(vec![Field::new("x", DataType::Float64, true)]);
+        let x = Float64Array::from(vec![Some(1.0), None, Some(3.0)]);
+        let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(x)]).unwrap();
+        let loaded = tabular_from_record_batch(&batch).unwrap();
+        let id = VariableId::from_raw(0);
+        assert!(!float_col(&loaded.data, 0).validity.is_valid(1));
+        let slice = loaded.data.float64_slice(id).unwrap();
+        assert!(slice[1].is_nan(), "borrowed slice exposed {} for a null cell", slice[1]);
+        assert!(loaded.data.float64_cow(id).unwrap()[1].is_nan());
+        let values = loaded.data.float64_values(id).unwrap();
+        assert!(values[1].is_nan());
+        assert_eq!((values[0], values[2]), (1.0, 3.0));
+    }
+
+    #[test]
+    fn arrow_cdi_nulls_copy_with_nan_when_slots_hold_placeholders() {
+        // arrow-rs writes 0.0 under null slots, like most exporters.
+        let x = Float64Array::from(vec![Some(1.0), None, Some(3.0)]);
+        assert_eq!(x.values()[1], 0.0);
+        let (arr, sch) = to_ffi(&x.to_data()).unwrap();
+        let loaded = tabular_from_arrow_c_columns(vec![ArrowCColumn {
+            name: "x".into(),
+            array: arr,
+            schema: sch,
+        }])
+        .unwrap();
+        assert_eq!(loaded.bytes_borrowed, 0);
+        let c = float_col(&loaded.data, 0);
+        assert!(!c.values.is_foreign());
+        assert!(!c.validity.is_valid(1));
+        assert!(c.values[1].is_nan());
+        assert!(loaded.data.float64_slice(VariableId::from_raw(0)).unwrap()[1].is_nan());
+        assert!((c.values[2] - 3.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn arrow_cdi_nulls_stay_zero_copy_when_slots_hold_nan() {
+        use arrow_buffer::{NullBuffer, ScalarBuffer};
+        let x = Float64Array::new(
+            ScalarBuffer::from(vec![1.0, f64::NAN, 3.0]),
+            Some(NullBuffer::from(vec![true, false, true])),
+        );
+        let (arr, sch) = to_ffi(&x.to_data()).unwrap();
+        let loaded = tabular_from_arrow_c_columns(vec![ArrowCColumn {
+            name: "x".into(),
+            array: arr,
+            schema: sch,
+        }])
+        .unwrap();
+        assert!(loaded.bytes_borrowed > 0);
+        let c = float_col(&loaded.data, 0);
+        assert!(c.values.is_foreign());
+        assert!(!c.validity.is_valid(1));
+        assert!(c.values[1].is_nan());
+    }
+
+    #[test]
+    fn arrow_fixed_size_list_null_component_invalidates_row() {
+        use arrow_array::FixedSizeListArray;
+        use arrow_buffer::NullBuffer;
+
+        let values =
+            Float64Array::from(vec![Some(1.0), Some(2.0), Some(3.0), None, Some(5.0), Some(6.0)]);
+        let item = Arc::new(Field::new("item", DataType::Float64, true));
+        let list = FixedSizeListArray::new(
+            Arc::clone(&item),
+            2,
+            Arc::new(values),
+            Some(NullBuffer::from(vec![true, true, false])),
+        );
+        let schema = Schema::new(vec![Field::new("v", DataType::FixedSizeList(item, 2), true)]);
+        let batch = RecordBatch::try_new(Arc::new(schema), vec![Arc::new(list)]).unwrap();
+        let loaded = tabular_from_record_batch(&batch).unwrap();
+        match loaded.data.column(VariableId::from_raw(0)).unwrap() {
+            crate::column::ColumnView::FixedVector(c) => {
+                assert!(c.validity.is_valid(0));
+                assert_eq!(&c.values[0..2], &[1.0, 2.0]);
+                // Row 1 has a null component; row 2 is a null list slot.
+                assert!(!c.validity.is_valid(1));
+                assert!(!c.validity.is_valid(2));
+                assert!(c.values[2..].iter().all(|v| v.is_nan()));
             }
             _ => panic!("expected FixedVector"),
         }

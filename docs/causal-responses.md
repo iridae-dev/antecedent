@@ -63,7 +63,9 @@ A response result deliberately keeps four judgments separate:
    refit nuisance models or claim unconditional coverage without the caller's
    bandwidth/regularity contract. An identified
    set is uncertainty about what the assumptions determine, not a confidence
-   interval.
+   interval. Temporal dose × horizon surfaces keep the pointwise band in
+   `uncertainty` and publish a simultaneous band next to it (see
+   [Temporal simultaneous bands](#temporal-simultaneous-bands)).
 4. `assumptions` and `provenance` record the claims and algorithm used. Do not
    infer an observation assumption merely from an observation-mechanism column.
 
@@ -175,18 +177,205 @@ Explicit and accepted DAGs, TemporalDAGs, CPDAGs, and PAGs are licensed for
 additive forms. Static responses use `response.bayesian`; temporal responses
 use `response.temporal.bayesian` and retain identification and support per
 horizon. Class-aware Cpdag/Pag Bayesian response mixes identified-mass means
-only; posterior draws are not mixed. These posterior intervals are pointwise,
-with no joint horizon posterior or simultaneous-band claim. Kennedy-DR
-regularity and row-influence diagnostics below describe the Frequentist
-estimator, not these Bayesian posteriors.
+only; posterior draws are not mixed. The temporal posterior band in
+`uncertainty` is pointwise; a simultaneous credible band is published next to
+it (see [Temporal simultaneous bands](#temporal-simultaneous-bands)). Each
+horizon is a separate conjugate fit, so across horizons that band describes the
+product of per-horizon posteriors, not a joint horizon posterior. Both bands
+condition on the observed covariate (and, for shifts, treatment) average. Each
+horizon's Gaussian likelihood is tempered by its REML autoregressive variance
+ratio `κ̂_h ≥ 1` (a generalized power posterior, the same correction as the Bayesian
+Pulse / Sustained cells; support diagnostic
+`response.temporal_bayesian.tempering`): lag-aligned `h`-step residuals are
+MA(h−1) whenever the outcome or treatment is persistent, and serially dependent
+at every horizon under autocorrelated innovations. Kennedy-DR regularity and row-influence
+diagnostics below describe the Frequentist estimator, not these Bayesian
+posteriors.
+
+## Temporal simultaneous bands
+
+A pointwise band covers one (dose, horizon) cell at a time. Temporal
+`ResponseCurve` / `InterventionResponse` surfaces also publish a band that
+covers the whole grid at once, as three support diagnostics:
+
+| id | values |
+|----|--------|
+| `response.simultaneous_band.lower` | lower edge, same dose-major layout as the mean |
+| `response.simultaneous_band.upper` | upper edge, same layout |
+| `response.simultaneous_band.critical` | `[level, critical value c, joint replicates or draws]` |
+
+The construction is a max-studentized deviation (sup-t) from joint replicates
+of the whole surface, the replicate analogue of the Kennedy-DR multiplier band
+above. With cell scales `s_j` (the SD of the replicates of cell `j`) and
+`B` replicates, `c` is the `ceil(level·(B+1))`-th smallest of
+`max_j |θ*_j − θ̂_j| / s_j`, and the band is `θ̂_j ± c·s_j` (the static
+multiplier band and the Gaussian max-t critical value read the same rank). At
+least 40 joint replicates are required; otherwise
+`response.simultaneous_band_withheld` explains why no band was published. The
+pointwise band needs only two surviving replicates, but below 40 it carries
+`response.temporal.pointwise_band_few_replicates`: its SD is then itself noisy.
+
+The critical value is floored at the one-cell normal quantile, so the
+simultaneous band is never narrower than the pointwise band.
+
+Every Frequentist temporal response band (curves, Set/Shift/Soft, Sequence
+overlays, observation-adjusted surfaces, and TemporalCpdag/Pag completion atoms)
+uses one construction:
+
+1. a joint circular-block bootstrap of lag-aligned outcome-time tuples over the
+   `n` series times every horizon can evaluate; every replicate row keeps its own
+   intact lag window, and every horizon of a replicate is refit on its rows at the
+   same resampled calendar times;
+2. block length `ℓ = max(max(unfolded span, ceil(sqrt(n))), min(ceil(b_PW·n^{1/6}), n/3))`,
+   with `b_PW` the largest Politis–White (2004) block length over the level's
+   estimating scores (every fitted regression's normal-equation scores and the
+   centered covariate columns whose averages the level reads) — the lengthening
+   of the scalar temporal effects, on the `sqrt(n)` floor. The support diagnostic
+   `response.temporal.block_length` records `[ℓ, floor, uncapped testing length,
+   n, dispersion factor]`, and `response.temporal.block_length_capped` warns when
+   the `n/3` cap binds;
+3. replicate deviations from `θ̂` scaled by the fixed-b critical-value ratio of the
+   circular Bartlett estimator at `b = ℓ/n` (simulated circular-Bartlett 97.5%
+   quantiles; the correction the plain TemporalDag Pulse / Sustained SE uses) and by the HC1 factor
+   `sqrt(n/(n − p))`;
+4. each cell's deviations further scaled by that cell's kernel-bias factor
+   `1/sqrt(f)` (support diagnostic `response.temporal.kernel_bias_factor`, in the
+   mean layout): `f` is the share of the long-run variance of the autoregression
+   fitted to the cell's influence series (a Kendall-corrected AR(1), or the
+   BIC-selected AR(q ≤ 4) when it reads more) that the Bartlett kernel at `ℓ`
+   keeps, `f = (1 + 2 Σ_{k<ℓ} (1 − k/ℓ) ρ_k) / (1 + 2 Σ_k ρ_k)`. The influence is
+   the delta-method score of the level: the row's weight in `c'β̂` times its
+   residual, plus the centered design columns whose sample means the level reads
+   (every column but the treatment for a dose; the treatment too for a shift),
+   each weighted by its coefficient. A Sequence level, which composes several
+   mechanisms, takes the largest factor over its estimating scores. A fit with no
+   positive long-run excess keeps the factor at 1; on iid and AR(1) `ρ = 0.5`
+   cells it stays within 1% of 1;
+5. pointwise band `θ̂ ± 1.96·SE` with SE the scaled replicate SD, and the
+   simultaneous band above from the same scaled replicates (a per-cell scale
+   leaves the studentized maximum, hence the critical value, unchanged). The
+   fixed-b ratio is the two-sided 95% correction for one pointwise interval;
+   carrying it into the sup-t band is a heuristic extension, checked by the
+   calibration rather than derived.
+
+The block length is chosen for interval coverage, not for the mean-squared error
+of the variance. The circular-block variance behaves like a Bartlett-kernel
+long-run variance with bandwidth `ℓ`, and the testing-optimal Bartlett bandwidth
+grows like `n^{1/2}` (Sun, Phillips & Jin 2008). With the `n^{1/3}` rule of the
+scalar temporal effect resamplers, the kernel truncation bias left
+observation-adjusted bands under AR(1) `ρ = 0.5` residuals under the band for
+nominal 95% (that run was not retained), and neither a `t_ν/z` batch-means
+factor nor longer blocks under that factor repaired it. The fixed-b factor carries the extra estimation noise of the longer
+block, so independent rows are not over-covered.
+
+The kernel-bias factor is what the block length cannot buy. The Bartlett kernel
+misses `O(1/ℓ)` of a persistent influence's long-run variance at any licensed
+length (46% kept at `ℓ = 13`, 82% at `ℓ = n/3` for an AR(1) ρ = 0.9 influence at
+n = 160), and the fixed-b ratio corrects the estimation noise of the block
+variance, not its truncation. Lengthening alone does not close the gap: on the
+mean of an AR(1) ρ = 0.9 series at n = 160 the fixed-b interval covers 0.803 at
+`ℓ = 13` and 0.903 at `ℓ = n/3`, while the fitted-AR(1) factor at `ℓ = 13` covers
+0.954 (0.948 for ρ = 0.5, 0.956 for iid; 4000 series); and long blocks degrade the
+sup-t band, which needs many blocks per replicate. The factor is model-based, so
+it carries no wide-bandwidth sampling noise, and it corrects only what the
+autoregression fits.
+
+Each band also reads every cell's influence for the family's short-series
+statistic (`response.temporal.effective_rows`: the smaller of the lag-1 AR(1)
+reading `n(1 − r₁)/(1 + r₁)` and the block-length Bartlett reading, the readings
+of the scalar temporal effects) and warns `response.temporal.block.short_series`
+when any cell reads fewer than 30 effective rows.
+
+- **Frequentist complete data.** Curves and single Set/Shift/Soft responses refit
+  every horizon and recompute the covariate (and, for shifts, treatment) averages
+  on each replicate. Multi-step and joint Sequence overlays refit every unfolded
+  sequential mechanism of every horizon on the resampled tuples and recompute the
+  root-node means. Both target the population level `E[Y_h | do(A)]`. With zero
+  replicates no band is published: the analytic OLS band would treat lag-aligned
+  rows as independent, which temporal rows are not, so the surface keeps its
+  point values and warns `estimate.temporal_response.band_withheld`.
+- **Frequentist observation-adjusted.** Each outer replicate additionally refits
+  the observation nuisance on exactly the resampled tuples and replaces the
+  outcome-time column with the replicate pseudo-outcome. Sequence overlays whose
+  unfolded design carries the outcome at a nonzero lag are refused (the lagged
+  outcome would be a pseudo-outcome regressor). The same guard covers curve and
+  Set / Shift designs; there a lagged outcome in the adjustment set would need
+  outcome ancestry that repeats at every earlier slice, which temporal backdoor
+  identification does not certify, so it refuses first. No replicate row pairs values
+  across a block junction. The raw-series replicate that 1.8 used for Sequence
+  overlays measured 31–81% coverage for a nominal 95% band and is gone.
+- **Bayesian.** The simultaneous credible band uses posterior draws of the
+  grid around the posterior mean: joint Gibbs draws for
+  `estimate.temporal_observed_bayes`, and index-paired independent per-horizon
+  draws (a product posterior) for `response.temporal.bayesian`.
+- **Not published.** Bayesian Sequence overlays (each horizon is sampled
+  separately; pointwise bands only) and the class-level TemporalCpdag/Pag
+  identified set (no class band; each completion atom keeps its own pointwise and
+  simultaneous band, calibrated against that atom's own probability limit).
+
+In Python, `bootstrap=` on `analyze(...)` and `PreparedAnalysis.prepare(...)` is
+the replicate count for Frequentist temporal `ResponseCurve` /
+`InterventionResponse` (TemporalDag surfaces and TemporalCpdag/Pag completion
+atoms). An explicit count always wins. Omitted, it follows the `latency` tier
+as prepared Pulse / Sustained do: `interactive` 0, `standard` 199, `report` 200.
+`analyze()` without a `latency` uses 199, so a band is published; the prepared
+API's default `interactive` tier publishes the point surface only. `bootstrap=0`
+returns the point surface with `uncertainty.kind == "none"`, the withheld-band
+message in `support.warnings`, and `estimate.temporal_response.band_withheld: …`
+in `diagnostics`. The seed drives the replicates, so a fixed `seed=` reproduces
+the band. The simultaneous band is `result.simultaneous_band` (`None` when none
+was published), rebuilt from the support diagnostics above. Its `lower` / `upper`
+rows match `uncertainty.lower` / `uncertainty.upper`; `critical` and `replicates`
+come from `response.simultaneous_band.critical`:
+
+```python
+result = antecedent.analyze(data, graph=lagged_edges, query=surface, bootstrap=200, seed=7)
+result.uncertainty.lower, result.uncertainty.upper   # pointwise 95% band
+band = result.simultaneous_band                     # whole-grid 95% band
+band.lower, band.upper, band.critical, band.replicates
+```
+
+Bayesian responses (posterior intervals), static responses, and `cell.aipw`
+refuse a positive `bootstrap=` rather than ignoring it.
+
+Coverage of these bands on linear-Gaussian DGPs with iid and AR(1) residuals
+is measured by `crates/antecedent/tests/v19_temporal_response_calibration.rs`
+(run via `scripts/gate_calibration.sh`, 400 replicates, `n = 160`). Gated: iid and
+AR(1) `ρ = 0.5` residuals on every Frequentist cell, and both the dose curve
+(0.945–0.948 pointwise, 0.948 simultaneous) and the shift response (0.943
+pointwise, 0.948 simultaneous; 0.910 / 0.912 before the kernel-bias factor) under
+an AR(1) `φ = 0.9` treatment. The shift level is essentially the sample mean of a
+series with about ten effective rows, so its band also carries the short-series
+warning on most replicates; at `n = 100` (about 7 effective rows) it covers
+0.885 / 0.890 and warns on every replicate, at `n = 400` 0.938 / 0.940, at
+`n = 1000` 0.965 / 0.968.
+
+Recorded, not gated, and disclosed on every band as
+`response.temporal.block.persistence_boundary`: AR(1) `ρ = 0.9` residuals on the
+dose × horizon curve, 0.887–0.943 pointwise and 0.877 simultaneous at `n = 160`
+(0.868–0.922 / 0.853 at `n = 100`, 0.900–0.922 / 0.895 at `n = 400`,
+0.902–0.943 / 0.905 at `n = 1000`). The residual's persistent part is 15% of its
+variance (the omitted iid treatment lag dominates), yet it carries most of the
+level's long-run variance (3.7 times the variance). Nothing in the sample reads
+it at these sizes: the lag-by-lag autocorrelations (0.13 at lag 1) stay under the
+Politis–White threshold, the fitted autoregression sees a lag-1 coefficient near
+0.14 (factor within 2% of 1), the influence reads about 90 effective rows (no
+short-series warning), and an AR(1)-plus-noise fit of the influence's long-run
+ratio spans 1.2–5.9 at `n = 160` (1.7–6.0 at `n = 400`) around the truth of 3.7.
+Lengthening the blocks to `n/3` regardless did not bring the design into the
+band either (that experiment's run was not retained), so it does not gate it.
+The block-length rule catches this component only once `n` is large enough for
+its autocorrelations to clear the threshold (about `n = 2000`).
 
 Prepared responses require complete observations and the AllObserved empirical
 population. Unsupported observation mechanisms, observation assumptions, or
 population specifications are refused explicitly. Observation-adjusted
 Frequentist curves use the separate path described under
 [Observation is not outcome](#observation-is-not-outcome). Bayesian derivative
-responses, graph-posterior response mixtures, and multi-step temporal response
-policies remain refused. See the [1.3 evidence ledger](v1.3-evidence.md) and
+responses are described under
+[Curves, derivatives, and elasticities](#curves-derivatives-and-elasticities).
+Graph-posterior response mixtures (licensed for static DAG atoms in the Rust
+Study API only) and multi-step temporal response policies are refused here. See the [1.3 evidence ledger](v1.3-evidence.md) and
 [1.4 evidence ledger](v1.4-evidence.md).
 
 ## Row-diagnostic export contract
@@ -216,26 +405,36 @@ squares fit of the pseudo-outcomes: with `dx_i = a_i - g`,
 `r_i = phi_i - x_i' beta(g)`,
 
 ```
-psi[g, i] = w_i * [(X'WX)^{-1}]_{row 0} . x_i * r_i
+psi[g, i] = w_i * [(X'WX)^{-1}]_{row 0} . x_i * r_i  +  (c_i - mean(c)) / N
 ```
 
-— the WLS influence of row `i` on the fitted level, in outcome units. It is
-**not** the semiparametric efficient influence function of the Kennedy
-estimator: the pseudo-outcomes are treated as fixed data, so nuisance-estimation
-uncertainty is not inside these values, and neither is bandwidth selection.
+The first term is the WLS influence of row `i` on the fitted level, in outcome
+units. The second is the marginalization term of Kennedy et al. (2017,
+Theorem 3): the pseudo-outcome averages the outcome regression over every
+row's covariates, `∫ mu(a, x) dP_n(x)`, so each row also moves the level through
+its covariates. With the additive outcome nuisance this is the per-row
+constant `c_i = mu(a_i, x_i) - ∫ mu(a_i, x) dP_n(x) = h(x_i) - mean h(x)` from
+the row's own cross-fit fold, identical at every grid point. Without it the
+pointwise band under-covered at nominal 0.90 on a confounded linear law
+(`crates/antecedent/tests/v19_static_calibration.rs`; that pre-fix run was not
+retained). The values
+still condition on the fitted nuisances and bandwidth: second-order nuisance
+error and bandwidth selection are not inside them.
 
 **Centering and scaling.** At every grid point the influences sum to zero
-exactly (up to float roundoff) — this is the first WLS normal equation, not a
-convention applied afterwards. There is no `1/n` scaling: these are per-row
-contributions, sized so the identities below hold.
+exactly (up to float roundoff): the first term by the first WLS normal
+equation, the second by centering `c`. There is no `1/n` scaling of the sum:
+these are per-row contributions, sized so the identities below hold.
 
 **Exact relationship to reported uncertainty.** The reported pointwise standard
 error is `SE(g) = sqrt(sum_i psi[g, i]^2)`, and the pointwise band is
 `m(g) ± z * SE(g)` with `z = Phi^{-1}(0.5 + level/2)`. The simultaneous band's
-critical value is the `level` empirical quantile, over
-`simultaneous_replicates` Rademacher draws (SplitMix64 stream from
+critical value is the upper `level` quantile, over `B = simultaneous_replicates`
+Rademacher draws (SplitMix64 stream from
 `multiplier_seed`, so deterministic given the seed), of
-`max_g | sum_i eps_i * psi[g, i] | / SE(g)`; the band is `m(g) ± c * SE(g)`.
+`max_g | sum_i eps_i * psi[g, i] | / SE(g)`, read as the `ceil(level·(B+1))`-th
+smallest of the `B` draws (the rank every simultaneous response band uses) and
+floored at `z`; the band is `m(g) ± c * SE(g)`.
 Both bands can be reconstructed from this export bit-for-bit; if your
 reconstruction disagrees, that is a bug report, not a tolerance issue.
 
@@ -265,39 +464,92 @@ at export rather than published.
 
 ## Curves, derivatives, and elasticities
 
-The six derivative query types are licensed on Frequentist explicit or
-accepted DAGs at validation `none`; see the [support matrix](support-matrix.md)
-and [1.3 evidence ledger](v1.3-evidence.md). Bayesian, PAG/ADMG/CPDAG
-derivative, graph-posterior, observation-adjusted, and cheap/full coordinates
-remain refused. Mean curves on `Cpdag` / `Pag` are a separate 1.4 cell, not a
-derivative license. The definitions below are the licensed Frequentist forms,
-not a license to run every constructor argument.
+The six derivative query types are licensed on explicit or accepted DAGs at
+validation `none`, under Frequentist and Bayesian inference; see the
+[support matrix](support-matrix.md) and [1.3 evidence ledger](v1.3-evidence.md).
+PAG/ADMG/CPDAG derivative, graph-posterior, observation-adjusted, and
+cheap/full coordinates remain refused. Mean curves on `Cpdag` / `Pag` are a
+separate 1.4 cell, not a derivative license. The definitions below are the
+licensed forms, not a license to run every constructor argument. Repeated-
+sampling coverage of every published derivative interval is gated in
+`crates/antecedent/tests/v19_derivative_calibration.rs`.
 
 - `ResponseCurve(treatment, outcome, grid=...)` evaluates
   `a -> E[Y | do(A=a)]` on an explicit, increasing grid.
-- `PointDerivative(..., at=a)` is a local slope of that curve. It requires an
-  explicit `bandwidth` in `estimator_config`; Silverman's rule is a level/KDE
-  rate and is refused rather than silently oversmoothing `m'`. Evidence pins
-  first-order coordinates. Local intervals condition on the fitted nuisances
-  and that bandwidth.
+- `PointDerivative(..., at=a)` estimates the true slope `m'(a)` of that curve,
+  not a bandwidth-smoothed surrogate. It requires an explicit `bandwidth` in
+  `estimator_config`; Silverman's rule is a level/KDE rate and is refused
+  rather than silently oversmoothing `m'`. The point value is the
+  Kennedy-DR local-quadratic slope. The interval is robust bias-corrected
+  (Calonico–Cattaneo–Titiunik with the pilot bandwidth equal to the caller
+  bandwidth, which is numerically the local-cubic slope and its own
+  Eicker–White standard error). It is therefore centered at the bias-corrected
+  slope rather than at the point value, and `standard_error` is the
+  bias-corrected standard error; the diagnostic
+  `response.derivative_interval_bias_corrected` says so on every result that
+  publishes one. The conventional local-quadratic interval ignores the
+  `O(h² m‴)` smoothing bias of the slope and covered about 82% at a nominal
+  90% at an MSE-sized bandwidth on a curved response. For `order=2` the
+  leading curvature bias of a local quadratic is `O(h² m⁗)`, which a local
+  cubic does not reduce, so the second-derivative interval is centered at the
+  local-quartic curvature with its own Eicker–White standard error. The
+  Frequentist interval treats the cross-fitted pseudo-outcome as data and
+  conditions on the caller bandwidth.
 - `AverageDerivative(...)` averages a derivative over an explicit weighting
   law; only observed-law weighting is licensed, via the Gaussian-score Riesz
-  representer. The known-truth fixture is a linear SCM, so it does not
-  independently stress a Gaussian treatment density.
+  representer. The representer assumes the treatment is homoskedastic Gaussian
+  given the adjustment set (additive mean). That assumption is load-bearing:
+  on a skewed, heteroskedastic treatment law with a nonlinear outcome the
+  interval's measured coverage collapses (recorded, not gated, by
+  `ade_skewed_heteroskedastic_treatment_probe`).
 - `Elasticity(..., at=a)` is `a m'(a) / μ(a)`. The treatment point must be
   positive, and the fitted response at that point must be positive.
-  Like `PointDerivative`, it requires an explicit bandwidth. Log-outcome
-  intervals are withheld: a partial delta-method interval would understate
-  uncertainty.
+  Like `PointDerivative`, it requires an explicit bandwidth. The Frequentist
+  result withholds its interval (`response.derivative_interval_withheld`): a
+  delta-method interval would need the full level/slope covariance, and a
+  partial one would understate uncertainty.
 - `SemiElasticity(..., at=a, log_scale=...)` is either `a m'`
   (`log_scale="treatment"`, the default) or `m'/μ` (`log_scale="outcome"`).
-  Both ride the same matrix cell.
+  Both ride the same matrix cell. Frequentist `log_scale="treatment"` publishes
+  `|a|` times the bias-corrected slope interval; `log_scale="outcome"` and
+  every transformed second derivative withhold the interval, as for
+  elasticity.
 - `ResponseJacobian(...)` and `DirectionalDerivative(...)` are additive-GAM
   plug-in gradients with at most two treatments, a common adjustment set, and
-  a shared complete-case row set. They are not doubly robust and publish no
-  interval. A Jacobian is row-major outcomes × treatments. A directional
-  query is the unnormalized inner product `∇m · d`. Differential missingness
-  across outcomes is refused.
+  a shared complete-case row set. The target surface is an unpenalized cubic
+  regression spline on the nuisance basis: a roughness penalty shrinks the
+  published gradient at first order (with quantile knots, even a linear
+  component), so `nuisance_lambda` regularizes nuisances only. They are not
+  doubly robust, and the Frequentist result publishes no interval. A Jacobian
+  is row-major outcomes × treatments. A directional query is the unnormalized
+  inner product `∇m · d`. Differential missingness across outcomes is refused.
+
+Bayesian derivatives keep the Frequentist estimator identities and replace
+the analytic interval with a Rubin Dirichlet(1,…,1) row-weight posterior in
+which every draw refits its nuisances:
+
+- `AverageDerivative` refits the additive-GAM outcome and the Gaussian
+  treatment law under the draw's weights and evaluates the weighted Riesz
+  score mean.
+- `PointDerivative`, `Elasticity`, and `SemiElasticity` rebuild the
+  cross-fitted Kennedy pseudo-outcome per draw (outcome and treatment
+  nuisances refit on each weighted training fold), then evaluate the weighted
+  local quadratic and its bias-corrected coordinate at the caller bandwidth
+  (local-cubic slope; local-quartic level and curvature).
+  The reported value is the posterior mean of the local-quadratic coordinate;
+  the credible interval and `standard_error` come from the bias-corrected
+  draws. Scale transforms are applied per draw, so elasticity and log-outcome
+  semi-elasticity intervals are published here even though the Frequentist
+  result withholds them. Held fixed across draws: the caller bandwidth, fold
+  assignment, spline knots, and penalty.
+- `ResponseJacobian` and `DirectionalDerivative` refit the unpenalized
+  additive regression spline per draw with fixed knots and publish pointwise
+  quantile bands. The band covers the derivative when the additive
+  components lie in (or are well approximated by) that spline space; sieve
+  approximation bias is not inside it.
+
+Coefficient priors and prior transfer are refused for derivatives: no mapping
+to the Riesz / local-polynomial / GAM parameterization exists.
 
 These are distinct estimands. A curve estimate does not automatically justify a
 derivative estimate, and a pointwise curve interval is not automatically valid

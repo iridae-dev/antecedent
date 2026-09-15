@@ -78,15 +78,51 @@ adjustment nodes map back through the temporal indexer). Nonempty Z is never
 the contemporaneous column: the Cox/AIPW design uses Z at
 `TemporalResponseSpec::treatment_offset()` (typically −1).
 
+The selected-AIPW outcome nuisance additionally conditions on every column of
+the downstream response regression that consumes the pseudo-outcome: each
+horizon's lag-aligned treatment and adjustment columns for curves and single
+Set/Shift responses, and the outcome mechanism's parents for Sequence overlays
+(for example the treatment at lags 1 and 2 when the outcome depends on both).
+The selection propensity keeps the declared Z at the policy offset. With the
+declared Z alone, a downstream regressor outside it (the treatment at a second
+lag, or at the horizon-2 lag of a curve) left the pseudo-outcome residual
+correlated with that regressor. The downstream fit then relied on the selection
+model alone and was first-order sensitive to its estimation error: it was not
+orthogonal in the estimated propensity, and the iid two-step Sequence band
+covered 0.983 of a nominal 0.95. With the design columns in the outcome model,
+`E[Y* | design] = E[Y | design, R = 1]` whatever the fitted propensity. That
+equals the latent regression when selection is ignorable given the design
+columns. The declared independence carries over to the design columns unless an
+extra column is a collider on a path between selection and outcome. The previous
+declared-Z-only nuisance needed that condition as well, plus selection that does
+not depend on the extra columns. Rows whose extra regressors would fall before the
+series start keep the declared-Z outcome model.
+
 Until a pair is licensed, `compile_logical_temporal_response` refuses
 non-`Complete` with `temporal response observation pair is not licensed`.
 Delayed entry, interval/truncation, cheap/full, and `TemporalCpdag` / `TemporalPag` observation rides stay refused. Bayesian temporal response uses the separate observed-data likelihood contract below.
-When bootstrap replicates are requested, observation-adjusted temporal
-surfaces — including Sequence overlays — report pointwise outer circular-block
-bootstrap intervals. Every replicate resamples the original series, refits the
-selected/KM/Cox observation nuisance, reconstructs the pseudo-outcome, and
-refits every horizon or sequential overlay. Complete-data analytic bands and
-Bayesian IPCW/KM/Cox bands are not substituted.
+When bootstrap replicates are requested, observation-adjusted temporal curves,
+single Set/Shift responses, and Sequence overlays report outer circular-block
+bootstrap intervals. Every replicate resamples blocks of lag-aligned
+outcome-time tuples (each carrying its own lagged conditioning and design values,
+so no row pairs values across a block junction), refits the selected/KM/Cox
+observation nuisance on them, reconstructs the pseudo-outcome, and refits every
+horizon (curves, Set/Shift) or every unfolded sequential mechanism of every
+horizon (Sequence). Selected-AIPW cross-fitting folds are contiguous time
+blocks keyed by each tuple's source position, so a tuple drawn twice sits in one
+fold. An observation-adjusted Sequence whose unfolded design carries the outcome
+at a nonzero lag (an autoregressive outcome, or a lagged outcome feeding an
+ancestral mechanism) is refused: the correction replaces the outcome column, so
+a lagged outcome regressor would be a pseudo-outcome (errors in variables). The
+pointwise band is `θ̂ ± 1.96·SE` of the replicates
+scaled by the response family's fixed-b and HC1 factors (block length
+`max(span, ceil(sqrt(n)))`; see
+[Temporal simultaneous bands](causal-responses.md#temporal-simultaneous-bands)).
+The same joint replicates give a simultaneous band over the whole surface
+(support diagnostics `response.simultaneous_band.*`). The 1.8 Sequence replicate
+reordered the raw series and measured 31–81% coverage for a nominal 95% band; it
+was replaced in 1.9 by the tuple-level refit.
+Complete-data analytic bands and Bayesian IPCW/KM/Cox bands are not substituted.
 
 
 ### Bayesian temporal observed-data likelihood
@@ -101,9 +137,12 @@ trajectory or censoring-bound trajectory: conditional on fully observed Z,
 that trajectory is independent of the latent outcome trajectory. Censoring
 event indicators are deterministic comparisons of outcomes with bounds and
 are not assumed independent of the outcome. Distinct observation/outcome
-priors permit the ignorable observation factor to be omitted. Intervals are
-pointwise posterior bands under the Gaussian mechanism model and this
-trajectory assumption, not a guarantee of repeated-sampling coverage.
+priors permit the ignorable observation factor to be omitted. The band in
+`uncertainty` is a pointwise posterior band; a simultaneous credible band from
+the same joint Gibbs draws is published as `response.simultaneous_band.*`.
+Both hold under the Gaussian mechanism model with independent innovations and
+this trajectory assumption; they are not a guarantee of repeated-sampling
+coverage.
 
 Consuming evidence: `crates/antecedent/tests/temporal_observed_bayesian.rs`;
 backend provenance: `provenance/estimate.temporal_observed_bayes.toml`.

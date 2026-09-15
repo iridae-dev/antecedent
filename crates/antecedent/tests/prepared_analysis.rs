@@ -734,13 +734,11 @@ fn prepared_distribution_reestimate_matches_fresh() {
     assert_cached_only_on_prepared(&fresh, &[&first, &second]);
 }
 
-/// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) now refuses these
-/// three query kinds at `.build()` itself: `parity/support_closed.toml` closes
-/// `ConditionalEffect` / `PathSpecificEffect` / `InterventionalDistribution` on Admg
-/// (`ConditionalEffect` on Cpdag/Pag is licensed). The matrix catches the mismatch
-/// before `.prepare()` would otherwise have to.
+/// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) refuses
+/// `ConditionalEffect` / `PathSpecificEffect` at `.build()`. Unconditional
+/// `InterventionalDistribution` on Admg is licensed separately.
 #[test]
-fn prepare_refuses_conditional_path_distribution_on_non_dag_graph() {
+fn prepare_refuses_conditional_path_on_non_dag_graph() {
     let mut admg = Admg::with_variables(3);
     admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
@@ -768,20 +766,6 @@ fn prepare_refuses_conditional_path_distribution_on_non_dag_graph() {
         .unwrap_err();
     assert!(err.to_string().contains("Dag"), "{err}");
 
-    let mut admg3 = Admg::with_variables(3);
-    admg3.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
-    admg3.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    admg3.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    let (data, _dag, distq) = distribution_fixture();
-    let err = Study::tabular(data)
-        .graph(admg3)
-        .query(CausalQuery::Distribution(distq))
-        .identifier(IdentifierId::GeneralId)
-        .estimator(EstimatorId::FunctionalDistribution)
-        .refute(RefuteSuite::None)
-        .build()
-        .unwrap_err();
-    assert!(err.to_string().contains("Dag"), "{err}");
     let _ = admg;
 }
 
@@ -908,7 +892,7 @@ fn prepared_temporal_mediation_reuses_identification() {
         expected_mediated
     );
     for accepted in [false, true] {
-        for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
             let builder = Study::series(data.clone());
             let builder = if accepted {
                 builder.graph(AcceptedGraph::temporal_dag(g.clone()))
@@ -925,7 +909,15 @@ fn prepared_temporal_mediation_reuses_identification() {
                 .estimate_series(&data, &ctx)
                 .unwrap();
             assert!((result.estimate.ate - expected_mediated).abs() < 1e-6);
-            assert_eq!(result.refutations.len(), if suite == RefuteSuite::Full { 3 } else { 2 });
+            let expected_reports = match suite {
+                RefuteSuite::Full => 3,
+                RefuteSuite::Cheap => 2,
+                _ => 0,
+            };
+            assert_eq!(result.refutations.len(), expected_reports);
+            if suite == RefuteSuite::None {
+                continue;
+            }
             assert!(result.refutations.iter().all(|r| r.refuter.starts_with("mediation.")));
             assert!(
                 result
@@ -1335,11 +1327,337 @@ fn bayesian_conditional_staged_known_truth() {
             );
             assert_ne!(result.estimate.ate.to_bits(), frequentist.estimate.ate.to_bits());
             assert!(result.posterior.is_some());
-            if suite != RefuteSuite::None {
+            if suite == RefuteSuite::None {
+                assert!(result.refutations.is_empty());
+                assert!(result.predictive_checks.is_empty());
+            } else {
+                assert!(
+                    result.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue"),
+                    "cheap/full must run the E-value on the conditional scalar"
+                );
                 assert!(!result.predictive_checks.is_empty());
             }
             if suite == RefuteSuite::Full {
                 assert!(result.posterior.unwrap().prior_sensitivity.is_some());
+            }
+        }
+    }
+}
+
+#[test]
+fn prepared_admg_distribution_reuses_identification() {
+    let pin = include_str!("../../../conformance/identify/general_id_frontdoor/expected.json");
+    let expected: serde_json::Value = serde_json::from_str(pin).unwrap();
+    let (admg, nodes) = antecedent_identify::oracle_dot::admg_from_oracle_dot(
+        expected["graph_dot"].as_str().unwrap(),
+    );
+    let t_id = nodes.id(expected["treatment"].as_str().unwrap());
+    let y_id = nodes.id(expected["outcome"].as_str().unwrap());
+    let m_id = nodes.id("m");
+    let n = 300usize;
+    let mut t = Vec::with_capacity(n);
+    let mut m = Vec::with_capacity(n);
+    let mut y = Vec::with_capacity(n);
+    for i in 0..n {
+        let ui = u32::from(i % 5 < 2);
+        let ti = u32::from(i % 3 == 0);
+        let mi = (ti + ui) % 2;
+        let yi = (mi + ui) % 2;
+        t.push(f64::from(ti));
+        m.push(f64::from(mi));
+        y.push(f64::from(yi));
+    }
+    let mut b = CausalSchemaBuilder::new();
+    for name in nodes.observed() {
+        b.add_variable(
+            name.as_str(),
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let cols = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(t_id, Arc::from(t), ValidityBitmap::all_valid(n)).unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(m_id, Arc::from(m), ValidityBitmap::all_valid(n)).unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(y_id, Arc::from(y), ValidityBitmap::all_valid(n)).unwrap(),
+        ),
+    ];
+    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+    let query =
+        InterventionalDistributionQuery::new(y_id, [Intervention::set(t_id, Value::f64(1.0))]);
+    let ctx = ExecutionContext::for_tests(1);
+    let study = Study::tabular(data.clone())
+        .graph(admg.clone())
+        .query(CausalQuery::Distribution(query.clone()))
+        .identifier(IdentifierId::GeneralId)
+        .estimator(EstimatorId::FunctionalDistribution)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.clone().run(&ctx).unwrap();
+    let prepared = study.prepare(&ctx).unwrap();
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let second = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(cached_count_dist(&fresh), 0);
+    assert_eq!(cached_count_dist(&first), 1);
+    assert_eq!(cached_count_dist(&second), 1);
+    let fresh_dist = fresh.distribution.as_ref().expect("fresh ADMG distribution");
+    let first_dist = first.distribution.as_ref().expect("prepared ADMG distribution");
+    assert!((first_dist.mean - fresh_dist.mean).abs() < 1e-12);
+    assert_eq!(first.support_status.unwrap().as_str(), "licensed");
+    assert!(fresh.refutations.is_empty());
+
+    let accepted = Study::tabular(data.clone())
+        .graph(AcceptedGraph::from(admg))
+        .query(CausalQuery::Distribution(query))
+        .identifier(IdentifierId::GeneralId)
+        .estimator(EstimatorId::FunctionalDistribution)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let accepted_click = accepted.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+    assert!((accepted_click.distribution.as_ref().unwrap().mean - fresh_dist.mean).abs() < 1e-12);
+}
+
+fn cached_count_dist(result: &antecedent::StudyResult) -> usize {
+    result.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count()
+}
+
+#[test]
+fn admg_distribution_nonidentified_bidirected_pair_refuses() {
+    let mut admg = Admg::with_variables(3);
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let (data, _dag, query) = distribution_fixture();
+    let err = Study::tabular(data)
+        .graph(admg)
+        .query(CausalQuery::Distribution(query))
+        .identifier(IdentifierId::GeneralId)
+        .estimator(EstimatorId::FunctionalDistribution)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(1))
+        .unwrap_err();
+    let text = err.to_string();
+    assert!(
+        text.contains("identif") || text.contains("NotIdentified") || text.contains("Unsupported"),
+        "{text}"
+    );
+}
+
+/// Unconditional ADMG `InterventionalDistribution` against a known SCM truth.
+///
+/// `conformance/estimate/admg_frontdoor_distribution`: binary SCM
+/// `U ~ Bern(0.5)`, `P(T=1|U)=0.2/0.8`, `P(M=1|T)=0.25/0.75`,
+/// `P(Y=1|M,U)=0.1+0.5M+0.3U`, `U` unobserved, so the observed graph is the
+/// front-door ADMG `T -> M -> Y`, `T <-> Y`. Truth from the SCM:
+/// `P(Y=1|do(T=t)) = 0.25 + 0.5·P(M=1|t)` = 0.375 (t=0) and 0.625 (t=1). The
+/// fixture table is the exact 800-row observed law, so the Frequentist plug-in
+/// equals the truth to 1e-12; its bootstrap interval must be finite and bracket
+/// the estimate. The Bayesian functional's posterior mean must sit within the
+/// fixture tolerance of the truth, with a finite credible interval bracketing
+/// it. Explicit and accepted ADMGs, fresh and prepared.
+#[test]
+#[allow(clippy::too_many_lines)]
+fn admg_frontdoor_distribution_known_truth() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/admg_frontdoor_distribution/expected.json"
+    ))
+    .unwrap();
+    let columns: Vec<&str> =
+        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+    assert_eq!(columns, ["t", "m", "y"]);
+    let index = |name: &str| columns.iter().position(|c| *c == name).unwrap();
+
+    // Recompute the table and the truth from the SCM parameters, so the pinned
+    // counts and probabilities are checked rather than trusted.
+    let scm = &pin["scm"];
+    let prob_u1 = scm["p_u1"].as_f64().unwrap();
+    let t_given_u = |u: usize| scm["p_t1_given_u"][u.to_string()].as_f64().unwrap();
+    let m_given_t = |t: usize| scm["p_m1_given_t"][t.to_string()].as_f64().unwrap();
+    let coef = &scm["p_y1_given_m_u"];
+    let y_given_mu = |m: usize, u: usize| {
+        coef["intercept"].as_f64().unwrap()
+            + coef["m"].as_f64().unwrap() * m as f64
+            + coef["u"].as_f64().unwrap() * u as f64
+    };
+    let bern = |p: f64, x: usize| if x == 1 { p } else { 1.0 - p };
+    let p_u = |u: usize| bern(prob_u1, u);
+    let rows = pin["rows"].as_f64().unwrap();
+    let mut t = Vec::new();
+    let mut m = Vec::new();
+    let mut y = Vec::new();
+    for cell in pin["contingency_table"].as_array().unwrap() {
+        let (tv, mv, yv) =
+            (cell["t"].as_f64().unwrap(), cell["m"].as_f64().unwrap(), cell["y"].as_f64().unwrap());
+        let (ti, mi, yi) = (usize::from(tv > 0.5), usize::from(mv > 0.5), usize::from(yv > 0.5));
+        let law: f64 = (0..2)
+            .map(|u| {
+                p_u(u)
+                    * bern(t_given_u(u), ti)
+                    * bern(m_given_t(ti), mi)
+                    * bern(y_given_mu(mi, u), yi)
+            })
+            .sum();
+        let count = cell["count"].as_u64().unwrap();
+        assert!((law * rows - count as f64).abs() < 1e-9, "count for ({ti},{mi},{yi})");
+        for _ in 0..count {
+            t.push(tv);
+            m.push(mv);
+            y.push(yv);
+        }
+    }
+    let truth: Vec<(f64, f64)> = pin["truth"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| (row["t"].as_f64().unwrap(), row["p_y1"].as_f64().unwrap()))
+        .collect();
+    for &(tv, pinned) in &truth {
+        let ti = usize::from(tv > 0.5);
+        let scm_truth: f64 = (0..2)
+            .map(|mi| {
+                bern(m_given_t(ti), mi) * (0..2).map(|u| p_u(u) * y_given_mu(mi, u)).sum::<f64>()
+            })
+            .sum();
+        assert!((scm_truth - pinned).abs() < 1e-12, "SCM truth for do(T={ti})");
+    }
+
+    let data = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("m", m.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let node = |name: &str| DenseNodeId::from_raw(u32::try_from(index(name)).unwrap());
+    let mut admg = Admg::with_variables(3);
+    for edge in pin["graph"]["directed_edges"].as_array().unwrap() {
+        admg.insert_directed(node(edge[0].as_str().unwrap()), node(edge[1].as_str().unwrap()))
+            .unwrap();
+    }
+    for edge in pin["graph"]["bidirected_edges"].as_array().unwrap() {
+        admg.insert_bidirected(node(edge[0].as_str().unwrap()), node(edge[1].as_str().unwrap()))
+            .unwrap();
+    }
+    let t_id = VariableId::from_raw(u32::try_from(index("t")).unwrap());
+    let y_id = VariableId::from_raw(u32::try_from(index("y")).unwrap());
+    let freq = &pin["frequentist"];
+    let freq_tolerance = freq["absolute_tolerance"].as_f64().unwrap();
+    let replicates = u32::try_from(freq["bootstrap_replicates"].as_u64().unwrap()).unwrap();
+    let bayes = &pin["bayesian"];
+    let bayes_tolerance = bayes["absolute_tolerance"].as_f64().unwrap();
+    let draws = usize::try_from(bayes["n_draws"].as_u64().unwrap()).unwrap();
+    let ctx = ExecutionContext::for_tests(17);
+
+    for &(level, p_truth) in &truth {
+        let query = InterventionalDistributionQuery::new(
+            y_id,
+            [Intervention::set(t_id, Value::f64(level))],
+        );
+        for accepted in [false, true] {
+            for bayesian in [false, true] {
+                let label = format!(
+                    "do(T={level}) {} {}",
+                    if accepted { "accepted" } else { "explicit" },
+                    if bayesian { "Bayesian" } else { "Frequentist" }
+                );
+                let builder = Study::tabular(data.clone());
+                let builder = if accepted {
+                    builder.graph(AcceptedGraph::from(admg.clone()))
+                } else {
+                    builder.graph(admg.clone())
+                };
+                let study = builder
+                    .query(CausalQuery::Distribution(query.clone()))
+                    .identifier(IdentifierId::GeneralId)
+                    .estimator(EstimatorId::FunctionalDistribution)
+                    .inference(if bayesian {
+                        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(draws))
+                    } else {
+                        InferenceMode::Frequentist
+                    })
+                    .refute(RefuteSuite::None)
+                    .bootstrap_replicates(if bayesian { 0 } else { replicates })
+                    .build()
+                    .unwrap();
+                let fresh = study.clone().run(&ctx).unwrap();
+                let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+                for (stage, result) in [("fresh", &fresh), ("prepared", &click)] {
+                    assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                    assert_eq!(
+                        result.identification.status,
+                        antecedent_core::IdentificationStatus::NonparametricallyIdentified,
+                        "{label} {stage}"
+                    );
+                    let dist = result.distribution.as_ref().expect("distribution estimate");
+                    let one = dist
+                        .atoms
+                        .iter()
+                        .find(|atom| {
+                            atom.outcomes.first().and_then(|(_, v)| v.as_f64()) == Some(1.0)
+                        })
+                        .expect("P(Y=1) atom")
+                        .probability;
+                    assert!((dist.mean - one).abs() < 1e-12, "{label} {stage}: mean is P(Y=1)");
+                    if bayesian {
+                        let posterior = result.posterior.as_ref().expect("functional posterior");
+                        let mean = posterior.summaries.mean[0];
+                        let (lo, hi) = (posterior.summaries.q025[0], posterior.summaries.q975[0]);
+                        assert!(
+                            (mean - p_truth).abs() < bayes_tolerance,
+                            "{label} {stage}: posterior mean {mean} vs truth {p_truth}"
+                        );
+                        assert!(
+                            lo.is_finite() && hi.is_finite() && lo < mean && mean < hi,
+                            "{label} {stage}: credible interval [{lo}, {hi}] around {mean}"
+                        );
+                        assert!(lo > 0.0 && hi < 1.0, "{label} {stage}: probability bounds");
+                    } else {
+                        assert!(
+                            (dist.mean - p_truth).abs() < freq_tolerance,
+                            "{label} {stage}: plug-in {} vs truth {p_truth}",
+                            dist.mean
+                        );
+                        let Some(antecedent_estimate::ProbabilityInterval::Bounded {
+                            lower,
+                            upper,
+                            ..
+                        }) = dist.mean_interval
+                        else {
+                            panic!(
+                                "{label} {stage}: bounded interval expected, got {:?}",
+                                dist.mean_interval
+                            );
+                        };
+                        assert!(
+                            lower.is_finite()
+                                && upper.is_finite()
+                                && lower < dist.mean
+                                && dist.mean < upper,
+                            "{label} {stage}: interval [{lower}, {upper}] around {}",
+                            dist.mean
+                        );
+                        let se = result.estimate.se_bootstrap.expect("bootstrap SE");
+                        assert!(se.is_finite() && se > 0.0, "{label} {stage}: SE {se}");
+                    }
+                }
+                if !bayesian {
+                    let (a, b) = (&fresh.distribution, &click.distribution);
+                    assert!((a.as_ref().unwrap().mean - b.as_ref().unwrap().mean).abs() < 1e-12);
+                }
             }
         }
     }

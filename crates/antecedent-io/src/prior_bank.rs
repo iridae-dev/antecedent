@@ -22,7 +22,8 @@ use crate::posterior::{
 /// Section id for prior-source metadata attached to a posterior artifact.
 pub const PRIOR_SOURCE_META_SECTION: &str = "prior_source.meta";
 
-/// Estimand fingerprint for catalog matching (query kind + treatment/outcome names).
+/// Estimand fingerprint for catalog matching (query kind + treatment/outcome names,
+/// plus the temporal coordinates of a temporal estimand).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct EstimandFingerprint {
     /// Query kind tag (e.g. `"ate"`, `"average_effect"`).
@@ -31,6 +32,13 @@ pub struct EstimandFingerprint {
     pub treatment: String,
     /// Outcome variable name.
     pub outcome: String,
+    /// Lag / window / horizon coordinates of a temporal estimand (`None` = static).
+    ///
+    /// Metadata written before 1.9 has no such field and decodes as `None`; a
+    /// temporal target then rejects it ([`CompatibilityRejectReason::TemporalCoordinatesMissing`])
+    /// unless the source declares an explicit [`PriorMapping::NamedParameters`] bridge.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temporal: Option<Box<TemporalCoordinates>>,
 }
 
 impl EstimandFingerprint {
@@ -41,7 +49,66 @@ impl EstimandFingerprint {
         treatment: impl Into<String>,
         outcome: impl Into<String>,
     ) -> Self {
-        Self { query_kind: query_kind.into(), treatment: treatment.into(), outcome: outcome.into() }
+        Self {
+            query_kind: query_kind.into(),
+            treatment: treatment.into(),
+            outcome: outcome.into(),
+            temporal: None,
+        }
+    }
+
+    /// Attach temporal coordinates (Pulse / Sustained / temporal response estimands).
+    #[must_use]
+    pub fn with_temporal(mut self, temporal: TemporalCoordinates) -> Self {
+        self.temporal = Some(Box::new(temporal));
+        self
+    }
+}
+
+/// Temporal coordinates a banked temporal coefficient posterior is bound to.
+///
+/// Two temporal estimands transfer by identical coefficient subspace (or by effect
+/// functional) only when these match; a lag-1 Pulse posterior never binds onto a
+/// lag-2 target without an explicit named mapping.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct TemporalCoordinates {
+    /// Treatment lags relative to the outcome, ascending (`[1]` for a lag-1 Pulse or
+    /// single-step Sustained window, `[1, 2]` for a two-step Sustained window).
+    pub treatment_lags: Vec<u32>,
+    /// Horizon steps of the outcome.
+    pub horizon: u32,
+    /// Optional lag-aware design coefficient names (e.g. `coef_pressure@lag1`),
+    /// compared only when both sides declare them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub coefficient_names: Vec<String>,
+}
+
+impl TemporalCoordinates {
+    /// Coordinates from treatment lags (sorted and deduplicated) and a horizon.
+    #[must_use]
+    pub fn new(treatment_lags: impl IntoIterator<Item = u32>, horizon: u32) -> Self {
+        let mut treatment_lags: Vec<u32> = treatment_lags.into_iter().collect();
+        treatment_lags.sort_unstable();
+        treatment_lags.dedup();
+        Self { treatment_lags, horizon, coefficient_names: Vec::new() }
+    }
+
+    /// Attach lag-aware coefficient names.
+    #[must_use]
+    pub fn with_coefficient_names(
+        mut self,
+        names: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.coefficient_names = names.into_iter().map(Into::into).collect();
+        self
+    }
+
+    fn matches(&self, other: &Self) -> bool {
+        self.treatment_lags == other.treatment_lags
+            && self.horizon == other.horizon
+            && (self.coefficient_names.is_empty()
+                || other.coefficient_names.is_empty()
+                || self.coefficient_names == other.coefficient_names)
     }
 }
 
@@ -283,6 +350,20 @@ pub enum CompatibilityRejectReason {
         /// Error message.
         message: String,
     },
+    /// Temporal target, but the source carries no temporal coordinates (e.g. pre-1.9
+    /// metadata) and declares no explicit named mapping: its lag cannot be verified.
+    TemporalCoordinatesMissing {
+        /// Target temporal coordinates.
+        target: Box<TemporalCoordinates>,
+    },
+    /// Source and target temporal coordinates (lag / window / horizon / coefficient
+    /// names) differ and no explicit named mapping bridges them.
+    TemporalCoordinatesMismatch {
+        /// Source temporal coordinates (`None` when the source is static).
+        source: Option<Box<TemporalCoordinates>>,
+        /// Target temporal coordinates (`None` when the target is static).
+        target: Option<Box<TemporalCoordinates>>,
+    },
 }
 
 /// Result of checking one source against a target design.
@@ -522,6 +603,31 @@ fn estimands_match(a: &EstimandFingerprint, b: &EstimandFingerprint) -> bool {
     a.query_kind == b.query_kind && a.treatment == b.treatment && a.outcome == b.outcome
 }
 
+/// Temporal coordinates must agree unless the source declares an explicit named
+/// mapping. Index-only (identical subspace) and effect-functional transfer both bind
+/// by position / treatment coefficient, so a lag mismatch fails closed.
+fn check_temporal_coordinates(
+    source: &PriorSourceMeta,
+    target: &TargetDesign,
+    artifact_id: &str,
+) -> Option<CompatibilityReport> {
+    if matches!(source.declared_mapping, Some(PriorMapping::NamedParameters { .. })) {
+        return None;
+    }
+    let reason = match (&source.estimand.temporal, &target.estimand.temporal) {
+        (_, None) if source.estimand.temporal.is_none() => return None,
+        (None, Some(target)) => {
+            CompatibilityRejectReason::TemporalCoordinatesMissing { target: target.clone() }
+        }
+        (Some(s), Some(t)) if s.matches(t) => return None,
+        (source, target) => CompatibilityRejectReason::TemporalCoordinatesMismatch {
+            source: source.clone(),
+            target: target.clone(),
+        },
+    };
+    Some(CompatibilityReport::Rejected { artifact_id: artifact_id.into(), reason })
+}
+
 fn design_names(meta: &PriorSourceMeta) -> BTreeSet<&str> {
     meta.design.iter().map(|d| d.name.as_str()).collect()
 }
@@ -670,6 +776,10 @@ fn assess_compatibility(source: &PriorSourceRef, target: &TargetDesign) -> Compa
                 identification: source.meta.identification.clone(),
             },
         };
+    }
+
+    if let Some(reject) = check_temporal_coordinates(&source.meta, target, &id) {
+        return reject;
     }
 
     let estimand_ok = estimands_match(&source.meta.estimand, &target.estimand);
@@ -827,6 +937,7 @@ mod tests {
             q975: vec![1.0; n_q],
             identification: "NonparametricallyIdentified".into(),
             unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
             backend_id: "laplace".into(),
             converged: true,
             hessian_condition: 1.0,
@@ -848,6 +959,88 @@ mod tests {
         let bytes = encode_prior_source_meta(&meta).unwrap();
         let back = decode_prior_source_meta(&bytes).unwrap();
         assert_eq!(back, meta);
+    }
+
+    fn pulse_fingerprint(lag: u32) -> EstimandFingerprint {
+        EstimandFingerprint::new("pulse", "t", "y").with_temporal(
+            TemporalCoordinates::new([lag], 1)
+                .with_coefficient_names(["intercept".to_string(), format!("coef_t@lag{lag}")]),
+        )
+    }
+
+    fn temporal_catalog(
+        estimand: EstimandFingerprint,
+        mapping: Option<PriorMapping>,
+    ) -> PriorCatalog {
+        let art = mini_posterior("pulse", Some(vec!["intercept", "coef_t@lag1"]));
+        let mut buf = Vec::new();
+        art.write_to(&mut buf).unwrap();
+        let mut meta = PriorSourceMeta::new("pulse", estimand, "NonparametricallyIdentified")
+            .with_design(design_tyz());
+        if let Some(mapping) = mapping {
+            meta = meta.with_mapping(mapping);
+        }
+        PriorCatalog::from_sources(vec![PriorSourceRef::with_bytes(meta, buf)])
+    }
+
+    #[test]
+    fn temporal_fingerprint_rejects_lag_mismatch_and_missing_coordinates() {
+        let target = TargetDesign::new(pulse_fingerprint(2), ["t", "y"]);
+        // Lag-1 source onto a lag-2 target: identical-subspace / effect transfer fails closed.
+        for mapping in [
+            None,
+            Some(PriorMapping::IdenticalCoefficientSubspace),
+            Some(PriorMapping::EffectFunctional { source_quantity: "ate".into() }),
+        ] {
+            let reports =
+                temporal_catalog(pulse_fingerprint(1), mapping).filter_compatible(&target);
+            assert!(
+                matches!(
+                    &reports[0],
+                    CompatibilityReport::Rejected {
+                        reason: CompatibilityRejectReason::TemporalCoordinatesMismatch { .. },
+                        ..
+                    }
+                ),
+                "{reports:?}"
+            );
+        }
+        // Pre-1.9 metadata (no temporal field) onto a temporal target fails closed.
+        let legacy = temporal_catalog(EstimandFingerprint::new("pulse", "t", "y"), None);
+        let err = legacy.require_usable(&target).unwrap_err();
+        assert!(err.to_string().contains("TemporalCoordinatesMissing"), "{err}");
+        // An explicit named mapping is the declared bridge.
+        let named = temporal_catalog(
+            pulse_fingerprint(1),
+            Some(PriorMapping::NamedParameters {
+                pairs: vec![("coef_t@lag1".into(), "coef_t@lag2".into())],
+            }),
+        );
+        assert!(named.require_usable(&target).is_ok());
+        // Same lag still transfers.
+        let same = TargetDesign::new(pulse_fingerprint(1), ["t", "y"]);
+        assert!(temporal_catalog(pulse_fingerprint(1), None).require_usable(&same).is_ok());
+    }
+
+    #[test]
+    fn legacy_estimand_meta_decodes_without_temporal_coordinates() {
+        #[derive(Serialize)]
+        struct LegacyEstimand {
+            query_kind: String,
+            treatment: String,
+            outcome: String,
+        }
+        let bytes = to_cbor(&LegacyEstimand {
+            query_kind: "pulse".into(),
+            treatment: "t".into(),
+            outcome: "y".into(),
+        })
+        .unwrap();
+        let decoded: EstimandFingerprint = from_cbor(&bytes).unwrap();
+        assert_eq!(decoded, EstimandFingerprint::new("pulse", "t", "y"));
+        let temporal = pulse_fingerprint(3);
+        let round: EstimandFingerprint = from_cbor(&to_cbor(&temporal).unwrap()).unwrap();
+        assert_eq!(round, temporal);
     }
 
     #[test]

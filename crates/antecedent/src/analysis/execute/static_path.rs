@@ -276,15 +276,20 @@ impl super::Study {
         }))
     }
 
-    /// Identify + plug-in estimate for an interventional distribution.
+    /// Identify + plug-in estimate for an interventional distribution on a
+    /// supplied DAG, or on a finite-discrete ADMG via general ID (bidirected
+    /// edges stay; they are not dropped to coerce a DAG).
     pub(super) fn execute_distribution(
         &self,
         data: &TabularData,
-        graph: &Dag,
+        graph: DistributionGraph<'_>,
         query: &antecedent_core::InterventionalDistributionQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if matches!(graph, DistributionGraph::Admg(_)) {
+            ensure_admg_distribution_licensed(query, self.refute)?;
+        }
         let started = Instant::now();
         let identifier = physical
             .logical
@@ -309,8 +314,7 @@ impl super::Study {
         // and observable via the `exec.identify.cached` diagnostic below.
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
-                let cq = CausalQuery::Distribution(query.clone());
-                let identification = identify_static_query(identifier_id, graph, &cq)?;
+                let identification = graph.identify(identifier_id, query)?;
                 let estimand = select_estimand(&identification, estimator_id)?;
                 Ok((identification, estimand))
             })?;
@@ -383,6 +387,7 @@ impl super::Study {
         let cancelled = estimate.bootstrap_cancelled;
         let early_stopped = estimate.bootstrap_early_stopped;
 
+        // An ADMG distribution only reaches here at validation none (gated above).
         let refutations = if self.refute == RefuteSuite::None {
             Vec::new()
         } else {
@@ -408,7 +413,7 @@ impl super::Study {
             treatment,
             outcome,
             identify_cached,
-            extra_diagnostics: Vec::new(),
+            extra_diagnostics: distribution_interval_diagnostics(&dist),
             refutations,
             distribution: Some(dist),
             mediation: None,
@@ -619,6 +624,7 @@ impl super::Study {
         let mut est =
             SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);
         est.bootstrap_replicates = self.bootstrap_replicates;
+        est.se_kind = rd.se_kind;
         let prep = est.prepare(data, &estimand, query).map_err(CausalError::from)?;
         let mut ws = RdWorkspace::default();
         let estimate = est
@@ -699,6 +705,14 @@ impl super::Study {
         let estimate = super::super::helpers::attach_conditional_functional_grid(
             estimate, data, query, &estimand, ctx,
         )?;
+        let uses_aipw_scores = super::super::helpers::conditional_uses_crossfit_aipw(query);
+        let estimator_name =
+            if uses_aipw_scores { "aipw" } else { "conditional.linear.adjustment" };
+        let estimator_id = if uses_aipw_scores {
+            EstimatorId::Aipw
+        } else {
+            EstimatorId::ConditionalLinearAdjustment
+        };
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, mut extra_diagnostics) = run_refuters(
             data,
@@ -709,7 +723,7 @@ impl super::Study {
             None,
             ctx,
             self.refute,
-            "conditional.linear.adjustment",
+            estimator_name,
             &self.custom_validators,
             None,
         )?;
@@ -720,13 +734,15 @@ impl super::Study {
         )? {
             extra_diagnostics.push(diagnostic);
         }
+        extra_diagnostics
+            .extend(super::super::helpers::conditional_score_estimator_diagnostic(query));
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
             estimand,
             estimate,
             identifier_id,
-            estimator_id: EstimatorId::ConditionalLinearAdjustment,
+            estimator_id,
             treatment: query.inner.treatment,
             outcome: query.inner.outcome,
             identify_cached,
@@ -956,6 +972,7 @@ impl super::Study {
                 weight: w,
                 estimand,
                 indexer: None,
+                original: estimate,
             });
         }
         if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
@@ -1001,11 +1018,11 @@ impl super::Study {
         )? {
             diagnostics.push(diagnostic);
         }
+        diagnostics.extend(super::super::helpers::conditional_score_estimator_diagnostic(query));
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, na_diagnostics) = run_envelope_effect_refuters(
             data,
             &query.inner,
-            &estimate,
             &refute_atoms,
             &mut refute_ws,
             ctx,
@@ -1018,9 +1035,7 @@ impl super::Study {
         )?;
         diagnostics.extend(na_diagnostics);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        if !estimate.se_analytic.is_finite() {
-            diagnostics.push(envelope_se_omits_between_atom_variance());
-        }
+        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -1115,6 +1130,9 @@ impl super::Study {
             )
         };
         let estimate = mediation.effect.clone();
+        let bootstrap_ok = estimate.bootstrap_replicates_ok;
+        let (cancelled, early_stopped) =
+            (estimate.bootstrap_cancelled, estimate.bootstrap_early_stopped);
         let refutations = if self.refute == RefuteSuite::None {
             Vec::new()
         } else {
@@ -1142,12 +1160,9 @@ impl super::Study {
             distribution: None,
             mediation: Some(mediation),
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: posterior
-                .is_none()
-                .then_some(self.bootstrap_replicates)
-                .filter(|&n| n > 1),
-            cancelled: false,
-            early_stopped: false,
+            bootstrap_replicates_ok: bootstrap_ok,
+            cancelled,
+            early_stopped,
             extras: IdentifiedExecuteExtras {
                 n_draws: posterior
                     .as_ref()
@@ -1386,4 +1401,86 @@ impl super::Study {
             extras: IdentifiedExecuteExtras::default(),
         }))
     }
+}
+
+/// Name every interventional probability whose bounded interval could not be
+/// formed (a boundary plug-in `p̂ ∈ {0, 1}`, a failed bootstrap, or zero
+/// spread), so a missing interval is never mistaken for a computed one.
+fn distribution_interval_diagnostics(
+    dist: &antecedent_estimate::InterventionalDistributionEstimate,
+) -> Vec<Diagnostic> {
+    let missing: Vec<(usize, &'static str)> = dist
+        .atom_uncertainty
+        .iter()
+        .enumerate()
+        .filter_map(|(i, u)| match u.interval {
+            antecedent_estimate::ProbabilityInterval::Unavailable(reason) => {
+                Some((i, reason.as_str()))
+            }
+            antecedent_estimate::ProbabilityInterval::Bounded { .. } => None,
+        })
+        .collect();
+    if missing.is_empty() {
+        return Vec::new();
+    }
+    let atoms = missing.iter().map(|(i, r)| format!("{i}:{r}")).collect::<Vec<_>>().join(",");
+    let mut diagnostic = Diagnostic::new(
+        "estimate.distribution.interval_unavailable",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Warning,
+        format!(
+            "{} of {} interventional probabilities have no bounded interval (atom:reason \
+             {atoms}); a plug-in probability of exactly 0 or 1 has no sampling spread to \
+             build one from",
+            missing.len(),
+            dist.atom_uncertainty.len()
+        ),
+    );
+    diagnostic.fields = Arc::from([(Arc::from("atoms"), Arc::from(atoms.as_str()))]);
+    vec![diagnostic]
+}
+
+/// Graph an interventional distribution is identified on.
+#[derive(Clone, Copy)]
+pub(crate) enum DistributionGraph<'a> {
+    /// Supplied DAG: static identification by the selected identifier.
+    Dag(&'a Dag),
+    /// Supplied ADMG: general ID over the bidirected structure.
+    Admg(&'a Admg),
+}
+
+impl DistributionGraph<'_> {
+    /// Identify `query` on this graph with `identifier`.
+    pub(crate) fn identify(
+        self,
+        identifier: IdentifierId,
+        query: &antecedent_core::InterventionalDistributionQuery,
+    ) -> Result<IdentificationResult, CausalError> {
+        let cq = CausalQuery::Distribution(query.clone());
+        match self {
+            Self::Dag(graph) => identify_static_query(identifier, graph, &cq),
+            Self::Admg(admg) => crate::strategy_table::identify_admg_query(identifier, admg, &cq),
+        }
+    }
+}
+
+/// Licence gate for an ADMG interventional distribution, shared by compile and
+/// execute: unconditional finite-discrete tables at validation none.
+pub(super) fn ensure_admg_distribution_licensed(
+    query: &antecedent_core::InterventionalDistributionQuery,
+    refute: RefuteSuite,
+) -> Result<(), CausalError> {
+    if !query.conditioning.is_empty() {
+        return Err(CausalError::Unsupported {
+            message: "ADMG InterventionalDistribution is licensed for unconditional \
+                      finite-discrete tables; IDC conditionals are a follow-up",
+        });
+    }
+    if refute != RefuteSuite::None {
+        return Err(CausalError::Unsupported {
+            message: "ADMG InterventionalDistribution is licensed at validation none; \
+                      cheap/full remain Dag-only",
+        });
+    }
+    Ok(())
 }

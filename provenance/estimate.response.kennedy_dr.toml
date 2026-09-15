@@ -31,7 +31,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
-  "crates/antecedent-estimate/src/response.rs",
+  "crates/antecedent-estimate/src/response/mod.rs",
   "crates/antecedent-stats/src/response.rs",
   "conformance/response/two_point_curve_average_effect (shared-linear-estimand calibration)",
 ]

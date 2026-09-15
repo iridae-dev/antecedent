@@ -323,6 +323,53 @@ class MediationEffect:
 
 
 @dataclass(frozen=True, slots=True)
+class AnomalyAttribution:
+    """GCM anomaly scores on a supplied explicit Dag.
+
+    Licensed only through the Rust ``Study`` API at validation ``none``.
+    ``analyze()`` refuses this query.
+    """
+
+    targets: Sequence[str]
+    _: KW_ONLY
+    max_units: int = 100
+    kind: Literal["anomaly_attribution"] = field(
+        default="anomaly_attribution", init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        _require_names("targets", self.targets)
+        if int(self.max_units) <= 0:
+            raise CausalValueError("max_units must be positive")
+
+
+@dataclass(frozen=True, slots=True)
+class ChangeAttribution:
+    """GCM distribution-change Shapley on a supplied explicit Dag.
+
+    Licensed only through the Rust ``Study`` API at validation ``none``.
+    ``analyze()`` refuses this query.
+    """
+
+    outcome: str
+    _: KW_ONLY
+    baseline_start: int
+    baseline_end: int
+    comparison_start: int
+    comparison_end: int
+    kind: Literal["change_attribution"] = field(
+        default="change_attribution", init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        _require_name("outcome", self.outcome)
+        if int(self.baseline_end) <= int(self.baseline_start):
+            raise CausalValueError("baseline range must be non-empty")
+        if int(self.comparison_end) <= int(self.comparison_start):
+            raise CausalValueError("comparison range must be non-empty")
+
+
+@dataclass(frozen=True, slots=True)
 class Counterfactual:
     """Two-world unit ITE ``Y(a) - Y(a0)`` via GCM abduction–action–prediction.
 
@@ -598,8 +645,10 @@ class InterventionResponse:
 
 
 __all__ = [
+    "AnomalyAttribution",
     "AverageDerivative",
     "AverageEffect",
+    "ChangeAttribution",
     "ConditionalEffect",
     "Counterfactual",
     "DirectionalDerivative",

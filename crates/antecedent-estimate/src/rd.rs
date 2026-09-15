@@ -24,6 +24,19 @@
 //! accepts any [`IdentifiedEstimand`] carrying that tag, including a synthetic one built for
 //! tests via `IdentifiedEstimand::backdoor("rd.sharp", ..)`.
 //!
+//! Analytic SE: [`AnalyticSeKind::Hc1`] (the default) is the residual sandwich
+//! `n/(n−p) (XᵀX)⁻¹ Xᵀ diag(e²) X (XᵀX)⁻¹` read at the jump coefficient. It
+//! stays valid when the outcome variance differs across the cutoff or along the
+//! running variable, which is the usual situation in RD and why
+//! heteroskedasticity-robust variances are the standard for local-linear RD
+//! (Calonico, Cattaneo & Titiunik 2014 use HC-type or nearest-neighbour
+//! residual variances). It is the conventional SE of the uniform-kernel fit: it
+//! assumes independent rows and ignores smoothing bias (no robust bias
+//! correction). Hc0/Hc2/Hc3 are available through
+//! [`SharpRegressionDiscontinuity::with_se_kind`]; the classical
+//! `σ²(XᵀX)⁻¹` ([`AnalyticSeKind::Homoskedastic`]) is an explicit opt-in that
+//! assumes one outcome variance inside the window on both sides of the cutoff.
+//!
 //! Positivity is not meaningful for RD — it is not a propensity-based method — so
 //! [`OverlapPolicy::ExplicitOverride`] is the only supported policy, matching
 //! [`crate::adjustment::LinearAdjustmentAte`].
@@ -44,6 +57,7 @@ use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
+use crate::se::AnalyticSeKind;
 use crate::util::{BootstrapSeResult, bootstrap_se, stats_err};
 
 /// Local-linear RD design column count: `[1, T, (R-c), T·(R-c)]`.
@@ -95,12 +109,17 @@ pub struct SharpRegressionDiscontinuity {
     pub cutoff: f64,
     /// Symmetric bandwidth around the cutoff (`|R − cutoff| ≤ bandwidth` is retained).
     pub bandwidth: f64,
+    /// Analytic SE kind: HC1 residual sandwich (default), HC0/HC2/HC3, or the
+    /// classical homoskedastic formula on explicit opt-in. Cluster / multiway /
+    /// HAC kinds are refused (the RD problem carries no labels).
+    pub se_kind: AnalyticSeKind,
 }
 
 impl SharpRegressionDiscontinuity {
     /// Construct with explicit running variable, cutoff, and bandwidth.
     ///
-    /// Defaults: 200 bootstrap replicates, explicit overlap override.
+    /// Defaults: 200 bootstrap replicates, explicit overlap override, HC1
+    /// analytic SE.
     #[must_use]
     pub fn new(running_variable: VariableId, cutoff: f64, bandwidth: f64) -> Self {
         Self {
@@ -110,7 +129,18 @@ impl SharpRegressionDiscontinuity {
             running_variable,
             cutoff,
             bandwidth,
+            se_kind: AnalyticSeKind::Hc1,
         }
+    }
+
+    /// Set the analytic SE kind. `Hc1` (default) and `Hc0`/`Hc2`/`Hc3` use the
+    /// residual sandwich and stay valid under heteroskedasticity; `Homoskedastic`
+    /// assumes a constant outcome variance in the window. Label-based kinds are
+    /// refused at `fit`.
+    #[must_use]
+    pub const fn with_se_kind(mut self, se_kind: AnalyticSeKind) -> Self {
+        self.se_kind = se_kind;
+        self
     }
 
     /// Set the dense linear-algebra backend.
@@ -279,7 +309,7 @@ impl SharpRegressionDiscontinuity {
         problem: &PreparedRdProblem,
         workspace: &mut RdWorkspace,
         ctx: &ExecutionContext,
-        assumptions: AssumptionSet,
+        mut assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         let fit = self
             .backend
@@ -292,10 +322,59 @@ impl SharpRegressionDiscontinuity {
             )
             .map_err(stats_err)?;
         let ate = fit.coefficients[RD_TREATMENT_COL];
-        let n = problem.nrows as f64;
-        let p = RD_NCOLS as f64;
-        let sigma2 = fit.rss / (n - p).max(1.0);
-        let se_analytic = analytic_se_treatment(&problem.matrix, problem.nrows, sigma2);
+        let se_analytic = match self.se_kind {
+            AnalyticSeKind::Homoskedastic => {
+                let n = problem.nrows as f64;
+                let p = RD_NCOLS as f64;
+                let sigma2 = fit.rss / (n - p).max(1.0);
+                analytic_se_treatment(&problem.matrix, problem.nrows, sigma2)
+            }
+            AnalyticSeKind::Hc0
+            | AnalyticSeKind::Hc1
+            | AnalyticSeKind::Hc2
+            | AnalyticSeKind::Hc3 => crate::se::residual_sandwich_coef_se(
+                self.se_kind,
+                &problem.matrix,
+                problem.nrows,
+                RD_NCOLS,
+                &fit.residuals,
+                RD_TREATMENT_COL,
+                None,
+                None,
+                None,
+            )?
+            .unwrap_or(f64::NAN),
+            _ => {
+                return Err(EstimationError::unsupported(
+                    "sharp RD supports Homoskedastic or HC0-HC3 analytic SEs; cluster, multiway, and HAC kinds need labels the RD problem does not carry",
+                ));
+            }
+        };
+
+        let (id, description) = if matches!(self.se_kind, AnalyticSeKind::Homoskedastic) {
+            (
+                "rd.sharp.homoskedastic_se",
+                "se_analytic is the classical sigma^2 (X'X)^-1 jump-coefficient SE, selected explicitly: it assumes one outcome variance on both sides of the cutoff and along the running variable inside the window; the default se_kind Hc1 and se_bootstrap do not",
+            )
+        } else {
+            (
+                "rd.sharp.conventional_robust_se",
+                "se_analytic is the heteroskedasticity-robust residual-sandwich SE of the conventional uniform-kernel local-linear jump: it allows the outcome variance to differ across the cutoff and along the running variable, assumes independent rows, and ignores smoothing bias (no robust bias correction), so intervals are valid only when the bandwidth makes that bias negligible",
+            )
+        };
+        assumptions.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::ParametricRestriction(
+                antecedent_core::ParametricAssumption {
+                    id: Arc::from(id),
+                    description: Arc::from(description),
+                },
+            ),
+            source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                algorithm: Arc::from("rd.sharp"),
+            },
+            scope: antecedent_core::AssumptionScope::Estimation,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
 
         let boot = if self.bootstrap_replicates == 0 {
             None
@@ -457,6 +536,45 @@ mod tests {
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 3.0).abs() < 0.5, "ate={}", effect.ate);
         assert!(effect.se_bootstrap.is_some());
+    }
+
+    /// HC1 is the default analytic SE; the homoskedastic SE is an explicit
+    /// opt-in with its own assumption record, and the jump is unchanged.
+    #[test]
+    fn hc1_is_the_default_se_and_homoskedastic_is_opt_in() {
+        let (data, estimand) = sharp_rd_scm(800, 4);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let robust = SharpRegressionDiscontinuity {
+            bootstrap_replicates: 0,
+            ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
+        };
+        assert_eq!(robust.se_kind, AnalyticSeKind::Hc1);
+        let explicit_hc1 = robust.clone().with_se_kind(AnalyticSeKind::Hc1);
+        let classical = robust.clone().with_se_kind(AnalyticSeKind::Homoskedastic);
+        let prep = robust.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = RdWorkspace::default();
+        let a = classical.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let b = robust.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        let c = explicit_hc1.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert_eq!(a.ate.to_bits(), b.ate.to_bits());
+        assert_eq!(b.se_analytic.to_bits(), c.se_analytic.to_bits());
+        assert!(b.se_analytic.is_finite() && b.se_analytic > 0.0);
+        assert!((a.se_analytic - b.se_analytic).abs() > 1e-9);
+        let declares = |e: &EffectEstimate, id: &str| {
+            e.assumptions.entries.iter().any(|r| {
+                matches!(
+                    &r.assumption,
+                    antecedent_core::Assumption::ParametricRestriction(p) if p.id.as_ref() == id
+                )
+            })
+        };
+        assert!(declares(&a, "rd.sharp.homoskedastic_se"));
+        assert!(!declares(&a, "rd.sharp.conventional_robust_se"));
+        assert!(declares(&b, "rd.sharp.conventional_robust_se"));
+        assert!(!declares(&b, "rd.sharp.homoskedastic_se"));
+        let cluster = classical.with_se_kind(AnalyticSeKind::Cluster);
+        assert!(cluster.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).is_err());
     }
 
     #[test]

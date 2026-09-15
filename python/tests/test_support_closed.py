@@ -46,10 +46,14 @@ _REFUSED = [
     # Admg-response rule. Cpdag/Pag response is now licensed (see
     # `test_licensed_pag_response_curve_runs`). ConditionalEffect × Cpdag/Pag
     # is licensed; ConditionalEffect × Admg stays closed.
-    # PathSpecificEffect/InterventionalDistribution × Admg/Pag, and
-    # TemporalMediationEffect × TemporalCpdag/TemporalPag remain closed on the Rust
-    # matrix. AverageEffect × graph_posterior × Frequentist is licensed; other
-    # Frequentist graph-posterior queries stay closed.
+    # On the Rust matrix PathSpecificEffect × Admg/Pag, InterventionalDistribution
+    # × Pag, InterventionalDistribution × Admg cheap/full, and
+    # TemporalMediationEffect × TemporalPag remain closed (InterventionalDistribution
+    # × Admg at validation none and TemporalMediationEffect × TemporalCpdag are
+    # licensed). Frequentist graph_posterior is licensed for AverageEffect,
+    # ConditionalEffect and static responses on DAG atoms, and for DBN Pulse /
+    # Sustained and single-horizon TemporalMediationEffect; other Frequentist
+    # graph-posterior queries stay closed.
     (
         "intervention_response_admg",
         antecedent.InterventionResponse("y", intervention=antecedent.intervention.Set("t", 1.0)),

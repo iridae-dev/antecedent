@@ -71,6 +71,13 @@ impl super::Study {
         if let Some(summary) = conflict_summary {
             posterior = with_conflict_summary(posterior, summary);
         }
+        let likelihood =
+            if est.backend == antecedent_estimate::BayesianBackendKind::ConjugateGaussian {
+                antecedent_prob::BayesLikelihood::GaussianIdentity
+            } else {
+                est.likelihood
+            };
+        posterior.assumptions.push(gcomp_outcome_model_assumption(likelihood, conditional));
         let estimate = effect_from_posterior(&posterior)?;
         clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
         super::super::stage::emit_stage(
@@ -115,21 +122,17 @@ impl super::Study {
         let mut predictive_checks = Vec::new();
         if !matches!(self.refute, RefuteSuite::None) {
             const PPC_ALPHA: f64 = 0.05;
-            let ppc_prior = est
-                .prior
-                .clone()
-                .unwrap_or_else(|| PriorSet::weakly_informative(prep.design.ncols));
-            let prior_rep = PriorPredictiveCheck {
-                n_sims: 200,
-                seed: ctx.rng.master_seed(),
-                ..PriorPredictiveCheck::new()
-            }
-            .check_with_prior(&prep, &ppc_prior, ctx)
-            .map_err(CausalError::from)?;
+            let sims = super::super::latency::predictive_check_sims(self.latency_mode);
+            let ppc_prior = est.prior_in_force(prep.design.ncols);
+            let prior_rep = PriorPredictiveCheck::for_estimator(&est, ctx)
+                .with_n_sims(sims)
+                .check_with_prior(&prep, &ppc_prior, ctx)
+                .map_err(CausalError::from)?;
             refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
             predictive_checks.push(prior_rep);
 
-            let post_rep = PosteriorPredictiveCheck::new()
+            let post_rep = PosteriorPredictiveCheck::for_estimator(&est, ctx)
+                .with_n_sims(sims)
                 .check(&prep, &posterior)
                 .map_err(CausalError::from)?;
             refutations.push(post_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
@@ -276,12 +279,12 @@ impl super::Study {
             atom_priors.insert(*key, resolved);
             prepared.entry(*key).or_insert(prep);
         }
-        let graphs = WeightedGraphSamples::new(weights, flags, keys)
+        let full_graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut subsample_notes = Vec::new();
-        let graphs = maybe_interactive_subsample_graphs(
+        let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
             self.latency_mode,
-            graphs,
+            full_graphs.clone(),
             ctx,
             &mut subsample_notes,
         )?;
@@ -310,15 +313,33 @@ impl super::Study {
                 weight,
                 estimand,
                 indexer: None,
+                prior: est.prior.clone(),
             });
         }
-        let mut posterior = aggregate_effect_envelope(
-            &graphs,
-            &per_graph,
-            InferenceDiagnostics::analytic(format!("{class_tag}_envelope")),
-            EnvelopeOptions::default(),
-        )
+        // Completion weights here are a frozen enumeration of an equivalence
+        // class, not data-updated graph probabilities, and the reported number
+        // is the frozen-weight mixture functional. Publish its posterior (atoms
+        // coupled by their sampling correlation on the shared rows) rather than
+        // the BMA spread over completion-specific effects, which over-covers
+        // the mixture functional whenever completions disagree.
+        let coupling =
+            static_envelope_atom_correlation(data, query, conditional, &atoms, &self.query, ctx);
+        let mut posterior = match &coupling {
+            Some(correlation) => antecedent_estimate::aggregate_mixture_functional_envelope(
+                &graphs,
+                &per_graph,
+                correlation,
+                InferenceDiagnostics::analytic(format!("{class_tag}_envelope")),
+            ),
+            None => aggregate_effect_envelope(
+                &graphs,
+                &per_graph,
+                InferenceDiagnostics::analytic(format!("{class_tag}_envelope")),
+                EnvelopeOptions::default(),
+            ),
+        }
         .map_err(CausalError::from)?;
+        report_subsampled_out_mass(&mut posterior, &full_graphs, &subsample_drop);
         retain_envelope_assumptions(&mut posterior, &atoms);
         if let Some(summary) = envelope_conflict {
             posterior = with_conflict_summary(posterior, summary);
@@ -332,14 +353,30 @@ impl super::Study {
 
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(envelope_diagnostic);
+        diagnostics.push(if coupling.is_some() {
+            Diagnostic::new(
+                "estimate.envelope.bayesian_mixture_functional",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "posterior draws describe the frozen-weight mixture functional over identified \
+                 completions (each completion's posterior, rank-coupled by the completions' \
+                 sampling correlation on shared rows); they are not a distribution over \
+                 completion-specific effects",
+            )
+        } else {
+            Diagnostic::new(
+                "estimate.envelope.bayesian_mixture_coupling_unavailable",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                "completion influence functions could not be aligned on shared rows; posterior \
+                 draws are the identified-completion BMA, whose spread includes between-completion \
+                 disagreement and is not an interval for the mixture functional",
+            )
+        });
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.push(Diagnostic::new(
-            format!("estimate.{class_tag}.envelope"),
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!("unidentified_mass={}", posterior.unidentified_mass),
-        ));
+        diagnostics
+            .push(envelope_mass_diagnostic(format!("estimate.{class_tag}.envelope"), &posterior));
         if let Some(cs) = posterior.conflict_summary.as_ref() {
             push_conflict_diagnostics(&mut diagnostics, cs);
         }
@@ -351,8 +388,7 @@ impl super::Study {
                 let (reports, mix_diagnostics) = run_envelope_effect_refuters(
                     data,
                     query,
-                    &estimate,
-                    &envelope_refute_atoms(&atoms),
+                    &envelope_refute_atoms(&atoms)?,
                     &mut refute_ws,
                     ctx,
                     self.refute,
@@ -374,6 +410,7 @@ impl super::Study {
             &mut posterior,
             estimate.ate,
             ctx,
+            super::super::latency::predictive_check_sims(self.latency_mode),
             &mut refutations,
             &mut diagnostics,
         )?;
@@ -560,7 +597,12 @@ impl super::Study {
                 )?;
                 logical.record.plan_id = Arc::from("temporal_mediation");
                 logical.record.identifier = Some(Arc::from("temporal.mediation"));
-                logical.record.estimator = Some(Arc::from("temporal.mediation.bayesian"));
+                logical.record.estimator =
+                    Some(Arc::from(if matches!(self.inference, InferenceMode::Frequentist) {
+                        EstimatorId::TemporalMediation.as_str()
+                    } else {
+                        EstimatorId::BayesianTemporalMediation.as_str()
+                    }));
                 logical.record.validation_suite = self.validation_suite_id();
                 logical.record.query_variables = Arc::from([q.treatment, q.outcome]);
                 logical.query = CausalQuery::Mediation(q.clone());
@@ -573,9 +615,7 @@ impl super::Study {
                 logical.compile_physical(ctx)
             }
             _ => Err(CausalError::Unsupported {
-                message: "graph-posterior analysis supports tabular average-effect, \
-                          tabular conditional-effect, temporal-effect, or temporal-mediation \
-                          queries only",
+                message: super::dispatch::GRAPH_POSTERIOR_QUERY_REFUSAL,
             }),
         }
     }
@@ -587,6 +627,9 @@ impl super::Study {
     /// [`GraphIdentFlag::Unidentified`] and contribute their posterior weight to
     /// [`antecedent_estimate::CausalPosterior::unidentified_mass`] rather than being
     /// dropped or having their mass redistributed onto the identified atoms.
+    /// Identified atoms the Interactive tier leaves out of its subsample are
+    /// reported as [`antecedent_estimate::CausalPosterior::subsampled_out_mass`]
+    /// instead. Either kind of uncovered mass makes the result graph-dependent.
     ///
     /// # Errors
     ///
@@ -659,7 +702,7 @@ impl super::Study {
             prepared.entry(*key).or_insert(prep);
         }
         let mut subsample_notes = Vec::new();
-        let graphs = maybe_interactive_subsample_graphs(
+        let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
             self.latency_mode,
             graphs,
             ctx,
@@ -694,6 +737,7 @@ impl super::Study {
                 weight,
                 estimand,
                 indexer: None,
+                prior: envelope_prior.clone(),
             });
         }
         let mut posterior = aggregate_effect_envelope(
@@ -703,14 +747,19 @@ impl super::Study {
             EnvelopeOptions::default(),
         )
         .map_err(CausalError::from)?;
+        report_subsampled_out_mass(&mut posterior, &identified.graphs, &subsample_drop);
         retain_envelope_assumptions(&mut posterior, &atoms);
         if let Some(summary) = envelope_conflict {
             posterior = with_conflict_summary(posterior, summary);
         }
         let estimate = effect_from_posterior(&posterior)?;
-        let identification = primary_identification.ok_or_else(|| CausalError::Compile {
+        let mut identification = primary_identification.ok_or_else(|| CausalError::Compile {
             message: "graph-posterior envelope: no identified graph atoms".into(),
         })?;
+        // Mass the mixture does not cover, of either kind, leaves it graph-dependent.
+        if posterior.identification == IdentificationStatus::GraphDependent {
+            identification.status = IdentificationStatus::GraphDependent;
+        }
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "graph-posterior envelope: missing estimand".into(),
         })?;
@@ -718,12 +767,7 @@ impl super::Study {
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.push(Diagnostic::new(
-            "estimate.graph_posterior.envelope",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!("unidentified_mass={}", posterior.unidentified_mass),
-        ));
+        diagnostics.push(envelope_mass_diagnostic("estimate.graph_posterior.envelope", &posterior));
         if let Some(cs) = posterior.conflict_summary.as_ref() {
             push_conflict_diagnostics(&mut diagnostics, cs);
         }
@@ -735,8 +779,7 @@ impl super::Study {
                 let (reports, mix_diagnostics) = run_envelope_effect_refuters(
                     data,
                     query,
-                    &estimate,
-                    &envelope_refute_atoms(&atoms),
+                    &envelope_refute_atoms(&atoms)?,
                     &mut refute_ws,
                     ctx,
                     self.refute,
@@ -758,6 +801,7 @@ impl super::Study {
             &mut posterior,
             estimate.ate,
             ctx,
+            super::super::latency::predictive_check_sims(self.latency_mode),
             &mut refutations,
             &mut diagnostics,
         )?;
@@ -844,7 +888,7 @@ impl super::Study {
                 )
             };
         let mut subsample_notes = Vec::new();
-        let graphs = maybe_interactive_subsample_graphs(
+        let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
             self.latency_mode,
             identified.graphs.clone(),
             ctx,
@@ -854,6 +898,8 @@ impl super::Study {
 
         let mut weighted_ate = 0.0;
         let mut se_items = Vec::new();
+        let mut atom_ifs = Vec::new();
+        let mut atom_weights = Vec::new();
         let mut total_w = 0.0;
         let mut primary_estimand = None;
         let mut primary_identification = None;
@@ -891,6 +937,16 @@ impl super::Study {
             let w = identified_weight_for_key(&graphs, atom.key);
             weighted_ate += w * estimate.ate;
             se_items.push((w, estimate.se_analytic));
+            // Every atom is fit on the same rows; embed its IF in the original
+            // row universe so the mixture SE carries cross-atom covariance.
+            if let Some(inf) = estimate
+                .influence
+                .as_deref()
+                .and_then(|inf| static_aligned_influence(data, query, &atom.estimand, inf))
+            {
+                atom_ifs.push(inf);
+                atom_weights.push(w);
+            }
             total_w += w;
             if primary_estimand.is_none() {
                 primary_estimand = Some(atom.estimand.clone());
@@ -902,6 +958,7 @@ impl super::Study {
                 weight: w,
                 estimand: atom.estimand.clone(),
                 indexer: None,
+                original: estimate,
             });
         }
         if !matches!(total_w.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
@@ -915,34 +972,66 @@ impl super::Study {
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "graph-posterior envelope: missing estimand".into(),
         })?;
-        let estimate = EffectEstimate::new(
+        // Joint influence-function covariance on shared rows with frozen graph
+        // weights (renormalized over contributing atoms). When any contributing
+        // atom cannot be IF-aligned to the shared row universe, the SE falls back
+        // to the single-atom rule: NaN for more than one atom, with a diagnostic.
+        // A single contributing atom keeps its own SE, as on a plain DAG.
+        let n_contributing = se_items.len();
+        let joint = n_contributing > 1 && atom_ifs.len() == n_contributing;
+        let se = if joint {
+            mix_static_envelope_se(&atom_ifs, &atom_weights)
+        } else {
+            mix_weighted_analytic_se(se_items)
+        };
+        let mut estimate = EffectEstimate::new(
             weighted_ate / total_w,
-            mix_weighted_analytic_se(se_items),
+            se,
             assumptions,
             OverlapPolicy::ExplicitOverride,
         );
-        let unidentified_mass: f64 = graphs
-            .weights
-            .iter()
-            .zip(graphs.identified.iter())
-            .filter(|(_, flag)| **flag != GraphIdentFlag::Identified)
-            .map(|(weight, _)| *weight)
-            .sum();
+        if joint {
+            if let Some(inf) = mixed_static_influence(&atom_ifs, &atom_weights) {
+                estimate.influence = Some(inf);
+            }
+        }
+        // Structural unidentified mass comes from the full ensemble; atoms the
+        // Interactive subsample dropped were identified but never evaluated.
+        let unidentified_mass = identified.graphs.unidentified_mass();
+        let subsampled_out_mass = subsample_drop.mass;
         let contributing: Vec<&IdentifiedEstimand> =
             refute_atoms.iter().map(|atom| &atom.estimand).collect();
-        identification.status =
-            graph_posterior_mixture_status(unidentified_mass, &contributing, identification.status);
+        // Mass the mixture does not cover, of either kind, leaves it graph-dependent.
+        identification.status = graph_posterior_mixture_status(
+            unidentified_mass + subsampled_out_mass,
+            &contributing,
+            identification.status,
+        );
 
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.push(envelope_se_omits_between_atom_variance());
+        diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
+        if joint && estimate.se_analytic.is_finite() {
+            diagnostics.push(Diagnostic::new(
+                "estimate.graph_posterior.joint_if_se",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "SE of E[τ | identified] from the joint influence-function covariance of \
+                     {n_contributing} atoms fit on shared rows, with frozen graph weights; \
+                     graph-weight uncertainty and unidentified mass are not in the SE; the \
+                     interval is for the reported aggregate, not a distribution over \
+                     graph-specific effects"
+                ),
+            ));
+        }
         diagnostics.push(Diagnostic::new(
             "estimate.graph_posterior.envelope",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
             format!(
-                "published effect is E[τ | identified]; identified_mass={total_w}, unidentified_mass={unidentified_mass}, atoms={}",
+                "published effect is E[τ | identified]; identified_mass={total_w}, unidentified_mass={unidentified_mass}, subsampled_out_mass={subsampled_out_mass}, atoms={}",
                 refute_atoms.len()
             ),
         ));
@@ -951,7 +1040,6 @@ impl super::Study {
         let (refutations, na_diagnostics) = run_envelope_effect_refuters(
             data,
             query,
-            &estimate,
             &refute_atoms,
             &mut refute_ws,
             ctx,
@@ -1025,6 +1113,8 @@ impl super::Study {
                 )
             };
         let mut contexts = Vec::new();
+        let mut atom_estimates = Vec::new();
+        let mut designs = Vec::new();
         let mut point_sum = 0.0;
         let mut point_mass = 0.0;
         let mut primary = None;
@@ -1033,7 +1123,37 @@ impl super::Study {
             if weight <= 0.0 {
                 continue;
             }
-            let estimate = fit_frequentist_dbn_atom(data, gp, &vars, atom, query, ctx)?;
+            let mut assumptions = atom.identification.required_assumptions.clone();
+            let design = if is_multi_step_sustained(query) {
+                assumptions.push(antecedent_core::AssumptionRecord {
+                    assumption: antecedent_core::Assumption::ParametricRestriction(
+                        antecedent_core::ParametricAssumption {
+                            id: Arc::from("temporal.sequential.linear_sem"),
+                            description: Arc::from(
+                                "linear additive mechanisms on each identified DBN atom; fixed posterior \
+                                 graph weights; uncertainty uses shared outer circular-block replicates",
+                            ),
+                        },
+                    ),
+                    source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                        algorithm: Arc::from("temporal.sequential.gcomp"),
+                    },
+                    scope: antecedent_core::AssumptionScope::Estimation,
+                    status: antecedent_core::AssumptionStatus::Declared,
+                });
+                TemporalAtomDesign::sequential(
+                    data,
+                    &crate::analysis::prepared::temporal_dag_from_dbn_atom(gp, atom.key, &vars)?,
+                    &atom.indexer,
+                    &atom.estimand,
+                    query,
+                    atom.identification.status,
+                    ctx,
+                )?
+            } else {
+                TemporalAtomDesign::linear(data, &atom.estimand, query, &atom.indexer, None, ctx)?
+            };
+            let estimate = design.effect_estimate(assumptions);
             point_sum += weight * estimate.ate;
             point_mass += weight;
             if primary.is_none() {
@@ -1044,52 +1164,24 @@ impl super::Study {
                 ));
             }
             contexts.push((atom, weight));
+            atom_estimates.push(estimate);
+            designs.push(design);
         }
         let (estimand, mut identification, assumptions) =
             primary.ok_or_else(|| CausalError::Compile {
                 message: "Frequentist DBN posterior has no estimable identified atom".into(),
             })?;
         let point = point_sum / point_mass;
-        let mut bootstrap = Vec::new();
-        let mut attempted = 0u32;
-        let n = data.row_count();
-        let block_length =
-            (gp.max_lag.unwrap_or(1) as usize + 1).max(integer_cube_root_ceil(n)).min(n);
-        let plan = antecedent_data::ResamplingPlan::CircularBlock { length: block_length };
-        let mut index_scratch = Vec::with_capacity(n);
-        for replicate in 0..self.bootstrap_replicates {
-            if ctx.cancellation.is_cancelled() {
-                break;
-            }
-            attempted += 1;
-            let mut rng = ctx.rng.stream(0xDBF0_0000 + u64::from(replicate));
-            let sampled =
-                antecedent_data::resample_timeseries(data, plan, &mut rng, &mut index_scratch)
-                    .map_err(CausalError::from)?;
-            let mut sum = 0.0;
-            let mut failed = false;
-            for (atom, weight) in &contexts {
-                if let Ok(estimate) =
-                    fit_frequentist_dbn_atom(&sampled, gp, &vars, atom, query, ctx)
-                {
-                    sum += *weight * estimate.ate;
-                } else {
-                    failed = true;
-                    break;
-                }
-            }
-            if !failed && sum.is_finite() {
-                bootstrap.push(sum / point_mass);
-            }
-        }
-        let se = if bootstrap_has_enough_successes(bootstrap.len(), attempted as usize) {
-            let mean = bootstrap.iter().sum::<f64>() / bootstrap.len() as f64;
-            (bootstrap.iter().map(|value| (value - mean).powi(2)).sum::<f64>()
-                / (bootstrap.len() - 1) as f64)
-                .sqrt()
-        } else {
-            f64::NAN
-        };
+        let weights: Vec<f64> = contexts.iter().map(|(_, weight)| *weight).collect();
+        let block = shared_circular_block_mixture_se(
+            &designs.iter().collect::<Vec<_>>(),
+            &weights,
+            gp.max_lag.unwrap_or(1) as usize + 1,
+            self.bootstrap_replicates,
+            0xDBF0_0000,
+            ctx,
+        );
+        let se = block.se;
         if identified.graphs.unidentified_mass() > 0.0 {
             identification.status = IdentificationStatus::GraphDependent;
         }
@@ -1097,11 +1189,9 @@ impl super::Study {
             point,
             f64::NAN,
             se.is_finite().then_some(se),
+            (self.bootstrap_replicates > 0).then_some(block.completed),
             (self.bootstrap_replicates > 0)
-                .then_some(u32::try_from(bootstrap.len()).unwrap_or(u32::MAX)),
-            (self.bootstrap_replicates > 0).then_some(
-                attempted.saturating_sub(u32::try_from(bootstrap.len()).unwrap_or(u32::MAX)),
-            ),
+                .then_some(block.attempted.saturating_sub(block.completed)),
             ctx.cancellation.is_cancelled(),
             false,
             assumptions,
@@ -1111,11 +1201,13 @@ impl super::Study {
         );
         let refute_atoms = contexts
             .iter()
-            .map(|(atom, weight)| EnvelopeRefuteAtom {
+            .zip(&atom_estimates)
+            .map(|((atom, weight), original)| EnvelopeRefuteAtom {
                 key: atom.key,
                 weight: *weight,
                 estimand: atom.estimand.clone(),
                 indexer: Some(atom.indexer.clone()),
+                original: original.clone(),
             })
             .collect::<Vec<_>>();
         let tabular = TabularData::new(data.storage().clone());
@@ -1126,7 +1218,8 @@ impl super::Study {
             } else if is_multi_step_sustained(query) {
                 let validation_atoms = contexts
                     .iter()
-                    .map(|(atom, weight)| {
+                    .zip(&atom_estimates)
+                    .map(|((atom, weight), original)| {
                         Ok(SequentialValidationAtom {
                             weight: *weight,
                             graph: crate::analysis::prepared::temporal_dag_from_dbn_atom(
@@ -1135,7 +1228,7 @@ impl super::Study {
                             indexer: atom.indexer.clone(),
                             estimand: atom.estimand.clone(),
                             status: atom.identification.status,
-                            estimate: fit_frequentist_dbn_atom(data, gp, &vars, atom, query, ctx)?,
+                            estimate: original.clone(),
                             mechanisms: Vec::new(),
                         })
                     })
@@ -1150,13 +1243,13 @@ impl super::Study {
                     None,
                     estimate.ate,
                     ctx,
+                    super::super::latency::predictive_check_sims(self.latency_mode),
                 )?;
                 (reports, notes)
             } else {
                 run_envelope_effect_refuters(
                     &tabular,
                     &ate_query,
-                    &estimate,
                     &refute_atoms,
                     &mut EstimationWorkspace::default(),
                     ctx,
@@ -1173,13 +1266,27 @@ impl super::Study {
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
             format!(
-                "fixed graph weights; identified_mass={}; unidentified_mass={}; shared \
-                 circular-block replicates={}; attempted={attempted}; bands require two successes and at most half failed attempts",
-                point_mass,
-                identified.graphs.unidentified_mass(),
-                bootstrap.len()
+                "{}; bands require two successes and at most half failed attempts",
+                shared_block_mixture_message(
+                    "fixed graph weights",
+                    point_mass,
+                    identified.graphs.unidentified_mass(),
+                    &block,
+                )
             ),
         ));
+        if se.is_finite() {
+            diagnostics.extend(short_series_warning(
+                block.effective_rows,
+                antecedent_estimate::CircularBlockFamily::Mixture,
+            ));
+        }
+        let structural_response = dbn_frequentist_structural_mixture(
+            &identified.graphs,
+            &contexts,
+            &atom_estimates,
+            point,
+        );
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -1199,8 +1306,7 @@ impl super::Study {
             distribution: None,
             mediation: None,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: (self.bootstrap_replicates > 0)
-                .then_some(u32::try_from(bootstrap.len()).unwrap_or(u32::MAX)),
+            bootstrap_replicates_ok: (self.bootstrap_replicates > 0).then_some(block.completed),
             cancelled: ctx.cancellation.is_cancelled(),
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
@@ -1213,6 +1319,7 @@ impl super::Study {
                     "estimate.temporal.linear.adjustment",
                 )),
                 diagnostics: Some(diagnostics),
+                structural_response: Some(structural_response),
                 ..Default::default()
             },
         }))
@@ -1299,6 +1406,8 @@ impl super::Study {
         // draws. Prior anchors on the first successful prepare.
         let mut per_graph = Vec::new();
         let mut sequential_atoms = Vec::new();
+        // Graph key of each sequential validation atom, for the Interactive subsample.
+        let mut sequential_keys = Vec::new();
         let mut ws = BayesianGCompWorkspace::default();
         let mut prepare_demoted = 0usize;
         let mut fit_demoted = 0usize;
@@ -1355,6 +1464,7 @@ impl super::Study {
                     continue;
                 };
                 if let Ok(draws) = envelope_draws_from_posterior(key, &posterior) {
+                    sequential_keys.push(key);
                     sequential_atoms.push(SequentialValidationAtom {
                         weight: identified_weight_for_key(&identified.graphs, key),
                         graph,
@@ -1395,7 +1505,17 @@ impl super::Study {
                 prepare_demoted += 1;
                 continue;
             };
-            let bprep = BayesianGComputationAte::from_prepared_estimation(&prep);
+            let Ok(names) =
+                antecedent_estimate::temporal_coefficient_names(data, &estimand, query, &indexer)
+            else {
+                if let Some(idx) = keys.iter().position(|&k| k == key) {
+                    flags[idx] = GraphIdentFlag::Unidentified;
+                }
+                prepare_demoted += 1;
+                continue;
+            };
+            let bprep = BayesianGComputationAte::from_prepared_temporal(&prep, names)
+                .map_err(CausalError::from)?;
             if envelope_prior.is_none() {
                 let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &bprep, ctx)?;
                 envelope_prior = resolved;
@@ -1425,6 +1545,7 @@ impl super::Study {
                     weight: identified_weight_for_key(&identified.graphs, key),
                     estimand,
                     indexer: Some(indexer),
+                    prior: envelope_prior.clone(),
                 });
             } else {
                 if let Some(idx) = keys.iter().position(|&k| k == key) {
@@ -1434,23 +1555,23 @@ impl super::Study {
             }
         }
 
-        let graphs = WeightedGraphSamples::new(
+        let fitted_graphs = WeightedGraphSamples::new(
             Arc::clone(&identified.graphs.weights),
             flags,
             Arc::clone(&identified.graphs.graph_keys),
         )
         .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut subsample_notes = Vec::new();
-        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
+        let (graphs, per_graph, subsample_drop) = maybe_interactive_envelope_subsample(
             self.latency_mode,
-            graphs,
+            fitted_graphs.clone(),
             per_graph,
             ctx,
             &mut subsample_notes,
         )?;
         let keep = identified_envelope_keys(&graphs);
         atoms.retain(|atom| keep.contains(&atom.key));
-        let (_, estimand, identification, _) = atom_contexts
+        let (_, estimand, mut identification, _) = atom_contexts
             .into_iter()
             .find(|(key, _, _, _)| keep.contains(key))
             .ok_or_else(|| CausalError::Compile {
@@ -1459,6 +1580,16 @@ impl super::Study {
         for atom in &mut atoms {
             atom.weight = identified_weight_for_key(&graphs, atom.key);
         }
+        // Validation refits only the atoms the mixture kept, at their kept weights.
+        let sequential_atoms: Vec<SequentialValidationAtom> = sequential_atoms
+            .into_iter()
+            .zip(sequential_keys)
+            .filter(|(_, key)| keep.contains(key))
+            .map(|(mut atom, key)| {
+                atom.weight = identified_weight_for_key(&graphs, key);
+                atom
+            })
+            .collect();
         let mut posterior = aggregate_effect_envelope(
             &graphs,
             &per_graph,
@@ -1466,6 +1597,19 @@ impl super::Study {
             EnvelopeOptions::default(),
         )
         .map_err(CausalError::from)?;
+        report_subsampled_out_mass(&mut posterior, &fitted_graphs, &subsample_drop);
+        // Mass the mixture does not cover, of either kind, leaves it graph-dependent.
+        if posterior.identification == IdentificationStatus::GraphDependent {
+            identification.status = IdentificationStatus::GraphDependent;
+        }
+        merge_posterior_notes(
+            &mut posterior,
+            atoms.iter().map(|atom| &atom.posterior).chain(
+                sequential_atoms
+                    .iter()
+                    .flat_map(|atom| atom.mechanisms.iter().map(|m| &m.posterior)),
+            ),
+        );
         if let Some(summary) = envelope_conflict {
             posterior = with_conflict_summary(posterior, summary);
         }
@@ -1473,12 +1617,7 @@ impl super::Study {
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.push(Diagnostic::new(
-            "estimate.dbn_posterior.envelope",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!("unidentified_mass={}", posterior.unidentified_mass),
-        ));
+        diagnostics.push(envelope_mass_diagnostic("estimate.dbn_posterior.envelope", &posterior));
         diagnostics.push(Diagnostic::new(
             "estimate.dbn_posterior.atom_demotion",
             DiagnosticKind::Scientific,
@@ -1511,13 +1650,13 @@ impl super::Study {
                 Some(&mut posterior),
                 estimate.ate,
                 ctx,
+                super::super::latency::predictive_check_sims(self.latency_mode),
             )?
         } else {
             let (reports, notes) = run_envelope_effect_refuters(
                 &tabular,
                 &ate_query,
-                &estimate,
-                &envelope_refute_atoms(&atoms),
+                &envelope_refute_atoms(&atoms)?,
                 &mut EstimationWorkspace::default(),
                 ctx,
                 self.refute,
@@ -1541,6 +1680,7 @@ impl super::Study {
                 &mut posterior,
                 estimate.ate,
                 ctx,
+                super::super::latency::predictive_check_sims(self.latency_mode),
                 &mut refutations,
                 &mut diagnostics,
             )?
@@ -1591,7 +1731,8 @@ impl super::Study {
 
     /// Mix a DBN posterior into a Bayesian temporal-mediation envelope.
     ///
-    /// Each atom uses that atom's per-horizon `I(h)` cache. Unidentified atoms
+    /// Each atom uses that atom's per-horizon mediation set `S(h)` (its `I(h)`
+    /// plus mediator/outcome confounders). Unidentified atoms
     /// keep their mass. Priors do not upgrade identification.
     pub(super) fn execute_dbn_posterior_mediation(
         &self,
@@ -1606,6 +1747,12 @@ impl super::Study {
             require_gaussian_mediation,
         };
 
+        if query.horizons.len() > 1 && matches!(self.inference, InferenceMode::Frequentist) {
+            return Err(CausalError::Unsupported {
+                message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
+                          multi-horizon grids need their own joint uncertainty contract",
+            });
+        }
         if query.horizons.len() > 1 {
             let started = Instant::now();
             // Identify once for the complete request, then project the same
@@ -1739,14 +1886,14 @@ impl super::Study {
                 },
             }));
         }
+        if matches!(self.inference, InferenceMode::Frequentist) {
+            return self
+                .execute_dbn_posterior_mediation_frequentist(data, gp, query, physical, ctx);
+        }
         let started = Instant::now();
         let cfg = match &self.inference {
             InferenceMode::Bayesian(c) => c.clone(),
-            InferenceMode::Frequentist => {
-                return Err(CausalError::Unsupported {
-                    message: "DBN graph-posterior discovery requires inference=Bayesian for effect mixture",
-                });
-            }
+            InferenceMode::Frequentist => unreachable!("Frequentist DBN mediation is routed above"),
         };
         if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
             return Err(CausalError::Unsupported {
@@ -1920,16 +2067,16 @@ impl super::Study {
             }
         }
 
-        let graphs = WeightedGraphSamples::new(
+        let fitted_graphs = WeightedGraphSamples::new(
             Arc::clone(&identified.graphs.weights),
             flags,
             Arc::clone(&identified.graphs.graph_keys),
         )
         .map_err(|e| CausalError::Compile { message: e.to_string() })?;
         let mut subsample_notes = Vec::new();
-        let (graphs, per_graph) = maybe_interactive_envelope_subsample(
+        let (graphs, per_graph, subsample_drop) = maybe_interactive_envelope_subsample(
             self.latency_mode,
-            graphs,
+            fitted_graphs.clone(),
             per_graph,
             ctx,
             &mut subsample_notes,
@@ -1952,9 +2099,10 @@ impl super::Study {
             EnvelopeOptions::default(),
         )
         .map_err(CausalError::from)?;
+        report_subsampled_out_mass(&mut posterior, &fitted_graphs, &subsample_drop);
         // The envelope must preserve structural restrictions and disclose this
         // horizon's unidentified graph mass, independently of other horizons.
-        if posterior.unidentified_mass > 0.0 {
+        if posterior.unidentified_mass > 0.0 || posterior.subsampled_out_mass > 0.0 {
             identification.status = IdentificationStatus::GraphDependent;
         }
         posterior.identification = identification.status;
@@ -1963,12 +2111,7 @@ impl super::Study {
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(subsample_notes);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
-        diagnostics.push(Diagnostic::new(
-            "estimate.dbn_posterior.envelope",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!("unidentified_mass={}", posterior.unidentified_mass),
-        ));
+        diagnostics.push(envelope_mass_diagnostic("estimate.dbn_posterior.envelope", &posterior));
         diagnostics.push(Diagnostic::new(
             "estimate.dbn_posterior.atom_demotion",
             DiagnosticKind::Scientific,
@@ -1986,8 +2129,9 @@ impl super::Study {
                 "identify.temporal_mediation.horizon_dependent",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "adjustment sets differ across requested horizons; each contrast uses I(h) \
-                 identified for that horizon, not a shared max-horizon set",
+                "adjustment sets differ across requested horizons; each contrast uses S(h) = I(h) \
+                 plus mediator-outcome confounders identified for that horizon, not a shared \
+                 max-horizon set",
             ));
         }
         if distinct_z {
@@ -2009,7 +2153,6 @@ impl super::Study {
         if self.refute != RefuteSuite::None {
             let (reports, notes) = mix_dbn_mediation_refuters(
                 data,
-                &mediation,
                 &refute_atoms,
                 self.refute == RefuteSuite::Full,
                 ctx,
@@ -2109,68 +2252,6 @@ impl super::Study {
     }
 }
 
-fn fit_frequentist_dbn_atom(
-    data: &TimeSeriesData,
-    graph_posterior: &GraphPosterior,
-    variables: &[VariableId],
-    atom: &crate::analysis::prepared::CachedDbnPosteriorAtomIdentification,
-    query: &TemporalEffectQuery,
-    ctx: &ExecutionContext,
-) -> Result<EffectEstimate, CausalError> {
-    if is_multi_step_sustained(query) {
-        let graph = crate::analysis::prepared::temporal_dag_from_dbn_atom(
-            graph_posterior,
-            atom.key,
-            variables,
-        )?;
-        let mut assumptions = atom.identification.required_assumptions.clone();
-        assumptions.push(antecedent_core::AssumptionRecord {
-            assumption: antecedent_core::Assumption::ParametricRestriction(
-                antecedent_core::ParametricAssumption {
-                    id: Arc::from("temporal.sequential.linear_sem"),
-                    description: Arc::from(
-                        "linear additive mechanisms on each identified DBN atom; fixed posterior \
-                         graph weights; uncertainty uses shared outer circular-block replicates",
-                    ),
-                },
-            ),
-            source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                algorithm: Arc::from("temporal.sequential.gcomp"),
-            },
-            scope: antecedent_core::AssumptionScope::Estimation,
-            status: antecedent_core::AssumptionStatus::Declared,
-        });
-        return antecedent_estimate::temporal_sequential::estimate_sustained_window(
-            data,
-            &graph,
-            &atom.indexer,
-            &atom.estimand,
-            query,
-            atom.identification.status,
-            assumptions,
-            0,
-            None,
-            ctx,
-        )
-        .map(|(estimate, _)| estimate)
-        .map_err(CausalError::from);
-    }
-    let mut estimator = TemporalLinearAdjustment::new();
-    estimator.inner.bootstrap_replicates = 0;
-    estimator.inner.overlap = OverlapPolicy::ExplicitOverride;
-    let prepared = estimator
-        .prepare(data, &atom.estimand, query, &atom.indexer, None, &ctx.kernel_policy)
-        .map_err(CausalError::from)?;
-    estimator
-        .fit(
-            &prepared,
-            &mut EstimationWorkspace::default(),
-            ctx,
-            atom.identification.required_assumptions.clone(),
-        )
-        .map_err(CausalError::from)
-}
-
 struct DbnMediationAtom {
     key: u64,
     weight: f64,
@@ -2238,9 +2319,24 @@ fn mix_dbn_mediation_estimate(
     }
 }
 
+/// This atom's own composed mediation summary: the refuters' reference value.
+fn dbn_mediation_atom_estimate(
+    atom: &DbnMediationAtom,
+) -> Result<TemporalMediationEstimate, CausalError> {
+    let means = &atom.composed.summaries.mean;
+    let component = |index: usize| (means.len() >= 4).then(|| means[index]);
+    Ok(TemporalMediationEstimate {
+        effect: effect_from_posterior(&atom.composed)?,
+        total: component(1),
+        direct: component(2),
+        mediated: component(3),
+    })
+}
+
+/// Mediation refuters per contributing atom, each against that atom's own
+/// composed estimate (not the pooled mixture), mixed by envelope mass.
 fn mix_dbn_mediation_refuters(
     data: &TimeSeriesData,
-    mediation: &TemporalMediationEstimate,
     atoms: &[DbnMediationAtom],
     full: bool,
     ctx: &ExecutionContext,
@@ -2254,11 +2350,12 @@ fn mix_dbn_mediation_refuters(
         if atom.weight <= 0.0 {
             continue;
         }
+        let original = dbn_mediation_atom_estimate(atom)?;
         let reports = antecedent_validate::mediation::refute_temporal_mediation_adjusted(
             data,
             &atom.estimand,
             &atom.query,
-            mediation,
+            &original,
             full,
             &atom.adjustment,
             ctx,
@@ -2293,7 +2390,9 @@ fn mix_dbn_mediation_refuters(
             DiagnosticSeverity::Info,
             format!(
                 "mediation refuters evaluated each contributing graph atom [{atom_keys}] against \
-                 the mixture effect using that atom's I(h); reports mix by envelope mass"
+                 that atom's own composed estimate using that atom's I(h), not the pooled \
+                 mixture; reports mix by envelope mass and pass only if every contributing atom \
+                 passes"
             ),
         )],
     ))
@@ -2329,11 +2428,12 @@ fn run_dbn_mediation_bayesian_validation(
                 )];
                 prior
             });
-            let prior_rep = PriorPredictiveCheck::new()
+            let prior_rep = PriorPredictiveCheck::for_estimator(estimator, ctx)
                 .check_with_prior(prep, &prior, ctx)
                 .map_err(CausalError::from)?;
-            let post_rep =
-                PosteriorPredictiveCheck::new().check(prep, post).map_err(CausalError::from)?;
+            let post_rep = PosteriorPredictiveCheck::for_estimator(estimator, ctx)
+                .check(prep, post)
+                .map_err(CausalError::from)?;
             prior_items.push((atom.weight, i, prior_rep));
             post_items.push((atom.weight, i, post_rep));
         }
@@ -2379,8 +2479,10 @@ fn run_dbn_mediation_bayesian_validation(
             owned.push((
                 atom.weight,
                 antecedent_prob::PriorSensitivitySummary {
+                    family: antecedent_prob::PriorSensitivityFamily::IsotropicScale,
                     prior_scales: sensitivity.scales.clone(),
                     alphas: Arc::from([]),
+                    variance_multipliers: Arc::from([]),
                     effect_means: Arc::from(means),
                     effect_sds: Arc::from(sds),
                 },
@@ -2415,6 +2517,51 @@ fn compose_temporal_mediation_for_atom(
         .map_err(CausalError::from)
 }
 
+/// Declared outcome model behind a static `bayesian.gcomp` / conditional
+/// posterior (R-17). The credible interval is for the treatment contrast of
+/// that parametric regression; it is not a nonparametric interval for the
+/// causal effect when the outcome mean is nonlinear in the adjustment set or
+/// carries treatment × covariate interactions the design does not include
+/// (`tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe`).
+fn gcomp_outcome_model_assumption(
+    likelihood: antecedent_prob::BayesLikelihood,
+    conditional: bool,
+) -> antecedent_core::AssumptionRecord {
+    let family = match likelihood {
+        antecedent_prob::BayesLikelihood::GaussianIdentity => {
+            "Gaussian identity-link outcome regression with homoskedastic residuals"
+        }
+        antecedent_prob::BayesLikelihood::BernoulliLogit => "Bernoulli logit outcome regression",
+        antecedent_prob::BayesLikelihood::BernoulliProbit => "Bernoulli probit outcome regression",
+        antecedent_prob::BayesLikelihood::PoissonLog => "Poisson log-link outcome regression",
+    };
+    let design = if conditional {
+        "linear in the treatment, the declared modifier, their product, and each adjustment \
+         column"
+    } else {
+        "linear in the treatment and each adjustment column, with no treatment × covariate \
+         interaction"
+    };
+    antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::ParametricRestriction(
+            antecedent_core::ParametricAssumption {
+                id: Arc::from("bayesian.gcomp.linear_gaussian_outcome"),
+                description: Arc::from(format!(
+                    "{family}, {design}; the posterior and its credible interval are for the \
+                     treatment contrast of this model. A nonlinear covariate term or an \
+                     unmodelled treatment × covariate interaction biases that contrast and \
+                     the interval does not cover the causal effect"
+                )),
+            },
+        ),
+        source: antecedent_core::AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("bayesian.gcomp"),
+        },
+        scope: antecedent_core::AssumptionScope::Estimation,
+        status: antecedent_core::AssumptionStatus::Declared,
+    }
+}
+
 pub(super) fn envelope_draws_from_posterior(
     key: u64,
     posterior: &CausalPosterior,
@@ -2425,4 +2572,140 @@ pub(super) fn envelope_draws_from_posterior(
     let draws =
         posterior.draws.column(col).map_err(|e| CausalError::Compile { message: e.to_string() })?;
     Ok(GraphEffectDraws { graph_key: key, effect_draws: Arc::from(draws.to_vec()) })
+}
+
+/// Sampling correlation of static envelope atoms on their shared rows.
+///
+/// Each atom's Frequentist influence function (linear adjustment for the ATE,
+/// the conditional linear functional for ConditionalEffect) is aligned to the
+/// original rows; the correlation of those IFs couples the atoms' Bayesian
+/// posteriors in [`antecedent_estimate::aggregate_mixture_functional_envelope`].
+/// `None` when any atom lacks an aligned IF (the caller then keeps the BMA and
+/// says so).
+fn static_envelope_atom_correlation(
+    data: &TabularData,
+    query: &AverageEffectQuery,
+    conditional: bool,
+    atoms: &[EnvelopeAtomFit],
+    full_query: &CausalQuery,
+    ctx: &ExecutionContext,
+) -> Option<Vec<f64>> {
+    let mut ifs = Vec::with_capacity(atoms.len());
+    for atom in atoms {
+        let estimate = if conditional {
+            let CausalQuery::ConditionalEffect(cq) = full_query else {
+                return None;
+            };
+            let mut mean_query = cq.clone();
+            mean_query.inner.outcome_functional = antecedent_core::OutcomeFunctional::Mean;
+            ConditionalLinearAdjustment::new()
+                .estimate(data, &atom.estimand, &mean_query, ctx)
+                .ok()?
+        } else {
+            let mut ws = StaticEstimateWorkspaces::default();
+            estimate_static_effect(
+                &crate::estimator_spec::EstimatorSpec::Default(EstimatorId::LinearAdjustmentAte),
+                data,
+                &atom.estimand,
+                query,
+                antecedent_core::AssumptionSet::default(),
+                0,
+                None,
+                None,
+                ctx,
+                &mut ws,
+            )
+            .ok()?
+        };
+        let aligned =
+            static_aligned_influence(data, query, &atom.estimand, estimate.influence.as_deref()?)?;
+        if aligned.iter().any(|v| !v.is_finite()) {
+            return None;
+        }
+        ifs.push(aligned);
+    }
+    let k = ifs.len();
+    let norms: Vec<f64> = ifs.iter().map(|f| f.iter().map(|v| v * v).sum::<f64>().sqrt()).collect();
+    if norms.iter().any(|n| !n.is_finite() || *n <= 0.0) {
+        return None;
+    }
+    let mut corr = vec![0.0; k * k];
+    for a in 0..k {
+        for b in 0..k {
+            let dot: f64 = ifs[a].iter().zip(&ifs[b]).map(|(x, y)| x * y).sum();
+            corr[a * k + b] = (dot / (norms[a] * norms[b])).clamp(-1.0, 1.0);
+        }
+    }
+    Some(corr)
+}
+
+/// Structural mass accounting for the Frequentist DBN-posterior Pulse /
+/// Sustained mixture: every posterior atom with its weight and status, the
+/// evaluated atoms' point effects, and the range over them. Masses are
+/// fractions of the posterior's total weight; every identified atom with
+/// positive weight is evaluated (an estimation failure aborts the run), so
+/// unevaluable mass is zero.
+fn dbn_frequentist_structural_mixture(
+    graphs: &WeightedGraphSamples,
+    evaluated: &[(&crate::analysis::prepared::CachedDbnPosteriorAtomIdentification, f64)],
+    estimates: &[EffectEstimate],
+    point: f64,
+) -> crate::result::StructuralResponseMixture {
+    let values: std::collections::HashMap<u64, (IdentificationStatus, f64)> = evaluated
+        .iter()
+        .zip(estimates)
+        .map(|((atom, _), estimate)| (atom.key, (atom.identification.status, estimate.ate)))
+        .collect();
+    let atoms: Vec<crate::result::StructuralResponseAtom> = graphs
+        .graph_keys
+        .iter()
+        .zip(graphs.weights.iter())
+        .zip(graphs.identified.iter())
+        .map(|((&graph_key, &weight), flag)| {
+            let fit =
+                (*flag == GraphIdentFlag::Identified).then(|| values.get(&graph_key)).flatten();
+            crate::result::StructuralResponseAtom {
+                graph_key,
+                weight,
+                status: match (flag, fit) {
+                    (GraphIdentFlag::Identified, Some((status, _))) => *status,
+                    (GraphIdentFlag::Identified, None) => {
+                        IdentificationStatus::NonparametricallyIdentified
+                    }
+                    (GraphIdentFlag::Unidentified, _) => IdentificationStatus::NotIdentified,
+                },
+                value: fit.map(|(_, value)| ResponseValue::Scalar(*value)),
+                posterior: None,
+                response: None,
+            }
+        })
+        .collect();
+    let total = graphs.total_weight();
+    let identified_mass =
+        atoms.iter().filter(|atom| atom.value.is_some()).map(|atom| atom.weight).sum::<f64>();
+    let unidentified_mass = graphs.unidentified_mass();
+    let (lo, hi) = estimates
+        .iter()
+        .map(|estimate| estimate.ate)
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| (lo.min(v), hi.max(v)));
+    crate::result::StructuralResponseMixture {
+        weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
+        atoms,
+        identified_mass: identified_mass / total,
+        unidentified_mass: unidentified_mass / total,
+        unevaluable_mass: 0.0,
+        subsampled_out_mass: 0.0,
+        identified_set: (lo.is_finite() && hi.is_finite()).then(|| {
+            antecedent_core::ResponseEnvelope {
+                grid: Arc::from([0.0]),
+                dimension: 1,
+                lower: Arc::from([lo]),
+                upper: Arc::from([hi]),
+            }
+        }),
+        identified_set_interval: None,
+        conditional_on_identified: Some(ResponseValue::Scalar(point)),
+        full_mass_scope: true,
+        truncated_atoms: 0,
+    }
 }

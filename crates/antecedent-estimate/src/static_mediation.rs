@@ -29,6 +29,14 @@ use std::sync::Arc;
 /// difference is the natural indirect effect under additive linear mechanisms.
 /// `extra` are exogenous nuisance covariates used by the native RCC refuter.
 ///
+/// The path-specific identifier certifies the *pure* natural indirect effect
+/// `E[Y(a₀, M(a₁))] − E[Y(a₀)]` (treatment at the active level only on edges
+/// that start a mediated path). `total − direct` is by definition the *total*
+/// natural indirect effect `E[Y(a₁)] − E[Y(a₁, M(a₀))]`. The two agree only
+/// without treatment–mediator interaction, which the additive linear
+/// mechanisms impose; indirect contrasts record that reliance as the
+/// `mediation.no_interaction` assumption.
+///
 /// # Errors
 /// Invalid query/data, unsupported population, singular regression, cancellation.
 #[allow(clippy::too_many_lines)]
@@ -123,20 +131,21 @@ pub fn estimate_static_mediation(
         MediationContrast::Mediated | MediationContrast::NaturalIndirect => total - direct,
     };
     let (total, direct) = fit(&rows)?;
-    let mut draws = Vec::new();
-    for rep in 0..replicates {
-        let mut rng = ctx.rng.stream(0x1300_1000 + u64::from(rep));
-        let sample: Vec<_> = (0..rows.len())
-            .map(|_| rows[(rng.next_f64() * rows.len() as f64) as usize % rows.len()])
-            .collect();
-        draws.push(contrast(fit(&sample)?));
-    }
-    let se = if draws.len() > 1 {
-        let mean = draws.iter().sum::<f64>() / draws.len() as f64;
-        (draws.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (draws.len() - 1) as f64).sqrt()
-    } else {
-        f64::NAN
-    };
+    // Shared tolerant bootstrap: a singular or under-determined replicate is a
+    // soft failure (counted, the loop continues), cancellation aborts, and more
+    // than half failed withholds the SE. Replicate accounting is the real count.
+    let mut sample = Vec::with_capacity(rows.len());
+    let boot = crate::util::bootstrap_se(replicates, ctx, 0x1300_1000, rows.len(), |idx| {
+        sample.clear();
+        sample.extend(idx.iter().map(|&i| rows[i]));
+        match fit(&sample) {
+            Ok(fitted) => Ok(Some(contrast(fitted))),
+            Err(_) if ctx.cancellation.is_cancelled() => {
+                Err(EstimationError::unsupported("static mediation cancelled"))
+            }
+            Err(_) => Ok(None),
+        }
+    })?;
     assumptions.push(AssumptionRecord {
         assumption:Assumption::ParametricRestriction(ParametricAssumption {
             id:Arc::from("mediation.additive_linear"),
@@ -144,15 +153,28 @@ pub fn estimate_static_mediation(
         }), source:AssumptionSource::AlgorithmDefault{algorithm:Arc::from("estimate.mediation.linear")},
         scope:AssumptionScope::Estimation,status:AssumptionStatus::Declared,
     });
-    let mut effect = EffectEstimate::new(
+    if matches!(query.contrast, MediationContrast::Mediated | MediationContrast::NaturalIndirect) {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::ParametricRestriction(ParametricAssumption {
+                id: Arc::from("mediation.no_interaction"),
+                description: Arc::from(
+                    "The identified functional is the pure natural indirect effect E[Y(a0, M(a1))] - E[Y(a0)]; the estimate is total - direct, the total natural indirect effect E[Y(a1)] - E[Y(a1, M(a0))]. They coincide only without treatment-mediator interaction, which the additive linear mechanisms impose; under interaction the estimate is not the certified quantity.",
+                ),
+            }),
+            source: AssumptionSource::AlgorithmDefault {
+                algorithm: Arc::from("estimate.mediation.linear"),
+            },
+            scope: AssumptionScope::Estimation,
+            status: AssumptionStatus::Declared,
+        });
+    }
+    let effect = EffectEstimate::new(
         contrast((total, direct)),
         f64::NAN,
         assumptions,
         OverlapPolicy::ExplicitOverride,
-    );
-    effect.se_bootstrap = se.is_finite().then_some(se);
-    effect.bootstrap_replicates_ok = (replicates > 0).then_some(replicates);
-    effect.bootstrap_replicates_failed = (replicates > 0).then_some(0);
+    )
+    .with_bootstrap((replicates > 0).then_some(boot));
     Ok(TemporalMediationEstimate {
         effect,
         total: Some(total),
@@ -308,6 +330,7 @@ pub fn estimate_static_mediation_bayesian(
             overlap: OverlapPolicy::ExplicitOverride,
             coef_names: Some(Arc::from(coef_names.clone())),
             unit_ids: None,
+            serial_dependence: crate::SerialDependence::Iid,
         };
         let mut node_est = estimator.clone();
         node_est.seed = estimator.seed.wrapping_add(i as u64 + 1);
@@ -449,6 +472,7 @@ pub fn estimate_static_mediation_bayesian(
         status: AssumptionStatus::Declared,
     });
     let posterior = crate::CausalPosterior {
+        subsampled_out_mass: 0.0,
         draws,
         summaries,
         identification,
@@ -603,4 +627,192 @@ fn compose_linear_natural(
         }
     }
     Ok((total[query.outcome.as_usize()], direct[query.outcome.as_usize()]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use antecedent_core::{Intervention, Value};
+
+    /// `w`, `t` independent; `m = 0.6 t + 0.5 w + e`, `y = 0.4 t + 0.5 m + 0.7 w + e`.
+    /// `w` confounds the mediator-outcome relation but not `t -> y`.
+    #[allow(clippy::many_single_char_names)]
+    fn confounded_mediator(n: usize) -> TabularData {
+        let mut rng = ExecutionContext::for_tests(5).rng.stream(0x0057_A71C);
+        let mut draw = || rng.next_f64() - 0.5;
+        let (mut t, mut m, mut y, mut w) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+        for i in 0..n {
+            w[i] = draw();
+            t[i] = draw();
+            m[i] = 0.6 * t[i] + 0.5 * w[i] + 0.3 * draw();
+            y[i] = 0.4 * t[i] + 0.5 * m[i] + 0.7 * w[i] + 0.3 * draw();
+        }
+        TabularData::from_f64_columns([("t", &t[..]), ("m", &m[..]), ("y", &y[..]), ("w", &w[..])])
+            .unwrap()
+    }
+
+    fn graph(with_confounder: bool) -> Dag {
+        let mut dag = Dag::with_variables(4);
+        let [t, m, y, w] = [0, 1, 2, 3].map(DenseNodeId::from_raw);
+        dag.insert_directed(t, m).unwrap();
+        dag.insert_directed(t, y).unwrap();
+        dag.insert_directed(m, y).unwrap();
+        if with_confounder {
+            dag.insert_directed(w, m).unwrap();
+            dag.insert_directed(w, y).unwrap();
+        }
+        dag
+    }
+
+    /// The static path regresses every node on its full graph parent set, so a
+    /// mediator-outcome confounder that is a graph parent of `m` and `y` is
+    /// adjusted in both inference modes (the omission fixed on the temporal
+    /// path in 1.9 does not exist here). Dropping the `w` edges from the graph
+    /// reproduces the omitted-confounder bias, so the check is sensitive.
+    #[test]
+    fn mediator_outcome_confounder_is_adjusted_in_both_modes() {
+        let data = confounded_mediator(20_000);
+        let ctx = ExecutionContext::for_tests(3);
+        let truths = [0.4 + 0.6 * 0.5, 0.4, 0.6 * 0.5];
+        let mut q = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::NaturalIndirect,
+        );
+        q.control = Intervention::set(q.treatment, Value::f64(0.0));
+        q.active = Intervention::set(q.treatment, Value::f64(1.0));
+        let freq =
+            estimate_static_mediation(&data, &graph(true), &q, AssumptionSet::new(), 0, &[], &ctx)
+                .unwrap();
+        let bayes = estimate_static_mediation_bayesian(
+            &data,
+            &graph(true),
+            &q,
+            AssumptionSet::new(),
+            &[],
+            &crate::BayesianGComputationAte::conjugate(),
+            antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            None,
+            &ctx,
+        )
+        .unwrap()
+        .0;
+        for (label, est) in [("frequentist", &freq), ("bayesian", &bayes)] {
+            for (name, got, want) in [
+                ("total", est.total.unwrap(), truths[0]),
+                ("direct", est.direct.unwrap(), truths[1]),
+                ("mediated", est.mediated.unwrap(), truths[2]),
+            ] {
+                assert!((got - want).abs() < 0.02, "{label} {name}: {got} vs {want}");
+            }
+        }
+        let omitted =
+            estimate_static_mediation(&data, &graph(false), &q, AssumptionSet::new(), 0, &[], &ctx)
+                .unwrap();
+        assert!(
+            (omitted.mediated.unwrap() - truths[2]).abs() > 0.1,
+            "omitting w must bias the mediated effect, got {}",
+            omitted.mediated.unwrap()
+        );
+    }
+
+    /// The indirect estimate is `total − direct` (the total natural indirect
+    /// effect) while the certificate names the pure one; the indirect contrast
+    /// records the no-interaction assumption that equates them, in both modes.
+    #[test]
+    fn indirect_contrast_records_no_interaction_assumption() {
+        let data = confounded_mediator(2_000);
+        let ctx = ExecutionContext::for_tests(3);
+        let declares = |set: &AssumptionSet| {
+            set.entries.iter().any(|r| {
+                matches!(&r.assumption, Assumption::ParametricRestriction(p)
+                    if p.id.as_ref() == "mediation.no_interaction")
+            })
+        };
+        for (contrast, expected) in [
+            (MediationContrast::NaturalIndirect, true),
+            (MediationContrast::Mediated, true),
+            (MediationContrast::NaturalDirect, false),
+            (MediationContrast::Total, false),
+        ] {
+            let q = MediationQuery::binary(
+                VariableId::from_raw(0),
+                VariableId::from_raw(2),
+                [VariableId::from_raw(1)],
+                contrast,
+            );
+            let freq = estimate_static_mediation(
+                &data,
+                &graph(true),
+                &q,
+                AssumptionSet::new(),
+                0,
+                &[],
+                &ctx,
+            )
+            .unwrap();
+            assert_eq!(declares(&freq.effect.assumptions), expected, "{contrast:?}");
+        }
+        let q = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::NaturalIndirect,
+        );
+        let (bayes, posterior) = estimate_static_mediation_bayesian(
+            &data,
+            &graph(true),
+            &q,
+            AssumptionSet::new(),
+            &[],
+            &crate::BayesianGComputationAte::conjugate(),
+            antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            None,
+            &ctx,
+        )
+        .unwrap();
+        assert!(declares(&bayes.effect.assumptions) && declares(&posterior.assumptions));
+    }
+
+    /// A rare binary mediator makes some pairs resamples singular (the mediator
+    /// is constant); those replicates are counted as failures and the rest still
+    /// publish an SE, instead of the first singular replicate aborting the run.
+    #[test]
+    fn singular_bootstrap_replicates_are_counted_not_fatal() {
+        let n = 14u32;
+        let t: Vec<f64> = (0..n).map(|i| f64::from(i) / 7.0 - 1.0).collect();
+        let m: Vec<f64> = (0..n).map(|i| f64::from(u8::from(i == 3 || i == 10))).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| {
+                let r = i as usize;
+                0.5 * t[r] + 2.0 * m[r] + 0.1 * (f64::from(i) * 1.7).sin()
+            })
+            .collect();
+        let data = TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("m", m.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap();
+        let mut graph = Dag::with_variables(3);
+        for (a, b) in [(0, 1), (0, 2), (1, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            Arc::from([VariableId::from_raw(1)]),
+            MediationContrast::NaturalDirect,
+        );
+        let ctx = ExecutionContext::for_tests(5);
+        let out =
+            estimate_static_mediation(&data, &graph, &query, AssumptionSet::new(), 60, &[], &ctx)
+                .unwrap();
+        let ok = out.effect.bootstrap_replicates_ok.unwrap();
+        let failed = out.effect.bootstrap_replicates_failed.unwrap();
+        assert_eq!(ok + failed, 60);
+        assert!(failed > 0, "a constant-mediator resample must be counted as failed");
+        assert!(out.effect.se_bootstrap.is_some_and(f64::is_finite));
+    }
 }

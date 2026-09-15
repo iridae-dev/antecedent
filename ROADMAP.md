@@ -230,7 +230,7 @@ completion; they do not inherit the first target's ATE certificate.
 See the [evidence ledger](docs/v1.4-evidence.md). Static multi-atom
 Frequentist uncertainty moved to 1.5. Frequentist DBN Pulse/Sustained
 mixtures with shared outer-block replicates shipped in 1.6; TemporalCpdag /
-TemporalPag class-envelope between-atom variance remains 1.9 calibration.
+TemporalPag class-envelope between-atom variance was calibrated in 1.9.
 The temporal PAG mixed-graph implementation is verified, with finite-window
 audit limits explicit.
 Bayesian incomplete-class temporal cells shipped in 1.7.
@@ -368,6 +368,21 @@ instead of being rewritten to `bayesian.gcomp`. ConditionalEffect × Dag ×
 graph-posterior retains unidentified mass as a separate axis. Staged
 prior transfer is fail-closed. Graph-posterior composed with transfer
 stays 1.10; calibration stays 1.9.
+
+## 1.9 — Calibration of licensed intervals
+
+Version 1.9.0. Every licensed cell was reviewed
+([review](docs/v1.9-cell-review.md)) and its intervals checked by a
+two-sided, 400-replicate coverage gate that runs weekly and on dispatch.
+Intervals that missed were fixed, or published as disclosed boundary records
+where no fix was available. Eleven cells were licensed on existing
+implementations (ADMG interventional distributions, accepted-Dag
+counterfactuals, Frequentist DBN-posterior mediation, and staged
+`AnomalyAttribution` / `ChangeAttribution` / `TransportQuery` /
+`InterferenceQuery` at validation `none`). Temporal class-envelope
+between-atom variance and DBN shared-block calibration, the owner item, are
+gated. Every licensed row names its executing test; the exemption list
+(`parity/_evidence_test_backlog.txt`) is empty.
 
 ## 1.x — Compatible cells
 

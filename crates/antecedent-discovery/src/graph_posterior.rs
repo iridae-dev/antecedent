@@ -141,6 +141,11 @@ pub struct GraphPosterior {
 impl GraphPosterior {
     /// Fail-closed constructor.
     ///
+    /// Entries may repeat an adjacency mask (one entry per sample). They are
+    /// kept as given, so `ess` and per-entry lag masks stay aligned; effect
+    /// consumers treat repeated entries as one graph carrying their combined
+    /// weight.
+    ///
     /// # Errors
     ///
     /// Empty ensemble, length mismatch, non-finite weights, or non-positive mass.

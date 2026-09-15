@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "case": "binary_frontdoor_interventional_distribution",
+  "columns": ["t", "m", "y"],
+  "graph": {
+    "class": "Admg",
+    "directed_edges": [["t", "m"], ["m", "y"]],
+    "bidirected_edges": [["t", "y"]]
+  },
+  "scm": {
+    "latent": "u",
+    "p_u1": 0.5,
+    "p_t1_given_u": {"0": 0.2, "1": 0.8},
+    "p_m1_given_t": {"0": 0.25, "1": 0.75},
+    "p_y1_given_m_u": {"intercept": 0.1, "m": 0.5, "u": 0.3}
+  },
+  "rows": 800,
+  "contingency_table": [
+    {"t": 0.0, "m": 0.0, "y": 0.0, "count": 252},
+    {"t": 0.0, "m": 0.0, "y": 1.0, "count": 48},
+    {"t": 0.0, "m": 1.0, "y": 0.0, "count": 34},
+    {"t": 0.0, "m": 1.0, "y": 1.0, "count": 66},
+    {"t": 1.0, "m": 0.0, "y": 0.0, "count": 66},
+    {"t": 1.0, "m": 0.0, "y": 1.0, "count": 34},
+    {"t": 1.0, "m": 1.0, "y": 0.0, "count": 48},
+    {"t": 1.0, "m": 1.0, "y": 1.0, "count": 252}
+  ],
+  "truth": [
+    {"t": 0.0, "p_y1": 0.375},
+    {"t": 1.0, "p_y1": 0.625}
+  ],
+  "identification": {
+    "identifier": "general.id",
+    "status": "NonparametricallyIdentified"
+  },
+  "frequentist": {
+    "estimator": "functional.distribution",
+    "absolute_tolerance": 1e-12,
+    "bootstrap_replicates": 100
+  },
+  "bayesian": {
+    "estimator": "functional.distribution",
+    "n_draws": 500,
+    "absolute_tolerance": 0.02
+  }
+}

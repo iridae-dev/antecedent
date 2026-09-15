@@ -32,6 +32,9 @@ pub trait TableView {
 
     /// Borrow a native `Float64` column as a contiguous slice (no allocation).
     ///
+    /// Invalid rows read as `NaN` (a [`crate::Float64Column`] invariant), the
+    /// same values [`TableView::float64_values`] yields.
+    ///
     /// Unlike [`TableView::float64_values`], no coercion is attempted: `Int64`
     /// and `Boolean` columns error so callers stay on the copying path for
     /// them. Use [`TableView::float64_cow`] to get borrowed-when-possible
@@ -65,16 +68,27 @@ pub trait TableView {
 
     /// Copy a column into an owned `f64` buffer.
     ///
-    /// Native `Float64` columns are copied as-is. `Int64` and `Boolean` columns
-    /// are coerced to `f64` (`true` → `1.0`, `false` → `0.0`); invalid rows become
-    /// `NaN`. Other column kinds (categorical, timestamp, fixed vector) error.
+    /// Native `Float64` columns are copied; `Int64` and `Boolean` columns are
+    /// coerced to `f64` (`true` → `1.0`, `false` → `0.0`). For every kind,
+    /// invalid rows become `NaN`. Other column kinds (categorical, timestamp,
+    /// fixed vector) error.
     ///
     /// # Errors
     ///
     /// Unknown variable or unsupported column type.
     fn float64_values(&self, id: VariableId) -> Result<Vec<f64>, DataError> {
         match self.column(id)? {
-            ColumnView::Float64(c) => Ok(c.values.to_vec()),
+            ColumnView::Float64(c) => {
+                let mut out = c.values.to_vec();
+                if !c.validity.is_all_valid() {
+                    for (i, slot) in out.iter_mut().enumerate() {
+                        if !c.validity.is_valid(i) {
+                            *slot = f64::NAN;
+                        }
+                    }
+                }
+                Ok(out)
+            }
             ColumnView::Int64(c) => {
                 let mut out = Vec::with_capacity(c.values.len());
                 for (i, &v) in c.values.iter().enumerate() {

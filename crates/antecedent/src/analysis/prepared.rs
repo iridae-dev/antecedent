@@ -13,7 +13,7 @@ use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalSchema, ExecutionContext, Intervention, MediationQuery,
     OutcomeFunctional, TargetPopulation, TemporalEffectQuery, TemporalResponseSpec, Value,
 };
-use antecedent_data::{TableView, TabularData, TemporalIndexer, TimeSeriesData};
+use antecedent_data::{PanelData, TableView, TabularData, TemporalIndexer, TimeSeriesData};
 use antecedent_discovery::{GraphPosterior, dag_from_adjacency_mask, temporal_dag_from_dbn_masks};
 use antecedent_estimate::{
     AipwAte, CellSaturatedAipw, EffectEstimate, EstimationWorkspace, OverlapPolicy, RetargetResult,
@@ -97,8 +97,11 @@ pub(crate) struct CachedGraphPosteriorAtomIdentification {
 pub(crate) struct CachedGraphPosteriorIdentification {
     /// Frozen weights, graph keys, and identified/unidentified flags.
     pub graphs: WeightedGraphSamples,
-    /// Identified atoms, in posterior order. Unidentified atoms remain in
-    /// [`Self::graphs`] with [`GraphIdentFlag::Unidentified`].
+    /// Identified atoms, one per distinct graph key, in order of first
+    /// appearance. Weight an atom by the combined identified mass of its key in
+    /// [`Self::graphs`] (`identified_weight_for_key`), which keeps one entry per
+    /// posterior sample. Unidentified atoms remain in [`Self::graphs`] with
+    /// [`GraphIdentFlag::Unidentified`].
     pub atoms: Arc<[CachedGraphPosteriorAtomIdentification]>,
 }
 
@@ -257,6 +260,7 @@ pub(crate) fn build_graph_posterior_identification_cache(
     let mut atoms = Vec::new();
     let mut by_mask: HashMap<u64, Option<(IdentifiedEstimand, IdentificationResult)>> =
         HashMap::new();
+    let mut atom_masks: HashMap<u64, u64> = HashMap::new();
 
     for i in 0..posterior.n_graphs {
         if ctx.cancellation.is_cancelled() {
@@ -300,9 +304,32 @@ pub(crate) fn build_graph_posterior_identification_cache(
             by_mask.insert(mask, value.clone());
             value
         };
+        // A posterior may list the same graph more than once (one entry per
+        // sample). Every entry keeps its own weight and flag in `graphs`, but
+        // consumers weight an atom by the combined mass of its key, so each
+        // key contributes exactly one atom.
+        let first_for_key = match atom_masks.entry(key) {
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                slot.insert(mask);
+                true
+            }
+            std::collections::hash_map::Entry::Occupied(slot) if *slot.get() == mask => false,
+            std::collections::hash_map::Entry::Occupied(_) => {
+                return Err(CausalError::Compile {
+                    message: "graph posterior reuses one graph key for different adjacency masks"
+                        .into(),
+                });
+            }
+        };
         if let Some((estimand, identification)) = resolved {
             flags.push(GraphIdentFlag::Identified);
-            atoms.push(CachedGraphPosteriorAtomIdentification { key, estimand, identification });
+            if first_for_key {
+                atoms.push(CachedGraphPosteriorAtomIdentification {
+                    key,
+                    estimand,
+                    identification,
+                });
+            }
         } else {
             flags.push(GraphIdentFlag::Unidentified);
         }
@@ -629,6 +656,40 @@ impl CachedTemporalIdentification {
     }
 }
 
+/// Data modality a [`PreparedStudy`] was compiled for.
+///
+/// The physical plan is modality-specific, so a handle prepared on one
+/// modality must refuse data of another instead of running a different route
+/// under the frozen plan.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PreparedModality {
+    /// Tabular rows: [`PreparedStudy::estimate`] / [`PreparedStudy::refresh`].
+    Tabular,
+    /// One time series (or event data on a regular grid):
+    /// [`PreparedStudy::estimate_series`] / [`PreparedStudy::refresh_series`].
+    Series,
+    /// Multi-unit panel: [`PreparedStudy::estimate_panel`] / [`PreparedStudy::refresh_panel`].
+    Panel,
+}
+
+impl PreparedModality {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Tabular => "tabular",
+            Self::Series => "series",
+            Self::Panel => "panel",
+        }
+    }
+
+    const fn estimate_entry(self) -> &'static str {
+        match self {
+            Self::Tabular => "estimate",
+            Self::Series => "estimate_series",
+            Self::Panel => "estimate_panel",
+        }
+    }
+}
+
 /// Durable handle: fixed schema, graph, query, and estimator; swap data and re-estimate.
 ///
 /// Created via [`Study::prepare`]. Discovery / review-required graphs are refused —
@@ -658,7 +719,10 @@ pub struct PreparedStudy {
     plan: PhysicalExecutionPlan,
     /// Schema fingerprint from prepare-time data.
     schema: CausalSchema,
-    /// Sampling regularity frozen for temporal prepares (`None` = tabular).
+    /// Data modality frozen at prepare; each estimate / refresh entry point
+    /// accepts only its own modality.
+    modality: PreparedModality,
+    /// Sampling regularity frozen for series and panel prepares (`None` = tabular).
     time_regularity: Option<antecedent_data::SamplingRegularity>,
     /// Cross-fitted AIPW scores frozen at prepare when the cell can export them.
     score_table: Option<antecedent_estimate::ScoreTable>,
@@ -1202,13 +1266,41 @@ impl PreparedStudy {
         Ok(out)
     }
 
-    fn ensure_schema_compatible(&self, data: &TabularData) -> Result<(), CausalError> {
-        if self.time_regularity.is_some() {
-            return Err(CausalError::Compile {
-                message: "prepared temporal analysis requires series data; use estimate_series"
-                    .into(),
-            });
+    /// Refuse data of a modality other than the one the plan was prepared for.
+    fn ensure_modality(&self, requested: PreparedModality) -> Result<(), CausalError> {
+        if self.modality == requested {
+            return Ok(());
         }
+        Err(CausalError::Compile {
+            message: format!(
+                "prepared {prepared} analysis requires {prepared} data; use {entry} \
+                 (re-prepare to analyse {requested} data)",
+                prepared = self.modality.label(),
+                entry = self.modality.estimate_entry(),
+                requested = requested.label(),
+            ),
+        })
+    }
+
+    /// Refuse a time index whose sampling regularity differs from prepare time.
+    fn ensure_regularity(
+        &self,
+        regularity: &antecedent_data::SamplingRegularity,
+    ) -> Result<(), CausalError> {
+        if self.time_regularity.as_ref() == Some(regularity) {
+            return Ok(());
+        }
+        Err(CausalError::Compile {
+            message: format!(
+                "prepared {} analysis requires the same time-index regularity as \
+                 prepare-time data; re-prepare after a time-index change",
+                self.modality.label()
+            ),
+        })
+    }
+
+    fn ensure_schema_compatible(&self, data: &TabularData) -> Result<(), CausalError> {
+        self.ensure_modality(PreparedModality::Tabular)?;
         if data.schema() != &self.schema {
             return Err(CausalError::Compile {
                 message: "prepared analysis refresh requires the same schema \
@@ -1220,11 +1312,7 @@ impl PreparedStudy {
     }
 
     fn ensure_series_compatible(&self, data: &TimeSeriesData) -> Result<(), CausalError> {
-        let Some(expected) = &self.time_regularity else {
-            return Err(CausalError::Compile {
-                message: "prepared tabular analysis requires tabular data; use estimate".into(),
-            });
-        };
+        self.ensure_modality(PreparedModality::Series)?;
         if data.schema() != &self.schema {
             return Err(CausalError::Compile {
                 message: "prepared temporal analysis requires the same schema \
@@ -1232,14 +1320,7 @@ impl PreparedStudy {
                     .into(),
             });
         }
-        if &data.time_index().regularity != expected {
-            return Err(CausalError::Compile {
-                message: "prepared temporal analysis requires the same time-index \
-                    regularity as prepare-time data; re-prepare after a time-index change"
-                    .into(),
-            });
-        }
-        Ok(())
+        self.ensure_regularity(&data.time_index().regularity)
     }
 
     /// Re-estimate a prepared temporal response on series data (no re-identify).
@@ -1256,7 +1337,67 @@ impl PreparedStudy {
         self.analysis.execute_on(&DataInput::Temporal(data.clone()), &self.plan, ctx)
     }
 
+    /// Re-estimate a prepared panel Pulse/Sustained analysis (no re-identify).
+    ///
+    /// Compatible new units and observations are admitted when schema and
+    /// sampling regularity match. Incompatible schema, time regularity, or an
+    /// empty panel is refused and the retained handle is unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Schema / regularity mismatch, empty panel, or estimation failures.
+    pub fn estimate_panel(
+        &self,
+        data: &PanelData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.ensure_panel_compatible(data)?;
+        self.analysis.execute_on(&DataInput::Panel(data.clone()), &self.plan, ctx)
+    }
+
+    /// Replace retained panel data and re-estimate without re-identifying.
+    ///
+    /// # Errors
+    ///
+    /// Same refusals as [`Self::estimate_panel`].
+    pub fn refresh_panel(
+        &mut self,
+        data: PanelData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.ensure_panel_compatible(&data)?;
+        let mut refreshed = self.analysis.clone();
+        refreshed.data = DataInput::Panel(data);
+        let result = refreshed.execute(&self.plan, ctx)?;
+        self.analysis = refreshed;
+        Ok(result)
+    }
+
+    fn ensure_panel_compatible(&self, data: &PanelData) -> Result<(), CausalError> {
+        self.ensure_modality(PreparedModality::Panel)?;
+        if data.schema() != &self.schema {
+            return Err(CausalError::Compile {
+                message: "prepared panel analysis requires the same schema \
+                    (variable names, types, and order) as prepare-time data"
+                    .into(),
+            });
+        }
+        if data.unit_count() == 0 {
+            return Err(CausalError::Compile {
+                message: "prepared panel refresh refuses an empty panel; prior state is retained"
+                    .into(),
+            });
+        }
+        for unit in data.units() {
+            self.ensure_regularity(&unit.series.time_index().regularity)?;
+        }
+        Ok(())
+    }
+
     /// Replace retained series and re-estimate.
+    ///
+    /// The handle is updated only when estimation succeeds; a refused or
+    /// failed refresh leaves the retained series unchanged.
     ///
     /// # Errors
     ///
@@ -1267,9 +1408,34 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.ensure_series_compatible(&data)?;
-        self.analysis.data = DataInput::Temporal(data);
-        self.analysis.execute(&self.plan, ctx)
+        let mut refreshed = self.analysis.clone();
+        refreshed.data = DataInput::Temporal(data);
+        let result = refreshed.execute(&self.plan, ctx)?;
+        self.analysis = refreshed;
+        Ok(result)
     }
+}
+
+/// Sampling regularity shared by every unit of a prepare-time panel.
+///
+/// Refresh requires every unit to match the frozen regularity, so prepare
+/// refuses a panel whose units already disagree rather than freezing one
+/// unit's grid and then refusing the same data on refresh.
+fn panel_regularity(panel: &PanelData) -> Result<antecedent_data::SamplingRegularity, CausalError> {
+    let first = &panel
+        .unit(0)
+        .map_err(|e| CausalError::Compile { message: e.to_string() })?
+        .series
+        .time_index()
+        .regularity;
+    if panel.units().iter().any(|unit| &unit.series.time_index().regularity != first) {
+        return Err(CausalError::Compile {
+            message: "PreparedStudy requires every panel unit to share one time-index \
+                      regularity; align the units before preparing"
+                .into(),
+        });
+    }
+    Ok(first.clone())
 }
 
 impl Study {
@@ -1277,18 +1443,35 @@ impl Study {
     ///
     /// Supports:
     /// - tabular [`CausalQuery::AverageEffect`] on a supplied static graph
-    /// - tabular [`CausalQuery::AverageEffect`] on a supplied DAG graph posterior
-    /// - tabular [`CausalQuery::Response`] on a supplied [`GraphClass::Dag`]
-    /// - series temporal [`CausalQuery::Response`] on a supplied [`GraphClass::TemporalDag`]
+    ///   ([`GraphClass::Dag`], [`GraphClass::Cpdag`], [`GraphClass::Pag`], or
+    ///   [`GraphClass::Admg`])
+    /// - tabular [`CausalQuery::AverageEffect`], [`CausalQuery::ConditionalEffect`],
+    ///   and static [`CausalQuery::Response`] on a supplied DAG graph posterior
+    /// - tabular [`CausalQuery::Response`] and [`CausalQuery::ConditionalEffect`]
+    ///   on a supplied [`GraphClass::Dag`], [`GraphClass::Cpdag`], or
+    ///   [`GraphClass::Pag`] (joint Response also on a CoDetermined tier closure)
+    /// - tabular [`CausalQuery::Distribution`] on a supplied [`GraphClass::Dag`]
+    ///   or [`GraphClass::Admg`] (ADMG: unconditional, validation none)
+    /// - tabular [`CausalQuery::PathSpecific`], static [`CausalQuery::Mediation`],
+    ///   and [`CausalQuery::Counterfactual`] on a supplied [`GraphClass::Dag`]
+    /// - series temporal [`CausalQuery::Response`] on a supplied
+    ///   [`GraphClass::TemporalDag`], [`GraphClass::TemporalCpdag`], or
+    ///   [`GraphClass::TemporalPag`]
     /// - series [`CausalQuery::TemporalEffect`] (Pulse / single-step Sustained)
-    ///   on a supplied [`GraphClass::TemporalDag`]
+    ///   on a supplied [`GraphClass::TemporalDag`], [`GraphClass::TemporalCpdag`],
+    ///   or [`GraphClass::TemporalPag`]
     /// - series [`CausalQuery::TemporalEffect`] (Pulse / single-step or
     ///   multi-step Sustained) on a supplied DBN graph posterior
     /// - scalar-horizon series [`CausalQuery::Mediation`] (`TemporalMediationEffect`) on a
-    ///   supplied [`GraphClass::TemporalDag`] (horizon-specific `I(h)`)
+    ///   supplied [`GraphClass::TemporalDag`] or [`GraphClass::TemporalCpdag`]
+    ///   (horizon-specific `I(h)`)
     /// - scalar-horizon series [`CausalQuery::Mediation`] (`TemporalMediationEffect`) on a
     ///   supplied DBN graph posterior (per-atom `I(h)`, unidentified mass retained)
+    /// - panel [`CausalQuery::TemporalEffect`] (Pulse / Sustained) on a supplied
+    ///   [`GraphClass::TemporalDag`]; every unit must share one time-index regularity
     ///
+    /// The handle records the prepare-time data modality (tabular, series, or
+    /// panel) and its estimate / refresh entry points refuse other modalities.
     /// Discovery inputs and review-required compiles are refused.
     ///
     /// # Errors
@@ -1297,14 +1480,19 @@ impl Study {
     pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         ensure_prepared_supported(self)?;
         let plan = self.compile(ctx)?;
-        let (schema, time_regularity) = match &self.data {
-            DataInput::Tabular(data) => (data.schema().clone(), None),
-            DataInput::Temporal(data) | DataInput::Event(data) => {
-                (data.schema().clone(), Some(data.time_index().regularity.clone()))
+        let (schema, modality, time_regularity) = match &self.data {
+            DataInput::Tabular(data) => (data.schema().clone(), PreparedModality::Tabular, None),
+            DataInput::Temporal(data) | DataInput::Event(data) => (
+                data.schema().clone(),
+                PreparedModality::Series,
+                Some(data.time_index().regularity.clone()),
+            ),
+            DataInput::Panel(panel) => {
+                (panel.schema().clone(), PreparedModality::Panel, Some(panel_regularity(panel)?))
             }
-            _ => {
+            DataInput::MultiEnv(_) => {
                 return Err(CausalError::Unsupported {
-                    message: "PreparedStudy requires tabular or temporal series data",
+                    message: "PreparedStudy requires tabular, temporal series, or panel data",
                 });
             }
         };
@@ -1319,6 +1507,20 @@ impl Study {
                 analysis.graph_posterior_identification_cache = Some(Arc::new(
                     build_graph_posterior_identification_cache(posterior, &query.inner, ctx)?,
                 ));
+            }
+            (DataInput::Tabular(_), CausalQuery::Response(query), Some(posterior))
+                if !query.is_temporal() =>
+            {
+                let (treatment, outcome) =
+                    query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
+                        message: "response query has no treatment/outcome pair".into(),
+                    })?;
+                analysis.graph_posterior_identification_cache =
+                    Some(Arc::new(build_graph_posterior_identification_cache(
+                        posterior,
+                        &AverageEffectQuery::binary_ate(treatment, outcome),
+                        ctx,
+                    )?));
             }
             (
                 DataInput::Temporal(data) | DataInput::Event(data),
@@ -1349,6 +1551,13 @@ impl Study {
                 analysis.temporal_class_identification_cache =
                     self.prepare_temporal_class_identification()?.map(Arc::new);
             }
+            (DataInput::Tabular(_), CausalQuery::Transport(query), None) => {
+                let diagram = self.selection_diagram.as_ref().ok_or(CausalError::Unsupported {
+                    message: "TransportQuery prepare requires a selection diagram",
+                })?;
+                analysis.transport_identification_cache =
+                    Some(Arc::new(super::execute::live_transport_identification(diagram, query)?));
+            }
             (DataInput::Tabular(_), _, None) => {
                 analysis.identification_cache =
                     self.prepare_static_identification(&plan)?.map(Arc::new);
@@ -1356,6 +1565,10 @@ impl Study {
                     self.prepare_pag_identification(&plan)?.map(Arc::new);
                 analysis.cpdag_identification_cache =
                     self.prepare_cpdag_identification(&plan)?.map(Arc::new);
+            }
+            (DataInput::Panel(_), CausalQuery::TemporalEffect(_), None) => {
+                analysis.temporal_identification_cache =
+                    self.prepare_temporal_identification()?.map(Arc::new);
             }
             (_, _, None) => {
                 analysis.temporal_identification_cache =
@@ -1369,8 +1582,8 @@ impl Study {
                 return Err(CausalError::Support {
                     id: crate::support::SupportRefusal::Refused,
                     message: "graph_posterior on the prepared handle is licensed only for \
-                        tabular AverageEffect and series TemporalEffect or \
-                        TemporalMediationEffect",
+                        tabular AverageEffect/Response/ConditionalEffect and series \
+                        TemporalEffect or TemporalMediationEffect",
                 });
             }
         }
@@ -1386,11 +1599,12 @@ impl Study {
             || analysis.cpdag_identification_cache.is_some()
             || analysis.temporal_identification_cache.is_some()
             || analysis.temporal_class_identification_cache.is_some()
+            || analysis.transport_identification_cache.is_some()
         {
             super::execute::report_identify_compute(ctx);
         }
         let score_table = analysis.prepare_score_table(ctx)?;
-        Ok(PreparedStudy { analysis, plan, schema, time_regularity, score_table })
+        Ok(PreparedStudy { analysis, plan, schema, modality, time_regularity, score_table })
     }
 
     /// Compute the static-path identification once at prepare time.
@@ -1414,6 +1628,18 @@ impl Study {
             let identification =
                 identify_static_query(IdentifierId::GcmParametric, graph, &self.query)?;
             let estimand = identification.estimands[0].clone();
+            return Ok(Some(CachedStaticIdentification { identification, estimand }));
+        }
+        if matches!(
+            self.query,
+            CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_)
+        ) {
+            let (treatment, outcome) = super::execute::gcm_query_vars(&self.query)?;
+            let (identification, estimand) = super::execute::parametric_scm_identification(
+                self.query.clone(),
+                treatment,
+                outcome,
+            );
             return Ok(Some(CachedStaticIdentification { identification, estimand }));
         }
         let identifier = plan.logical.record.identifier.as_deref().unwrap_or(DEFAULT_IDENTIFIER);
@@ -1573,12 +1799,10 @@ impl Study {
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
             CausalQuery::Distribution(query) => {
-                // Mirrors `execute_distribution`'s identify+select-estimand step exactly.
+                // Mirrors `execute_distribution`.
+                use super::execute::DistributionGraph;
                 use crate::strategy_table::{
                     DEFAULT_DISTRIBUTION_ESTIMATOR, DEFAULT_DISTRIBUTION_IDENTIFIER,
-                };
-                let Some(graph) = self.graph.as_dag().cloned() else {
-                    return Ok(None);
                 };
                 let identifier = plan
                     .logical
@@ -1594,8 +1818,14 @@ impl Study {
                     .unwrap_or(DEFAULT_DISTRIBUTION_ESTIMATOR);
                 let identifier_id: IdentifierId = identifier.parse()?;
                 let estimator_id: EstimatorId = estimator.parse()?;
-                let cq = CausalQuery::Distribution(query.clone());
-                let identification = identify_static_query(identifier_id, &graph, &cq)?;
+                let graph = if let Some(admg) = self.graph.as_admg() {
+                    DistributionGraph::Admg(admg)
+                } else if let Some(dag) = self.graph.as_dag() {
+                    DistributionGraph::Dag(dag)
+                } else {
+                    return Ok(None);
+                };
+                let identification = graph.identify(identifier_id, query)?;
                 let estimand = select_estimand(&identification, estimator_id)?;
                 Ok(Some(CachedStaticIdentification { identification, estimand }))
             }
@@ -2159,6 +2389,23 @@ pub(crate) fn identify_temporal_mediation_horizons(
 
 fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
     if analysis.graph_posterior.is_some() {
+        // Refuse here what every estimate click would refuse, before the
+        // posterior identification cache is built.
+        match (&analysis.data, &analysis.query) {
+            (DataInput::Tabular(_), CausalQuery::Response(query)) => {
+                super::execute::graph_posterior_response_supported(query)?;
+            }
+            (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(query))
+                if matches!(analysis.inference, InferenceMode::Frequentist)
+                    && query.horizons.len() != 1 =>
+            {
+                return Err(CausalError::Unsupported {
+                    message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
+                              multi-horizon grids need their own joint uncertainty contract",
+                });
+            }
+            _ => {}
+        }
         return match (&analysis.data, &analysis.query) {
             (
                 DataInput::Tabular(_),
@@ -2243,6 +2490,26 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 return Err(CausalError::Unsupported { message: "counterfactual requires Dag" });
             }
         }
+        (
+            DataInput::Tabular(_),
+            CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
+        ) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported {
+                    message: "AnomalyAttribution and ChangeAttribution require a supplied Dag",
+                });
+            }
+        }
+        (DataInput::Tabular(_), CausalQuery::Transport(_)) => {
+            if analysis.graph.class() != GraphClass::Admg {
+                return Err(CausalError::Unsupported { message: "TransportQuery requires Admg" });
+            }
+        }
+        (DataInput::Tabular(_), CausalQuery::Interference(_)) => {
+            if analysis.graph.class() != GraphClass::Dag {
+                return Err(CausalError::Unsupported { message: "InterferenceQuery requires Dag" });
+            }
+        }
         (DataInput::Tabular(_), CausalQuery::Mediation(_)) => {
             if analysis.graph.class() != GraphClass::Dag {
                 return Err(CausalError::Unsupported { message: "static mediation requires Dag" });
@@ -2266,17 +2533,31 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             }
         }
         (DataInput::Tabular(_), CausalQuery::Distribution(_)) => {
-            if analysis.graph.class() != GraphClass::Dag {
+            if !matches!(analysis.graph.class(), GraphClass::Dag | GraphClass::Admg) {
                 return Err(CausalError::Unsupported {
-                    message: "PreparedStudy supports Distribution only on a supplied Dag",
+                    message: "PreparedStudy supports Distribution on a supplied Dag or Admg",
                 });
             }
+        }
+        (DataInput::Panel(_), CausalQuery::TemporalEffect(_)) => {
+            if analysis.graph.class() != GraphClass::TemporalDag {
+                return Err(CausalError::Unsupported {
+                    message: "PreparedStudy supports panel Pulse/Sustained only on TemporalDag",
+                });
+            }
+        }
+        (DataInput::Panel(_), CausalQuery::Response(_)) => {
+            return Err(CausalError::Unsupported {
+                message: super::builder::PANEL_RESPONSE_REFUSAL,
+            });
         }
         _ => {
             return Err(CausalError::Unsupported {
                 message: "PreparedStudy currently supports AverageEffect, ResponseCurve, \
                     ConditionalEffect, PathSpecific, Distribution, temporal ResponseCurve, \
-                    TemporalEffect (Pulse / single-step Sustained), or TemporalMediationEffect",
+                    TemporalEffect (Pulse / single-step Sustained), TemporalMediationEffect, \
+                    panel Pulse/Sustained, Counterfactual, AnomalyAttribution, \
+                    ChangeAttribution, TransportQuery, or InterferenceQuery",
             });
         }
     }
@@ -2315,6 +2596,111 @@ mod tests {
         assert!(!is_supplied_static_graph(GraphClass::TemporalDag));
         assert!(!is_supplied_static_graph(GraphClass::TemporalCpdag));
         assert!(!is_supplied_static_graph(GraphClass::TemporalPag));
+    }
+}
+
+#[cfg(test)]
+mod refresh_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,
+        TemporalEffectQuery, TemporalPolicy, ValueType, VariableId,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TableView, TimeIndex,
+        TimeSeriesData, ValidityBitmap,
+    };
+    use antecedent_graph::{TemporalDag, ensure_lagged};
+
+    use super::super::builder::{DataInput, RefuteSuite};
+    use crate::analysis::execute::Study;
+
+    #[allow(clippy::cast_precision_loss)]
+    fn xy_series(n: usize) -> TimeSeriesData {
+        let mut b = CausalSchemaBuilder::new();
+        for (name, hint) in [("x", RoleHint::TreatmentCandidate), ("y", RoleHint::OutcomeCandidate)]
+        {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let mut x = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for t in 1..n {
+            x[t] = ((t as f64) * 0.07).sin();
+            y[t] = 0.8 * x[t - 1];
+        }
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(x),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+        )
+        .unwrap()
+    }
+
+    fn retained_rows(prepared: &super::PreparedStudy) -> usize {
+        match &prepared.analysis.data {
+            DataInput::Temporal(data) => data.row_count(),
+            _ => panic!("series handle must retain series data"),
+        }
+    }
+
+    #[test]
+    fn failed_series_refresh_leaves_handle_unchanged() {
+        let mut graph = TemporalDag::empty();
+        let x1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(x1, y0).unwrap();
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1)
+                .with_max_history_lag(Some(1));
+        let ctx = ExecutionContext::for_tests(2);
+        let mut prepared = Study::series(xy_series(160))
+            .graph(graph)
+            .temporal_query(query)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap();
+        assert_eq!(retained_rows(&prepared), 160);
+
+        // Same schema and regularity, so the compatibility gate passes and the
+        // failure comes from estimation itself.
+        assert!(prepared.refresh_series(xy_series(2), &ctx).is_err());
+        assert_eq!(retained_rows(&prepared), 160, "failed refresh must not replace data");
+
+        prepared.refresh_series(xy_series(140), &ctx).unwrap();
+        assert_eq!(retained_rows(&prepared), 140);
     }
 }
 

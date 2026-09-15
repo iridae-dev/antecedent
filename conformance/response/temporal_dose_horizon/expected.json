@@ -63,19 +63,59 @@
         3.0,
         4.0
       ],
-      "lower": [
-        0.7316185487322169,
-        0.8203303961142705,
-        2.5345045128947628,
-        3.6888031174941442
+      "band_note": "Bands are not in this section: the pre-1.9 analytic delta-method band treated lag-aligned rows as independent and was retired; the seeded circular-block bands are pinned under block_band."
+    },
+    "block_band": {
+      "seed": 21,
+      "replicates": 60,
+      "level": 0.95,
+      "layout": "dose_major (same as surface.mean)",
+      "pointwise_lower": [
+        1.0,
+        1.0,
+        3.0,
+        4.0
       ],
-      "upper": [
-        1.268381451267783,
-        1.1796696038857288,
-        3.465495487105238,
-        4.311196882505859
+      "pointwise_upper": [
+        1.0,
+        1.0,
+        3.0,
+        4.0
       ],
-      "band_note": "Pointwise 95% bands from delta-method SE of the g-computed level (homoskedastic OLS coefficient covariance). Index 0 is dose=0 horizon=1; width is strictly positive (regression guard for the old zero-width-at-dose-0 bug)."
+      "simultaneous_lower": [
+        1.0,
+        1.0,
+        3.0,
+        4.0
+      ],
+      "simultaneous_upper": [
+        1.0,
+        1.0,
+        3.0,
+        4.0
+      ],
+      "simultaneous_critical": 1.959963984540054,
+      "block_length": {
+        "length": 16,
+        "rule": 16,
+        "testing": 0,
+        "rows": 240,
+        "dispersion_factor": 1.0956184671164233,
+        "diagnostic": "response.temporal.block_length = [length, rule, testing, rows, dispersion_factor]"
+      },
+      "kernel_bias_factor": [
+        1.0002594414946573,
+        1.0002605229608346,
+        1.0002594414946573,
+        1.0002605229608346
+      ],
+      "effective_rows": [
+        241.0,
+        240.0,
+        241.0,
+        240.0
+      ],
+      "note": "Determinism pin of the seeded circular-block bootstrap through the public Study API (ExecutionContext seed 21, 60 replicates, serial and bounded-thread contexts agree bit for bit). Not a coverage claim: coverage evidence is the weekly gate crates/antecedent/tests/v19_temporal_response_calibration.rs. The noiseless period-4 DGP makes every estimating score degenerate or negatively dependent, so testing lengthens nothing and the block stays at the rule (16). That length is a multiple of the period: every circular resample stays orthogonal and the band collapses to the point surface (GEMM-scale width). The old |dose|-scaled analytic band vanished only at dose zero; these cells collapse together."
     },
     "intervention_paths": {
       "set_1": [
@@ -131,7 +171,9 @@
   },
   "tolerance": {
     "class": "absolute",
-    "atol": 1e-10
+    "atol": 1e-10,
+    "band_rtol": 1e-09,
+    "band_note": "block_band values are compared at relative tolerance band_rtol; surface.mean and the intervention paths at atol"
   },
   "generation": {
     "n": 242,

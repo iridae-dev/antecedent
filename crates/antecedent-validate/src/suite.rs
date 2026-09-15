@@ -679,18 +679,15 @@ impl ValidationSuite {
     ) -> Result<ValidationOutcome, ValidationError> {
         match id {
             ValidatorId::PriorPredictive => {
-                let check = PriorPredictiveCheck {
-                    n_sims: 200,
-                    seed: ctx.rng.master_seed(),
-                    ..PriorPredictiveCheck::new()
-                };
-                let rep = check.check(bayes.prepared, ctx)?;
+                let check = PriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
+                let prior = bayes.estimator.prior_in_force(bayes.prepared.design.ncols);
+                let rep = check.check_with_prior(bayes.prepared, &prior, ctx)?;
                 Ok(ValidationOutcome::Report(
                     rep.to_refutation_report(bayes.original_ate, bayes.ppc_alpha),
                 ))
             }
             ValidatorId::PosteriorPredictive => {
-                let check = PosteriorPredictiveCheck::new();
+                let check = PosteriorPredictiveCheck::for_estimator(bayes.estimator, ctx);
                 let rep = check.check(bayes.prepared, bayes.posterior)?;
                 Ok(ValidationOutcome::Report(
                     rep.to_refutation_report(bayes.original_ate, bayes.ppc_alpha),

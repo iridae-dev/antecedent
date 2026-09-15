@@ -711,3 +711,47 @@ def test_prepared_dbn_posterior_discovery_reuses_identification():
     )
     assert not any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in click.diagnostics)
+
+
+def test_distribution_publishes_bounded_probability_intervals():
+    """Frequentist distribution atoms carry logit intervals inside [0, 1]."""
+    result = antecedent.analyze(
+        _DISTRIBUTION_DATA, graph=_DISTRIBUTION_DAG, query=_DISTRIBUTION, refute=False, seed=3
+    )
+    atoms = result.estimate.distribution
+    assert atoms is not None and len(atoms) == 2
+    for atom in atoms:
+        assert atom.outcomes[0][0] == "y"
+        assert atom.se_bootstrap is not None and atom.se_bootstrap > 0.0
+        assert atom.interval is not None and atom.interval.unavailable is None
+        assert atom.interval.level == pytest.approx(0.95)
+        lower, upper = atom.interval.bounds
+        assert 0.0 < lower < atom.probability < upper < 1.0
+    one = next(a for a in atoms if a.outcomes[0][1] == 1.0)
+    # The binary headline mean is P(y = 1 | do(t = 1)) and uses that interval.
+    assert result.estimate.mean_interval == one.interval
+    assert result.effect == pytest.approx(one.probability)
+    assert "ci95=[" in repr(result) and "±" not in repr(result)
+    assert "ci95=[" in repr(result.estimate)
+    assert "ci95=[" in result._repr_html_()
+
+
+def test_distribution_boundary_probability_reports_unavailable_interval():
+    """P(y = 1 | do(t = 1)) = 0 has no interval, only a named reason and a diagnostic."""
+    data = {key: value.copy() for key, value in _DISTRIBUTION_DATA.items()}
+    data["y"][data["t"] == 1.0] = 0.0
+    result = antecedent.analyze(
+        data, graph=_DISTRIBUTION_DAG, query=_DISTRIBUTION, refute=False, seed=3
+    )
+    atoms = result.estimate.distribution
+    assert atoms is not None
+    for atom in atoms:
+        assert atom.probability in (0.0, 1.0)
+        assert atom.interval is not None and atom.interval.bounds is None
+        assert atom.interval.unavailable == "boundary_estimate"
+    assert result.estimate.mean_interval is not None
+    assert result.estimate.mean_interval.bounds is None
+    assert "ci=unavailable (boundary_estimate)" in repr(result)
+    assert any(
+        d.startswith("estimate.distribution.interval_unavailable") for d in result.diagnostics
+    )

@@ -38,16 +38,26 @@ use antecedent_stats::{
 use crate::adjustment::{PreparedEstimationProblem, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
+use crate::serial_dependence::{
+    DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, long_run_tempering_factor,
+};
 use crate::util::require_explicit_override;
 
 /// Posterior mean and equal-tail interval of a linear response level.
 /// `weights` is a design-row average after the intervention overlay.
-#[allow(clippy::cast_sign_loss)] // Quantile indices are bounded by [0, n-1].
 pub(crate) fn linear_response_summary(
     posterior: &CausalPosterior,
     weights: &[f64],
     level: f64,
 ) -> Result<(f64, f64, f64, f64), EstimationError> {
+    summarize_linear_response_draws(linear_response_draws(posterior, weights)?, level)
+}
+
+/// Posterior draws of the linear functional `weights' β`, one per retained draw.
+pub(crate) fn linear_response_draws(
+    posterior: &CausalPosterior,
+    weights: &[f64],
+) -> Result<Vec<f64>, EstimationError> {
     let mut values = vec![0.0; posterior.draws.n_draws];
     for (index, &weight) in weights.iter().enumerate() {
         let column = posterior
@@ -64,6 +74,15 @@ pub(crate) fn linear_response_summary(
             *value += weight * coefficient;
         }
     }
+    Ok(values)
+}
+
+/// `(mean, lower, upper, sd)` of linear-functional draws at an equal-tailed `level`.
+#[allow(clippy::cast_sign_loss)] // Quantile indices are bounded by [0, n-1].
+pub(crate) fn summarize_linear_response_draws(
+    mut values: Vec<f64>,
+    level: f64,
+) -> Result<(f64, f64, f64, f64), EstimationError> {
     if values.len() < 2 || values.iter().any(|v| !v.is_finite()) {
         return Err(EstimationError::stats_msg(
             "response posterior needs at least two finite draws",
@@ -84,7 +103,29 @@ pub(crate) fn linear_response_summary(
 
 /// Minimum kept draws for HMC so the MCMC publication gate (Ř≤1.01, ESS≥100)
 /// is reachable on typical Gaussian GLMs.
-const HMC_MIN_DRAWS: usize = 3_000;
+pub const HMC_MIN_DRAWS: usize = 3_000;
+
+/// Stable prefix of the inference-diagnostics note recorded when [`HMC_MIN_DRAWS`]
+/// raised the requested draw count (`requested=<n> used=<m>`).
+pub const HMC_DRAW_FLOOR_NOTE_PREFIX: &str = "hmc.draw_floor";
+
+/// `(requested, used)` draw counts when the HMC draw floor raised the request.
+#[must_use]
+pub fn hmc_draw_floor_from_notes(notes: &[Arc<str>]) -> Option<(usize, usize)> {
+    notes.iter().find_map(|note| {
+        let rest = note.strip_prefix(HMC_DRAW_FLOOR_NOTE_PREFIX)?;
+        let mut requested = None;
+        let mut used = None;
+        for kv in rest.split_whitespace() {
+            if let Some(v) = kv.strip_prefix("requested=") {
+                requested = v.parse().ok();
+            } else if let Some(v) = kv.strip_prefix("used=") {
+                used = v.parse().ok();
+            }
+        }
+        Some((requested?, used?))
+    })
+}
 
 /// Causal posterior over an identified functional.
 #[derive(Clone, Debug)]
@@ -104,7 +145,16 @@ pub struct CausalPosterior {
     /// Assumptions including prior restrictions.
     pub assumptions: AssumptionSet,
     /// Unidentified graph mass retained when aggregating envelopes (0 if single graph).
+    ///
+    /// Mass of graph atoms on which identification (or, on paths that demote
+    /// failed fits, estimation) failed. Never includes atoms a latency tier
+    /// skipped; those are [`Self::subsampled_out_mass`].
     pub unidentified_mass: f64,
+    /// Identified graph mass the Interactive latency tier left out of the
+    /// envelope subsample (0 outside that tier). Those atoms were not evaluated,
+    /// so this is neither unidentified mass nor part of the published mixture;
+    /// the identified-atom mixture covers `1 − unidentified − subsampled_out`.
+    pub subsampled_out_mass: f64,
     /// Adaptive draw early-stop (Laplace / conjugate Gaussian redraw path).
     pub early_stopped: bool,
     /// Source treatment contrast `active − control` used to form the effect.
@@ -574,6 +624,22 @@ impl BayesianGComputationAte {
         self
     }
 
+    /// The likelihood [`Self::fit`] actually uses: the conjugate backend forces
+    /// [`BayesLikelihood::GaussianIdentity`]; Laplace and HMC use [`Self::likelihood`].
+    #[must_use]
+    pub const fn effective_likelihood(&self) -> BayesLikelihood {
+        match self.backend {
+            BayesianBackendKind::ConjugateGaussian => BayesLikelihood::GaussianIdentity,
+            BayesianBackendKind::Laplace | BayesianBackendKind::Hmc => self.likelihood,
+        }
+    }
+
+    /// GLM mean family of [`Self::effective_likelihood`] (inverse link and observation model).
+    #[must_use]
+    pub fn glm_family(&self) -> GlmFamily {
+        likelihood_to_glm_family(self.effective_likelihood())
+    }
+
     /// Set the target draw count.
     ///
     /// Defaults to 1000. [`BayesianBackendKind::Hmc`] floors this at the schedule needed to
@@ -613,6 +679,22 @@ impl BayesianGComputationAte {
     pub fn with_prior(mut self, prior: PriorSet) -> Self {
         self.prior = Some(prior);
         self
+    }
+
+    /// The coefficient prior [`Self::fit`] uses on a design with `ncols` columns:
+    /// the explicit [`Self::prior`] when set, otherwise the isotropic
+    /// `N(0, prior_scale²)` prior. Predictive checks and sensitivity grids must
+    /// use this rather than a fresh default so they describe the prior in force.
+    #[must_use]
+    pub fn prior_in_force(&self, ncols: usize) -> PriorSet {
+        self.prior.clone().unwrap_or_else(|| PriorSet {
+            specs: vec![PriorSpec::GaussianCoefficients(
+                antecedent_prob::GaussianCoefficientPrior::isotropic(ncols, self.prior_scale),
+            )],
+            contrast: None,
+            categorical: Vec::new(),
+            restrictions: Vec::new(),
+        })
     }
 
     /// Prepare from data + identified estimand (same IR as frequentist adjustment).
@@ -687,6 +769,7 @@ impl BayesianGComputationAte {
             overlap: self.overlap,
             coef_names: Some(coef_names),
             unit_ids: None,
+            serial_dependence: SerialDependence::Iid,
         })
     }
 
@@ -762,7 +845,35 @@ impl BayesianGComputationAte {
             overlap: prep.overlap,
             coef_names: None,
             unit_ids: None,
+            serial_dependence: SerialDependence::Iid,
         }
+    }
+
+    /// Adapt a lag-aligned temporal Pulse / single-step Sustained design for Bayesian fit.
+    ///
+    /// Unlike [`Self::from_prepared_estimation`], the problem carries lag-aware durable
+    /// coefficient names (see [`crate::temporal_adjustment::temporal_coefficient_names`])
+    /// so prior transfer binds by lag, and it declares
+    /// [`SerialDependence::LongRunTempering`] on the treatment score.
+    ///
+    /// # Errors
+    ///
+    /// `coef_names` does not match the design width.
+    pub fn from_prepared_temporal(
+        prep: &PreparedEstimationProblem,
+        coef_names: Arc<[Arc<str>]>,
+    ) -> Result<PreparedBayesianProblem, EstimationError> {
+        if coef_names.len() != prep.design.ncols {
+            return Err(EstimationError::stats_msg(format!(
+                "temporal coefficient names ({}) do not match design columns ({})",
+                coef_names.len(),
+                prep.design.ncols
+            )));
+        }
+        let mut problem = Self::from_prepared_estimation(prep);
+        problem.coef_names = Some(coef_names);
+        problem.serial_dependence = SerialDependence::LongRunTempering(DependenceScope::Treatment);
+        Ok(problem)
     }
 
     /// Fit mechanism + evaluate ATE g-computation posterior.
@@ -780,7 +891,7 @@ impl BayesianGComputationAte {
         ctx: &ExecutionContext,
     ) -> Result<CausalPosterior, EstimationError> {
         let sequential = self.prior.is_some();
-        let prior = if let Some(p) = &self.prior {
+        if let Some(p) = &self.prior {
             if let Some(coef) = p.gaussian_coefficients() {
                 if coef.len() != problem.design.ncols {
                     return Err(EstimationError::stats_msg(format!(
@@ -794,20 +905,8 @@ impl BayesianGComputationAte {
                     "sequential prior missing GaussianCoefficients entry",
                 ));
             }
-            p.clone()
-        } else {
-            PriorSet {
-                specs: vec![PriorSpec::GaussianCoefficients(
-                    antecedent_prob::GaussianCoefficientPrior::isotropic(
-                        problem.design.ncols,
-                        self.prior_scale,
-                    ),
-                )],
-                contrast: None,
-                categorical: Vec::new(),
-                restrictions: Vec::new(),
-            }
-        };
+        }
+        let prior = self.prior_in_force(problem.design.ncols);
         let mut assumptions = AssumptionSet::new();
         let source = if sequential {
             AssumptionSource::Artifact
@@ -838,10 +937,7 @@ impl BayesianGComputationAte {
             });
         }
 
-        let likelihood = match self.backend {
-            BayesianBackendKind::ConjugateGaussian => BayesLikelihood::GaussianIdentity,
-            BayesianBackendKind::Laplace | BayesianBackendKind::Hmc => self.likelihood,
-        };
+        let likelihood = self.effective_likelihood();
         // HMC publication (Ř≤1.01, ESS≥100) needs a longer schedule than the
         // Laplace/conjugate default of 1000 draws; floor so under-specified
         // callers still clear the gate rather than refuse with near-miss Ř.
@@ -850,6 +946,50 @@ impl BayesianGComputationAte {
             BayesianBackendKind::Hmc => requested_draws.max(HMC_MIN_DRAWS),
             _ => requested_draws,
         };
+        let mut extra_notes: Vec<Arc<str>> = Vec::new();
+        if max_draws > requested_draws {
+            extra_notes.push(Arc::from(format!(
+                "{HMC_DRAW_FLOOR_NOTE_PREFIX} requested={requested_draws} used={max_draws}"
+            )));
+        }
+        // Time-ordered rows: temper the likelihood by the long-run-variance ratio
+        // of the targeted slope scores (generalized posterior; see serial_dependence).
+        let tempering = match &problem.serial_dependence {
+            SerialDependence::Iid => None,
+            SerialDependence::LongRunTempering(scope) => {
+                if problem.unit_ids.is_some() {
+                    return Err(EstimationError::unsupported(
+                        "long-run tempering applies to one time-ordered series, not stacked \
+                         panel units",
+                    ));
+                }
+                Some(long_run_tempering_factor(&problem.design, scope)?)
+            }
+        };
+        let tempering_weights: Option<Vec<f64>> = tempering
+            .filter(|factor| factor.kappa > 1.0)
+            .map(|factor| vec![factor.kappa.recip(); problem.design.nrows]);
+        if let Some(factor) = tempering {
+            extra_notes.push(factor.note());
+            assumptions.push(AssumptionRecord {
+                assumption: Assumption::ParametricRestriction(
+                    antecedent_core::ParametricAssumption {
+                        id: Arc::from(DEPENDENCE_ASSUMPTION_ID),
+                        description: factor.description(),
+                    },
+                ),
+                source: AssumptionSource::AlgorithmDefault {
+                    algorithm: Arc::from(match factor.scope {
+                        "treatment" => "bayesian_temporal_gcomp",
+                        "response_levels" => "response.temporal.bayesian",
+                        "mediation_paths" => "temporal.mediation.bayesian",
+                        _ => "temporal.sequential.gcomp",
+                    }),
+                },
+                scope: AssumptionScope::Estimation,
+                status: AssumptionStatus::Declared,
+            });
+        }
         let adaptive = ctx.adaptive_draws;
         // Adaptive redraws append samples from the fitted Gaussian covariance. Unknown-variance
         // GaussianIdentity is routed by the Laplace backend to the exact conjugate NIG posterior,
@@ -898,7 +1038,7 @@ impl BayesianGComputationAte {
             nrows: problem.design.nrows,
             ncols: problem.design.ncols,
             y: y_fit,
-            weights: None,
+            weights: tempering_weights.as_deref(),
             offsets: None,
         };
 
@@ -940,6 +1080,8 @@ impl BayesianGComputationAte {
         if !fit.diagnostics.allows_posterior() {
             return Err(EstimationError::stats_msg("Bayesian fit refused without diagnostics"));
         }
+        let mut fit = fit;
+        fit.diagnostics.notes.extend(extra_notes);
 
         let t_col = problem
             .design
@@ -972,7 +1114,6 @@ impl BayesianGComputationAte {
             let batch = 32usize;
             let mut effect_acc: Vec<f64> = Vec::with_capacity(max_draws);
             let mut extra_blocks: Vec<PosteriorDraws> = Vec::new();
-            let mut width_prev: Option<f64> = None;
 
             // Evaluate initial block.
             {
@@ -991,19 +1132,14 @@ impl BayesianGComputationAte {
             }
 
             loop {
-                let width = quantile_width_95(&effect_acc);
-                let ess = effect_acc.len() as f64; // independent MVN draws
-                if effect_acc.len() >= adaptive.min_draws.max(2) {
-                    let width_ok = width_prev.is_some_and(|prev| {
-                        let rel = (width - prev).abs() / prev.abs().max(1e-12);
-                        rel < adaptive.quantile_width_rel_epsilon
-                    });
-                    if width_ok || ess >= adaptive.ess_target {
-                        early_stopped = n_draws < max_draws;
-                        break;
-                    }
+                // Independent MVN draws: ESS is the draw count, a genuine Monte
+                // Carlo error measure. The former quantile-width change rule was
+                // not one and is no longer consulted.
+                let ess = effect_acc.len() as f64;
+                if effect_acc.len() >= adaptive.min_draws.max(2) && ess >= adaptive.ess_target {
+                    early_stopped = n_draws < max_draws;
+                    break;
                 }
-                width_prev = Some(width);
                 if n_draws >= max_draws {
                     break;
                 }
@@ -1066,6 +1202,14 @@ impl BayesianGComputationAte {
             if let Some(names) = problem.coef_names.as_ref() {
                 apply_coefficient_names(&mut quantities, names);
             }
+            add_modifier_mean_uncertainty(
+                problem,
+                &quantities,
+                &mut values,
+                n_draws,
+                effect_idx,
+                self.seed,
+            );
             let draws = PosteriorDraws::from_column_major(
                 PosteriorSchema { quantities: Arc::from(quantities) },
                 n_draws,
@@ -1074,6 +1218,7 @@ impl BayesianGComputationAte {
             .map_err(EstimationError::from)?;
             let summaries = draws.summarize();
             return Ok(CausalPosterior {
+                subsampled_out_mass: 0.0,
                 draws,
                 summaries,
                 identification,
@@ -1127,6 +1272,14 @@ impl BayesianGComputationAte {
         if let Some(names) = problem.coef_names.as_ref() {
             apply_coefficient_names(&mut quantities, names);
         }
+        add_modifier_mean_uncertainty(
+            problem,
+            &quantities,
+            &mut values,
+            n_draws,
+            effect_idx,
+            self.seed,
+        );
 
         let draws = PosteriorDraws::from_column_major(
             PosteriorSchema { quantities: Arc::from(quantities) },
@@ -1138,6 +1291,7 @@ impl BayesianGComputationAte {
 
         let _ = mechanism;
         Ok(CausalPosterior {
+            subsampled_out_mass: 0.0,
             draws,
             summaries,
             identification,
@@ -1227,6 +1381,57 @@ pub fn coefficient_names_from_design(
         })
         .collect();
     Arc::from(names)
+}
+
+/// Modifier-mean uncertainty for [`BayesianGComputationAte::prepare_conditional`].
+///
+/// The conditional design centres the interaction at the observed modifier
+/// mean `w̄`, so g-computation over the observed rows returns `δ·β_T` per draw:
+/// the CATE averaged over the *empirical* modifier distribution, held fixed.
+/// The reported functional averages over the population modifier
+/// distribution, so each draw adds `δ·β_{T×W}·(μ_w − w̄)` with `μ_w` a Rubin
+/// Bayesian-bootstrap draw of the modifier mean (`Σ ω_i w_i`,
+/// `ω ~ Dirichlet(1, …, 1)`). Without it the interval under-covers whenever
+/// `β_{T×W} ≠ 0`. Non-conditional designs are left untouched.
+fn add_modifier_mean_uncertainty(
+    problem: &PreparedBayesianProblem,
+    quantities: &[PosteriorQuantityKind],
+    values: &mut [f64],
+    n_draws: usize,
+    effect_idx: usize,
+    seed: u64,
+) {
+    let conditional = problem.coef_names.as_deref().is_some_and(|names| {
+        names.get(3).is_some_and(|n| n.as_ref() == "treatment_centered_modifier")
+    });
+    if !conditional || n_draws == 0 {
+        return;
+    }
+    let Some(interaction) = quantities
+        .iter()
+        .position(|q| matches!(q, PosteriorQuantityKind::Coefficient { index: 3, .. }))
+    else {
+        return;
+    };
+    let nrows = problem.design.nrows;
+    if nrows == 0 || problem.design.ncols < 4 {
+        return;
+    }
+    let w = &problem.design.matrix[2 * nrows..3 * nrows];
+    let w_bar = w.iter().sum::<f64>() / nrows as f64;
+    let delta = problem.active - problem.control;
+    let mut rng = antecedent_core::CausalRng::from_seed(seed ^ 0x4D4F_4449_4649_4552);
+    for d in 0..n_draws {
+        let mut total = 0.0;
+        let mut weighted = 0.0;
+        for &wi in w {
+            let e = -rng.next_f64().max(f64::MIN_POSITIVE).ln();
+            total += e;
+            weighted += e * (wi - w_bar);
+        }
+        let beta_tw = values[interaction * n_draws + d];
+        values[effect_idx * n_draws + d] += delta * beta_tw * (weighted / total);
+    }
 }
 
 /// Apply durable names onto coefficient quantities (in place).
@@ -1339,6 +1544,19 @@ pub struct PreparedBayesianProblem {
     pub coef_names: Option<Arc<[Arc<str>]>>,
     /// Optional unit / cluster ids aligned to design rows (panel Bayesian GLS).
     pub unit_ids: Option<Vec<u32>>,
+    /// Row-dependence model. [`SerialDependence::Iid`] for exchangeable rows; temporal
+    /// Pulse / Sustained designs and every horizon of a temporal response use
+    /// [`SerialDependence::LongRunTempering`].
+    pub serial_dependence: SerialDependence,
+}
+
+impl PreparedBayesianProblem {
+    /// Set the row-dependence model (see [`crate::serial_dependence`]).
+    #[must_use]
+    pub fn with_serial_dependence(mut self, dependence: SerialDependence) -> Self {
+        self.serial_dependence = dependence;
+        self
+    }
 }
 
 /// Workspace for Bayesian g-comp.
@@ -1494,22 +1712,6 @@ fn prob_err(e: antecedent_prob::ProbError) -> EstimationError {
     EstimationError::from(e)
 }
 
-/// 95% quantile width of a scalar draw vector.
-fn quantile_width_95(values: &[f64]) -> f64 {
-    if values.len() < 2 {
-        return f64::NAN;
-    }
-    // Reuse posterior summarization for consistent quantiles.
-    let schema = PosteriorSchema {
-        quantities: Arc::from([PosteriorQuantityKind::Effect { name: Arc::from("w") }]),
-    };
-    let Ok(draws) = PosteriorDraws::from_column_major(schema, values.len(), values.to_vec()) else {
-        return f64::NAN;
-    };
-    let s = draws.summarize();
-    s.q975[0] - s.q025[0]
-}
-
 /// Concatenate two coefficient-only posterior draw tables (same schema).
 /// Concatenate an initial draw block with follow-on blocks in one pass.
 ///
@@ -1620,6 +1822,7 @@ pub fn nonidentified_with_prior(
         });
     let summaries = draws.summarize();
     CausalPosterior {
+        subsampled_out_mass: 0.0,
         draws,
         summaries,
         identification: IdentificationStatus::NotIdentified,
@@ -2125,10 +2328,20 @@ mod tests {
     ///
     /// Test-local on purpose — the calibration cases need a stream that is reproducible
     /// from a plain `u64` without pulling in the execution context's RNG plumbing.
+    ///
+    /// The seed is scrambled (SplitMix64 finalizer) first: seeding the LCG with the
+    /// raw replicate index makes the states of seeds `s` and `s + 1` differ by a fixed
+    /// `MUL^k` at every step, so consecutive calibration datasets form a lattice
+    /// rather than independent draws.
     fn box_muller_lcg(seed: u64) -> impl FnMut() -> f64 {
         const LCG_MUL: u64 = 6_364_136_223_846_793_005;
         const TWO_POW_53: f64 = (1u64 << 53) as f64;
-        let mut state = seed;
+        let mut state = {
+            let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            z ^ (z >> 31)
+        };
         let mut next_unit = move || {
             state = state.wrapping_mul(LCG_MUL).wrapping_add(1);
             ((state >> 11) as f64) / TWO_POW_53
@@ -2205,21 +2418,81 @@ mod tests {
         g
     }
 
-    fn interval_covers(post: &CausalPosterior, truth: f64, level: f64) -> bool {
-        let eq = post.effect_column().unwrap();
-        let col = post.draws.column(eq).unwrap();
-        let mut v = col.to_vec();
-        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let lo_p = (1.0 - level) / 2.0;
-        let hi_p = 1.0 - lo_p;
-        // `q` is a probability and `last >= 0`, so the rounded product is a valid
-        // index; the clamp makes that explicit for the boundary levels.
-        #[allow(clippy::cast_sign_loss)]
-        let at = |q: f64| {
+    /// Default replicate count for the 1.9 coverage gate (matches
+    /// `crates/antecedent/tests/common/calibration.rs`, which this crate cannot import).
+    const CALIBRATION_N_SIM: u32 = 400;
+
+    /// Replicate count, honoring `ANTECEDENT_CALIBRATION_NSIM` for local smoke runs.
+    fn calibration_n_sim() -> u32 {
+        std::env::var("ANTECEDENT_CALIBRATION_NSIM")
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok())
+            .filter(|&n| n > 0)
+            .unwrap_or(CALIBRATION_N_SIM)
+    }
+
+    /// Two-sided coverage tally: `level ± 3·MCSE`, `MCSE = sqrt(level(1-level)/n)`.
+    /// At 400 replicates and 90% that is `[0.855, 0.945]`, so under- and
+    /// over-coverage both fail.
+    struct CoverageGate {
+        name: &'static str,
+        level: f64,
+        covered: u32,
+        scored: u32,
+        length_sum: f64,
+    }
+
+    impl CoverageGate {
+        fn new(name: &'static str, level: f64) -> Self {
+            Self { name, level, covered: 0, scored: 0, length_sum: 0.0 }
+        }
+
+        /// Score the equal-tailed posterior interval of the effect column.
+        fn record(&mut self, post: &CausalPosterior, truth: f64) {
+            self.scored += 1;
+            let eq = post.effect_column().unwrap();
+            let col = post.draws.column(eq).unwrap();
+            let mut v: Vec<f64> = col.iter().copied().filter(|x| x.is_finite()).collect();
+            if v.len() < 2 {
+                return;
+            }
+            v.sort_by(f64::total_cmp);
+            let lo_p = (1.0 - self.level) / 2.0;
             let last = (v.len() - 1) as f64;
-            v[(last * q).round().clamp(0.0, last) as usize]
-        };
-        truth >= at(lo_p) && truth <= at(hi_p)
+            // `q` is a probability and `last >= 0`, so the rounded product is a valid index.
+            #[allow(clippy::cast_sign_loss)]
+            let at = |q: f64| v[(last * q).round().clamp(0.0, last) as usize];
+            let (lo, hi) = (at(lo_p), at(1.0 - lo_p));
+            self.length_sum += hi - lo;
+            if truth >= lo && truth <= hi {
+                self.covered += 1;
+            }
+        }
+
+        fn assert(&self) {
+            let n = f64::from(self.scored);
+            let rate = f64::from(self.covered) / n;
+            let mcse = (self.level * (1.0 - self.level) / n).sqrt();
+            let lo = (self.level - 3.0 * mcse).max(0.0);
+            let hi = (self.level + 3.0 * mcse).min(1.0);
+            eprintln!(
+                "calibration {}: nominal={:.2} coverage={rate:.3} mcse={mcse:.4} band=[{lo:.3}, {hi:.3}] \
+                 mean_length={:.4} ({}/{} covered)",
+                self.name,
+                self.level,
+                self.length_sum / n,
+                self.covered,
+                self.scored
+            );
+            assert!(
+                rate >= lo && rate <= hi,
+                "{} {:.0}% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({}/{})",
+                self.name,
+                self.level * 100.0,
+                self.covered,
+                self.scored
+            );
+        }
     }
 
     #[test]
@@ -2230,9 +2503,9 @@ mod tests {
         use antecedent_graph::ensure_lagged;
         use antecedent_identify::TemporalBackdoorIdentifier;
 
-        let n_sim = 80u32;
+        let n_sim = calibration_n_sim();
         let n = 160usize;
-        let mut covered = 0u32;
+        let mut gate = CoverageGate::new("bayesian pulse (conjugate, direct estimator)", 0.9);
         let g = pulse_graph();
         let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
             .with_policy(TemporalPolicy::pulse(-1))
@@ -2241,16 +2514,19 @@ mod tests {
         let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
         let estimand = id_res.result.estimands.first().unwrap();
         let temporal = TemporalLinearAdjustment::new();
-        let bayes = BayesianTemporalGcomp {
-            inner: BayesianGComputationAte {
-                backend: BayesianBackendKind::ConjugateGaussian,
-                n_draws: 240,
-                seed: 21,
-                prior_scale: 8.0,
-                ..BayesianGComputationAte::new()
-            },
-        };
         for s in 0..n_sim {
+            // Vary the sampler seed per replicate: a fixed seed reuses one set of
+            // posterior draws, so its Monte-Carlo quantile error is shared by every
+            // replicate instead of averaging out.
+            let bayes = BayesianTemporalGcomp {
+                inner: BayesianGComputationAte {
+                    backend: BayesianBackendKind::ConjugateGaussian,
+                    n_draws: 240,
+                    seed: 21 + u64::from(s),
+                    prior_scale: 8.0,
+                    ..BayesianGComputationAte::new()
+                },
+            };
             let data = noisy_lag1_pulse_series(n, 9_000 + u64::from(s));
             let prep = temporal
                 .prepare(
@@ -2272,18 +2548,9 @@ mod tests {
                     &ExecutionContext::for_tests(1),
                 )
                 .unwrap();
-            if interval_covers(&post, 0.8, 0.9) {
-                covered += 1;
-            }
+            gate.record(&post, 0.8);
         }
-        let rate = f64::from(covered) / f64::from(n_sim);
-        let se = (0.9 * 0.1 / f64::from(n_sim)).sqrt();
-        let lo = (0.9 - 4.0 * se).max(0.70);
-        let hi = (0.9 + 4.0 * se).min(1.0);
-        assert!(
-            rate >= lo && rate <= hi,
-            "bayesian pulse 90% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({covered}/{n_sim})"
-        );
+        gate.assert();
         let _ = ensure_lagged;
     }
 
@@ -2294,9 +2561,9 @@ mod tests {
         use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
         use antecedent_identify::TemporalBackdoorIdentifier;
 
-        let n_sim = 80u32;
+        let n_sim = calibration_n_sim();
         let n = 160usize;
-        let mut covered = 0u32;
+        let mut gate = CoverageGate::new("bayesian single-step sustained (conjugate)", 0.9);
         let g = pulse_graph();
         let q = TemporalEffectQuery::sustained(
             VariableId::from_raw(0),
@@ -2310,16 +2577,19 @@ mod tests {
         let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
         let estimand = id_res.result.estimands.first().unwrap();
         let temporal = TemporalLinearAdjustment::new();
-        let bayes = BayesianTemporalGcomp {
-            inner: BayesianGComputationAte {
-                backend: BayesianBackendKind::ConjugateGaussian,
-                n_draws: 240,
-                seed: 22,
-                prior_scale: 8.0,
-                ..BayesianGComputationAte::new()
-            },
-        };
         for s in 0..n_sim {
+            // Vary the sampler seed per replicate: a fixed seed reuses one set of
+            // posterior draws, so its Monte-Carlo quantile error is shared by every
+            // replicate instead of averaging out.
+            let bayes = BayesianTemporalGcomp {
+                inner: BayesianGComputationAte {
+                    backend: BayesianBackendKind::ConjugateGaussian,
+                    n_draws: 240,
+                    seed: 22 + u64::from(s),
+                    prior_scale: 8.0,
+                    ..BayesianGComputationAte::new()
+                },
+            };
             let data = noisy_lag1_pulse_series(n, 11_000 + u64::from(s));
             let prep = temporal
                 .prepare(
@@ -2341,18 +2611,61 @@ mod tests {
                     &ExecutionContext::for_tests(1),
                 )
                 .unwrap();
-            if interval_covers(&post, 0.8, 0.9) {
-                covered += 1;
-            }
+            gate.record(&post, 0.8);
         }
-        let rate = f64::from(covered) / f64::from(n_sim);
-        let se = (0.9 * 0.1 / f64::from(n_sim)).sqrt();
-        let lo = (0.9 - 4.0 * se).max(0.70);
-        let hi = (0.9 + 4.0 * se).min(1.0);
-        assert!(
-            rate >= lo && rate <= hi,
-            "bayesian sustained 90% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({covered}/{n_sim})"
-        );
+        gate.assert();
+    }
+
+    #[test]
+    #[ignore = "calibration: run via scripts/gate_calibration.sh"]
+    fn bayesian_sustained_multi_step_conjugate_nominal_90_coverage() {
+        use crate::temporal_sequential::estimate_sustained_window;
+        use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
+        use antecedent_identify::TemporalBackdoorIdentifier;
+
+        let n_sim = calibration_n_sim();
+        let n = 160usize;
+        let mut gate = CoverageGate::new("bayesian multi-step sustained (conjugate)", 0.9);
+        let g = pulse_graph();
+        let q = TemporalEffectQuery::sustained(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            -2,
+            1.0,
+        )
+        .with_policy(TemporalPolicy::sustained(-2, -1))
+        .with_horizon_steps(1)
+        .with_max_history_lag(Some(2));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
+        let estimand = id_res.result.estimands.first().unwrap();
+        for s in 0..n_sim {
+            // Vary the sampler seed per replicate: a fixed seed reuses one set of
+            // posterior draws, so its Monte-Carlo quantile error is shared by every
+            // replicate instead of averaging out.
+            let bayes = BayesianGComputationAte {
+                backend: BayesianBackendKind::ConjugateGaussian,
+                n_draws: 240,
+                seed: 23 + u64::from(s),
+                prior_scale: 8.0,
+                ..BayesianGComputationAte::new()
+            };
+            let data = noisy_lag1_pulse_series(n, 13_000 + u64::from(s));
+            let (_, posterior) = estimate_sustained_window(
+                &data,
+                &g,
+                &id_res.indexer,
+                estimand,
+                &q,
+                IdentificationStatus::NonparametricallyIdentified,
+                antecedent_core::AssumptionSet::default(),
+                0,
+                Some(&bayes),
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+            gate.record(posterior.as_ref().unwrap(), 0.8);
+        }
+        gate.assert();
     }
 
     fn noisy_lag1_pulse_series_with_unit(
@@ -2424,9 +2737,15 @@ mod tests {
         seed: u64,
     ) -> antecedent_data::PanelData {
         use antecedent_data::{PanelData, PanelUnit};
+        // Random intercepts are redrawn per replicate: the hierarchical model's
+        // interval is for a random-effects population. A fixed intercept pattern
+        // (formerly `1.4·sin(0.37u)`) freezes the between-unit imbalance across
+        // replicates, so the interval, which correctly prices intercept variance,
+        // covered 100% at 400 replicates. SD ≈ 0.99 matches that pattern's spread.
+        let mut intercepts = box_muller_lcg(seed ^ 0x0E7F_0E7F);
         let units: Vec<PanelUnit> = (0..n_units)
             .map(|u| {
-                let unit_eff = 1.4 * ((u as f64) * 0.37).sin();
+                let unit_eff = 0.99 * intercepts();
                 PanelUnit {
                     unit_id: u as u32,
                     series: noisy_lag1_pulse_series_with_unit(
@@ -2448,10 +2767,10 @@ mod tests {
         use antecedent_core::{TemporalEffectQuery, TemporalPolicy};
         use antecedent_identify::TemporalBackdoorIdentifier;
 
-        let n_sim = 60u32;
+        let n_sim = calibration_n_sim();
         let n_units = 24usize;
         let t_len = 40usize;
-        let mut covered = 0u32;
+        let mut gate = CoverageGate::new("bayesian panel hierarchical", 0.9);
         let g = pulse_graph();
         let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
             .with_policy(TemporalPolicy::pulse(-1))
@@ -2460,17 +2779,23 @@ mod tests {
         let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
         let estimand = id_res.result.estimands.first().unwrap();
         let temporal = TemporalLinearAdjustment::new();
-        let bayes = BayesianTemporalGcomp {
-            inner: BayesianGComputationAte {
-                backend: BayesianBackendKind::ConjugateGaussian,
-                n_draws: 200,
-                seed: 23,
-                prior_scale: 8.0,
-                ..BayesianGComputationAte::new()
-            },
-        };
         for s in 0..n_sim {
-            let panel = unit_effect_lag1_panel(n_units, t_len, 13_000 + u64::from(s));
+            // Vary the sampler seed per replicate: a fixed seed reuses one set of
+            // posterior draws, so its Monte-Carlo quantile error is shared by every
+            // replicate instead of averaging out.
+            let bayes = BayesianTemporalGcomp {
+                inner: BayesianGComputationAte {
+                    backend: BayesianBackendKind::ConjugateGaussian,
+                    n_draws: 200,
+                    seed: 23 + u64::from(s),
+                    prior_scale: 8.0,
+                    ..BayesianGComputationAte::new()
+                },
+            };
+            // Unit `u` draws from `seed + 19·u`; a stride of 1000 keeps every
+            // replicate's units disjoint (a unit stride of 1 reused series
+            // across replicates, so they were not independent datasets).
+            let panel = unit_effect_lag1_panel(n_units, t_len, 13_000 + 1_000 * u64::from(s));
             let (prep, cluster_ids, _) = temporal
                 .prepare_panel(
                     &panel,
@@ -2492,18 +2817,9 @@ mod tests {
                     &ExecutionContext::for_tests(1),
                 )
                 .unwrap();
-            if interval_covers(&post, 0.8, 0.9) {
-                covered += 1;
-            }
+            gate.record(&post, 0.8);
         }
-        let rate = f64::from(covered) / f64::from(n_sim);
-        let se = (0.9 * 0.1 / f64::from(n_sim)).sqrt();
-        let lo = (0.9 - 4.0 * se).max(0.70);
-        let hi = (0.9 + 4.0 * se).min(1.0);
-        assert!(
-            rate >= lo && rate <= hi,
-            "bayesian panel hierarchical 90% coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({covered}/{n_sim})"
-        );
+        gate.assert();
     }
 
     #[test]

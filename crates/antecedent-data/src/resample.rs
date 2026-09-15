@@ -13,6 +13,7 @@ use std::sync::Arc;
 use antecedent_core::{CausalRng, ExecutionContext, VariableId};
 use antecedent_kernels::unbiased_index;
 
+use crate::buffer::F64Buffer;
 use crate::column::{ColumnView, Float64Column, OwnedColumn};
 use crate::dataset::TimeSeriesData;
 use crate::error::DataError;
@@ -165,7 +166,15 @@ pub fn fill_resample_indexes_grouped(
         }
         ResamplingPlan::BayesianBootstrap => unreachable!("checked above"),
         ResamplingPlan::MovingBlock { length } | ResamplingPlan::CircularBlock { length } => {
-            fill_block(n, length, matches!(plan, ResamplingPlan::CircularBlock { .. }), rng, out)?;
+            out.resize(n, 0);
+            fill_block_slice(
+                n,
+                length,
+                matches!(plan, ResamplingPlan::CircularBlock { .. }),
+                rng,
+                out,
+                |i| i as u32,
+            )?;
         }
         ResamplingPlan::StationaryBlock { expected_length } => {
             fill_stationary(n, expected_length, rng, out)?;
@@ -188,12 +197,40 @@ pub fn fill_resample_indexes_grouped(
     Ok(())
 }
 
-fn fill_block(
+/// Fill `out` (`len = n`) with circular-block row indexes.
+///
+/// Same RNG stream and index law as [`fill_resample_indexes`] with
+/// [`ResamplingPlan::CircularBlock`].
+///
+/// # Errors
+///
+/// Zero series length, zero block length, `length > n`, or `out.len() != n`.
+pub fn fill_circular_block_indexes(
+    n: usize,
+    length: usize,
+    rng: &mut CausalRng,
+    out: &mut [usize],
+) -> Result<(), DataError> {
+    if n == 0 {
+        return Err(DataError::InvalidArgument { message: "resample needs n > 0".into() });
+    }
+    if out.len() != n {
+        return Err(DataError::LengthMismatch {
+            expected: n,
+            actual: out.len(),
+            context: "fill_circular_block_indexes out",
+        });
+    }
+    fill_block_slice(n, length, true, rng, out, |i| i)
+}
+
+fn fill_block_slice<T: Copy>(
     n: usize,
     length: usize,
     circular: bool,
     rng: &mut CausalRng,
-    out: &mut Vec<u32>,
+    out: &mut [T],
+    cast: impl Fn(usize) -> T,
 ) -> Result<(), DataError> {
     if length == 0 {
         return Err(DataError::InvalidArgument { message: "block length must be > 0".into() });
@@ -204,17 +241,16 @@ fn fill_block(
         });
     }
     let n_starts = if circular { n } else { n.saturating_sub(length).saturating_add(1) };
-    while out.len() < n {
+    let mut written = 0;
+    while written < n {
         let start = unbiased_index(rng, n_starts);
-        for k in 0..length {
-            if out.len() >= n {
-                break;
-            }
+        let take = length.min(n - written);
+        for k in 0..take {
             let idx = if circular { (start + k) % n } else { start + k };
-            out.push(idx as u32);
+            out[written + k] = cast(idx);
         }
+        written += take;
     }
-    out.truncate(n);
     Ok(())
 }
 
@@ -623,6 +659,38 @@ pub fn fill_resample_weight_batch(
     Ok(())
 }
 
+/// Smallest integer `k` with `k³ ≥ n` (`0` for `n = 0`), without floating-point rounding.
+#[must_use]
+pub fn integer_cube_root_ceil(n: usize) -> usize {
+    if n <= 1 {
+        return n;
+    }
+    let (mut low, mut high) = (1usize, n);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if middle.saturating_mul(middle).saturating_mul(middle) >= n {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    low
+}
+
+/// Block length shared by every temporal circular-block bootstrap:
+/// `max(structural_span, ⌈n^{1/3}⌉)`, capped at `n` (and at least 1).
+///
+/// `structural_span` is the number of consecutive time slices one estimating
+/// row reads (the unfolded window, `history + horizon`, or `max_lag + 1` for a
+/// lagged design), so a block never splits a single row's lag window. The
+/// `⌈n^{1/3}⌉` floor is the MSE-rate block growth for the variance of a smooth
+/// mean (Hall, Horowitz & Jing 1995); it is a rule of thumb, not a data-driven
+/// choice, and it under-represents long-memory dependence at small `n`.
+#[must_use]
+pub fn circular_block_length(structural_span: usize, n: usize) -> usize {
+    structural_span.max(integer_cube_root_ceil(n)).min(n).max(1)
+}
+
 /// Apply a resampling plan to produce a new float64 time series.
 ///
 /// Index plans gather rows. [`ResamplingPlan::BayesianBootstrap`] keeps row
@@ -712,7 +780,12 @@ fn apply_row_map(data: &TimeSeriesData, row_map: &[u32]) -> Result<TimeSeriesDat
         // A replicate slot inherits the source row's validity: values under
         // null slots must not resurface as valid observations.
         let validity = src.validity.gather(row_map)?;
-        cols.push(OwnedColumn::Float64(Float64Column::new(v.id, Arc::from(values), validity)?));
+        // Rows gathered from a NaN-free column are NaN-free: skip the rescan.
+        let mut values = F64Buffer::owned(Arc::<[f64]>::from(values));
+        if src.values.is_nan_free() {
+            values.mark_nan_free();
+        }
+        cols.push(OwnedColumn::Float64(Float64Column::new(v.id, values, validity)?));
     }
     // Analysis mask and weights follow the same row map as the values.
     let analysis_mask = data.storage().analysis_mask().map(|m| m.gather(row_map)).transpose()?;
@@ -839,6 +912,39 @@ mod tests {
         .unwrap();
         assert_eq!(out.row_count(), 100);
         assert_eq!(idx.len(), 100);
+    }
+
+    #[test]
+    fn circular_block_usize_fill_matches_u32_stream() {
+        let mut rng_u32 = CausalRng::from_seed(17);
+        let mut rng_usize = CausalRng::from_seed(17);
+        let mut as_u32 = Vec::new();
+        fill_resample_indexes(
+            ResamplingPlan::CircularBlock { length: 7 },
+            64,
+            &mut rng_u32,
+            &mut as_u32,
+        )
+        .unwrap();
+        let mut as_usize = vec![0usize; 64];
+        fill_circular_block_indexes(64, 7, &mut rng_usize, &mut as_usize).unwrap();
+        assert_eq!(as_u32.iter().map(|&i| i as usize).collect::<Vec<_>>(), as_usize);
+        assert_eq!(rng_u32.state(), rng_usize.state());
+    }
+
+    #[test]
+    fn circular_block_length_rule() {
+        assert_eq!(integer_cube_root_ceil(0), 0);
+        assert_eq!(integer_cube_root_ceil(1), 1);
+        assert_eq!(integer_cube_root_ceil(64), 4);
+        assert_eq!(integer_cube_root_ceil(65), 5);
+        assert_eq!(integer_cube_root_ceil(1000), 10);
+        // ⌈160^{1/3}⌉ = 6 dominates a two-slice window; a wide window dominates.
+        assert_eq!(circular_block_length(2, 160), 6);
+        assert_eq!(circular_block_length(9, 160), 9);
+        // Capped at n, never zero.
+        assert_eq!(circular_block_length(50, 12), 12);
+        assert_eq!(circular_block_length(0, 0), 1);
     }
 
     #[test]

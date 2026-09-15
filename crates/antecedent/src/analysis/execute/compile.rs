@@ -117,6 +117,39 @@ impl super::Study {
                     estimator,
                 })
             }
+            (Some(AnalysisRoute::Distribution), GraphClass::Admg) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::Distribution(q) = &self.query else { unreachable!() };
+                super::static_path::ensure_admg_distribution_licensed(q, self.refute)?;
+                let (identifier, estimator) = self.resolve_distribution_pair();
+                let treatment =
+                    q.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
+                        || CausalError::Compile {
+                            message: "distribution query requires an intervention variable".into(),
+                        },
+                    )?;
+                let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Compile {
+                    message: "distribution query requires an outcome".into(),
+                })?;
+                let record = antecedent_core::LogicalAnalysisPlanRecord {
+                    plan_id: Arc::from("static_admg_distribution"),
+                    data_classification: antecedent_core::DataClassification::Tabular,
+                    discovery_algorithm: None,
+                    graph_review_required: false,
+                    identifier: Some(identifier),
+                    estimator: Some(estimator),
+                    validation_suite: self.validation_suite_id(),
+                    query_variables: Arc::from([treatment, outcome]),
+                };
+                let logical = LogicalAnalysisPlan {
+                    record,
+                    query: CausalQuery::Distribution(q.clone()),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                };
+                logical.validate()?;
+                Ok(logical)
+            }
             (Some(AnalysisRoute::PathSpecific), GraphClass::Dag) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::PathSpecific(q) = &self.query else { unreachable!() };
@@ -427,6 +460,62 @@ impl super::Study {
                 plan.query = CausalQuery::Mediation(q.clone());
                 Ok(plan)
             }
+            (Some(AnalysisRoute::Transport), GraphClass::Admg) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::Transport(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                if self.selection_diagram.is_none() || self.transport_trial.is_none() {
+                    return Err(CausalError::Unsupported {
+                        message: "TransportQuery requires a selection diagram and transport_trial columns",
+                    });
+                }
+                let (treatment, outcome) =
+                    q.response.functional.primary_pair().ok_or_else(|| CausalError::Compile {
+                        message: "TransportQuery inner response has no treatment/outcome".into(),
+                    })?;
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("transport_trial"),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("transport.sid")),
+                        estimator: Some(Arc::from("transport.trial_ipw")),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([treatment, outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
+            (Some(AnalysisRoute::Interference), GraphClass::Dag) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::Interference(q) = &self.query else { unreachable!() };
+                q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                if self.interference.is_none() {
+                    return Err(CausalError::Unsupported {
+                        message: "InterferenceQuery requires StudyBuilder::interference",
+                    });
+                }
+                let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
+                    q.functional;
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("interference_design"),
+                        data_classification: antecedent_core::DataClassification::Tabular,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("interference.design")),
+                        estimator: Some(Arc::from("interference.ht_hajek")),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([outcome, outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
             (Some(route), GraphClass::Dag) if is_gcm_route(route) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 // Parametric SCM paths: closed `gcm.parametric` / `gcm.fit`, not backdoor ATE.
@@ -481,6 +570,9 @@ impl super::Study {
                 ),
                 GraphClass::Dag,
             ) => self.compile_logical()?.compile_physical(ctx),
+            (Some(AnalysisRoute::Distribution), GraphClass::Admg) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
             (Some(AnalysisRoute::TemporalEffect), GraphClass::TemporalDag) => {
                 let graph = self
                     .graph
@@ -606,6 +698,13 @@ impl super::Study {
                 self.compile_logical()?.compile_physical_with_graph(ctx, Some(graph.clone()))
             }
             (Some(AnalysisRoute::StaticMediation), GraphClass::Dag) => {
+                let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
+                self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
+            }
+            (Some(AnalysisRoute::Transport), GraphClass::Admg) => {
+                self.compile_logical()?.compile_physical(ctx)
+            }
+            (Some(AnalysisRoute::Interference), GraphClass::Dag) => {
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
                 self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
             }

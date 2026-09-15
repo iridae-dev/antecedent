@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import numbers
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import partial
@@ -96,6 +97,7 @@ from .results import (
     AnalysisResult,
     CausalResponseView,
     ConflictSummaryView,
+    DistributionAtomView,
     EffectEnvelope,
     EstimateView,
     IdentificationView,
@@ -106,6 +108,7 @@ from .results import (
     PosteriorView,
     PredictiveCheckReport,
     PriorSensitivityReport,
+    ProbabilityIntervalView,
     RefutationReport,
     ResponseEnvelopeView,
     ResponseUncertainty,
@@ -234,6 +237,7 @@ def _section_posterior(raw: Any) -> Any:
         backend=getattr(raw, "posterior_backend", None),
         artifact=getattr(raw, "posterior_artifact", None),
         unidentified_mass=getattr(raw, "posterior_unidentified_mass", None),
+        subsampled_out_mass=getattr(raw, "posterior_subsampled_out_mass", None),
     )
 
 
@@ -271,6 +275,35 @@ def _section_performance(raw: Any) -> Any:
         early_stopped=bool(getattr(raw, "early_stopped", False)),
         stage_timings=getattr(raw, "stage_timings", None),
         bytes_borrowed=getattr(raw, "bytes_borrowed", None),
+    )
+
+
+def _probability_interval_from_raw(raw: Any) -> ProbabilityIntervalView | None:
+    """Native ``ProbabilityIntervalSection`` → view (``None`` passes through)."""
+    if raw is None:
+        return None
+    return ProbabilityIntervalView(
+        level=raw.level,
+        lower=raw.lower,
+        upper=raw.upper,
+        unavailable=raw.unavailable,
+    )
+
+
+def _distribution_atoms_from_raw(sec_estimate: Any) -> tuple[DistributionAtomView, ...] | None:
+    """Native distribution atoms with their bounded probability intervals."""
+    atoms = getattr(sec_estimate, "distribution_atoms", None)
+    if atoms is None:
+        return None
+    return tuple(
+        DistributionAtomView(
+            outcomes=tuple((str(name), value) for name, value in atom.outcomes),
+            conditioning=tuple((str(name), value) for name, value in atom.conditioning),
+            probability=float(atom.probability),
+            se_bootstrap=atom.se_bootstrap,
+            interval=_probability_interval_from_raw(atom.interval),
+        )
+        for atom in atoms
     )
 
 
@@ -329,16 +362,18 @@ def _wrap_ate(
     posterior = None
     if sec_posterior.n_draws is not None:
         mass = sec_posterior.unidentified_mass
+        skipped = float(getattr(sec_posterior, "subsampled_out_mass", None) or 0.0)
         envelope = None
-        if mass is not None and float(mass) > 0.0:
+        if (mass is not None and float(mass) > 0.0) or skipped > 0.0:
             envelope = EffectEnvelope(
                 effect_mean=sec_posterior.effect_mean,
                 effect_sd=sec_posterior.effect_sd,
                 q025=sec_posterior.q025,
                 q975=sec_posterior.q975,
-                unidentified_mass=float(mass),
+                unidentified_mass=float(mass or 0.0),
                 n_draws=sec_posterior.n_draws,
                 backend=sec_posterior.backend,
+                subsampled_out_mass=skipped,
             )
         posterior = PosteriorView(
             effect_mean=sec_posterior.effect_mean,
@@ -352,6 +387,7 @@ def _wrap_ate(
             unidentified_mass=None if mass is None else float(mass),
             envelope=envelope,
             conflict=_conflict_from_raw(raw),
+            subsampled_out_mass=skipped,
         )
 
     # The predictive-check fields are static-DTO only; the temporal DTO does not
@@ -386,11 +422,15 @@ def _wrap_ate(
         alphas_raw = getattr(raw, "prior_sensitivity_alphas", None)
         scales_raw = getattr(raw, "prior_sensitivity_scales", None)
         sds = getattr(raw, "prior_sensitivity_sds", None)
+        multipliers_raw = getattr(raw, "prior_sensitivity_variance_multipliers", None)
+        family = getattr(raw, "prior_sensitivity_family", None)
         prior_sensitivity = PriorSensitivityReport(
             scales=list(scales_raw or ()),
             effect_means=list(means),
             effect_sds=list(sds or ()),
             alphas=None if alphas_raw is None else list(alphas_raw),
+            variance_multipliers=None if multipliers_raw is None else list(multipliers_raw),
+            family=str(family) if family is not None else "isotropic_scale",
         )
     certificate_json = getattr(raw, "certificate_json", None)
     mediation_grid = None
@@ -489,6 +529,10 @@ def _wrap_ate(
             family_contrast_interval=getattr(sec_estimate, "family_contrast_interval", None),
             candidate_selection=getattr(sec_estimate, "candidate_selection", None),
             evalue=getattr(sec_estimate, "evalue", None),
+            distribution=_distribution_atoms_from_raw(sec_estimate),
+            mean_interval=_probability_interval_from_raw(
+                getattr(sec_estimate, "mean_interval", None)
+            ),
         ),
         posterior=posterior,
         unit_effects=getattr(raw, "unit_effects", None),
@@ -535,6 +579,17 @@ def _wrap_ate(
         structural_identified_mass=getattr(raw, "structural_identified_mass", None),
         structural_unidentified_mass=getattr(raw, "structural_unidentified_mass", None),
         structural_unevaluable_mass=getattr(raw, "structural_unevaluable_mass", None),
+        structural_identified_set=getattr(raw, "structural_identified_set", None),
+        structural_identified_set_interval=getattr(raw, "structural_identified_set_interval", None),
+        structural_identified_set_interval_level=getattr(
+            raw, "structural_identified_set_interval_level", None
+        ),
+        structural_identified_set_interval_method=getattr(
+            raw, "structural_identified_set_interval_method", None
+        ),
+        structural_identified_set_interval_truncated=getattr(
+            raw, "structural_identified_set_interval_truncated", None
+        ),
         _raw=raw,
         _prepared=prepared,
     )
@@ -559,14 +614,14 @@ def _resolve_latency_budget(
     if isinstance(refute, Refute):
         refute = str(refute)
     if latency is None:
-        return (50 if bootstrap is None else bootstrap, refute)  # type: ignore[return-value]
+        return (199 if bootstrap is None else bootstrap, refute)  # type: ignore[return-value]
     key = str(latency).strip().lower()
     mapped_boot: int
     mapped_refute: bool | str
     if key == "interactive":
         mapped_boot, mapped_refute = 0, "cheap"
     elif key == "standard":
-        mapped_boot, mapped_refute = 50, True
+        mapped_boot, mapped_refute = 199, True
     elif key == "report":
         mapped_boot, mapped_refute = 200, "full"
     else:
@@ -582,6 +637,13 @@ def _resolve_latency_budget(
 
 def _discovery_algorithm(discovery: Any) -> dict[str, Any]:
     return discovery_algorithm(discovery)
+
+
+ADMG_DISTRIBUTION_RUST_ONLY = (
+    "refused: ADMG InterventionalDistribution (unconditional finite-discrete tables, "
+    "validation none) is licensed in the Rust Study API only; the Python "
+    "distribution entry points take DAG edges and cannot carry bidirected edges"
+)
 
 
 def _static_edges(
@@ -728,6 +790,33 @@ def _prepared_temporal_inference_kwargs(
     if inference is not None and not isinstance(inference, Frequentist):
         raise CausalTypeError("inference must be Frequentist or Bayesian")
     return {"inference": "frequentist"}
+
+
+def _temporal_response_bootstrap(
+    bootstrap: int | None, inference: Frequentist | Bayesian | None
+) -> int | None:
+    """Replicate count for a temporal response surface, or ``None`` for the default.
+
+    Frequentist surfaces publish their pointwise and simultaneous bands from joint
+    circular-block replicates: ``None`` keeps the Study default (199), ``0`` keeps the
+    point surface with no band (``estimate.temporal_response.band_withheld``).
+    Bayesian surfaces use posterior draws and refuse a requested bootstrap.
+    """
+    if bootstrap is not None:
+        if (
+            isinstance(bootstrap, bool)
+            or not isinstance(bootstrap, numbers.Integral)
+            or bootstrap < 0
+        ):
+            raise CausalValueError("bootstrap must be a non-negative integer or None")
+        bootstrap = int(bootstrap)
+    if isinstance(inference, Bayesian):
+        if bootstrap:
+            raise CausalUnsupportedError(
+                "Bayesian responses use posterior intervals; bootstrap is unsupported"
+            )
+        return 0
+    return bootstrap
 
 
 def _temporal_inference_kwargs(
@@ -1335,6 +1424,8 @@ def _wrap_prepared_response(
             tuple(raw.atom_weights),
             tuple(raw.atom_statuses),
             tuple(tuple(values) for values in raw.atom_values),
+            float(getattr(raw, "unevaluable_mass", None) or 0.0),
+            float(getattr(raw, "subsampled_out_mass", None) or 0.0),
         )
     return CausalResponseView(
         certificate=json.loads(certificate_json) if certificate_json else None,
@@ -1492,17 +1583,28 @@ class PreparedAnalysis:
         ``InterventionResponse``, ``PulseEffect``, ``SustainedEffect``,
         ``TemporalMediationEffect``, static ``MediationEffect``,
         ``Counterfactual``, and the six Frequentist derivative query types
-        on an explicit graph (or accepted wrapper, except ``Counterfactual``
-        which requires an explicit Dag).
+        on an explicit graph or accepted wrapper.
         ``AverageEffect`` also prepares on a ``Pag`` or bidirected ``Admg``; the
         generalized-adjustment envelope or general-ID result is frozen at
         prepare and reused by every estimate click (``exec.identify.cached``).
         Temporal ``ResponseCurve`` / ``InterventionResponse`` (keyword ``horizons``)
-        prepare on a ``TemporalDag`` or lagged edge list. Pulse / Sustained /
-        TemporalMediation prepare on a ``TemporalDag`` or lagged edge list.
+        prepare on a ``TemporalDag`` or lagged edge list; their Frequentist
+        ``bootstrap`` is the joint circular-block replicate count behind the
+        pointwise and simultaneous bands. ``None`` follows the ``latency`` tier as
+        Pulse / Sustained do (``interactive`` 0, ``standard`` 199, ``report`` 200);
+        ``0`` publishes the point surface with no band and an
+        ``estimate.temporal_response.band_withheld`` warning. Every other
+        prepared response refuses a positive ``bootstrap``. Pulse / Sustained /
+        TemporalMediation prepare on a ``TemporalDag`` or lagged edge list; a
+        Frequentist ``TemporalMediationEffect`` with ``bootstrap=None`` follows the
+        same ``latency`` tier for its shared circular-block replicates.
         ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` / a constructed
         ``GraphPosterior`` compiles the licensed graph-posterior cells
-        (Bayesian AverageEffect / Pulse / Sustained).
+        (Bayesian AverageEffect / Pulse / Sustained / TemporalMediationEffect,
+        Frequentist AverageEffect, and Frequentist Pulse / Sustained and
+        single-horizon TemporalMediationEffect on a DBN posterior). Frequentist
+        DBN mixtures take their shared circular-block replicates from the
+        ``latency`` tier (or an explicit ``bootstrap``).
         """
         if isinstance(query, (ResponseCurve, InterventionResponse)):
             from .query import coerce_outcome_functional
@@ -1550,6 +1652,32 @@ class PreparedAnalysis:
                 raise CausalUnsupportedError(
                     "PreparedAnalysis responses require the AllObserved target population"
                 )
+        if (
+            isinstance(
+                query,
+                (
+                    ResponseCurve,
+                    InterventionResponse,
+                    PointDerivative,
+                    Elasticity,
+                    SemiElasticity,
+                    AverageDerivative,
+                    DirectionalDerivative,
+                    ResponseJacobian,
+                ),
+            )
+            and bootstrap
+            and (isinstance(inference, Bayesian) or not getattr(query, "is_temporal", False))
+        ):
+            # Only Frequentist temporal surfaces resample; every other prepared response
+            # carries analytic, influence-function or posterior uncertainty, so a
+            # requested bootstrap is refused rather than silently dropped.
+            raise CausalUnsupportedError(
+                "Bayesian responses use posterior intervals; bootstrap is unsupported"
+                if isinstance(inference, Bayesian)
+                else "prepared static responses use analytic or influence-function "
+                "uncertainty; bootstrap= applies to Frequentist temporal responses only"
+            )
         if estimator_config is not None and not isinstance(
             query,
             (
@@ -1698,6 +1826,15 @@ class PreparedAnalysis:
                 if isinstance(graph, (TemporalCpdag, TemporalPag))
                 else _lagged_edges(cast("TemporalDag | Sequence[tuple[str, int, str, int]]", graph))
             )
+            if bootstrap is None:
+                # Same latency mapping as Pulse / Sustained and temporal responses:
+                # Frequentist SEs come from the shared circular-block replicates
+                # (interactive 0 withholds them); Bayesian uses posterior draws.
+                bootstrap = (
+                    0
+                    if isinstance(inference, Bayesian)
+                    else _resolve_latency_budget(latency, None, True)[0]
+                )
             native = _NativePreparedAnalysis.prepare_temporal_mediation(
                 names,
                 columns,
@@ -1712,7 +1849,7 @@ class PreparedAnalysis:
                 **_prepared_inference_kwargs(inference),
                 refute=coerce_refute(refute),
                 seed=seed,
-                bootstrap=0 if bootstrap is None else bootstrap,
+                bootstrap=bootstrap,
                 threads=threads,
                 accepted=structure_accepted,
                 class_graph=graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None,
@@ -1738,6 +1875,11 @@ class PreparedAnalysis:
                     f"temporal response requires estimator={expected_estimator!r}; "
                     f"got {estimator!r}"
                 )
+            if bootstrap is None and not isinstance(inference, Bayesian):
+                # Same latency mapping as the prepared Pulse / Sustained path:
+                # interactive publishes the point surface only, standard / report
+                # run the joint circular-block replicates behind the bands.
+                bootstrap, _ = _resolve_latency_budget(latency, None, True)
             return cls._prepare_temporal(
                 names,
                 columns,
@@ -1746,6 +1888,7 @@ class PreparedAnalysis:
                 inference=inference,
                 refute=refute,
                 seed=seed,
+                bootstrap=bootstrap,
                 threads=threads,
                 structure_accepted=structure_accepted,
                 class_prior=class_prior,
@@ -1965,6 +2108,8 @@ class PreparedAnalysis:
                 latency=latency,
                 structure_accepted=structure_accepted,
             )
+        if isinstance(query, InterventionalDistribution) and isinstance(graph, Admg):
+            raise CausalUnsupportedError(ADMG_DISTRIBUTION_RUST_ONLY)
         edges = _static_edges(graph)
         if isinstance(query, (MediationEffect, Counterfactual)):
             if inference is not None and not isinstance(inference, (Frequentist, Bayesian)):
@@ -1977,14 +2122,7 @@ class PreparedAnalysis:
                 raise CausalUnsupportedError(
                     f"{query.kind} requires {expected_id} and {expected_est}"
                 )
-            if isinstance(query, Counterfactual) and (
-                structure_accepted or refute not in (False, "none", Refute.NONE)
-            ):
-                if structure_accepted:
-                    raise CausalUnsupportedError(
-                        "refused: Staged counterfactuals require an explicit Dag; accepted "
-                        "and graph-posterior structures are refused."
-                    )
+            if isinstance(query, Counterfactual) and refute not in (False, "none", Refute.NONE):
                 raise CausalUnsupportedError(
                     "refused: Counterfactual cheap/full are not licensed; there is no "
                     "native ITE refuter suite and ATE refuters do not apply."
@@ -2399,20 +2537,27 @@ class PreparedAnalysis:
         threads: int,
         latency: Latency | Literal["interactive", "standard", "report"] | str | None,
     ) -> PreparedAnalysis:
-        is_freq_gp_ate = (
-            isinstance(inference, Frequentist)
-            and isinstance(discovery, (ExactDagPosterior, GraphPosterior))
-            and isinstance(query, AverageEffect)
+        is_freq_licensed = isinstance(inference, Frequentist) and (
+            (
+                isinstance(discovery, (ExactDagPosterior, GraphPosterior))
+                and isinstance(query, AverageEffect)
+            )
+            or (
+                isinstance(discovery, (DbnPosterior, GraphPosterior))
+                and isinstance(query, (PulseEffect, SustainedEffect, TemporalMediationEffect))
+            )
         )
-        if isinstance(inference, Frequentist) and not is_freq_gp_ate:
+        if isinstance(inference, Frequentist) and not is_freq_licensed:
             raise CausalTypeError(
                 "PreparedAnalysis.prepare(discovery=) requires inference=Bayesian(...) "
-                "except AverageEffect × graph_posterior"
+                "except AverageEffect × graph_posterior and Pulse / Sustained / "
+                "TemporalMediationEffect × DBN graph_posterior"
             )
         if not isinstance(inference, (Bayesian, Frequentist)):
             raise CausalTypeError(
                 "PreparedAnalysis.prepare(discovery=) requires inference=Bayesian(...) "
-                "or Frequentist() for AverageEffect × graph_posterior"
+                "or Frequentist() for AverageEffect × graph_posterior and Pulse / "
+                "Sustained / TemporalMediationEffect × DBN graph_posterior"
             )
         refute = coerce_refute(refute)
         bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
@@ -2447,6 +2592,10 @@ class PreparedAnalysis:
             query, (PulseEffect, SustainedEffect)
         ):
             window = getattr(query, "window", None)
+            # Frequentist atoms share one circular-block bootstrap for the mixture
+            # SE, so the latency tier's replicate count applies; the Bayesian
+            # mixture uses posterior draws and runs no bootstrap.
+            temporal_bootstrap = bootstrap if isinstance(inference, Frequentist) else 0
             if isinstance(discovery, GraphPosterior):
                 native = _NativePreparedAnalysis.prepare_dbn_posterior_temporal(
                     names,
@@ -2463,6 +2612,7 @@ class PreparedAnalysis:
                     prior_scale=prior_scale,
                     refute=refute,
                     seed=seed,
+                    bootstrap=temporal_bootstrap,
                     threads=threads,
                     posterior=discovery,
                 )
@@ -2487,12 +2637,17 @@ class PreparedAnalysis:
                     prior_scale=prior_scale,
                     refute=refute,
                     seed=seed,
+                    bootstrap=temporal_bootstrap,
                     threads=threads,
                 )
             return cls(native, kind="average", query=query)
         if isinstance(discovery, (DbnPosterior, GraphPosterior)) and isinstance(
             query, TemporalMediationEffect
         ):
+            # Frequentist atoms share one circular-block bootstrap for the mixture
+            # SE, so the latency tier's replicate count applies; the Bayesian
+            # mixture uses posterior draws and runs no bootstrap.
+            mediation_bootstrap = bootstrap if isinstance(inference, Frequentist) else 0
             if isinstance(discovery, GraphPosterior):
                 native = _NativePreparedAnalysis.prepare_dbn_posterior_mediation(
                     names,
@@ -2509,6 +2664,7 @@ class PreparedAnalysis:
                     prior_scale=prior_scale,
                     refute=refute,
                     seed=seed,
+                    bootstrap=mediation_bootstrap,
                     threads=threads,
                     posterior=discovery,
                 )
@@ -2533,6 +2689,7 @@ class PreparedAnalysis:
                     prior_scale=prior_scale,
                     refute=refute,
                     seed=seed,
+                    bootstrap=mediation_bootstrap,
                     threads=threads,
                 )
             return cls(native, kind="average", query=query)
@@ -2741,6 +2898,7 @@ class PreparedAnalysis:
         inference: Frequentist | Bayesian | None,
         refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | str,
         seed: int,
+        bootstrap: int | None = None,
         threads: int,
         structure_accepted: bool,
         class_prior: ClassPrior | None = None,
@@ -2752,6 +2910,7 @@ class PreparedAnalysis:
                 "cheap/full does not denote; cheap and full name the ATE-shaped scalar refuter "
                 "suite and a function-valued estimand has no such state. Use refute='none'."
             )
+        native_bootstrap = _temporal_response_bootstrap(bootstrap, inference)
         lagged = [] if isinstance(graph, (TemporalCpdag, TemporalPag)) else _lagged_edges(graph)
         from antecedent._analyze import _encode_temporal_interventions
 
@@ -2798,6 +2957,7 @@ class PreparedAnalysis:
                 max_history_lag=query.max_history_lag,
                 **_prepared_temporal_inference_kwargs(inference),
                 seed=seed,
+                bootstrap=native_bootstrap,
                 threads=threads,
                 accepted=structure_accepted,
                 class_graph=graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None,
@@ -2822,6 +2982,7 @@ class PreparedAnalysis:
             max_history_lag=query.max_history_lag,
             **_prepared_temporal_inference_kwargs(inference),
             seed=seed,
+            bootstrap=native_bootstrap,
             threads=threads,
             accepted=structure_accepted,
             class_graph=graph if isinstance(graph, (TemporalCpdag, TemporalPag)) else None,

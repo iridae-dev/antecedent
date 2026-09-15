@@ -407,3 +407,128 @@ def test_dbn_posterior_response_curve_stays_refused() -> None:
             bootstrap=0,
             seed=1,
         )
+
+
+def test_frequentist_dbn_mediation_mixture_follows_the_latency_tier() -> None:
+    """Single-horizon Frequentist DBN mediation is reachable from Python.
+
+    Atoms share one circular-block bootstrap for the aggregate SE, so the
+    replicate count follows the latency tier: interactive runs none and
+    withholds the SE, standard runs the Study default.
+    """
+    data = temporal_mediation_series(int(TEMPORAL_MEDIATION["n"]))
+    posterior = temporal_mediation_posterior()
+    query = antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated")
+    seed = int(TEMPORAL_MEDIATION["seed"])
+    expected = float(TEMPORAL_MEDIATION["expected_effect_given_identified"])
+    tolerance = float(TEMPORAL_MEDIATION["effect_abs_tolerance"])
+    shared_block = "estimate.dbn_posterior.mediation.shared_block"
+
+    interactive = antecedent.estimation.PreparedAnalysis.prepare(
+        data, discovery=posterior, query=query, inference=FREQ, seed=seed
+    ).estimate(data, seed=seed)
+    assert interactive.ate == pytest.approx(expected, abs=tolerance)
+    assert interactive.estimate.se_bootstrap is None
+    assert not any(d.startswith(shared_block) for d in interactive.diagnostics)
+
+    standard = antecedent.estimation.PreparedAnalysis.prepare(
+        data, discovery=posterior, query=query, inference=FREQ, seed=seed, latency="standard"
+    ).estimate(data, seed=seed)
+    assert standard.ate == pytest.approx(interactive.ate, abs=1e-12)
+    assert standard.estimate.se_bootstrap is not None
+    assert math.isfinite(standard.estimate.se_bootstrap) and standard.estimate.se_bootstrap > 0
+    assert any(d.startswith(shared_block) for d in standard.diagnostics)
+
+    fresh = antecedent.analyze(
+        data, discovery=posterior, query=query, inference=FREQ, refute=False, seed=seed
+    )
+    assert fresh.ate == pytest.approx(interactive.ate, abs=1e-12)
+    assert fresh.estimate.se_bootstrap is not None
+
+
+@pytest.mark.parametrize("kind", ["pulse", "sustained"])
+def test_frequentist_dbn_pulse_sustained_mixture_follows_the_latency_tier(kind) -> None:
+    """Frequentist DBN-posterior Pulse / Sustained is reachable from Python.
+
+    Atoms share one circular-block bootstrap for the aggregate SE, so the
+    replicate count follows the latency tier (interactive runs none and
+    withholds the SE), and the structural masses ride the result.
+    """
+    data = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
+    posterior = temporal_posterior()
+    effect = antecedent.PulseEffect if kind == "pulse" else antecedent.SustainedEffect
+    query = effect(
+        treatment="pressure",
+        outcome="defect",
+        treatment_lag=1,
+        horizon_steps=1,
+        active_level=1.0,
+    )
+    expected = float(TEMPORAL["expected_effect_given_identified"])
+    tolerance = float(TEMPORAL["effect_abs_tolerance"])
+    unidentified = float(TEMPORAL["expected_unidentified_mass"])
+
+    def assert_structural(result) -> None:
+        assert result.structural_weight_basis == "posterior_probability"
+        assert result.structural_unidentified_mass == pytest.approx(unidentified, abs=1e-12)
+        assert result.structural_identified_mass == pytest.approx(1.0 - unidentified, abs=1e-12)
+        assert result.structural_unevaluable_mass == 0.0
+        assert result.identification.status == "GraphDependent"
+
+    interactive = antecedent.estimation.PreparedAnalysis.prepare(
+        data, discovery=posterior, query=query, inference=FREQ, refute=False, seed=11
+    ).estimate(data, seed=11)
+    assert interactive.ate == pytest.approx(expected, abs=tolerance)
+    assert interactive.estimate.se_bootstrap is None
+    assert_structural(interactive)
+
+    standard = antecedent.estimation.PreparedAnalysis.prepare(
+        data,
+        discovery=posterior,
+        query=query,
+        inference=FREQ,
+        refute=False,
+        seed=11,
+        latency="standard",
+    ).estimate(data, seed=11)
+    assert standard.ate == pytest.approx(interactive.ate, abs=1e-12)
+    assert standard.estimate.se_bootstrap is not None
+    assert math.isfinite(standard.estimate.se_bootstrap) and standard.estimate.se_bootstrap > 0
+    assert any(
+        d.startswith("estimate.dbn_posterior.frequentist") and "shared circular-block" in d
+        for d in standard.diagnostics
+    )
+    assert_structural(standard)
+
+    fresh = antecedent.analyze(
+        data, discovery=posterior, query=query, inference=FREQ, refute=False, seed=11
+    )
+    assert fresh.ate == pytest.approx(interactive.ate, abs=1e-12)
+    assert fresh.estimate.se_bootstrap is not None
+    assert_structural(fresh)
+
+
+def test_frequentist_discovered_dbn_posterior_pulse_is_routed() -> None:
+    """``discovery=DbnPosterior()`` with Frequentist inference no longer refuses."""
+    data = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
+    query = antecedent.PulseEffect(
+        treatment="pressure", outcome="defect", treatment_lag=1, horizon_steps=1
+    )
+    result = antecedent.analyze(
+        data,
+        discovery=antecedent.discovery.DbnPosterior(max_lag=1),
+        query=query,
+        inference=FREQ,
+        refute=False,
+        bootstrap=24,
+        seed=11,
+    )
+    assert math.isfinite(result.ate)
+    assert result.estimate.se_bootstrap is not None and result.estimate.se_bootstrap > 0
+    assert result.structural_weight_basis == "posterior_probability"
+    masses = (
+        result.structural_identified_mass
+        + result.structural_unidentified_mass
+        + result.structural_unevaluable_mass
+    )
+    assert masses == pytest.approx(1.0, abs=1e-9)

@@ -1480,3 +1480,93 @@ fn sensitivity_reports_respect_treatment_contrast_units() {
         assert!((report.2 - reports[0].2).abs() < 1e-12);
     }
 }
+
+/// Composed refitter whose aligned-row refit is a stand-in with a fixed block length.
+#[derive(Debug)]
+struct FixedBlockRefit {
+    rows: usize,
+    block_length: usize,
+}
+
+impl crate::common::EffectRefit for FixedBlockRefit {
+    fn refit(
+        &self,
+        _data: &TabularData,
+        _extra_contemporaneous: &[VariableId],
+        _ctx: &ExecutionContext,
+    ) -> Result<antecedent_estimate::EffectEstimate, ValidationError> {
+        Err(ValidationError::estimation_msg("not used by bootstrap.ci_coverage"))
+    }
+
+    fn prepare_aligned(
+        &self,
+        _data: &TabularData,
+        _ctx: &ExecutionContext,
+    ) -> Option<Result<crate::common::AlignedRefit, ValidationError>> {
+        let (rows, block) = (self.rows, self.block_length);
+        Some(Ok(crate::common::AlignedRefit {
+            rows,
+            block_length: block,
+            stand_in: Some(Arc::from("least-squares stand-in for the posterior mean")),
+            estimate: Box::new(move |map: &[usize]| {
+                // Every replicate is a run of circular blocks of the refitter's length,
+                // not the n^(1/3) rule.
+                for chunk in map.chunks(block) {
+                    for pair in chunk.windows(2) {
+                        assert_eq!(pair[1], (pair[0] + 1) % rows, "block shorter than {block}");
+                    }
+                }
+                Some(map.iter().map(|&r| r as f64).sum::<f64>() / map.len() as f64)
+            }),
+        }))
+    }
+}
+
+#[test]
+fn composed_bootstrap_refute_uses_the_interval_block_length_and_reports_the_stand_in() {
+    let series = lagged_xy_series(64, 0.2);
+    let data = TabularData::new(series.storage().clone());
+    let graph = lagged_xy_graph();
+    let temporal_query =
+        TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1));
+    let id_res =
+        TemporalBackdoorIdentifier::new().identify_temporal(&graph, &temporal_query).unwrap();
+    let estimand = id_res.result.estimands.first().cloned().expect("identified");
+    let ctx = ExecutionContext::for_tests(41);
+    let temporal = TemporalRefitContext {
+        indexer: &id_res.indexer,
+        temporal_query: &temporal_query,
+        split: None,
+        kernel_policy: &ctx.kernel_policy,
+        time_index: Some(series.time_index()),
+        panel: None,
+    };
+    let ate_q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    // Far outside the replicate means (row-index averages near 31.5).
+    let original = antecedent_estimate::EffectEstimate::new(
+        1_000.0,
+        f64::NAN,
+        AssumptionSet::new(),
+        antecedent_estimate::OverlapPolicy::ExplicitOverride,
+    );
+    let refit = FixedBlockRefit { rows: 60, block_length: 12 };
+    assert!(antecedent_data::circular_block_length(2, 60) < 12);
+    let problem = RefutationProblem::new(
+        &data,
+        &estimand,
+        &ate_q,
+        &original,
+        Some("temporal.sequential.gcomp"),
+        Some(temporal),
+    )
+    .with_effect_refit(&refit);
+    let refuter = BootstrapRefute { replicates: 40, ..BootstrapRefute::new() };
+    let report = refuter.refute(&problem, &mut EstimationWorkspace::default(), &ctx).unwrap();
+    assert_eq!(report.replicates, 40);
+    assert!(!report.passed);
+    let failure = report.failure_condition.expect("failing report");
+    assert!(failure.contains("least-squares stand-in for the posterior mean"), "{failure}");
+}

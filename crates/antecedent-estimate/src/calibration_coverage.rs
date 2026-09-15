@@ -3,13 +3,23 @@
 //! These tests are `#[ignore]` so every-PR `cargo test` stays fast. Run via
 //! `scripts/gate_calibration.sh`.
 //!
-//! Tolerance rationale: with `N_SIM` trials the Monte Carlo SE of a binomial
-//! coverage rate near 0.95 is `√(0.95·0.05/N)`. We accept coverage within
-//! roughly ±4 Monte Carlo SE of 0.95 (and a hard floor/ceiling for small N).
+//! Acceptance band: two-sided `0.95 ± 3·MCSE` with `MCSE = √(0.95·0.05/N)`,
+//! the same rule as the 1.9 harness in `crates/antecedent/tests/common/calibration.rs`.
+//! At `N = 400` that is `[0.917, 0.983]`, so both an under-covering interval
+//! and a conservative (too wide) one fail. There is no estimator-specific
+//! exemption; each test prints a `calibration ...` line with the rate, MCSE,
+//! band, mean interval length, mean SE, and the Monte Carlo SD of the point
+//! estimate.
 //!
-//! IPW: Hajek IF after propensity estimation undercovers vs bootstrap at
-//! finite n. Bootstrap CI coverage is the primary gate; analytic IF uses a
-//! documented floor (≥0.88 when achievable, else ≥0.85).
+//! The same recheck and precision rules as that harness apply: below
+//! `PRECISION_N_SIM` replicates a rate more than 2 points under the level
+//! prints a `calibration-recheck` line and the gate script re-runs the test at
+//! `ANTECEDENT_CALIBRATION_NSIM=2000`; from `PRECISION_N_SIM` replicates the
+//! rate must also reach the one-sided floor `0.95 − 2·MCSE` (0.940 at 2000).
+//!
+//! Every DGP here is inside the estimator's stated assumptions (correct
+//! nuisance families, the SE kind's variance model). Out-of-assumption probes
+//! print their coverage through [`Tally::report`] and are not gated.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -24,7 +34,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalRng, CausalSchemaBuilder, ExecutionContext,
-    MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
+    MeasurementSpec, RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
 };
 use antecedent_data::column::{Float64Column, ValidityBitmap};
 use antecedent_data::{OwnedColumn, OwnedColumnarStorage, TabularData};
@@ -33,55 +43,155 @@ use antecedent_kernels::standard_normal;
 
 use crate::adjustment::LinearAdjustmentAte;
 use crate::aipw::AipwAte;
-use crate::iv::WaldIv;
+use crate::frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace};
+use crate::iv::{TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};
 use crate::propensity::{PropensityEstimationWorkspace, PropensityMatching, PropensityWeighting};
 use crate::rd::{RdWorkspace, SharpRegressionDiscontinuity};
 use crate::se::AnalyticSeKind;
 
 const TRUE_ATE: f64 = 2.0;
 /// Default Monte Carlo budget for analytic SE coverage (runtime OK on weekly gate).
-const N_SIM: u32 = 400;
-/// Bootstrap IPW is heavier; still ≥200 so MC SE of coverage near 0.95 is ~1.5%.
-const N_SIM_BOOT: u32 = 200;
+const DEFAULT_N_SIM: u32 = 400;
+/// Replicate count from which the one-sided precision floor applies.
+const PRECISION_N_SIM: u32 = 1000;
+/// Shortfall below the level that asks for a recheck at fewer replicates.
+const RECHECK_SHORTFALL: f64 = 0.02;
 const N_OBS: usize = 300;
 const Z95: f64 = 1.96;
 /// Bootstrap replicates for IPW SE: R=60 keeps gate runtime acceptable while
 /// stabilizing the replicate SD used as `se_bootstrap`.
 const BOOT_REPS: u32 = 60;
 
+/// Nominal level of every interval in this file.
+const LEVEL: f64 = 0.95;
+
+/// Replicate count, honoring `ANTECEDENT_CALIBRATION_NSIM` (the gate's recheck).
+fn n_sim() -> u32 {
+    std::env::var("ANTECEDENT_CALIBRATION_NSIM")
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(DEFAULT_N_SIM)
+}
+
+/// Bootstrap IPW is heavier: half the replicates (200 by default, a band of
+/// `[0.904, 0.996]`).
+fn n_sim_boot() -> u32 {
+    (n_sim() / 2).max(2)
+}
+
+fn coverage_mcse(n_sim: u32) -> f64 {
+    (LEVEL * (1.0 - LEVEL) / f64::from(n_sim)).sqrt()
+}
+
+/// Two-sided acceptance band `LEVEL ± 3·MCSE` (no floor, no cap below 1).
 fn coverage_band(n_sim: u32) -> (f64, f64) {
-    let se = (0.95 * 0.05 / f64::from(n_sim)).sqrt();
-    let lo = (0.95 - 4.0 * se).max(0.85);
-    let hi = (0.95 + 4.0 * se).min(1.0);
-    (lo, hi)
+    let mcse = coverage_mcse(n_sim);
+    ((LEVEL - 3.0 * mcse).max(0.0), (LEVEL + 3.0 * mcse).min(1.0))
 }
 
-fn assert_coverage(covered: u32, n_sim: u32, label: &str) {
-    let rate = f64::from(covered) / f64::from(n_sim);
-    let (lo, hi) = coverage_band(n_sim);
-    assert!(
-        rate >= lo && rate <= hi,
-        "{label}: coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({covered}/{n_sim})"
-    );
+/// One-sided precision floor `LEVEL − 2·MCSE` from `PRECISION_N_SIM` replicates.
+fn precision_floor(n_sim: u32) -> Option<f64> {
+    (n_sim >= PRECISION_N_SIM).then(|| LEVEL - 2.0 * coverage_mcse(n_sim))
 }
 
-/// Analytic IPW IF: prefer ≥0.88; documented fallback floor is 0.85 (bootstrap is primary).
-fn assert_coverage_ipw_analytic(covered: u32, n_sim: u32) {
-    let rate = f64::from(covered) / f64::from(n_sim);
-    let (_, hi) = coverage_band(n_sim);
-    // Try the stricter floor first in the message path; gate uses ≥0.85.
-    let lo_preferred = 0.88;
-    let lo = 0.85;
-    if rate >= lo_preferred && rate <= hi {
-        return;
+/// Coverage count plus mean interval length and Monte Carlo spread of the point.
+///
+/// Mean length and mean SE are over replicates that produced an interval (a
+/// finite positive SE); coverage and the point spread are over every scored
+/// replicate.
+#[derive(Default)]
+struct Tally {
+    covered: u32,
+    scored: u32,
+    with_interval: u32,
+    half_width_sum: f64,
+    points: Vec<f64>,
+    se_sum: f64,
+}
+
+impl Tally {
+    /// Score `ate ± Z95·se` against `truth`; a non-finite SE is a miss.
+    fn record(&mut self, ate: f64, se: f64, truth: f64) {
+        self.scored += 1;
+        self.points.push(ate);
+        if se.is_finite() && se > 0.0 {
+            self.with_interval += 1;
+            self.half_width_sum += Z95 * se;
+            self.se_sum += se;
+            if (ate - truth).abs() <= Z95 * se {
+                self.covered += 1;
+            }
+        }
     }
-    assert!(
-        rate >= lo && rate <= hi,
-        "ipw_hajek analytic IF: coverage={rate:.3} outside [{lo:.3}, {hi:.3}] \
-         ({covered}/{n_sim}); preferred floor was {lo_preferred}. Hajek IF after \
-         propensity estimation undercovers vs bootstrap at finite n — bootstrap \
-         CI is the primary §28.3 gate."
-    );
+
+    fn rate(&self) -> f64 {
+        f64::from(self.covered) / f64::from(self.scored.max(1))
+    }
+
+    /// Print the `calibration ...` line without gating (out-of-assumption probes).
+    fn report(&self, label: &str) {
+        let n = f64::from(self.scored.max(1));
+        let with_interval = f64::from(self.with_interval.max(1));
+        let (lo, hi) = coverage_band(self.scored.max(1));
+        let mcse = (LEVEL * (1.0 - LEVEL) / n).sqrt();
+        let mean = self.points.iter().sum::<f64>() / n;
+        let mc_sd = (self.points.iter().map(|p| (p - mean).powi(2)).sum::<f64>()
+            / (n - 1.0).max(1.0))
+        .sqrt();
+        eprintln!(
+            "calibration {label}: nominal={LEVEL:.2} coverage={:.3} mcse={mcse:.4} \
+             band=[{lo:.3}, {hi:.3}] mean_length={:.4} mean_se={:.4} mc_sd={mc_sd:.4} \
+             mean_point={mean:.4} ({}/{} covered)",
+            self.rate(),
+            2.0 * self.half_width_sum / with_interval,
+            self.se_sum / with_interval,
+            self.covered,
+            self.scored
+        );
+    }
+
+    /// Print and gate nominal coverage: the two-sided band, plus the precision
+    /// floor from `PRECISION_N_SIM` replicates or a `calibration-recheck` line
+    /// below it.
+    fn assert(&self, label: &str) {
+        assert!(self.scored > 0, "{label}: no replicates scored");
+        self.report(label);
+        let (lo, hi) = coverage_band(self.scored);
+        let rate = self.rate();
+        assert!(
+            rate >= lo && rate <= hi,
+            "{label}: coverage={rate:.3} outside [{lo:.3}, {hi:.3}] ({}/{})",
+            self.covered,
+            self.scored
+        );
+        if let Some(floor) = precision_floor(self.scored) {
+            assert!(
+                rate >= floor,
+                "{label}: coverage={rate:.3} below the precision floor {floor:.3} \
+                 (level - 2 MCSE at {} replicates; {}/{})",
+                self.scored,
+                self.covered,
+                self.scored
+            );
+        } else if rate < LEVEL - RECHECK_SHORTFALL {
+            eprintln!(
+                "calibration-recheck {label}: coverage={rate:.3} is more than \
+                 {RECHECK_SHORTFALL:.2} below {LEVEL:.2} at {} replicates; re-run at \
+                 ANTECEDENT_CALIBRATION_NSIM=2000",
+                self.scored
+            );
+        }
+    }
+}
+
+/// Columns → `TabularData` (variable ids follow column order).
+fn table(columns: &[(&str, &[f64])]) -> TabularData {
+    TabularData::from_f64_columns(columns.iter().map(|(name, col)| (*name, *col))).unwrap()
+}
+
+fn uniform01(rng: &mut CausalRng) -> f64 {
+    rng.next_u64() as f64 / (u64::MAX as f64)
 }
 
 fn schema_tyz() -> antecedent_core::CausalSchema {
@@ -135,6 +245,14 @@ fn table_tyz(t: Vec<f64>, y: Vec<f64>, z: Vec<f64>) -> TabularData {
     TabularData::new(OwnedColumnarStorage::try_new(schema_tyz(), cols, None, None).unwrap())
 }
 
+fn backdoor_z() -> IdentifiedEstimand {
+    IdentifiedEstimand::backdoor(
+        "backdoor.adjustment",
+        Arc::from([VariableId::from_raw(2)]),
+        ExprId::from_raw(0),
+    )
+}
+
 fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
     let mut rng = CausalRng::from_seed(seed);
     let mut t = Vec::with_capacity(n);
@@ -146,22 +264,13 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
         // Logistic treatment so IPW propensity (logit) is correctly specified.
         let logit = 0.8 * zi;
         let p = 1.0 / (1.0 + (-logit).exp());
-        let ti = if rng.next_u64() as f64 / (u64::MAX as f64) < p { 1.0 } else { 0.0 };
+        let ti = if uniform01(&mut rng) < p { 1.0 } else { 0.0 };
         let yi = TRUE_ATE * ti + 1.5 * zi + 0.5 * ui + 0.5 * standard_normal(&mut rng);
         t.push(ti);
         y.push(yi);
         z.push(zi);
     }
-    let estimand = IdentifiedEstimand::backdoor(
-        "backdoor.adjustment",
-        Arc::from([VariableId::from_raw(2)]),
-        ExprId::from_raw(0),
-    );
-    (table_tyz(t, y, z), estimand)
-}
-
-fn covers(ate: f64, se: f64) -> bool {
-    se.is_finite() && se > 0.0 && (ate - TRUE_ATE).abs() <= Z95 * se
+    (table_tyz(t, y, z), backdoor_z())
 }
 
 #[test]
@@ -170,17 +279,15 @@ fn linear_adjustment_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::default() };
     let ctx = ExecutionContext::for_tests(1);
-    let mut covered = 0u32;
-    for s in 0..N_SIM {
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
         let (data, estimand) = confounded_scm(N_OBS, 1000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = crate::adjustment::EstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        if covers(effect.ate, effect.se_analytic) {
-            covered += 1;
-        }
+        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
-    assert_coverage(covered, N_SIM, "linear_adjustment");
+    tally.assert("linear_adjustment");
 }
 
 #[test]
@@ -193,29 +300,29 @@ fn linear_adjustment_hc1_ci_coverage() {
         ..LinearAdjustmentAte::default()
     };
     let ctx = ExecutionContext::for_tests(11);
-    let mut covered = 0u32;
-    for s in 0..N_SIM {
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
         let (data, estimand) = confounded_scm(N_OBS, 1100 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = crate::adjustment::EstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        if covers(effect.ate, effect.se_analytic) {
-            covered += 1;
-        }
+        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
-    assert_coverage(covered, N_SIM, "linear_adjustment_hc1");
+    tally.assert("linear_adjustment_hc1");
 }
 
-/// Primary IPW coverage gate: bootstrap SE.
+/// IPW bootstrap SE (refits the propensity on every resample).
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn ipw_hajek_bootstrap_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = PropensityWeighting { bootstrap_replicates: BOOT_REPS, ..PropensityWeighting::new() };
-    let ctx = ExecutionContext::for_tests(2);
-    let mut covered = 0u32;
+    let mut tally = Tally::default();
     let mut skipped = 0u32;
-    for s in 0..N_SIM_BOOT {
+    for s in 0..n_sim_boot() {
+        // One context per simulation: a shared context would hand every
+        // simulation the same bootstrap resample indices.
+        let ctx = ExecutionContext::for_tests(2000 + u64::from(s));
         let (data, estimand) = confounded_scm(500, 2000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
@@ -224,36 +331,68 @@ fn ipw_hajek_bootstrap_ci_coverage() {
             skipped += 1;
             continue;
         };
-        if covers(effect.ate, se_b) {
-            covered += 1;
-        }
+        tally.record(effect.ate, se_b, TRUE_ATE);
     }
-    let used = N_SIM_BOOT - skipped;
     assert!(
-        used >= N_SIM_BOOT * 9 / 10,
-        "ipw bootstrap: too many missing se_bootstrap ({skipped}/{N_SIM_BOOT})"
+        skipped * 20 <= n_sim_boot(),
+        "ipw bootstrap: too many missing se_bootstrap ({skipped}/{})",
+        n_sim_boot()
     );
-    assert_coverage(covered, used, "ipw_hajek_bootstrap");
+    tally.assert("ipw_hajek_bootstrap");
 }
 
+/// Stacked logistic + weighted-mean sandwich SE (estimated propensity).
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn ipw_hajek_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() };
     let ctx = ExecutionContext::for_tests(2);
-    let mut covered = 0u32;
-    // Larger n than linear adjustment: estimated-propensity IF needs more samples.
-    for s in 0..N_SIM {
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
         let (data, estimand) = confounded_scm(500, 2100 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        if covers(effect.ate, effect.se_analytic) {
-            covered += 1;
-        }
+        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
-    assert_coverage_ipw_analytic(covered, N_SIM);
+    tally.assert("ipw_hajek_analytic");
+}
+
+/// The `conformance/estimate/propensity_ipw` SCM at the fixture's `n = 1200`:
+/// `Z ~ N(0,1)`, `T ~ Bern(σ(−0.4 + 0.9 Z))`, `Y = 2T + Z + 0.4 ε`.
+///
+/// Checks the lead that the Hajek analytic SE (0.074 on one fixture draw) is
+/// wider than the estimator's Monte Carlo SD (≈0.044): the printed `mean_se`
+/// and `mc_sd` are the direct comparison, and the two-sided band fails a
+/// conservative SE as surely as an anti-conservative one.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn ipw_hajek_analytic_conformance_scm_ci_coverage() {
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let est = PropensityWeighting { bootstrap_replicates: 0, ..PropensityWeighting::new() };
+    let ctx = ExecutionContext::for_tests(9);
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
+        let mut rng = ExecutionContext::for_tests(3 + 1000 * u64::from(s)).rng.stream(0x5051_u64);
+        let n = 1200;
+        let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+        for i in 0..n {
+            let zi = standard_normal(&mut rng);
+            let p = 1.0 / (1.0 + (-(-0.4 + 0.9 * zi)).exp());
+            let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
+            let noise = standard_normal(&mut rng) * 0.4;
+            z[i] = zi;
+            t[i] = ti;
+            y[i] = 2.0 * ti + zi + noise;
+        }
+        let data = table_tyz(t, y, z);
+        let prep = est.prepare(&data, &backdoor_z(), &query).unwrap();
+        let mut ws = PropensityEstimationWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+    }
+    tally.assert("ipw_hajek_analytic_conformance_scm");
 }
 
 #[test]
@@ -262,41 +401,155 @@ fn aipw_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = AipwAte { bootstrap_replicates: 0, ..AipwAte::new() };
     let ctx = ExecutionContext::for_tests(3);
-    let mut covered = 0u32;
-    for s in 0..N_SIM {
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
         let (data, estimand) = confounded_scm(N_OBS, 3000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = crate::aipw::AipwWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        if covers(effect.ate, effect.se_analytic) {
-            covered += 1;
-        }
+        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
-    assert_coverage(covered, N_SIM, "aipw");
+    tally.assert("aipw");
+}
+
+// ------------------------------------------------ AIPW residualized branch
+
+/// `Z ~ N(0,1)`, `T ~ Bern(σ(0.8 Z))`, `Y = 2T + T·Z + Z + U_g + 0.6 ε` with an
+/// optional cluster outcome shock `U_g ~ N(0, cluster_sd²)` shared by the 10
+/// rows of each cluster. The per-arm outcome regressions are linear in `Z` and
+/// the propensity is logistic in `Z`, so both AIPW nuisances are correctly
+/// specified; the effect is heterogeneous, so ATT ≠ ATE ≠ ATC. Columns
+/// `t, y, z`; also returns the cluster labels.
+fn heterogeneous_binary_scm(n: usize, seed: u64, cluster_sd: f64) -> (TabularData, Vec<u32>) {
+    let mut rng = CausalRng::from_seed(seed);
+    let (mut t, mut y, mut z, mut g) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0u32; n]);
+    let mut cluster_shock = 0.0;
+    for i in 0..n {
+        if i % 10 == 0 {
+            cluster_shock = cluster_sd * standard_normal(&mut rng);
+        }
+        g[i] = (i / 10) as u32;
+        z[i] = standard_normal(&mut rng);
+        let p = 1.0 / (1.0 + (-0.8 * z[i]).exp());
+        t[i] = if uniform01(&mut rng) < p { 1.0 } else { 0.0 };
+        y[i] = 2.0 * t[i] + t[i] * z[i] + z[i] + cluster_shock + 0.6 * standard_normal(&mut rng);
+    }
+    (table(&[("t", &t), ("y", &y), ("z", &z)]), g)
+}
+
+/// `E[Z | T = arm]` for `Z ~ N(0,1)`, `P(T=1|Z) = σ(0.8 Z)`, by quadrature.
+fn heterogeneous_arm_mean_z(treated: bool) -> f64 {
+    let (mut num, mut den) = (0.0, 0.0);
+    for k in 0..18_000 {
+        let z = -9.0 + f64::from(k) * 1e-3;
+        let p = 1.0 / (1.0 + (-0.8 * z).exp());
+        let w = (-0.5 * z * z).exp() * if treated { p } else { 1.0 - p };
+        num += w * z;
+        den += w;
+    }
+    num / den
+}
+
+fn aipw_residualized_coverage(
+    label: &str,
+    population: TargetPopulation,
+    se_kind: AnalyticSeKind,
+    cluster_sd: f64,
+    seed: u64,
+) {
+    let truth = match population {
+        TargetPopulation::Treated => 2.0 + heterogeneous_arm_mean_z(true),
+        TargetPopulation::Untreated => 2.0 + heterogeneous_arm_mean_z(false),
+        _ => 2.0,
+    };
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+        .with_target_population(population);
+    let ctx = ExecutionContext::for_tests(seed);
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
+        let (data, clusters) = heterogeneous_binary_scm(600, seed + u64::from(s), cluster_sd);
+        let mut est = AipwAte { bootstrap_replicates: 0, se_kind, ..AipwAte::new() };
+        if matches!(se_kind, AnalyticSeKind::Cluster) {
+            est = est.with_cluster_ids(clusters);
+        }
+        let prep = est.prepare(&data, &backdoor_z(), &query).unwrap();
+        let mut ws = crate::aipw::AipwWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        tally.record(effect.ate, effect.se_analytic, truth);
+    }
+    tally.assert(label);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn aipw_att_hc1_ci_coverage() {
+    aipw_residualized_coverage(
+        "aipw_att_hc1",
+        TargetPopulation::Treated,
+        AnalyticSeKind::Hc1,
+        0.0,
+        31_000,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn aipw_atc_hc1_ci_coverage() {
+    aipw_residualized_coverage(
+        "aipw_atc_hc1",
+        TargetPopulation::Untreated,
+        AnalyticSeKind::Hc1,
+        0.0,
+        32_000,
+    );
+}
+
+/// ATE on the residualized branch (HC1 moves it off the cross-fitted score table).
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn aipw_ate_hc1_ci_coverage() {
+    aipw_residualized_coverage(
+        "aipw_ate_hc1",
+        TargetPopulation::AllObserved,
+        AnalyticSeKind::Hc1,
+        0.0,
+        33_000,
+    );
+}
+
+/// Clustered outcome shocks (60 clusters of 10): the cluster-robust IF SE.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn aipw_att_cluster_ci_coverage() {
+    aipw_residualized_coverage(
+        "aipw_att_cluster",
+        TargetPopulation::Treated,
+        AnalyticSeKind::Cluster,
+        0.8,
+        34_000,
+    );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn matching_homoskedastic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
-        .with_target_population(antecedent_core::TargetPopulation::Treated);
+        .with_target_population(TargetPopulation::Treated);
     let est = PropensityMatching {
         bootstrap_replicates: 0,
         se_kind: AnalyticSeKind::Homoskedastic,
         ..PropensityMatching::new()
     };
     let ctx = ExecutionContext::for_tests(4);
-    let mut covered = 0u32;
-    for s in 0..N_SIM {
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
         let (data, estimand) = confounded_scm(N_OBS, 4000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        if covers(effect.ate, effect.se_analytic) {
-            covered += 1;
-        }
+        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
-    assert_coverage(covered, N_SIM, "matching_ai");
+    tally.assert("matching_ai");
 }
 
 /// Continuous-treatment IV DGP with a **strong** first stage.
@@ -328,52 +581,176 @@ fn binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
     (table_tyz(t, y, z), estimand)
 }
 
-#[test]
-#[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn wald_iv_analytic_ci_coverage() {
+fn wald_coverage(label: &str, se_kind: AnalyticSeKind, seed: u64) {
     let query =
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
-    let est =
-        WaldIv { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Homoskedastic, ..WaldIv::new() };
-    let ctx = ExecutionContext::for_tests(5);
-    let mut covered = 0u32;
-    let mut scored = 0u32;
-    for s in 0..N_SIM {
-        let (data, estimand) = binary_iv_scm(N_OBS, 5000 + u64::from(s));
+    let est = WaldIv { bootstrap_replicates: 0, se_kind, ..WaldIv::new() };
+    let ctx = ExecutionContext::for_tests(seed);
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
+        let (data, estimand) = binary_iv_scm(N_OBS, seed * 1000 + u64::from(s));
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
         // Strong-instrument DGP: every draw must publish a finite SE.
         assert!(
             effect.se_analytic.is_finite() && effect.se_analytic > 0.0,
-            "wald_iv: unexpected weak first stage (se_analytic non-finite) on seed {}",
-            5000 + u64::from(s)
+            "{label}: unexpected weak first stage (se_analytic non-finite) on replicate {s}"
         );
-        scored += 1;
-        if covers(effect.ate, effect.se_analytic) {
-            covered += 1;
-        }
+        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
-    assert_eq!(scored, N_SIM);
-    assert_coverage(covered, N_SIM, "wald_iv");
+    tally.assert(label);
 }
 
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn wald_iv_analytic_ci_coverage() {
+    wald_coverage("wald_iv", AnalyticSeKind::Homoskedastic, 5);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn wald_iv_hc1_ci_coverage() {
+    wald_coverage("wald_iv_hc1", AnalyticSeKind::Hc1, 15);
+}
+
+// ------------------------------------------------------------------ 2SLS
+
+/// Over-identified 2SLS with an exogenous covariate: `z1, z2, x, u ~ N(0,1)`,
+/// `T = 0.6 z1 + 0.4 z2 + 0.5 x + u + 0.5 e`, `Y = 2T + x + u + s·ε` with
+/// `s = 1` (homoskedastic) or `s = 0.4 + 0.8|z1|` (variance moving with the
+/// excluded instrument, which invalidates the classical 2SLS SE).
+/// Columns `t, y, z1, z2, x`; estimand instruments `{z1, z2}`, adjustment `{x}`.
+fn two_sls_scm(n: usize, seed: u64, heteroskedastic: bool) -> (TabularData, IdentifiedEstimand) {
+    let mut rng = CausalRng::from_seed(seed);
+    let cols: [Vec<f64>; 5] = std::array::from_fn(|_| vec![0.0; n]);
+    let [mut t, mut y, mut z1, mut z2, mut x] = cols;
+    for i in 0..n {
+        z1[i] = standard_normal(&mut rng);
+        z2[i] = standard_normal(&mut rng);
+        x[i] = standard_normal(&mut rng);
+        let u = standard_normal(&mut rng);
+        t[i] = 0.6 * z1[i] + 0.4 * z2[i] + 0.5 * x[i] + u + 0.5 * standard_normal(&mut rng);
+        let s = if heteroskedastic { 0.4 + 0.8 * z1[i].abs() } else { 1.0 };
+        y[i] = TRUE_ATE * t[i] + x[i] + u + s * standard_normal(&mut rng);
+    }
+    let estimand = IdentifiedEstimand::new(
+        "iv",
+        Arc::from([VariableId::from_raw(4)]),
+        Arc::from([VariableId::from_raw(2), VariableId::from_raw(3)]),
+        Arc::from([]),
+        ExprId::from_raw(0),
+        None,
+    );
+    (table(&[("t", &t), ("y", &y), ("z1", &z1), ("z2", &z2), ("x", &x)]), estimand)
+}
+
+fn two_sls_coverage(label: &str, se_kind: AnalyticSeKind, heteroskedastic: bool, seed: u64) {
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
+    let est =
+        TwoStageLeastSquares { bootstrap_replicates: 0, se_kind, ..TwoStageLeastSquares::new() };
+    let ctx = ExecutionContext::for_tests(seed);
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
+        let (data, estimand) = two_sls_scm(500, seed + u64::from(s), heteroskedastic);
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = TwoStageLeastSquaresWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+    }
+    tally.assert(label);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn iv_2sls_analytic_ci_coverage() {
+    two_sls_coverage("iv_2sls_analytic", AnalyticSeKind::Homoskedastic, false, 35_000);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn iv_2sls_hc1_heteroskedastic_ci_coverage() {
+    two_sls_coverage("iv_2sls_hc1_heteroskedastic", AnalyticSeKind::Hc1, true, 36_000);
+}
+
+// ------------------------------------------------------------- front-door
+
+/// `u ~ N(0,1)` unobserved, `T = u + 0.8 e`, `M = T + 0.7 e`,
+/// `Y = 2M + 1.5u + s·ε` with `s = 0.5 + 0.5|T|` (heteroskedastic, so the
+/// stacked sandwich rather than a classical SE is required). Columns `t, y, m`.
+/// Front-door truth: `β_{T→M}·β_{M→Y} = 1·2 = 2`.
+fn frontdoor_scm(n: usize, seed: u64) -> TabularData {
+    let mut rng = CausalRng::from_seed(seed);
+    let (mut t, mut y, mut m) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        let u = standard_normal(&mut rng);
+        t[i] = u + 0.8 * standard_normal(&mut rng);
+        m[i] = t[i] + 0.7 * standard_normal(&mut rng);
+        let s = 0.5 + 0.5 * t[i].abs();
+        y[i] = TRUE_ATE * m[i] + 1.5 * u + s * standard_normal(&mut rng);
+    }
+    table(&[("t", &t), ("y", &y), ("m", &m)])
+}
+
+fn frontdoor_coverage(label: &str, se_kind: AnalyticSeKind, seed: u64) {
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
+    let estimand = IdentifiedEstimand::frontdoor(
+        "frontdoor",
+        Arc::from([VariableId::from_raw(2)]),
+        ExprId::from_raw(0),
+    );
+    let est = FrontDoorTwoStage { bootstrap_replicates: 0, se_kind, ..FrontDoorTwoStage::new() };
+    let ctx = ExecutionContext::for_tests(seed);
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
+        let data = frontdoor_scm(400, seed + u64::from(s));
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = FrontDoorWorkspace::default();
+        let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+    }
+    tally.assert(label);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frontdoor_stacked_hc0_ci_coverage() {
+    frontdoor_coverage("frontdoor_stacked_hc0", AnalyticSeKind::Hc0, 37_000);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn frontdoor_stacked_hc1_ci_coverage() {
+    frontdoor_coverage("frontdoor_stacked_hc1", AnalyticSeKind::Hc1, 38_000);
+}
+
+// ------------------------------------------------------------------ sharp RD
+
 /// `R ~ U(cutoff-bandwidth, cutoff+bandwidth)` (so every draw lands inside the RD window),
-/// `T = 1{R ≥ cutoff}`, `Y = 1.0 + 0.5(R-c) + TRUE_ATE·T − 0.8·T·(R-c) + 0.3·noise` with a
-/// genuine Gaussian noise term. The jump at the cutoff is `TRUE_ATE`. Reuses `table_tyz`
-/// (treatment column is a required-but-unused placeholder for the RD estimator, which derives
-/// treatment status from the running variable rather than the query's treatment column).
-fn rd_scm(n: usize, seed: u64, cutoff: f64, bandwidth: f64) -> (TabularData, IdentifiedEstimand) {
+/// `T = 1{R ≥ cutoff}`, `Y = 1.0 + 0.5(R-c) + TRUE_ATE·T − 0.8·T·(R-c) + s·noise`. The jump at
+/// the cutoff is `TRUE_ATE`. `s = 0.3` (homoskedastic) or `s = 0.1 + 0.6·|R − c|` (variance
+/// growing away from the cutoff). Reuses `table_tyz` (the treatment column is a
+/// required-but-unused placeholder: RD derives treatment from the running variable).
+fn rd_scm(
+    n: usize,
+    seed: u64,
+    cutoff: f64,
+    bandwidth: f64,
+    heteroskedastic: bool,
+) -> (TabularData, IdentifiedEstimand) {
     let mut rng = CausalRng::from_seed(seed);
     let mut t = Vec::with_capacity(n);
     let mut y = Vec::with_capacity(n);
     let mut r = Vec::with_capacity(n);
     for _ in 0..n {
-        let u = rng.next_u64() as f64 / (u64::MAX as f64);
+        let u = uniform01(&mut rng);
         let ri = cutoff - bandwidth + 2.0 * bandwidth * u;
         let centered = ri - cutoff;
         let ti = if centered >= 0.0 { 1.0 } else { 0.0 };
+        let s = if heteroskedastic { 0.1 + 0.6 * centered.abs() } else { 0.3 };
         let yi = 1.0 + 0.5 * centered + TRUE_ATE * ti - 0.8 * ti * centered
-            + 0.3 * standard_normal(&mut rng);
+            + s * standard_normal(&mut rng);
         t.push(0.0);
         y.push(yi);
         r.push(ri);
@@ -382,52 +759,54 @@ fn rd_scm(n: usize, seed: u64, cutoff: f64, bandwidth: f64) -> (TabularData, Ide
     (table_tyz(t, y, r), estimand)
 }
 
-/// Sharp-RD analytic SE: `analytic_se_treatment` is the classical homoskedastic
-/// `(X'X)^{-1}σ²` specialised to RD's `[1, T, (R-c), T·(R-c)]` design, read off the
-/// treatment-column diagonal entry. This is the only coverage check the estimator had before
-/// this test — previously only the point estimate (`recovers_jump_of_three`) was calibrated.
+/// Sharp-RD homoskedastic analytic SE (explicit opt-in) on a homoskedastic DGP
+/// (its stated assumption).
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn rd_sharp_analytic_ci_coverage() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let est = SharpRegressionDiscontinuity {
         bootstrap_replicates: 0,
+        se_kind: AnalyticSeKind::Homoskedastic,
         ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
     };
     let ctx = ExecutionContext::for_tests(6);
-    let mut covered = 0u32;
-    for s in 0..N_SIM {
-        let (data, estimand) = rd_scm(N_OBS, 6000 + u64::from(s), 0.0, 1.0);
+    let mut tally = Tally::default();
+    for s in 0..n_sim() {
+        let (data, estimand) = rd_scm(N_OBS, 6000 + u64::from(s), 0.0, 1.0, false);
         let prep = est.prepare(&data, &estimand, &query).unwrap();
         let mut ws = RdWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
-        if covers(effect.ate, effect.se_analytic) {
-            covered += 1;
-        }
+        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
-    assert_coverage(covered, N_SIM, "rd_sharp_analytic");
+    tally.assert("rd_sharp_analytic");
 }
 
+/// Sharp-RD HC1 SE on a heteroskedastic DGP (gated). The homoskedastic SE on the
+/// same fits is recorded as an out-of-assumption probe (printed, not gated).
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn wald_iv_hc1_ci_coverage() {
-    let query =
-        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0);
-    let est = WaldIv { bootstrap_replicates: 0, se_kind: AnalyticSeKind::Hc1, ..WaldIv::new() };
-    let ctx = ExecutionContext::for_tests(15);
-    let mut covered = 0u32;
-    for s in 0..N_SIM {
-        let (data, estimand) = binary_iv_scm(N_OBS, 5100 + u64::from(s));
-        let prep = est.prepare(&data, &estimand, &query).unwrap();
-        let effect = est.fit(&prep, &ctx, AssumptionSet::new()).unwrap();
-        assert!(
-            effect.se_analytic.is_finite() && effect.se_analytic > 0.0,
-            "wald_iv_hc1: unexpected weak first stage (se_analytic non-finite) on seed {}",
-            5100 + u64::from(s)
-        );
-        if covers(effect.ate, effect.se_analytic) {
-            covered += 1;
-        }
+fn rd_sharp_hc1_heteroskedastic_ci_coverage() {
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let hc1 = SharpRegressionDiscontinuity {
+        bootstrap_replicates: 0,
+        se_kind: AnalyticSeKind::Hc1,
+        ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, 1.0)
+    };
+    let classical =
+        SharpRegressionDiscontinuity { se_kind: AnalyticSeKind::Homoskedastic, ..hc1.clone() };
+    let ctx = ExecutionContext::for_tests(16);
+    let mut tally = Tally::default();
+    let mut probe = Tally::default();
+    for s in 0..n_sim() {
+        let (data, estimand) = rd_scm(N_OBS, 6100 + u64::from(s), 0.0, 1.0, true);
+        let prep = hc1.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = RdWorkspace::default();
+        let effect = hc1.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        let naive = classical.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        probe.record(naive.ate, naive.se_analytic, TRUE_ATE);
     }
-    assert_coverage(covered, N_SIM, "wald_iv_hc1");
+    probe.report("rd_sharp_homoskedastic_se_heteroskedastic_probe");
+    tally.assert("rd_sharp_hc1_heteroskedastic");
 }

@@ -25,19 +25,26 @@ use antecedent_core::{
     SupportReport, SupportStatus, TargetPopulation, TemporalEffectQuery, TemporalNodeKey,
     TemporalResponseSpec, Value, VariableId,
 };
-use antecedent_data::{ResamplingPlan, TemporalIndexer, TimeSeriesData, fill_resample_index_batch};
+use antecedent_data::{TableView, TemporalIndexer, TimeSeriesData, fill_circular_block_indexes};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
-    CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, SandwichKind,
-    coefficient_covariance, normal_ppf,
+    CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, normal_ppf,
 };
 
 use crate::adjustment::{LinearAdjustmentAte, PreparedEstimationProblem};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
+use crate::serial_dependence::{
+    DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, tempering_kappa_from_notes,
+};
 use crate::temporal_adjustment::TemporalLinearAdjustment;
+use crate::temporal_block::{
+    AlignedRows, aligned_block_bootstrap, common_time_window, normal_equation_scores,
+    testing_block_length,
+};
+use crate::temporal_response_dispersion::{CellDispersion, RESPONSE_SHORT_SERIES_ROWS};
 use crate::temporal_sequential::{SequentialMechanismOverlay, SequentialNodeOverlay};
-use crate::util::{BOOTSTRAP_MAX_FAILURE_FRAC, range, sample_std};
+use crate::util::{BOOTSTRAP_MAX_FAILURE_FRAC, monte_carlo_critical, range, sample_std, solve_spd};
 
 /// Licensed temporal `InterventionResponse` overlay.
 #[derive(Clone, Debug, PartialEq)]
@@ -95,11 +102,520 @@ impl TemporalInterventionPlan {
     }
 }
 
-/// Resample stream base for the per-horizon coefficient bootstrap.
+/// Resample stream base for the joint surface bootstrap (one stream per replicate).
 ///
-/// Fixed rather than per-horizon so every horizon resamples the same rows: the surface is
-/// read across horizons, and common random numbers keep those pointwise SEs comparable.
+/// Every horizon of one replicate is refit on the same time-aligned blocks, so the
+/// replicate is a draw of the whole dose × horizon surface, not of one horizon.
 const HORIZON_BOOTSTRAP_STREAM: u64 = 0x7E50_u64;
+
+/// Support-diagnostic id carrying the simultaneous band's lower edge (mean-surface layout).
+pub const SIMULTANEOUS_BAND_LOWER: &str = "response.simultaneous_band.lower";
+/// Support-diagnostic id carrying the simultaneous band's upper edge (mean-surface layout).
+pub const SIMULTANEOUS_BAND_UPPER: &str = "response.simultaneous_band.upper";
+/// Support-diagnostic id carrying `[level, critical value, joint replicates or draws]`.
+pub const SIMULTANEOUS_BAND_CRITICAL: &str = "response.simultaneous_band.critical";
+/// Warning code when a simultaneous band is not published.
+pub const SIMULTANEOUS_BAND_WITHHELD: &str = "response.simultaneous_band_withheld";
+
+/// Warning code: a Frequentist temporal response published no band because no
+/// dependence-preserving replicates were available.
+pub const TEMPORAL_RESPONSE_BAND_WITHHELD: &str = "estimate.temporal_response.band_withheld";
+
+/// Fewest joint replicates / draws from which a simultaneous band is published.
+///
+/// The critical value is the `ceil(level·(B+1))`-th order statistic of `B` maxima; below
+/// this count the 95% critical value is (close to) the sample maximum and carries little
+/// information about the tail it is meant to estimate.
+pub const SIMULTANEOUS_BAND_MIN_REPLICATES: usize = 40;
+
+/// Cell SD at or below which a grid cell is treated as non-varying.
+///
+/// Machine epsilon is too tight: `aarch64` GEMM on the noiseless dose × horizon
+/// fixture lands an SD of ~1e-15, which then studentizes into an
+/// architecture-specific critical value. `x86_64` lands at 0. Real bootstrap
+/// SEs sit many orders above this floor.
+const NONVARYING_CELL_SD: f64 = 1e-12;
+
+/// Max-studentized-deviation (sup-t) simultaneous band over a response grid.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MaxDeviationBand {
+    /// Simultaneous level.
+    pub level: f64,
+    /// Critical value `c`: the band is `center ± c·scale` at every cell.
+    pub critical: f64,
+    /// Lower edge, same layout as the center.
+    pub lower: Vec<f64>,
+    /// Upper edge, same layout as the center.
+    pub upper: Vec<f64>,
+    /// Joint replicates or draws the critical value was computed from.
+    pub replicates: u32,
+}
+
+/// Sup-t band from joint replicates (or posterior draws) of a whole response surface.
+///
+/// `draws[r]` is replicate `r`'s full surface in the same layout as `center`. Each cell's
+/// scale is the SD of its replicates; the critical value is the `ceil(level·(B+1))`-th
+/// order statistic of `max_j |draws[r][j] − center[j]| / scale_j` over the `B` replicates,
+/// so the band covers the whole grid at once rather than one cell at a time. This is the
+/// replicate-based analogue of the static Kennedy-DR multiplier band.
+///
+/// # Errors
+///
+/// Fewer than [`SIMULTANEOUS_BAND_MIN_REPLICATES`] replicates, ragged or non-finite draws,
+/// or a level outside `(0, 1)`. A cell that does not vary contributes a zero
+/// studentized deviation and a zero-width slice; it does not withhold the band.
+pub fn max_deviation_band(
+    center: &[f64],
+    draws: &[Vec<f64>],
+    level: f64,
+) -> Result<MaxDeviationBand, EstimationError> {
+    if draws.iter().any(|draw| draw.len() != center.len()) {
+        return Err(EstimationError::unsupported(
+            "simultaneous band needs joint draws aligned with the response grid",
+        ));
+    }
+    max_deviation_band_by(center, draws.len(), |r, cell| draws[r][cell], level)
+}
+
+/// [`max_deviation_band`] over column-major draws: `columns[cell][r]`.
+///
+/// # Errors
+///
+/// Same as [`max_deviation_band`].
+pub fn max_deviation_band_columns(
+    center: &[f64],
+    columns: &[&[f64]],
+    level: f64,
+) -> Result<MaxDeviationBand, EstimationError> {
+    let n_draws = columns.first().map_or(0, |column| column.len());
+    if columns.len() != center.len() || columns.iter().any(|column| column.len() != n_draws) {
+        return Err(EstimationError::unsupported(
+            "simultaneous band needs joint draws aligned with the response grid",
+        ));
+    }
+    max_deviation_band_by(center, n_draws, |r, cell| columns[cell][r], level)
+}
+
+fn max_deviation_band_by(
+    center: &[f64],
+    n_draws: usize,
+    value: impl Fn(usize, usize) -> f64,
+    level: f64,
+) -> Result<MaxDeviationBand, EstimationError> {
+    if !(level > 0.0 && level < 1.0) {
+        return Err(EstimationError::unsupported("simultaneous band level must lie in (0, 1)"));
+    }
+    if n_draws < SIMULTANEOUS_BAND_MIN_REPLICATES {
+        return Err(EstimationError::unsupported(
+            "simultaneous band needs at least 40 joint replicates or draws",
+        ));
+    }
+    if center.is_empty()
+        || center.iter().any(|mid| !mid.is_finite())
+        || (0..n_draws).any(|r| (0..center.len()).any(|cell| !value(r, cell).is_finite()))
+    {
+        return Err(EstimationError::unsupported(
+            "simultaneous band needs finite joint draws and a finite center",
+        ));
+    }
+    let scale: Vec<f64> = (0..center.len())
+        .map(|cell| sample_std(&(0..n_draws).map(|r| value(r, cell)).collect::<Vec<_>>()))
+        .collect();
+    if scale.iter().any(|s| !s.is_finite()) {
+        return Err(EstimationError::unsupported(
+            "simultaneous band needs finite joint draws and a finite center",
+        ));
+    }
+    // A noiseless cell can have SD at GEMM scale (the deterministic dose ×
+    // horizon fixture). Dividing by that blows up the studentized max — and
+    // used to withhold the whole band while the pointwise band stayed
+    // published — and the resulting critical value is architecture noise.
+    // A non-varying cell contributes 0 to the max and a zero-width slice.
+    let mut maxima: Vec<f64> =
+        (0..n_draws)
+            .map(|r| {
+                center
+                    .iter()
+                    .zip(&scale)
+                    .enumerate()
+                    .map(|(cell, (mid, s))| {
+                        if *s <= NONVARYING_CELL_SD {
+                            0.0
+                        } else {
+                            (value(r, cell) - mid).abs() / s
+                        }
+                    })
+                    .fold(0.0_f64, f64::max)
+            })
+            .collect();
+    maxima.sort_by(f64::total_cmp);
+    let b = maxima.len();
+    // A band over the whole grid is never narrower than the one-cell normal band
+    // `center ± z·scale`: with strongly correlated cells and few distinct blocks the
+    // Monte Carlo rank can fall below `z`, which would publish a "simultaneous" band
+    // inside the pointwise one.
+    let critical = monte_carlo_critical(&maxima, level).max(normal_ppf(0.5 + level / 2.0));
+    Ok(MaxDeviationBand {
+        level,
+        critical,
+        lower: center.iter().zip(&scale).map(|(mid, s)| mid - critical * s).collect(),
+        upper: center.iter().zip(&scale).map(|(mid, s)| mid + critical * s).collect(),
+        replicates: u32::try_from(b).unwrap_or(u32::MAX),
+    })
+}
+
+/// Publish (or explicitly withhold) a simultaneous band next to the pointwise band.
+///
+/// The pointwise band stays in [`CausalResponse::uncertainty`]; the simultaneous band is
+/// carried by three support diagnostics ([`SIMULTANEOUS_BAND_LOWER`],
+/// [`SIMULTANEOUS_BAND_UPPER`], [`SIMULTANEOUS_BAND_CRITICAL`]) whose detail names the
+/// construction. Any previously attached simultaneous band is replaced. `Err` publishes a
+/// [`SIMULTANEOUS_BAND_WITHHELD`] warning with the reason instead of a band.
+pub fn publish_simultaneous_band(
+    support: &mut SupportReport,
+    band: Result<MaxDeviationBand, EstimationError>,
+    construction: &str,
+) {
+    clear_simultaneous_band(support);
+    match band {
+        Ok(band) => {
+            support.diagnostics.push(SupportDiagnostic {
+                id: Arc::from(SIMULTANEOUS_BAND_LOWER),
+                values: Arc::from(band.lower),
+                detail: Arc::from(format!(
+                    "lower edge of the {:.0}% SIMULTANEOUS band over the whole response grid \
+                     (same layout as the mean); {construction}",
+                    band.level * 100.0
+                )),
+            });
+            support.diagnostics.push(SupportDiagnostic {
+                id: Arc::from(SIMULTANEOUS_BAND_UPPER),
+                values: Arc::from(band.upper),
+                detail: Arc::from(format!(
+                    "upper edge of the {:.0}% SIMULTANEOUS band over the whole response grid \
+                     (same layout as the mean); {construction}",
+                    band.level * 100.0
+                )),
+            });
+            support.diagnostics.push(SupportDiagnostic {
+                id: Arc::from(SIMULTANEOUS_BAND_CRITICAL),
+                values: Arc::from([band.level, band.critical, f64::from(band.replicates)]),
+                detail: Arc::from(
+                    "[simultaneous level, max-studentized-deviation critical value, joint \
+                     replicates or draws]; the pointwise band in uncertainty uses one cell at a \
+                     time and is not simultaneous",
+                ),
+            });
+        }
+        Err(reason) => support.warnings.push(Diagnostic::new(
+            SIMULTANEOUS_BAND_WITHHELD,
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "no simultaneous band is published; the band in uncertainty is pointwise only \
+                 ({reason})"
+            ),
+        )),
+    }
+}
+
+/// Remove any simultaneous-band diagnostics and withheld warnings from `support`.
+pub fn clear_simultaneous_band(support: &mut SupportReport) {
+    support.diagnostics.retain(|diagnostic| {
+        !matches!(
+            diagnostic.id.as_ref(),
+            SIMULTANEOUS_BAND_LOWER | SIMULTANEOUS_BAND_UPPER | SIMULTANEOUS_BAND_CRITICAL
+        )
+    });
+    support.warnings.retain(|warning| warning.code.as_ref() != SIMULTANEOUS_BAND_WITHHELD);
+}
+
+/// Rule part of the temporal response block length:
+/// `max(structural span, ceil(sqrt(n)))`, capped at `n`. [`ResponseBlockLength`]
+/// lengthens it when an estimating score is persistently dependent.
+///
+/// Response bands are read at a fixed critical value, so the block length is chosen for
+/// interval coverage rather than for the mean-squared error of the variance: the
+/// circular-block variance is (asymptotically) a Bartlett-kernel long-run variance with
+/// bandwidth `ℓ`, whose testing-optimal bandwidth grows like `n^{1/2}` (Sun, Phillips &
+/// Jin 2008, Bartlett characteristic exponent `q = 1`), not like the MSE-optimal
+/// `n^{1/3}` used by the scalar temporal effect resamplers. A shorter block leaves an
+/// `O(1/ℓ)` kernel bias that no critical value repairs: with `ℓ = ceil(n^{1/3})` the
+/// 1.9 calibration of the observation-adjusted surface measured 0.89–0.91 pointwise
+/// coverage of nominal 95% bands under AR(1) ρ = 0.5 residuals at n = 160. The
+/// estimation noise the longer block adds is carried by the fixed-b factor of
+/// [`block_dispersion_inflation`]; the kernel bias that remains at any licensed
+/// length on a persistent influence is carried by the per-cell factor of
+/// [`crate::temporal_response_dispersion::kernel_bias_factor`].
+#[must_use]
+pub fn temporal_block_length(structural_span: usize, n: usize) -> usize {
+    let root = (n as f64).sqrt().ceil() as usize;
+    structural_span.max(root).min(n).max(1)
+}
+
+/// Block length of one temporal response bootstrap and how it was chosen.
+///
+/// `length = max(rule, min(testing, rows / 3))`, capped at `rows`, where `rule` is
+/// [`temporal_block_length`] and `testing = ceil(b_PW · rows^{1/6})` with `b_PW` the
+/// largest Politis–White length over the level's estimating scores
+/// ([`crate::temporal_block::testing_block_length`], the lengthening of the scalar
+/// temporal effects' [`crate::temporal_block::dependence_block_length`]): the fitted
+/// regressions' normal-equation scores and the centered covariate columns whose
+/// averages the level reads.
+///
+/// The lengthening fires when a score is detectably persistent (an AR(1) φ = 0.9
+/// treatment column, say). The Bartlett kernel of the block still misses `O(1/ℓ)` of
+/// a persistent influence's long-run variance at any licensed length; each published
+/// cell's replicate deviations therefore also carry the parametric kernel-bias factor
+/// of [`crate::temporal_response_dispersion::kernel_bias_factor`]. Neither reading
+/// fires when a strongly persistent component is a small share of a score: with AR(1)
+/// ρ = 0.9 residuals under omitted iid treatment lags at n = 160 the residual's
+/// autocorrelations stay under the Politis–White significance threshold, the fitted
+/// autoregression reads a lag-1 coefficient near 0.14, and the calibration measured
+/// 0.883–0.943 pointwise and 0.873 simultaneous coverage of nominal 95% (disclosed as
+/// [`TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ResponseBlockLength {
+    /// Published block length, in lag-aligned rows.
+    pub length: usize,
+    /// `max(structural span, ceil(sqrt(rows)))`, capped at `rows`.
+    pub rule: usize,
+    /// Uncapped `ceil(b_PW · rows^{1/6})`; `0` when no score yields a Politis–White length.
+    pub testing: usize,
+    /// Lag-aligned rows (outcome-time tuples) resampled.
+    pub rows: usize,
+}
+
+impl ResponseBlockLength {
+    /// Block length for `rows` resampled rows of a design spanning `structural_span`
+    /// lags, lengthened by the estimating `scores` (one series per fitted coefficient).
+    #[must_use]
+    pub fn new(structural_span: usize, rows: usize, scores: &[&[f64]]) -> Self {
+        let rule = temporal_block_length(structural_span, rows);
+        let testing = testing_block_length(rows, scores);
+        let length = rule.max(testing.min(rows / 3)).min(rows.max(1));
+        Self { length, rule, testing, rows }
+    }
+
+    /// The dependence-aware length wanted more than the `rows / 3` cap allowed.
+    #[must_use]
+    pub const fn capped(&self) -> bool {
+        self.testing > self.length
+    }
+}
+
+/// Support-diagnostic id carrying `[block length, rule length, uncapped testing length,
+/// rows, dispersion factor]` of a temporal response circular-block bootstrap.
+pub const TEMPORAL_RESPONSE_BLOCK_LENGTH: &str = "response.temporal.block_length";
+/// Warning code: the dependence-aware block lengthening hit the `rows / 3` cap.
+pub const TEMPORAL_RESPONSE_BLOCK_CAPPED: &str = "response.temporal.block_length_capped";
+/// Warning code: the pointwise band rests on fewer than
+/// [`SIMULTANEOUS_BAND_MIN_REPLICATES`] surviving joint replicates.
+pub const TEMPORAL_RESPONSE_FEW_REPLICATES: &str =
+    "response.temporal.pointwise_band_few_replicates";
+/// Warning code on every temporal response block band: the calibrated dependence scope
+/// and the measured coverage beyond it.
+pub const TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY: &str =
+    "response.temporal.block.persistence_boundary";
+/// Support-diagnostic id carrying each published cell's kernel-bias factor (the layout
+/// of the mean; one value for a mixed class band).
+pub const TEMPORAL_RESPONSE_KERNEL_FACTOR: &str = "response.temporal.kernel_bias_factor";
+/// Support-diagnostic id carrying each published cell's influence effective rows (the
+/// layout of the mean; one value for a mixed class band).
+pub const TEMPORAL_RESPONSE_EFFECTIVE_ROWS: &str = "response.temporal.effective_rows";
+/// Warning code: a published cell's influence has fewer than
+/// [`RESPONSE_SHORT_SERIES_ROWS`] effective rows, so the band may under-cover.
+pub const TEMPORAL_RESPONSE_SHORT_SERIES: &str = "response.temporal.block.short_series";
+
+/// Text of [`TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY`]; the numbers are the 1.9
+/// calibration (`crates/antecedent/tests/v19_temporal_response_calibration.rs`, 400
+/// replicates, nominal 95%).
+const PERSISTENCE_BOUNDARY_MESSAGE: &str = "circular blocks are max(span, ceil(sqrt(n))), \
+     lengthened to ceil(b_PW·n^(1/6)) (at most n/3) when an estimating score is detectably \
+     persistent, and each cell's replicate deviations carry the kernel-bias factor of the \
+     autoregression fitted to that cell's influence; coverage is gated for iid and AR(1) \
+     ρ=0.5 residuals and for the dose curve and the shift response under an AR(1) φ=0.9 \
+     treatment (the shift level reads about ten effective rows at n=160 and is \
+     short-series-warned). A strongly \
+     persistent component that is a small share of a score is seen by neither reading at \
+     short n: with AR(1) ρ=0.9 residuals under omitted iid treatment lags (15% of the \
+     residual variance) the calibration measured 0.883–0.943 pointwise and 0.873 \
+     simultaneous coverage of nominal 95% on the dose × horizon curve at n=160, and the \
+     level's long-run variance is not estimable there (an AR(1)-plus-noise fit spans a \
+     ratio of 1.2–5.9 around a truth of 3.7); the band is short-series-warned only when \
+     the influence itself reads short (response.temporal.block.short_series)";
+
+/// Record how a temporal response circular-block band was built: the block-length and
+/// per-cell dispersion diagnostics, a warning when the lengthening was capped, when a
+/// cell's influence reads short, or when the pointwise band rests on few replicates, and
+/// the `temporal_response.block_bootstrap` assumption.
+///
+/// Every temporal response block bootstrap (complete-data surface, observation-adjusted
+/// surface, Sequence and class-observation tuples) calls this once per published band,
+/// so they disclose one rule in one wording. `refit` names what each replicate refits;
+/// `completed` counts the surviving joint replicates; `dispersion` carries each cell's
+/// kernel-bias factor and effective rows.
+pub fn disclose_response_block_bootstrap(
+    support: &mut SupportReport,
+    assumptions: &mut AssumptionSet,
+    block: ResponseBlockLength,
+    factor: f64,
+    dispersion: &CellDispersion,
+    completed: usize,
+    refit: &str,
+) {
+    let ResponseBlockLength { length, testing, rows, .. } = block;
+    support.diagnostics.retain(|d| {
+        !matches!(
+            d.id.as_ref(),
+            TEMPORAL_RESPONSE_BLOCK_LENGTH
+                | TEMPORAL_RESPONSE_KERNEL_FACTOR
+                | TEMPORAL_RESPONSE_EFFECTIVE_ROWS
+        )
+    });
+    support.warnings.retain(|w| {
+        !matches!(
+            w.code.as_ref(),
+            TEMPORAL_RESPONSE_BLOCK_CAPPED
+                | TEMPORAL_RESPONSE_FEW_REPLICATES
+                | TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY
+                | TEMPORAL_RESPONSE_SHORT_SERIES
+        )
+    });
+    push_block_dispersion_diagnostics(support, block, factor, dispersion);
+    support.warnings.push(Diagnostic::new(
+        TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY,
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Warning,
+        PERSISTENCE_BOUNDARY_MESSAGE,
+    ));
+    if dispersion.is_short_series() {
+        let rows_read = dispersion.min_effective_rows();
+        support.warnings.push(Diagnostic::new(
+            TEMPORAL_RESPONSE_SHORT_SERIES,
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "a published cell's influence has {rows_read:.1} effective rows, below the \
+                 {RESPONSE_SHORT_SERIES_ROWS} threshold of the temporal response band: the \
+                 series is short for the dependence of that level (a shift response under an \
+                 AR(1) φ=0.9 treatment reads about 7 effective rows at n=100 and covered 0.885 \
+                 pointwise / 0.890 simultaneous of nominal 0.95 with the kernel-bias factor; at \
+                 n=160, about 10 rows, it covered 0.943 / 0.948), and its pointwise and \
+                 simultaneous bands may under-cover"
+            ),
+        ));
+    }
+    if block.capped() {
+        support.warnings.push(Diagnostic::new(
+            TEMPORAL_RESPONSE_BLOCK_CAPPED,
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "the estimating scores asked for circular blocks of {testing} rows, capped at \
+                 n/3 = {length} of n = {rows} rows: the dependence outlasts about three blocks, \
+                 so the band rests on a series that is short for its memory and may under-cover"
+            ),
+        ));
+    }
+    if completed < SIMULTANEOUS_BAND_MIN_REPLICATES {
+        support.warnings.push(Diagnostic::new(
+            TEMPORAL_RESPONSE_FEW_REPLICATES,
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "the pointwise band is mean ± 1.96·SD over {completed} surviving joint \
+                 replicates; below {SIMULTANEOUS_BAND_MIN_REPLICATES} the SD itself is noisy \
+                 (relative error about 1/sqrt(2·{completed})) and no simultaneous band is \
+                 published; the calibration uses 199 replicates"
+            ),
+        ));
+    }
+    assumptions.entries.retain(|record| {
+        !matches!(
+            &record.assumption,
+            Assumption::ParametricRestriction(p) if p.id.as_ref() == BLOCK_BOOTSTRAP_ASSUMPTION_ID
+        )
+    });
+    assumptions.push(block_bootstrap_assumption(block, factor, dispersion.max_factor(), refit));
+}
+
+/// The three support diagnostics of a temporal response block band: block length,
+/// per-cell kernel-bias factors and per-cell effective rows.
+fn push_block_dispersion_diagnostics(
+    support: &mut SupportReport,
+    block: ResponseBlockLength,
+    factor: f64,
+    dispersion: &CellDispersion,
+) {
+    let ResponseBlockLength { length, rule, testing, rows } = block;
+    support.diagnostics.push(SupportDiagnostic {
+        id: Arc::from(TEMPORAL_RESPONSE_BLOCK_LENGTH),
+        values: Arc::from([length as f64, rule as f64, testing as f64, rows as f64, factor]),
+        detail: Arc::from(
+            "[block length, max(span, ceil(sqrt(n))), uncapped ceil(b_PW·n^(1/6)), resampled \
+             rows n, replicate dispersion factor]; the block length is the larger of the rule \
+             and the Politis-White testing length capped at n/3; the dispersion factor is the \
+             circular-Bartlett fixed-b ratio times HC1, before the per-cell kernel-bias factor \
+             (response.temporal.kernel_bias_factor)",
+        ),
+    });
+    support.diagnostics.push(SupportDiagnostic {
+        id: Arc::from(TEMPORAL_RESPONSE_KERNEL_FACTOR),
+        values: Arc::from(dispersion.kernel_factors.clone()),
+        detail: Arc::from(
+            "per-cell kernel-bias factor on the replicate deviations (layout of the mean; one \
+             value for a mixed class band): 1/sqrt(f), f the share of the long-run variance of \
+             the autoregression fitted to the cell's influence (Kendall-corrected AR(1), or the \
+             BIC-selected AR(q <= 4) when larger) that the Bartlett kernel at the block length \
+             keeps; 1 when the fit carries no positive long-run excess",
+        ),
+    });
+    support.diagnostics.push(SupportDiagnostic {
+        id: Arc::from(TEMPORAL_RESPONSE_EFFECTIVE_ROWS),
+        values: Arc::from(dispersion.effective_rows.clone()),
+        detail: Arc::from(format!(
+            "per-cell effective rows of the influence (layout of the mean; one value for a mixed \
+             class band): the smaller of the lag-1 AR(1) reading n(1 - r1)/(1 + r1) and the \
+             block-length Bartlett reading; below {RESPONSE_SHORT_SERIES_ROWS} the band carries \
+             response.temporal.block.short_series"
+        )),
+    });
+}
+
+/// Dispersion factor applied to circular-block replicate deviations.
+///
+/// `circular_fixed_b_scale(block, rows) · sqrt(rows / (rows − p))`:
+/// - the fixed-b critical-value ratio of the circular Bartlett estimator at
+///   `b = block / rows` ([`crate::temporal_block::circular_fixed_b_scale`], the same
+///   correction the plain `TemporalDag` Pulse / Sustained SE uses), so `estimate ± 1.96·SD` is the
+///   fixed-b interval: it carries the downward bias and the sampling noise of a variance
+///   estimated from `rows / block` blocks, and stays nominal on independent rows for any
+///   `b`;
+/// - the HC1 factor for the `p` fitted coefficients (a resampled regression's dispersion
+///   behaves like the HC0 sandwich, biased down by about `p/rows`).
+///
+/// The polynomial is the two-sided 95% fixed-b critical value; every temporal response
+/// band is a 95% band. The ratio is derived for one pointwise interval; the simultaneous
+/// sup-t band reads the same scaled replicates, which is a heuristic extension of the
+/// fixed-b correction (no fixed-b theory for the maximum over a grid is used), checked
+/// only by the calibration.
+#[must_use]
+pub fn block_dispersion_inflation(rows: usize, block: usize, parameters: usize) -> f64 {
+    let hc1 =
+        if rows > parameters + 1 { (rows as f64 / (rows - parameters) as f64).sqrt() } else { 1.0 };
+    let ratio = crate::temporal_block::circular_fixed_b_scale(block, rows) * hc1;
+    if ratio.is_finite() && ratio >= 1.0 { ratio } else { 1.0 }
+}
+
+/// Scale each replicate's deviation from `center` by `factor`, in place.
+pub fn inflate_replicates(center: &[f64], draws: &mut [Vec<f64>], factor: f64) {
+    for draw in draws {
+        for (value, mid) in draw.iter_mut().zip(center) {
+            *value = mid + factor * (*value - mid);
+        }
+    }
+}
 
 /// Index of the treatment column in the compiled design (col0 = intercept, col1 = treatment).
 /// Verified against `CompiledDesign::linear_adjustment`.
@@ -111,12 +627,17 @@ type HorizonTreatmentRange = (f64, f64);
 /// Resolved Sequence leaf: variable, fixed level, shift, and active offsets.
 type SequenceLeaf = (VariableId, Option<f64>, f64, Arc<[i32]>);
 
-/// What [`TemporalResponseEstimator::run_per_horizon`] returns: the caller's
-/// per-horizon payloads alongside the lag-aligned treatment range, the
-/// identification record retained for each requested horizon, and where the
-/// pointwise SEs actually came from.
-type PerHorizonRun<T> =
-    (Vec<T>, Vec<HorizonTreatmentRange>, Vec<HorizonIdentification>, SeProvenance);
+/// Every requested horizon fitted once on the full sample, plus the joint
+/// surface bootstrap (when requested and usable) and the retained per-horizon
+/// treatment ranges and identification records.
+struct FittedSurface {
+    horizons: Vec<FittedHorizon>,
+    ranges: Vec<HorizonTreatmentRange>,
+    identification: Vec<HorizonIdentification>,
+    bootstrap: Option<SurfaceBootstrap>,
+    se_provenance: SeProvenance,
+    block: ResponseBlockLength,
+}
 
 /// Where a surface's pointwise SEs came from, so the band can say so.
 ///
@@ -124,30 +645,79 @@ type PerHorizonRun<T> =
 /// cancellation, is reported rather than passed off as a completed bootstrap.
 #[derive(Clone, Copy, Debug, Default)]
 struct SeProvenance {
-    /// Horizons where a bootstrap was requested but yielded no usable draws.
-    fell_back: usize,
-    /// Horizons whose bootstrap was cut short by cooperative cancellation.
-    cancelled: usize,
+    /// A bootstrap was requested but yielded no usable joint draws.
+    fell_back: bool,
+    /// The bootstrap was cut short by cooperative cancellation.
+    cancelled: bool,
 }
 
 impl SeProvenance {
     /// Warning describing a degraded bootstrap, or `None` when SEs are as requested.
     fn warning(self, replicates: u32) -> Option<Diagnostic> {
-        if replicates == 0 || (self.fell_back == 0 && self.cancelled == 0) {
+        if replicates == 0 || (!self.fell_back && !self.cancelled) {
             return None;
         }
-        let Self { fell_back, cancelled } = self;
+        let message = if self.fell_back {
+            format!(
+                "requested {replicates} bootstrap replicates for the response surface, but too \
+                 few joint resamples survived, so no band is published (the analytic OLS \
+                 band would treat lag-aligned rows as independent)"
+            )
+        } else {
+            format!(
+                "requested {replicates} bootstrap replicates for the response surface; the joint \
+                 bootstrap was truncated by cancellation"
+            )
+        };
         Some(Diagnostic::new(
             "estimate.temporal_response.bootstrap_degraded",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Warning,
-            format!(
-                "requested {replicates} bootstrap replicates for the response surface: \
-                 {fell_back} horizon(s) reported the analytic OLS linear-functional SE \
-                 instead (too few resamples survived), {cancelled} horizon(s) were \
-                 truncated by cancellation"
-            ),
+            message,
         ))
+    }
+}
+
+/// One cell of the reported surface: which horizon, and what is evaluated there.
+#[derive(Clone, Copy, Debug)]
+enum CellEval {
+    /// `E[Y_h | do(A = dose)]`: treatment column fixed at `dose`.
+    Dose(f64),
+    /// `E[Y_h | do(A := A + shift)]`: treatment column at its sample mean plus `shift`.
+    Shift(f64),
+}
+
+/// Point surface and, from the joint bootstrap only, the pointwise band and draws.
+struct SurfaceCells {
+    mean: Vec<f64>,
+    band: Option<CellBand>,
+}
+
+/// Pointwise band and the joint replicate draws behind it.
+struct CellBand {
+    lower: Vec<f64>,
+    upper: Vec<f64>,
+    /// `draws[r]` is replicate `r`'s full surface in the output layout.
+    draws: Vec<Vec<f64>>,
+    /// Each cell's kernel-bias factor and effective rows.
+    dispersion: CellDispersion,
+}
+
+impl SurfaceCells {
+    /// The pointwise band, published only when it comes from the joint
+    /// circular-block bootstrap of lag-aligned rows.
+    ///
+    /// An analytic delta-method band would treat lag-aligned rows as independent;
+    /// temporal rows are not, so without dependence-preserving replicates no band
+    /// is published (the same rule as the scalar temporal Pulse / Sustained SE).
+    fn published_band(&self) -> ResponseUncertainty {
+        self.band.as_ref().map_or(ResponseUncertainty::None, |band| {
+            ResponseUncertainty::PointwiseBand {
+                level: 0.95,
+                lower: Arc::from(band.lower.as_slice()),
+                upper: Arc::from(band.upper.as_slice()),
+            }
+        })
     }
 }
 
@@ -182,9 +752,11 @@ fn with_pointwise_homoskedastic_ols_assumption(mut assumptions: AssumptionSet) -
         assumption: Assumption::ParametricRestriction(ParametricAssumption {
             id: Arc::from("ols.homoskedastic.pointwise"),
             description: Arc::from(
-                "Pointwise 95% band from the delta-method SE of the g-computed level, using the \
-                 full homoskedastic OLS coefficient covariance. Not a simultaneous band. Serially \
-                 correlated or heteroskedastic innovations can make nominal coverage optimistic.",
+                "With zero bootstrap replicates no band is published: the delta-method band \
+                 from the homoskedastic OLS coefficient covariance would treat lag-aligned rows \
+                 as independent draws, and neighbouring temporal rows share lagged treatment, \
+                 confounder or residual terms. Request bootstrap replicates for the \
+                 dependence-preserving joint circular-block pointwise and simultaneous bands.",
             ),
         }),
         source: AssumptionSource::AlgorithmDefault {
@@ -194,6 +766,108 @@ fn with_pointwise_homoskedastic_ols_assumption(mut assumptions: AssumptionSet) -
         status: AssumptionStatus::Declared,
     });
     assumptions
+}
+
+/// Construction text for the joint circular-block surface bootstrap.
+const BLOCK_BOOTSTRAP_CONSTRUCTION: &str = "max-studentized deviation of the joint circular-block \
+     bootstrap replicates of the whole dose × horizon surface around the full-sample estimate; \
+     each replicate resamples time-aligned blocks of lag-aligned rows (block length: support \
+     diagnostic response.temporal.block_length), refits every horizon and recomputes the \
+     covariate averages; replicate deviations carry the circular-Bartlett fixed-b factor for \
+     b = block/rows, the HC1 factor sqrt(rows/(rows − p)) and each cell's kernel-bias factor \
+     (response.temporal.kernel_bias_factor)";
+
+/// What one surface-bootstrap replicate refits, for [`disclose_response_block_bootstrap`].
+const SURFACE_REFIT: &str = "one replicate refits every horizon on the same time-aligned \
+     blocks and recomputes covariate averages";
+
+/// Assumption id of the temporal response circular-block band.
+const BLOCK_BOOTSTRAP_ASSUMPTION_ID: &str = "temporal_response.block_bootstrap";
+
+fn block_bootstrap_assumption(
+    block: ResponseBlockLength,
+    factor: f64,
+    kernel_factor: f64,
+    refit: &str,
+) -> AssumptionRecord {
+    let ResponseBlockLength { length, rule, testing, rows } = block;
+    AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from(BLOCK_BOOTSTRAP_ASSUMPTION_ID),
+            description: Arc::from(format!(
+                "Pointwise SEs are the SD of the level over a joint circular-block bootstrap of \
+                 lag-aligned outcome-time tuples (n = {rows} rows); {refit}, so the band targets \
+                 the population level under serially dependent rows whose dependence decays \
+                 within a block. Block length {length} = max(rule {rule} = max(unfolded span, \
+                 ceil(sqrt(n))), min(testing {testing} = ceil(b_PW·n^(1/6)), n/3)), with b_PW the \
+                 largest Politis-White length over the level's estimating scores (every fitted \
+                 regression's normal-equation scores and the centered covariate columns whose \
+                 averages the level reads). Replicate deviations are scaled by {factor:.4}: the circular-Bartlett \
+                 fixed-b critical-value ratio for b = block/rows (the variance is estimated from \
+                 few blocks) times the HC1 factor sqrt(rows/(rows − p)); and by each cell's \
+                 kernel-bias factor (largest {kernel_factor:.4}; support diagnostic \
+                 response.temporal.kernel_bias_factor): 1/sqrt(f) with f the share of the \
+                 long-run variance of the autoregression fitted to that cell's influence \
+                 (Kendall-corrected AR(1), or the BIC-selected AR(q <= 4) when larger) that the \
+                 block's Bartlett kernel keeps, the O(1/block) kernel truncation the fixed-b \
+                 ratio does not repair. The factor corrects only dependence the autoregression \
+                 fits; a persistent component that is a small share of the influence is not \
+                 seen at short n. The pointwise band is \
+                 mean ± 1.96·SE of the scaled replicates. The simultaneous band (support \
+                 diagnostics response.simultaneous_band.*) is the max-studentized deviation over \
+                 the whole grid from the same scaled replicates; the fixed-b ratio is derived for \
+                 one pointwise 95% interval, so carrying it into the sup-t band is a heuristic \
+                 extension, supported by the calibration rather than by theory."
+            )),
+        }),
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("estimate.temporal_response.gcomp"),
+        },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    }
+}
+
+/// Support diagnostic carrying the per-horizon tempering factor `κ̂_h` of
+/// `response.temporal.bayesian` (one value per requested horizon, in order).
+pub const TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC: &str = "response.temporal_bayesian.tempering";
+
+fn is_tempering_record(record: &AssumptionRecord) -> bool {
+    matches!(
+        &record.assumption,
+        Assumption::ParametricRestriction(p) if p.id.as_ref() == DEPENDENCE_ASSUMPTION_ID
+    )
+}
+
+/// One serial-dependence record for the whole surface (each horizon's fit records its own
+/// factor; only the first horizon's assumptions were ever forwarded).
+fn temporal_bayesian_tempering_assumption(horizons: &[u32], kappas: &[f64]) -> AssumptionRecord {
+    let per_horizon = horizons
+        .iter()
+        .zip(kappas)
+        .map(|(h, k)| format!("h={h}: {k:.4}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    AssumptionRecord {
+        assumption: Assumption::ParametricRestriction(ParametricAssumption {
+            id: Arc::from(DEPENDENCE_ASSUMPTION_ID),
+            description: Arc::from(format!(
+                "generalized (power) posterior with a serial-dependence correction at every \
+                 horizon: each horizon's Gaussian likelihood on time-ordered lag-aligned rows is \
+                 tempered by 1/kappa_h, kappa_h = the largest autoregressive-prewhitened (AR(1), plus a \
+                 BIC-selected AR(q <= 4)) Newey-West long-run-variance ratio of that horizon's grid-cell level scores, floored at 1 \
+                 ({per_horizon}). At h >= 2 the unfolded regression omits intermediate \
+                 treatments and innovations, so its residuals are MA(h-1) whenever the outcome \
+                 or treatment is persistent; the prior keeps full weight; heteroskedasticity and \
+                 mean misspecification are not corrected"
+            )),
+        }),
+        source: AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("response.temporal.bayesian"),
+        },
+        scope: AssumptionScope::Estimation,
+        status: AssumptionStatus::Declared,
+    }
 }
 
 impl TemporalResponseEstimator {
@@ -374,6 +1048,7 @@ impl TemporalResponseEstimator {
         let mut ranges = Vec::new();
         let mut horizons = Vec::new();
         let mut levels = Vec::new();
+        let mut tempering = Vec::new();
         for (h, (&horizon_steps, &(estimand, indexer))) in
             temporal.horizons.iter().zip(identifications).enumerate()
         {
@@ -407,9 +1082,30 @@ impl TemporalResponseEstimator {
                 indexer,
                 identification_status,
             )?);
+            let mut weights = design_column_means(&prep.design);
+            let grid = if let Some((level, shift)) = intervention {
+                vec![level.unwrap_or(weights[1] + shift)]
+            } else {
+                doses.clone()
+            };
             let mut est = estimator.clone();
             est.seed = est.seed.wrapping_add(h as u64);
-            let bprep = crate::BayesianGComputationAte::from_prepared_estimation(&prep);
+            let mut bprep = crate::BayesianGComputationAte::from_prepared_estimation(&prep);
+            // Lag-aligned rows are time-ordered: at h ≥ 2 the unfolded regression omits the
+            // intermediate treatments and outcome innovations, so its residuals are MA(h−1)
+            // whenever the outcome or treatment is persistent, and serially dependent at every
+            // horizon under autocorrelated innovations. Each horizon's likelihood is tempered
+            // by the long-run-variance ratio of its grid-cell levels (floored at 1), the same
+            // generalized posterior as the Bayesian Pulse / Sustained cells.
+            bprep.serial_dependence = SerialDependence::LongRunTempering(DependenceScope::Levels(
+                grid.iter()
+                    .map(|&dose| {
+                        let mut direction = weights.clone();
+                        direction[TREATMENT_COL] = dose;
+                        Arc::from(direction)
+                    })
+                    .collect(),
+            ));
             let posterior = est.fit(
                 &bprep,
                 identification_status,
@@ -417,36 +1113,49 @@ impl TemporalResponseEstimator {
                 ctx,
             )?;
             if h == 0 {
-                assumptions.entries.extend(posterior.assumptions.entries.clone());
+                assumptions.entries.extend(
+                    posterior
+                        .assumptions
+                        .entries
+                        .iter()
+                        .filter(|record| !is_tempering_record(record))
+                        .cloned(),
+                );
             }
-            let mut weights = design_column_means(&prep.design);
-            let grid = if let Some((level, shift)) = intervention {
-                vec![level.unwrap_or(weights[1] + shift)]
-            } else {
-                doses.clone()
-            };
+            tempering.push(tempering_kappa_from_notes(&posterior.diagnostics.notes).unwrap_or(1.0));
             if intervention.is_some() {
                 levels.push(grid[0]);
             }
             let mut row = Vec::new();
             for dose in grid {
                 weights[1] = dose;
-                row.push(crate::bayesian::linear_response_summary(&posterior, &weights, 0.95)?);
+                let values = crate::bayesian::linear_response_draws(&posterior, &weights)?;
+                let summary =
+                    crate::bayesian::summarize_linear_response_draws(values.clone(), 0.95)?;
+                row.push((summary, values));
             }
             rows.push(row);
         }
         let mut mean = Vec::new();
         let mut lower = Vec::new();
         let mut upper = Vec::new();
+        let mut cell_draws: Vec<&[f64]> = Vec::new();
         for d in 0..if intervention.is_some() { 1 } else { doses.len() } {
             for row in &rows {
-                let (m, lo, hi, _) = row[d];
-                mean.push(m);
-                lower.push(lo);
-                upper.push(hi);
+                let ((m, lo, hi, _), values) = &row[d];
+                mean.push(*m);
+                lower.push(*lo);
+                upper.push(*hi);
+                cell_draws.push(values);
             }
         }
-        let (grid, dimension, support) = if let Some((level, shift)) = intervention {
+        // Horizons are separate conjugate fits with independent draws; pairing draw r
+        // across horizons samples their product, which is the joint law this estimator
+        // actually has. Within a horizon every dose shares one coefficient draw.
+        let n_joint = cell_draws.iter().map(|values| values.len()).min().unwrap_or(0);
+        let cell_draws: Vec<&[f64]> = cell_draws.iter().map(|values| &values[..n_joint]).collect();
+        let simultaneous = max_deviation_band_columns(&mean, &cell_draws, 0.95);
+        let (grid, dimension, mut support) = if let Some((level, shift)) = intervention {
             (
                 temporal.horizons.iter().map(|&h| f64::from(h)).collect(),
                 1,
@@ -459,11 +1168,32 @@ impl TemporalResponseEstimator {
                 mean_curve_support(&doses, temporal, &ranges),
             )
         };
+        publish_simultaneous_band(
+            &mut support,
+            simultaneous,
+            "simultaneous CREDIBLE band: max studentized deviation of the posterior draws of the \
+             whole grid around the posterior mean; doses at one horizon share each coefficient \
+             draw, while horizons are separate fits whose independent draws are paired by index \
+             (a product of per-horizon posteriors, not a joint horizon posterior); conditional \
+             on the observed adjustment distribution; each horizon's posterior is the \
+             long-run-tempered generalized posterior (support diagnostic \
+             response.temporal_bayesian.tempering)",
+        );
+        support.diagnostics.push(SupportDiagnostic {
+            id: Arc::from(TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC),
+            values: Arc::from(tempering.clone()),
+            detail: Arc::from(
+                "per-horizon likelihood tempering factor kappa (rows weighted 1/kappa): the \
+                 largest autoregressive-prewhitened (AR(1), plus a BIC-selected AR(q <= 4)) \
+                 Newey-West long-run-variance ratio of the grid-cell level scores at that horizon, floored at 1",
+            ),
+        });
         assumptions.push(AssumptionRecord {
             assumption: Assumption::ParametricRestriction(ParametricAssumption { id: Arc::from("bayesian.temporal_response.linear_additive"),
-                description: Arc::from("Gaussian linear-additive unfolded outcome model at each horizon; pointwise posterior intervals conditional on observed adjustment distribution; independent residual likelihood; no joint dose-horizon band") }),
+                description: Arc::from("Gaussian linear-additive unfolded outcome model at each horizon, fit separately per horizon. Pointwise posterior intervals and the simultaneous credible band (support diagnostics response.simultaneous_band.*) are conditional on the observed adjustment and treatment distribution: they describe the level at the sample covariate average, not the population average. The simultaneous band pairs independent per-horizon draws, so across horizons it is a product-posterior band, not a joint horizon posterior.") }),
             source: AssumptionSource::AlgorithmDefault { algorithm: Arc::from("response.temporal.bayesian") }, scope: AssumptionScope::Estimation, status: AssumptionStatus::Declared,
         });
+        assumptions.push(temporal_bayesian_tempering_assumption(&temporal.horizons, &tempering));
         Ok(CausalResponse {
             estimand: query.functional.clone(),
             identification_status,
@@ -501,36 +1231,27 @@ impl TemporalResponseEstimator {
             return Err(EstimationError::unsupported("dose grid must be non-empty"));
         }
         let n_h = temporal.horizons.len();
-        let cells = checked_surface_cells(doses.len(), n_h)?;
-        let mut mean = Vec::with_capacity(cells);
-        let mut lower = Vec::with_capacity(mean.capacity());
-        let mut upper = Vec::with_capacity(mean.capacity());
+        checked_surface_cells(doses.len(), n_h)?;
+        let surface = self.fit_surface(
+            data,
+            identifications,
+            treatment,
+            outcome,
+            temporal,
+            identification_status,
+            ctx,
+        )?;
 
         // Layout: value[d * n_horizons + h] — dose major, then horizon.
-        let (per_horizon, horizon_ranges, horizon_identification, se_provenance) = self
-            .run_per_horizon(
-                data,
-                identifications,
-                treatment,
-                outcome,
-                temporal,
-                identification_status,
-                ctx,
-                |fitted| doses.iter().map(|&dose| fitted.mean_and_se_at(dose)).collect::<Vec<_>>(),
-            )?;
-
-        let z = normal_ppf(0.975);
-        for d_idx in 0..doses.len() {
-            for row in &per_horizon {
-                let (yhat, se) = row[d_idx];
-                mean.push(yhat);
-                lower.push(yhat - z * se);
-                upper.push(yhat + z * se);
-            }
-        }
-
-        let mut support = mean_curve_support(doses, temporal, &horizon_ranges);
-        support.warnings.extend(se_provenance.warning(self.inner.bootstrap_replicates));
+        let cells: Vec<(usize, CellEval)> = doses
+            .iter()
+            .flat_map(|&dose| (0..n_h).map(move |h| (h, CellEval::Dose(dose))))
+            .collect();
+        let values = surface.cells(&cells);
+        let mut support = mean_curve_support(doses, temporal, &surface.ranges);
+        let assumptions =
+            surface.finish(&mut support, &values, assumptions, self.inner.bootstrap_replicates);
+        let uncertainty = values.published_band();
 
         Ok(CausalResponse {
             estimand: ResponseFunctional::MeanCurve {
@@ -544,17 +1265,13 @@ impl TemporalResponseEstimator {
             estimate: ResponseIdentification::PointIdentified(ResponseValue::Surface {
                 grid: Arc::from(flatten_dose_horizon_grid(doses, &temporal.horizons)?),
                 dimension: 2,
-                mean: Arc::from(mean),
+                mean: Arc::from(values.mean),
             }),
-            uncertainty: ResponseUncertainty::PointwiseBand {
-                level: 0.95,
-                lower: Arc::from(lower),
-                upper: Arc::from(upper),
-            },
+            uncertainty,
             support,
             assumptions,
             provenance_id: Arc::from("estimate.temporal_response.gcomp"),
-            horizon_identification: Some(Arc::from(horizon_identification)),
+            horizon_identification: Some(Arc::from(surface.identification)),
             interaction_structurally_zero: false,
         })
     }
@@ -575,39 +1292,33 @@ impl TemporalResponseEstimator {
         // Linear-in-dose, no treatment×covariate interaction: the fitted model is
         // mu_hat(d) = beta_t * d + base_mean, with base_mean independent of d. So
         // averaging g-comp at observed A_i + delta over i collapses exactly to a
-        // single evaluation at Abar + delta — an O(n) loop is not needed.
-        let (per_horizon, horizon_ranges, horizon_identification, se_provenance) = self
-            .run_per_horizon(
-                data,
-                identifications,
-                treatment,
-                outcome,
-                temporal,
-                identification_status,
-                ctx,
-                |fitted| {
-                    let eval_at = level.unwrap_or_else(|| fitted.treatment_mean() + shift);
-                    let (yhat, se) = fitted.mean_and_se_at(eval_at);
-                    (eval_at, yhat, se)
-                },
-            )?;
-
-        let z = normal_ppf(0.975);
-        let mut eval_levels = Vec::with_capacity(per_horizon.len());
-        let mut mean = Vec::with_capacity(per_horizon.len());
-        let mut lower = Vec::with_capacity(per_horizon.len());
-        let mut upper = Vec::with_capacity(per_horizon.len());
-        for (eval_at, yhat, se) in per_horizon {
-            eval_levels.push(eval_at);
-            mean.push(yhat);
-            lower.push(yhat - z * se);
-            upper.push(yhat + z * se);
-        }
+        // single evaluation at Abar + delta — an O(n) loop is not needed. A bootstrap
+        // replicate evaluates at its own resampled Abar* + delta.
+        let surface = self.fit_surface(
+            data,
+            identifications,
+            treatment,
+            outcome,
+            temporal,
+            identification_status,
+            ctx,
+        )?;
+        let eval = level.map_or(CellEval::Shift(shift), CellEval::Dose);
+        let cells: Vec<(usize, CellEval)> =
+            (0..surface.horizons.len()).map(|h| (h, eval)).collect();
+        let eval_levels: Vec<f64> = surface
+            .horizons
+            .iter()
+            .map(|fitted| level.unwrap_or_else(|| fitted.treatment_mean() + shift))
+            .collect();
+        let values = surface.cells(&cells);
 
         let grid: Vec<f64> = temporal.horizons.iter().map(|h| f64::from(*h)).collect();
         let mut support =
-            intervention_support(&eval_levels, level, shift, temporal, &horizon_ranges);
-        support.warnings.extend(se_provenance.warning(self.inner.bootstrap_replicates));
+            intervention_support(&eval_levels, level, shift, temporal, &surface.ranges);
+        let assumptions =
+            surface.finish(&mut support, &values, assumptions, self.inner.bootstrap_replicates);
+        let uncertainty = values.published_band();
 
         Ok(CausalResponse {
             estimand: ResponseFunctional::InterventionResponse {
@@ -622,26 +1333,21 @@ impl TemporalResponseEstimator {
             estimate: ResponseIdentification::PointIdentified(ResponseValue::Surface {
                 grid: Arc::from(grid),
                 dimension: 1,
-                mean: Arc::from(mean),
+                mean: Arc::from(values.mean),
             }),
-            uncertainty: ResponseUncertainty::PointwiseBand {
-                level: 0.95,
-                lower: Arc::from(lower),
-                upper: Arc::from(upper),
-            },
+            uncertainty,
             support,
             assumptions,
             provenance_id: Arc::from("estimate.temporal_response.intervention_gcomp"),
-            horizon_identification: Some(Arc::from(horizon_identification)),
+            horizon_identification: Some(Arc::from(surface.identification)),
             interaction_structurally_zero: false,
         })
     }
 
-    /// Shared per-horizon scaffold: fit each horizon with that horizon's
-    /// identified estimand, retain that horizon's lag-aligned treatment range,
-    /// and let the caller turn each [`FittedHorizon`] into whatever per-horizon
-    /// payload its response shape needs.
-    fn run_per_horizon<T>(
+    /// Fit each horizon with that horizon's identified estimand, retain that
+    /// horizon's lag-aligned treatment range and identification record, then run
+    /// the joint surface bootstrap when replicates were requested.
+    fn fit_surface(
         &self,
         data: &TimeSeriesData,
         identifications: &[(&IdentifiedEstimand, &TemporalIndexer)],
@@ -650,13 +1356,11 @@ impl TemporalResponseEstimator {
         temporal: &TemporalResponseSpec,
         identification_status: IdentificationStatus,
         ctx: &ExecutionContext,
-        mut per_horizon: impl FnMut(&FittedHorizon) -> T,
-    ) -> Result<PerHorizonRun<T>, EstimationError> {
+    ) -> Result<FittedSurface, EstimationError> {
         let mut ols_ws = LeastSquaresWorkspace::default();
-        let mut results = Vec::with_capacity(temporal.horizons.len());
-        let mut horizon_ranges = Vec::with_capacity(temporal.horizons.len());
-        let mut horizon_identification = Vec::with_capacity(temporal.horizons.len());
-        let mut se_provenance = SeProvenance::default();
+        let mut horizons = Vec::with_capacity(temporal.horizons.len());
+        let mut ranges = Vec::with_capacity(temporal.horizons.len());
+        let mut identification = Vec::with_capacity(temporal.horizons.len());
 
         for (i, &horizon) in temporal.horizons.iter().enumerate() {
             let (estimand, indexer) = identifications[i];
@@ -671,20 +1375,36 @@ impl TemporalResponseEstimator {
                 ctx,
                 &mut ols_ws,
             )?;
-            horizon_ranges.push(range(&fitted.prepared.treatment));
-            horizon_identification.push(horizon_identification_of(
+            ranges.push(range(&fitted.prepared.treatment));
+            identification.push(horizon_identification_of(
                 horizon,
                 estimand,
                 indexer,
                 identification_status,
             )?);
-            se_provenance.fell_back +=
-                usize::from(fitted.bootstrap_fell_back(self.inner.bootstrap_replicates));
-            se_provenance.cancelled += usize::from(fitted.bootstrap_cancelled());
-            results.push(per_horizon(&fitted));
+            horizons.push(fitted);
         }
 
-        Ok((results, horizon_ranges, horizon_identification, se_provenance))
+        let replicates = self.inner.bootstrap_replicates;
+        let span = identifications
+            .iter()
+            .map(|(_, indexer)| indexer.history() as usize + indexer.horizon() as usize)
+            .max()
+            .unwrap_or(1);
+        let series_rows = data.row_count();
+        let rows = horizon_rows(&horizons, series_rows);
+        let window = common_time_window(&rows).map_or(0, |(_, len)| len);
+        // The lengthening reads every horizon's scores (a refit and a Politis–White
+        // scan each); without replicates no band is published and the rule suffices.
+        let scores = if replicates > 0 { horizon_scores(&horizons) } else { Vec::new() };
+        let score_refs: Vec<&[f64]> = scores.iter().map(Vec::as_slice).collect();
+        let block = ResponseBlockLength::new(span, window, &score_refs);
+        let bootstrap = bootstrap_surface(&horizons, &rows, block.length, replicates, ctx);
+        let se_provenance = SeProvenance {
+            fell_back: replicates > 0 && bootstrap.is_none(),
+            cancelled: bootstrap.as_ref().is_some_and(|b| b.cancelled),
+        };
+        Ok(FittedSurface { horizons, ranges, identification, bootstrap, se_provenance, block })
     }
 
     fn fit_horizon(
@@ -716,7 +1436,88 @@ impl TemporalResponseEstimator {
         let adj = TemporalLinearAdjustment { inner: self.inner.clone() };
         let prepared =
             adj.prepare(data, estimand, &pulse_query, indexer, None, &ctx.kernel_policy)?;
-        FittedHorizon::fit(prepared, ols_ws, self.inner.bootstrap_replicates, ctx)
+        FittedHorizon::fit(prepared, ols_ws)
+    }
+
+    /// Fit every horizon of a complete-data `MeanCurve` / single Set-Shift
+    /// `InterventionResponse` once, for tuple-level replicate refits.
+    ///
+    /// Used by outer bootstraps that must replace the outcome per replicate (the
+    /// observation-adjusted pseudo-outcome is refit on every replicate): see
+    /// [`PreparedTemporalSurface::replicate`]. Cells follow the layout of
+    /// [`Self::estimate`].
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`Self::estimate`] (Sequence / mechanism overlays refuse).
+    pub fn prepare_surface(
+        &self,
+        data: &TimeSeriesData,
+        identifications: &[(&IdentifiedEstimand, &TemporalIndexer)],
+        query: &ResponseQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedTemporalSurface, EstimationError> {
+        query.validate()?;
+        let temporal = query.temporal.as_ref().ok_or_else(|| {
+            EstimationError::unsupported(
+                "temporal surface replicates require ResponseQuery.temporal",
+            )
+        })?;
+        if identifications.len() != temporal.horizons.len() {
+            return Err(EstimationError::unsupported(
+                "temporal response identification must be supplied once per requested horizon",
+            ));
+        }
+        let n_h = temporal.horizons.len();
+        let (treatment, outcome, cells) = match &query.functional {
+            ResponseFunctional::MeanCurve { outcome, treatment } => {
+                let doses = treatment.grid.values()?;
+                checked_surface_cells(doses.len(), n_h)?;
+                let cells = doses
+                    .iter()
+                    .flat_map(|&dose| (0..n_h).map(move |h| (h, CellEval::Dose(dose))))
+                    .collect();
+                (treatment.variable, *outcome, cells)
+            }
+            ResponseFunctional::InterventionResponse { outcome, interventions } => {
+                match plan_temporal_intervention(interventions, temporal)? {
+                    TemporalInterventionPlan::Single { treatment, level, shift } => {
+                        let eval = level.map_or(CellEval::Shift(shift), CellEval::Dose);
+                        (treatment, *outcome, (0..n_h).map(|h| (h, eval)).collect())
+                    }
+                    _ => {
+                        return Err(EstimationError::unsupported(
+                            "Sequence overlays have no single-surface tuple replicate",
+                        ));
+                    }
+                }
+            }
+            _ => {
+                return Err(EstimationError::unsupported(
+                    "temporal response is licensed only for MeanCurve and InterventionResponse",
+                ));
+            }
+        };
+        let mut ols_ws = LeastSquaresWorkspace::default();
+        let horizons = temporal
+            .horizons
+            .iter()
+            .zip(identifications)
+            .map(|(&horizon, &(estimand, indexer))| {
+                self.fit_horizon(
+                    data,
+                    estimand,
+                    treatment,
+                    outcome,
+                    temporal,
+                    horizon,
+                    indexer,
+                    ctx,
+                    &mut ols_ws,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(PreparedTemporalSurface { horizons, cells, series_rows: data.row_count() })
     }
 
     /// Copy the `Study` bootstrap / replicate count onto the shared OLS machinery.
@@ -727,174 +1528,531 @@ impl TemporalResponseEstimator {
     }
 }
 
-/// Per-horizon OLS fit: coefficients, coefficient covariance, and design column means.
+impl FittedSurface {
+    /// Fewest lag-aligned rows over the fitted horizons: the common time window the
+    /// joint bootstrap resamples.
+    fn rows(&self) -> usize {
+        self.horizons.iter().map(|fitted| fitted.prepared.design.nrows).min().unwrap_or(0)
+    }
+
+    /// Fixed-b dispersion factor for this surface's bootstrap.
+    fn inflation(&self) -> f64 {
+        let parameters =
+            self.horizons.iter().map(|fitted| fitted.prepared.design.ncols).max().unwrap_or(0);
+        block_dispersion_inflation(self.rows(), self.block.length, parameters)
+    }
+
+    /// Point values and, from the joint bootstrap only, the pointwise 95% band and
+    /// the replicate draws for `cells`, in the order given. Draws are returned after
+    /// the block-count dispersion inflation and each cell's kernel-bias factor, so both
+    /// bands use the inflated dispersion.
+    fn cells(&self, cells: &[(usize, CellEval)]) -> SurfaceCells {
+        let mean: Vec<f64> = cells
+            .iter()
+            .map(|&(h, eval)| {
+                let fitted = &self.horizons[h];
+                level_at(&fitted.coefs, &fitted.column_means, eval)
+            })
+            .collect();
+        let band = self.bootstrap.as_ref().map(|boot| {
+            let z = normal_ppf(0.975);
+            let mut draws: Vec<Vec<f64>> = boot
+                .draws
+                .iter()
+                .map(|replicate| {
+                    cells
+                        .iter()
+                        .map(|&(h, eval)| {
+                            let (coefs, means) = boot.horizon_fit(replicate, h);
+                            level_at(coefs, means, eval)
+                        })
+                        .collect()
+                })
+                .collect();
+            inflate_replicates(&mean, &mut draws, self.inflation());
+            let dispersion = cell_dispersion(&self.horizons, cells, self.block.length);
+            dispersion.inflate(&mean, &mut draws);
+            let se: Vec<f64> = (0..cells.len()).map(|cell| sample_std_cell(&draws, cell)).collect();
+            CellBand {
+                lower: mean.iter().zip(&se).map(|(m, s)| m - z * s).collect(),
+                upper: mean.iter().zip(&se).map(|(m, s)| m + z * s).collect(),
+                draws,
+                dispersion,
+            }
+        });
+        SurfaceCells { mean, band }
+    }
+
+    /// Record how the band was built and publish (or withhold) the simultaneous band.
+    fn finish(
+        &self,
+        support: &mut SupportReport,
+        cells: &SurfaceCells,
+        mut assumptions: AssumptionSet,
+        replicates: u32,
+    ) -> AssumptionSet {
+        support.warnings.extend(self.se_provenance.warning(replicates));
+        if let Some(band) = &cells.band {
+            disclose_response_block_bootstrap(
+                support,
+                &mut assumptions,
+                self.block,
+                self.inflation(),
+                &band.dispersion,
+                band.draws.len(),
+                SURFACE_REFIT,
+            );
+            publish_simultaneous_band(
+                support,
+                max_deviation_band(&cells.mean, &band.draws, 0.95),
+                BLOCK_BOOTSTRAP_CONSTRUCTION,
+            );
+        } else {
+            if replicates == 0 {
+                support.warnings.push(Diagnostic::new(
+                    TEMPORAL_RESPONSE_BAND_WITHHELD,
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    "no pointwise or simultaneous band: an analytic OLS band would treat \
+                     lag-aligned rows as independent, which temporal rows are not; request \
+                     bootstrap replicates for the joint circular-block bands",
+                ));
+            }
+            publish_simultaneous_band(
+                support,
+                Err(EstimationError::unsupported(if replicates == 0 {
+                    "no joint cross-horizon replicates without the bootstrap; request bootstrap \
+                     replicates for a joint circular-block simultaneous band"
+                } else {
+                    "too few joint bootstrap replicates survived"
+                })),
+                "",
+            );
+        }
+        assumptions
+    }
+}
+
+/// Every horizon of a temporal surface fitted once; replicate refits gather
+/// lag-aligned rows by outcome-time anchor. See
+/// [`TemporalResponseEstimator::prepare_surface`].
+pub struct PreparedTemporalSurface {
+    horizons: Vec<FittedHorizon>,
+    cells: Vec<(usize, CellEval)>,
+    series_rows: usize,
+}
+
+impl PreparedTemporalSurface {
+    /// Earliest outcome-time anchor present in every horizon's lag-aligned design.
+    ///
+    /// Lag-aligned rows end at the series end, so horizon `h` covers anchors
+    /// `series_rows − n_h ..series_rows`.
+    #[must_use]
+    pub fn first_common_anchor(&self) -> usize {
+        self.horizons
+            .iter()
+            .map(|fitted| self.series_rows.saturating_sub(fitted.prepared.design.nrows))
+            .max()
+            .unwrap_or(0)
+    }
+
+    /// Largest per-horizon coefficient count (for the HC1 part of the dispersion inflation).
+    #[must_use]
+    pub fn max_parameters(&self) -> usize {
+        self.horizons.iter().map(|fitted| fitted.prepared.design.ncols).max().unwrap_or(0)
+    }
+
+    /// Estimating-equation scores of every horizon's full-sample level (normal-equation
+    /// scores and centered covariate columns), for [`ResponseBlockLength::new`].
+    #[must_use]
+    pub fn estimating_scores(&self) -> Vec<Vec<f64>> {
+        horizon_scores(&self.horizons)
+    }
+
+    /// Each cell's kernel-bias factor and effective rows at block length `block`, in
+    /// the cell layout of [`Self::point`] (see [`CellDispersion`]).
+    #[must_use]
+    pub fn cell_dispersion(&self, block: usize) -> CellDispersion {
+        cell_dispersion(&self.horizons, &self.cells, block)
+    }
+
+    /// Full-sample surface in the response layout.
+    #[must_use]
+    pub fn point(&self) -> Vec<f64> {
+        self.cells
+            .iter()
+            .map(|&(h, eval)| {
+                let fitted = &self.horizons[h];
+                level_at(&fitted.coefs, &fitted.column_means, eval)
+            })
+            .collect()
+    }
+
+    /// Refit every horizon on the lag-aligned rows anchored at `anchors` (outcome-time
+    /// row indices, each at least [`Self::first_common_anchor`]) with the outcome at
+    /// each resampled row replaced by `outcomes[i]`. Returns the replicate surface, or
+    /// `None` when a horizon's refit is singular.
+    ///
+    /// # Errors
+    ///
+    /// Misaligned `anchors` / `outcomes`, or an anchor outside every horizon's design.
+    pub fn replicate(
+        &self,
+        anchors: &[usize],
+        outcomes: &[f64],
+    ) -> Result<Option<Vec<f64>>, EstimationError> {
+        if anchors.len() != outcomes.len()
+            || anchors.len() < 2
+            || anchors.iter().any(|&s| s < self.first_common_anchor() || s >= self.series_rows)
+        {
+            return Err(EstimationError::unsupported(
+                "replicate anchors must align with outcomes and lie in every horizon's design",
+            ));
+        }
+        self.replicate_into(
+            anchors,
+            outcomes,
+            &mut LeastSquaresWorkspace::default(),
+            &mut Vec::new(),
+        )
+    }
+
+    /// [`Self::replicate`] writing the design gather into caller-owned buffers.
+    ///
+    /// # Errors
+    ///
+    /// Misaligned `anchors` / `outcomes`, or an anchor outside every horizon's design.
+    pub fn replicate_into(
+        &self,
+        anchors: &[usize],
+        outcomes: &[f64],
+        ols_ws: &mut LeastSquaresWorkspace,
+        x_boot: &mut Vec<f64>,
+    ) -> Result<Option<Vec<f64>>, EstimationError> {
+        if anchors.len() != outcomes.len()
+            || anchors.len() < 2
+            || anchors.iter().any(|&s| s < self.first_common_anchor() || s >= self.series_rows)
+        {
+            return Err(EstimationError::unsupported(
+                "replicate anchors must align with outcomes and lie in every horizon's design",
+            ));
+        }
+        let m = anchors.len();
+        let mut fits = Vec::with_capacity(self.horizons.len());
+        for fitted in &self.horizons {
+            let design = &fitted.prepared.design;
+            let (n, p) = (design.nrows, design.ncols);
+            let base = self.series_rows - n;
+            x_boot.resize(m * p, 0.0);
+            for c in 0..p {
+                let column = &design.matrix[c * n..(c + 1) * n];
+                for (i, &anchor) in anchors.iter().enumerate() {
+                    x_boot[c * m + i] = column[anchor - base];
+                }
+            }
+            let Ok(fit) = FaerBackend.least_squares(x_boot, m, p, outcomes, ols_ws) else {
+                return Ok(None);
+            };
+            let means: Vec<f64> =
+                (0..p).map(|c| x_boot[c * m..(c + 1) * m].iter().sum::<f64>() / m as f64).collect();
+            fits.push((fit.coefficients, means));
+        }
+        Ok(Some(
+            self.cells.iter().map(|&(h, eval)| level_at(&fits[h].0, &fits[h].1, eval)).collect(),
+        ))
+    }
+}
+
+/// Circular-block resample of `m` positions with block length `block`.
+///
+/// Circular-block resample, the same law as the complete-data surface bootstrap
+/// and the scalar Pulse SEs.
+pub fn circular_block_positions(
+    m: usize,
+    block: usize,
+    rng: &mut antecedent_core::CausalRng,
+) -> Vec<usize> {
+    let mut out = Vec::with_capacity(m);
+    circular_block_positions_into(m, block, rng, &mut out);
+    out
+}
+
+/// Fill `out` with a circular-block resample; reuses `out`'s allocation.
+pub fn circular_block_positions_into(
+    m: usize,
+    block: usize,
+    rng: &mut antecedent_core::CausalRng,
+    out: &mut Vec<usize>,
+) {
+    out.clear();
+    if m == 0 {
+        return;
+    }
+    let block = block.clamp(1, m);
+    out.resize(m, 0);
+    if fill_circular_block_indexes(m, block, rng, out).is_err() {
+        out.clear();
+    }
+}
+
+/// `coefs' cbar(eval)`: the g-computed level at one cell under one fit.
+fn level_at(coefs: &[f64], column_means: &[f64], eval: CellEval) -> f64 {
+    let treatment = match eval {
+        CellEval::Dose(dose) => dose,
+        CellEval::Shift(shift) => column_means[TREATMENT_COL] + shift,
+    };
+    coefs
+        .iter()
+        .zip(column_means)
+        .enumerate()
+        .map(|(col, (&coef, &mean))| coef * if col == TREATMENT_COL { treatment } else { mean })
+        .sum()
+}
+
+/// Per-horizon OLS fit: coefficients and design column means.
 ///
 /// `mu_hat(dose) = coefs' cbar(dose)`, where `cbar(dose)` is the vector of design
 /// column means with the treatment column's mean replaced by `dose`. Because the
 /// fitted model is linear in the treatment column with no treatment×covariate
-/// interaction, this is an O(p) evaluation per dose (no re-scan of the design),
-/// and `Var(mu_hat(dose)) = cbar(dose)' Sigma cbar(dose)` is exact (not merely the
-/// variance of the `beta_T` coefficient).
+/// interaction, this is an O(p) evaluation per dose (no re-scan of the design).
+/// Uncertainty comes only from the joint circular-block bootstrap, which refits the
+/// coefficients and recomputes the column means, so the band targets the population
+/// level `E[Y_h | do(A)]`.
 struct FittedHorizon {
     prepared: PreparedEstimationProblem,
     coefs: Vec<f64>,
-    /// p x p coefficient covariance, row-major.
-    cov: Vec<f64>,
     /// Design column means (length p); index `TREATMENT_COL` is `Abar`.
     column_means: Vec<f64>,
-    /// Bootstrap coefficient draws when `inner.bootstrap_replicates > 0` and enough
-    /// replicates survived; `None` means [`Self::mean_and_se_at`] reports the analytic SE.
-    bootstrap: Option<HorizonBootstrap>,
+    /// Full-sample OLS residuals (length n).
+    residuals: Vec<f64>,
 }
 
 impl FittedHorizon {
     fn fit(
         prepared: PreparedEstimationProblem,
         ols_ws: &mut LeastSquaresWorkspace,
-        bootstrap_replicates: u32,
-        ctx: &ExecutionContext,
     ) -> Result<Self, EstimationError> {
         let n = prepared.design.nrows;
         let p = prepared.design.ncols;
         let fit = FaerBackend
             .least_squares(&prepared.design.matrix, n, p, &prepared.design.outcome, ols_ws)
             .map_err(EstimationError::from)?;
-        let cov = coefficient_covariance(
-            &prepared.design.matrix,
-            n,
-            p,
-            &fit.residuals,
-            SandwichKind::Homoskedastic,
-        )
-        .map_err(EstimationError::from)?;
         let column_means = design_column_means(&prepared.design);
-        let bootstrap =
-            bootstrap_horizon_coefs(&prepared, n, p, bootstrap_replicates, ctx, ols_ws)?;
-        Ok(Self { prepared, coefs: fit.coefficients, cov, column_means, bootstrap })
-    }
-
-    /// Whether a bootstrap was requested but produced no usable draws, so
-    /// [`Self::mean_and_se_at`] fell back to the analytic SE.
-    const fn bootstrap_fell_back(&self, replicates: u32) -> bool {
-        replicates > 0 && self.bootstrap.is_none()
-    }
-
-    /// Whether cancellation truncated the bootstrap that produced this horizon's SEs.
-    fn bootstrap_cancelled(&self) -> bool {
-        self.bootstrap.as_ref().is_some_and(|b| b.cancelled)
+        Ok(Self { prepared, coefs: fit.coefficients, column_means, residuals: fit.residuals })
     }
 
     fn treatment_mean(&self) -> f64 {
         self.column_means[TREATMENT_COL]
     }
 
-    /// `(mu_hat(dose), se(dose))` via OLS point estimate and bootstrap or analytic SE.
-    fn mean_and_se_at(&self, dose: f64) -> (f64, f64) {
-        let p = self.coefs.len();
-        let mut cbar = self.column_means.clone();
-        cbar[TREATMENT_COL] = dose;
-        let mut mu = 0.0;
-        for (&coef, &c) in self.coefs.iter().zip(cbar.iter()) {
-            mu += coef * c;
-        }
-        let se = if let Some(boots) = &self.bootstrap {
-            let mus: Vec<f64> = boots
-                .coefs
-                .iter()
-                .map(|beta| beta.iter().zip(cbar.iter()).map(|(&b, &c)| b * c).sum::<f64>())
-                .collect();
-            sample_std(&mus)
-        } else {
-            let mut var = 0.0;
-            for (i, &ci) in cbar.iter().enumerate() {
-                let row = &self.cov[i * p..i * p + p];
-                let row_sum: f64 =
-                    row.iter().zip(cbar.iter()).map(|(&cov_ij, &cj)| cov_ij * cj).sum();
-                var += ci * row_sum;
+    /// Delta-method influence series of the level at `eval`: the row's weight in the
+    /// coefficient combination `c'β̂` (`c` = the column means with the treatment column
+    /// at the evaluated dose) times its residual, plus the centered design columns whose
+    /// sample means the level reads (every column but the treatment for a dose; every
+    /// column for a shift, whose level reads the treatment mean too), each weighted by
+    /// its coefficient. The circular-block variance of the level is asymptotically the
+    /// Bartlett long-run variance of this series at the block length. `None` when `X'X`
+    /// is singular.
+    fn level_influence(&self, eval: CellEval) -> Option<Vec<f64>> {
+        let design = &self.prepared.design;
+        let (n, p) = (design.nrows, design.ncols);
+        let x = &design.matrix[..n * p];
+        let mut xtx = vec![0.0; p * p];
+        for a in 0..p {
+            for b in a..p {
+                let dot: f64 = x[a * n..(a + 1) * n]
+                    .iter()
+                    .zip(&x[b * n..(b + 1) * n])
+                    .map(|(u, v)| u * v)
+                    .sum();
+                xtx[a * p + b] = dot;
+                xtx[b * p + a] = dot;
             }
-            var.max(0.0).sqrt()
+        }
+        let mut direction = self.column_means.clone();
+        direction[TREATMENT_COL] = match eval {
+            CellEval::Dose(dose) => dose,
+            CellEval::Shift(shift) => self.column_means[TREATMENT_COL] + shift,
         };
-        (mu, se)
+        let v = solve_spd(&xtx, &direction, p)?;
+        let reads_treatment_mean = matches!(eval, CellEval::Shift(_));
+        Some(
+            (0..n)
+                .map(|t| {
+                    let weight: f64 = (0..p).map(|k| x[k * n + t] * v[k]).sum();
+                    let means: f64 = (0..p)
+                        .filter(|&k| k != TREATMENT_COL || reads_treatment_mean)
+                        .map(|k| self.coefs[k] * (x[k * n + t] - self.column_means[k]))
+                        .sum();
+                    weight * self.residuals[t] + means
+                })
+                .collect(),
+        )
     }
 }
 
-/// Retained bootstrap coefficient draws for one horizon.
+/// Kernel-bias factor and effective rows of every cell of `cells` (a cell whose
+/// influence is unavailable reads factor `1` and unreadable rows).
+fn cell_dispersion(
+    horizons: &[FittedHorizon],
+    cells: &[(usize, CellEval)],
+    block: usize,
+) -> CellDispersion {
+    let influences: Vec<Vec<f64>> = cells
+        .iter()
+        .map(|&(h, eval)| horizons[h].level_influence(eval).unwrap_or_default())
+        .collect();
+    CellDispersion::from_influences(&influences, block)
+}
+
+/// Estimating-equation scores of every horizon's level, one series per equation: the
+/// OLS normal-equation scores `x_tj · ê_t` of every coefficient and the centered design
+/// columns `x_tj − x̄_j` behind the covariate averages the level reads (every column but
+/// the intercept). A persistent covariate or treatment leaves the regression scores
+/// nearly white when the residual is not persistent, yet its sample mean — part of every
+/// g-computed level — carries the covariate's full long-run variance.
+fn horizon_scores(horizons: &[FittedHorizon]) -> Vec<Vec<f64>> {
+    let mut scores = Vec::new();
+    for fitted in horizons {
+        let design = &fitted.prepared.design;
+        let (n, p) = (design.nrows, design.ncols);
+        scores.extend(
+            normal_equation_scores(&design.matrix, n, p, &design.outcome).unwrap_or_default(),
+        );
+        for (c, &mean) in fitted.column_means.iter().enumerate().skip(1) {
+            scores.push(design.matrix[c * n..(c + 1) * n].iter().map(|x| x - mean).collect());
+        }
+    }
+    scores
+}
+
+/// Each horizon's lag-aligned rows on the series time axis. Lag-aligned rows end at
+/// the series end, so horizon row `i` sits at series time `series_rows − n_h + i`.
+fn horizon_rows(horizons: &[FittedHorizon], series_rows: usize) -> Vec<AlignedRows> {
+    horizons
+        .iter()
+        .map(|fitted| {
+            let rows = fitted.prepared.design.nrows;
+            AlignedRows { first_time: series_rows.saturating_sub(rows), rows }
+        })
+        .collect()
+}
+
+/// Joint bootstrap draws of every horizon's fit.
 ///
-/// The surface evaluates `cbar(a)'β` at many doses, so the whole coefficient vector is
-/// kept per replicate rather than collapsing to a single SE the way [`crate::util::bootstrap_se`]
-/// does. Failure accounting matches that helper: too few survivors, or more than
+/// The surface evaluates `cbar(a)'β` at many cells, so each replicate keeps the whole
+/// coefficient vector and the resampled design column means for every horizon, rather
+/// than collapsing to a single SE the way [`crate::util::bootstrap_se`] does. Failure
+/// accounting matches that helper: too few survivors, or more than
 /// [`BOOTSTRAP_MAX_FAILURE_FRAC`] soft failures, means no bootstrap SE is reported.
-struct HorizonBootstrap {
-    coefs: Vec<Vec<f64>>,
+struct SurfaceBootstrap {
+    /// `draws[r]` is flattened `[coefs_h, means_h]` per horizon in horizon order.
+    draws: Vec<Vec<f64>>,
+    /// `ncols[h]` is horizon `h`'s design column count (each horizon occupies `2 * p`).
+    ncols: Vec<usize>,
     cancelled: bool,
 }
 
-/// IID bootstrap coefficient draws for one horizon's OLS fit.
+impl SurfaceBootstrap {
+    fn horizon_fit<'a>(&self, flat: &'a [f64], h: usize) -> (&'a [f64], &'a [f64]) {
+        let mut off = 0;
+        for (i, &p) in self.ncols.iter().enumerate() {
+            if i == h {
+                return (&flat[off..off + p], &flat[off + p..off + 2 * p]);
+            }
+            off += 2 * p;
+        }
+        (&[], &[])
+    }
+}
+
+/// Joint circular-block bootstrap of the whole dose × horizon surface.
 ///
-/// Returns `Ok(None)` when no bootstrap was requested, when cancellation stopped the loop
-/// before two replicates survived, or when singular resamples pushed the failure fraction
-/// past the crate-wide threshold. Callers fall back to the analytic linear-functional SE
-/// and must say so — a silently-analytic SE reported as a bootstrap SE is a lie about the
-/// uncertainty's provenance.
-fn bootstrap_horizon_coefs(
-    prepared: &PreparedEstimationProblem,
-    n: usize,
-    p: usize,
+/// Serially dependent lag-aligned rows are resampled in blocks (never row by row):
+/// an iid pairs bootstrap misses the autocovariance of the level's mean component and
+/// cannot support a simultaneous band. Each replicate resamples circular blocks of
+/// consecutive series times over the window every horizon can evaluate
+/// ([`aligned_block_bootstrap`]), refits every horizon on its own lag-aligned rows at
+/// those same times, and keeps the replicate only if every horizon fit succeeds, so
+/// each kept replicate is one draw of the whole surface on one calendar resample.
+/// Blocks resample lag-aligned tuples, so no replicate row straddles a block junction.
+///
+/// Returns `None` when no bootstrap was requested, when fewer than two replicates
+/// survived, or when singular resamples pushed the failure fraction past the crate-wide
+/// threshold. Callers then publish no band and must say so.
+fn bootstrap_surface(
+    horizons: &[FittedHorizon],
+    rows: &[AlignedRows],
+    block_length: usize,
     replicates: u32,
     ctx: &ExecutionContext,
-    ols_ws: &mut LeastSquaresWorkspace,
-) -> Result<Option<HorizonBootstrap>, EstimationError> {
-    if replicates == 0 || n == 0 {
-        return Ok(None);
+) -> Option<SurfaceBootstrap> {
+    if replicates == 0 || horizons.is_empty() || rows.iter().any(|r| r.rows == 0) {
+        return None;
     }
-    let n_rep = replicates as usize;
-    let mut indexes = vec![0u32; n * n_rep];
-    fill_resample_index_batch(
-        ResamplingPlan::IidBootstrap,
-        n,
-        n_rep,
-        None,
-        ctx,
+    let mut ols_ws = LeastSquaresWorkspace::default();
+    let mut x_boot = Vec::new();
+    let mut y_boot = Vec::new();
+    let ncols: Vec<usize> = horizons.iter().map(|fitted| fitted.prepared.design.ncols).collect();
+    let boot = aligned_block_bootstrap(
+        rows,
+        block_length,
+        replicates,
         HORIZON_BOOTSTRAP_STREAM,
-        &mut indexes,
-    )
-    .map_err(EstimationError::from)?;
-    let mut x_boot = vec![0.0; n * p];
-    let mut y_boot = vec![0.0; n];
-    let mut coefs = Vec::with_capacity(n_rep);
-    let mut cancelled = false;
-    for r in 0..n_rep {
-        if ctx.cancellation.is_cancelled() {
-            cancelled = true;
-            break;
-        }
-        let sl = &indexes[r * n..(r + 1) * n];
-        for (i, &src) in sl.iter().enumerate() {
-            let src = src as usize;
-            y_boot[i] = prepared.design.outcome[src];
-            for c in 0..p {
-                x_boot[c * n + i] = prepared.design.matrix[c * n + src];
+        ctx,
+        |maps| {
+            let mut flat = Vec::new();
+            for (fitted, map) in horizons.iter().zip(maps) {
+                let design = &fitted.prepared.design;
+                let (n, p, m) = (design.nrows, design.ncols, map.len());
+                x_boot.resize(m * p, 0.0);
+                y_boot.resize(m, 0.0);
+                for (i, &src) in map.iter().enumerate() {
+                    y_boot[i] = design.outcome[src];
+                }
+                for c in 0..p {
+                    let column = &design.matrix[c * n..(c + 1) * n];
+                    for (i, &src) in map.iter().enumerate() {
+                        x_boot[c * m + i] = column[src];
+                    }
+                }
+                let fit = FaerBackend.least_squares(&x_boot, m, p, &y_boot, &mut ols_ws).ok()?;
+                flat.extend(fit.coefficients);
+                flat.extend(
+                    (0..p).map(|c| x_boot[c * m..(c + 1) * m].iter().sum::<f64>() / m as f64),
+                );
             }
-        }
-        if let Ok(fit) = FaerBackend.least_squares(&x_boot, n, p, &y_boot, ols_ws) {
-            coefs.push(fit.coefficients);
-        }
-        if let Some(progress) = &ctx.progress {
-            progress.report((r + 1) as f64 / n_rep as f64, "bootstrap");
-        }
-    }
-    if coefs.len() < 2 {
-        return Ok(None);
+            Some(flat)
+        },
+    )?;
+    if boot.draws.len() < 2 {
+        return None;
     }
     // Unattempted replicates after cancellation are not failures (mirrors
     // `finalize_bootstrap_se_ex`); singular resamples among those attempted are.
-    if !cancelled {
-        let failed = replicates.saturating_sub(u32::try_from(coefs.len()).unwrap_or(u32::MAX));
-        if f64::from(failed) / f64::from(replicates) > BOOTSTRAP_MAX_FAILURE_FRAC {
-            return Ok(None);
-        }
+    let failed = f64::from(boot.attempted) - boot.draws.len() as f64;
+    if failed / f64::from(boot.attempted) > BOOTSTRAP_MAX_FAILURE_FRAC {
+        return None;
     }
-    Ok(Some(HorizonBootstrap { coefs, cancelled }))
+    Some(SurfaceBootstrap { draws: boot.draws, ncols, cancelled: boot.cancelled })
+}
+
+/// Unbiased sample SD of column `cell` across `draws`, without a temporary Vec.
+fn sample_std_cell(draws: &[Vec<f64>], cell: usize) -> f64 {
+    let n = draws.len() as f64;
+    if n < 2.0 {
+        return f64::NAN;
+    }
+    let mean = draws.iter().map(|draw| draw[cell]).sum::<f64>() / n;
+    let var = draws
+        .iter()
+        .map(|draw| {
+            let e = draw[cell] - mean;
+            e * e
+        })
+        .sum::<f64>()
+        / (n - 1.0);
+    var.sqrt()
 }
 
 fn design_column_means(design: &CompiledDesign) -> Vec<f64> {
@@ -1879,7 +3037,7 @@ mod tests {
             ),
         })
         .with_temporal(temporal);
-        let est = TemporalResponseEstimator::new();
+        let est = TemporalResponseEstimator::new().with_bootstrap_replicates(60);
         let result = est
             .estimate(
                 &data,
@@ -1945,72 +3103,17 @@ mod tests {
         }
     }
 
-    /// (c) Recompute `se(dose)` independently — build `cbar` from the fitted design's
-    /// column means with the treatment entry replaced by `dose`, then form the quadratic
-    /// form against the coefficient covariance directly (own loop, not `mean_and_se_at`)
-    /// — and check it matches production. A regression to the old ATE-coefficient-SE
-    /// formula would diverge from this independent recompute.
+    /// (c) The published bootstrap half-width grows as the dose moves away from the
+    /// observed treatment mean — the standard widening of a regression band away from
+    /// the design centroid. A band scaled by |dose| (minimized at dose 0) fails this
+    /// whenever the treatment mean is nonzero.
     #[test]
-    fn uncertainty_se_matches_independent_quadratic_form_recompute() {
-        let (data, graph) = synthetic_series(300);
-        let (estimand, indexer) = identify(&graph, 3);
-        let temporal =
-            TemporalResponseSpec::new(vec![3u32], TemporalPolicy::pulse(0), None).unwrap();
-        let est = TemporalResponseEstimator::new();
-        let mut ws = LeastSquaresWorkspace::default();
-        let fitted = est
-            .fit_horizon(
-                &data,
-                &estimand,
-                VariableId::from_raw(0),
-                VariableId::from_raw(1),
-                &temporal,
-                3,
-                &indexer,
-                &ExecutionContext::for_tests(9),
-                &mut ws,
-            )
-            .unwrap();
-
-        let p = fitted.coefs.len();
-        let z = normal_ppf(0.975);
-        for &dose in &[-2.0, -0.5, 0.0, 0.5, 1.0, 3.0] {
-            let mut cbar = fitted.column_means.clone();
-            cbar[TREATMENT_COL] = dose;
-            let mut expected_var = 0.0;
-            for i in 0..p {
-                for j in 0..p {
-                    expected_var += cbar[i] * fitted.cov[i * p + j] * cbar[j];
-                }
-            }
-            let expected_se = expected_var.max(0.0).sqrt();
-            let (mu, actual_se) = fitted.mean_and_se_at(dose);
-
-            assert!(
-                (actual_se - expected_se).abs() <= 1e-9_f64.max(1e-9 * expected_se),
-                "dose={dose}: production se {actual_se} != independently recomputed se {expected_se}"
-            );
-            // Half-width equals normal_ppf(0.975) * se, for the independently recomputed se.
-            let expected_lower = mu - z * expected_se;
-            let expected_upper = mu + z * expected_se;
-            assert!((expected_upper - mu - z * expected_se).abs() < 1e-9);
-            assert!((mu - expected_lower - z * expected_se).abs() < 1e-9);
-        }
-    }
-
-    /// (d) se(dose) grows as the dose moves away from the observed treatment mean — the
-    /// standard widening of a regression band away from the design centroid. Under the
-    /// old buggy formula (se proportional to |dose|, minimized at dose == 0.0), this
-    /// fails whenever the fitted treatment mean is nonzero, since `se(0.0)` would then be
-    /// smaller than `se(treatment_mean)`.
-    #[test]
-    fn uncertainty_se_widens_away_from_treatment_mean() {
+    fn bootstrap_band_widens_away_from_treatment_mean() {
         let (data, graph) = synthetic_series(400);
-        let (estimand, indexer) = identify(&graph, 4);
+        let (estimand, indexer) = identify(&graph, 2);
         let temporal =
             TemporalResponseSpec::new(vec![2u32], TemporalPolicy::pulse(0), None).unwrap();
-        let est = TemporalResponseEstimator::new();
-        let mut ws = LeastSquaresWorkspace::default();
+        let est = TemporalResponseEstimator::new().with_bootstrap_replicates(120);
         let fitted = est
             .fit_horizon(
                 &data,
@@ -2021,38 +3124,33 @@ mod tests {
                 2,
                 &indexer,
                 &ExecutionContext::for_tests(7),
-                &mut ws,
+                &mut LeastSquaresWorkspace::default(),
             )
             .unwrap();
-
         let center = fitted.treatment_mean();
         assert!(
-            center.abs() > 1e-3,
-            "test fixture assumes a non-degenerate (nonzero) treatment mean; got {center}"
+            (0.2..0.8).contains(&center),
+            "test fixture assumes a positive treatment mean below 1; got {center}"
         );
-        let (_, se_center) = fitted.mean_and_se_at(center);
-        let (_, se_near) = fitted.mean_and_se_at(center + 1.0);
-        let (_, se_far) = fitted.mean_and_se_at(center + 3.0);
-        let (_, se_near_neg) = fitted.mean_and_se_at(center - 1.0);
-        let (_, se_zero) = fitted.mean_and_se_at(0.0);
-
-        assert!(
-            se_center < se_near,
-            "se should grow moving away from center: {se_center} vs {se_near}"
-        );
-        assert!(
-            se_near < se_far,
-            "se should keep growing further from center: {se_near} vs {se_far}"
-        );
-        assert!(
-            se_center < se_near_neg,
-            "se should grow symmetrically on the other side of the center: {se_center} vs {se_near_neg}"
-        );
-        assert!(
-            se_center < se_zero,
-            "se at the treatment mean ({center}) should be smaller than se at dose=0.0 ({se_zero}); \
-             the old bug's minimum was at dose 0, not at the design centroid"
-        );
+        // Increasing grid: center − 1 < 0 < center < center + 1 < center + 3.
+        let doses = [center - 1.0, 0.0, center, center + 1.0, center + 3.0];
+        let response = est
+            .estimate(
+                &data,
+                &[(&estimand, &indexer)],
+                &surface_query(&doses, vec![2u32]),
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &ExecutionContext::for_tests(7),
+            )
+            .unwrap();
+        let (mean, lower, _) = pointwise(&response);
+        let half: Vec<f64> = mean.iter().zip(&lower).map(|(m, l)| m - l).collect();
+        let (below, zero, at, near, far) = (half[0], half[1], half[2], half[3], half[4]);
+        assert!(at < near, "half-width should grow away from center: {half:?}");
+        assert!(near < far, "and keep growing further out: {half:?}");
+        assert!(at < below, "on both sides of the center: {half:?}");
+        assert!(at < zero, "the minimum is at the centroid, not at dose 0: {half:?}");
     }
 
     // ---- GAP2: refusal paths were unasserted ----
@@ -2361,53 +3459,286 @@ mod tests {
         assert!(dose < long_range.0 || dose > long_range.1);
     }
 
+    fn surface_query(doses: &[f64], horizons: Vec<u32>) -> ResponseQuery {
+        ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(1),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(0),
+                GridSpec::Values(Arc::from(doses.to_vec())),
+            ),
+        })
+        .with_temporal(TemporalResponseSpec::new(horizons, TemporalPolicy::pulse(0), None).unwrap())
+    }
+
+    fn pointwise(response: &CausalResponse) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+        let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) =
+            &response.estimate
+        else {
+            panic!("expected surface");
+        };
+        let ResponseUncertainty::PointwiseBand { lower, upper, .. } = &response.uncertainty else {
+            panic!("expected pointwise band");
+        };
+        (mean.to_vec(), lower.to_vec(), upper.to_vec())
+    }
+
+    fn diagnostic<'a>(response: &'a CausalResponse, id: &str) -> Option<&'a [f64]> {
+        response.support.diagnostics.iter().find(|d| d.id.as_ref() == id).map(|d| d.values.as_ref())
+    }
+
+    /// Zero replicates publish no band (the analytic OLS band would treat
+    /// lag-aligned rows as independent) and say so; requested replicates publish
+    /// the circular-block band around the same full-sample point estimate.
     #[test]
-    fn bootstrap_se_differs_from_analytic_ols_se() {
+    fn zero_replicates_withhold_the_band_and_the_bootstrap_publishes_it() {
         let (data, graph) = synthetic_series(240);
         let (estimand, indexer) = identify(&graph, 3);
-        let temporal =
-            TemporalResponseSpec::new(vec![3u32], TemporalPolicy::pulse(0), None).unwrap();
-        let mut ols_ws = LeastSquaresWorkspace::default();
-        let analytic = TemporalResponseEstimator::new()
-            .fit_horizon(
-                &data,
-                &estimand,
-                VariableId::from_raw(0),
-                VariableId::from_raw(1),
-                &temporal,
-                3,
-                &indexer,
-                &ExecutionContext::for_tests(13),
-                &mut ols_ws,
-            )
-            .unwrap();
+        let query = surface_query(&[0.0, 1.0], vec![3u32]);
+        let run = |replicates| {
+            TemporalResponseEstimator::new()
+                .with_bootstrap_replicates(replicates)
+                .estimate(
+                    &data,
+                    &[(&estimand, &indexer)],
+                    &query,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    AssumptionSet::new(),
+                    &ExecutionContext::for_tests(13),
+                )
+                .unwrap()
+        };
+        let analytic = run(0);
+        assert!(matches!(analytic.uncertainty, ResponseUncertainty::None));
+        assert!(
+            analytic
+                .support
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == TEMPORAL_RESPONSE_BAND_WITHHELD),
+            "a withheld band must be diagnosed"
+        );
+        let ResponseIdentification::PointIdentified(ResponseValue::Surface { mean: mu_a, .. }) =
+            &analytic.estimate
+        else {
+            panic!("expected surface");
+        };
+        let (mu_b, lo_b, _) = pointwise(&run(40));
+        let se_b = mu_b[1] - lo_b[1];
+        assert!(se_b.is_finite() && se_b > 0.0, "bootstrap half-width={se_b}");
+        assert!(
+            (mu_a[0] - mu_b[0]).abs() < 1e-12,
+            "point estimate must stay full-sample OLS (analytic={}, boot={})",
+            mu_a[0],
+            mu_b[0]
+        );
+    }
+
+    /// The bootstrap surface publishes a simultaneous band next to the pointwise
+    /// band; it contains the pointwise band at every cell and names its construction.
+    /// The analytic path withholds it explicitly.
+    #[test]
+    fn bootstrap_surface_publishes_simultaneous_band_alongside_pointwise() {
+        let (data, graph) = synthetic_series(300);
+        let (estimand, indexer) = identify(&graph, 3);
+        let doses = [-1.0, 0.0, 1.0, 2.0];
+        let query = surface_query(&doses, vec![1u32, 2, 3]);
+        let ids = [(&estimand, &indexer), (&estimand, &indexer), (&estimand, &indexer)];
         let boot = TemporalResponseEstimator::new()
-            .with_bootstrap_replicates(40)
-            .fit_horizon(
+            .with_bootstrap_replicates(80)
+            .estimate(
                 &data,
-                &estimand,
-                VariableId::from_raw(0),
-                VariableId::from_raw(1),
-                &temporal,
-                3,
-                &indexer,
-                &ExecutionContext::for_tests(13),
-                &mut ols_ws,
+                &ids,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &ExecutionContext::for_tests(3),
             )
             .unwrap();
-        let (_, se_a) = analytic.mean_and_se_at(1.0);
-        let (_, se_b) = boot.mean_and_se_at(1.0);
-        assert!(se_a.is_finite() && se_a > 0.0, "analytic se={se_a}");
-        assert!(se_b.is_finite() && se_b > 0.0, "bootstrap se={se_b}");
+        let (mean, lower, upper) = pointwise(&boot);
+        let sim_lo = diagnostic(&boot, SIMULTANEOUS_BAND_LOWER).expect("simultaneous lower");
+        let sim_hi = diagnostic(&boot, SIMULTANEOUS_BAND_UPPER).expect("simultaneous upper");
+        let critical = diagnostic(&boot, SIMULTANEOUS_BAND_CRITICAL).expect("critical");
+        assert_eq!(sim_lo.len(), mean.len());
+        assert_eq!(sim_hi.len(), mean.len());
+        assert!((critical[0] - 0.95).abs() < 1e-12);
+        assert!((critical[2] - 80.0).abs() < 1e-12);
+        assert!(critical[1] >= normal_ppf(0.975), "sup-t critical {} < z", critical[1]);
+        for cell in 0..mean.len() {
+            assert!(sim_lo[cell] <= lower[cell] && upper[cell] <= sim_hi[cell], "cell {cell}");
+            let half_pointwise = mean[cell] - lower[cell];
+            let half_sim = mean[cell] - sim_lo[cell];
+            assert!(
+                (half_sim / half_pointwise - critical[1] / normal_ppf(0.975)).abs() < 1e-9,
+                "simultaneous band must scale the same bootstrap SE by the sup-t critical value"
+            );
+        }
+        assert!(boot.assumptions.entries.iter().any(|r| matches!(
+            &r.assumption,
+            Assumption::ParametricRestriction(p) if p.id.as_ref() == "temporal_response.block_bootstrap"
+        )));
+
+        let analytic = TemporalResponseEstimator::new()
+            .estimate(
+                &data,
+                &ids,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &ExecutionContext::for_tests(3),
+            )
+            .unwrap();
+        assert!(diagnostic(&analytic, SIMULTANEOUS_BAND_LOWER).is_none());
         assert!(
-            (se_a - se_b).abs() > 1e-6,
-            "Study bootstrap must change the surface SE (analytic={se_a}, bootstrap={se_b})"
+            analytic
+                .support
+                .warnings
+                .iter()
+                .any(|warning| warning.code.as_ref() == SIMULTANEOUS_BAND_WITHHELD)
         );
-        let (mu_a, _) = analytic.mean_and_se_at(1.0);
-        let (mu_b, _) = boot.mean_and_se_at(1.0);
-        assert!(
-            (mu_a - mu_b).abs() < 1e-12,
-            "point estimate must stay full-sample OLS (analytic={mu_a}, boot={mu_b})"
-        );
+    }
+
+    /// Every horizon of one replicate resamples the same calendar times, in circular
+    /// runs of the block length over the common window, and every window time is an
+    /// equally likely draw (no row gets a second chance to start a block).
+    #[test]
+    fn surface_bootstrap_rows_are_calendar_aligned_over_the_common_window() {
+        // Series of 20 times; horizon A keeps rows at times 2..20, horizon B at 4..20.
+        let rows =
+            [AlignedRows { first_time: 2, rows: 18 }, AlignedRows { first_time: 4, rows: 16 }];
+        let block = 5;
+        let ctx = ExecutionContext::for_tests(11);
+        let mut hits = [0usize; 20];
+        let boot =
+            aligned_block_bootstrap(&rows, block, 2000, HORIZON_BOOTSTRAP_STREAM, &ctx, |maps| {
+                assert_eq!(maps[0].len(), 16, "every horizon resamples the common window");
+                assert_eq!(maps[1].len(), 16);
+                let times: Vec<usize> = maps[1].iter().map(|&row| 4 + row).collect();
+                for (r, (&a, &b)) in maps[0].iter().zip(&maps[1]).enumerate() {
+                    assert_eq!(2 + a, 4 + b, "row {r}: horizons disagree on calendar time");
+                }
+                for chunk in times.chunks(block) {
+                    for pair in chunk.windows(2) {
+                        // Consecutive times inside a block, wrapping within the window 4..20.
+                        assert_eq!(pair[1], 4 + (pair[0] - 4 + 1) % 16, "block broke contiguity");
+                    }
+                }
+                for &time in &times {
+                    assert!((4..20).contains(&time), "time {time} outside the common window");
+                    hits[time] += 1;
+                }
+                Some(vec![0.0])
+            })
+            .expect("the horizons share a window");
+        assert_eq!(boot.draws.len(), 2000);
+        assert_eq!(boot.rows, 16);
+        let expected = 2000.0;
+        for (time, &count) in hits.iter().enumerate().skip(4) {
+            let ratio = count as f64 / expected;
+            assert!((0.85..1.15).contains(&ratio), "time {time} drawn {count} times");
+        }
+        assert_eq!(hits[..4].iter().sum::<usize>(), 0);
+
+        // max(span, ceil(sqrt(n))), capped at n.
+        assert_eq!(temporal_block_length(3, 160), 13);
+        assert_eq!(temporal_block_length(20, 160), 20);
+        assert_eq!(temporal_block_length(1, 144), 12);
+        assert_eq!(temporal_block_length(9, 4), 4);
+    }
+
+    /// The response block length keeps the rule on short-memory scores, lengthens it on a
+    /// persistent score, and reports when the n/3 cap binds.
+    #[test]
+    fn response_block_length_lengthens_on_persistent_scores() {
+        let n = 400;
+        let white = gaussian_series(n, 0.0, 3);
+        let persistent = gaussian_series(n, 0.9, 5);
+        let short = ResponseBlockLength::new(2, n, &[&white]);
+        assert_eq!(short.rule, 20);
+        assert_eq!(short.length, 20, "{short:?}");
+        assert!(!short.capped());
+        let long = ResponseBlockLength::new(2, n, &[&white, &persistent]);
+        assert!(long.length > long.rule, "{long:?}");
+        assert!(long.length <= n / 3);
+        assert_eq!(long.length, long.testing.min(n / 3));
+        let tight = ResponseBlockLength::new(2, 60, &[&persistent[..60]]);
+        assert!(tight.length <= 20, "{tight:?}");
+        assert_eq!(tight.capped(), tight.testing > tight.length);
+    }
+
+    /// Deterministic AR(1) series with Gaussian innovations (Box–Muller on splitmix64).
+    fn gaussian_series(n: usize, rho: f64, seed: u64) -> Vec<f64> {
+        let mut state = seed;
+        let mut next = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((z ^ (z >> 31)) >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let mut out = Vec::with_capacity(n);
+        let mut previous = 0.0;
+        for _ in 0..n {
+            let (u, v) = (next().max(1e-12), next());
+            let innovation = (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos();
+            previous = rho * previous + innovation;
+            out.push(previous);
+        }
+        out
+    }
+
+    #[test]
+    fn block_dispersion_inflation_is_the_fixed_b_ratio_times_hc1() {
+        // 159 rows in blocks of 13, 3 coefficients: circular-Bartlett fixed-b ratio at
+        // b = 13/159 times the HC1 factor sqrt(159/156).
+        let b = 13.0 / 159.0;
+        let circular = (1.96 + 2.4389 * b + 3.7072 * b * b - 2.1055 * b * b * b) / 1.96;
+        let expected = circular * (159.0_f64 / 156.0).sqrt();
+        assert!((block_dispersion_inflation(159, 13, 3) - expected).abs() < 1e-12);
+        assert!(expected > 1.12 && expected < 1.13, "{expected}");
+        // Long series with short blocks: no inflation to speak of.
+        assert!((block_dispersion_inflation(1_000_000, 1_000, 3) - 1.0).abs() < 2e-3);
+        // Barely one block: the b = 1 critical value, never "no inflation".
+        assert!(block_dispersion_inflation(6, 6, 2) > 1.9);
+        let center = [1.0, 2.0];
+        let mut draws = vec![vec![2.0, 1.0]];
+        inflate_replicates(&center, &mut draws, 1.5);
+        assert_eq!(draws[0], vec![2.5, 0.5]);
+    }
+
+    #[test]
+    fn max_deviation_band_uses_the_monte_carlo_rank_and_refuses_thin_draws() {
+        let center = [0.0, 10.0];
+        // Replicate r deviates by r/100 SD-units in cell 0 only: maxima are sorted
+        // deviations, so the critical value is the ceil(0.95·(B+1))-th of them.
+        let draws: Vec<Vec<f64>> =
+            (0..99).map(|r| vec![f64::from(r) - 49.0, 10.0 + f64::from(r % 2)]).collect();
+        let band = max_deviation_band(&center, &draws, 0.95).unwrap();
+        assert_eq!(band.replicates, 99);
+        let sd0 = sample_std(&draws.iter().map(|d| d[0]).collect::<Vec<_>>());
+        let sd1 = sample_std(&draws.iter().map(|d| d[1]).collect::<Vec<_>>());
+        let mut maxima: Vec<f64> = draws
+            .iter()
+            .map(|d| ((d[0] - center[0]).abs() / sd0).max((d[1] - center[1]).abs() / sd1))
+            .collect();
+        maxima.sort_by(f64::total_cmp);
+        assert!((band.critical - maxima[94]).abs() < 1e-15);
+        assert!((band.upper[0] - band.critical * sd0).abs() < 1e-12);
+        assert!((band.lower[1] - (10.0 - band.critical * sd1)).abs() < 1e-12);
+        let columns: Vec<Vec<f64>> =
+            (0..2).map(|cell| draws.iter().map(|d| d[cell]).collect()).collect();
+        let column_refs: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
+        assert_eq!(max_deviation_band_columns(&center, &column_refs, 0.95).unwrap(), band);
+        assert!(max_deviation_band(&center, &draws[..39], 0.95).is_err());
+        let flat: Vec<Vec<f64>> = (0..50).map(|r| vec![f64::from(r), 10.0]).collect();
+        let flat_band = max_deviation_band(&center, &flat, 0.95).unwrap();
+        assert!((flat_band.lower[1] - 10.0).abs() < 1e-12);
+        assert!((flat_band.upper[1] - 10.0).abs() < 1e-12);
+        assert!(flat_band.upper[0] > flat_band.lower[0]);
+        // Perfectly correlated, light-tailed (uniform) cells: the Monte Carlo rank sits near
+        // 1.65 SD, below z; the band is floored at the one-cell normal band.
+        let uniform: Vec<Vec<f64>> =
+            (0..99).map(|r| vec![f64::from(r) - 49.0, 10.0 + f64::from(r) - 49.0]).collect();
+        let floored = max_deviation_band(&center, &uniform, 0.95).unwrap();
+        assert!((floored.critical - normal_ppf(0.975)).abs() < 1e-12, "{}", floored.critical);
     }
 }

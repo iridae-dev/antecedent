@@ -6,13 +6,14 @@ use std::sync::Arc;
 
 use antecedent::{AcceptedGraph, BayesianConfig, IdentifierId, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, CounterfactualQuery,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, CounterfactualQuery, DerivativeScale,
     DerivativeWeighting, ExecutionContext, Intervention, InterventionalDistributionQuery,
-    MediationContrast, MediationQuery, PathSpecificEffectQuery, ResponseFunctional, ResponseQuery,
-    ResponseValue, Value, VariableId,
+    MediationContrast, MediationQuery, PathSpecificEffectQuery, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_discovery::{GraphPosterior, set_edge};
+use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Admg, Dag, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
 
@@ -126,6 +127,17 @@ fn functional_bayesian_path_distribution_and_admg() {
                 result.estimate.ate
             );
             assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+            let reports = match suite {
+                RefuteSuite::None => 0,
+                RefuteSuite::Cheap => pin["cheap_path_reports"].as_u64().unwrap(),
+                _ => pin["full_path_reports"].as_u64().unwrap(),
+            };
+            assert_eq!(
+                result.refutations.len() as u64,
+                reports,
+                "path suite={suite:?} must run the path subset-stability suite"
+            );
+            assert!(result.refutations.iter().all(|r| r.refuter.starts_with("path.")));
         }
     }
 
@@ -134,29 +146,8 @@ fn functional_bayesian_path_distribution_and_admg() {
     ))
     .unwrap();
     let data = expand_contingency(&admg_pin);
-    let mut admg = Admg::with_variables(3);
-    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    admg.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
     let query =
         AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(2), 0.0, 1.0);
-    let result = Study::tabular(data.clone())
-        .graph(admg)
-        .query(query.clone())
-        .inference(bayes())
-        .refute(RefuteSuite::None)
-        .build()
-        .unwrap()
-        .prepare(&ctx)
-        .unwrap()
-        .estimate(&data, &ctx)
-        .unwrap();
-    assert_eq!(result.logical_plan.identifier.as_deref(), Some("general.id"));
-    assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
-    assert!(
-        (result.estimate.ate - admg_pin["frequentist"]["expected_ate"].as_f64().unwrap()).abs()
-            < 0.08
-    );
 
     // Dag + general.id must execute the functional evaluator (not bayesian.gcomp).
     // On the observed chain the ID functional is the g-formula, not the ADMG
@@ -190,6 +181,70 @@ fn functional_bayesian_path_distribution_and_admg() {
     assert_ne!(rider.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"));
     assert!(rider.posterior.is_some());
     assert!((rider.estimate.ate - freq.estimate.ate).abs() < 0.08);
+}
+
+/// Bayesian front-door ADMG ATE on every licensed coordinate: explicit and
+/// accepted structure × `none`/`cheap`/`full`, fresh and prepared. The frozen
+/// binary law has front-door effect 0.3 (`admg_frontdoor_functional`); the
+/// Dirichlet posterior mean must sit within 0.02 of it, and the 90% credible
+/// interval must contain it.
+#[test]
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn admg_frontdoor_bayesian_all_structures_and_validation() {
+    let admg_pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/estimate/admg_frontdoor_functional/expected.json"
+    ))
+    .unwrap();
+    let truth = admg_pin["frequentist"]["expected_ate"].as_f64().unwrap();
+    let data = expand_contingency(&admg_pin);
+    let mut admg = Admg::with_variables(3);
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    admg.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+    admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(2), 0.0, 1.0);
+    let ctx = ExecutionContext::for_tests(18);
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            let builder = if accepted {
+                Study::tabular(data.clone()).graph(AcceptedGraph::from(admg.clone()))
+            } else {
+                Study::tabular(data.clone()).graph(admg.clone())
+            };
+            let study =
+                builder.query(query.clone()).inference(bayes()).refute(suite).build().unwrap();
+            let fresh = study.clone().run(&ctx).unwrap();
+            let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
+            assert!(
+                click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"),
+                "prepared ADMG click must reuse identification"
+            );
+            for result in [&fresh, &click] {
+                let label = format!("accepted={accepted} suite={suite:?}");
+                assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
+                assert_eq!(result.logical_plan.identifier.as_deref(), Some("general.id"));
+                assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
+                let posterior = result.posterior.as_ref().expect("Bayesian ADMG posterior");
+                assert!(
+                    (result.estimate.ate - truth).abs() < 0.02,
+                    "{label}: posterior mean {} vs front-door truth {truth}",
+                    result.estimate.ate
+                );
+                let col = posterior.effect_column().expect("effect draws");
+                let mut draws = posterior.draws.column(col).unwrap().to_vec();
+                draws.sort_by(f64::total_cmp);
+                let at = |q: f64| draws[((draws.len() - 1) as f64 * q).round() as usize];
+                assert!(at(0.05) <= truth && truth <= at(0.95), "{label}: 90% interval");
+                match suite {
+                    RefuteSuite::None => {
+                        assert!(result.refutations.is_empty(), "{label}: none runs no refuter");
+                    }
+                    _ => assert!(!result.refutations.is_empty(), "{label}: refuters must run"),
+                }
+            }
+            assert!((fresh.estimate.ate - click.estimate.ate).abs() < 1e-12);
+        }
+    }
 }
 
 #[test]
@@ -414,34 +469,37 @@ fn mediation_and_counterfactual_bayesian_pins() {
 }
 
 #[test]
-fn derivative_bayesian_pins() {
+fn accepted_counterfactual_matches_explicit_bayesian() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../conformance/response/staged_derivatives/expected.json"
+        "../../../conformance/estimate/staged_static_kinds/expected.json"
     ))
     .unwrap();
-    let a: Vec<_> = (0..400)
-        .map(|i| 2.0 + (f64::from(i) * 0.71).sin() + 0.2 * (f64::from(i) * 0.13).cos())
-        .collect();
-    let b: Vec<_> = (0..400).map(|i| (f64::from(i) * 1.13).cos()).collect();
-    let y: Vec<_> = a.iter().zip(&b).map(|(a, b)| 5.0 + 2.0 * a - 0.5 * b).collect();
-    let data = TabularData::from_f64_columns([
-        ("a", a.as_slice()),
-        ("b", b.as_slice()),
-        ("y", y.as_slice()),
-    ])
-    .unwrap();
-    let mut graph = Dag::with_variables(3);
-    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
-    graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    let ctx = ExecutionContext::for_tests(18);
-    let query = ResponseQuery::new(ResponseFunctional::AverageDerivative {
-        outcome: VariableId::from_raw(2),
-        treatment: VariableId::from_raw(0),
-        weighting: DerivativeWeighting::Observed,
-    });
-    let result = Study::tabular(data.clone())
-        .graph(graph)
-        .query(CausalQuery::Response(query))
+    let (data, dag) = mediation_scm();
+    let ctx = ExecutionContext::for_tests(13);
+    let query = CounterfactualQuery::new(
+        VariableId::from_raw(2),
+        Arc::from([Intervention::set(
+            VariableId::from_raw(0),
+            Value::f64(pin["active"].as_f64().unwrap()),
+        )]),
+    )
+    .with_control_level(pin["control"].as_f64().unwrap());
+    let run = |graph: antecedent::AcceptedGraph| {
+        Study::tabular(data.clone())
+            .graph(graph)
+            .query(CausalQuery::Counterfactual(query.clone()))
+            .inference(bayes())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap()
+            .estimate(&data, &ctx)
+            .unwrap()
+    };
+    let explicit = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(CausalQuery::Counterfactual(query.clone()))
         .inference(bayes())
         .refute(RefuteSuite::None)
         .build()
@@ -450,15 +508,158 @@ fn derivative_bayesian_pins() {
         .unwrap()
         .estimate(&data, &ctx)
         .unwrap();
-    assert_ne!(result.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"));
-    assert_ne!(result.logical_plan.estimator.as_deref(), Some("response.bayesian"));
-    match result.response.as_ref().unwrap().estimate {
-        antecedent_core::ResponseIdentification::PointIdentified(ResponseValue::Scalar(v)) => {
-            assert!(
-                (v - pin["average"].as_f64().unwrap()).abs() < pin["tolerance"].as_f64().unwrap()
+    let accepted = run(AcceptedGraph::from(dag));
+    assert_eq!(accepted.structure_source, antecedent::StructureSource::Accepted);
+    assert_eq!(explicit.structure_source, antecedent::StructureSource::Explicit);
+    let explicit_cf = explicit.counterfactual.as_ref().unwrap();
+    let accepted_cf = accepted.counterfactual.as_ref().unwrap();
+    assert!((accepted_cf.mean_ite - explicit_cf.mean_ite).abs() < 1e-12);
+    assert_eq!(accepted_cf.unit_effects, explicit_cf.unit_effects);
+    assert_eq!(accepted.logical_plan.estimator.as_deref(), Some("gcm.fit"));
+}
+
+/// Known-truth pins for all six Bayesian derivative functionals on explicit and
+/// accepted DAGs (`conformance/response/staged_derivatives`): each asserts the
+/// point value and that the published credible interval brackets the truth.
+#[allow(clippy::many_single_char_names)]
+#[test]
+fn derivative_bayesian_pins() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/response/staged_derivatives/expected.json"
+    ))
+    .unwrap();
+    let tolerance = pin["tolerance"].as_f64().unwrap();
+    let a: Vec<_> = (0..400)
+        .map(|i| 2.0 + (f64::from(i) * 0.71).sin() + 0.2 * (f64::from(i) * 0.13).cos())
+        .collect();
+    let b: Vec<_> = (0..400).map(|i| (f64::from(i) * 1.13).cos()).collect();
+    let y: Vec<_> = a.iter().zip(&b).map(|(a, b)| 5.0 + 2.0 * a - 0.5 * b).collect();
+    let v: Vec<_> = a.iter().zip(&b).map(|(a, b)| 1.0 + 0.25 * a + 1.5 * b).collect();
+    let data = TabularData::from_f64_columns([
+        ("a", a.as_slice()),
+        ("b", b.as_slice()),
+        ("y", y.as_slice()),
+        ("v", v.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(4);
+    for (from, to) in [(0, 2), (0, 3), (1, 2), (1, 3)] {
+        graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let ids =
+        |xs: &[u32]| -> Arc<[VariableId]> { xs.iter().map(|&x| VariableId::from_raw(x)).collect() };
+    let point = |scale| ResponseFunctional::PointDerivative {
+        outcome: VariableId::from_raw(2),
+        treatment: VariableId::from_raw(0),
+        at: 2.0,
+        order: 1,
+        scale,
+    };
+    let cases = [
+        ("point", point(DerivativeScale::Identity)),
+        ("elasticity", point(DerivativeScale::LogLog)),
+        ("semi_treatment", point(DerivativeScale::LogTreatment)),
+        ("semi_outcome", point(DerivativeScale::LogOutcome)),
+        (
+            "average",
+            ResponseFunctional::AverageDerivative {
+                outcome: VariableId::from_raw(2),
+                treatment: VariableId::from_raw(0),
+                weighting: DerivativeWeighting::Observed,
+            },
+        ),
+        (
+            "jacobian",
+            ResponseFunctional::Jacobian {
+                outcomes: ids(&[2, 3]),
+                treatments: ids(&[0, 1]),
+                at: Arc::from([2.0, 0.0]),
+                scale: DerivativeScale::Identity,
+            },
+        ),
+        (
+            "directional",
+            ResponseFunctional::DirectionalDerivative {
+                outcomes: ids(&[2, 3]),
+                treatments: ids(&[0, 1]),
+                at: Arc::from([2.0, 0.0]),
+                direction: Arc::from([1.0, 2.0]),
+            },
+        ),
+    ];
+    let ctx = ExecutionContext::for_tests(18);
+    for (key, functional) in cases {
+        let truth: Vec<f64> = pin[key].as_f64().map_or_else(
+            || pin[key].as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect(),
+            |x| vec![x],
+        );
+        for accepted in [false, true] {
+            let builder = if accepted {
+                Study::tabular(data.clone()).graph(AcceptedGraph::from(graph.clone()))
+            } else {
+                Study::tabular(data.clone()).graph(graph.clone())
+            };
+            let result = builder
+                .query(CausalQuery::Response(ResponseQuery::new(functional.clone())))
+                .response_options(ContinuousResponseOptions {
+                    bandwidth: Some(0.35),
+                    ..Default::default()
+                })
+                .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+                .refute(RefuteSuite::None)
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap()
+                .estimate(&data, &ctx)
+                .unwrap();
+            let label = format!("{key} accepted={accepted}");
+            assert_ne!(result.logical_plan.estimator.as_deref(), Some("bayesian.gcomp"), "{label}");
+            assert_ne!(
+                result.logical_plan.estimator.as_deref(),
+                Some("response.bayesian"),
+                "{label}"
             );
+            let response = result.response.as_ref().unwrap();
+            let ResponseIdentification::PointIdentified(value) = &response.estimate else {
+                panic!("{label}: unidentified")
+            };
+            let got = match value {
+                ResponseValue::Scalar(x) => vec![*x],
+                ResponseValue::Jacobian { values, .. } | ResponseValue::Vector(values) => {
+                    values.to_vec()
+                }
+                other => panic!("{label}: unexpected {other:?}"),
+            };
+            let (lower, upper): (Vec<f64>, Vec<f64>) = match &response.uncertainty {
+                ResponseUncertainty::Scalar { lower, upper, .. } => (vec![*lower], vec![*upper]),
+                ResponseUncertainty::PointwiseBand { lower, upper, .. } => {
+                    (lower.to_vec(), upper.to_vec())
+                }
+                other => {
+                    panic!("{label}: Bayesian derivative must publish an interval, got {other:?}")
+                }
+            };
+            assert_eq!(got.len(), truth.len(), "{label}");
+            for j in 0..truth.len() {
+                assert!(
+                    (got[j] - truth[j]).abs() < tolerance,
+                    "{label}[{j}]: {} != {}",
+                    got[j],
+                    truth[j]
+                );
+                // The fixture is noise-free, so a credible interval may be a
+                // numerical sliver; allow one ulp-scale slack around the truth.
+                let slack = 1e-9 * truth[j].abs().max(1.0);
+                assert!(
+                    lower[j] - slack <= truth[j] && truth[j] <= upper[j] + slack,
+                    "{label}[{j}]: credible interval [{}, {}] misses truth {}",
+                    lower[j],
+                    upper[j],
+                    truth[j]
+                );
+            }
         }
-        _ => panic!("expected scalar ADE"),
     }
 }
 

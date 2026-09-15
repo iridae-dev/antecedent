@@ -44,10 +44,13 @@ pub use backend::{
     BayesDesignRef, BayesFitOptions, BayesFitResult, BayesLikelihood, InferenceBackend,
     LaplaceWorkspace, coefficient_schema,
 };
-pub use conjugate::{ConjugateGaussianBackend, fit_conjugate_gaussian};
+pub use conjugate::{
+    ConjugateGaussianBackend, fit_conjugate_gaussian, sample_gamma, sample_inv_gamma,
+};
 pub use conjugate_moment_match::{BetaHyperparameters, GammaHyperparameters};
 pub use diagnostics::{
-    ConflictSummary, HessianFactorization, InferenceDiagnostics, PriorSensitivitySummary,
+    ConflictSummary, HessianFactorization, InferenceDiagnostics, PriorSensitivityFamily,
+    PriorSensitivitySummary,
 };
 pub use error::ProbError;
 pub use external_prior::{
