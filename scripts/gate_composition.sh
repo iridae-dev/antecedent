@@ -102,6 +102,10 @@ run_and_count "antecedent v110 design ranking adapters" \
   cargo test -p antecedent --test v110_contract -- --nocapture \
   design_rank_
 
+run_and_count "antecedent v110 consuming compositions" \
+  cargo test -p antecedent --test v110_contract -- --nocapture \
+  composition_
+
 if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
   echo "SKIP_PYTHON_SMOKE=1; skipping Python v110 contract tests"
 elif ! command -v uv >/dev/null 2>&1; then
