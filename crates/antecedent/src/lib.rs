@@ -80,10 +80,12 @@ pub mod validate;
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
-    BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
-    CausalContract, CellFamilyContrast, ComputeBudget, InterferenceSpec, LatencyMode,
-    PreparedBatch, PreparedStudy, RdConfig, RefuteSuite, SharedBatchDesign, SharedCovariateDesign,
-    StageEvent, StageResultSink, Study, StudyBuilder, TransportTrialSpec,
+    BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
+    CandidateSelection, CausalContract, CellFamilyContrast, ComputeBudget, InterferenceSpec,
+    LatencyMode, LicensedNeighbor, NextAction, OperationKind, OperationReadiness, OperationReport,
+    PremiseChange, PreparedBatch, PreparedStudy, RdConfig, RefuteSuite, SemanticApplicability,
+    SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink, Study, StudyBuilder,
+    TransportTrialSpec,
 };
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};
@@ -96,7 +98,8 @@ pub use options::FdrControl;
 pub use query::*;
 pub use result::{AnalysisIdentification, StructuralWeightBasis, StudyResult};
 pub use support::{
-    CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, classify,
+    CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, cell_coordinate,
+    classify, licensed_neighbors, refused_message, support_cell_from_coordinate,
 };
 
 // Strategy helpers and peer APIs: use `antecedent::estimate`, `antecedent::discovery`,

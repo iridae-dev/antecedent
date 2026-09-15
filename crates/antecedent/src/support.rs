@@ -12,7 +12,10 @@
 //! `parity/support_allowlist.toml` to have zero active entries. Any refused
 //! cell without a reason uses the shared default-refusal message.
 
-use antecedent_core::{CausalQuery, DerivativeScale, ResponseFunctional, TemporalPolicy};
+use antecedent_core::{
+    CausalQuery, DerivativeScale, LicensedNeighbor, PremiseChange, ResponseFunctional,
+    TemporalPolicy,
+};
 
 use antecedent_graph::{Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag};
 
@@ -392,6 +395,12 @@ pub(crate) fn matrix_graph_class(
     }
 }
 
+/// Closed-rule or default refusal text for a refused cell.
+#[must_use]
+pub fn refused_message(cell: SupportCell) -> &'static str {
+    refusal_reason(cell).unwrap_or(UNLICENSED)
+}
+
 fn refusal_reason(cell: SupportCell) -> Option<&'static str> {
     for rule in CLOSED_RULES {
         if axis_in(rule.queries, cell.query)
@@ -438,6 +447,129 @@ fn allowed_rule(cell: SupportCell) -> Option<&'static crate::support_matrix_data
 /// shared string rather than one formatted per cell.
 const UNLICENSED: &str =
     "cell is not licensed (parity/support_licensed.toml) and is not n/a; it is refused.";
+
+/// Format a matrix coordinate as `query:graph:structure:inference:validation`.
+#[must_use]
+pub fn cell_coordinate(cell: SupportCell) -> String {
+    format!(
+        "{}:{}:{}:{}:{}",
+        cell.query, cell.graph_class, cell.structure, cell.inference, cell.validation
+    )
+}
+
+/// Reconstruct a cell from [`cell_coordinate`] by interning against licensed axes.
+#[must_use]
+pub fn support_cell_from_coordinate(coordinate: &str) -> Option<SupportCell> {
+    let mut parts = coordinate.split(':');
+    let query = intern_licensed_axis(parts.next()?, |cell| cell.query)?;
+    let graph_class = intern_licensed_axis(parts.next()?, |cell| cell.graph_class)?;
+    let structure = intern_licensed_axis(parts.next()?, |cell| cell.structure)?;
+    let inference = intern_licensed_axis(parts.next()?, |cell| cell.inference)?;
+    let validation = intern_licensed_axis(parts.next()?, |cell| cell.validation)?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some(SupportCell { query, graph_class, structure, inference, validation })
+}
+
+fn intern_licensed_axis(
+    value: &str,
+    pick: impl Fn(&crate::support_matrix_data::LicensedCell) -> &'static str,
+) -> Option<&'static str> {
+    LICENSED.iter().map(pick).find(|&axis| axis == value)
+}
+
+const MAX_LICENSED_NEIGHBORS: usize = 8;
+
+/// Licensed alternatives that keep the requested graph class.
+///
+/// Neighbors are explicit changed-premise suggestions, never automatic
+/// fallbacks. Relabeling a class (`Cpdag` → `Dag`) is not a neighbor. An
+/// already-licensed cell has no neighbors.
+#[must_use]
+pub fn licensed_neighbors(cell: SupportCell) -> Vec<LicensedNeighbor> {
+    if matches!(classify(cell), CellStatus::Licensed) {
+        return Vec::new();
+    }
+    let mut scored: Vec<(Vec<PremiseChange>, crate::support_matrix_data::LicensedCell)> = LICENSED
+        .iter()
+        .copied()
+        .filter_map(|row| {
+            if row.graph_class != cell.graph_class {
+                return None;
+            }
+            let changed = neighbor_changes(cell, &row);
+            (!changed.is_empty()).then_some((changed, row))
+        })
+        .collect();
+    scored.sort_by(|left, right| {
+        left.0
+            .len()
+            .cmp(&right.0.len())
+            .then_with(|| left.1.query.cmp(right.1.query))
+            .then_with(|| left.1.structure.cmp(right.1.structure))
+            .then_with(|| left.1.inference.cmp(right.1.inference))
+            .then_with(|| left.1.validation.cmp(right.1.validation))
+    });
+    scored.dedup_by(|left, right| {
+        left.1.query == right.1.query
+            && left.1.structure == right.1.structure
+            && left.1.inference == right.1.inference
+            && left.1.validation == right.1.validation
+    });
+    scored
+        .into_iter()
+        .take(MAX_LICENSED_NEIGHBORS)
+        .map(|(changed, row)| {
+            let required_action = neighbor_action(&changed);
+            LicensedNeighbor::new(
+                cell_coordinate(support_cell_from_licensed(&row)),
+                changed,
+                required_action,
+            )
+        })
+        .collect()
+}
+
+fn support_cell_from_licensed(row: &crate::support_matrix_data::LicensedCell) -> SupportCell {
+    SupportCell {
+        query: row.query,
+        graph_class: row.graph_class,
+        structure: row.structure,
+        inference: row.inference,
+        validation: row.validation,
+    }
+}
+
+fn neighbor_changes(
+    cell: SupportCell,
+    row: &crate::support_matrix_data::LicensedCell,
+) -> Vec<PremiseChange> {
+    [
+        ("query", cell.query, row.query),
+        ("structure", cell.structure, row.structure),
+        ("inference", cell.inference, row.inference),
+        ("validation", cell.validation, row.validation),
+    ]
+    .into_iter()
+    .filter(|(_, from, to)| from != to)
+    .map(|(axis, from, to)| PremiseChange::new(axis, from, to))
+    .collect()
+}
+
+fn neighbor_action(changed: &[PremiseChange]) -> &'static str {
+    match changed {
+        [change] if change.axis.as_ref() == "query" => {
+            "change the query; do not relabel the graph class"
+        }
+        [change] if change.axis.as_ref() == "inference" => "change the inference contract",
+        [change] if change.axis.as_ref() == "validation" => "change the validation suite",
+        [change] if change.axis.as_ref() == "structure" => {
+            "change how structure is supplied; this is not a graph-class relabel"
+        }
+        _ => "change the listed premises; do not relabel the graph class",
+    }
+}
 
 /// Refuse n/a cells and every unlicensed meaningful cell. Licensed cells pass.
 ///
@@ -509,6 +641,41 @@ mod tests {
     fn pulse_on_static_dag_is_not_applicable() {
         let status = classify(cell("PulseEffect", "Dag", "explicit", "Frequentist", "none"));
         assert!(matches!(status, CellStatus::NotApplicable { .. }));
+    }
+
+    #[test]
+    fn licensed_neighbors_keep_graph_class_and_never_relabel() {
+        let pulse = cell("PulseEffect", "Dag", "explicit", "Frequentist", "none");
+        let neighbors = licensed_neighbors(pulse);
+        assert!(!neighbors.is_empty(), "Pulse on Dag should name a static licensed neighbor");
+        assert!(
+            neighbors.iter().any(|n| n.coordinate.as_ref().starts_with("AverageEffect:Dag:")),
+            "{neighbors:?}"
+        );
+        assert!(
+            neighbors.iter().all(|n| n.coordinate.as_ref().split(':').nth(1) == Some("Dag")),
+            "graph-class relabel is not a neighbor: {neighbors:?}"
+        );
+
+        let cpdag = cell("PulseEffect", "Cpdag", "explicit", "Frequentist", "none");
+        let neighbors = licensed_neighbors(cpdag);
+        assert!(
+            neighbors.iter().all(|n| n.coordinate.as_ref().split(':').nth(1) == Some("Cpdag")),
+            "Cpdag must not recommend a Dag relabel: {neighbors:?}"
+        );
+        assert!(
+            neighbors.iter().any(|n| n.coordinate.as_ref().starts_with("AverageEffect:Cpdag:"))
+        );
+
+        let refused = cell("ConditionalEffect", "Admg", "explicit", "Frequentist", "none");
+        let neighbors = licensed_neighbors(refused);
+        assert!(neighbors.iter().any(|n| n.coordinate.as_ref().starts_with("AverageEffect:Admg:")));
+        assert!(neighbors.iter().all(|n| !n.coordinate.as_ref().contains(":Dag:")));
+
+        assert!(
+            licensed_neighbors(cell("AverageEffect", "Dag", "explicit", "Frequentist", "none"))
+                .is_empty()
+        );
     }
 
     #[test]
