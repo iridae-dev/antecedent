@@ -2693,12 +2693,16 @@ mod refresh_tests {
             .prepare(&ctx)
             .unwrap();
         assert_eq!(retained_rows(&prepared), 160);
+        let original = xy_series(160);
         let before = prepared.contract().unwrap().identities;
 
         // Same schema and regularity, so the compatibility gate passes and the
         // failure comes from estimation itself.
         assert!(prepared.refresh_series(xy_series(2), &ctx).is_err());
         assert_eq!(retained_rows(&prepared), 160, "failed refresh must not replace data");
+        assert_eq!(before, prepared.contract().unwrap().identities);
+        let recovered = prepared.estimate_series(&original, &ctx).unwrap();
+        assert!(recovered.effect().is_finite(), "old-data estimate must survive a failed refresh");
         assert_eq!(before, prepared.contract().unwrap().identities);
 
         prepared.refresh_series(xy_series(140), &ctx).unwrap();

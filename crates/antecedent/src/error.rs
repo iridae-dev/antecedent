@@ -224,6 +224,12 @@ pub enum CausalError {
     },
 }
 
+/// Shared with [`crate::PreparedStudy::rank_designs`] and capability reports.
+pub(crate) const RANK_DESIGNS_REQUIRES_LICENSE: &str =
+    "design ranking requires a licensed prepared contract";
+pub(crate) const RANK_DESIGNS_REQUIRES_PRODUCT: &str =
+    "design ranking requires cached identification products";
+
 impl CausalError {
     /// Build a structured review-required error.
     ///
@@ -247,6 +253,37 @@ impl CausalError {
             pending_edges: pending_edges.into(),
             message: message.into(),
             hint: hint.into(),
+        }
+    }
+
+    /// Stable capability-report blocker id, when this error is a preflight/execution
+    /// refusal. Budget and cancel are marked non-scientific.
+    #[must_use]
+    pub fn blocker_id(&self) -> Option<antecedent_core::BlockedOperation> {
+        use antecedent_core::BlockedOperation;
+        match self {
+            Self::Support { id: crate::support::SupportRefusal::NotApplicable, message } => {
+                Some(BlockedOperation::not_applicable(*message))
+            }
+            Self::Support { id: crate::support::SupportRefusal::Refused, message } => {
+                Some(BlockedOperation::refused(*message))
+            }
+            Self::Unsupported { message }
+                if *message == RANK_DESIGNS_REQUIRES_LICENSE
+                    || message.contains("licensed prepared contract") =>
+            {
+                Some(BlockedOperation::operation_unlicensed(*message))
+            }
+            Self::Unsupported { message } if *message == RANK_DESIGNS_REQUIRES_PRODUCT => {
+                Some(BlockedOperation::binding("identification_product"))
+            }
+            Self::ReviewRequired { message, .. } => {
+                Some(BlockedOperation::new("review.required", message.clone(), true))
+            }
+            Self::Cancelled { stage } => Some(BlockedOperation::cancelled(*stage)),
+            Self::Resource { message } => Some(BlockedOperation::resource(message.clone())),
+            Self::Missing { field } => Some(BlockedOperation::binding(field)),
+            _ => None,
         }
     }
 

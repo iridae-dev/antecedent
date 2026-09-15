@@ -11,9 +11,10 @@ use std::sync::Arc;
 use antecedent_core::{
     Assumption, AssumptionSet, AssumptionSlot, AssumptionSource, AssumptionStatus, CausalSchema,
     ClaimDomains, ClaimEnvelope, ClaimKind, ContractIdentities, DomainStatus, ExecutionContext,
-    IDENTITY_FORMAT, IdentificationSlot, IdentificationStatus, IdentityDomain, ObligationKind,
-    ObligationRecord, ObligationScope, ReasoningView, SlotAvailability, SupportSlot,
-    TransformIntent, TransformationReport, UncertaintyComponent, UncertaintySlot,
+    IDENTITY_FORMAT, IdentificationSlot, IdentificationStatus, IdentityDomain, NextAction,
+    ObligationKind, ObligationRecord, ObligationScope, OperationKind, OperationReadiness,
+    OperationReport, ReasoningView, SemanticApplicability, SemanticLayer, SlotAvailability,
+    SupportSlot, TransformIntent, TransformationReport, UncertaintyComponent, UncertaintySlot,
     UncertaintySource, intent_effects,
 };
 use antecedent_data::TableView;
@@ -21,16 +22,17 @@ use antecedent_identify::{CAPPED_COMPLETION_DIAGNOSTIC_CODE, IdentificationResul
 use antecedent_io::{
     AnalysisResultContractWire, AnalysisResultWire, AssumptionSlotWire, ClaimIdentityWire,
     ClaimSectionWire, ContractIdentitiesWire, DataPartitionIdentityWire, DataSnapshotIdentityWire,
-    ExecutionIdentityWire, GraphIdentityWire, IdentificationIdentityWire, IdentificationProductWire,
-    IdentificationSlotWire, InferenceBindingWire, InferentialCommitmentsWire, ObligationSectionWire,
-    ObservationIdentityWire, ProgramIdentityWire, ReasoningSectionWire, SlotSectionWire,
-    SupportSlotWire, TargetIdentityWire, UncertaintyComponentWire, UncertaintySlotWire,
-    admg_identity, causal_query_to_wire, claim_digest, cpdag_identity, dag_identity,
-    HorizonAdjustmentNodeWire, TemporalIdentificationWire, data_snapshot_digest, digest_wire,
-    encode_analysis_result_artifact_with_contract, execution_digest,
+    ExecutionIdentityWire, GraphIdentityWire, HorizonAdjustmentNodeWire,
+    IdentificationIdentityWire, IdentificationProductWire, IdentificationSlotWire,
+    InferenceBindingWire, InferentialCommitmentsWire, ObligationSectionWire,
+    ObservationIdentityWire, ProgramIdentityWire, ReasoningSectionWire, ScoreReuseIdentityWire,
+    SlotSectionWire, SupportSlotWire, TargetIdentityWire, TemporalIdentificationWire,
+    UncertaintyComponentWire, UncertaintySlotWire, admg_identity, causal_query_to_wire,
+    claim_digest, cpdag_identity, dag_identity, data_snapshot_digest, dbn_atom_identities,
+    digest_wire, encode_analysis_result_artifact_with_contract, execution_digest,
     execution_identity_from_context, identification_digest, identification_product_digest_wire,
     identification_product_wire, identification_to_wire, inference_binding_digest,
-    dbn_atom_identities, observation_identity_wire, pag_identity, program_digest, schema_to_wire,
+    observation_identity_wire, pag_identity, program_digest, schema_to_wire, score_reuse_digest,
     temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity,
 };
 
@@ -40,9 +42,12 @@ use crate::inference::InferenceMode;
 use crate::result::StudyResult;
 use crate::support::{CellStatus, StructureSource};
 
+use super::batch::PreparedBatch;
 use super::builder::DataInput;
 use super::execute::Study;
-use super::prepared::{CachedTemporalIdentification, PreparedStudy};
+use super::prepared::{
+    CachedTemporalHorizonIdentification, CachedTemporalIdentification, PreparedStudy,
+};
 
 /// Immutable causal-contract companion. Not a second builder.
 #[derive(Clone, Debug, PartialEq)]
@@ -115,6 +120,23 @@ impl CausalContract {
         )
     }
 
+    /// Capability report for cheap inspect / classify of this contract.
+    #[must_use]
+    pub fn capability(&self) -> OperationReport {
+        let operation = if self.identities.identification_product.is_some() {
+            OperationKind::Execute
+        } else {
+            OperationKind::Inspect
+        };
+        self.capability_for(operation)
+    }
+
+    /// Capability report for `operation`. Scoped ops do not invent matrix rows.
+    #[must_use]
+    pub fn capability_for(&self, operation: OperationKind) -> OperationReport {
+        operation_report(self, operation)
+    }
+
     /// Durable contract section bound to this study's target payload.
     ///
     /// # Errors
@@ -139,7 +161,7 @@ impl CausalContract {
             format: antecedent_io::CONTRACT_SECTION_FORMAT,
             identities: ContractIdentitiesWire::from(&self.identities),
             target: payloads.target.clone(),
-            reasoning: reasoning_section(&self.reasoning),
+            reasoning: reasoning_section(claim.map_or(&self.reasoning, |claim| &claim.reasoning)),
             graph_class: self.graph_class.as_str().into(),
             structure_source: self.structure_source.as_str().into(),
             identifier: self.identifier.as_ref().map(std::string::ToString::to_string),
@@ -167,6 +189,15 @@ impl Study {
     pub fn inspect(&self) -> Result<CausalContract, CausalError> {
         compile_contract(self, None)
     }
+
+    /// Capability report from cheap inspect. Does not identify.
+    ///
+    /// # Errors
+    ///
+    /// Canonical-encoding failures.
+    pub fn capability(&self) -> Result<OperationReport, CausalError> {
+        Ok(self.inspect()?.capability())
+    }
 }
 
 impl PreparedStudy {
@@ -182,6 +213,57 @@ impl PreparedStudy {
     /// Canonical-encoding failures.
     pub fn contract(&self) -> Result<CausalContract, CausalError> {
         compile_contract(self.study(), Some(self))
+    }
+
+    /// Score-table reuse key. Stricter than identification: folds, rows,
+    /// nuisance provenance, and the snapshot are part of the digest.
+    ///
+    /// # Errors
+    ///
+    /// Canonical-encoding failures.
+    pub fn score_reuse_identity(
+        &self,
+    ) -> Result<Option<antecedent_core::SemanticDigest>, CausalError> {
+        let Some(table) = self.score_table() else {
+            return Ok(None);
+        };
+        let identities = self.contract()?.identities;
+        let wire = ScoreReuseIdentityWire::score_table(
+            identities.identification,
+            identities.data_snapshot,
+            &table.row_index,
+            &table.fold_ids,
+            table.n_folds,
+            &table.adjustment_set,
+            table.nuisance_provenance.as_ref(),
+            table.treatment,
+            &table.intervened,
+            self.study().bootstrap_replicates,
+        );
+        Ok(Some(score_reuse_digest(&wire).map_err(|err| io_err(&err))?))
+    }
+
+    /// Shared-design key: folds and covariates, not per-query nuisance fits.
+    ///
+    /// # Errors
+    ///
+    /// Canonical-encoding failures.
+    pub fn batch_share_identity(
+        &self,
+    ) -> Result<Option<antecedent_core::SemanticDigest>, CausalError> {
+        let Some(shared) = self.shared_design() else {
+            return Ok(None);
+        };
+        let identities = self.contract()?.identities;
+        let adjustment: &[antecedent_core::VariableId] =
+            shared.covariate.as_ref().map_or(&[], |cov| cov.adjustment_set.as_ref());
+        let wire = ScoreReuseIdentityWire::batch_share(
+            identities.data_snapshot,
+            &shared.fold_ids,
+            shared.n_folds,
+            adjustment,
+        );
+        Ok(Some(score_reuse_digest(&wire).map_err(|err| io_err(&err))?))
     }
 
     /// Pure transformation preview bound to this handle's program identity.
@@ -211,11 +293,24 @@ impl PreparedStudy {
         let claim = result.claim(&contract, ctx)?;
         let execution = execution_identity_from_context(ctx);
         let section = contract.section_from_payloads(&payloads, Some(&claim), Some(&execution));
-        let body = analysis_result_wire(
+        let lagged = self
+            .temporal_identification()
+            .cloned()
+            .or_else(|| dbn_projected_temporal_identification(self.study()))
+            .or_else(|| class_projected_temporal_identification(self.study()));
+        let mut body = analysis_result_wire(
             self.query(),
             result,
-            self.temporal_identification(),
+            lagged.as_ref(),
+            cached_identification(self.study()),
         )?;
+        if let Some(product) = &section.identification_product {
+            body.identification.status.clone_from(&product.status);
+            body.identification.estimands.clone_from(&product.estimands);
+            body.identification.arena.clone_from(&product.arena);
+            body.identification.derivation.clone_from(&product.derivation);
+            body.identification.required_assumptions.clone_from(&product.required_assumptions);
+        }
         let names: Vec<String> =
             self.schema().variables().iter().map(|variable| variable.name.to_string()).collect();
         let artifact = encode_analysis_result_artifact_with_contract(
@@ -263,6 +358,15 @@ impl PreparedStudy {
         self.retarget(weights, depends_on, ctx)
     }
 
+    /// Capability report projected from the prepared contract.
+    ///
+    /// # Errors
+    ///
+    /// Canonical-encoding failures while reading the contract.
+    pub fn capability(&self) -> Result<OperationReport, CausalError> {
+        Ok(self.contract()?.capability_for(OperationKind::Execute))
+    }
+
     /// Compose the existing design ranker onto this prepared handle.
     ///
     /// # Errors
@@ -283,12 +387,12 @@ impl PreparedStudy {
         let contract = self.contract()?;
         if !matches!(contract.support_status, Some(CellStatus::Licensed)) {
             return Err(CausalError::Unsupported {
-                message: "design ranking requires a licensed prepared contract",
+                message: crate::error::RANK_DESIGNS_REQUIRES_LICENSE,
             });
         }
         if contract.identities.identification_product.is_none() {
             return Err(CausalError::Unsupported {
-                message: "design ranking requires cached identification products",
+                message: crate::error::RANK_DESIGNS_REQUIRES_PRODUCT,
             });
         }
         crate::design::rank_designs(ranker, objective, candidates, eval, ctx)
@@ -310,6 +414,22 @@ impl PreparedStudy {
     }
 }
 
+impl PreparedBatch {
+    /// Shared-design key for the batch. Equal across plans; not a nuisance key.
+    ///
+    /// # Errors
+    ///
+    /// Canonical-encoding failures.
+    pub fn batch_share_identity(
+        &self,
+    ) -> Result<Option<antecedent_core::SemanticDigest>, CausalError> {
+        match self.plans().first() {
+            Some(plan) => plan.batch_share_identity(),
+            None => Ok(None),
+        }
+    }
+}
+
 impl StudyResult {
     /// Portable claim over `contract` and this execution.
     ///
@@ -324,11 +444,11 @@ impl StudyResult {
         let reasoning = result_reasoning(self, &contract.reasoning)?;
         let kind = claim_kind(self, &reasoning);
         let value = match kind {
-            ClaimKind::Point => Some(self.effect()),
+            ClaimKind::Point => executed_scalar(self),
             _ => None,
         };
-        let execution = execution_digest(&execution_identity_from_context(ctx))
-            .map_err(|err| io_err(&err))?;
+        let execution =
+            execution_digest(&execution_identity_from_context(ctx)).map_err(|err| io_err(&err))?;
         let claim_id = claim_digest(&ClaimIdentityWire::new(
             *contract.identities.program.as_bytes(),
             *contract.identities.target.as_bytes(),
@@ -362,7 +482,14 @@ impl StudyResult {
                 DomainStatus::Evaluated,
             ),
             Some(execution),
-            [],
+            [
+                Arc::from(format!("snapshot:{}", contract.identities.data_snapshot.to_hex())),
+                Arc::from(format!(
+                    "identification:{}",
+                    contract.identities.identification.to_hex()
+                )),
+                Arc::from(format!("program:{}", contract.identities.program.to_hex())),
+            ],
         ))
     }
 
@@ -380,7 +507,7 @@ impl StudyResult {
         &self,
         query: &antecedent_core::CausalQuery,
     ) -> Result<AnalysisResultWire, CausalError> {
-        analysis_result_wire(query, self, None)
+        analysis_result_wire(query, self, None, None)
     }
 }
 
@@ -440,9 +567,7 @@ fn contract_payloads(
         None => None,
     };
     let identification_product_digest = match &identification_product {
-        Some(wire) => {
-            Some(identification_product_digest_wire(wire).map_err(|err| io_err(&err))?)
-        }
+        Some(wire) => Some(identification_product_digest_wire(wire).map_err(|err| io_err(&err))?),
         None => None,
     };
     let commitments = inferential_commitments(study);
@@ -469,7 +594,11 @@ fn contract_payloads(
             _ => None,
         },
         prior_mapping: match &study.inference {
-            InferenceMode::Bayesian(cfg) => cfg.prior_mapping.as_ref().map(prior_mapping_tag),
+            InferenceMode::Bayesian(cfg) => cfg
+                .prior_mapping
+                .as_ref()
+                .map(prior_mapping_tag)
+                .or_else(|| cfg.prior_artifact.as_ref().map(|_| "prior_artifact".into())),
             InferenceMode::Frequentist => None,
         },
         validation_suite: study.refute.validation_suite_id().map(str::to_string),
@@ -623,9 +752,27 @@ fn regularity_tag(regularity: &antecedent_data::SamplingRegularity) -> String {
 fn observation_tags(query: &antecedent_core::CausalQuery) -> Vec<String> {
     match query {
         antecedent_core::CausalQuery::Response(query) => {
-            query.observation_assumptions.iter().map(observation_assumption_tag).collect()
+            let mut tags: Vec<String> =
+                query.observation_assumptions.iter().map(observation_assumption_tag).collect();
+            if let Some(spec) = observation_spec_tag(&query.observation) {
+                tags.push(spec);
+            }
+            tags
         }
         _ => Vec::new(),
+    }
+}
+
+fn observation_spec_tag(spec: &antecedent_core::ObservationSpec) -> Option<String> {
+    match spec {
+        antecedent_core::ObservationSpec::Complete => None,
+        antecedent_core::ObservationSpec::RightCensored { .. } => Some("right_censored".into()),
+        antecedent_core::ObservationSpec::LeftCensored { .. } => Some("left_censored".into()),
+        antecedent_core::ObservationSpec::IntervalCensored { .. } => {
+            Some("interval_censored".into())
+        }
+        antecedent_core::ObservationSpec::Truncated { .. } => Some("truncated".into()),
+        antecedent_core::ObservationSpec::Selected { .. } => Some("selected".into()),
     }
 }
 
@@ -695,7 +842,59 @@ fn cached_identification(study: &Study) -> Option<&IdentificationResult> {
     if let Some(cache) = study.temporal_identification_cache.as_ref() {
         return cache.by_horizon.first().map(|horizon| &horizon.identification);
     }
+    if let Some(cache) = study.dbn_posterior_identification_cache.as_ref() {
+        return cache.atoms.first().map(|atom| &atom.identification);
+    }
     None
+}
+
+/// Project a DBN posterior atom onto the existing temporal-namespace owner.
+///
+/// Graph-posterior Pulse stores lagged-node identification on
+/// `dbn_posterior_identification_cache`, not `temporal_identification_cache`.
+/// Encode reuses [`HorizonAdjustmentNodeWire`] so unfolded IDs stay inside a
+/// declared variable+offset namespace.
+fn dbn_projected_temporal_identification(study: &Study) -> Option<CachedTemporalIdentification> {
+    let cache = study.dbn_posterior_identification_cache.as_ref()?;
+    let atom = cache.atoms.first()?;
+    let horizon = query_horizon_steps(&study.query);
+    Some(CachedTemporalIdentification {
+        by_horizon: Arc::from([CachedTemporalHorizonIdentification {
+            horizon,
+            identification: atom.identification.clone(),
+            estimand: atom.estimand.clone(),
+            indexer: atom.indexer.clone(),
+        }]),
+    })
+}
+
+/// Project a TemporalCpdag/Pag envelope indexer onto the same namespace owner.
+fn class_projected_temporal_identification(study: &Study) -> Option<CachedTemporalIdentification> {
+    let cache = study.temporal_class_identification_cache.as_ref()?;
+    let (horizon, envelope) = cache.by_horizon.first().map_or_else(
+        || (query_horizon_steps(&study.query), &cache.envelope),
+        |(horizon, envelope)| (*horizon, envelope),
+    );
+    let indexer = envelope.indexers.first()?.clone();
+    let case = envelope.envelope.cases.iter().find(|case| !case.result.estimands.is_empty())?;
+    Some(CachedTemporalIdentification {
+        by_horizon: Arc::from([CachedTemporalHorizonIdentification {
+            horizon,
+            identification: case.result.clone(),
+            estimand: case.result.estimands[0].clone(),
+            indexer,
+        }]),
+    })
+}
+
+fn query_horizon_steps(query: &antecedent_core::CausalQuery) -> u32 {
+    match query {
+        antecedent_core::CausalQuery::TemporalEffect(query) => query.horizon_steps,
+        antecedent_core::CausalQuery::Response(query) => {
+            query.temporal.as_ref().and_then(|spec| spec.horizons.first()).copied().unwrap_or(1)
+        }
+        _ => 1,
+    }
 }
 
 fn identification_search_capped(result: &IdentificationResult) -> bool {
@@ -774,8 +973,7 @@ fn reasoning_view(
         matrix_coordinate(study).map(Arc::from),
         SlotAvailability::unavailable("not_evaluated"),
     );
-    let mut obligations =
-        obligations_from_set(cached.map(|result| &result.required_assumptions));
+    let mut obligations = obligations_from_set(cached.map(|result| &result.required_assumptions));
     obligations.extend(observation_obligations(&study.query));
     let assumptions = AssumptionSlot::new(obligations);
     if prepared.is_none() || cached.is_none() {
@@ -803,10 +1001,125 @@ fn matrix_coordinate(study: &Study) -> Option<String> {
         &study.inference,
         study.refute,
     )?;
-    Some(format!(
-        "{}:{}:{}:{}:{}",
-        cell.query, cell.graph_class, cell.structure, cell.inference, cell.validation
-    ))
+    Some(crate::support::cell_coordinate(cell))
+}
+
+fn operation_report(contract: &CausalContract, operation: OperationKind) -> OperationReport {
+    let coordinate =
+        contract.reasoning.support.as_ref().and_then(|slot| slot.matrix_coordinate.clone());
+    let cell = coordinate.as_deref().and_then(crate::support::support_cell_from_coordinate);
+    let unmet: Vec<ObligationRecord> = contract
+        .reasoning
+        .assumptions
+        .as_ref()
+        .map(|slot| slot.obligations.iter().filter(|o| o.is_unresolved()).cloned().collect())
+        .unwrap_or_default();
+    let (applicability, mut blockers) = match contract.support_status {
+        Some(CellStatus::Licensed) => (SemanticApplicability::Licensed, Vec::new()),
+        Some(CellStatus::Refused) => {
+            let reason = cell.map_or(
+                "cell is not licensed (parity/support_licensed.toml) and is not n/a; it is refused.",
+                crate::support::refused_message,
+            );
+            (
+                SemanticApplicability::Unlicensed,
+                vec![antecedent_core::BlockedOperation::refused(reason)],
+            )
+        }
+        Some(CellStatus::NotApplicable { reason }) => (
+            SemanticApplicability::Impossible,
+            vec![antecedent_core::BlockedOperation::not_applicable(reason)],
+        ),
+        Some(CellStatus::Allowlisted { reason, .. }) => (
+            SemanticApplicability::Unlicensed,
+            vec![antecedent_core::BlockedOperation::refused(reason)],
+        ),
+        None => {
+            (SemanticApplicability::Unknown, vec![antecedent_core::BlockedOperation::off_axis()])
+        }
+    };
+    let neighbors = match contract.support_status {
+        Some(CellStatus::Refused | CellStatus::NotApplicable { .. }) => {
+            cell.map(crate::support::licensed_neighbors).unwrap_or_default()
+        }
+        _ => Vec::new(),
+    };
+
+    if !operation.uses_matrix_row() && applicability != SemanticApplicability::Licensed {
+        let reason = match operation {
+            OperationKind::RankDesigns => crate::error::RANK_DESIGNS_REQUIRES_LICENSE,
+            OperationKind::Retarget => "retarget requires a licensed prepared contract",
+            OperationKind::Export => "export requires a licensed prepared contract",
+            _ => "operation requires a licensed prepared contract",
+        };
+        blockers = vec![antecedent_core::BlockedOperation::operation_unlicensed(reason)];
+    } else if operation == OperationKind::RankDesigns
+        && contract.identities.identification_product.is_none()
+    {
+        blockers.push(antecedent_core::BlockedOperation::binding("identification_product"));
+    }
+
+    let readiness = if !blockers.is_empty() {
+        if blockers.iter().any(|blocker| blocker.id.as_ref().starts_with("binding.")) {
+            Some(OperationReadiness::BindingMissing)
+        } else if applicability == SemanticApplicability::Unknown {
+            Some(OperationReadiness::UnknownSupport)
+        } else {
+            None
+        }
+    } else if unmet.iter().any(|o| o.kind == ObligationKind::FailedCheck) {
+        Some(OperationReadiness::EmpiricalSupportFailed)
+    } else if unmet.iter().any(|o| o.kind == ObligationKind::CheckNotRun) {
+        Some(OperationReadiness::EmpiricalCheckPending)
+    } else {
+        Some(OperationReadiness::Executable)
+    };
+
+    let next_actions: Vec<NextAction> =
+        if applicability == SemanticApplicability::Licensed && blockers.is_empty() {
+            Vec::new()
+        } else if neighbors.is_empty() {
+            vec![NextAction::new(
+                "no_licensed_neighbor",
+                "no justified licensed neighbor; do not relabel the graph class",
+            )]
+        } else {
+            vec![NextAction::new(
+                "consider_licensed_neighbor",
+                "choose an explicit licensed neighbor; never an automatic fallback",
+            )]
+        };
+
+    let (preserved, invalidated) =
+        if applicability == SemanticApplicability::Licensed && blockers.is_empty() {
+            (
+                vec![
+                    SemanticLayer::Target,
+                    SemanticLayer::Identification,
+                    SemanticLayer::Program,
+                    SemanticLayer::Support,
+                ],
+                Vec::new(),
+            )
+        } else {
+            (
+                vec![SemanticLayer::Target],
+                vec![SemanticLayer::Support, SemanticLayer::Identification, SemanticLayer::Results],
+            )
+        };
+
+    OperationReport::new(
+        operation,
+        applicability,
+        readiness,
+        coordinate,
+        blockers,
+        unmet,
+        preserved,
+        invalidated,
+        next_actions,
+        neighbors,
+    )
 }
 
 fn observation_obligations(query: &antecedent_core::CausalQuery) -> Vec<ObligationRecord> {
@@ -887,27 +1200,7 @@ fn result_reasoning(
     result: &StudyResult,
     prepared: &ReasoningView,
 ) -> Result<ReasoningView, CausalError> {
-    let identification = if let Some(mixture) = &result.structural_response {
-        antecedent_io::validate_mixture_masses(
-            mixture.identified_mass,
-            mixture.unidentified_mass,
-            mixture.unevaluable_mass,
-            mixture.subsampled_out_mass,
-        )
-        .map_err(|err| io_err(&err))?;
-        IdentificationSlot::new(
-            result.identification.status,
-            mixture.identified_mass,
-            mixture.unidentified_mass,
-            mixture.unevaluable_mass,
-            mixture.subsampled_out_mass,
-            mixture.full_mass_scope,
-            Some(Arc::from(mixture.weight_basis.as_str())),
-            mixture.truncated_atoms > 0,
-        )
-    } else {
-        IdentificationSlot::identified_singleton(result.identification.status)
-    };
+    let identification = identification_slot_from_result(result)?;
     let mut components = Vec::new();
     if result.estimate.se_analytic.is_finite() && result.estimate.se_analytic > 0.0 {
         components.push(UncertaintyComponent::new(
@@ -930,7 +1223,13 @@ fn result_reasoning(
             false,
         ));
     }
-    if result.structural_response.is_some() {
+    if result.structural_response.is_some()
+        || identification.weight_basis.is_some()
+        || matches!(
+            identification.status,
+            IdentificationStatus::GraphDependent | IdentificationStatus::PartiallyIdentified
+        )
+    {
         components.push(UncertaintyComponent::new(
             UncertaintySource::Structural,
             "structural_mixture",
@@ -958,23 +1257,39 @@ fn result_reasoning(
     ))
 }
 
+fn executed_scalar(result: &StudyResult) -> Option<f64> {
+    if result.response.is_some() {
+        return None;
+    }
+    if let Some(distribution) = &result.distribution {
+        return distribution.mean.is_finite().then_some(distribution.mean);
+    }
+    if let Some(counterfactual) = &result.counterfactual {
+        return counterfactual.mean_ite.is_finite().then_some(counterfactual.mean_ite);
+    }
+    result.estimate.ate.is_finite().then_some(result.estimate.ate)
+}
+
 fn analysis_result_wire(
     query: &antecedent_core::CausalQuery,
     result: &StudyResult,
     temporal: Option<&CachedTemporalIdentification>,
+    cached: Option<&IdentificationResult>,
 ) -> Result<AnalysisResultWire, CausalError> {
-    let identification = identification_to_wire(&result.identification).map_err(|err| io_err(&err))?;
+    let identification = identification_to_wire(cached.unwrap_or(&result.identification))
+        .map_err(|err| io_err(&err))?;
     let temporal_identification = temporal_identification_wires(temporal)?;
     let identification_variables = temporal_identification
         .iter()
         .find(|entry| entry.identification.query == identification.query)
+        .or_else(|| temporal_identification.first())
         .map(|entry| entry.variables.clone());
     Ok(AnalysisResultWire {
         query: causal_query_to_wire(query).map_err(|err| io_err(&err))?,
         identification,
         identification_variables,
         temporal_identification,
-        estimate: result.estimate.ate.is_finite().then_some(result.estimate.ate),
+        estimate: executed_scalar(result),
         standard_error: result.estimate.se_bootstrap.or_else(|| {
             result.estimate.se_analytic.is_finite().then_some(result.estimate.se_analytic)
         }),
@@ -1000,12 +1315,12 @@ fn temporal_identification_wires(
         .map(|entry| {
             let variables = (0..entry.indexer.dense_len())
                 .map(|dense| -> Result<HorizonAdjustmentNodeWire, CausalError> {
-                    let key = entry.indexer.key_of(
-                        u32::try_from(dense).map_err(|_| CausalError::Compile {
+                    let key = entry
+                        .indexer
+                        .key_of(u32::try_from(dense).map_err(|_| CausalError::Compile {
                             message: "temporal dense id exceeds u32".into(),
-                        })?,
-                    )
-                    .map_err(|err| CausalError::Compile { message: err.to_string() })?;
+                        })?)
+                        .map_err(|err| CausalError::Compile { message: err.to_string() })?;
                     Ok(HorizonAdjustmentNodeWire {
                         variable: key.variable.raw(),
                         offset: key.offset,
@@ -1115,24 +1430,111 @@ fn preview_obligation(
     .with_required_check(check)
 }
 
+fn identification_slot_from_result(
+    result: &StudyResult,
+) -> Result<IdentificationSlot, CausalError> {
+    if let Some(mixture) = &result.structural_response {
+        antecedent_io::validate_mixture_masses(
+            mixture.identified_mass,
+            mixture.unidentified_mass,
+            mixture.unevaluable_mass,
+            mixture.subsampled_out_mass,
+        )
+        .map_err(|err| io_err(&err))?;
+        return Ok(IdentificationSlot::new(
+            result.identification.status,
+            mixture.identified_mass,
+            mixture.unidentified_mass,
+            mixture.unevaluable_mass,
+            mixture.subsampled_out_mass,
+            mixture.full_mass_scope,
+            Some(Arc::from(mixture.weight_basis.as_str())),
+            mixture.truncated_atoms > 0,
+        ));
+    }
+    if let Some((unidentified, incomplete, basis)) = projected_mixture_masses(result) {
+        let identified = (1.0 - unidentified - incomplete).max(0.0);
+        antecedent_io::validate_mixture_masses(identified, unidentified, 0.0, incomplete)
+            .map_err(|err| io_err(&err))?;
+        return Ok(IdentificationSlot::new(
+            result.identification.status,
+            identified,
+            unidentified,
+            0.0,
+            incomplete,
+            incomplete == 0.0,
+            Some(Arc::from(basis)),
+            incomplete > 0.0,
+        ));
+    }
+    Ok(IdentificationSlot::identified_singleton(result.identification.status))
+}
+
+fn projected_mixture_masses(result: &StudyResult) -> Option<(f64, f64, &'static str)> {
+    let basis = match result.structure_source {
+        StructureSource::GraphPosterior => "posterior_probability",
+        _ => "completion_enumeration",
+    };
+    if let Some(posterior) = &result.posterior {
+        if posterior.unidentified_mass > 0.0
+            || posterior.subsampled_out_mass > 0.0
+            || matches!(
+                result.identification.status,
+                IdentificationStatus::GraphDependent | IdentificationStatus::PartiallyIdentified
+            )
+        {
+            return Some((posterior.unidentified_mass, posterior.subsampled_out_mass, basis));
+        }
+    }
+    if matches!(
+        result.identification.status,
+        IdentificationStatus::GraphDependent | IdentificationStatus::PartiallyIdentified
+    ) {
+        let unidentified = unidentified_mass_from_diagnostics(&result.diagnostics).unwrap_or(0.0);
+        return Some((unidentified, 0.0, basis));
+    }
+    None
+}
+
+fn unidentified_mass_from_diagnostics(diagnostics: &[antecedent_core::Diagnostic]) -> Option<f64> {
+    diagnostics.iter().find_map(|diagnostic| {
+        let unidentified = parse_mass_field(&diagnostic.message, "unidentified_mass=")?;
+        if let Some(identified) = parse_mass_field(&diagnostic.message, "identified_mass=") {
+            let total = identified + unidentified;
+            if total > 0.0 {
+                return Some(unidentified / total);
+            }
+        }
+        Some(unidentified)
+    })
+}
+
+fn parse_mass_field(message: &str, field: &str) -> Option<f64> {
+    message.split(field).nth(1).and_then(|rest| {
+        rest.split(|c: char| !c.is_ascii_digit() && c != '.' && c != '-' && c != 'e' && c != 'E')
+            .next()
+            .and_then(|token| token.parse().ok())
+    })
+}
+
 fn claim_kind(result: &StudyResult, reasoning: &ReasoningView) -> ClaimKind {
     if result.response.is_some() {
         return ClaimKind::Response;
     }
-    if let Some(mixture) = &result.structural_response {
-        if mixture.unidentified_mass > 0.0 {
+    if let Some(slot) = reasoning.identification.as_ref() {
+        if slot.status == IdentificationStatus::NotIdentified {
+            return ClaimKind::Incomplete;
+        }
+        if slot.unidentified_mass > 0.0 || slot.weight_basis.is_some() {
+            if result
+                .structural_response
+                .as_ref()
+                .is_some_and(|mixture| mixture.identified_set.is_some())
+            {
+                return ClaimKind::Bounds;
+            }
             return ClaimKind::Mixture;
         }
-        if mixture.identified_set.is_some() {
-            return ClaimKind::Bounds;
-        }
-        return ClaimKind::Mixture;
-    }
-    if matches!(
-        reasoning.identification.as_ref().map(|slot| slot.status),
-        Some(IdentificationStatus::NotIdentified)
-    ) {
-        return ClaimKind::Incomplete;
     }
     ClaimKind::Point
 }

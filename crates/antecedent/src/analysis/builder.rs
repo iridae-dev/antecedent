@@ -420,6 +420,45 @@ impl StudyBuilder {
         }
     }
 
+    /// Capability report without granting a license.
+    ///
+    /// Missing graph or query is a binding report with no neighbors. Present
+    /// coordinates classify through [`Self::inspect`] and do not identify.
+    ///
+    /// # Errors
+    ///
+    /// Schema mismatch or canonical-encoding failures after graph and query are
+    /// supplied.
+    pub fn capability(&self) -> Result<super::OperationReport, CausalError> {
+        if self.graph.is_none() && self.graph_posterior.is_none() {
+            return Ok(super::OperationReport::binding_missing(
+                super::OperationKind::Inspect,
+                "graph",
+            ));
+        }
+        if self.query.is_none() {
+            return Ok(super::OperationReport::binding_missing(
+                super::OperationKind::Inspect,
+                "query",
+            ));
+        }
+        Ok(self.clone().inspect()?.capability())
+    }
+
+    /// Cheap structural inspection without requiring a licensed cell.
+    ///
+    /// Closed, n/a, and refused coordinates still produce a contract: support
+    /// status is recorded and identification stays unavailable. This does not
+    /// authorize [`Study::prepare`] or execution — those still go through
+    /// [`Self::build`].
+    ///
+    /// # Errors
+    ///
+    /// Missing graph / query, schema mismatch, or canonical-encoding failures.
+    pub fn inspect(self) -> Result<super::CausalContract, CausalError> {
+        self.finish(true)?.inspect()
+    }
+
     /// Supply the causal structure.
     ///
     /// An [`AcceptedGraph`] is matrix-axis `accepted`. A bare
@@ -805,6 +844,10 @@ impl StudyBuilder {
     /// data's, in order. Not checked for [`Self::graph_posterior`], which carries a
     /// placeholder graph.
     pub fn build(self) -> Result<Study, CausalError> {
+        self.finish(false)
+    }
+
+    fn finish(self, inspect_only: bool) -> Result<Study, CausalError> {
         if let Some(spec) = &self.estimator_spec {
             if spec.is_configured() {
                 if self.bootstrap_explicit {
@@ -1222,7 +1265,11 @@ impl StudyBuilder {
         let support_status = if let Some(cell) =
             crate::support::support_cell_named(&query, matrix_class, structure, &inference, refute)
         {
-            Some(crate::support::refuse_if_not_applicable(cell)?)
+            if inspect_only {
+                Some(crate::support::classify(cell))
+            } else {
+                Some(crate::support::refuse_if_not_applicable(cell)?)
+            }
         } else {
             None
         };
