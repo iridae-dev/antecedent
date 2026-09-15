@@ -307,6 +307,13 @@ was not available, published as boundary records with a runtime disclosure.
 
 ### Fixed
 
+- Bayesian derivative credible intervals take exchangeable-rank (type-6)
+  quantiles of their draws, which cover at the level for any draw count; the
+  GAM-gradient band also inflates its draw spread by the fit's degrees of
+  freedom (`sqrt(n/(n − edf))`, under 1% at the defaults). The directional and
+  order-2 point-derivative cells return to nominal gates (0.893/0.890 and
+  0.896 at 2000 replicates); the Jacobian band remains a named boundary on one
+  coordinate (0.883 on the gate's seeds; 0.892–0.897 over 10 000 designs).
 - Temporal response bands carry a per-cell parametric kernel-bias factor
   (`response.temporal.kernel_bias_factor`) and a short-series warning
   (`response.temporal.block.short_series`, below 15 effective rows). The shift
