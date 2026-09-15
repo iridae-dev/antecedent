@@ -55,6 +55,24 @@ pub enum AnalyticSeKind {
     },
 }
 
+impl AnalyticSeKind {
+    /// Stable `snake_case` name. Lag is omitted from the HAC variants.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Homoskedastic => "homoskedastic",
+            Self::Hc0 => "hc0",
+            Self::Hc1 => "hc1",
+            Self::Hc2 => "hc2",
+            Self::Hc3 => "hc3",
+            Self::Cluster => "cluster",
+            Self::Multiway => "multiway",
+            Self::NeweyWest { .. } => "newey_west",
+            Self::PanelClusterHac { .. } => "panel_cluster_hac",
+        }
+    }
+}
+
 /// Alias retained for existing linear-adjustment call sites.
 pub type LinearSeKind = AnalyticSeKind;
 

@@ -44,3 +44,11 @@ jobs:
         env:
           ANTECEDENT_CALIBRATION_SHARD: ${{ matrix.shard }}/8
         run: bash scripts/gate_calibration.sh
+
+      - name: Upload calibration records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: calibration-records-${{ matrix.shard }}
+          path: target/calibration-records/
+          retention-days: 90

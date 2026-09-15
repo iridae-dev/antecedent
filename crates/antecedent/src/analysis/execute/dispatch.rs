@@ -387,6 +387,21 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        let mut result = self.execute_on_inner(data, physical, ctx)?;
+        result.custom_validator_names = self
+            .custom_validators
+            .iter()
+            .map(|validator| std::sync::Arc::from(validator.name()))
+            .collect();
+        Ok(result)
+    }
+
+    fn execute_on_inner(
+        &self,
+        data: &DataInput,
+        physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
             return match (data, &self.query) {
                 (DataInput::Tabular(data), _) => {
@@ -474,6 +489,20 @@ impl super::Study {
                     message: "Ready panel-response plan missing resolved graph".into(),
                 })?;
                 self.execute_panel_response(panel, graph, q, physical, ctx)
+            }
+            Some(AnalysisRoute::MultiEnvTemporalEffect) => {
+                let DataInput::MultiEnv(multi) = data else { unreachable!() };
+                let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
+                let series = multi.environment(0).map_err(|err| CausalError::Compile {
+                    message: format!("multi-env: {err}"),
+                })?;
+                if self.graph.class().is_incomplete_temporal() {
+                    return self.execute_temporal_class(series, q, physical, ctx);
+                }
+                let graph = physical.temporal_graph().ok_or(CausalError::Compile {
+                    message: "Ready multi-env plan missing resolved graph".into(),
+                })?;
+                self.execute_temporal(series, graph, q, physical, ctx)
             }
             _ => Err(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",

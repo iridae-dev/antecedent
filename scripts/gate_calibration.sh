@@ -49,7 +49,9 @@ check() {
     return 0
   fi
   local log status
-  log="$(mktemp -t gate_calibration.XXXXXX)"
+  mkdir -p "$ROOT/target/calibration-records"
+  safe="$(echo "${label}" | tr ' /:' '___')"
+  log="$ROOT/target/calibration-records/${safe}.log"
   "$@" 2>&1 | tee "$log"
   status="${PIPESTATUS[0]}"
   if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
@@ -58,7 +60,6 @@ check() {
     ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" "$@"
     status=$?
   fi
-  rm -f "$log"
   if [ "$status" -ne 0 ]; then
     FAILED="${FAILED}  ${label}"$'\n'
     FAILED_COUNT=$((FAILED_COUNT + 1))

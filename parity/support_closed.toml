@@ -228,7 +228,6 @@ reason = "Frequentist DBN-posterior TemporalMediationEffect is licensed at valid
 queries = ["ConditionalEffect"]
 graph_classes = ["Cpdag", "Pag"]
 structures = ["graph_posterior"]
-inferences = ["Bayesian"]
 reason = "ConditionalEffect graph-posterior mixing is licensed only for DAG atoms. Cpdag/Pag posterior atoms remain refused."
 
 # -- 0.9.0: n/a re-file (contract / identifier gap, not typed impossibility).
@@ -290,6 +289,13 @@ graph_classes = ["Dag"]
 structures = ["graph_posterior"]
 inferences = ["Bayesian"]
 reason = "Graph-posterior derivative mixtures are not staged; the licensed derivative cells are Frequentist or Bayesian explicit or accepted Dag at validation none."
+
+[[closed]]
+queries = ["MediationEffect"]
+graph_classes = ["Dag"]
+structures = ["graph_posterior"]
+inferences = ["Bayesian"]
+reason = "Graph-posterior mediation mixtures are not staged; the licensed MediationEffect cells are Frequentist or Bayesian explicit or accepted Dag."
 
 [[closed]]
 queries = ["Counterfactual"]

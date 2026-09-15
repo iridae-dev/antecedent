@@ -201,6 +201,23 @@ pub struct StudyResult {
     pub outcome: VariableId,
     /// Candidate-selection screen recorded for a prepared batch family.
     pub candidate_selection: Option<crate::analysis::CandidateSelection>,
+    /// How this execution formed its reported interval.
+    pub interval: Option<IntervalBinding>,
+    /// Population recorded by a retarget, when it differs from the prepared query.
+    pub retarget_population: Option<antecedent_core::TargetPopulation>,
+    /// Names of caller-supplied custom validators that ran on this execution.
+    pub custom_validator_names: Vec<std::sync::Arc<str>>,
+}
+
+/// Interval recorded on an assembled study result.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct IntervalBinding {
+    /// Interval method.
+    pub method: antecedent_core::IntervalMethod,
+    /// Analytic SE kind, when the method is analytic.
+    pub se_kind: Option<antecedent_estimate::AnalyticSeKind>,
+    /// Nominal coverage level.
+    pub level: f64,
 }
 
 impl StudyResult {

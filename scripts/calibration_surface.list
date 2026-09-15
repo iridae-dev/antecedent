@@ -7,6 +7,8 @@ crates/antecedent-stats/src/
 crates/antecedent-validate/src/
 crates/antecedent-discovery/src/
 crates/antecedent-prob/src/
+crates/antecedent/tests/common/
+crates/antecedent/src/
 crates/antecedent/tests/common/calibration.rs
 crates/antecedent/tests/v19_calibration.rs
 crates/antecedent/tests/v19_temporal_class_calibration.rs
@@ -17,5 +19,8 @@ crates/antecedent/tests/v19_derivative_calibration.rs
 crates/antecedent/tests/v19_temporal_response_calibration.rs
 crates/antecedent/tests/v19_bayesian_temporal.rs
 crates/antecedent/tests/v19_temporal_frequentist.rs
+crates/antecedent/tests/v19_tiered_known_truth.rs
+crates/antecedent/tests/v19_short_series_measurement.rs
+crates/antecedent/tests/v19_bayesian_prior_in_force.rs
 scripts/gate_calibration.sh
 scripts/gate_response_calibration.sh

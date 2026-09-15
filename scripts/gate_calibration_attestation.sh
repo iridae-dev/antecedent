@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# 1.10 does not re-run the 400-replicate calibration gate on every PR.
-# Interval theory remains the 1.9 weekly workflow.
+# Coverage records in parity/coverage_records.toml are valid for a
+# CALIBRATION_SHA only while the paths below are unchanged since that SHA.
 #
-# PR / everyday: print the policy and pass.
+# PR / everyday: completeness of the surface list, then pass.
 # Release cut: REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<weekly-pass-sha>
 #
 # RC proof is not a SHA regex. The weekly SHA must resolve to a commit, and
@@ -15,10 +15,34 @@ cd "$ROOT"
 
 SURFACE="$ROOT/scripts/calibration_surface.list"
 
+python3 - <<'PY'
+from pathlib import Path
+root = Path(".")
+surface = (root / "scripts/calibration_surface.list").read_text().splitlines()
+entries = [line.strip() for line in surface if line.strip() and not line.startswith("#")]
+missing = []
+for path in sorted((root / "crates/antecedent/tests").glob("v19_*.rs")):
+    rel = path.as_posix()
+    if not any(rel == e or rel.startswith(e.rstrip("/") + "/") or e.rstrip("/") == str(path.parent.as_posix()) for e in entries):
+        missing.append(rel)
+common = root / "crates/antecedent/tests/common"
+if common.is_dir():
+    for path in sorted(common.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.as_posix()
+        if not any(rel == e or rel.startswith(e.rstrip("/") + "/") or e.rstrip("/") == str(path.parent.as_posix()) for e in entries):
+            missing.append(rel)
+if missing:
+    print("FAIL: calibration surface list omits " + ", ".join(missing))
+    raise SystemExit(1)
+print("calibration surface list: complete")
+PY
+
 echo "== calibration attestation policy =="
-echo "1.10 does not bind weekly coverage artifacts onto executions."
+echo "Coverage records in parity/coverage_records.toml are valid for a CALIBRATION_SHA only"
+echo "while the paths below are unchanged since that SHA."
 echo "scripts/gate_calibration.sh stays on the weekly / manual workflow."
-echo "A green gate_release.sh is not a calibration pass."
 
 if [[ "${REQUIRE_CALIBRATION_ATTESTATION:-0}" != "1" ]]; then
   echo "PR path: calibration attestation not required."
@@ -63,6 +87,8 @@ REQUIRED=(
   crates/antecedent-validate/src/
   crates/antecedent-discovery/src/
   crates/antecedent-prob/src/
+  crates/antecedent/tests/common/
+  crates/antecedent/src/
   crates/antecedent/tests/common/calibration.rs
   scripts/gate_calibration.sh
 )
@@ -89,6 +115,21 @@ if ! git diff --exit-code --name-only "$RESOLVED" -- "${PATHS[@]}"; then
   git diff --stat "$RESOLVED" -- "${PATHS[@]}"
   echo "Re-run weekly calibration.yml on this SHA (or rebase onto a green weekly commit)."
   exit 1
+fi
+
+if [[ -f "$ROOT/parity/coverage_records.toml" ]]; then
+  python3 - <<PY
+import tomllib, sys
+from pathlib import Path
+sha = "${RESOLVED}"
+recs = tomllib.loads(Path("parity/coverage_records.toml").read_text()).get("record", [])
+bad = [r["id"] for r in recs if r.get("calibration_sha") != sha]
+if bad:
+    print("FAIL: coverage records whose calibration_sha != CALIBRATION_SHA:")
+    print("\n".join(bad[:20]))
+    sys.exit(1)
+print(f"coverage records match CALIBRATION_SHA {sha}")
+PY
 fi
 
 echo "Statistical surface matches ${RESOLVED}."

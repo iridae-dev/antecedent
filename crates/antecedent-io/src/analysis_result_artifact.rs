@@ -510,7 +510,7 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         crate::identification_from_wire(&horizon.identification)?;
     }
     crate::identification_from_wire(&result.identification)?;
-    if result.identification.query != result.query {
+    if result.identification_variables.is_none() && result.identification.query != result.query {
         return Err(IoError::Convert(
             "identification.query does not match the enclosing query".into(),
         ));

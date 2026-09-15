@@ -1,0 +1,52 @@
+# Closed exemption vocabulary. Adding a code or raising max_uses is a
+# reviewed change to this file. Lowering max_uses is free.
+# max_uses is the exact 1.10.0 count; the schema gate's --print-counts
+# reprints the live uses so this file can be tightened, never guessed up.
+
+[[code]]
+id = "no_interval_reported"
+applies_to = ["calibration"]
+meaning = "The cell reports no interval; nothing to calibrate."
+max_uses = 4
+
+[[code]]
+id = "boundary_record"
+applies_to = ["calibration"]
+meaning = "The matching coverage record is a named boundary, not a nominal pass."
+max_uses = 0
+
+[[code]]
+id = "estimator_grid_not_measured"
+applies_to = ["calibration"]
+meaning = "This estimator × SE-kind coordinate has no coverage record."
+max_uses = 54
+
+[[code]]
+id = "callback_not_portable"
+applies_to = ["python_product", "runtime_refusal"]
+meaning = "A caller callback is in-process only and is not a portable claim."
+max_uses = 0
+
+[[code]]
+id = "cancelled_no_claim"
+applies_to = ["runtime_refusal"]
+meaning = "Estimation was cancelled before a claim existed; export is refused."
+max_uses = 0
+
+[[code]]
+id = "not_executed"
+applies_to = ["runtime_refusal", "calibration"]
+meaning = "The study has not been executed; there is no claim or calibration slot."
+max_uses = 0
+
+[[code]]
+id = "row_weights_bound_to_snapshot"
+applies_to = ["runtime_refusal"]
+meaning = "A RowWeights population may re-execute only on its own data snapshot."
+max_uses = 0
+
+[[code]]
+id = "attested_not_reverifiable"
+applies_to = ["runtime_refusal", "claim"]
+meaning = "Custom validator results are caller-attested and are not re-verified on load."
+max_uses = 0

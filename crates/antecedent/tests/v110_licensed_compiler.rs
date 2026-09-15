@@ -211,7 +211,15 @@ fn dag_for(cell: &antecedent::SupportCell, n: u32) -> Dag {
                 chain_dag(n)
             }
         }
-        _ => chain_dag(n),
+        "SustainedEffect" | "PulseEffect" | "TemporalMediationEffect" => chain_dag(n),
+        "Counterfactual" => chain_dag(n.max(3)),
+        "TransportQuery" => {
+            let mut g = Dag::with_variables(n.max(5));
+            g.insert_directed(nid(0), nid(1)).unwrap();
+            g
+        }
+        "InterferenceQuery" => chain_dag(n.max(2)),
+        other => panic!("unprofiled licensed query {other}"),
     }
 }
 
@@ -656,7 +664,7 @@ fn n_vars(cell: &antecedent::SupportCell) -> u32 {
         | "DirectionalDerivative"
         | "ResponseJacobian" => 4,
         "TransportQuery" => 5,
-        "InterferenceQuery" => 1,
+        "InterferenceQuery" => 2,
         "InterventionResponse" if cell.graph_class == "CoDetermined" => 4,
         "AverageEffect" if matches!(cell.graph_class, "CoDetermined" | "Unknown") => 4,
         "ConditionalEffect" => 3,
@@ -741,7 +749,7 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
             ])
             .unwrap()
         } else if cell.query == "InterferenceQuery" {
-            static_table(&[("y", 0)])
+            static_table(&[("y", 0), ("x", 1)])
         } else if cell.query == "InterventionalDistribution"
             || (cell.query == "AverageEffect" && cell.graph_class == "Admg")
         {
@@ -982,6 +990,24 @@ fn every_licensed_cell_inspects_as_a_first_class_contract() {
         failures.len(),
         failures.join("\n")
     );
+}
+
+#[test]
+fn every_licensed_query_has_a_fixture_profile() {
+    let mut queries = std::collections::BTreeSet::new();
+    for cell in licensed_support_cells() {
+        queries.insert(cell.query);
+    }
+    for query in queries {
+        let cell = antecedent::SupportCell {
+            query,
+            graph_class: "Dag",
+            structure: "explicit",
+            inference: "Frequentist",
+            validation: "none",
+        };
+        let _ = dag_for(&cell, 4);
+    }
 }
 
 #[test]

@@ -5,6 +5,8 @@
 use std::fmt;
 use std::sync::Arc;
 
+use crate::error::DesignError;
+
 /// Handle for a registered decision problem.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -34,7 +36,12 @@ impl fmt::Display for DecisionProblemId {
 pub trait Utility<A, O>: Send + Sync {
     /// Evaluate utilities for each `(action, outcome)` pair in row-major order
     /// `actions.len() * outcomes.len()`, writing into `out`.
-    fn evaluate_batch(&self, actions: &[A], outcomes: &[O], out: &mut [f64]);
+    ///
+    /// # Errors
+    ///
+    /// Callback or shape failures. Do not write NaN as a silent fallback.
+    fn evaluate_batch(&self, actions: &[A], outcomes: &[O], out: &mut [f64])
+        -> Result<(), DesignError>;
 }
 
 /// Batch chance / hard constraint over actions × outcome draws.
@@ -88,10 +95,14 @@ pub struct DecisionEvaluation {
 }
 
 /// Evaluate expected utility, regret, and chance constraints under outcome draws.
+///
+/// # Errors
+///
+/// Utility callback failures.
 pub fn evaluate_decision<A, O>(
     problem: &DecisionProblem<A, O>,
     outcomes: &[O],
-) -> DecisionEvaluation
+) -> Result<DecisionEvaluation, DesignError>
 where
     A: Clone,
 {
@@ -99,7 +110,7 @@ where
     let n_o = outcomes.len().max(1);
     let mut util = vec![0.0; n_a * n_o];
     if !outcomes.is_empty() && n_a > 0 {
-        problem.utility.evaluate_batch(&problem.actions, outcomes, &mut util);
+        problem.utility.evaluate_batch(&problem.actions, outcomes, &mut util)?;
     }
     let mut eu = vec![0.0; n_a];
     if !outcomes.is_empty() {
@@ -146,12 +157,12 @@ where
     } else {
         Arc::from([])
     };
-    DecisionEvaluation {
+    Ok(DecisionEvaluation {
         expected_utility: chosen_eu,
         posterior_regret: regret,
         chance_constraint_probs: chance,
         chosen_action: chosen,
-    }
+    })
 }
 
 #[cfg(test)]
@@ -160,13 +171,19 @@ mod tests {
 
     struct LinearUtil;
     impl Utility<f64, f64> for LinearUtil {
-        fn evaluate_batch(&self, actions: &[f64], outcomes: &[f64], out: &mut [f64]) {
+        fn evaluate_batch(
+            &self,
+            actions: &[f64],
+            outcomes: &[f64],
+            out: &mut [f64],
+        ) -> Result<(), DesignError> {
             let n_o = outcomes.len();
             for (ai, a) in actions.iter().enumerate() {
                 for (oi, o) in outcomes.iter().enumerate() {
                     out[ai * n_o + oi] = a * o;
                 }
             }
+            Ok(())
         }
     }
 
@@ -191,7 +208,7 @@ mod tests {
             Arc::new(LinearUtil),
             vec![Arc::new(NonNegOutcome)],
         );
-        let ev = evaluate_decision(&problem, &[1.0, 2.0]);
+        let ev = evaluate_decision(&problem, &[1.0, 2.0]).unwrap();
         assert_eq!(ev.chosen_action, Some(1));
         assert!((ev.expected_utility - 3.0).abs() < 1e-12);
     }
@@ -221,7 +238,7 @@ mod tests {
             vec![Arc::new(FixedChance(0.0))],
         );
         problem.chance_threshold = 0.75;
-        let ev = evaluate_decision(&problem, &[1.0, 2.0]);
+        let ev = evaluate_decision(&problem, &[1.0, 2.0]).unwrap();
         assert_eq!(ev.chosen_action, None);
         assert!((ev.expected_utility - 0.0).abs() < 1e-15);
         assert!((ev.posterior_regret - 3.0).abs() < 1e-12);

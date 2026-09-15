@@ -1167,6 +1167,40 @@ mod tests {
         }
     }
 
+    #[test]
+    fn class_and_mediation_graph_posterior_refusals_are_named() {
+        for graph in ["Cpdag", "Pag"] {
+            for validation in ["none", "cheap", "full"] {
+                let err = refuse_if_not_applicable(cell(
+                    "ConditionalEffect",
+                    graph,
+                    "graph_posterior",
+                    "Frequentist",
+                    validation,
+                ))
+                .unwrap_err();
+                assert!(
+                    err.to_string().contains("licensed only for DAG atoms"),
+                    "{graph}/{validation}: {err}"
+                );
+            }
+        }
+        for validation in ["none", "cheap", "full"] {
+            let err = refuse_if_not_applicable(cell(
+                "MediationEffect",
+                "Dag",
+                "graph_posterior",
+                "Bayesian",
+                validation,
+            ))
+            .unwrap_err();
+            assert!(
+                err.to_string().contains("Graph-posterior mediation mixtures are not staged"),
+                "{validation}: {err}"
+            );
+        }
+    }
+
     /// End-to-end: `Study::build` accepts the licensed Frequentist graph-posterior ATE cell.
     #[test]
     #[allow(clippy::many_single_char_names)]

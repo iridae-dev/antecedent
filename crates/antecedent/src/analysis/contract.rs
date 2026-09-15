@@ -10,25 +10,27 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use antecedent_core::{
-    Assumption, AssumptionSet, AssumptionSlot, AssumptionSource, AssumptionStatus, CausalSchema,
-    ClaimDomains, ClaimEnvelope, ClaimKind, ContractIdentities, DomainStatus, ExecutionContext,
-    IDENTITY_FORMAT, IdentificationSlot, IdentificationStatus, IdentityDomain, NextAction,
-    ObligationKind, ObligationRecord, ObligationScope, OperationKind, OperationReadiness,
-    OperationReport, ReasoningView, SemanticApplicability, SemanticLayer, SlotAvailability,
-    SupportSlot, TransformIntent, TransformationReport, UncertaintyComponent, UncertaintySlot,
+    Assumption, AssumptionSet, AssumptionSlot, AssumptionSource, AssumptionStatus, AttestedEvidence,
+    CalibrationView, CausalQuery, CausalSchema, ClaimDomains, ClaimEnvelope, ClaimKind,
+    ContractIdentities, DomainStatus, ExecutionContext, IDENTITY_FORMAT, IdentificationSlot,
+    IdentificationStatus, IdentityDomain, IntervalMethod, NextAction, ObligationKind,
+    ObligationRecord, ObligationScope, OperationKind, OperationReadiness, OperationReport,
+    ReasoningView, SemanticApplicability, SemanticLayer, SlotAvailability, SupportSlot,
+    TargetPopulation, TransformIntent, TransformationReport, UncertaintyComponent, UncertaintySlot,
     UncertaintySource, intent_effects,
 };
 use antecedent_data::TableView;
 use antecedent_identify::{CAPPED_COMPLETION_DIAGNOSTIC_CODE, IdentificationResult};
 use antecedent_io::{
-    AnalysisResultContractWire, AnalysisResultWire, AssumptionSlotWire, ClaimIdentityWire,
-    ClaimSectionWire, ContractIdentitiesWire, DataPartitionIdentityWire, DataSnapshotIdentityWire,
+    AnalysisResultContractWire, AnalysisResultWire, AssumptionSlotWire, AttestedEvidenceWire,
+    CalibrationSlotWire, ClaimIdentityWire, ClaimSectionWire, ContractIdentitiesWire,
+    DataPartitionIdentityWire, DataSnapshotIdentityWire,
     ExecutionIdentityWire, GraphIdentityWire, HorizonAdjustmentNodeWire,
     IdentificationIdentityWire, IdentificationProductWire, IdentificationSlotWire,
     InferenceBindingWire, InferentialCommitmentsWire, ObligationSectionWire,
     ObservationIdentityWire, ProgramIdentityWire, ReasoningSectionWire, ScoreReuseIdentityWire,
     SlotSectionWire, SupportSlotWire, TargetIdentityWire, TemporalIdentificationWire,
-    UncertaintyComponentWire, UncertaintySlotWire, admg_identity, causal_query_to_wire,
+    UncertaintyComponentWire, UncertaintySlotWire, admg_identity, causal_query_to_wire_with_registry,
     claim_digest, cpdag_identity, dag_identity, data_snapshot_digest, dbn_atom_identities,
     digest_wire, encode_analysis_result_artifact_with_contract, execution_digest,
     execution_identity_from_context, identification_digest, identification_product_digest_wire,
@@ -74,6 +76,12 @@ pub struct CausalContract {
     pub identifier: Option<Arc<str>>,
     /// Estimator selected or defaulted.
     pub estimator: Option<Arc<str>>,
+    /// Data snapshot row count used for calibration scope.
+    pub row_count: u64,
+    /// Inference family used to compile the program (`frequentist` / `bayesian`).
+    pub inference: Arc<str>,
+    /// Licensed query name used for calibration matching.
+    pub query_kind: Arc<str>,
 }
 
 impl CausalContract {
@@ -299,20 +307,43 @@ impl PreparedStudy {
         artifact_id: &str,
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, CausalError> {
-        let (contract, payloads) = compile_with_payloads(self.study(), Some(self))?;
+        if let Some(retargeted) = &result.retarget_population {
+            let encoded = result
+                .certificate
+                .as_ref()
+                .map(|certificate| query_population(&certificate.query))
+                .unwrap_or_else(|| query_population(&self.study().query));
+            if encoded != Some(retargeted) {
+                return Err(CausalError::Conflict {
+                    what: "target_population",
+                    detail: "retargeted result population is not the contract target",
+                });
+            }
+        }
+        let mut study = self.analysis.clone();
+        if let Some(certificate) = &result.certificate {
+            study.query = certificate.query.clone();
+        }
+        let (contract, payloads) = compile_with_payloads(&study, Some(self))?;
         let claim = result.claim(&contract, ctx)?;
         let execution = execution_identity_from_context(ctx);
-        let section = contract.section_from_payloads(&payloads, Some(&claim), Some(&execution));
+        let mut section = contract.section_from_payloads(&payloads, Some(&claim), Some(&execution));
         let lagged = self
             .temporal_identification()
             .cloned()
             .or_else(|| dbn_projected_temporal_identification(self.study()))
             .or_else(|| class_projected_temporal_identification(self.study()));
+        let body_query = result
+            .certificate
+            .as_ref()
+            .map(|certificate| &certificate.query)
+            .unwrap_or_else(|| self.query());
         let mut body = analysis_result_wire(
-            self.query(),
+            body_query,
             result,
             lagged.as_ref(),
             cached_identification(self.study()),
+            study.population_registry.as_ref(),
         )?;
         if let Some(product) = &section.identification_product {
             body.identification.status.clone_from(&product.status);
@@ -320,6 +351,9 @@ impl PreparedStudy {
             body.identification.arena.clone_from(&product.arena);
             body.identification.derivation.clone_from(&product.derivation);
             body.identification.required_assumptions.clone_from(&product.required_assumptions);
+        }
+        if let Some(slot) = section.reasoning.identification.value.as_mut() {
+            slot.status.clone_from(&body.identification.status);
         }
         let names: Vec<String> =
             self.schema().variables().iter().map(|variable| variable.name.to_string()).collect();
@@ -508,12 +542,18 @@ impl StudyResult {
         };
         let execution =
             execution_digest(&execution_identity_from_context(ctx)).map_err(|err| io_err(&err))?;
+        let calibration = calibration_slot(self, contract);
+        let attested = attested_evidence(self);
+        let calibration_digest = digest_calibration(&calibration)?;
+        let attested_digest = digest_attested(&attested)?;
         let claim_id = claim_digest(&ClaimIdentityWire::new(
             *contract.identities.program.as_bytes(),
             *contract.identities.target.as_bytes(),
             kind.as_str(),
             value.filter(|v| v.is_finite()).map(f64::to_bits),
             Some(*execution.as_bytes()),
+            calibration_digest,
+            attested_digest,
         ))
         .map_err(|err| io_err(&err))?;
         let identified = reasoning.identification.as_ref().is_some_and(|slot| {
@@ -536,7 +576,7 @@ impl StudyResult {
             }
             _ => DomainStatus::Unknown,
         };
-        Ok(ClaimEnvelope::new(
+        let mut envelope = ClaimEnvelope::new(
             claim_id,
             contract.identities,
             kind,
@@ -557,7 +597,10 @@ impl StudyResult {
                 )),
                 Arc::from(format!("program:{}", contract.identities.program.to_hex())),
             ],
-        ))
+        );
+        envelope.calibration = calibration_view(&calibration);
+        envelope.attested = attested.clone();
+        Ok(envelope)
     }
 
     /// Retain the full execution payload alongside a canonical result contract.
@@ -600,7 +643,7 @@ impl StudyResult {
         &self,
         query: &antecedent_core::CausalQuery,
     ) -> Result<AnalysisResultWire, CausalError> {
-        analysis_result_wire(query, self, None, None)
+        analysis_result_wire(query, self, None, None, None)
     }
 }
 
@@ -634,16 +677,38 @@ fn contract_payloads(
     let target = TargetIdentityWire {
         format: IDENTITY_FORMAT,
         schema: schema_to_wire(schema),
-        query: causal_query_to_wire(&study.query).map_err(|err| io_err(&err))?,
+        query: causal_query_to_wire_with_registry(&study.query, study.population_registry.as_ref())
+            .map_err(|err| io_err(&err))?,
     };
     let target_digest = digest_wire(IdentityDomain::Target, &target).map_err(|err| io_err(&err))?;
+    let question = TargetIdentityWire {
+        format: IDENTITY_FORMAT,
+        schema: schema_to_wire(schema),
+        query: causal_query_to_wire_with_registry(
+            &question_query(&study.query),
+            study.population_registry.as_ref(),
+        )
+        .map_err(|err| io_err(&err))?,
+    };
+    let question_digest =
+        digest_wire(IdentityDomain::Target, &question).map_err(|err| io_err(&err))?;
     let observation = observation_identity_wire(schema, observation_tags(&study.query));
     let observation_digest =
         digest_wire(IdentityDomain::Observation, &observation).map_err(|err| io_err(&err))?;
     let graph = graph_identity(study)?;
     let identification = IdentificationIdentityWire {
         format: IDENTITY_FORMAT,
-        target: *target_digest.as_bytes(),
+        target_question: *question_digest.as_bytes(),
+        population_depends_on: population_depends_on(
+            &study.query,
+            study.population_registry.as_ref(),
+        ),
+        rd_config: study.rd.as_ref().map(|cfg| antecedent_io::RdConfigWire {
+            running_variable: cfg.running_variable.raw(),
+            cutoff_bits: cfg.cutoff.to_bits(),
+            bandwidth_bits: cfg.bandwidth.to_bits(),
+            se_kind: Some(cfg.se_kind.as_str().into()),
+        }),
         graph_class: study.graph.class().as_str().into(),
         structure_source: study.structure_source.as_str().into(),
         accepted_version: study.graph.version(),
@@ -697,6 +762,14 @@ fn contract_payloads(
         },
         validation_suite: study.refute.validation_suite_id().map(str::to_string),
         overlap_policy: study.overlap_policy.map(overlap_policy_tag),
+        estimator_spec: study.estimator_spec.as_ref().map(estimator_spec_wire),
+        response_options: study.response_options.as_ref().map(|opts| {
+            antecedent_io::ResponseOptionsWire {
+                bandwidth_bits: opts.bandwidth.map(f64::to_bits),
+                simultaneous_band: opts.simultaneous_replicates.is_some(),
+                variant: None,
+            }
+        }),
     };
     let inference_binding_digest =
         inference_binding_digest(&inference_binding).map_err(|err| io_err(&err))?;
@@ -750,6 +823,15 @@ fn compile_with_payloads(
             support_status: study.support_status,
             identifier: study.identifier.map(|id| Arc::from(id.as_str())),
             estimator: study.estimator.map(|id| Arc::from(id.as_str())),
+            row_count: data_row_count(&study.data),
+            inference: Arc::from(match study.inference {
+                InferenceMode::Frequentist => "frequentist",
+                InferenceMode::Bayesian(_) => "bayesian",
+            }),
+            query_kind: Arc::from(
+                crate::support::query_axis_name(&study.query, study.graph.class())
+                    .unwrap_or("Unknown"),
+            ),
         },
         payloads,
     ))
@@ -925,21 +1007,30 @@ fn accepted_graph_identity(graph: &AcceptedGraph) -> Result<GraphIdentityWire, C
 }
 
 // A first identified posterior atom is not the identification status of the
-// entire mixture. Preserve explicitly unidentified graph mass at compilation,
-// as the response executor does, so the program and execution agree.
+// entire mixture. Preserve unidentified mass and disagreeing estimands at
+// compilation, as the executor does, so the program and execution agree.
 fn contract_identification(study: &Study) -> Option<Cow<'_, IdentificationResult>> {
     let cached = cached_identification(study)?;
-    if study
-        .graph_posterior_identification_cache
-        .as_ref()
-        .is_some_and(|cache| cache.graphs.unidentified_mass() > 0.0)
-        && cached.status != IdentificationStatus::GraphDependent
-    {
-        let mut aggregate = cached.clone();
-        aggregate.status = IdentificationStatus::GraphDependent;
-        Some(Cow::Owned(aggregate))
+    let (unidentified, contributing) = if let Some(cache) = study.graph_posterior_identification_cache.as_ref() {
+        (
+            cache.graphs.unidentified_mass(),
+            cache.atoms.iter().map(|atom| &atom.estimand).collect::<Vec<_>>(),
+        )
+    } else if let Some(cache) = study.dbn_posterior_identification_cache.as_ref() {
+        (
+            cache.graphs.unidentified_mass(),
+            cache.atoms.iter().map(|atom| &atom.estimand).collect::<Vec<_>>(),
+        )
     } else {
+        return Some(Cow::Borrowed(cached));
+    };
+    let status = super::execute::graph_posterior_mixture_status(unidentified, &contributing, cached.status);
+    if status == cached.status {
         Some(Cow::Borrowed(cached))
+    } else {
+        let mut aggregate = cached.clone();
+        aggregate.status = status;
+        Some(Cow::Owned(aggregate))
     }
 }
 
@@ -1022,20 +1113,344 @@ fn identification_search_capped(result: &IdentificationResult) -> bool {
 }
 
 fn inferential_commitments(study: &Study) -> InferentialCommitmentsWire {
+    let (interval_method, se_kind) = compiled_interval(study);
     InferentialCommitmentsWire {
         format: IDENTITY_FORMAT,
         estimator: study.estimator.map(|id| id.as_str().to_string()),
+        resolved_estimator: study.estimator.map(|id| id.as_str().to_string()),
         identifier: study.identifier.map(|id| id.as_str().to_string()),
         inference: match study.inference {
             InferenceMode::Frequentist => "frequentist".into(),
             InferenceMode::Bayesian(_) => "bayesian".into(),
         },
         validation_suite: study.refute.validation_suite_id().map(str::to_string),
-        interval_target: match study.inference {
-            InferenceMode::Frequentist => "sampling_se".into(),
-            InferenceMode::Bayesian(_) => "posterior_quantile".into(),
-        },
+        interval_method: interval_method.as_str().into(),
+        se_kind,
         prior_required: matches!(study.inference, InferenceMode::Bayesian(_)),
+    }
+}
+
+fn compiled_interval(study: &Study) -> (IntervalMethod, Option<String>) {
+    match &study.inference {
+        InferenceMode::Bayesian(_) => (IntervalMethod::PosteriorQuantile, None),
+        InferenceMode::Frequentist if study.bootstrap_replicates > 0 => {
+            (IntervalMethod::BootstrapSe, None)
+        }
+        InferenceMode::Frequentist => (
+            IntervalMethod::AnalyticSe,
+            study.rd.as_ref().map(|cfg| cfg.se_kind.as_str().to_string()),
+        ),
+    }
+}
+
+fn question_query(query: &CausalQuery) -> CausalQuery {
+    let mut query = query.clone();
+    match &mut query {
+        CausalQuery::AverageEffect(inner) => {
+            inner.target_population = TargetPopulation::AllObserved;
+        }
+        CausalQuery::TemporalEffect(inner) => {
+            inner.target_population = TargetPopulation::AllObserved;
+        }
+        CausalQuery::Mediation(inner) => {
+            inner.target_population = TargetPopulation::AllObserved;
+        }
+        CausalQuery::Distribution(inner) => {
+            inner.target_population = TargetPopulation::AllObserved;
+        }
+        CausalQuery::PathSpecific(inner) => {
+            inner.target_population = TargetPopulation::AllObserved;
+        }
+        CausalQuery::Response(inner) => {
+            inner.target_population = TargetPopulation::AllObserved;
+        }
+        CausalQuery::ConditionalEffect(inner) => {
+            inner.inner.target_population = TargetPopulation::AllObserved;
+        }
+        _ => {}
+    }
+    query
+}
+
+fn query_population(query: &CausalQuery) -> Option<&TargetPopulation> {
+    match query {
+        CausalQuery::AverageEffect(inner) => Some(&inner.target_population),
+        CausalQuery::TemporalEffect(inner) => Some(&inner.target_population),
+        CausalQuery::Mediation(inner) => Some(&inner.target_population),
+        CausalQuery::Distribution(inner) => Some(&inner.target_population),
+        CausalQuery::PathSpecific(inner) => Some(&inner.target_population),
+        CausalQuery::Response(inner) => Some(&inner.target_population),
+        CausalQuery::ConditionalEffect(inner) => Some(&inner.inner.target_population),
+        _ => None,
+    }
+}
+
+fn population_depends_on(
+    query: &CausalQuery,
+    registry: Option<&antecedent_core::PopulationRegistry>,
+) -> Vec<u32> {
+    match query_population(query) {
+        Some(TargetPopulation::CustomDistribution(id)) => registry
+            .and_then(|reg| reg.distribution_dependencies(*id))
+            .unwrap_or(&[])
+            .iter()
+            .map(|id| id.raw())
+            .collect(),
+        Some(TargetPopulation::RowWeights { .. }) => Vec::new(),
+        _ => Vec::new(),
+    }
+}
+
+fn data_row_count(data: &DataInput) -> u64 {
+    match data {
+        DataInput::Tabular(data) => data.row_count() as u64,
+        DataInput::Temporal(data) | DataInput::Event(data) => data.row_count() as u64,
+        DataInput::Panel(data) => data.total_rows() as u64,
+        DataInput::MultiEnv(data) => {
+            data.environments().iter().map(TableView::row_count).sum::<usize>() as u64
+        }
+    }
+}
+
+fn calibration_slot(result: &StudyResult, contract: &CausalContract) -> CalibrationSlotWire {
+    let key = match_key(result, contract);
+    if let Some(record) = crate::coverage_records_data::RECORDS.iter().find(|row| {
+        row.query == key.0
+            && row.graph_class == key.1
+            && row.inference.eq_ignore_ascii_case(key.2)
+            && row.estimator == key.3
+            && row.interval_method == key.4
+            && row.se_kind == key.5
+    }) {
+        return CalibrationSlotWire::from_record(
+            record.id,
+            record.n,
+            record.dependence,
+            record.calibration_sha,
+            record.boundary,
+            contract.row_count >= record.n && result_dependence(result) == record.dependence,
+        );
+    }
+    CalibrationSlotWire::unavailable(cell_calibration_reason(result))
+}
+
+fn match_key(
+    result: &StudyResult,
+    contract: &CausalContract,
+) -> (String, String, &'static str, String, String, String) {
+    let query = contract.query_kind.to_string();
+    let graph_class = contract.graph_class.as_str().to_string();
+    let inference = if contract.inference.eq_ignore_ascii_case("bayesian") {
+        "Bayesian"
+    } else {
+        "Frequentist"
+    };
+    let estimator = if inference == "Bayesian" {
+        String::new()
+    } else {
+        contract.estimator.as_deref().unwrap_or("").to_string()
+    };
+    let interval = result.interval.as_ref();
+    let interval_method = if inference == "Bayesian" {
+        "posterior_quantile".to_string()
+    } else {
+        interval.map(|slot| slot.method.as_str()).unwrap_or("none").to_string()
+    };
+    let se_kind = if inference == "Bayesian" {
+        String::new()
+    } else {
+        interval
+            .and_then(|slot| slot.se_kind)
+            .map(|kind| kind.as_str().to_string())
+            .unwrap_or_default()
+    };
+    (query, graph_class, inference, estimator, interval_method, se_kind)
+}
+
+fn result_dependence(result: &StudyResult) -> &'static str {
+    if result.logical_plan.estimator.as_deref() == Some("circular_block") {
+        "circular_block"
+    } else {
+        "iid"
+    }
+}
+
+fn cell_calibration_reason(result: &StudyResult) -> &'static str {
+    if result.interval.as_ref().is_some_and(|slot| slot.method == IntervalMethod::None) {
+        "no_interval_reported"
+    } else {
+        "estimator_grid_not_measured"
+    }
+}
+
+fn attested_evidence(result: &StudyResult) -> Arc<[AttestedEvidence]> {
+    let names: std::collections::HashSet<&str> =
+        result.custom_validator_names.iter().map(Arc::as_ref).collect();
+    result
+        .refutations
+        .iter()
+        .filter(|report| names.contains(report.refuter.as_ref()))
+        .map(|report| AttestedEvidence {
+            name: Arc::clone(&report.refuter),
+            kind: Arc::from("custom_validator"),
+            passed: report.passed,
+            refuted_ate: Some(report.refuted_ate),
+            comparison: Some(report.comparison),
+            informative: report.informative,
+            failure_condition: report.failure_condition.clone(),
+            reverifiable: false,
+        })
+        .collect()
+}
+
+fn estimator_spec_wire(spec: &crate::estimator_spec::EstimatorSpec) -> antecedent_io::EstimatorSpecWire {
+    use crate::estimator_spec::EstimatorSpec;
+    use antecedent_io::{EstimatorPayloadDigest, EstimatorSpecPayloads, EstimatorSpecWire};
+    let digest_bytes = |bytes: &[u8]| {
+        *antecedent_io::digest_canonical(IdentityDomain::InferenceBinding, bytes).as_bytes()
+    };
+    let cluster = |ids: Option<&[u32]>| {
+        ids.map(|ids| {
+            let mut bytes = Vec::with_capacity(ids.len() * 4);
+            for id in ids {
+                bytes.extend_from_slice(&id.to_le_bytes());
+            }
+            EstimatorPayloadDigest { digest: digest_bytes(&bytes), len: ids.len() as u64 }
+        })
+    };
+    let multiway = |ids: Option<&[Vec<u32>]>| {
+        ids.map(|groups| {
+            let mut bytes = Vec::new();
+            for group in groups {
+                bytes.extend_from_slice(&(group.len() as u64).to_le_bytes());
+                for id in group {
+                    bytes.extend_from_slice(&id.to_le_bytes());
+                }
+            }
+            EstimatorPayloadDigest { digest: digest_bytes(&bytes), len: groups.len() as u64 }
+        })
+    };
+    let panel = |times: Option<&[i64]>| {
+        times.map(|times| {
+            let mut bytes = Vec::with_capacity(times.len() * 8);
+            for time in times {
+                bytes.extend_from_slice(&time.to_le_bytes());
+            }
+            EstimatorPayloadDigest { digest: digest_bytes(&bytes), len: times.len() as u64 }
+        })
+    };
+    let payloads = |digest: [u8; 32],
+                    cluster_ids: Option<&[u32]>,
+                    multiway_ids: Option<&[Vec<u32>]>,
+                    panel_times: Option<&[i64]>| {
+        EstimatorSpecPayloads {
+            digest,
+            cluster_ids: cluster(cluster_ids),
+            multiway_ids: multiway(multiway_ids),
+            panel_times: panel(panel_times),
+        }
+    };
+    match spec {
+        EstimatorSpec::Default(id) => EstimatorSpecWire::Default(id.as_str().into()),
+        EstimatorSpec::LinearAdjustmentAte(cfg) => EstimatorSpecWire::LinearAdjustmentAte(payloads(
+            digest_bytes(format!("{cfg:?}").as_bytes()),
+            cfg.cluster_ids.as_deref(),
+            cfg.multiway_ids.as_deref(),
+            cfg.panel_times.as_deref(),
+        )),
+        EstimatorSpec::PropensityWeighting(cfg) => EstimatorSpecWire::PropensityWeighting(payloads(
+            digest_bytes(format!("{cfg:?}").as_bytes()),
+            None,
+            None,
+            None,
+        )),
+        EstimatorSpec::PropensityMatching(cfg) => EstimatorSpecWire::PropensityMatching(payloads(
+            digest_bytes(format!("{cfg:?}").as_bytes()),
+            cfg.cluster_ids.as_deref(),
+            cfg.multiway_ids.as_deref(),
+            cfg.panel_times.as_deref(),
+        )),
+        EstimatorSpec::PropensityStratification(cfg) => {
+            EstimatorSpecWire::PropensityStratification(payloads(
+                digest_bytes(format!("{cfg:?}").as_bytes()),
+                None,
+                None,
+                None,
+            ))
+        }
+        EstimatorSpec::DistanceMatching(cfg) => EstimatorSpecWire::DistanceMatching(payloads(
+            digest_bytes(format!("{cfg:?}").as_bytes()),
+            cfg.cluster_ids.as_deref(),
+            cfg.multiway_ids.as_deref(),
+            cfg.panel_times.as_deref(),
+        )),
+        EstimatorSpec::Aipw(cfg) => EstimatorSpecWire::Aipw(payloads(
+            digest_bytes(format!("{cfg:?}").as_bytes()),
+            cfg.cluster_ids.as_deref(),
+            cfg.multiway_ids.as_deref(),
+            cfg.panel_times.as_deref(),
+        )),
+        EstimatorSpec::GlmAdjustment(cfg) => EstimatorSpecWire::GlmAdjustment(payloads(
+            digest_bytes(format!("{cfg:?}").as_bytes()),
+            cfg.cluster_ids.as_deref(),
+            cfg.multiway_ids.as_deref(),
+            cfg.panel_times.as_deref(),
+        )),
+        EstimatorSpec::FrontDoorTwoStage(cfg) => EstimatorSpecWire::FrontDoorTwoStage(payloads(
+            digest_bytes(format!("{cfg:?}").as_bytes()),
+            cfg.cluster_ids.as_deref().map(|ids| ids.as_ref()),
+            None,
+            None,
+        )),
+        EstimatorSpec::IvWald(cfg) => EstimatorSpecWire::IvWald(payloads(
+            digest_bytes(format!("{cfg:?}").as_bytes()),
+            cfg.cluster_ids.as_deref(),
+            cfg.multiway_ids.as_deref(),
+            cfg.panel_times.as_deref(),
+        )),
+        EstimatorSpec::Iv2Sls(cfg) => EstimatorSpecWire::Iv2Sls(payloads(
+            digest_bytes(format!("{cfg:?}").as_bytes()),
+            cfg.cluster_ids.as_deref(),
+            cfg.multiway_ids.as_deref(),
+            cfg.panel_times.as_deref(),
+        )),
+    }
+}
+
+fn digest_calibration(slot: &CalibrationSlotWire) -> Result<[u8; 32], CausalError> {
+    let bytes = antecedent_io::to_cbor(slot).map_err(|err| io_err(&err))?;
+    Ok(antecedent_io::hash_payload(&bytes))
+}
+
+fn digest_attested(items: &[AttestedEvidence]) -> Result<[u8; 32], CausalError> {
+    if items.is_empty() {
+        return Ok([0; 32]);
+    }
+    let wire: Vec<AttestedEvidenceWire> = items
+        .iter()
+        .map(|item| AttestedEvidenceWire {
+            name: item.name.to_string(),
+            kind: item.kind.to_string(),
+            passed: item.passed,
+            refuted_ate: item.refuted_ate,
+            comparison: item.comparison,
+            informative: item.informative,
+            failure_condition: item.failure_condition.as_ref().map(|id| id.to_string()),
+            reverifiable: item.reverifiable,
+        })
+        .collect();
+    let bytes = antecedent_io::to_cbor(&wire).map_err(|err| io_err(&err))?;
+    Ok(antecedent_io::hash_payload(&bytes))
+}
+
+fn calibration_view(slot: &CalibrationSlotWire) -> CalibrationView {
+    CalibrationView {
+        status: Arc::from(slot.status.as_str()),
+        record_id: slot.record_id.as_deref().map(Arc::from),
+        reason: slot.reason.as_deref().map(Arc::from),
+        scope_n: slot.scope_n,
+        scope_dependence: slot.scope_dependence.as_deref().map(Arc::from),
+        calibration_sha: slot.calibration_sha.as_deref().map(Arc::from),
     }
 }
 
@@ -1388,8 +1803,10 @@ fn analysis_result_wire(
     result: &StudyResult,
     temporal: Option<&CachedTemporalIdentification>,
     cached: Option<&IdentificationResult>,
+    registry: Option<&antecedent_core::PopulationRegistry>,
 ) -> Result<AnalysisResultWire, CausalError> {
-    let query_wire = causal_query_to_wire(query).map_err(|err| io_err(&err))?;
+    let query_wire =
+        causal_query_to_wire_with_registry(query, registry).map_err(|err| io_err(&err))?;
     let mut identification = identification_to_wire(cached.unwrap_or(&result.identification))
         .map_err(|err| io_err(&err))?;
     let temporal_identification = temporal_identification_wires(temporal)?;
@@ -1527,6 +1944,28 @@ fn claim_section(claim: &ClaimEnvelope) -> ClaimSectionWire {
         identification_domain: claim.domains.identification.as_str().into(),
         support_domain: claim.domains.support.as_str().into(),
         evaluated_domain: claim.domains.evaluated.as_str().into(),
+        calibration: CalibrationSlotWire {
+            status: claim.calibration.status.to_string(),
+            record_id: claim.calibration.record_id.as_ref().map(|id| id.to_string()),
+            reason: claim.calibration.reason.as_ref().map(|id| id.to_string()),
+            scope_n: claim.calibration.scope_n,
+            scope_dependence: claim.calibration.scope_dependence.as_ref().map(|id| id.to_string()),
+            calibration_sha: claim.calibration.calibration_sha.as_ref().map(|id| id.to_string()),
+        },
+        attested: claim
+            .attested
+            .iter()
+            .map(|item| AttestedEvidenceWire {
+                name: item.name.to_string(),
+                kind: item.kind.to_string(),
+                passed: item.passed,
+                refuted_ate: item.refuted_ate,
+                comparison: item.comparison,
+                informative: item.informative,
+                failure_condition: item.failure_condition.as_ref().map(|id| id.to_string()),
+                reverifiable: item.reverifiable,
+            })
+            .collect(),
     }
 }
 

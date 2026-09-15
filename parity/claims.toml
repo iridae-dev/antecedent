@@ -1,0 +1,23 @@
+# Public claim sentences. Typed once; each listed file contains the sentence verbatim once.
+
+[[claim]]
+id = "reusable_headline"
+sentence = "Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot."
+licensed_by = "parity/python_products.toml"
+files = ["README.md", "CHANGELOG.md", "docs/release-notes/v1.10.0.md", "docs/python-workflow.md", "python/README.md"]
+
+[[claim]]
+id = "calibration_headline"
+sentence = "Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists."
+licensed_by = "parity/coverage_records.toml"
+files = ["README.md", "CHANGELOG.md", "docs/release-notes/v1.10.0.md", "docs/python-workflow.md", "python/README.md"]
+
+[[claim]]
+id = "identity_headline"
+sentence = "Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml."
+licensed_by = "parity/identity.toml"
+files = ["README.md", "CHANGELOG.md", "docs/release-notes/v1.10.0.md", "docs/python-workflow.md", "python/README.md"]
+
+[[forbidden]]
+pattern = '1\.11|1\.10\.1|non-goal|not yet|cannot yet|currently refuses|stays 1\.9'
+files = ["README.md", "CHANGELOG.md", "docs/release-notes/v1.10.0.md", "docs/python-workflow.md", "python/README.md", "docs/v1.10-practitioner-walkthrough.md", "docs/capabilities.md", "docs/comparison.md", "docs/artifacts.md", "docs/local-distributional-joint.md", "scripts/gate_calibration_attestation.sh"]

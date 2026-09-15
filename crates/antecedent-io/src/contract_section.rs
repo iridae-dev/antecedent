@@ -179,6 +179,99 @@ pub struct ClaimSectionWire {
     pub support_domain: String,
     /// Evaluated domain status.
     pub evaluated_domain: String,
+    /// Calibration slot computed from coverage records.
+    pub calibration: CalibrationSlotWire,
+    /// Caller-attested evidence (custom validators).
+    #[serde(default)]
+    pub attested: Vec<AttestedEvidenceWire>,
+}
+
+/// Calibration status bound into the claim.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CalibrationSlotWire {
+    /// `calibrated` | `scope_not_assessed` | `unavailable`.
+    pub status: String,
+    /// Matching coverage record id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub record_id: Option<String>,
+    /// Reason code when not calibrated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// Record `n`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope_n: Option<u64>,
+    /// Record dependence label.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope_dependence: Option<String>,
+    /// Record SHA.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calibration_sha: Option<String>,
+}
+
+/// Caller-attested custom-validator evidence.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct AttestedEvidenceWire {
+    /// Validator name.
+    pub name: String,
+    /// Evidence kind (`custom_validator`).
+    pub kind: String,
+    /// Whether the validator passed.
+    pub passed: bool,
+    /// Refuted ATE, when reported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refuted_ate: Option<f64>,
+    /// Comparison value, when reported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comparison: Option<f64>,
+    /// Whether the result is informative.
+    pub informative: bool,
+    /// Failure condition, when reported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure_condition: Option<String>,
+    /// Always false at 1.10.0 — attested evidence is not re-verifiable.
+    pub reverifiable: bool,
+}
+
+impl CalibrationSlotWire {
+    /// Unavailable slot with a reason code.
+    #[must_use]
+    pub fn unavailable(reason: impl Into<String>) -> Self {
+        Self {
+            status: "unavailable".into(),
+            record_id: None,
+            reason: Some(reason.into()),
+            scope_n: None,
+            scope_dependence: None,
+            calibration_sha: None,
+        }
+    }
+
+    /// Bind a coverage record onto an execution.
+    #[must_use]
+    pub fn from_record(
+        record_id: impl Into<String>,
+        n: u64,
+        dependence: impl Into<String>,
+        calibration_sha: impl Into<String>,
+        boundary: bool,
+        in_scope: bool,
+    ) -> Self {
+        let (status, reason) = if boundary {
+            ("scope_not_assessed", Some("boundary_record"))
+        } else if in_scope {
+            ("calibrated", None)
+        } else {
+            ("scope_not_assessed", None)
+        };
+        Self {
+            status: status.into(),
+            record_id: Some(record_id.into()),
+            reason: reason.map(str::to_string),
+            scope_n: Some(n),
+            scope_dependence: Some(dependence.into()),
+            calibration_sha: Some(calibration_sha.into()),
+        }
+    }
 }
 
 /// Versioned contract companion for an `analysis_result` artifact.
@@ -346,8 +439,139 @@ pub fn verify_contract_against_body(
         if claim.execution.is_some() && contract.execution.is_none() {
             unresolved.push(Arc::from("identities.execution"));
         }
+        if !matches!(
+            claim.calibration.status.as_str(),
+            "calibrated" | "scope_not_assessed" | "unavailable"
+        ) {
+            unresolved.push(Arc::from("claim.calibration"));
+        }
+        if rederive_calibration_slot(contract) != claim.calibration {
+            unresolved.push(Arc::from("claim.calibration"));
+        }
     }
     unresolved
+}
+
+fn rederive_calibration_slot(contract: &AnalysisResultContractWire) -> CalibrationSlotWire {
+    let Some(program) = contract.program.as_ref() else {
+        return CalibrationSlotWire::unavailable("estimator_grid_not_measured");
+    };
+    let commitments = &program.commitments;
+    let query = crate::query_wire::query_axis_name(&contract.target.query, &contract.graph_class)
+        .unwrap_or("Unknown");
+    let inference = if commitments.inference.eq_ignore_ascii_case("bayesian") {
+        "Bayesian"
+    } else {
+        "Frequentist"
+    };
+    let estimator = if inference == "Bayesian" {
+        ""
+    } else {
+        commitments.resolved_estimator.as_deref().or(commitments.estimator.as_deref()).unwrap_or("")
+    };
+    let interval_method = if inference == "Bayesian" {
+        "posterior_quantile"
+    } else {
+        commitments.interval_method.as_str()
+    };
+    let se_kind = commitments.se_kind.as_deref().unwrap_or("");
+    let row_count = contract.data_snapshot.as_ref().map(|snap| snap.row_count).unwrap_or(0);
+    let dependence = if estimator == "circular_block" {
+        "circular_block"
+    } else if contract.data_snapshot.as_ref().is_some_and(|snap| snap.modality == "panel") {
+        "panel_cluster"
+    } else {
+        "iid"
+    };
+    if let Some(record) = coverage_records().into_iter().find(|row| {
+        row.query == query
+            && row.graph_class == contract.graph_class
+            && row.inference == inference
+            && row.estimator == estimator
+            && row.interval_method == interval_method
+            && row.se_kind == se_kind
+    }) {
+        let in_scope = row_count >= record.n && dependence == record.dependence;
+        return CalibrationSlotWire::from_record(
+            record.id,
+            record.n,
+            record.dependence,
+            record.calibration_sha,
+            record.boundary,
+            in_scope,
+        );
+    }
+    CalibrationSlotWire::unavailable(if interval_method == "none" {
+        "no_interval_reported"
+    } else {
+        "estimator_grid_not_measured"
+    })
+}
+
+struct CoverageRow {
+    id: String,
+    query: String,
+    graph_class: String,
+    inference: String,
+    estimator: String,
+    interval_method: String,
+    se_kind: String,
+    n: u64,
+    dependence: String,
+    boundary: bool,
+    calibration_sha: String,
+}
+
+fn coverage_records() -> Vec<CoverageRow> {
+    let mut rows = Vec::new();
+    let mut current: Option<CoverageRow> = None;
+    let flush = |rows: &mut Vec<CoverageRow>, current: &mut Option<CoverageRow>| {
+        if let Some(row) = current.take() {
+            if !row.id.is_empty() {
+                rows.push(row);
+            }
+        }
+    };
+    for line in include_str!("../../../parity/coverage_records.toml").lines() {
+        let line = line.trim();
+        if line == "[[record]]" {
+            flush(&mut rows, &mut current);
+            current = Some(CoverageRow {
+                id: String::new(),
+                query: String::new(),
+                graph_class: String::new(),
+                inference: String::new(),
+                estimator: String::new(),
+                interval_method: String::new(),
+                se_kind: String::new(),
+                n: 0,
+                dependence: String::new(),
+                boundary: false,
+                calibration_sha: String::new(),
+            });
+            continue;
+        }
+        let Some(row) = current.as_mut() else { continue };
+        let Some((key, value)) = line.split_once('=') else { continue };
+        let key = key.trim();
+        let value = value.trim().trim_matches('"');
+        match key {
+            "id" => row.id = value.to_string(),
+            "query" => row.query = value.to_string(),
+            "graph_class" => row.graph_class = value.to_string(),
+            "inference" => row.inference = value.to_string(),
+            "estimator" => row.estimator = value.to_string(),
+            "interval_method" => row.interval_method = value.to_string(),
+            "se_kind" => row.se_kind = value.to_string(),
+            "n" => row.n = value.parse().unwrap_or(0),
+            "dependence" => row.dependence = value.to_string(),
+            "boundary" => row.boundary = value == "true",
+            "calibration_sha" => row.calibration_sha = value.to_string(),
+            _ => {}
+        }
+    }
+    flush(&mut rows, &mut current);
+    rows
 }
 
 fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>> {
@@ -417,12 +641,6 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
     }
     require_nested_digest(
         &mut unresolved,
-        "identification.target",
-        contract.identification.as_ref().map(|item| item.target),
-        Some(&contract.identities.target),
-    );
-    require_nested_digest(
-        &mut unresolved,
         "program.identification",
         contract.program.as_ref().map(|item| item.identification),
         Some(&contract.identities.identification),
@@ -467,12 +685,26 @@ fn claim_identity_wire(
     contract: &AnalysisResultContractWire,
     claim: &ClaimSectionWire,
 ) -> ClaimIdentityWire {
+    let calibration = crate::to_cbor(&claim.calibration)
+        .ok()
+        .map(|bytes| crate::hash_payload(&bytes))
+        .unwrap_or([0; 32]);
+    let attested = if claim.attested.is_empty() {
+        [0; 32]
+    } else {
+        crate::to_cbor(&claim.attested)
+            .ok()
+            .map(|bytes| crate::hash_payload(&bytes))
+            .unwrap_or([0; 32])
+    };
     ClaimIdentityWire::new(
         contract.identities.program,
         contract.identities.target,
         claim.kind.clone(),
         claim.value_bits,
         claim.execution,
+        calibration,
+        attested,
     )
 }
 
@@ -910,7 +1142,9 @@ mod tests {
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let identification = IdentificationIdentityWire {
             format: IDENTITY_FORMAT,
-            target: *target_digest.as_bytes(),
+            target_question: *target_digest.as_bytes(),
+            population_depends_on: Vec::new(),
+            rd_config: None,
             graph_class: "Dag".into(),
             structure_source: "explicit".into(),
             accepted_version: 0,
@@ -934,10 +1168,12 @@ mod tests {
         let commitments = InferentialCommitmentsWire {
             format: IDENTITY_FORMAT,
             estimator: Some("g_computation".into()),
+            resolved_estimator: Some("g_computation".into()),
             identifier: Some("backdoor".into()),
             inference: "frequentist".into(),
             validation_suite: None,
-            interval_target: "sampling_se".into(),
+            interval_method: "analytic_se".into(),
+            se_kind: Some("hc1".into()),
             prior_required: false,
         };
         let program = ProgramIdentityWire {
@@ -957,6 +1193,8 @@ mod tests {
             prior_mapping: None,
             validation_suite: None,
             overlap_policy: None,
+            estimator_spec: None,
+            response_options: None,
         };
         let inference_digest = inference_binding_digest(&inference_binding).unwrap();
         let data_snapshot = DataSnapshotIdentityWire {
@@ -986,24 +1224,7 @@ mod tests {
             observation: *observation_digest.as_bytes(),
             data_snapshot: *snapshot_digest.as_bytes(),
         };
-        let claim = ClaimSectionWire {
-            claim_id: *claim_digest(&ClaimIdentityWire::new(
-                identities.program,
-                identities.target,
-                "point",
-                Some(2.0f64.to_bits()),
-                Some(*execution_digest.as_bytes()),
-            ))
-            .unwrap()
-            .as_bytes(),
-            kind: "point".into(),
-            value_bits: Some(2.0f64.to_bits()),
-            execution: Some(*execution_digest.as_bytes()),
-            identification_domain: "identified".into(),
-            support_domain: "unknown".into(),
-            evaluated_domain: "evaluated".into(),
-        };
-        AnalysisResultContractWire {
+        let mut contract = AnalysisResultContractWire {
             format: CONTRACT_SECTION_FORMAT,
             identities,
             target,
@@ -1043,7 +1264,7 @@ mod tests {
             structure_source: "explicit".into(),
             identifier: Some("backdoor".into()),
             estimator: Some("g_computation".into()),
-            claim: Some(claim),
+            claim: None,
             identification: Some(identification),
             identification_product: Some(identification_product),
             program: Some(program),
@@ -1051,6 +1272,30 @@ mod tests {
             observation: Some(observation),
             data_snapshot: Some(data_snapshot),
             execution: Some(execution),
+        };
+        let mut claim = ClaimSectionWire {
+            claim_id: [0; 32],
+            kind: "point".into(),
+            value_bits: Some(2.0f64.to_bits()),
+            execution: Some(*execution_digest.as_bytes()),
+            identification_domain: "identified".into(),
+            support_domain: "unknown".into(),
+            evaluated_domain: "evaluated".into(),
+            calibration: super::rederive_calibration_slot(&contract),
+            attested: Vec::new(),
+        };
+        contract.claim = Some(claim);
+        seal_claim(&mut contract);
+        contract
+    }
+
+    fn seal_claim(contract: &mut AnalysisResultContractWire) {
+        let Some(claim) = contract.claim.clone() else {
+            return;
+        };
+        let claim_id = *claim_digest(&super::claim_identity_wire(contract, &claim)).unwrap().as_bytes();
+        if let Some(claim) = contract.claim.as_mut() {
+            claim.claim_id = claim_id;
         }
     }
 
@@ -1115,27 +1360,7 @@ mod tests {
         let (body, target, names) = fixture_body();
         let mut contract = contract_for(target, &body);
         let identification = contract.identification.as_mut().expect("identification");
-        identification.target = [0u8; 32];
-        let identification_digest = crate::identity::identification_digest(identification).unwrap();
-        contract.identities.identification = *identification_digest.as_bytes();
-        if let Some(program) = contract.program.as_mut() {
-            program.identification = *identification_digest.as_bytes();
-            let program_digest = crate::identity::program_digest(program).unwrap();
-            contract.identities.program = *program_digest.as_bytes();
-            if let Some(inference) = contract.inference_binding.as_mut() {
-                inference.program = *program_digest.as_bytes();
-                contract.identities.inference_binding =
-                    *crate::identity::inference_binding_digest(inference).unwrap().as_bytes();
-            }
-        }
-        if let Some(claim) = contract.claim.clone() {
-            let claim_id =
-                crate::identity::claim_digest(&super::claim_identity_wire(&contract, &claim))
-                    .unwrap();
-            if let Some(claim) = contract.claim.as_mut() {
-                claim.claim_id = *claim_id.as_bytes();
-            }
-        }
+        identification.target_question = [0u8; 32];
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
         assert!(!consumed.acceptance.accepts_as_verified_program());
@@ -1144,7 +1369,7 @@ mod tests {
                 .acceptance
                 .unresolved
                 .iter()
-                .any(|item| &**item == "identification.target"),
+                .any(|item| &**item == "identities.identification"),
             "{:?}",
             consumed.acceptance.unresolved
         );
@@ -1253,16 +1478,8 @@ mod tests {
         let mut zero = contract_for(target.clone(), &body);
         if let Some(claim) = zero.claim.as_mut() {
             claim.value_bits = Some(0.0f64.to_bits());
-            claim.claim_id = *claim_digest(&ClaimIdentityWire::new(
-                zero.identities.program,
-                zero.identities.target,
-                "point",
-                claim.value_bits,
-                claim.execution,
-            ))
-            .unwrap()
-            .as_bytes();
         }
+        seal_claim(&mut zero);
         let consumed_zero =
             consume_analysis_result(&to_bytes(&body, names.clone(), Some(&zero))).unwrap();
         let proj_zero = project_claim_host(&consumed_zero);
@@ -1274,16 +1491,8 @@ mod tests {
         let mut absent = contract_for(target.clone(), &body);
         if let Some(claim) = absent.claim.as_mut() {
             claim.value_bits = None;
-            claim.claim_id = *claim_digest(&ClaimIdentityWire::new(
-                absent.identities.program,
-                absent.identities.target,
-                "point",
-                None,
-                claim.execution,
-            ))
-            .unwrap()
-            .as_bytes();
         }
+        seal_claim(&mut absent);
         let consumed_absent =
             consume_analysis_result(&to_bytes(&body, names.clone(), Some(&absent))).unwrap();
         let proj_absent = project_claim_host(&consumed_absent);
@@ -1308,16 +1517,8 @@ mod tests {
         let mut contract = contract_for(target, &body);
         if let Some(claim) = contract.claim.as_mut() {
             claim.kind = "mixture".into();
-            claim.claim_id = *claim_digest(&ClaimIdentityWire::new(
-                contract.identities.program,
-                contract.identities.target,
-                "mixture",
-                claim.value_bits,
-                claim.execution,
-            ))
-            .unwrap()
-            .as_bytes();
         }
+        seal_claim(&mut contract);
         let bytes = to_bytes(&body, names, Some(&contract));
         let (full, lossless) =
             accept_claim(&bytes, &antecedent_core::ConsumerProfile::full()).unwrap();

@@ -153,6 +153,9 @@ impl TargetPopulation {
                     weights: Some(Arc::from(weights.to_vec())),
                 })
             }
+            Self::RowWeights { .. } => {
+                Ok(PopulationSelection { keep: Arc::from(vec![true; n]), weights: None })
+            }
         }
     }
 }

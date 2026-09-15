@@ -67,7 +67,8 @@ pub mod review;
 pub mod state;
 pub mod strategy_table;
 pub mod support;
-mod support_matrix_data;
+pub mod coverage_records_data;
+pub mod support_matrix_data;
 
 pub mod estimate;
 pub mod graph;
@@ -927,5 +928,21 @@ mod tests {
         let plan = analysis.compile(&ctx).unwrap();
         assert!(plan.temporal_graph().is_some());
         assert_eq!(plan.record.batch_size, Some(250));
+    }
+
+    #[test]
+    fn every_interval_method_has_a_record_or_code() {
+        for method in antecedent_core::IntervalMethod::ALL {
+            let has_record = crate::coverage_records_data::RECORDS
+                .iter()
+                .any(|row| row.interval_method == method.as_str());
+            let listed = crate::coverage_records_data::INTERVAL_METHOD_REASONS
+                .iter()
+                .any(|(item, reason)| *item == method && (has_record || reason.is_some()));
+            assert!(
+                has_record || listed,
+                "IntervalMethod::{method:?} needs a coverage record or INTERVAL_METHOD_REASONS code"
+            );
+        }
     }
 }

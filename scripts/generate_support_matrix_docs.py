@@ -21,6 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "support-matrix.md"
 RUST_OUT = ROOT / "crates" / "antecedent" / "src" / "support_matrix_data.rs"
+COVERAGE_OUT = ROOT / "crates" / "antecedent" / "src" / "coverage_records_data.rs"
 NOTES_DIR = ROOT / "docs" / "release-notes"
 RN_BEGIN = "<!-- generated:support-matrix:licensed:begin -->"
 RN_END = "<!-- generated:support-matrix:licensed:end -->"
@@ -235,12 +236,12 @@ Of those cells, **{n_a_count}** are typed impossibilities and
 Every cell is in exactly **one of three runtime states**: **licensed** (a
 result), **n/a** (the coordinate does not denote — a typed impossibility),
 or **refused** (`SupportRefusal::Refused`). Refusal is the *default*: any
-cell that is not licensed and not n/a is refused, whether or not a rule
-names a reason for it. `support_closed.toml` does not close anything — it
-is the **reason table** for refused cells, not a fourth state. A refused
-cell either has a documented reason on file or it doesn't; both refuse
-identically at runtime. `allowed_unlicensed` is retained as a compatibility
-wire value, but 0.9 has no active allowlist entries.
+cell that is not licensed and not n/a is refused. `support_closed.toml`
+does not close anything — it is the **reason table** for refused cells,
+not a fourth state. 1.10 requires every refused cell to have a named
+reason; a missing rule still refuses at runtime with the shared default
+message. `allowed_unlicensed` is retained as a compatibility wire value,
+but 0.9 has no active allowlist entries.
 
 | Status | Count | How to read it |
 |---|---|---|
@@ -250,7 +251,7 @@ wire value, but 0.9 has no active allowlist entries.
 | Licensed | {len(cells)} | Staged path plus the row's recorded evidence contract and limitations |
 | `allowed_unlicensed` compatibility entries | {allowed_count} | Retained wire value; 0.9 requires this count to remain zero |
 | Refused — reason on file | {reason_backed_refused_count} | Same runtime outcome as any other refused cell; documented in legacy-named `support_closed.toml`, including mislabeled-inference laundering |
-| Refused — no reason on file yet | {unreasoned_refused_count} | Same runtime outcome; no rule in `support_closed.toml` names it yet |
+| Refused — no reason on file | {unreasoned_refused_count} | Must stay 0; `gate_support_matrix.sh` fails if a refused cell has no `support_closed.toml` rule |
 
 Do not read "{len(cells)} / {cartesian}" as coverage. Read: **{len(cells)} cells
 carry their recorded evidence contracts**; no cells run through the retained
@@ -316,6 +317,7 @@ n/a, or refused.
 """
     OUT.write_text(text)
     RUST_OUT.write_text(render_rust(na_rules, closed_rules, allowed_rules, cells))
+    COVERAGE_OUT.write_text(render_coverage_records())
     write_release_notes_block(
         cells,
         {
@@ -336,6 +338,7 @@ n/a, or refused.
     )
     print(f"Wrote {OUT.relative_to(ROOT)}")
     print(f"Wrote {RUST_OUT.relative_to(ROOT)}")
+    print(f"Wrote {COVERAGE_OUT.relative_to(ROOT)}")
     print(f"Wrote {RELEASE_NOTES.relative_to(ROOT)} (licensed block)")
     return 0
 
@@ -444,6 +447,79 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
     head, rest = text.split(RN_BEGIN, 1)
     _, tail = rest.split(RN_END, 1)
     RELEASE_NOTES.write_text(head + block + tail)
+
+
+def render_coverage_records() -> str:
+    records = load("parity/coverage_records.toml").get("record") or []
+    items = []
+    for row in records:
+        items.append(
+            "    CoverageRecord {\n"
+            f"        id: \"{rust_escape(row['id'])}\",\n"
+            f"        query: \"{rust_escape(row['query'])}\",\n"
+            f"        graph_class: \"{rust_escape(row['graph_class'])}\",\n"
+            f"        inference: \"{rust_escape(row['inference'])}\",\n"
+            f"        estimator: \"{rust_escape(row.get('estimator') or '')}\",\n"
+            f"        interval_method: \"{rust_escape(row['interval_method'])}\",\n"
+            f"        se_kind: \"{rust_escape(row.get('se_kind') or '')}\",\n"
+            f"        dgp: \"{rust_escape(row['dgp'])}\",\n"
+            f"        n: {int(row['n'])},\n"
+            f"        dependence: \"{rust_escape(row['dependence'])}\",\n"
+            f"        nominal: {float(row['nominal'])},\n"
+            f"        observed: {float(row['observed'])},\n"
+            f"        mcse: {float(row['mcse'])},\n"
+            f"        replicates: {int(row['replicates'])},\n"
+            f"        boundary: {'true' if row.get('boundary') else 'false'},\n"
+            f"        test: \"{rust_escape(row['test'])}\",\n"
+            f"        calibration_sha: \"{rust_escape(row['calibration_sha'])}\",\n"
+            "    }"
+        )
+    reason_items = ",\n".join(
+        [
+            "    (antecedent_core::IntervalMethod::AnalyticSe, None)",
+            "    (antecedent_core::IntervalMethod::BootstrapSe, None)",
+            "    (antecedent_core::IntervalMethod::PosteriorQuantile, None)",
+            "    (antecedent_core::IntervalMethod::IdentifiedSet, None)",
+            "    (antecedent_core::IntervalMethod::CircularBlockSe, None)",
+            "    (antecedent_core::IntervalMethod::SimultaneousBand, None)",
+            '    (antecedent_core::IntervalMethod::None, Some("no_interval_reported"))',
+        ]
+    )
+    block = ",\n".join(items) if items else ""
+    return f"""//! Generated from `parity/coverage_records.toml`. Do not edit.
+
+#![allow(missing_docs, dead_code)]
+#![cfg_attr(rustfmt, rustfmt::skip)]
+
+#[derive(Clone, Copy, Debug)]
+pub struct CoverageRecord {{
+    pub id: &'static str,
+    pub query: &'static str,
+    pub graph_class: &'static str,
+    pub inference: &'static str,
+    pub estimator: &'static str,
+    pub interval_method: &'static str,
+    pub se_kind: &'static str,
+    pub dgp: &'static str,
+    pub n: u64,
+    pub dependence: &'static str,
+    pub nominal: f64,
+    pub observed: f64,
+    pub mcse: f64,
+    pub replicates: u32,
+    pub boundary: bool,
+    pub test: &'static str,
+    pub calibration_sha: &'static str,
+}}
+
+pub static RECORDS: &[CoverageRecord] = &[
+{block}
+];
+
+pub static INTERVAL_METHOD_REASONS: &[(antecedent_core::IntervalMethod, Option<&'static str>)] = &[
+{reason_items}
+];
+"""
 
 
 def rust_list(values: list[str] | None) -> str:

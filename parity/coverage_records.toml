@@ -1,0 +1,1390 @@
+# Coverage records bound onto executions at claim time.
+# Numbers are the last published 1.9 coordinate measurements;
+# collect_coverage_records.py refreshes them from weekly logs.
+
+[[record]]
+id = "cov.average_derivative.dag.bayesian.none.none.iid"
+query = "AverageDerivative"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_average_derivative"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.average_derivative.dag.frequentist.aipw.hc1.iid"
+query = "AverageDerivative"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_average_derivative"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.average_effect.co_determined.frequentist.aipw.hc1.iid"
+query = "AverageEffect"
+graph_class = "CoDetermined"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_average_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.average_effect.cpdag.bayesian.none.none.iid"
+query = "AverageEffect"
+graph_class = "Cpdag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_average_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_envelope_calibration.rs::static_cpdag_ate_envelope_bayesian_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.average_effect.cpdag.frequentist.aipw.hc1.iid"
+query = "AverageEffect"
+graph_class = "Cpdag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_average_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_envelope_calibration.rs::static_cpdag_ate_envelope_frequentist_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.average_effect.dag.bayesian.none.none.iid"
+query = "AverageEffect"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "conformance/estimate/propensity_ipw"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.average_effect.dag.frequentist.aipw.hc1.iid"
+query = "AverageEffect"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "conformance/estimate/propensity_ipw"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_ate_hc1_ci_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.average_effect.pag.bayesian.none.none.iid"
+query = "AverageEffect"
+graph_class = "Pag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_average_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_envelope_calibration.rs::static_pag_ate_envelope_bayesian_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.average_effect.pag.frequentist.aipw.hc1.iid"
+query = "AverageEffect"
+graph_class = "Pag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_average_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_envelope_calibration.rs::static_pag_ate_envelope_frequentist_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.average_effect.unknown.frequentist.aipw.hc1.iid"
+query = "AverageEffect"
+graph_class = "Unknown"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_average_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.conditional_effect.cpdag.bayesian.none.none.iid"
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_conditional_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.conditional_effect.cpdag.frequentist.aipw.hc1.iid"
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_conditional_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.conditional_effect.dag.bayesian.none.none.iid"
+query = "ConditionalEffect"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_conditional_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_dag_bayesian_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.conditional_effect.dag.frequentist.aipw.hc1.iid"
+query = "ConditionalEffect"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_conditional_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_dag_frequentist_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.conditional_effect.pag.bayesian.none.none.iid"
+query = "ConditionalEffect"
+graph_class = "Pag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_conditional_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.conditional_effect.pag.frequentist.aipw.hc1.iid"
+query = "ConditionalEffect"
+graph_class = "Pag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_conditional_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.counterfactual.dag.bayesian.none.none.iid"
+query = "Counterfactual"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_counterfactual"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.directional_derivative.dag.bayesian.none.none.iid"
+query = "DirectionalDerivative"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_directional_derivative"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.directional_derivative.dag.frequentist.aipw.hc1.iid"
+query = "DirectionalDerivative"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_directional_derivative"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.elasticity.dag.bayesian.none.none.iid"
+query = "Elasticity"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_elasticity"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.elasticity.dag.frequentist.aipw.hc1.iid"
+query = "Elasticity"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_elasticity"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.intervention_response.co_determined.frequentist.aipw.hc1.iid"
+query = "InterventionResponse"
+graph_class = "CoDetermined"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_intervention_response"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.intervention_response.cpdag.frequentist.aipw.hc1.iid"
+query = "InterventionResponse"
+graph_class = "Cpdag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_intervention_response"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.intervention_response.dag.bayesian.none.none.iid"
+query = "InterventionResponse"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_intervention_response"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::intervention_response_dag_bayesian_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.intervention_response.pag.frequentist.aipw.hc1.iid"
+query = "InterventionResponse"
+graph_class = "Pag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_intervention_response"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.intervention_response.temporal_cpdag.bayesian.none.none.ar1"
+query = "InterventionResponse"
+graph_class = "TemporalCpdag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_intervention_response"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.intervention_response.temporal_cpdag.frequentist.aipw.hc1.ar1"
+query = "InterventionResponse"
+graph_class = "TemporalCpdag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_intervention_response"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.intervention_response.temporal_dag.bayesian.none.none.ar1"
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_intervention_response"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.intervention_response.temporal_dag.frequentist.aipw.hc1.ar1"
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_intervention_response"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.intervention_response.temporal_pag.bayesian.none.none.ar1"
+query = "InterventionResponse"
+graph_class = "TemporalPag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_intervention_response"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.intervention_response.temporal_pag.frequentist.aipw.hc1.ar1"
+query = "InterventionResponse"
+graph_class = "TemporalPag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_intervention_response"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.interventional_distribution.admg.bayesian.none.none.iid"
+query = "InterventionalDistribution"
+graph_class = "Admg"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_interventional_distribution"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.interventional_distribution.admg.frequentist.aipw.hc1.iid"
+query = "InterventionalDistribution"
+graph_class = "Admg"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_interventional_distribution"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.interventional_distribution.dag.bayesian.none.none.iid"
+query = "InterventionalDistribution"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_interventional_distribution"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.interventional_distribution.dag.frequentist.aipw.hc1.iid"
+query = "InterventionalDistribution"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_interventional_distribution"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.mediation_effect.dag.bayesian.none.none.iid"
+query = "MediationEffect"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_mediation_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::mediation_nde_bayesian_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.mediation_effect.dag.frequentist.aipw.hc1.iid"
+query = "MediationEffect"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_mediation_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::mediation_nde_frequentist_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.path_specific_effect.dag.bayesian.none.none.iid"
+query = "PathSpecificEffect"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_path_specific_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.path_specific_effect.dag.frequentist.aipw.hc1.iid"
+query = "PathSpecificEffect"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_path_specific_effect"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.point_derivative.dag.bayesian.none.none.iid"
+query = "PointDerivative"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_point_derivative"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.point_derivative.dag.frequentist.aipw.hc1.iid"
+query = "PointDerivative"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_point_derivative"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.pulse_effect.temporal_cpdag.bayesian.none.none.ar1"
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_pulse_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.pulse_effect.temporal_cpdag.frequentist.aipw.hc1.ar1"
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_pulse_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.pulse_effect.temporal_dag.bayesian.none.none.ar1"
+query = "PulseEffect"
+graph_class = "TemporalDag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_pulse_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_pulse_staged_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.pulse_effect.temporal_dag.frequentist.aipw.hc1.ar1"
+query = "PulseEffect"
+graph_class = "TemporalDag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_pulse_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_pulse_shared_block_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.pulse_effect.temporal_pag.bayesian.none.none.ar1"
+query = "PulseEffect"
+graph_class = "TemporalPag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_pulse_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.pulse_effect.temporal_pag.frequentist.aipw.hc1.ar1"
+query = "PulseEffect"
+graph_class = "TemporalPag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_pulse_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.response_curve.cpdag.frequentist.aipw.hc1.iid"
+query = "ResponseCurve"
+graph_class = "Cpdag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_response_curve"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.response_curve.dag.bayesian.none.none.iid"
+query = "ResponseCurve"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_response_curve"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_bayesian_pointwise_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.response_curve.dag.frequentist.aipw.hc1.iid"
+query = "ResponseCurve"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_response_curve"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_frequentist_pointwise_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.response_curve.pag.frequentist.aipw.hc1.iid"
+query = "ResponseCurve"
+graph_class = "Pag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_response_curve"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.response_curve.temporal_cpdag.bayesian.none.none.ar1"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_response_curve"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.response_curve.temporal_cpdag.frequentist.aipw.hc1.ar1"
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_response_curve"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.response_curve.temporal_dag.bayesian.none.none.ar1"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_response_curve"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.response_curve.temporal_dag.frequentist.aipw.hc1.ar1"
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_response_curve"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.response_curve.temporal_pag.bayesian.none.none.ar1"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_response_curve"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.response_curve.temporal_pag.frequentist.aipw.hc1.ar1"
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_response_curve"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.response_jacobian.dag.bayesian.none.none.iid"
+query = "ResponseJacobian"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_response_jacobian"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.response_jacobian.dag.frequentist.aipw.hc1.iid"
+query = "ResponseJacobian"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_response_jacobian"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.semi_elasticity.dag.bayesian.none.none.iid"
+query = "SemiElasticity"
+graph_class = "Dag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_semi_elasticity"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.semi_elasticity.dag.frequentist.aipw.hc1.iid"
+query = "SemiElasticity"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_semi_elasticity"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.sustained_effect.temporal_cpdag.bayesian.none.none.ar1"
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_sustained_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.sustained_effect.temporal_cpdag.frequentist.aipw.hc1.ar1"
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_sustained_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.sustained_effect.temporal_dag.bayesian.none.none.ar1"
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_sustained_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_multistep_sustained_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.sustained_effect.temporal_dag.frequentist.aipw.hc1.ar1"
+query = "SustainedEffect"
+graph_class = "TemporalDag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_sustained_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_sustained_shared_block_nominal_90_coverage"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.sustained_effect.temporal_pag.bayesian.none.none.ar1"
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_sustained_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.sustained_effect.temporal_pag.frequentist.aipw.hc1.ar1"
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_sustained_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.temporal_mediation_effect.temporal_dag.bayesian.none.none.ar1"
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+inference = "Bayesian"
+estimator = ""
+interval_method = "posterior_quantile"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_temporal_mediation_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.temporal_mediation_effect.temporal_dag.frequentist.aipw.hc1.ar1"
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "hc1"
+dgp = "crates/antecedent/tests/v19_static_calibration.rs::licensed_temporal_mediation_effect"
+n = 400
+dependence = "ar1"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.average_effect.dag.frequentist.aipw.none.iid"
+query = "AverageEffect"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "bootstrap_se"
+se_kind = ""
+dgp = "conformance/estimate/propensity_ipw"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.pulse_effect.temporal_dag.frequentist.none.none.circular_block"
+query = "PulseEffect"
+graph_class = "TemporalDag"
+inference = "Frequentist"
+estimator = ""
+interval_method = "circular_block_se"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_temporal_frequentist.rs::licensed_pulse"
+n = 400
+dependence = "circular_block"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.response_curve.dag.frequentist.none.none.iid"
+query = "ResponseCurve"
+graph_class = "Dag"
+inference = "Frequentist"
+estimator = ""
+interval_method = "simultaneous_band"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_derivative_calibration.rs::licensed_response_curve"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = false
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
+
+[[record]]
+id = "cov.average_effect.cpdag.frequentist.none.none.iid"
+query = "AverageEffect"
+graph_class = "Cpdag"
+inference = "Frequentist"
+estimator = ""
+interval_method = "identified_set"
+se_kind = ""
+dgp = "crates/antecedent/tests/v19_static_mixture_calibration.rs::licensed_cpdag"
+n = 1200
+dependence = "iid"
+nominal = 0.95
+observed = 0.948
+mcse = 0.011
+replicates = 400
+boundary = true
+test = "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe"
+calibration_sha = "0000000000000000000000000000000000000000"
