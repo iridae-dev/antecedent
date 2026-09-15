@@ -15,15 +15,17 @@
 //! scored at a wider bandwidth sized for the curvature. There the leading
 //! second-derivative bias is `h²·m''''`, which a local cubic does not remove;
 //! the interval is bias-corrected by a local quartic instead (the local-cubic
-//! correction covered 0.695 here at nominal 0.90).
+//! correction covered 0.695 here at nominal 0.90). Every Bayesian interval
+//! here is the exchangeable-rank (type-6) quantile interval of its draws.
 //!
 //! The Jacobian / directional DGP is additive with a quadratic component. Only
 //! the Bayesian result publishes a band for these (the Frequentist result
 //! withholds it, asserted below). A roughness-penalized plug-in target shrank
 //! the gradient enough that the band covered well under nominal; the target is
-//! now an unpenalized regression spline in the treatment coordinates. Its band
-//! is centred but 4–5% too narrow (`JACOBIAN_MEASURED`), so these two cells are
-//! named boundary cells.
+//! now an unpenalized regression spline in the treatment coordinates. Its
+//! Dirichlet-weight band takes exchangeable-rank quantiles of the draws and is
+//! inflated by the fit's degrees of freedom; the directional cell is gated at
+//! nominal and the Jacobian cell is a named boundary (`JACOBIAN_MEASURED`).
 //!
 //! The skewed / heteroskedastic treatment-law ADE run is a misspecification
 //! probe outside the Gaussian-score assumption: it records coverage and checks
@@ -287,6 +289,7 @@ fn scalar_coverage(
     // interval is mis-centred (bias) or mis-scaled (SE).
     let mut centres = Vec::new();
     let mut half_widths = Vec::new();
+    let mut zs = Vec::new();
     for rep in 0..u64::from(n_sim()) {
         let seed = replicate_seed(0x0D0E, rep);
         let data = data_fn(n, seed);
@@ -297,6 +300,9 @@ fn scalar_coverage(
                 if let Some((lo, hi)) = interval {
                     centres.push(0.5 * (lo + hi));
                     half_widths.push(0.5 * (hi - lo));
+                    zs.push(
+                        (0.5 * (lo + hi) - truth) / (0.5 * (hi - lo)) * common::calibration::Z90,
+                    );
                 }
             }
             // A documented refusal, e.g. a posterior draw whose fitted response
@@ -313,13 +319,27 @@ fn scalar_coverage(
     let se = half_widths.iter().sum::<f64>()
         / half_widths.len().max(1) as f64
         / common::calibration::Z90;
+    let (z_sd, z_kurt) = z_shape(&zs);
     eprintln!(
-        "info {name}: centre bias={:+.4} mc_sd={sd:.4} mean_se={se:.4} se/sd={:.3} bias/sd={:+.3}",
+        "info {name}: centre bias={:+.4} mc_sd={sd:.4} mean_se={se:.4} se/sd={:.3} bias/sd={:+.3} \
+         z_sd={z_sd:.3} z_kurt={z_kurt:.2}",
         mean - truth,
         se / sd,
         (mean - truth) / sd
     );
     tally
+}
+
+/// SD and excess kurtosis of the studentized errors `z = (centre − truth) /
+/// (half-width / z_0.95)`: `z_sd` above 1 says the interval is uniformly too
+/// narrow by that factor; positive `z_kurt` with `z_sd ≈ 1` says the misses
+/// come from tails the interval's scale does not track.
+fn z_shape(zs: &[f64]) -> (f64, f64) {
+    let n = zs.len().max(2) as f64;
+    let mean = zs.iter().sum::<f64>() / n;
+    let m2 = zs.iter().map(|z| (z - mean).powi(2)).sum::<f64>() / n;
+    let m4 = zs.iter().map(|z| (z - mean).powi(4)).sum::<f64>() / n;
+    (m2.sqrt(), m4 / (m2 * m2) - 3.0)
 }
 
 /// Print a probe's measured coverage without gating on the nominal band.
@@ -456,15 +476,17 @@ fn point_derivative_order_2_frequentist_curvature_nominal_90_coverage() {
     .assert();
 }
 
-/// Boundary cell: 0.885 at 2000 replicates (floor 0.887; 0.865 at 400). The
-/// Dirichlet-weight interval of the local-quartic curvature at the caller
-/// bandwidth; the `info` line above records its centre bias and SE / SD so the
-/// 0.2-point shortfall can be attributed (the equal-tailed quantiles of
-/// `DRAWS` draws alone sit 1–2% inside the normal quantiles, worth about half
-/// a point). The Frequentist order-2 interval on the same DGP is nominal.
+/// 0.896 at 2000 replicates (floor 0.887). The Dirichlet-weight interval of
+/// the local-quartic curvature at the caller bandwidth covered 0.885 with
+/// sample quantiles of `DRAWS` draws; the exchangeable-rank quantiles are
+/// worth the point. The interval's midpoint is heavy-tailed across designs
+/// (Monte-Carlo SD 0.43 against a mean half-width / z of 0.31), so the `info`
+/// line's SE / SD ratio reads low while the studentized error has unit SD and
+/// no excess kurtosis. The Frequentist order-2 interval on the same DGP is
+/// nominal.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn point_derivative_order_2_bayesian_curvature_boundary_within_band() {
+fn point_derivative_order_2_bayesian_curvature_nominal_90_coverage() {
     scalar_coverage(
         "point_derivative_order_2_bayesian_curvature",
         point_data,
@@ -474,7 +496,7 @@ fn point_derivative_order_2_bayesian_curvature_boundary_within_band() {
         true,
         mu_second(AT),
     )
-    .assert_boundary(0.885);
+    .assert();
 }
 
 #[test]
@@ -545,8 +567,10 @@ fn gam_coverage(name: &str, functional: &F, truth: &[f64]) -> Vec<CoverageTally>
     let graph = gam_graph();
     // Posterior means and band half-widths per coordinate, so a failing gate
     // says whether the band is mis-centred (bias) or mis-scaled (SE).
+    let z = common::calibration::Z90;
     let mut points: Vec<Vec<f64>> = vec![Vec::new(); truth.len()];
     let mut half_widths: Vec<Vec<f64>> = vec![Vec::new(); truth.len()];
+    let mut zs: Vec<Vec<f64>> = vec![Vec::new(); truth.len()];
     for rep in 0..u64::from(n_sim()) {
         let seed = replicate_seed(0x0D0F, rep);
         let data = gam_data(N_GAM, seed);
@@ -564,6 +588,7 @@ fn gam_coverage(name: &str, functional: &F, truth: &[f64]) -> Vec<CoverageTally>
                     points[j].push(values[j]);
                     if let Some((lo, hi)) = interval {
                         half_widths[j].push(0.5 * (hi - lo));
+                        zs[j].push((values[j] - truth[j]) / (0.5 * (hi - lo)) * z);
                     }
                 }
             }
@@ -575,15 +600,15 @@ fn gam_coverage(name: &str, functional: &F, truth: &[f64]) -> Vec<CoverageTally>
             }
         }
     }
-    let z = common::calibration::Z90;
     for j in 0..truth.len() {
         let n = points[j].len().max(2) as f64;
         let mean = points[j].iter().sum::<f64>() / n;
         let sd = (points[j].iter().map(|p| (p - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt();
         let se = half_widths[j].iter().sum::<f64>() / half_widths[j].len().max(1) as f64 / z;
+        let (z_sd, z_kurt) = z_shape(&zs[j]);
         eprintln!(
             "info {name}[{j}]: bias={:+.4} mc_sd={sd:.4} mean_band_se={se:.4} se/sd={:.3} \
-             bias/sd={:+.3}",
+             bias/sd={:+.3} z_sd={z_sd:.3} z_kurt={z_kurt:.2}",
             mean - truth[j],
             se / sd,
             (mean - truth[j]) / sd
@@ -592,20 +617,29 @@ fn gam_coverage(name: &str, functional: &F, truth: &[f64]) -> Vec<CoverageTally>
     tallies
 }
 
-/// Boundary cells, not nominal ones: the Dirichlet-weight band of the
-/// unpenalized additive-GAM plug-in gradient covers 0.871–0.894 per Jacobian
-/// coordinate and 0.878–0.880 per directional coordinate at 2000 replicates
-/// (floor 0.887). The band is centred (bias/SD within ±0.03 on every
-/// coordinate) and 4–5% too narrow on every coordinate (band SE / Monte-Carlo
-/// SD 0.95–0.98): a row-weight posterior spread is an HC0-type sandwich, which
-/// understates the sampling variance of a fitted-coefficient functional by
-/// about the ratio of spline coefficients to rows, and the equal-tailed
-/// quantiles of `DRAWS` draws sit a further 1–2% inside the normal quantiles.
-/// The missing piece is a leverage (degrees-of-freedom) correction of the
-/// draw spread by the GAM's effective parameter count; until it is in, the
-/// assertion is the band around each coordinate's measured coverage.
-const JACOBIAN_MEASURED: [f64; 4] = [0.871, 0.883, 0.894, 0.878];
-const DIRECTIONAL_MEASURED: [f64; 2] = [0.880, 0.878];
+/// Boundary cell: the Dirichlet-weight band of the unpenalized additive-GAM
+/// plug-in gradient covers `JACOBIAN_MEASURED` per Jacobian coordinate at
+/// 2000 replicates (floor 0.887); coordinate 0 (∂Y1/∂A1, the quadratic
+/// component) sits below the floor. Before the exchangeable-rank quantiles and
+/// the degrees-of-freedom inflation of the draw spread the four coordinates
+/// covered 0.871 / 0.883 / 0.894 / 0.878 (band SE / Monte-Carlo SD 0.95–0.98);
+/// the sample-quantile ranks of `DRAWS` draws cost about one point and the
+/// HC0-type draw spread under one (`edf / n ≈ 1.4%`).
+///
+/// What remains is not a band defect. Over 10 000 replicate designs of this
+/// DGP the band covers 0.896 / 0.897 / 0.897 / 0.892 (MCSE 0.003), its mean
+/// half-width matches the estimator's sampling SD within 1% on every
+/// coordinate, and conditional on each design it covers 0.897–0.901 over
+/// 40 000 regenerated outcome draws (the estimator is a linear smoother of
+/// Gaussian noise, so this is the exact conditional law). The residual half
+/// point below nominal is the price of a band whose half-width is estimated
+/// with ≈ 6% relative noise from the sandwich and the finite draw count
+/// (coverage loss ≈ 0.46 × 0.06²). The 2000 seeds of this gate are a low
+/// block for coordinate 0: the same band on the next four 2000-seed blocks
+/// covers 0.894 / 0.898 / 0.906 / 0.898 there. The assertion is the band
+/// around each coordinate's measured coverage; the directional cell, the same
+/// estimator read through a fixed direction, is gated at nominal below.
+const JACOBIAN_MEASURED: [f64; 4] = [0.883, 0.893, 0.904, 0.890];
 
 /// Assert every coordinate against the band around its measured coverage,
 /// printing every line before failing on any of them.
@@ -629,12 +663,28 @@ fn response_jacobian_bayesian_boundary_within_band() {
     assert_all_boundary(&tallies, &JACOBIAN_MEASURED);
 }
 
+/// Assert every coordinate at nominal, printing every line before failing on
+/// any of them.
+fn assert_all_nominal(tallies: &[CoverageTally]) {
+    let failures: Vec<String> = tallies
+        .iter()
+        .filter_map(|tally| {
+            std::panic::catch_unwind(|| tally.assert()).err().map(|e| {
+                e.downcast_ref::<String>().cloned().unwrap_or_else(|| "coverage failure".into())
+            })
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("; "));
+}
+
+/// 0.893 / 0.890 at 2000 replicates (0.880 / 0.878 before the exchangeable-rank
+/// quantiles and the degrees-of-freedom inflation, see `JACOBIAN_MEASURED`).
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
-fn directional_derivative_bayesian_boundary_within_band() {
+fn directional_derivative_bayesian_nominal_90_coverage() {
     let tallies =
         gam_coverage("directional_derivative_bayesian", &directional_query(), &DIRECTIONAL_TRUTH);
-    assert_all_boundary(&tallies, &DIRECTIONAL_MEASURED);
+    assert_all_nominal(&tallies);
 }
 
 // --- Withheld intervals stay withheld (not a coverage run) -------------------
