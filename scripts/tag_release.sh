@@ -44,6 +44,14 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
   exit 1
 fi
 
+if [[ "${REQUIRE_CALIBRATION_ATTESTATION:-0}" != "1" || -z "${CALIBRATION_SHA:-}" ]]; then
+  echo "FAIL: tagging requires REQUIRE_CALIBRATION_ATTESTATION=1 and CALIBRATION_SHA" >&2
+  echo "  REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<weekly-pass-sha> $0" >&2
+  exit 1
+fi
+REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA="${CALIBRATION_SHA}" \
+  bash scripts/gate_release_candidate.sh
+
 git tag -a "$TAG" -m "Release $TAG"
 echo "Created annotated tag $TAG."
 echo "Push with: git push origin $TAG"

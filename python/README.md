@@ -64,6 +64,17 @@ save and semantically inspect an execution without reconstructing a live study.
 See the [workflow guide](../docs/python-workflow.md) and
 [example setup](../examples/README.md#python-environment-110-branch).
 
+## 1.10.0
+
+The
+[1.10.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.10.0.md)
+cover composition of the existing 341 licensed cells: inspect/contract
+coordinates, the Rust inspect → preview → execute → claim → consume path
+for every licensed cell, retained studies on ordinary prepared routes, and
+portable claims. That is not a claim that every Python analysis retains
+`.study`, nor that compiler-path evidence inherits estimator oracles.
+Execution-bound calibration is a 1.10 non-goal.
+
 ## 1.9.0
 
 The
