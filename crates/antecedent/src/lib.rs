@@ -81,9 +81,9 @@ pub mod validate;
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
     BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
-    CellFamilyContrast, ComputeBudget, InterferenceSpec, LatencyMode, PreparedBatch, PreparedStudy,
-    RdConfig, RefuteSuite, SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink,
-    Study, StudyBuilder, TransportTrialSpec,
+    CausalContract, CellFamilyContrast, ComputeBudget, InterferenceSpec, LatencyMode,
+    PreparedBatch, PreparedStudy, RdConfig, RefuteSuite, SharedBatchDesign, SharedCovariateDesign,
+    StageEvent, StageResultSink, Study, StudyBuilder, TransportTrialSpec,
 };
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};
