@@ -3887,7 +3887,7 @@ fn temporal_class_response_mean(
     })
 }
 
-fn temporal_class_structural_mixture(
+pub(crate) fn temporal_class_structural_mixture(
     envelope: &IdentificationEnvelope<antecedent_identify::TemporalCompletionGraph>,
     weight_basis: crate::result::StructuralWeightBasis,
     masses: Option<&[f64]>,
@@ -3945,7 +3945,7 @@ fn temporal_class_structural_mixture(
     }
 }
 
-fn temporal_class_envelope_diagnostic<G>(
+pub(crate) fn temporal_class_envelope_diagnostic<G>(
     envelope: &IdentificationEnvelope<G>,
     class: GraphClass,
 ) -> Diagnostic {
@@ -3968,7 +3968,7 @@ fn temporal_class_envelope_diagnostic<G>(
     )
 }
 
-fn aggregate_temporal_horizon_evidence<'a>(
+pub(crate) fn aggregate_temporal_horizon_evidence<'a>(
     identifications: impl IntoIterator<Item = &'a IdentificationResult>,
 ) -> Result<(IdentificationStatus, antecedent_core::AssumptionSet), CausalError> {
     let mut aggregate_status = IdentificationStatus::NonparametricallyIdentified;

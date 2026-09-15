@@ -43,6 +43,7 @@ pub(super) enum AnalysisRoute {
     UnitChange,
     TemporalEffect,
     PanelTemporalEffect,
+    PanelTemporalResponse,
     MultiEnvTemporalEffect,
     Transport,
     Interference,
@@ -98,6 +99,9 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
             AnalysisRoute::TemporalEffect
         }
         (DataModality::Panel, CausalQuery::TemporalEffect(_)) => AnalysisRoute::PanelTemporalEffect,
+        (DataModality::Panel, CausalQuery::Response(q)) if q.is_temporal() => {
+            AnalysisRoute::PanelTemporalResponse
+        }
         (DataModality::MultiEnv, CausalQuery::TemporalEffect(_)) => {
             AnalysisRoute::MultiEnvTemporalEffect
         }
@@ -481,10 +485,7 @@ impl super::Study {
 }
 
 pub(super) fn is_multi_step_sustained(query: &TemporalEffectQuery) -> bool {
-    matches!(
-        query.policy,
-        antecedent_core::TemporalPolicy::Sustained { from, until } if from != until
-    )
+    query.is_multi_step_sustained()
 }
 
 pub(super) fn identified_envelope_keys(

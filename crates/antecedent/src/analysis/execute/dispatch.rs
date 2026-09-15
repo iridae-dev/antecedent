@@ -30,12 +30,14 @@ impl super::Study {
 
     pub(super) fn ensure_supported_combination(&self) -> Result<(), CausalError> {
         let class = self.graph.class();
+        if matches!(self.data, DataInput::Panel(_)) {
+            super::super::builder::refuse_unlicensed_panel_route(
+                &self.query,
+                class,
+                &self.inference,
+            )?;
+        }
         match (&self.data, &self.query, class) {
-            (DataInput::Panel(_), CausalQuery::Response(_), _) => {
-                return Err(CausalError::Unsupported {
-                    message: super::super::builder::PANEL_RESPONSE_REFUSAL,
-                });
-            }
             (_, CausalQuery::Response(q), class)
                 if !((!q.is_temporal()
                     && matches!(
@@ -59,13 +61,13 @@ impl super::Study {
                                 GraphClass::TemporalDag
                                     | GraphClass::TemporalCpdag
                                     | GraphClass::TemporalPag
-                            )
+                            ) | (DataInput::Panel(_), GraphClass::TemporalDag)
                         ))) =>
             {
                 return Err(CausalError::Unsupported {
                     message: "static CausalQuery::Response requires tabular data and a Dag, \
                               Cpdag, or Pag (or a CoDetermined tier closure); temporal \
-                              response requires series/event data and a temporal graph",
+                              response requires series/event/panel data and a temporal graph",
                 });
             }
             (_, CausalQuery::Distribution(_), class)
@@ -123,9 +125,15 @@ impl super::Study {
                         .into(),
                 });
             }
+            (
+                DataInput::Panel(_),
+                CausalQuery::TemporalEffect(_),
+                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+            ) => {}
             (DataInput::Panel(_), _, class) if class != GraphClass::TemporalDag => {
                 return Err(CausalError::Compile {
-                    message: "panel data supports only a supplied TemporalDag (pooled units)"
+                    message: "panel data supports only a supplied TemporalDag, or Frequentist \
+                              Pulse/single-step Sustained on TemporalCpdag/TemporalPag"
                         .into(),
                 });
             }
@@ -138,8 +146,7 @@ impl super::Study {
         // The temporal path is linear/temporal-backdoor only; refuse an explicitly
         // selected non-temporal identifier/estimator rather than silently ignoring it.
         if matches!(&self.query, CausalQuery::TemporalEffect(_)) {
-            let class_aware =
-                matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag);
+            let class_aware = self.graph.class().is_incomplete_temporal();
             if let Some(id) = &self.identifier {
                 let ok = if class_aware {
                     *id == IdentifierId::GeneralizedAdjustment
@@ -420,8 +427,7 @@ impl super::Study {
                     unreachable!()
                 };
                 let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
-                if matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag)
-                {
+                if self.graph.class().is_incomplete_temporal() {
                     return self.execute_temporal_class(data, q, physical, ctx);
                 }
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
@@ -434,8 +440,7 @@ impl super::Study {
                     unreachable!()
                 };
                 let CausalQuery::Response(q) = &self.query else { unreachable!() };
-                if matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag)
-                {
+                if self.graph.class().is_incomplete_temporal() {
                     return self.execute_temporal_class_response(data, q, physical, ctx);
                 }
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
@@ -446,10 +451,21 @@ impl super::Study {
             Some(AnalysisRoute::PanelTemporalEffect) => {
                 let DataInput::Panel(panel) = data else { unreachable!() };
                 let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
+                if self.graph.class().is_incomplete_temporal() {
+                    return self.execute_panel_class(panel, q, physical, ctx);
+                }
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
                     message: "Ready panel plan missing resolved graph".into(),
                 })?;
                 self.execute_panel(panel, graph, q, physical, ctx)
+            }
+            Some(AnalysisRoute::PanelTemporalResponse) => {
+                let DataInput::Panel(panel) = data else { unreachable!() };
+                let CausalQuery::Response(q) = &self.query else { unreachable!() };
+                let graph = physical.temporal_graph().ok_or(CausalError::Compile {
+                    message: "Ready panel-response plan missing resolved graph".into(),
+                })?;
+                self.execute_panel_response(panel, graph, q, physical, ctx)
             }
             _ => Err(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",
@@ -699,6 +715,7 @@ impl super::Study {
             | AnalysisRoute::TemporalEffect
             | AnalysisRoute::TemporalResponse
             | AnalysisRoute::PanelTemporalEffect
+            | AnalysisRoute::PanelTemporalResponse
             | AnalysisRoute::MultiEnvTemporalEffect => Err(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",
             }),

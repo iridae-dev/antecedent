@@ -184,8 +184,7 @@ impl super::Study {
                 let mut plan = compile_logical_temporal_effect_classified(
                     data, graph, q, self.split, false, class,
                 )?;
-                if matches!(q.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
-                {
+                if q.is_multi_step_sustained() {
                     plan.record.estimator =
                         Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
                 } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
@@ -249,6 +248,28 @@ impl super::Study {
                     DataClassification::MultiEnvironment,
                 )
             }
+            (Some(AnalysisRoute::PanelTemporalResponse), GraphClass::TemporalDag) => {
+                let DataInput::Panel(panel) = &self.data else { unreachable!() };
+                let CausalQuery::Response(q) = &self.query else { unreachable!() };
+                let graph = self
+                    .graph
+                    .as_temporal_dag()
+                    .expect("class() == TemporalDag implies as_temporal_dag() is Some");
+                let mut plan = compile_logical_temporal_response(
+                    panel_compile_series(panel)?,
+                    graph,
+                    q,
+                    false,
+                )?;
+                plan.record.data_classification = DataClassification::Panel;
+                plan.record.estimator =
+                    Some(Arc::from(EstimatorId::TemporalResponseGcomp.as_str()));
+                Ok(plan)
+            }
+            (
+                Some(AnalysisRoute::PanelTemporalEffect),
+                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+            ) => self.compile_logical_panel_class(),
             (Some(AnalysisRoute::PanelTemporalEffect), GraphClass::TemporalDag) => {
                 let DataInput::Panel(panel) = &self.data else { unreachable!() };
                 let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
@@ -256,12 +277,8 @@ impl super::Study {
                     .graph
                     .as_temporal_dag()
                     .expect("class() == TemporalDag implies as_temporal_dag() is Some");
-                let data = &panel
-                    .unit(0)
-                    .map_err(|e| CausalError::Compile { message: format!("panel: {e}") })?
-                    .series;
                 let mut plan = compile_logical_temporal_effect_classified(
-                    data,
+                    panel_compile_series(panel)?,
                     graph,
                     q,
                     self.split,
@@ -606,7 +623,15 @@ impl super::Study {
                 GraphClass::TemporalCpdag | GraphClass::TemporalPag,
             ) => self.compile_temporal_class(ctx),
             (
-                Some(AnalysisRoute::MultiEnvTemporalEffect | AnalysisRoute::PanelTemporalEffect),
+                Some(AnalysisRoute::PanelTemporalEffect),
+                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+            ) => self.compile_logical()?.compile_physical(ctx),
+            (
+                Some(
+                    AnalysisRoute::MultiEnvTemporalEffect
+                    | AnalysisRoute::PanelTemporalEffect
+                    | AnalysisRoute::PanelTemporalResponse,
+                ),
                 GraphClass::TemporalDag,
             ) => {
                 let graph = self
@@ -718,36 +743,76 @@ impl super::Study {
         }
     }
 
+    fn compile_logical_panel_class(&self) -> Result<LogicalAnalysisPlan, CausalError> {
+        let DataInput::Panel(panel) = &self.data else { unreachable!() };
+        super::super::builder::refuse_unlicensed_panel_route(
+            &self.query,
+            self.graph.class(),
+            &self.inference,
+        )?;
+        self.compile_logical_class_effect(
+            panel_compile_series(panel)?,
+            DataClassification::Panel,
+            "panel_cpdag_effect",
+            "panel_pag_effect",
+            false,
+        )
+    }
+
     fn compile_logical_temporal_class(&self) -> Result<LogicalAnalysisPlan, CausalError> {
         let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
             unreachable!()
         };
-        let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
-
-        let class = match &self.data {
+        let classification = match &self.data {
             DataInput::Event(_) => DataClassification::Event,
             _ => DataClassification::Temporal,
         };
+        self.compile_logical_class_effect(
+            data,
+            classification,
+            "temporal_cpdag_effect",
+            "temporal_pag_effect",
+            true,
+        )
+    }
+
+    fn compile_logical_class_effect(
+        &self,
+        data: &TimeSeriesData,
+        classification: DataClassification,
+        cpdag_plan: &'static str,
+        pag_plan: &'static str,
+        rewrite_series_estimators: bool,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
         let (plan_id, nodes) = match self.graph.class() {
-            GraphClass::TemporalCpdag => (
-                "temporal_cpdag_effect",
-                self.graph.as_temporal_cpdag().expect("TemporalCpdag").nodes(),
-            ),
+            GraphClass::TemporalCpdag => {
+                (cpdag_plan, self.graph.as_temporal_cpdag().expect("TemporalCpdag").nodes())
+            }
             GraphClass::TemporalPag => {
-                ("temporal_pag_effect", self.graph.as_temporal_pag().expect("TemporalPag").nodes())
+                (pag_plan, self.graph.as_temporal_pag().expect("TemporalPag").nodes())
             }
             _ => unreachable!(),
         };
         let (identifier, estimator) = self.resolve_temporal_class_pair();
         let mut logical = compile_logical_temporal_class_effect(
-            data, nodes, q, self.split, class, plan_id, identifier, estimator,
+            data,
+            nodes,
+            q,
+            self.split,
+            classification,
+            plan_id,
+            identifier,
+            estimator,
         )?;
-        if matches!(q.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
-        {
-            logical.record.estimator =
-                Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
-        } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
-            logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
+        if rewrite_series_estimators {
+            if q.is_multi_step_sustained() {
+                logical.record.estimator =
+                    Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
+            } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
+                logical.record.estimator =
+                    Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
+            }
         }
         logical.record.discovery_algorithm = self.graph.algorithm_id().map(Arc::from);
         Ok(logical)
@@ -759,4 +824,8 @@ impl super::Study {
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         self.compile_logical_temporal_class()?.compile_physical(ctx)
     }
+}
+
+fn panel_compile_series(panel: &PanelData) -> Result<&TimeSeriesData, CausalError> {
+    Ok(&panel.unit(0).map_err(|e| CausalError::Compile { message: format!("panel: {e}") })?.series)
 }

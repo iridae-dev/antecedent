@@ -197,6 +197,12 @@ impl GraphClass {
             Self::TemporalPag => "TemporalPag",
         }
     }
+
+    /// Incomplete temporal class: completions remain explicit, never a supplied DAG.
+    #[must_use]
+    pub const fn is_incomplete_temporal(self) -> bool {
+        matches!(self, Self::TemporalCpdag | Self::TemporalPag)
+    }
 }
 
 /// Internal storage: one owned graph per supported class.
