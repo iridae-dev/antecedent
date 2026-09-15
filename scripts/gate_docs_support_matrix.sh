@@ -156,6 +156,33 @@ else:
                     "the explicit-refusals section"
                 )
 
+claims = tomllib.loads((root / "parity/claims.toml").read_text())
+products = tomllib.loads((root / "parity/python_products.toml").read_text())
+for claim in claims.get("claim", []):
+    licensed = root / claim["licensed_by"]
+    if not licensed.is_file():
+        fail.append(f"claims.toml {claim['id']}: licensed_by {claim['licensed_by']} missing")
+    if claim["id"] == "reusable_headline":
+        for row in products.get("route", []):
+            if not row.get("retains") and not row.get("reason"):
+                fail.append(
+                    f"python_products.toml route {row.get('kind')}/{row.get('data')}/"
+                    f"{row.get('structure')}: retains=false without reason"
+                )
+    sentence = claim["sentence"]
+    for rel in claim.get("files", []):
+        text = (root / rel).read_text()
+        count = text.count(sentence)
+        if count != 1:
+            fail.append(f"{rel}: claim {claim['id']} occurs {count} times (want 1)")
+
+for row in claims.get("forbidden", []):
+    pat = re.compile(row["pattern"])
+    for rel in row.get("files", []):
+        text = (root / rel).read_text()
+        if pat.search(text):
+            fail.append(f"{rel}: forbidden pattern {row['pattern']!r}")
+
 if fail:
     print("Docs support-matrix gate FAILED:")
     for item in fail:

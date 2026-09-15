@@ -127,8 +127,7 @@ CBOR artifacts.
 Selected posterior graph samples can be propagated into licensed Bayesian
 or Frequentist effect envelopes. Static graph-posterior analysis is limited to
 `AverageEffect` and `ResponseCurve` / one-coordinate `InterventionResponse`
-with DAG atoms (Rust Study API only; the Python API refuses graph-posterior
-responses). A Frequentist multi-atom aggregate publishes a joint-IF SE only for
+with DAG atoms. A Frequentist multi-atom aggregate publishes a joint-IF SE only for
 a scalar (one-coordinate `InterventionResponse`) when atom influences align on
 the shared rows; a multi-atom curve, or unaligned influences, withholds
 uncertainty with `estimate.response.graph_posterior.uncertainty_withheld`. The

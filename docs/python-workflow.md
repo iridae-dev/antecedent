@@ -5,10 +5,9 @@ These examples require the built `1.10.0` branch; see the
 
 ## Start with one call
 
-Ordinary one-call analyses now retain a reusable study. This is not every
-Antecedent analysis: callbacks, custom estimator settings, RD, panel / event /
-multi-environment data, and some discovery paths stay on legacy routes and
-refuse `.study` / `.export()`.
+Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
+Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists.
+Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
 
 The existing notebook call still works. It retains a prepared study on the
 ordinary tabular and temporal routes supported by `PreparedAnalysis`:
@@ -90,13 +89,6 @@ Reports retain identification mass, uncertainty sources and targets (including
 omitted components), assumption obligations, and support evidence. A licensed
 matrix cell does not establish empirical support or validate its assumptions.
 
-Calibration is a **1.10 non-goal** for execution-bound coverage artifacts.
-`CalibrationInfo.status` defaults to `unavailable`: no 1.9 weekly coverage
-record is attached to this execution. That is not a measured failure.
-Supplied certificate evidence is retained as `scope_not_assessed`. Neither
-refutation success nor a licensed matrix cell is promoted into a calibration
-claim. Interval theory remains the 1.9 weekly gate.
-
 ## Portable executions
 
 ```python
@@ -134,21 +126,15 @@ inspect/contract coordinate and completes inspect → preview → execute →
 claim → consume on the Rust compiler path
 (`compiler.e2e_licensed_cells`). That is composition-seam evidence on
 synthetic licensed-coordinate fixtures (`internal_cross_check`). Parent
-estimator evidence is not inherited. Python `.study` / `.export()`
-retention is not claimed for every cell.
+estimator evidence is not inherited.
 
-**Reusable studies.** One-call retention covers ordinary prepared tabular /
-temporal scalar, class, posterior-mixture and response routes. Legacy one-call
-paths with execution callbacks, custom validators or estimator configuration, RD
-settings, panel / event / multi-environment data, and non-posterior discovery
-configurations retain their existing execution APIs. Accessing `.study` or
-`.export()` on a result that has no retained execution gives a descriptive
-refusal; it never silently reruns discovery. Derivatives can use explicit
-`prepare` on their licensed cells.
+**Reusable studies.** `analyze` is `prepare(...).estimate()`. Every licensed
+Python product-matrix route retains a study and a contracted export. Custom
+validator results travel as caller-attested evidence. A result with no
+execution (prepared-only, cancelled, or a body-only load) refuses `.study` /
+`.export()` with `not_executed` or `cancelled_no_claim`. It never silently
+reruns discovery.
 
 Retargeting remains available from frozen scores. A nonconstant-weight retarget
-cannot yet export a contracted result: its target-weight identity is not encoded
-in the portable contract. `program_id` is withheld so the original compiled
-program is not reused as the new target's identity. A local `claim_id` may still
-exist. This is reported explicitly instead of labeling a new population with the
-original target identity.
+exports with a `target_weights` identity bound to its data snapshot. Re-execution
+on a different snapshot raises `row_weights_bound_to_snapshot`.

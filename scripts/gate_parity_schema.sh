@@ -371,3 +371,213 @@ total = sum(
 )
 print(f"parity manifest schema: ok ({total} rows across {len(MANIFESTS)} manifests)")
 PY
+
+python3 - "$@" <<'PY'
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tomllib
+
+root = Path(".")
+print_counts = "--print-counts" in sys.argv
+problems = []
+
+# --- reason codes ---
+vocab_path = root / "parity/reason_codes.toml"
+if not vocab_path.is_file():
+    problems.append("parity/reason_codes.toml missing")
+    vocab = {"code": []}
+else:
+    vocab = tomllib.loads(vocab_path.read_text())
+codes = {row["id"]: row for row in vocab.get("code", [])}
+uses = {cid: 0 for cid in codes}
+applies_fields = ("reason", "calibration_reason", "reason_code")
+# support_{closed,n_a,axes} `reason` fields are matrix prose, not vocabulary ids.
+# Do not re-code those pre-existing typed refusals.
+_REASON_PROSE = {
+    "reason_codes.toml",
+    "support_closed.toml",
+    "support_n_a.toml",
+    "support_axes.toml",
+}
+for path in sorted(root.glob("parity/*.toml")):
+    if path.name in _REASON_PROSE:
+        continue
+    text = path.read_text()
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as exc:
+        problems.append(f"{path}: {exc}")
+        continue
+    def walk(obj):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if key in applies_fields and isinstance(value, str) and value.strip():
+                    cid = value.strip()
+                    if cid not in codes:
+                        problems.append(f"{path}: unknown reason {cid!r}")
+                    else:
+                        uses[cid] += 1
+                        obligation = {
+                            "calibration_reason": "calibration",
+                            "reason_code": "runtime_refusal",
+                            "reason": "python_product" if path.name == "python_products.toml" else "claim",
+                        }[key]
+                        if path.name == "support_licensed.toml" and key == "calibration_reason":
+                            obligation = "calibration"
+                        if obligation not in codes[cid].get("applies_to", []):
+                            problems.append(
+                                f"{path}: {cid} does not apply to {obligation}"
+                            )
+                else:
+                    walk(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                walk(item)
+    walk(data)
+
+if print_counts:
+    print("reason-code uses:")
+    for cid, n in uses.items():
+        print(f"  {cid}: {n} (max_uses={codes[cid]['max_uses']})")
+
+for cid, n in uses.items():
+    max_uses = int(codes[cid]["max_uses"])
+    if n > max_uses:
+        problems.append(f"parity/reason_codes.toml: {cid} uses={n} > max_uses={max_uses}")
+
+# --- python_products ---
+pp = root / "parity/python_products.toml"
+if not pp.is_file():
+    problems.append("parity/python_products.toml missing")
+else:
+    products = tomllib.loads(pp.read_text())
+    for i, row in enumerate(products.get("route", []), 1):
+        for key in ("kind", "data", "structure", "test"):
+            if key not in row:
+                problems.append(f"python_products.toml route #{i} missing {key}")
+        if row.get("retains") is not True and not row.get("reason"):
+            problems.append(f"python_products.toml route {row.get('kind')} retains=false without reason")
+        test = row.get("test")
+        if isinstance(test, str):
+            node = test.removeprefix("python/")
+            collected = subprocess.run(
+                ["uv", "run", "pytest", "--collect-only", "-q", node],
+                cwd=root / "python",
+                capture_output=True,
+                text=True,
+            )
+            if collected.returncode != 0:
+                problems.append(f"python_products.toml route test not collected: {test}")
+    for i, row in enumerate(products.get("parameter", []), 1):
+        for key in ("name", "entry_points", "binding", "test"):
+            if key not in row:
+                problems.append(f"python_products.toml parameter #{i} missing {key}")
+        if row.get("binding") == "contract" and not row.get("contract_key"):
+            problems.append(f"python_products.toml parameter {row.get('name')} missing contract_key")
+        if row.get("binding") == "reason" and not row.get("reason"):
+            problems.append(f"python_products.toml parameter {row.get('name')} missing reason")
+
+# --- coverage records ---
+def _snake(name: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+
+cr = root / "parity/coverage_records.toml"
+record_ids = set()
+if cr.is_file():
+    recs = tomllib.loads(cr.read_text()).get("record", [])
+    for rec in recs:
+        rid = rec.get("id", "")
+        expected = (
+            f"cov.{_snake(rec.get('query',''))}.{_snake(rec.get('graph_class',''))}."
+            f"{str(rec.get('inference','')).lower()}."
+            f"{(rec.get('estimator') or 'none')}."
+            f"{(rec.get('se_kind') or 'none')}."
+            f"{rec.get('dependence','')}"
+        )
+        if rid != expected:
+            problems.append(f"coverage_records.toml id {rid!r} != {expected!r}")
+        record_ids.add(rid)
+        sha = str(rec.get("calibration_sha", ""))
+        if not re.fullmatch(r"[0-9a-fA-F]{40}", sha):
+            problems.append(f"coverage_records.toml {rid}: calibration_sha must be 40 hex")
+        for field in ("observed", "mcse", "nominal"):
+            val = rec.get(field)
+            if not isinstance(val, (int, float)) or not 0 <= float(val) <= 1:
+                problems.append(f"coverage_records.toml {rid}: {field} not in [0,1]")
+        test = rec.get("test", "")
+        if "::" not in test:
+            problems.append(f"coverage_records.toml {rid}: test must be path::fn")
+        else:
+            rel, fn = test.rsplit("::", 1)
+            path = root / rel
+            if not path.is_file() or not re.search(rf"fn\s+{re.escape(fn)}\s*\(", path.read_text(errors="ignore")):
+                problems.append(f"coverage_records.toml {rid}: test fn {fn} not in {rel}")
+else:
+    problems.append("parity/coverage_records.toml missing")
+
+# --- licensed cell calibration obligation ---
+lic = tomllib.loads((root / "parity/support_licensed.toml").read_text()).get("cell", [])
+for cell in lic:
+    label = f"{cell.get('query')}/{cell.get('graph_class')}/{cell.get('inference')}"
+    has_cal = "calibration" in cell
+    has_reason = bool(cell.get("calibration_reason"))
+    if has_cal == has_reason:
+        problems.append(f"support_licensed.toml {label}: exactly one of calibration / calibration_reason")
+    if has_cal:
+        ids = cell["calibration"]
+        if not isinstance(ids, list) or not ids:
+            problems.append(f"support_licensed.toml {label}: calibration must be a non-empty list")
+        else:
+            for rid in ids:
+                if rid not in record_ids:
+                    problems.append(f"support_licensed.toml {label}: unknown record {rid}")
+    lim = str(cell.get("limitations", ""))
+    if re.search(r"0\.\d{3}", lim):
+        problems.append(f"support_licensed.toml {label}: limitations still contain a coverage figure")
+    if cell.get("calibration_reason") == "no_interval_reported" and cell.get("query") not in {
+        "Counterfactual", "AnomalyAttribution", "ChangeAttribution"
+    }:
+        problems.append(f"support_licensed.toml {label}: no_interval_reported on an interval-reporting cell")
+
+est = tomllib.loads((root / "parity/estimate.toml").read_text()).get("capabilities", [])
+estimator_ids = {
+    "estimate.linear_regression", "estimate.glm", "estimate.propensity",
+    "estimate.matching", "estimate.doubly_robust", "estimate.iv", "estimate.rd",
+    "estimate.two_stage", "estimate.conditional", "estimate.temporal_sequential",
+    "estimate.mediation.linear",
+}
+for row in est:
+    if row.get("id") not in estimator_ids:
+        continue
+    if ("calibration" in row) == bool(row.get("calibration_reason")):
+        problems.append(f"estimate.toml {row.get('id')}: exactly one of calibration / calibration_reason")
+
+# --- release required_jobs ---
+ci = (root / ".github/workflows/ci.yml").read_text()
+job_ids = set(re.findall(r"^  ([A-Za-z0-9_-]+):", ci, re.M))
+rel = tomllib.loads((root / "parity/release.toml").read_text()).get("capabilities", [])
+for row in rel:
+    jobs = row.get("required_jobs")
+    if jobs is None:
+        continue
+    if not isinstance(jobs, list):
+        problems.append(f"release.toml {row.get('id')}: required_jobs must be a list")
+        continue
+    for job in jobs:
+        if job not in job_ids:
+            problems.append(f"release.toml {row.get('id')}: required job {job!r} missing from ci.yml")
+
+# --- identity / claims files exist ---
+for rel_path in ("parity/identity.toml", "parity/claims.toml"):
+    if not (root / rel_path).is_file():
+        problems.append(f"{rel_path} missing")
+
+if problems:
+    print("parity close-out schema violations:")
+    for p in problems:
+        print(" -", p)
+    sys.exit(1)
+print("parity close-out schema: ok")
+PY

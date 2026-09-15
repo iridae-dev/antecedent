@@ -122,6 +122,7 @@ external_oracle = "dowhy 0.14"
 known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
 limitations = "The one estimate-group row whose test StableFloat-compares against the recorded DoWhy estimate itself."
 owner = "estimate"
+calibration_reason = "estimator_grid_not_measured"
 
 [[capabilities]]
 id = "estimate.glm"
@@ -132,6 +133,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/glm_adjustment"
 limitations = "assert_recovers checks the synthetic true_effect; the fixture's DoWhy reference estimate is present but never compared."
 owner = "estimate"
+calibration_reason = "estimator_grid_not_measured"
 
 [[capabilities]]
 id = "estimate.propensity"
@@ -142,6 +144,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/propensity_ipw"
 limitations = "assert_recovers checks the synthetic true_effect. The recorded DoWhy reference SE is not compared: at 0.273 (n=800) it is about five times the Monte Carlo sampling SD of any IPW estimator on the stated SCM, so it cannot calibrate this estimator; see SE_NOT_COMPARABLE in crates/antecedent/tests/estimate_conformance.rs."
 owner = "estimate"
+calibration_reason = "estimator_grid_not_measured"
 
 [[capabilities]]
 id = "estimate.matching"
@@ -152,6 +155,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/distance_matching"
 limitations = "assert_recovers checks the synthetic true_effect; the DoWhy reference is present but never compared."
 owner = "estimate"
+calibration_reason = "estimator_grid_not_measured"
 
 [[capabilities]]
 id = "estimate.doubly_robust"
@@ -162,6 +166,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/aipw"
 limitations = "assert_recovers checks the synthetic true_effect. The recorded DoWhy reference block ran backdoor.propensity_score_weighting, not AIPW, so neither its estimate nor its SE is compared (SE_NOT_COMPARABLE in estimate_conformance.rs). IF-level double robustness has single-draw oracle-nuisance tests in aipw.rs; no Monte Carlo misspecification study."
 owner = "estimate"
+calibration_reason = "estimator_grid_not_measured"
 
 [[capabilities]]
 id = "estimate.iv"
@@ -172,6 +177,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/iv_2sls"
 limitations = "assert_recovers checks the synthetic true_effect. The reported SE is compared with the recorded DoWhy reference SE for both iv.2sls (iv_2sls) and iv.wald (iv_wald) after sqrt(n) rescaling (DoWhy ran its own n=800 draw), with |ln ratio| <= ln 1.5: generous enough for two draws, tight enough to fail constant-factor SE bugs of 2 or more. The DoWhy point estimate is not compared."
 owner = "estimate"
+calibration_reason = "estimator_grid_not_measured"
 
 [[capabilities]]
 id = "estimate.rd"
@@ -182,6 +188,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/rd_sharp"
 limitations = "No external oracle exists for this scenario: the fixture's DoWhy reference records available=false (upstream RD crashed)."
 owner = "estimate"
+calibration_reason = "estimator_grid_not_measured"
 
 [[capabilities]]
 id = "estimate.two_stage"
@@ -192,6 +199,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/frontdoor"
 limitations = "assert_recovers checks the synthetic true_effect. The reported SE is compared with the recorded DoWhy reference SE after sqrt(n) rescaling (DoWhy ran its own n=800 draw), with |ln ratio| <= ln 1.5: generous enough for two draws, tight enough to fail constant-factor SE bugs of 2 or more. The DoWhy point estimate is not compared."
 owner = "estimate"
+calibration_reason = "estimator_grid_not_measured"
 
 [[capabilities]]
 id = "estimate.conditional"
@@ -202,6 +210,7 @@ evidence_kind = "frozen_external_oracle"
 external_oracle = "statsmodels 0.14.4"
 known_truth_fixture = "conformance/estimate/conditional_effects"
 owner = "context"
+calibration_reason = "estimator_grid_not_measured"
 notes = "ConditionalLinearAdjustment; conformance/context/conditional_effect; python_facade=full via ConditionalEffect"
 
 [[capabilities]]
@@ -364,6 +373,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/release_12_moments"
 python_facade = "full"
 limitations = "Only the forms and assumptions in docs/v1.2-evidence.md are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
+calibration_reason = "estimator_grid_not_measured"
 notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]
@@ -374,6 +384,7 @@ status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_static_kinds"
 owner = "estimate"
+calibration_reason = "estimator_grid_not_measured"
 notes = "Known additive-linear structural effects; mediation-native validation; counterfactual uncertainty remains unavailable."
 
 [[capabilities]]
