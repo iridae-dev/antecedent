@@ -714,7 +714,7 @@ impl PreparedModality {
 #[derive(Clone, Debug)]
 pub struct PreparedStudy {
     /// Frozen analysis config (data slot replaced on each estimate).
-    analysis: Study,
+    pub(crate) analysis: Study,
     /// Ready physical plan from the prepare-time compile (never recompiled on refresh).
     plan: PhysicalExecutionPlan,
     /// Schema fingerprint from prepare-time data.
@@ -2693,14 +2693,19 @@ mod refresh_tests {
             .prepare(&ctx)
             .unwrap();
         assert_eq!(retained_rows(&prepared), 160);
+        let before = prepared.contract().unwrap().identities;
 
         // Same schema and regularity, so the compatibility gate passes and the
         // failure comes from estimation itself.
         assert!(prepared.refresh_series(xy_series(2), &ctx).is_err());
         assert_eq!(retained_rows(&prepared), 160, "failed refresh must not replace data");
+        assert_eq!(before, prepared.contract().unwrap().identities);
 
         prepared.refresh_series(xy_series(140), &ctx).unwrap();
         assert_eq!(retained_rows(&prepared), 140);
+        let after = prepared.contract().unwrap().identities;
+        assert_eq!(before.program, after.program);
+        assert_ne!(before.data_snapshot, after.data_snapshot);
     }
 }
 

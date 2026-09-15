@@ -9,8 +9,8 @@
 pub use crate::accepted::{AcceptedGraph, GraphClass};
 pub use crate::analysis::{
     BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
-    CellFamilyContrast, ComputeBudget, LatencyMode, PreparedBatch, PreparedStudy, RdConfig,
-    RefuteSuite, SharedBatchDesign, Study, StudyBuilder,
+    CausalContract, CellFamilyContrast, ComputeBudget, LatencyMode, PreparedBatch, PreparedStudy,
+    RdConfig, RefuteSuite, SharedBatchDesign, Study, StudyBuilder,
 };
 pub use crate::class_prior::ClassPrior;
 pub use crate::error::CausalError;
@@ -22,7 +22,7 @@ pub use crate::strategy_table::{EstimatorId, IdentifierId};
 
 pub use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalSchema, CausalSchemaBuilder, ExecutionContext,
-    Intervention, OutcomeFunctional, TemporalEffectQuery, Value, VariableId,
+    Intervention, OutcomeFunctional, TemporalEffectQuery, TransformIntent, Value, VariableId,
 };
 pub use antecedent_data::{
     EventData, MultiEnvironmentData, PanelData, PanelUnit, TabularData, TimeSeriesData,

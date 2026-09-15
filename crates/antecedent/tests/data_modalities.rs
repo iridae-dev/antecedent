@@ -423,3 +423,32 @@ fn panel_response_curve_is_refused() {
         "{text}"
     );
 }
+
+#[test]
+fn contract_snapshot_binds_panel_labels_order_and_time_metadata() {
+    let a = PanelUnit { unit_id: 7, series: xy_series_regular(80, 0.1, 1) };
+    let b = PanelUnit { unit_id: 9, series: xy_series_regular(80, 0.4, 1) };
+    let inspect = |units: Vec<PanelUnit>| {
+        Study::panel(PanelData::try_new(Arc::from(units)).unwrap())
+            .graph(lagged_xy_graph())
+            .temporal_query(pulse_query())
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .inspect()
+            .unwrap()
+    };
+    let base = inspect(vec![a.clone(), b.clone()]);
+    assert_eq!(base.identities, inspect(vec![a.clone(), b.clone()]).identities);
+    for units in [
+        vec![b.clone(), a.clone()],
+        vec![PanelUnit { unit_id: 8, ..a.clone() }, b.clone()],
+        vec![a, PanelUnit { unit_id: 9, series: xy_series_regular(80, 0.4, 2) }],
+    ] {
+        let changed = inspect(units);
+        assert_eq!(base.identities.target, changed.identities.target);
+        assert_eq!(base.identities.program, changed.identities.program);
+        assert_ne!(base.identities.data_snapshot, changed.identities.data_snapshot);
+    }
+}
