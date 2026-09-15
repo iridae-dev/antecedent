@@ -531,6 +531,12 @@ pub fn licensed_neighbors(cell: SupportCell) -> Vec<LicensedNeighbor> {
         .collect()
 }
 
+/// Every licensed support-matrix coordinate.
+#[must_use]
+pub fn licensed_support_cells() -> impl Iterator<Item = SupportCell> {
+    LICENSED.iter().map(support_cell_from_licensed)
+}
+
 fn support_cell_from_licensed(row: &crate::support_matrix_data::LicensedCell) -> SupportCell {
     SupportCell {
         query: row.query,
