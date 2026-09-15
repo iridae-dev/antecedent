@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import warnings
 from dataclasses import dataclass, fields, is_dataclass, replace
 from math import isfinite
 from typing import TYPE_CHECKING, Any
@@ -16,7 +18,14 @@ from ._slots import ReasoningSlots, SlotView
 
 @dataclass(frozen=True, slots=True)
 class CalibrationInfo:
-    """Calibration evidence availability, never a claim about one estimate's coverage."""
+    """Whether a coverage artifact is bound to this execution.
+
+    1.10 does not bind the 1.9 weekly coverage gate to individual executions.
+    ``unavailable`` means no artifact is attached, not that the interval was
+    measured and failed. A supplied certificate can be retained as
+    ``scope_not_assessed``; neither a licensed matrix cell nor a passing
+    refuter is promoted into a calibration claim.
+    """
 
     status: str = "unavailable"
     reason: str = "No calibration evidence has been bound to this execution."
@@ -26,7 +35,14 @@ class CalibrationInfo:
 
 @dataclass(frozen=True, slots=True)
 class Answer:
-    """Requested answer shape. Partial answers never expose an unrestricted scalar."""
+    """Safe consumption shape: ``point``, ``bounds``, ``partial``, or ``unavailable``.
+
+    This is the interface that withholds an unrestricted scalar when
+    identification is partial or leftover mass remains. Historical fields
+    such as ``effect``, ``ate``, ``posterior``, and ``response`` stay on the
+    result for existing callers. ``effect`` / ``ate`` warn when a point
+    display would misrepresent; ``ANTECEDENT_STRICT_ANSWER=1`` raises.
+    """
 
     kind: str
     value: float | None = None
@@ -55,9 +71,35 @@ class ResultAPI:
         if prepared is None:
             raise CausalUnsupportedError(
                 "This execution route did not retain a reusable study. "
-                "Use antecedent.prepare for a supported prepared route; accessing study never reruns discovery."
+                "Ordinary prepared tabular/temporal scalar, class, posterior-mixture, "
+                "and response routes retain one; callbacks, custom estimator settings, "
+                "RD, panel/event/multi-environment, and some discovery paths do not. "
+                "Accessing study never reruns discovery."
             )
         return prepared
+
+    def _scalar_effect(self) -> float | None:
+        """Historical scalar without the legacy-field warning."""
+        getter = getattr(self, "estimate", None)
+        if getter is not None and hasattr(getter, "ate"):
+            value = getter.ate
+            return value if isinstance(value, (int, float)) else None
+        if isinstance(getter, (int, float)):
+            return float(getter)
+        return None
+
+    def _warn_legacy_scalar(self, name: str) -> None:
+        limitation = getattr(self, "rendering_limitation", lambda: None)()
+        if limitation is None:
+            return
+        message = (
+            f"result.{name} is a historical field; result.answer is the safe "
+            f"interface (this execution is limited: {limitation}). "
+            "Set ANTECEDENT_STRICT_ANSWER=1 to raise."
+        )
+        if os.environ.get("ANTECEDENT_STRICT_ANSWER") == "1":
+            raise CausalUnsupportedError(message)
+        warnings.warn(message, UserWarning, stacklevel=3)
 
     @property
     def answer(self) -> Answer:
@@ -72,9 +114,7 @@ class ResultAPI:
             or getattr(self, "mediation_grid", None) is not None
         ):
             return Answer("response")
-        value = getattr(self, "effect", None)
-        if value is None and isinstance(getattr(self, "estimate", None), (int, float)):
-            value = getattr(self, "estimate", None)
+        value = self._scalar_effect()
         if value is None:
             return Answer("structured")
         if not isfinite(value):

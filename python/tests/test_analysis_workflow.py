@@ -97,6 +97,11 @@ def test_load_verified_execution_and_forward_uncontracted_body():
     loaded = ant.load(encoded)
     assert loaded.acceptance.verified
     assert loaded.answer.value == result.effect
+    assert loaded.inspect().program_id == result.program_id == loaded.program_id
+    assert loaded.inspect().claim_id == result.claim_id == loaded.claim_id
+    assert result.program_id
+    assert result.claim_id
+    assert result.claim_id != result.program_id
     assert loaded.inspect().data_version == result.data_version
     assert (
         loaded.inspect().uncertainty.payload["components"]
@@ -228,13 +233,26 @@ def test_retarget_refuses_export_without_target_weight_identity():
         refute="none",
     )
     retargeted = result.study.retarget(np.exp(data["z"] / 3), depends_on=["z"])
-    assert retargeted.claim_id is None
+    assert retargeted.program_id is None
     with pytest.raises(ant.errors.CausalUnsupportedError, match="target-weight identity") as caught:
         retargeted.export()
     assert caught.value.report.operation == "export"
     assert ant.load(result.export()).acceptance.verified
     uniform = result.study.retarget(np.ones(len(data["t"])), depends_on=[])
     assert ant.load(uniform.export()).acceptance.verified
+
+
+def test_prepare_entry_points_use_different_omitted_defaults():
+    data = sample()
+    one_shot = ant.prepare(data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
+    with pytest.warns(FutureWarning, match="interactive defaults"):
+        interactive = ant.estimation.PreparedAnalysis.prepare(data, graph=GRAPH, query=QUERY)
+    assert one_shot.inspect().identification.available
+    assert interactive.inspect().identification.available
+    explicit = ant.estimation.PreparedAnalysis.prepare(
+        data, graph=GRAPH, query=QUERY, refute=False, latency="interactive"
+    )
+    assert explicit.inspect().data_version == interactive.inspect().data_version
 
 
 def test_workflow_signatures_remain_inspectable():
@@ -263,7 +281,7 @@ def test_response_envelope_does_not_render_as_an_unrestricted_curve():
     assert result.answer.value is None
 
 
-def test_cpdag_partial_identification_with_full_mass_stays_partial():
+def test_cpdag_partial_identification_with_full_mass_stays_partial(monkeypatch):
     z = np.linspace(0.0, 1.0, 200)
     t = (z > 0.5).astype(float)
     graph = ant.Cpdag.from_directed_undirected(
@@ -281,3 +299,8 @@ def test_cpdag_partial_identification_with_full_mass_stays_partial():
     assert result.answer.value is None
     with pytest.raises(ant.errors.RenderingLimitation, match="identified_set"):
         result.display_effect()
+    with pytest.warns(UserWarning, match="result.answer is the safe"):
+        assert result.effect is not None
+    monkeypatch.setenv("ANTECEDENT_STRICT_ANSWER", "1")
+    with pytest.raises(ant.errors.CausalUnsupportedError, match="ANTECEDENT_STRICT_ANSWER"):
+        _ = result.effect

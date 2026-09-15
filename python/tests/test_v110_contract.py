@@ -236,7 +236,10 @@ def test_four_slots_agree_between_inspect_and_prepared_contract() -> None:
     reasoned = prepared.reasoning()
     contract = prepared.contract()
     assert inspected.support.payload["matrix_coordinate"] == contract["matrix_coordinate"]
-    assert inspected.claim_id == reasoned.claim_id == contract["program"]
+    assert inspected.program_id == reasoned.program_id == contract["program"]
+    assert inspected.claim_id is None
+    assert reasoned.claim_id is None
+    assert "claim_id" not in contract
     assert inspected.data_version == reasoned.data_version == contract["data_snapshot"]
     assert inspected.identification.available is True
     assert prepared.preflight().identification.available is False
@@ -245,7 +248,9 @@ def test_four_slots_agree_between_inspect_and_prepared_contract() -> None:
     assert reasoned.rendering_limitation() is None
     result = prepared.estimate(_data())
     assert result.reasoning is not None
-    assert result.claim_id == reasoned.claim_id
+    assert result.program_id == contract["program"]
+    assert result.claim_id is not None
+    assert result.claim_id != result.program_id
     assert result.display_effect() == result.effect
     display = prepared.preview_intent(ConsumerIntent.DISPLAY)
     assert display["scientific"] == "false"
@@ -257,8 +262,14 @@ def test_four_slots_agree_between_inspect_and_prepared_contract() -> None:
 
 def test_four_slots_refuse_identified_atom_mean_for_partial_claim() -> None:
     from antecedent.errors import RenderingLimitation
-    from antecedent.results import AnalysisResult, EstimateView, IdentificationView, PerformanceView
-    from antecedent.results import PosteriorView, ValidationView
+    from antecedent.results import (
+        AnalysisResult,
+        EstimateView,
+        IdentificationView,
+        PerformanceView,
+        PosteriorView,
+        ValidationView,
+    )
 
     result = AnalysisResult(
         identification=IdentificationView(

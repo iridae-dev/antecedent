@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import numbers
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import partial
@@ -601,12 +602,13 @@ def _wrap_ate(
         _prepared=prepared,
         _execution=execution,
         reasoning=slots,
+        program_id=None if slots is None else slots.program_id,
         claim_id=None if slots is None else slots.claim_id,
         data_version=None if slots is None else slots.data_version,
     )
 
 
-# `_wrap_temporal` used to be a ~90-line near-duplicate of `_wrap_ate` (P5c
+# `_wrap_temporal` used to be a ~90-line near-duplicate of `_wrap_ate` (P5c)
 # collapsed both onto the nested sections both native DTOs now expose — see
 # `_wrap_ate`'s docstring). Kept as a plain alias, not a re-export, so existing
 # `from .estimation import _wrap_temporal` call sites elsewhere in this module
@@ -1495,6 +1497,7 @@ def _wrap_prepared_response(
         _prepared=prepared,
         _execution=execution,
         reasoning=slots,
+        program_id=None if slots is None else slots.program_id,
         claim_id=None if slots is None else slots.claim_id,
         data_version=None if slots is None else slots.data_version,
     )
@@ -1579,15 +1582,23 @@ class PreparedAnalysis:
         identifier: str | Identifier | None = None,
         estimator: str | Estimator | None = None,
         estimator_config: Mapping[str, Any] | None = None,
-        refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] = False,
+        refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
         seed: int = 1,
         bootstrap: int | None = None,
         threads: int = 1,
-        latency: Latency | Literal["interactive", "standard", "report"] | None = "interactive",
+        latency: Latency | Literal["interactive", "standard", "report"] | None = None,
         class_prior: ClassPrior | None = None,
         max_completions: int | None = None,
     ) -> PreparedAnalysis:
         """Compile a durable plan for a licensed analysis cell.
+
+        .. warning::
+           Omitted ``refute`` / ``bootstrap`` / ``latency`` keep **historical
+           interactive defaults** (``refute=False``, ``latency="interactive"``,
+           bootstrap 0 unless a latency tier supplies one). The one-call
+           :func:`antecedent.prepare` / :func:`antecedent.analyze` verbs use
+           one-shot defaults instead. Pass these arguments explicitly. These
+           omitted defaults will converge to analyze defaults in 1.11.
 
         Supports ``AverageEffect``, ``ResponseCurve``, ``ConditionalEffect``,
         ``PathSpecificEffect``, ``InterventionalDistribution``,
@@ -1617,6 +1628,20 @@ class PreparedAnalysis:
         DBN mixtures take their shared circular-block replicates from the
         ``latency`` tier (or an explicit ``bootstrap``).
         """
+        if refute is None or latency is None:
+            warnings.warn(
+                "PreparedAnalysis.prepare omitted refute/latency currently keep "
+                "interactive defaults (refute=False, latency='interactive'). "
+                "antecedent.prepare / analyze use one-shot analyze defaults. "
+                "Pass these arguments explicitly. Omitted defaults will converge "
+                "to analyze defaults in 1.11.",
+                FutureWarning,
+                stacklevel=3,
+            )
+        if refute is None:
+            refute = False
+        if latency is None:
+            latency = "interactive"
         if isinstance(query, (ResponseCurve, InterventionResponse)):
             from .query import coerce_outcome_functional
 

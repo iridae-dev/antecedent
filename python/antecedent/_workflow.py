@@ -35,11 +35,16 @@ def prepare(
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
 ) -> PreparedAnalysis:
-    """Prepare the same ordinary request as analyze, stopping before estimation.
+    """Prepare the same ordinary request as :func:`analyze`, stopping before estimation.
 
-    Unlike the historical PreparedAnalysis.prepare defaults, omitted settings
-    follow analyze: standard bootstrap/refutation for scalar effects, and the
-    response family's existing uncertainty/validation defaults.
+    .. warning::
+       Omitted ``refute`` / ``bootstrap`` / ``latency`` follow **one-call
+       ``analyze`` defaults** (standard bootstrap and placebo refutation for
+       scalar effects; response-family uncertainty defaults). The older
+       :meth:`antecedent.estimation.PreparedAnalysis.prepare` keeps historical
+       interactive defaults (``refute=False``, ``latency="interactive"``).
+       Pass these arguments explicitly if the two entry points must agree.
+       The interactive omitted defaults will converge to analyze defaults in 1.11.
     """
     from .estimation import _resolve_latency_budget
 
@@ -99,6 +104,16 @@ class LoadedResult(ResultAPI):
     _bytes: bytes = field(repr=False)
 
     @property
+    def program_id(self) -> str | None:
+        """Compiled program identity. Distinct from :attr:`claim_id`."""
+        return self.inspect().program_id
+
+    @property
+    def claim_id(self) -> str | None:
+        """Execution claim identity. Distinct from :attr:`program_id`."""
+        return self.inspect().claim_id
+
+    @property
     def calibration(self) -> CalibrationInfo:
         return CalibrationInfo()
 
@@ -143,6 +158,9 @@ class LoadedResult(ResultAPI):
             )
 
         identities = section["identities"]
+        claim = section.get("claim") or {}
+        raw_claim_id = claim.get("claim_id")
+        claim_id = bytes(raw_claim_id).hex() if raw_claim_id is not None else None
         body = self.artifact.payload
         uncertainty = slot("uncertainty")
         details = dict(uncertainty.payload)
@@ -172,7 +190,8 @@ class LoadedResult(ResultAPI):
             support=support,
             uncertainty=replace(uncertainty, payload=details),
             assumptions=assumptions,
-            claim_id=bytes(identities["program"]).hex(),
+            program_id=bytes(identities["program"]).hex(),
+            claim_id=claim_id,
             data_version=bytes(identities["data_snapshot"]).hex(),
             answer=self.answer,
             calibration=self.calibration,
