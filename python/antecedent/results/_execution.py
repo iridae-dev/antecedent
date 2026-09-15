@@ -6,6 +6,7 @@ import os
 import warnings
 from dataclasses import dataclass, fields, is_dataclass, replace
 from math import isfinite
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -16,21 +17,39 @@ from ..errors import CausalUnsupportedError
 from ._slots import ReasoningSlots, SlotView
 
 
+def _as_optional_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    return int(value)
+
+
 @dataclass(frozen=True, slots=True)
 class CalibrationInfo:
-    """Whether a coverage artifact is bound to this execution.
-
-    1.10 does not bind the 1.9 weekly coverage gate to individual executions.
-    ``unavailable`` means no artifact is attached, not that the interval was
-    measured and failed. A supplied certificate can be retained as
-    ``scope_not_assessed``; neither a licensed matrix cell nor a passing
-    refuter is promoted into a calibration claim.
-    """
+    """Calibration slot projected from ``contract["claim"]["calibration"]``."""
 
     status: str = "unavailable"
-    reason: str = "No calibration evidence has been bound to this execution."
-    evidence: tuple[Any, ...] = ()
-    limitations: tuple[str, ...] = ()
+    record_id: str | None = None
+    reason: str | None = None
+    scope_n: int | None = None
+    scope_dependence: str | None = None
+    calibration_sha: str | None = None
+
+    @classmethod
+    def from_contract(cls, contract: Mapping[str, Any] | None) -> CalibrationInfo:
+        if not isinstance(contract, Mapping):
+            return cls(status="unavailable", reason="not_executed")
+        claim = contract.get("claim")
+        slot = claim.get("calibration") or {} if isinstance(claim, Mapping) else {}
+        if not slot and "calibration_status" not in contract:
+            return cls(status="unavailable", reason="not_executed")
+        return cls(
+            status=str(slot.get("status") or contract.get("calibration_status") or "unavailable"),
+            record_id=slot.get("record_id") or contract.get("calibration_record_id"),
+            reason=slot.get("reason") or contract.get("calibration_reason"),
+            scope_n=slot.get("scope_n") or _as_optional_int(contract.get("calibration_scope_n")),
+            scope_dependence=slot.get("scope_dependence") or contract.get("calibration_scope_dependence"),
+            calibration_sha=slot.get("calibration_sha") or contract.get("calibration_sha"),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,11 +89,8 @@ class ResultAPI:
         prepared = getattr(self, "_prepared", None)
         if prepared is None:
             raise CausalUnsupportedError(
-                "This execution route did not retain a reusable study. "
-                "Ordinary prepared tabular/temporal scalar, class, posterior-mixture, "
-                "and response routes retain one; callbacks, custom estimator settings, "
-                "RD, panel/event/multi-environment, and some discovery paths do not. "
-                "Accessing study never reruns discovery."
+                "This result has no retained study.",
+                reason_code="not_executed",
             )
         return prepared
 
@@ -123,18 +139,13 @@ class ResultAPI:
 
     @property
     def calibration(self) -> CalibrationInfo:
-        # Keep supplied evidence intact. Absence of execution-bound evidence
-        # must not be upgraded from a passing refuter or a licensed matrix cell.
-        certificate = getattr(self, "certificate", None) or {}
-        evidence = certificate.get("calibration")
-        return CalibrationInfo(
-            status="scope_not_assessed" if evidence is not None else "unavailable",
-            reason="Evidence retained; applicability to this execution is not established."
-            if evidence is not None
-            else "No calibration evidence has been bound to this execution.",
-            evidence=() if evidence is None else (evidence,),
-            limitations=tuple(getattr(self, "diagnostics", ())),
-        )
+        contract = getattr(self, "_contract", None)
+        if not isinstance(contract, Mapping):
+            slots = getattr(self, "reasoning", None)
+            contract = getattr(slots, "contract", None) if slots is not None else None
+        if isinstance(contract, Mapping):
+            return CalibrationInfo.from_contract(contract)
+        return CalibrationInfo(status="unavailable", reason="not_executed")
 
     def inspect(self) -> ReasoningSlots:
         """Inspect this execution, including uncertainty and all available evidence."""
@@ -228,7 +239,11 @@ class ResultAPI:
                 assumption_payload,
             ),
             answer=self.answer,
-            calibration=self.calibration,
+            calibration=(
+                CalibrationInfo.from_contract(contract)
+                if isinstance((contract := getattr(self, "_contract", None) or getattr(slots, "contract", None)), Mapping)
+                else CalibrationInfo(status="unavailable", reason="not_executed")
+            ),
             diagnostics=tuple(getattr(self, "diagnostics", ())),
         )
 
@@ -238,6 +253,7 @@ class ResultAPI:
         execution = getattr(self, "_execution", None)
         if execution is None:
             raise CausalUnsupportedError(
-                "This result has no retained execution artifact; export cannot reconstruct a contract."
+                "This result has no retained execution artifact.",
+                reason_code="not_executed",
             )
         return execution.export_contracted_artifact(artifact_id=artifact_id)

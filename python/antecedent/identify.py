@@ -24,6 +24,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
 
+from ._verdict import verdict_for
 from .errors import CausalUnsupportedError, CausalValueError
 from .estimation import IdentifyResult
 from .estimation import identify as _identify_native
@@ -49,10 +50,6 @@ from .query import (
 )
 from .results import IdentificationView
 
-_VERDICT_PARTIAL = ("partial",)
-_VERDICT_GRAPH_DEPENDENT = ("graphdependent", "graph_dependent", "graph-dependent")
-
-
 def _query_phrase(query: object) -> str:
     name = type(query).__name__
     treatment = getattr(query, "treatment", None)
@@ -67,17 +64,6 @@ def _query_phrase(query: object) -> str:
             return f"{name} of {outcome} from {treatment} given {modifier}"
         return f"{name} of {outcome} from {treatment}"
     return name
-
-
-def _verdict_for(status: str, *, identified: bool) -> str:
-    normalized = status.strip().lower().replace(" ", "")
-    if any(marker in normalized for marker in _VERDICT_PARTIAL):
-        return "partially identified"
-    if any(marker in normalized for marker in _VERDICT_GRAPH_DEPENDENT):
-        return "graph-dependent"
-    if identified:
-        return "identified"
-    return "not identified"
 
 
 def _assumption_line(item: object) -> str | None:
@@ -236,7 +222,7 @@ class Identification:
     @property
     def verdict(self) -> str:
         """Stable human label: identified, not identified, partial, or graph-dependent."""
-        return _verdict_for(self.status, identified=bool(self))
+        return verdict_for(self.status)
 
     @property
     def assumption_statements(self) -> tuple[str, ...]:
@@ -471,7 +457,7 @@ def _identify_typed_graph(
             "horizon_steps": int((query.horizons or [1])[0]),
         }
     elif isinstance(query, InterventionResponse) and query.is_temporal:
-        from ._analyze import _encode_temporal_interventions
+        from .intervention import encode_temporal_steps
 
         supplied_steps = query.intervention
         specs = (
@@ -479,7 +465,7 @@ def _identify_typed_graph(
             if isinstance(supplied_steps, Sequence) and not isinstance(supplied_steps, (str, bytes))
             else [supplied_steps]
         )
-        steps = [step for spec in specs for step in _encode_temporal_interventions(spec)]
+        steps = [step for spec in specs for step in encode_temporal_steps(spec)]
         if not steps:
             raise CausalValueError("InterventionResponse requires at least one intervention")
         kind = "temporal_response"

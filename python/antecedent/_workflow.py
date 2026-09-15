@@ -13,7 +13,7 @@ from .estimation import PreparedAnalysis, _PreparedQuery
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .results._execution import Answer, CalibrationInfo, ResultAPI
-from .results._slots import ReasoningSlots, SlotView
+from .results._slots import ReasoningSlots
 
 
 @describe_refusal
@@ -34,39 +34,15 @@ def prepare(
     latency: Latency | Literal["interactive", "standard", "report"] | None = None,
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
+    target_population: Any | None = None,
+    population_registry: Any | None = None,
+    cancel: Any | None = None,
+    on_progress: Any | None = None,
+    on_stage: Any | None = None,
 ) -> PreparedAnalysis:
     """Prepare the same ordinary request as :func:`analyze`, stopping before estimation.
 
-    .. warning::
-       Omitted ``refute`` / ``bootstrap`` / ``latency`` follow **one-call
-       ``analyze`` defaults** (standard bootstrap and placebo refutation for
-       scalar effects; response-family uncertainty defaults). The older
-       :meth:`antecedent.estimation.PreparedAnalysis.prepare` keeps historical
-       interactive defaults (``refute=False``, ``latency="interactive"``).
-       Pass these arguments explicitly if the two entry points must agree.
-       The interactive omitted defaults will converge to analyze defaults in 1.11.
     """
-    from .estimation import _resolve_latency_budget
-
-    kind = getattr(query, "kind", "")
-    response = kind in ("response_curve", "intervention_response")
-    suite: Any = (
-        ("none" if response or kind == "counterfactual" else "placebo")
-        if refute is None
-        else refute
-    )
-    if refute is None and not response and kind != "counterfactual":
-        _, suite = _resolve_latency_budget(latency, bootstrap, True)
-        if suite is True:
-            suite = "placebo"
-    if bootstrap is None and (
-        kind == "counterfactual"
-        or (
-            response
-            and (not getattr(query, "is_temporal", False) or isinstance(inference, Bayesian))
-        )
-    ):
-        bootstrap = 0
     return PreparedAnalysis.prepare(
         data,
         query=query,
@@ -76,13 +52,18 @@ def prepare(
         identifier=identifier,
         estimator=estimator,
         estimator_config=estimator_config,
-        refute=suite,
+        refute=refute,
         seed=seed,
         bootstrap=bootstrap,
         threads=threads,
         latency=latency,
         class_prior=class_prior,
         max_completions=max_completions,
+        target_population=target_population,
+        population_registry=population_registry,
+        cancel=cancel,
+        on_progress=on_progress,
+        on_stage=on_stage,
     )
 
 
@@ -115,7 +96,7 @@ class LoadedResult(ResultAPI):
 
     @property
     def calibration(self) -> CalibrationInfo:
-        return CalibrationInfo()
+        return CalibrationInfo.from_contract(self.artifact.contract)
 
     @property
     def answer(self) -> Answer:
@@ -144,60 +125,11 @@ class LoadedResult(ResultAPI):
             return replace(
                 ReasoningSlots.from_contract({}), answer=self.answer, calibration=self.calibration
             )
-        section = self.artifact.contract
-        reasoning = section["reasoning"]
-
-        def slot(name: str) -> SlotView:
-            raw = reasoning[name]
-            value = raw.get("value")
-            return SlotView(
-                value is not None,
-                raw.get("unavailable"),
-                (value.get("status", "available") if value is not None else "unavailable"),
-                value if value is not None else {},
-            )
-
-        identities = section["identities"]
-        claim = section.get("claim") or {}
-        raw_claim_id = claim.get("claim_id")
-        claim_id = bytes(raw_claim_id).hex() if raw_claim_id is not None else None
-        body = self.artifact.payload
-        uncertainty = slot("uncertainty")
-        details = dict(uncertainty.payload)
-        if body.get("standard_error") is not None:
-            details["standard_error"] = body["standard_error"]
-        response = body.get("response") or {}
-        if response.get("uncertainty") is not None:
-            details["response"] = response["uncertainty"]
-            if response["uncertainty"] != "none" and not uncertainty.available:
-                uncertainty = replace(
-                    uncertainty, available=True, reason=None, summary="response_specific"
-                )
-        structural = body.get("structural_response") or {}
-        if structural.get("identified_set_interval") is not None:
-            details["identified_set_interval"] = structural["identified_set_interval"]
-        support = slot("support")
-        if response.get("support") is not None:
-            support = replace(
-                support, payload={**support.payload, "execution": response["support"]}
-            )
-        assumptions = slot("assumptions")
-        assumptions = replace(
-            assumptions, payload={**assumptions.payload, "records": body.get("assumptions", [])}
-        )
-        return ReasoningSlots(
-            identification=slot("identification"),
-            support=support,
-            uncertainty=replace(uncertainty, payload=details),
-            assumptions=assumptions,
-            program_id=bytes(identities["program"]).hex(),
-            claim_id=claim_id,
-            data_version=bytes(identities["data_snapshot"]).hex(),
+        return ReasoningSlots.from_result_section(
+            self.artifact.contract,
+            self.artifact.payload,
             answer=self.answer,
             calibration=self.calibration,
-            diagnostics=tuple(
-                f"{d.get('code', '')}: {d.get('message', '')}" for d in body.get("diagnostics", [])
-            ),
         )
 
     def export(self, *, artifact_id: str | None = None) -> bytes:

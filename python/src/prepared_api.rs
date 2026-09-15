@@ -13,7 +13,7 @@ use antecedent_core::{
     GridSpec, Intervention, InterventionalDistributionQuery, MediationContrast, MediationQuery,
     PathSpecificEffectQuery, ResponseFunctional, ResponseQuery, TemporalResponseSpec, Value,
 };
-use antecedent_data::{TableView, TabularData};
+use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -122,6 +122,153 @@ fn require_prepared_names(expected: &[String], names: &[String], op: &str) -> Py
         )));
     }
     Ok(())
+}
+
+fn take_supplied_posterior(
+    posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
+    names: &[String],
+) -> PyResult<Option<antecedent::discovery::GraphPosterior>> {
+    posterior
+        .map(|bound| {
+            let posterior = bound.borrow();
+            posterior.require_bound_to(names)?;
+            posterior.to_rust()
+        })
+        .transpose()
+}
+
+fn prepare_ctx(seed: u64, threads: u32) -> antecedent_core::ExecutionContext {
+    py_execution_context_ext(
+        seed,
+        threads,
+        None,
+        None,
+        Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+    )
+}
+
+fn finished_prepared(
+    prepared: PreparedStudy,
+    names: Vec<String>,
+    series: bool,
+) -> PyPreparedAnalysis {
+    PyPreparedAnalysis {
+        inner: Arc::new(prepared),
+        names,
+        last: None,
+        last_study: None,
+        last_seed: 1,
+        last_threads: 1,
+        last_retargeted: false,
+        borrowed_bytes: None,
+        series,
+    }
+}
+
+fn exact_dag_posterior(
+    supplied: Option<antecedent::discovery::GraphPosterior>,
+    data: &TabularData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> PyResult<antecedent::discovery::GraphPosterior> {
+    match supplied {
+        Some(gp) => Ok(gp),
+        None => {
+            let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
+            discover_exact_dag_posterior(data, &vars, &BayesianDiscoverParams::default(), ctx)
+                .map_err(py_err)
+        }
+    }
+}
+
+fn dbn_posterior(
+    supplied: Option<antecedent::discovery::GraphPosterior>,
+    series: &TimeSeriesData,
+    max_lag: u32,
+    force_mcmc: bool,
+    n_chains: u32,
+    n_warmup: u32,
+    mcmc_draws: u32,
+    ctx: &antecedent_core::ExecutionContext,
+) -> PyResult<antecedent::discovery::GraphPosterior> {
+    match supplied {
+        Some(gp) => Ok(gp),
+        None => {
+            let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
+            let schedule =
+                GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
+            discover_dbn_posterior(
+                series,
+                &vars,
+                &BayesianDiscoverParams::default(),
+                max_lag,
+                force_mcmc,
+                &schedule,
+                ctx,
+            )
+            .map_err(py_err)
+        }
+    }
+}
+
+fn finish_static_graph_posterior(
+    data: TabularData,
+    names: Vec<String>,
+    gp: antecedent::discovery::GraphPosterior,
+    query: CausalQuery,
+    suite: antecedent::RefuteSuite,
+    bootstrap: u32,
+    inference: Option<String>,
+    n_draws: Option<usize>,
+    prior_scale: f64,
+    ctx: &antecedent_core::ExecutionContext,
+) -> PyResult<PyPreparedAnalysis> {
+    let mut builder = Study::tabular(data)
+        .graph_posterior(gp)
+        .query(query)
+        .refute(suite)
+        .bootstrap_replicates(bootstrap);
+    builder = apply_inference(
+        builder,
+        inference.as_deref().unwrap_or("frequentist"),
+        n_draws,
+        prior_scale,
+    )?;
+    let analysis = builder.build().map_err(py_err)?;
+    Ok(finished_prepared(analysis.prepare(ctx).map_err(py_err)?, names, false))
+}
+
+enum SeriesGraphQuery {
+    Temporal(antecedent_core::TemporalEffectQuery),
+    Mediation(MediationQuery),
+}
+
+fn finish_series_graph_posterior(
+    series: TimeSeriesData,
+    names: Vec<String>,
+    gp: antecedent::discovery::GraphPosterior,
+    query: SeriesGraphQuery,
+    suite: antecedent::RefuteSuite,
+    bootstrap: u32,
+    inference: Option<String>,
+    n_draws: Option<usize>,
+    prior_scale: f64,
+    ctx: &antecedent_core::ExecutionContext,
+) -> PyResult<PyPreparedAnalysis> {
+    let mut builder = Study::series(series).graph_posterior(gp);
+    builder = match query {
+        SeriesGraphQuery::Temporal(q) => builder.temporal_query(q),
+        SeriesGraphQuery::Mediation(q) => builder.query(CausalQuery::Mediation(q)),
+    };
+    builder = builder.refute(suite).bootstrap_replicates(bootstrap);
+    builder = crate::temporal_api::apply_temporal_inference(
+        builder,
+        Some(inference.as_deref().unwrap_or("conjugate")),
+        n_draws,
+        prior_scale,
+        None,
+    )?;
+    let analysis = builder.build().map_err(py_err)?;
+    Ok(finished_prepared(analysis.prepare(ctx).map_err(py_err)?, names, true))
 }
 
 /// Durable prepare-once / estimate-many handle for static ATE on a supplied DAG.
@@ -360,10 +507,21 @@ impl PyPreparedAnalysis {
         contract.reasoning = claim.reasoning;
         let mut report = contract_to_map(&contract, inner.schema(), inner.query());
         report.insert("claim_id".into(), claim.claim_id.to_hex());
-        if self.last_retargeted {
-            // Target weights have no canonical contract payload yet.
-            report.remove("program");
-            report.remove("target");
+        report.insert("calibration_status".into(), claim.calibration.status.to_string());
+        if let Some(record_id) = &claim.calibration.record_id {
+            report.insert("calibration_record_id".into(), record_id.to_string());
+        }
+        if let Some(reason) = &claim.calibration.reason {
+            report.insert("calibration_reason".into(), reason.to_string());
+        }
+        if let Some(scope_n) = claim.calibration.scope_n {
+            report.insert("calibration_scope_n".into(), scope_n.to_string());
+        }
+        if let Some(dep) = &claim.calibration.scope_dependence {
+            report.insert("calibration_scope_dependence".into(), dep.to_string());
+        }
+        if let Some(sha) = &claim.calibration.calibration_sha {
+            report.insert("calibration_sha".into(), sha.to_string());
         }
         Ok(report)
     }
@@ -462,7 +620,8 @@ impl PyPreparedAnalysis {
         identifier=None,
         estimator=None,
         inference=None,
-        n_draws=1000,
+        estimator_config=None,
+        n_draws=None,
         prior_scale=10.0,
         prior_artifact=None,
         prior_mapping=None,
@@ -474,6 +633,11 @@ impl PyPreparedAnalysis {
         latency=None,
         accepted=false,
         outcome_functional=None,
+        target_population=None,
+        validators=None,
+        running_variable=None,
+        cutoff=None,
+        bandwidth=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare(
@@ -488,7 +652,8 @@ impl PyPreparedAnalysis {
         identifier: Option<String>,
         estimator: Option<String>,
         inference: Option<String>,
-        n_draws: usize,
+        estimator_config: Option<&Bound<'_, PyDict>>,
+        n_draws: Option<usize>,
         prior_scale: f64,
         prior_artifact: Option<Vec<u8>>,
         prior_mapping: Option<&Bound<'_, PyDict>>,
@@ -500,11 +665,23 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
         outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
+        target_population: Option<Bound<'_, pyo3::types::PyDict>>,
+        validators: Option<Bound<'_, PyAny>>,
+        running_variable: Option<String>,
+        cutoff: Option<f64>,
+        bandwidth: Option<f64>,
     ) -> PyResult<Self> {
+        let parsed_estimator = crate::estimator_config::parse_estimator_config(
+            estimator_config,
+            estimator.as_deref(),
+            bootstrap,
+        )?;
         let prior_mapping = prior_mapping.map(crate::prior_bank::mapping_from_dict).transpose()?;
         let composed_prior =
             composed_prior.map(crate::prior_bank::owned_composed_prior_from_dict).transpose()?;
         let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
+        let pop_spec = crate::ate_api::parse_target_population(target_population.as_ref())?;
+        let custom_validators = crate::callbacks::parse_validators(validators.as_ref())?;
         let (data, borrowed_bytes) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         let latency_mode = match latency.as_deref() {
@@ -522,9 +699,28 @@ impl PyPreparedAnalysis {
             let dag = dag_from_named_edges(data.schema(), &edges)?;
             let mut query =
                 AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+            if let Some(pop) = pop_spec {
+                query = query.with_target_population(pop);
+            }
             if let Some(functional) = functional {
                 query = query.with_outcome_functional(functional);
             }
+            let (merged_rv, merged_cutoff, merged_bandwidth) =
+                crate::estimator_config::merge_rd_triple(
+                    running_variable,
+                    cutoff,
+                    bandwidth,
+                    parsed_estimator.rd_running_variable,
+                    parsed_estimator.rd_cutoff,
+                    parsed_estimator.rd_bandwidth,
+                )?;
+            let rd_ids = crate::ate_api::parse_rd_config(
+                estimator.as_deref(),
+                merged_rv.as_deref(),
+                merged_cutoff,
+                merged_bandwidth,
+                |rv| data.schema().id_of(rv).map_err(py_err),
+            )?;
             let mut builder = if accepted {
                 Study::tabular(data).graph(antecedent::AcceptedGraph::from(dag))
             } else {
@@ -532,7 +728,18 @@ impl PyPreparedAnalysis {
             }
             .query(query)
             .refute(suite)
-            .bootstrap_replicates(bootstrap);
+            .custom_validators(custom_validators);
+            if parsed_estimator.spec.is_none() {
+                builder = builder.bootstrap_replicates(bootstrap);
+            }
+            if let Some((rv_id, cut, bw)) = rd_ids {
+                builder = builder.rd_design(crate::ate_api::rd_design(
+                    rv_id,
+                    cut,
+                    bw,
+                    parsed_estimator.rd_se_kind,
+                ));
+            }
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
             }
@@ -542,7 +749,9 @@ impl PyPreparedAnalysis {
                         .map_err(|e| PyValueError::new_err(e.to_string()))?,
                 );
             }
-            if let Some(est) = estimator {
+            if let Some(spec) = parsed_estimator.spec {
+                builder = builder.estimator(spec);
+            } else if let Some(est) = estimator {
                 builder = builder.estimator(
                     est.parse::<antecedent::EstimatorId>()
                         .map_err(|e| PyValueError::new_err(e.to_string()))?,
@@ -696,7 +905,7 @@ impl PyPreparedAnalysis {
         identifier=None,
         estimator=None,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         prior_artifact=None,
         prior_mapping=None,
@@ -721,7 +930,7 @@ impl PyPreparedAnalysis {
         identifier: Option<String>,
         estimator: Option<String>,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         prior_artifact: Option<Vec<u8>>,
         prior_mapping: Option<&Bound<'_, PyDict>>,
@@ -822,7 +1031,7 @@ impl PyPreparedAnalysis {
         identifier=None,
         estimator=None,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         prior_artifact=None,
         prior_mapping=None,
@@ -847,7 +1056,7 @@ impl PyPreparedAnalysis {
         identifier: Option<String>,
         estimator: Option<String>,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         prior_artifact: Option<Vec<u8>>,
         prior_mapping: Option<&Bound<'_, PyDict>>,
@@ -950,7 +1159,7 @@ impl PyPreparedAnalysis {
         identifier=None,
         estimator=None,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         seed=1,
         threads=1,
@@ -972,7 +1181,7 @@ impl PyPreparedAnalysis {
         identifier: Option<String>,
         estimator: Option<String>,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         seed: u64,
         threads: u32,
@@ -1023,7 +1232,7 @@ impl PyPreparedAnalysis {
         identifier=None,
         estimator=None,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         seed=1,
         threads=1,
@@ -1045,7 +1254,7 @@ impl PyPreparedAnalysis {
         identifier: Option<String>,
         estimator: Option<String>,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         seed: u64,
         threads: u32,
@@ -1094,7 +1303,7 @@ impl PyPreparedAnalysis {
         identifier=None,
         estimator=None,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         refute=None,
         seed=1,
@@ -1116,7 +1325,7 @@ impl PyPreparedAnalysis {
         identifier: Option<String>,
         estimator: Option<String>,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
@@ -1262,7 +1471,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, kind, treatment, outcome, *, mediators=Vec::new(),
         contrast="mediated", control_level=0.0, active_level=1.0, refute=None,
-        bootstrap=0, accepted=false, seed=1, threads=1, inference=None, n_draws=256,
+        bootstrap=0, accepted=false, seed=1, threads=1, inference=None, n_draws=None,
         prior_scale=10.0, prior_artifact=None, prior_mapping=None, composed_prior=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_static_kind(
@@ -1283,7 +1492,7 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         prior_artifact: Option<Vec<u8>>,
         prior_mapping: Option<&Bound<'_, PyDict>>,
@@ -1348,7 +1557,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, kind, treatments, outcomes, *, at=None,
         direction=None, order=1, scale="identity", weighting="observed", bandwidth=None,
-        accepted=false, seed=1, threads=1, inference=None, n_draws=256, prior_scale=10.0))]
+        accepted=false, seed=1, threads=1, inference=None, n_draws=None, prior_scale=10.0))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_derivative(
         py: Python<'_>,
@@ -1368,7 +1577,7 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
     ) -> PyResult<Self> {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
@@ -1436,7 +1645,7 @@ impl PyPreparedAnalysis {
         identifier=None,
         estimator=None,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         prior_artifact=None,
         prior_mapping=None,
@@ -1445,6 +1654,11 @@ impl PyPreparedAnalysis {
         threads=1,
         latency=None,
         accepted=false,
+        bandwidth=None,
+        simultaneous_replicates=None,
+        confidence_level=0.95,
+        multiplier_seed=0xA17E_CEDE_0500,
+        export_row_diagnostics=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_response(
@@ -1458,7 +1672,7 @@ impl PyPreparedAnalysis {
         identifier: Option<String>,
         estimator: Option<String>,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         prior_artifact: Option<Vec<u8>>,
         prior_mapping: Option<&Bound<'_, PyDict>>,
@@ -1467,6 +1681,11 @@ impl PyPreparedAnalysis {
         threads: u32,
         latency: Option<String>,
         accepted: bool,
+        bandwidth: Option<f64>,
+        simultaneous_replicates: Option<u32>,
+        confidence_level: f64,
+        multiplier_seed: u64,
+        export_row_diagnostics: bool,
     ) -> PyResult<Self> {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let latency_mode = match latency.as_deref() {
@@ -1496,7 +1715,15 @@ impl PyPreparedAnalysis {
             }
             .query(query)
             .refute(antecedent::RefuteSuite::None)
-            .bootstrap_replicates(0);
+            .bootstrap_replicates(0)
+            .response_options(antecedent_estimate::ContinuousResponseOptions {
+                bandwidth,
+                simultaneous_replicates,
+                confidence_level,
+                multiplier_seed,
+                export_row_diagnostics,
+                ..Default::default()
+            });
             if let Some(mode) = latency_mode {
                 builder = builder.latency_mode(mode);
             }
@@ -1566,7 +1793,7 @@ impl PyPreparedAnalysis {
         treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
         max_history_lag=None,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         prior_artifact=None,
         prior_mapping=None,
@@ -1608,7 +1835,7 @@ impl PyPreparedAnalysis {
         treatment_lag: u32,
         max_history_lag: Option<u32>,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         prior_artifact: Option<Vec<u8>>,
         prior_mapping: Option<&Bound<'_, PyDict>>,
@@ -1758,7 +1985,7 @@ impl PyPreparedAnalysis {
         horizon_steps=1,
         active_level=1.0,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         prior_artifact=None,
         prior_mapping=None,
@@ -1783,7 +2010,7 @@ impl PyPreparedAnalysis {
         horizon_steps: u32,
         active_level: f64,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         prior_artifact: Option<Vec<u8>>,
         prior_mapping: Option<&Bound<'_, PyDict>>,
@@ -1878,7 +2105,7 @@ impl PyPreparedAnalysis {
         horizon_steps=1,
         active_level=1.0,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         class_prior_ordered=None,
         class_prior_pairs=None,
@@ -1906,7 +2133,7 @@ impl PyPreparedAnalysis {
         horizon_steps: u32,
         active_level: f64,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         class_prior_ordered: Option<Vec<f64>>,
         class_prior_pairs: Option<Vec<(u64, f64)>>,
@@ -1965,7 +2192,7 @@ impl PyPreparedAnalysis {
         horizon_steps=1,
         active_level=1.0,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         class_prior_ordered=None,
         class_prior_pairs=None,
@@ -1993,7 +2220,7 @@ impl PyPreparedAnalysis {
         horizon_steps: u32,
         active_level: f64,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         class_prior_ordered: Option<Vec<f64>>,
         class_prior_pairs: Option<Vec<(u64, f64)>>,
@@ -2052,7 +2279,7 @@ impl PyPreparedAnalysis {
         active_level=1.0,
         horizons=None,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         refute=None,
         seed=1,
@@ -2078,7 +2305,7 @@ impl PyPreparedAnalysis {
         active_level: f64,
         horizons: Option<Vec<u32>>,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
@@ -2174,7 +2401,7 @@ impl PyPreparedAnalysis {
         control_level=0.0,
         active_level=1.0,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         refute=None,
         seed=1,
@@ -2192,7 +2419,7 @@ impl PyPreparedAnalysis {
         control_level: f64,
         active_level: f64,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
@@ -2200,57 +2427,201 @@ impl PyPreparedAnalysis {
         threads: u32,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
     ) -> PyResult<Self> {
-        let supplied = posterior
-            .map(|bound| {
-                let posterior = bound.borrow();
-                posterior.require_bound_to(&names)?;
-                posterior.to_rust()
-            })
-            .transpose()?;
+        let supplied = take_supplied_posterior(posterior, &names)?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let suite = suite_from_refute(refute.as_ref())?;
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-            let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
-            let ctx = py_execution_context_ext(
-                seed,
-                threads,
-                None,
-                None,
-                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            let query = CausalQuery::AverageEffect(AverageEffectQuery::with_levels(
+                t_id,
+                y_id,
+                control_level,
+                active_level,
+            ));
+            let ctx = prepare_ctx(seed, threads);
+            let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+            finish_static_graph_posterior(
+                data, names, gp, query, suite, bootstrap, inference, n_draws, prior_scale, &ctx,
+            )
+        })
+    }
+
+    /// Compile once for licensed ConditionalEffect × graph_posterior.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        treatment,
+        outcome,
+        modifier,
+        *,
+        control_level=0.0,
+        active_level=1.0,
+        inference=None,
+        n_draws=None,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+        posterior=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_graph_posterior_conditional(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        treatment: String,
+        outcome: String,
+        modifier: String,
+        control_level: f64,
+        active_level: f64,
+        inference: Option<String>,
+        n_draws: Option<usize>,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
+    ) -> PyResult<Self> {
+        let supplied = take_supplied_posterior(posterior, &names)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        detach_catch(py, move || {
+            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+            let w_id = data.schema().id_of(&modifier).map_err(py_err)?;
+            let inner = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level)
+                .with_effect_modifiers([w_id]);
+            let query = CausalQuery::ConditionalEffect(
+                ConditionalEffectQuery::try_new(inner)
+                    .map_err(|err| PyValueError::new_err(err.to_string()))?,
             );
-            let gp = if let Some(gp) = supplied {
-                gp
-            } else {
-                let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
-                discover_exact_dag_posterior(&data, &vars, &BayesianDiscoverParams::default(), &ctx)
-                    .map_err(py_err)?
-            };
-            let mut builder = Study::tabular(data)
-                .graph_posterior(gp)
-                .query(query)
-                .refute(suite)
-                .bootstrap_replicates(bootstrap);
-            builder = apply_inference(
-                builder,
-                inference.as_deref().unwrap_or("conjugate"),
-                n_draws,
-                prior_scale,
+            let ctx = prepare_ctx(seed, threads);
+            let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+            finish_static_graph_posterior(
+                data, names, gp, query, suite, bootstrap, inference, n_draws, prior_scale, &ctx,
+            )
+        })
+    }
+
+    /// Compile once for licensed static ResponseCurve × graph_posterior.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        treatment,
+        outcome,
+        grid,
+        *,
+        inference=None,
+        n_draws=None,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+        posterior=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_graph_posterior_response(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        treatment: String,
+        outcome: String,
+        grid: Vec<f64>,
+        inference: Option<String>,
+        n_draws: Option<usize>,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
+    ) -> PyResult<Self> {
+        let supplied = take_supplied_posterior(posterior, &names)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        detach_catch(py, move || {
+            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+            let query = CausalQuery::Response(ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: y_id,
+                treatment: ContinuousDomain::new(t_id, GridSpec::Values(grid.into())),
+            }));
+            let ctx = prepare_ctx(seed, threads);
+            let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+            finish_static_graph_posterior(
+                data, names, gp, query, suite, bootstrap, inference, n_draws, prior_scale, &ctx,
+            )
+        })
+    }
+
+    /// Compile once for licensed one-coordinate InterventionResponse × graph_posterior.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        outcome,
+        treatments,
+        intervention_kinds,
+        intervention_parameters,
+        *,
+        inference=None,
+        n_draws=None,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+        posterior=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_graph_posterior_intervention_response(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        outcome: String,
+        treatments: Vec<String>,
+        intervention_kinds: Vec<String>,
+        intervention_parameters: Vec<Vec<f64>>,
+        inference: Option<String>,
+        n_draws: Option<usize>,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+        posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
+    ) -> PyResult<Self> {
+        let supplied = take_supplied_posterior(posterior, &names)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        detach_catch(py, move || {
+            let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
+            let outcome_ids = crate::response_api::resolve_names(data.schema(), &[outcome])?;
+            let functional = crate::response_api::build_functional(
+                "intervention_response",
+                &treatment_ids,
+                &outcome_ids,
+                None,
+                None,
+                None,
+                Some(intervention_kinds),
+                Some(intervention_parameters),
+                1,
+                antecedent_core::DerivativeScale::Identity,
+                antecedent_core::DerivativeWeighting::Observed,
             )?;
-            let analysis = builder.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self {
-                inner: Arc::new(prepared),
-                names,
-                last: None,
-                last_study: None,
-                last_seed: 1,
-                last_threads: 1,
-                last_retargeted: false,
-                borrowed_bytes: None,
-                series: false,
-            })
+            let query = CausalQuery::Response(ResponseQuery::new(functional));
+            let ctx = prepare_ctx(seed, threads);
+            let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+            finish_static_graph_posterior(
+                data, names, gp, query, suite, bootstrap, inference, n_draws, prior_scale, &ctx,
+            )
         })
     }
 
@@ -2276,7 +2647,7 @@ impl PyPreparedAnalysis {
         n_warmup=200,
         mcmc_draws=400,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         refute=None,
         seed=1,
@@ -2302,7 +2673,7 @@ impl PyPreparedAnalysis {
         n_warmup: u32,
         mcmc_draws: u32,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
@@ -2310,13 +2681,7 @@ impl PyPreparedAnalysis {
         threads: u32,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
     ) -> PyResult<Self> {
-        let supplied = posterior
-            .map(|bound| {
-                let posterior = bound.borrow();
-                posterior.require_bound_to(&names)?;
-                posterior.to_rust()
-            })
-            .transpose()?;
+        let supplied = take_supplied_posterior(posterior, &names)?;
         let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let policy = policy.to_ascii_lowercase();
         let suite = suite_from_refute(refute.as_ref())?;
@@ -2338,57 +2703,22 @@ impl PyPreparedAnalysis {
                 }
                 q = q.with_policy(antecedent_core::TemporalPolicy::sustained(from, until));
             }
-            let ctx = py_execution_context_ext(
-                seed,
-                threads,
-                None,
-                None,
-                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
-            );
-            let gp = if let Some(gp) = supplied {
-                gp
-            } else {
-                let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
-                let schedule =
-                    GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
-                discover_dbn_posterior(
-                    &series,
-                    &vars,
-                    &BayesianDiscoverParams::default(),
-                    max_lag,
-                    force_mcmc,
-                    &schedule,
-                    &ctx,
-                )
-                .map_err(py_err)?
-            };
-            // Frequentist atoms share one circular-block bootstrap for the
-            // mixture SE; the Bayesian mixture uses posterior draws instead.
-            let mut builder = Study::series(series)
-                .graph_posterior(gp)
-                .temporal_query(q)
-                .refute(suite)
-                .bootstrap_replicates(bootstrap);
-            builder = crate::temporal_api::apply_temporal_inference(
-                builder,
-                Some(inference.as_deref().unwrap_or("conjugate")),
+            let ctx = prepare_ctx(seed, threads);
+            let gp = dbn_posterior(
+                supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
+            )?;
+            finish_series_graph_posterior(
+                series,
+                names,
+                gp,
+                SeriesGraphQuery::Temporal(q),
+                suite,
+                bootstrap,
+                inference,
                 n_draws,
                 prior_scale,
-                None,
-            )?;
-            let analysis = builder.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self {
-                inner: Arc::new(prepared),
-                names,
-                last: None,
-                last_study: None,
-                last_seed: 1,
-                last_threads: 1,
-                last_retargeted: false,
-                borrowed_bytes: None,
-                series: true,
-            })
+                &ctx,
+            )
         })
     }
 
@@ -2415,7 +2745,7 @@ impl PyPreparedAnalysis {
         n_warmup=200,
         mcmc_draws=400,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         refute=None,
         seed=1,
@@ -2441,7 +2771,7 @@ impl PyPreparedAnalysis {
         n_warmup: u32,
         mcmc_draws: u32,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
@@ -2449,13 +2779,7 @@ impl PyPreparedAnalysis {
         threads: u32,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
     ) -> PyResult<Self> {
-        let supplied = posterior
-            .map(|bound| {
-                let posterior = bound.borrow();
-                posterior.require_bound_to(&names)?;
-                posterior.to_rust()
-            })
-            .transpose()?;
+        let supplied = take_supplied_posterior(posterior, &names)?;
         let (tabular, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let contrast = contrast.to_string();
         let suite = suite_from_refute(refute.as_ref())?;
@@ -2480,57 +2804,22 @@ impl PyPreparedAnalysis {
             if let Some(hs) = horizons {
                 q = q.with_horizons(hs).map_err(py_msg)?;
             }
-            let ctx = py_execution_context_ext(
-                seed,
-                threads,
-                None,
-                None,
-                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
-            );
-            let gp = if let Some(gp) = supplied {
-                gp
-            } else {
-                let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
-                let schedule =
-                    GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
-                discover_dbn_posterior(
-                    &series,
-                    &vars,
-                    &BayesianDiscoverParams::default(),
-                    max_lag,
-                    force_mcmc,
-                    &schedule,
-                    &ctx,
-                )
-                .map_err(py_err)?
-            };
-            // Frequentist atoms share one circular-block bootstrap for the
-            // mixture SE; the Bayesian mixture uses posterior draws instead.
-            let mut builder = Study::series(series)
-                .graph_posterior(gp)
-                .query(CausalQuery::Mediation(q))
-                .refute(suite)
-                .bootstrap_replicates(bootstrap);
-            builder = crate::temporal_api::apply_temporal_inference(
-                builder,
-                Some(inference.as_deref().unwrap_or("conjugate")),
+            let ctx = prepare_ctx(seed, threads);
+            let gp = dbn_posterior(
+                supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
+            )?;
+            finish_series_graph_posterior(
+                series,
+                names,
+                gp,
+                SeriesGraphQuery::Mediation(q),
+                suite,
+                bootstrap,
+                inference,
                 n_draws,
                 prior_scale,
-                None,
-            )?;
-            let analysis = builder.build().map_err(py_err)?;
-            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-            Ok(Self {
-                inner: Arc::new(prepared),
-                names,
-                last: None,
-                last_study: None,
-                last_seed: 1,
-                last_threads: 1,
-                last_retargeted: false,
-                borrowed_bytes: None,
-                series: true,
-            })
+                &ctx,
+            )
         })
     }
 
@@ -2555,7 +2844,7 @@ impl PyPreparedAnalysis {
         *,
         estimator=None,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         outcome_functional=None,
         refute=None,
@@ -2576,7 +2865,7 @@ impl PyPreparedAnalysis {
         intervention_parameters: Vec<Vec<f64>>,
         estimator: Option<String>,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
         refute: Option<Bound<'_, PyAny>>,
@@ -2788,7 +3077,7 @@ impl PyPreparedAnalysis {
         active_level=1.0,
         refute=None,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         prior_artifact=None,
         prior_mapping=None,
@@ -2813,7 +3102,7 @@ impl PyPreparedAnalysis {
         active_level: f64,
         refute: Option<Bound<'_, PyAny>>,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         prior_artifact: Option<Vec<u8>>,
         prior_mapping: Option<&Bound<'_, PyDict>>,
@@ -2911,7 +3200,7 @@ impl PyPreparedAnalysis {
         identifier=None,
         estimator=None,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         refute=None,
         seed=1,
@@ -2935,7 +3224,7 @@ impl PyPreparedAnalysis {
         identifier: Option<String>,
         estimator: Option<String>,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
@@ -2995,7 +3284,7 @@ impl PyPreparedAnalysis {
         identifier=None,
         estimator=None,
         inference=None,
-        n_draws=1000,
+        n_draws=None,
         prior_scale=10.0,
         refute=None,
         seed=1,
@@ -3019,7 +3308,7 @@ impl PyPreparedAnalysis {
         identifier: Option<String>,
         estimator: Option<String>,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
         refute: Option<Bound<'_, PyAny>>,
         seed: u64,
@@ -3085,7 +3374,7 @@ impl PyPreparedAnalysis {
         latency=None,
         accepted=false,
         inference=None,
-        n_draws=256,
+        n_draws=None,
         prior_scale=10.0,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -3108,7 +3397,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
     ) -> PyResult<Self> {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
@@ -3196,7 +3485,7 @@ impl PyPreparedAnalysis {
         latency=None,
         accepted=false,
         inference=None,
-        n_draws=256,
+        n_draws=None,
         prior_scale=10.0,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -3214,7 +3503,7 @@ impl PyPreparedAnalysis {
         latency: Option<String>,
         accepted: bool,
         inference: Option<String>,
-        n_draws: usize,
+        n_draws: Option<usize>,
         prior_scale: f64,
     ) -> PyResult<Self> {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
@@ -3295,8 +3584,7 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
     ) -> PyResult<AteAnalysisResult> {
-        let ones = 1.0f64.to_bits();
-        let changes_target = weights.iter().any(|weight| weight.to_bits() != ones);
+        let changes_target = antecedent_estimate::changes_target(&weights);
         let inner = Arc::clone(&self.inner);
         let out_names = self.names.clone();
         let (mapped, result) = detach_catch(py, move || {
@@ -3590,11 +3878,6 @@ impl PyPreparedAnalysis {
         py: Python<'py>,
         artifact_id: &str,
     ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
-        if self.last_retargeted {
-            return Err(py_err(antecedent::CausalError::Unsupported {
-                message: "contracted export of retargeted weights is unavailable: the target-weight identity is not retained in the portable contract",
-            }));
-        }
         let result = self.last.as_ref().ok_or_else(|| {
             PyValueError::new_err("estimate before exporting a contracted artifact")
         })?;
@@ -3646,6 +3929,329 @@ impl PyPreparedAnalysis {
         require_prepared_names(&self.names, &names, "refute")?;
         let (data, _) = tabular_from_arrow_c_objs(py, names, columns)?;
         self.finish_ate_refute(py, data, suite, seed, threads, cancel)
+    }
+
+    /// Compile a panel pulse / sustained study.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        unit_columns,
+        unit_ids,
+        edges,
+        treatment,
+        outcome,
+        *,
+        treatment_lag=1,
+        horizon_steps=1,
+        active_level=1.0,
+        policy="pulse",
+        inference=None,
+        n_draws=None,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_panel(
+        py: Python<'_>,
+        names: Vec<String>,
+        unit_columns: Vec<Vec<PyReadonlyArray1<'_, f64>>>,
+        unit_ids: Vec<u32>,
+        edges: Vec<(String, u32, String, u32)>,
+        treatment: String,
+        outcome: String,
+        treatment_lag: u32,
+        horizon_steps: u32,
+        active_level: f64,
+        policy: &str,
+        inference: Option<String>,
+        n_draws: Option<usize>,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+    ) -> PyResult<Self> {
+        if unit_columns.is_empty() {
+            return Err(PyValueError::new_err("panel needs ≥1 unit"));
+        }
+        if unit_columns.len() != unit_ids.len() {
+            return Err(PyValueError::new_err("unit_columns and unit_ids length mismatch"));
+        }
+        let mut batches = Vec::with_capacity(unit_columns.len());
+        for cols in &unit_columns {
+            batches.push(crate::columns_to_batch(&names, cols)?);
+        }
+        let suite = suite_from_refute(refute.as_ref())?;
+        let policy = policy.to_string();
+        drop(unit_columns);
+        detach_catch(py, move || {
+            let mut units = Vec::with_capacity(batches.len());
+            for (batch, unit_id) in batches.iter().zip(unit_ids.into_iter()) {
+                let (series, _) = crate::discovery_api::series_from_batch(batch)?;
+                units.push(antecedent_data::PanelUnit { unit_id, series });
+            }
+            let panel = antecedent_data::PanelData::try_new(Arc::from(units)).map_err(py_err)?;
+            let t_id = panel.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = panel.schema().id_of(&outcome).map_err(py_err)?;
+            let graph = temporal_dag_from_schema_edges(panel.schema(), &edges)?;
+            let query = crate::temporal_api::temporal_query_from_policy(
+                &policy,
+                t_id,
+                y_id,
+                treatment_lag,
+                horizon_steps,
+                active_level,
+            )?;
+            let mut builder = Study::panel(panel)
+                .graph(graph)
+                .temporal_query(query)
+                .refute(suite)
+                .bootstrap_replicates(bootstrap);
+            builder = crate::temporal_api::apply_temporal_inference_transfer(
+                builder,
+                inference.as_deref(),
+                n_draws,
+                prior_scale,
+                None,
+                None,
+                None,
+            )?;
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: true,
+            })
+        })
+    }
+
+    /// Compile irregular events aligned onto a regular grid.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        event_times_ns,
+        align_interval_ns,
+        edges,
+        treatment,
+        outcome,
+        *,
+        treatment_lag=1,
+        horizon_steps=1,
+        active_level=1.0,
+        policy="pulse",
+        inference=None,
+        n_draws=None,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_events(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<PyReadonlyArray1<'_, f64>>,
+        event_times_ns: Vec<i64>,
+        align_interval_ns: u64,
+        edges: Vec<(String, u32, String, u32)>,
+        treatment: String,
+        outcome: String,
+        treatment_lag: u32,
+        horizon_steps: u32,
+        active_level: f64,
+        policy: &str,
+        inference: Option<String>,
+        n_draws: Option<usize>,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+    ) -> PyResult<Self> {
+        let batch = crate::columns_to_batch(&names, &columns)?;
+        let suite = suite_from_refute(refute.as_ref())?;
+        let policy = policy.to_string();
+        drop(columns);
+        detach_catch(py, move || {
+            let loaded = antecedent_data::tabular_from_record_batch(&batch).map_err(py_err)?;
+            let event = antecedent_data::EventData::try_new(
+                loaded.data.storage().clone(),
+                Arc::from(event_times_ns),
+            )
+            .map_err(py_err)?;
+            let t_id = event.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = event.schema().id_of(&outcome).map_err(py_err)?;
+            let graph = temporal_dag_from_schema_edges(event.schema(), &edges)?;
+            let query = crate::temporal_api::temporal_query_from_policy(
+                &policy,
+                t_id,
+                y_id,
+                treatment_lag,
+                horizon_steps,
+                active_level,
+            )?;
+            let mut builder = Study::events(&event, align_interval_ns)
+                .map_err(py_err)?
+                .graph(graph)
+                .temporal_query(query)
+                .refute(suite)
+                .bootstrap_replicates(bootstrap);
+            builder = crate::temporal_api::apply_temporal_inference_transfer(
+                builder,
+                inference.as_deref(),
+                n_draws,
+                prior_scale,
+                None,
+                None,
+                None,
+            )?;
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: true,
+            })
+        })
+    }
+
+    /// Compile multi-environment series.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        env_columns,
+        edges,
+        treatment,
+        outcome,
+        *,
+        treatment_lag=1,
+        horizon_steps=1,
+        active_level=1.0,
+        policy="pulse",
+        inference=None,
+        n_draws=None,
+        prior_scale=10.0,
+        refute=None,
+        seed=1,
+        bootstrap=0,
+        threads=1,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_multi_env(
+        py: Python<'_>,
+        names: Vec<String>,
+        env_columns: Vec<Vec<PyReadonlyArray1<'_, f64>>>,
+        edges: Vec<(String, u32, String, u32)>,
+        treatment: String,
+        outcome: String,
+        treatment_lag: u32,
+        horizon_steps: u32,
+        active_level: f64,
+        policy: &str,
+        inference: Option<String>,
+        n_draws: Option<usize>,
+        prior_scale: f64,
+        refute: Option<Bound<'_, PyAny>>,
+        seed: u64,
+        bootstrap: u32,
+        threads: u32,
+    ) -> PyResult<Self> {
+        if env_columns.is_empty() {
+            return Err(PyValueError::new_err("multi_env needs ≥1 environment"));
+        }
+        let mut batches = Vec::with_capacity(env_columns.len());
+        for cols in &env_columns {
+            batches.push(crate::columns_to_batch(&names, cols)?);
+        }
+        let suite = suite_from_refute(refute.as_ref())?;
+        let policy = policy.to_string();
+        drop(env_columns);
+        detach_catch(py, move || {
+            let mut series_list = Vec::with_capacity(batches.len());
+            for batch in &batches {
+                let (series, _) = crate::discovery_api::series_from_batch(batch)?;
+                series_list.push(series);
+            }
+            let multi = antecedent_data::MultiEnvironmentData::try_new(Arc::from(series_list))
+                .map_err(py_err)?;
+            let t_id = multi.schema().id_of(&treatment).map_err(py_err)?;
+            let y_id = multi.schema().id_of(&outcome).map_err(py_err)?;
+            let graph = temporal_dag_from_schema_edges(multi.schema(), &edges)?;
+            let query = crate::temporal_api::temporal_query_from_policy(
+                &policy,
+                t_id,
+                y_id,
+                treatment_lag,
+                horizon_steps,
+                active_level,
+            )?;
+            let mut builder = Study::series_multi(multi)
+                .graph(graph)
+                .temporal_query(query)
+                .refute(suite)
+                .bootstrap_replicates(bootstrap);
+            builder = crate::temporal_api::apply_temporal_inference_transfer(
+                builder,
+                inference.as_deref(),
+                n_draws,
+                prior_scale,
+                None,
+                None,
+                None,
+            )?;
+            let analysis = builder.build().map_err(py_err)?;
+            let ctx = py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            let prepared = analysis.prepare(&ctx).map_err(py_err)?;
+            Ok(Self {
+                inner: Arc::new(prepared),
+                names,
+                last: None,
+                last_study: None,
+                last_seed: 1,
+                last_threads: 1,
+                last_retargeted: false,
+                borrowed_bytes: None,
+                series: true,
+            })
+        })
     }
 
     #[getter]
@@ -3776,6 +4382,53 @@ enum ClassResponseGraph {
     Cpdag(antecedent_graph::Cpdag),
 }
 
+fn bind_class_response_graph(
+    data: TabularData,
+    graph: ClassResponseGraph,
+    accepted: bool,
+) -> antecedent::StudyBuilder {
+    match graph {
+        ClassResponseGraph::Pag(pag) => {
+            if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(pag))
+            } else {
+                Study::tabular(data).graph(pag)
+            }
+        }
+        ClassResponseGraph::Cpdag(cpdag) => {
+            if accepted {
+                Study::tabular(data).graph(antecedent::AcceptedGraph::from(cpdag))
+            } else {
+                Study::tabular(data).graph(cpdag)
+            }
+        }
+    }
+}
+
+fn apply_ids(
+    mut builder: antecedent::StudyBuilder,
+    identifier: Option<String>,
+    estimator: Option<String>,
+    latency_mode: Option<antecedent::LatencyMode>,
+) -> PyResult<antecedent::StudyBuilder> {
+    if let Some(mode) = latency_mode {
+        builder = builder.latency_mode(mode);
+    }
+    if let Some(id) = identifier {
+        builder = builder.identifier(
+            id.parse::<antecedent::IdentifierId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
+    }
+    if let Some(est) = estimator {
+        builder = builder.estimator(
+            est.parse::<antecedent::EstimatorId>()
+                .map_err(|e| PyValueError::new_err(e.to_string()))?,
+        );
+    }
+    Ok(builder)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn prepare_class_response(
     data: TabularData,
@@ -3790,7 +4443,7 @@ fn prepare_class_response(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     seed: u64,
     threads: u32,
@@ -3813,40 +4466,11 @@ fn prepare_class_response(
         antecedent_core::DerivativeWeighting::Observed,
     )?;
     let query = CausalQuery::Response(ResponseQuery::new(functional));
-    let mut builder = match graph {
-        ClassResponseGraph::Pag(pag) => {
-            if accepted {
-                Study::tabular(data).graph(antecedent::AcceptedGraph::from(pag))
-            } else {
-                Study::tabular(data).graph(pag)
-            }
-        }
-        ClassResponseGraph::Cpdag(cpdag) => {
-            if accepted {
-                Study::tabular(data).graph(antecedent::AcceptedGraph::from(cpdag))
-            } else {
-                Study::tabular(data).graph(cpdag)
-            }
-        }
-    }
-    .query(query)
-    .refute(antecedent::RefuteSuite::None)
-    .bootstrap_replicates(0);
-    if let Some(mode) = latency_mode {
-        builder = builder.latency_mode(mode);
-    }
-    if let Some(id) = identifier {
-        builder = builder.identifier(
-            id.parse::<antecedent::IdentifierId>()
-                .map_err(|e| PyValueError::new_err(e.to_string()))?,
-        );
-    }
-    if let Some(est) = estimator {
-        builder = builder.estimator(
-            est.parse::<antecedent::EstimatorId>()
-                .map_err(|e| PyValueError::new_err(e.to_string()))?,
-        );
-    }
+    let mut builder = bind_class_response_graph(data, graph, accepted)
+        .query(query)
+        .refute(antecedent::RefuteSuite::None)
+        .bootstrap_replicates(0);
+    builder = apply_ids(builder, identifier, estimator, latency_mode)?;
     builder = apply_inference(
         builder,
         inference.as_deref().unwrap_or("frequentist"),
@@ -3854,25 +4478,11 @@ fn prepare_class_response(
         prior_scale,
     )?;
     let analysis = builder.build().map_err(py_err)?;
-    let ctx = py_execution_context_ext(
-        seed,
-        threads,
-        None,
-        None,
-        Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
-    );
-    let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-    Ok(PyPreparedAnalysis {
-        inner: Arc::new(prepared),
+    Ok(finished_prepared(
+        analysis.prepare(&prepare_ctx(seed, threads)).map_err(py_err)?,
         names,
-        last: None,
-        last_study: None,
-        last_seed: 1,
-        last_threads: 1,
-        last_retargeted: false,
-        borrowed_bytes: None,
-        series: false,
-    })
+        false,
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3888,7 +4498,7 @@ fn prepare_class_conditional(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     prior_mapping: Option<antecedent_io::PriorMapping>,
@@ -3911,40 +4521,11 @@ fn prepare_class_conditional(
     }
     let cq =
         ConditionalEffectQuery::try_new(inner).map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let mut builder = match graph {
-        ClassResponseGraph::Pag(pag) => {
-            if accepted {
-                Study::tabular(data).graph(antecedent::AcceptedGraph::from(pag))
-            } else {
-                Study::tabular(data).graph(pag)
-            }
-        }
-        ClassResponseGraph::Cpdag(cpdag) => {
-            if accepted {
-                Study::tabular(data).graph(antecedent::AcceptedGraph::from(cpdag))
-            } else {
-                Study::tabular(data).graph(cpdag)
-            }
-        }
-    }
-    .query(CausalQuery::ConditionalEffect(cq))
-    .refute(suite)
-    .bootstrap_replicates(bootstrap);
-    if let Some(mode) = latency_mode {
-        builder = builder.latency_mode(mode);
-    }
-    if let Some(id) = identifier {
-        builder = builder.identifier(
-            id.parse::<antecedent::IdentifierId>()
-                .map_err(|e| PyValueError::new_err(e.to_string()))?,
-        );
-    }
-    if let Some(est) = estimator {
-        builder = builder.estimator(
-            est.parse::<antecedent::EstimatorId>()
-                .map_err(|e| PyValueError::new_err(e.to_string()))?,
-        );
-    }
+    let mut builder = bind_class_response_graph(data, graph, accepted)
+        .query(CausalQuery::ConditionalEffect(cq))
+        .refute(suite)
+        .bootstrap_replicates(bootstrap);
+    builder = apply_ids(builder, identifier, estimator, latency_mode)?;
     builder = apply_inference_transfer(
         builder,
         inference.as_deref(),
@@ -3955,31 +4536,17 @@ fn prepare_class_conditional(
         composed_prior,
     )?;
     let analysis = builder.build().map_err(py_err)?;
-    let ctx = py_execution_context_ext(
-        seed,
-        threads,
-        None,
-        None,
-        Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
-    );
-    let prepared = analysis.prepare(&ctx).map_err(py_err)?;
-    Ok(PyPreparedAnalysis {
-        inner: Arc::new(prepared),
+    Ok(finished_prepared(
+        analysis.prepare(&prepare_ctx(seed, threads)).map_err(py_err)?,
         names,
-        last: None,
-        last_study: None,
-        last_seed: 1,
-        last_threads: 1,
-        last_retargeted: false,
-        borrowed_bytes: None,
-        series: false,
-    })
+        false,
+    ))
 }
 
 fn apply_inference(
     builder: antecedent::StudyBuilder,
     mode: &str,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
 ) -> PyResult<antecedent::StudyBuilder> {
     apply_inference_transfer(builder, Some(mode), n_draws, prior_scale, None, None, None)
@@ -3988,7 +4555,7 @@ fn apply_inference(
 fn apply_inference_transfer(
     builder: antecedent::StudyBuilder,
     mode: Option<&str>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
     prior_mapping: Option<antecedent_io::PriorMapping>,
@@ -4081,7 +4648,7 @@ fn prepare_temporal_class_effect(
     horizon_steps: u32,
     active_level: f64,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     class_prior_ordered: Option<Vec<f64>>,
     class_prior_pairs: Option<Vec<(u64, f64)>>,

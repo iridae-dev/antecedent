@@ -304,7 +304,7 @@ pub(crate) struct AnalysisResult {
     active_level=1.0,
     policy=crate::temporal_license::DEFAULT_POLICY,
     inference=None,
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     prior_artifact=None,
     refute=None,
@@ -325,7 +325,7 @@ fn analyze(
     active_level: f64,
     policy: &str,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -407,7 +407,7 @@ fn analyze_temporal_class(
     active_level: f64,
     policy: &str,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     class_prior_ordered: Option<Vec<f64>>,
@@ -473,7 +473,7 @@ fn analyze_temporal_class(
     active_level=1.0,
     policy=crate::temporal_license::DEFAULT_POLICY,
     inference=None,
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     prior_artifact=None,
     class_prior_ordered=None,
@@ -498,7 +498,7 @@ fn analyze_temporal_cpdag(
     active_level: f64,
     policy: &str,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     class_prior_ordered: Option<Vec<f64>>,
@@ -552,7 +552,7 @@ fn analyze_temporal_cpdag(
     active_level=1.0,
     policy=crate::temporal_license::DEFAULT_POLICY,
     inference=None,
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     prior_artifact=None,
     class_prior_ordered=None,
@@ -577,7 +577,7 @@ fn analyze_temporal_pag(
     active_level: f64,
     policy: &str,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     class_prior_ordered: Option<Vec<f64>>,
@@ -635,7 +635,7 @@ fn analyze_temporal_pag(
     active_level=1.0,
     policy=crate::temporal_license::DEFAULT_POLICY,
     inference=None,
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     prior_artifact=None,
     refute=None,
@@ -670,7 +670,7 @@ fn analyze_events(
     active_level: f64,
     policy: &str,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -855,7 +855,7 @@ fn analyze_events(
     active_level=1.0,
     policy=crate::temporal_license::DEFAULT_POLICY,
     inference=None,
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     prior_artifact=None,
     refute=None,
@@ -877,7 +877,7 @@ fn analyze_panel(
     active_level: f64,
     policy: &str,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -959,7 +959,7 @@ fn analyze_panel(
     active_level=1.0,
     policy=crate::temporal_license::DEFAULT_POLICY,
     inference=None,
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     prior_artifact=None,
     refute=None,
@@ -993,7 +993,7 @@ fn analyze_panel_discover(
     active_level: f64,
     policy: &str,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -1320,7 +1320,7 @@ fn temporal_discover_pcmci_family(
     bootstrap: u32,
     ci_impl: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     inference: Option<&str>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
     seed: u64,
@@ -1392,7 +1392,7 @@ fn temporal_discover_dbn_posterior(
     n_warmup: u32,
     mcmc_draws: u32,
     inference: Option<&str>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
     seed: u64,
@@ -1449,7 +1449,7 @@ struct TemporalDiscoverContext {
     bootstrap: u32,
     ci_impl: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     seed: u64,
@@ -1669,7 +1669,7 @@ fn dispatch_temporal_dbn_posterior(
     active_level=1.0,
     policy=crate::temporal_license::DEFAULT_POLICY,
     inference=None,
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     prior_artifact=None,
     refute=None,
@@ -1708,7 +1708,7 @@ fn analyze_temporal_discover(
     active_level: f64,
     policy: &str,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -2014,7 +2014,7 @@ pub(crate) fn apply_class_prior(
 pub(crate) fn apply_temporal_inference(
     builder: antecedent::StudyBuilder,
     inference: Option<&str>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
 ) -> PyResult<antecedent::StudyBuilder> {
@@ -2032,7 +2032,7 @@ pub(crate) fn apply_temporal_inference(
 pub(crate) fn apply_temporal_inference_transfer(
     builder: antecedent::StudyBuilder,
     inference: Option<&str>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
     prior_mapping: Option<antecedent_io::PriorMapping>,
@@ -2041,14 +2041,17 @@ pub(crate) fn apply_temporal_inference_transfer(
     let Some(mode) = inference else {
         return Ok(builder);
     };
+    let apply_draws = |cfg: BayesianConfig| {
+        if let Some(n) = n_draws { cfg.n_draws(n) } else { cfg }
+    };
     let mut cfg = match mode.to_ascii_lowercase().as_str() {
         "bayesian" | "bayesian.laplace" | "laplace" => {
-            BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale)
+            apply_draws(BayesianConfig::laplace().prior_scale(prior_scale))
         }
         "bayesian.conjugate" | "conjugate" => {
-            BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale)
+            apply_draws(BayesianConfig::conjugate().prior_scale(prior_scale))
         }
-        "bayesian.hmc" | "hmc" => BayesianConfig::hmc().n_draws(n_draws).prior_scale(prior_scale),
+        "bayesian.hmc" | "hmc" => apply_draws(BayesianConfig::hmc().prior_scale(prior_scale)),
         "frequentist" => {
             return Ok(builder.inference(InferenceMode::Frequentist));
         }
@@ -2063,7 +2066,15 @@ pub(crate) fn apply_temporal_inference_transfer(
     } else if let Some(bytes) = prior_artifact {
         cfg = cfg.prior_from_artifact(bytes.to_vec(), prior_mapping);
     }
-    Ok(builder.inference(InferenceMode::Bayesian(cfg)))
+    let builder = builder.inference(InferenceMode::Bayesian(cfg));
+    if let Some(n) = n_draws {
+        Ok(builder.compute_budget(antecedent::ComputeBudget {
+            n_draws: Some(n),
+            ..antecedent::ComputeBudget::default()
+        }))
+    } else {
+        Ok(builder)
+    }
 }
 
 /// Anomaly scores for listed outcomes.
@@ -2143,7 +2154,7 @@ fn analyze_temporal_mediation(
     horizon_steps=1,
     active_level=1.0,
     inference="conjugate",
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     refute=None,
     seed=1,
@@ -2165,7 +2176,7 @@ fn analyze_temporal_graph_posterior(
     horizon_steps: u32,
     active_level: f64,
     inference: &str,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
@@ -2237,7 +2248,7 @@ fn analyze_temporal_graph_posterior(
     active_level=1.0,
     horizons=None,
     inference="conjugate",
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     refute=None,
     seed=1,
@@ -2259,7 +2270,7 @@ fn analyze_temporal_graph_posterior_mediation(
     active_level: f64,
     horizons: Option<Vec<u32>>,
     inference: &str,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,

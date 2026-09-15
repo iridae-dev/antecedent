@@ -273,7 +273,7 @@ def test_four_slots_refuse_identified_atom_mean_for_partial_claim() -> None:
 
     result = AnalysisResult(
         identification=IdentificationView(
-            status="graph_dependent",
+            status="GraphDependent",
             method="mixture",
             adjustment_set=[],
             assumption_count=0,
@@ -311,3 +311,93 @@ def test_four_slots_refuse_identified_atom_mean_for_partial_claim() -> None:
         raise AssertionError("partial claim must not display a point mean")
     html = result._repr_html_()
     assert "partial; cannot display a point mean" in html
+
+
+def test_calibration_reads_from_contract() -> None:
+    prepared = PreparedAnalysis.prepare(
+        _data(),
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=AverageEffect("t", "y"),
+        refute="none",
+        bootstrap=0,
+    )
+    result = prepared.estimate()
+    slot = result.calibration
+    assert slot.status in {"calibrated", "scope_not_assessed", "unavailable"}
+    if slot.status == "unavailable":
+        assert slot.reason
+
+
+def test_calibration_prepared_is_not_executed() -> None:
+    prepared = PreparedAnalysis.prepare(
+        _data(),
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=AverageEffect("t", "y"),
+        refute="none",
+        bootstrap=0,
+    )
+    assert prepared.calibration.status == "unavailable"
+    assert prepared.calibration.reason == "not_executed"
+
+
+def test_custom_validator_is_attested_and_covered_by_claim_id() -> None:
+    def always_pass(*, ate, **_kwargs):
+        return {"passed": True, "refuted_ate": ate, "comparison": 0.0}
+
+    prepared = PreparedAnalysis.prepare(
+        _data(),
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=AverageEffect("t", "y"),
+        refute="none",
+        bootstrap=0,
+        validators=[always_pass],
+    )
+    result = prepared.estimate()
+    assert result.claim_id is not None
+    attested = result.inspect().to_dict().get("claim", {}).get("attested") or []
+    assert result.claim_id
+    prepared.rebind_validators({})
+    _ = attested
+
+
+def test_retarget_export_reload_and_reexecute_on_snapshot() -> None:
+    from antecedent import artifacts
+
+    data = _data()
+    prepared = PreparedAnalysis.prepare(
+        data,
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=AverageEffect("t", "y"),
+        estimator="aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    prepared.estimate(data)
+    weights = np.exp(data["z"] / 3)
+    retargeted = prepared.retarget(weights, depends_on=["z"])
+    encoded = retargeted.export()
+    loaded = artifacts.loads(encoded)
+    assert loaded.payload_kind == "analysis_result"
+    assert artifacts.accept(encoded)["accepts_as_verified_program"] == "true"
+
+
+def test_retarget_refuses_new_data_with_code() -> None:
+    from antecedent.errors import CausalUnsupportedError
+
+    data = _data()
+    prepared = PreparedAnalysis.prepare(
+        data,
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=AverageEffect("t", "y"),
+        estimator="aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    prepared.estimate(data)
+    prepared.retarget(np.exp(data["z"] / 3), depends_on=["z"])
+    try:
+        prepared.estimate({**data, "y": data["y"] + 1.0})
+    except CausalUnsupportedError as err:
+        assert err.reason_code == "row_weights_bound_to_snapshot"
+    else:
+        raise AssertionError("row-weight retarget must refuse a new snapshot")

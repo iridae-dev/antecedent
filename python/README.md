@@ -71,9 +71,10 @@ The
 cover composition of the existing 341 licensed cells: inspect/contract
 coordinates, the Rust inspect → preview → execute → claim → consume path
 for every licensed cell, retained studies on ordinary prepared routes, and
-portable claims. That is not a claim that every Python analysis retains
-`.study`, nor that compiler-path evidence inherits estimator oracles.
-Execution-bound calibration is a 1.10 non-goal.
+portable claims.
+Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
+Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists.
+Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
 
 ## 1.9.0
 

@@ -43,11 +43,19 @@ def describe_refusal(fn: Callable[P, R]) -> Callable[P, R]:
         try:
             result = fn(*args, **kwargs)
         except (CausalError, ValueError, TypeError) as error:
+            message = str(error)
+            if getattr(error, "reason_code", None) is None and message.startswith("reason="):
+                code, _, _ = message.partition(":")
+                cast(Any, error).reason_code = code.removeprefix("reason=").strip()
             if not hasattr(error, "report"):
                 report = RefusalReport(
                     operation=fn.__name__,
-                    code=getattr(error, "reason", type(error).__name__),
-                    message=str(error),
+                    code=getattr(
+                        error,
+                        "reason_code",
+                        getattr(error, "reason", type(error).__name__),
+                    ),
+                    message=message,
                     query=kwargs.get("query", getattr(args[0], "_query", None) if args else None),
                     hint=getattr(error, "hint", None),
                     pending_edges=tuple(getattr(error, "pending_edges", ())),

@@ -947,6 +947,11 @@ class PreparedAnalysis:
         threads: int = 1,
         latency: str | None = None,
         accepted: bool = False,
+        bandwidth: float | None = None,
+        simultaneous_replicates: int | None = None,
+        confidence_level: float = 0.95,
+        multiplier_seed: int = 0xA17E_CEDE_0500,
+        export_row_diagnostics: bool = False,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_temporal_response(
@@ -1108,6 +1113,60 @@ class PreparedAnalysis:
         active_level: float = 1.0,
         inference: str | None = None,
         n_draws: int = 1000,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 0,
+        threads: int = 1,
+        posterior: GraphPosterior | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_graph_posterior_conditional(
+        names: list[str],
+        columns: Sequence[Any],
+        treatment: str,
+        outcome: str,
+        modifier: str,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        inference: str | None = None,
+        n_draws: int | None = None,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 0,
+        threads: int = 1,
+        posterior: GraphPosterior | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_graph_posterior_response(
+        names: list[str],
+        columns: Sequence[Any],
+        treatment: str,
+        outcome: str,
+        grid: Sequence[float],
+        *,
+        inference: str | None = None,
+        n_draws: int | None = None,
+        prior_scale: float = 10.0,
+        refute: bool | str | None = None,
+        seed: int = 1,
+        bootstrap: int = 0,
+        threads: int = 1,
+        posterior: GraphPosterior | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_graph_posterior_intervention_response(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: str,
+        treatments: Sequence[str],
+        intervention_kinds: Sequence[str],
+        intervention_parameters: Sequence[Sequence[float]],
+        *,
+        inference: str | None = None,
+        n_draws: int | None = None,
         prior_scale: float = 10.0,
         refute: bool | str | None = None,
         seed: int = 1,

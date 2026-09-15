@@ -197,6 +197,7 @@ _EXPECTED_STAGE_ALL = {
     },
     "errors": {
         "CausalAttributionError",
+        "CausalCancelled",
         "CausalCancelledError",
         "CausalCompileError",
         "CausalCounterfactualError",
@@ -314,9 +315,12 @@ def test_all_has_no_duplicates():
 
 
 def test_api_naming_counts_match_the_frozen_surfaces():
-    text = read_text(Path(__file__).resolve().parents[2] / "docs" / "api_naming.md")
+    root = Path(__file__).resolve().parents[2]
+    text = read_text(root / "docs" / "api_naming.md")
     assert f"frozen at {len(antecedent.__all__)} names" in text
     assert f"**{len(_EXPECTED_UNLISTED_BUT_REACHABLE)}** further modules" in text
+    readme = read_text(root / "python" / "README.md")
+    assert f"contains {len(antecedent.__all__)} names" in readme
 
 
 @pytest.mark.parametrize("name", sorted(_EXPECTED_ALL))

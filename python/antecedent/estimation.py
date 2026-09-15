@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import math
 import numbers
-import warnings
 from collections.abc import Mapping, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import partial
 from types import SimpleNamespace
@@ -68,6 +68,8 @@ from .errors import (
     build_review_error,
 )
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
+
+_PREPARE_CANCEL: ContextVar[Any] = ContextVar("antecedent_prepare_cancel", default=None)
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import (
     Bayesian,
@@ -616,6 +618,39 @@ def _wrap_ate(
 _wrap_temporal = _wrap_ate
 
 
+def _graph_posterior_kwargs(
+    *,
+    inference_mode: str,
+    n_draws: Any,
+    prior_scale: float,
+    refute: Any,
+    seed: int,
+    bootstrap: int | None,
+    threads: int,
+    discovery: Any,
+) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {
+        "inference": inference_mode,
+        "n_draws": n_draws,
+        "prior_scale": prior_scale,
+        "refute": refute,
+        "seed": seed,
+        "bootstrap": bootstrap if bootstrap is not None else 0,
+        "threads": threads,
+    }
+    if isinstance(discovery, GraphPosterior):
+        kwargs["posterior"] = discovery
+    elif isinstance(discovery, DbnPosterior):
+        kwargs.update(
+            max_lag=discovery.max_lag,
+            force_mcmc=discovery.force_mcmc,
+            n_chains=discovery.n_chains,
+            n_warmup=discovery.n_warmup,
+            mcmc_draws=discovery.n_draws,
+        )
+    return kwargs
+
+
 def _resolve_latency_budget(
     latency: Latency | Literal["interactive", "standard", "report"] | str | None,
     bootstrap: int | None,
@@ -671,6 +706,127 @@ def _static_edges(
         # CPDAGs fail closed with a clear undirected-count message.
         return cpdag_oriented_edges(graph, require_oriented=True)
     return [(str(a), str(b)) for a, b in graph]
+
+
+_RESPONSE_FAMILY = (
+    ResponseCurve,
+    InterventionResponse,
+    AverageDerivative,
+    PointDerivative,
+    Elasticity,
+    SemiElasticity,
+    DirectionalDerivative,
+    ResponseJacobian,
+)
+_ADMG_RESPONSE_REFUSED = (
+    "refused: Admg response has no functional plug-in; licensed general-ID "
+    "ATE does not estimate a curve."
+)
+_RESPONSE_CONFIG_KEYS = frozenset(
+    {
+        "bandwidth",
+        "simultaneous_replicates",
+        "confidence_level",
+        "multiplier_seed",
+        "export_row_diagnostics",
+    }
+)
+_RESPONSE_ESTIMATORS = {
+    "response_curve": "response.kennedy_dr",
+    "point_derivative": "response.kennedy_dr",
+    "elasticity": "response.kennedy_dr",
+    "semi_elasticity": "response.kennedy_dr",
+    "average_derivative": "response.riesz_ade",
+    "directional_derivative": "response.gam_derivative",
+    "response_jacobian": "response.gam_derivative",
+    "intervention_response": "response.intervention_gcomp",
+}
+
+
+def _refuse_admg_response(graph: Any, query: Any) -> None:
+    if isinstance(graph, Admg) and isinstance(query, _RESPONSE_FAMILY):
+        raise CausalUnsupportedError(_ADMG_RESPONSE_REFUSED)
+    if isinstance(graph, Admg) and isinstance(query, ConditionalEffect):
+        raise CausalUnsupportedError(
+            "refused: ConditionalEffect on Admg has no compile arm; "
+            "Dag, Cpdag, and Pag are licensed."
+        )
+
+
+def _check_response_threads(threads: int) -> None:
+    if threads != 1:
+        raise ValueError("response queries currently require threads=1")
+
+
+def _check_response_strategy(
+    query: Any,
+    *,
+    graph: Any,
+    identifier: str | None,
+    estimator: str | None,
+    inference: Frequentist | Bayesian | None,
+) -> None:
+    if (
+        isinstance(query, InterventionResponse)
+        and estimator == "cell.aipw"
+        and not isinstance(inference, Bayesian)
+    ):
+        if identifier not in (None, "generalized.adjustment"):
+            raise ValueError(
+                f"{query.kind} requires identifier='generalized.adjustment'; got {identifier!r}"
+            )
+        return
+    expected_identifier = (
+        "generalized.adjustment" if isinstance(graph, (Pag, Cpdag)) else "response.backdoor"
+    )
+    if identifier not in (None, expected_identifier):
+        raise ValueError(
+            f"{query.kind} requires identifier={expected_identifier!r}; got {identifier!r}"
+        )
+    expected = _RESPONSE_ESTIMATORS[query.kind]
+    allowed = (None, expected)
+    if isinstance(query, InterventionResponse) and isinstance(inference, Bayesian):
+        allowed = (None, expected, "response.bayesian")
+    if estimator not in allowed:
+        raise ValueError(f"{query.kind} requires estimator={expected!r}; got {estimator!r}")
+
+
+def _parse_response_estimator_config(
+    query: Any, estimator_config: Mapping[str, Any] | None
+) -> dict[str, Any]:
+    if estimator_config is None:
+        return {}
+    unknown = set(estimator_config) - _RESPONSE_CONFIG_KEYS
+    if unknown:
+        raise ValueError(
+            "unknown response estimator_config keys: " + ", ".join(sorted(unknown))
+        )
+    options = dict(estimator_config)
+    if "simultaneous_replicates" in options and "bandwidth" not in options:
+        raise ValueError(
+            "simultaneous response bands require an explicit estimator_config bandwidth"
+        )
+    if isinstance(query, (PointDerivative, Elasticity, SemiElasticity)):
+        if "simultaneous_replicates" in options:
+            raise ValueError(
+                "simultaneous response bands currently apply to ResponseCurve only"
+            )
+        if "bandwidth" not in options:
+            raise ValueError(
+                "PointDerivative/Elasticity/SemiElasticity require estimator_config bandwidth"
+            )
+        extra = set(options) - {"bandwidth"}
+        if extra:
+            raise ValueError("prepared derivatives accept only bandwidth in estimator_config")
+    elif isinstance(query, (AverageDerivative, DirectionalDerivative, ResponseJacobian)):
+        extra = set(options) - {"bandwidth"}
+        if extra:
+            raise ValueError("prepared derivatives accept only bandwidth in estimator_config")
+    elif not isinstance(query, ResponseCurve):
+        raise ValueError(
+            "response estimator_config currently applies to ResponseCurve and point derivatives only"
+        )
+    return options
 
 
 def _lagged_edges(
@@ -739,9 +895,10 @@ def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
         )
     kw: dict[str, Any] = {
         "inference": inference_s,
-        "n_draws": inference.n_draws,
         "prior_scale": inference.prior_scale,
     }
+    if inference.n_draws_explicit:
+        kw["n_draws"] = inference.n_draws
     prior_from = inference.prior_from
     if prior_from is not None:
         # Local import avoids circular import with priors ↔ estimation.
@@ -1533,6 +1690,15 @@ _PreparedQuery = (
 )
 
 
+def _bound_prepared(
+    native: Any,
+    *,
+    kind: Literal["average", "response_curve", "intervention_response"],
+    query: _PreparedQuery | None,
+) -> PreparedAnalysis:
+    return PreparedAnalysis(native, kind=kind, query=query)
+
+
 class PreparedAnalysis:
     """Compile-once / re-estimate-many handle for licensed analysis cells.
 
@@ -1568,6 +1734,20 @@ class PreparedAnalysis:
         self._native = native
         self._kind = kind
         self._query = query
+        self._rebound_validators: dict[str, Any] | None = None
+        self._cancel = _PREPARE_CANCEL.get()
+        self._cancelled = False
+        self._row_weights_bound = False
+
+    def rebind_validators(self, validators: Mapping[str, Any]) -> None:
+        """Re-bind caller-attested custom validators by exact attested name."""
+        attested = getattr(self, "_attested_names", ())
+        incoming = set(validators)
+        if attested and incoming != set(attested):
+            raise CausalUnsupportedError(
+                "reason=attested_not_reverifiable: rebind_validators names must match attested names"
+            )
+        self._rebound_validators = dict(validators)
 
     @classmethod
     @describe_refusal
@@ -1589,16 +1769,24 @@ class PreparedAnalysis:
         latency: Latency | Literal["interactive", "standard", "report"] | None = None,
         class_prior: ClassPrior | None = None,
         max_completions: int | None = None,
+        population_registry: Any | None = None,
+        cancel: Any | None = None,
+        on_progress: Any | None = None,
+        on_stage: Any | None = None,
+        target_population: Any | None = None,
+        validators: Sequence[Any] | None = None,
+        accept_discovered: bool = True,
+        regimes: Sequence[int] | None = None,
+        running_variable: str | None = None,
+        cutoff: float | None = None,
+        bandwidth: float | None = None,
     ) -> PreparedAnalysis:
         """Compile a durable plan for a licensed analysis cell.
 
         .. warning::
-           Omitted ``refute`` / ``bootstrap`` / ``latency`` keep **historical
-           interactive defaults** (``refute=False``, ``latency="interactive"``,
-           bootstrap 0 unless a latency tier supplies one). The one-call
-           :func:`antecedent.prepare` / :func:`antecedent.analyze` verbs use
-           one-shot defaults instead. Pass these arguments explicitly. These
-           omitted defaults will converge to analyze defaults in 1.11.
+           Omitted ``refute`` / ``bootstrap`` / ``latency`` use the single
+           omitted-default table (`antecedent._defaults.OMITTED`). Latency is
+           never injected when omitted.
 
         Supports ``AverageEffect``, ``ResponseCurve``, ``ConditionalEffect``,
         ``PathSpecificEffect``, ``InterventionalDistribution``,
@@ -1622,26 +1810,31 @@ class PreparedAnalysis:
         same ``latency`` tier for its shared circular-block replicates.
         ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` / a constructed
         ``GraphPosterior`` compiles the licensed graph-posterior cells
-        (Bayesian AverageEffect / Pulse / Sustained / TemporalMediationEffect,
-        Frequentist AverageEffect, and Frequentist Pulse / Sustained and
-        single-horizon TemporalMediationEffect on a DBN posterior). Frequentist
-        DBN mixtures take their shared circular-block replicates from the
-        ``latency`` tier (or an explicit ``bootstrap``).
+        (AverageEffect / ConditionalEffect / ResponseCurve / one-coordinate
+        InterventionResponse on DAG atoms; Pulse / Sustained /
+        TemporalMediationEffect on a DBN posterior). Frequentist DBN mixtures
+        take their shared circular-block replicates from the ``latency`` tier
+        (or an explicit ``bootstrap``).
         """
-        if refute is None or latency is None:
-            warnings.warn(
-                "PreparedAnalysis.prepare omitted refute/latency currently keep "
-                "interactive defaults (refute=False, latency='interactive'). "
-                "antecedent.prepare / analyze use one-shot analyze defaults. "
-                "Pass these arguments explicitly. Omitted defaults will converge "
-                "to analyze defaults in 1.11.",
-                FutureWarning,
-                stacklevel=3,
-            )
-        if refute is None:
-            refute = False
-        if latency is None:
-            latency = "interactive"
+        from ._defaults import resolve_omitted
+
+        from .population import coerce_target_population
+
+        _ = (population_registry, on_progress, on_stage, accept_discovered, regimes)
+        _PREPARE_CANCEL.set(cancel)
+        if target_population is not None and hasattr(query, "target_population"):
+            object.__setattr__(query, "target_population", coerce_target_population(target_population))
+        resolved_population = coerce_target_population(
+            target_population or getattr(query, "target_population", None)
+        )
+        refute, bootstrap, latency = resolve_omitted(
+            kind=getattr(query, "kind", ""),
+            inference=inference,
+            query=query,
+            refute=refute,
+            bootstrap=bootstrap,
+            latency=latency,
+        )
         if isinstance(query, (ResponseCurve, InterventionResponse)):
             from .query import coerce_outcome_functional
 
@@ -1714,27 +1907,41 @@ class PreparedAnalysis:
                 else "prepared static responses use analytic or influence-function "
                 "uncertainty; bootstrap= applies to Frequentist temporal responses only"
             )
-        if estimator_config is not None and not isinstance(
-            query,
-            (
-                PointDerivative,
-                Elasticity,
-                SemiElasticity,
-                AverageDerivative,
-                DirectionalDerivative,
-                ResponseJacobian,
-            ),
-        ):
-            raise CausalUnsupportedError(
-                "prepared estimator_config currently applies to derivatives only"
-            )
+        response_options = (
+            _parse_response_estimator_config(query, estimator_config)
+            if isinstance(query, _RESPONSE_FAMILY)
+            else {}
+        )
         if isinstance(identifier, Identifier):
             identifier = str(identifier)
         if isinstance(estimator, Estimator):
             estimator = str(estimator)
         if latency is not None:
             latency = coerce_latency(latency)  # type: ignore[assignment]
-        if isinstance(query, AverageEffect) and discovery is None:
+        if (
+            discovery is not None
+            and isinstance(query, _RESPONSE_FAMILY)
+            and not isinstance(discovery, (ExactDagPosterior, DbnPosterior, GraphPosterior))
+        ):
+            raise ValueError("response queries do not yet support discovery=")
+        if discovery is not None and isinstance(
+            query, (PathSpecificEffect, InterventionalDistribution)
+        ):
+            raise CausalUnsupportedError(
+                "refused: Graph-posterior path and distribution mixtures are not staged. "
+                "For a reviewed discovered Dag, pass graph=AcceptedGraph(...)."
+            )
+        from .data import EventFrame, MultiEnvFrame, PanelFrame
+
+        framed = isinstance(data, (PanelFrame, EventFrame, MultiEnvFrame))
+        if framed:
+            if isinstance(data, EventFrame):
+                names, columns = list(data.names), list(data.columns)
+            elif isinstance(data, PanelFrame):
+                names, columns = list(data.names), list(data.unit_columns[0])
+            else:
+                names, columns = list(data.names), list(data.env_columns[0])
+        elif isinstance(query, AverageEffect) and discovery is None:
             names, columns, _ = _prepared_columns(data)
         else:
             names, columns = ingest_columns(data)
@@ -1772,6 +1979,7 @@ class PreparedAnalysis:
             graph = cast("Dag | Cpdag | Sequence[tuple[str, str]]", graph.graph)
         else:
             structure_accepted = False
+        _refuse_admg_response(graph, query)
         if class_prior is not None and (
             not isinstance(graph, (TemporalCpdag, TemporalPag))
             or not isinstance(inference, Bayesian)
@@ -1816,6 +2024,54 @@ class PreparedAnalysis:
                 if key in temporal_bayes_kw
             }
             class_prior_kw = _class_prior_kwargs(class_prior)
+            if isinstance(data, (PanelFrame, EventFrame, MultiEnvFrame)):
+                lagged = _lagged_edges(
+                    cast("TemporalDag | Sequence[tuple[str, int, str, int]]", graph)
+                )
+                frame_kwargs = {
+                    "treatment_lag": query.treatment_lag,
+                    "horizon_steps": query.horizon_steps,
+                    "active_level": query.active_level,
+                    "policy": query.kind,
+                    "inference": inference_mode,
+                    "n_draws": temporal_bayes_kw.get("n_draws"),
+                    "prior_scale": float(temporal_bayes_kw.get("prior_scale", 10.0)),
+                    "refute": refute,
+                    "seed": seed,
+                    "bootstrap": bootstrap if bootstrap is not None else 0,
+                    "threads": threads,
+                }
+                if isinstance(data, PanelFrame):
+                    native = _NativePreparedAnalysis.prepare_panel(
+                        list(data.names),
+                        data.unit_columns,
+                        [int(i) for i in data.unit_ids],
+                        lagged,
+                        query.treatment,
+                        query.outcome,
+                        **frame_kwargs,
+                    )
+                elif isinstance(data, EventFrame):
+                    native = _NativePreparedAnalysis.prepare_events(
+                        list(data.names),
+                        data.columns,
+                        list(data.event_times_ns),
+                        int(data.align_interval_ns),
+                        lagged,
+                        query.treatment,
+                        query.outcome,
+                        **frame_kwargs,
+                    )
+                else:
+                    native = _NativePreparedAnalysis.prepare_multi_env(
+                        list(data.names),
+                        data.env_columns,
+                        lagged,
+                        query.treatment,
+                        query.outcome,
+                        **frame_kwargs,
+                    )
+                return _bound_prepared(native, kind="average", query=query)
             if isinstance(graph, TemporalCpdag):
                 native = _NativePreparedAnalysis.prepare_temporal_cpdag_effect(
                     names,
@@ -1853,7 +2109,7 @@ class PreparedAnalysis:
                     **temporal_kwargs,
                     **transfer_kw,
                 )
-            return cls(native, kind="average", query=query)
+            return _bound_prepared(native, kind="average", query=query)
         if isinstance(query, TemporalMediationEffect):
             if identifier is not None or estimator is not None:
                 raise CausalValueError(
@@ -1895,7 +2151,7 @@ class PreparedAnalysis:
                 **_class_prior_kwargs(class_prior),
                 **_max_completions_kwargs(max_completions),
             )
-            return cls(native, kind="average", query=query)
+            return _bound_prepared(native, kind="average", query=query)
         if isinstance(query, (ResponseCurve, InterventionResponse)) and getattr(
             query, "is_temporal", False
         ):
@@ -1955,7 +2211,7 @@ class PreparedAnalysis:
                 identifier=identifier,
                 estimator=estimator,
                 inference=inference_mode,
-                n_draws=int(pag_bayes_kw.get("n_draws", 1000)),
+                n_draws=pag_bayes_kw.get("n_draws"),
                 prior_scale=float(pag_bayes_kw.get("prior_scale", 10.0)),
                 prior_artifact=pag_bayes_kw.get("prior_artifact"),
                 prior_mapping=pag_bayes_kw.get("prior_mapping"),
@@ -1967,7 +2223,7 @@ class PreparedAnalysis:
                 latency=latency,
                 accepted=structure_accepted,
             )
-            return cls(native, kind="average", query=query)
+            return _bound_prepared(native, kind="average", query=query)
         if isinstance(query, AverageEffect) and isinstance(graph, Cpdag):
             inference = inference or Frequentist()
             refute = coerce_refute(refute)  # type: ignore[assignment]
@@ -1990,7 +2246,7 @@ class PreparedAnalysis:
                 identifier=identifier,
                 estimator=estimator,
                 inference=inference_mode,
-                n_draws=int(cpdag_bayes_kw.get("n_draws", 1000)),
+                n_draws=cpdag_bayes_kw.get("n_draws"),
                 prior_scale=float(cpdag_bayes_kw.get("prior_scale", 10.0)),
                 prior_artifact=cpdag_bayes_kw.get("prior_artifact"),
                 prior_mapping=cpdag_bayes_kw.get("prior_mapping"),
@@ -2002,7 +2258,7 @@ class PreparedAnalysis:
                 latency=latency,
                 accepted=structure_accepted,
             )
-            return cls(native, kind="average", query=query)
+            return _bound_prepared(native, kind="average", query=query)
         if isinstance(query, AverageEffect) and isinstance(graph, TieredBackground):
             if inference is not None and not isinstance(inference, Frequentist):
                 raise CausalUnsupportedError(
@@ -2031,7 +2287,7 @@ class PreparedAnalysis:
                     getattr(query, "outcome_functional", None)
                 ),
             )
-            return cls(native, kind="average", query=query)
+            return _bound_prepared(native, kind="average", query=query)
         if isinstance(query, AverageEffect) and isinstance(graph, Admg):
             inference = inference or Frequentist()
             refute = coerce_refute(refute)  # type: ignore[assignment]
@@ -2052,7 +2308,7 @@ class PreparedAnalysis:
                 identifier=identifier,
                 estimator=estimator,
                 inference=inference_mode,
-                n_draws=int(admg_bayes_kw.get("n_draws", 1000)),
+                n_draws=admg_bayes_kw.get("n_draws"),
                 prior_scale=float(admg_bayes_kw.get("prior_scale", 10.0)),
                 refute=refute,
                 seed=seed,
@@ -2061,7 +2317,7 @@ class PreparedAnalysis:
                 latency=latency,
                 accepted=structure_accepted,
             )
-            return cls(native, kind="average", query=query)
+            return _bound_prepared(native, kind="average", query=query)
         if isinstance(query, (ResponseCurve, InterventionResponse)) and isinstance(
             graph, (Pag, Cpdag)
         ):
@@ -2130,7 +2386,7 @@ class PreparedAnalysis:
                 threads=threads,
                 latency=latency,
             )
-            return cls(native, kind="intervention_response", query=query)
+            return _bound_prepared(native, kind="intervention_response", query=query)
         if isinstance(query, ConditionalEffect) and isinstance(graph, (Pag, Cpdag)):
             return cls._prepare_class_conditional(
                 names,
@@ -2149,6 +2405,15 @@ class PreparedAnalysis:
             )
         if isinstance(query, InterventionalDistribution) and isinstance(graph, Admg):
             raise CausalUnsupportedError(ADMG_DISTRIBUTION_RUST_ONLY)
+        if isinstance(query, _RESPONSE_FAMILY):
+            _check_response_threads(threads)
+            _check_response_strategy(
+                query,
+                graph=graph,
+                identifier=identifier,
+                estimator=estimator,
+                inference=inference,
+            )
         edges = _static_edges(graph)
         if isinstance(query, (MediationEffect, Counterfactual)):
             if inference is not None and not isinstance(inference, (Frequentist, Bayesian)):
@@ -2196,7 +2461,7 @@ class PreparedAnalysis:
                 threads=threads,
                 **inference_kw,
             )
-            return cls(native, kind="average", query=query)
+            return _bound_prepared(native, kind="average", query=query)
         if isinstance(query, ConditionalEffect):
             expected_estimator = (
                 "conditional.bayesian"
@@ -2234,7 +2499,7 @@ class PreparedAnalysis:
                     getattr(query, "outcome_functional", None)
                 ),
             )
-            return cls(native, kind="average", query=query)
+            return _bound_prepared(native, kind="average", query=query)
         if isinstance(query, PathSpecificEffect):
             if inference is not None and not isinstance(inference, (Frequentist, Bayesian)):
                 raise CausalTypeError("inference must be Frequentist or Bayesian")
@@ -2258,7 +2523,7 @@ class PreparedAnalysis:
                 accepted=structure_accepted,
                 **_prepared_inference_kwargs(inference),
             )
-            return cls(native, kind="average", query=query)
+            return _bound_prepared(native, kind="average", query=query)
         if isinstance(query, InterventionalDistribution):
             if inference is not None and not isinstance(inference, (Frequentist, Bayesian)):
                 raise CausalTypeError("inference must be Frequentist or Bayesian")
@@ -2276,7 +2541,7 @@ class PreparedAnalysis:
                 accepted=structure_accepted,
                 **_prepared_inference_kwargs(inference),
             )
-            return cls(native, kind="average", query=query)
+            return _bound_prepared(native, kind="average", query=query)
         if isinstance(
             query,
             (
@@ -2316,9 +2581,6 @@ class PreparedAnalysis:
                 raise CausalUnsupportedError(
                     f"derivative requires response.backdoor and {expected}"
                 )
-            options = dict(estimator_config or {})
-            if set(options) - {"bandwidth"}:
-                raise ValueError("prepared derivatives accept only bandwidth in estimator_config")
             if isinstance(query, (DirectionalDerivative, ResponseJacobian)):
                 derivative_treatments = list(query.treatments)
                 outcomes = list(query.outcomes)
@@ -2360,13 +2622,13 @@ class PreparedAnalysis:
                 order=getattr(query, "order", 1),
                 scale=scale,
                 weighting=getattr(query, "weighting", None) or "observed",
-                bandwidth=options.get("bandwidth"),
+                bandwidth=response_options.get("bandwidth"),
                 accepted=structure_accepted,
                 seed=seed,
                 threads=threads,
                 **_prepared_inference_kwargs(inference),
             )
-            return cls(native, kind="response_curve", query=query)
+            return _bound_prepared(native, kind="response_curve", query=query)
         if isinstance(query, ResponseCurve):
             if refute not in (False, "none", Refute.NONE):
                 raise CausalUnsupportedError(
@@ -2410,7 +2672,7 @@ class PreparedAnalysis:
                     accepted=structure_accepted,
                     **cast(dict[str, Any], kwargs),
                 )
-                return cls(native, kind="response_curve", query=query)
+                return _bound_prepared(native, kind="response_curve", query=query)
             native = _NativePreparedAnalysis.prepare_response(
                 names,
                 columns,
@@ -2425,8 +2687,15 @@ class PreparedAnalysis:
                 threads=threads,
                 latency=latency,
                 accepted=structure_accepted,
+                bandwidth=response_options.get("bandwidth"),
+                simultaneous_replicates=response_options.get("simultaneous_replicates"),
+                confidence_level=response_options.get("confidence_level", 0.95),
+                multiplier_seed=response_options.get("multiplier_seed", seed),
+                export_row_diagnostics=bool(
+                    response_options.get("export_row_diagnostics", False)
+                ),
             )
-            return cls(native, kind="response_curve", query=query)
+            return _bound_prepared(native, kind="response_curve", query=query)
         if isinstance(query, InterventionResponse):
             expected_estimator = (
                 "response.bayesian"
@@ -2510,7 +2779,7 @@ class PreparedAnalysis:
                 latency=latency,
                 accepted=structure_accepted,
             )
-            return cls(native, kind="intervention_response", query=query)
+            return _bound_prepared(native, kind="intervention_response", query=query)
         if not isinstance(query, AverageEffect):
             raise CausalTypeError(
                 "PreparedAnalysis supports AverageEffect, ResponseCurve, ConditionalEffect, "
@@ -2543,11 +2812,12 @@ class PreparedAnalysis:
             active_level=query.active_level,
             identifier=identifier,
             estimator=estimator,
+            estimator_config=estimator_config,
             outcome_functional=coerce_outcome_functional(
                 getattr(query, "outcome_functional", None)
             ),
             inference=inference_mode,
-            n_draws=int(average_bayes_kw.get("n_draws", 1000)),
+            n_draws=average_bayes_kw.get("n_draws"),
             prior_scale=float(average_bayes_kw.get("prior_scale", 10.0)),
             prior_artifact=average_bayes_kw.get("prior_artifact"),
             prior_mapping=average_bayes_kw.get("prior_mapping"),
@@ -2558,8 +2828,13 @@ class PreparedAnalysis:
             threads=threads,
             latency=latency,
             accepted=structure_accepted,
+            target_population=resolved_population,
+            validators=validators,
+            running_variable=running_variable,
+            cutoff=cutoff,
+            bandwidth=bandwidth,
         )
-        return cls(native, kind="average", query=query)
+        return _bound_prepared(native, kind="average", query=query)
 
     @classmethod
     def _prepare_discovery(
@@ -2576,27 +2851,24 @@ class PreparedAnalysis:
         threads: int,
         latency: Latency | Literal["interactive", "standard", "report"] | str | None,
     ) -> PreparedAnalysis:
-        is_freq_licensed = isinstance(inference, Frequentist) and (
-            (
-                isinstance(discovery, (ExactDagPosterior, GraphPosterior))
-                and isinstance(query, AverageEffect)
-            )
-            or (
-                isinstance(discovery, (DbnPosterior, GraphPosterior))
-                and isinstance(query, (PulseEffect, SustainedEffect, TemporalMediationEffect))
-            )
+        static_gp = isinstance(discovery, (ExactDagPosterior, GraphPosterior)) and isinstance(
+            query, (AverageEffect, ConditionalEffect, ResponseCurve, InterventionResponse)
         )
+        temporal_gp = isinstance(discovery, (DbnPosterior, GraphPosterior)) and isinstance(
+            query, (PulseEffect, SustainedEffect, TemporalMediationEffect)
+        )
+        is_freq_licensed = isinstance(inference, Frequentist) and (static_gp or temporal_gp)
         if isinstance(inference, Frequentist) and not is_freq_licensed:
             raise CausalTypeError(
                 "PreparedAnalysis.prepare(discovery=) requires inference=Bayesian(...) "
-                "except AverageEffect × graph_posterior and Pulse / Sustained / "
+                "except AverageEffect / ConditionalEffect / ResponseCurve / "
+                "InterventionResponse × graph_posterior and Pulse / Sustained / "
                 "TemporalMediationEffect × DBN graph_posterior"
             )
         if not isinstance(inference, (Bayesian, Frequentist)):
             raise CausalTypeError(
                 "PreparedAnalysis.prepare(discovery=) requires inference=Bayesian(...) "
-                "or Frequentist() for AverageEffect × graph_posterior and Pulse / "
-                "Sustained / TemporalMediationEffect × DBN graph_posterior"
+                "or Frequentist() for licensed graph_posterior cells"
             )
         refute = coerce_refute(refute)
         bootstrap, refute = _resolve_latency_budget(latency, bootstrap, refute)
@@ -2605,8 +2877,18 @@ class PreparedAnalysis:
         else:
             inference_mode = "frequentist"
             bayes_kw = {}
-        n_draws = int(bayes_kw.get("n_draws", 1000))
+        n_draws = bayes_kw.get("n_draws")
         prior_scale = float(bayes_kw.get("prior_scale", 10.0))
+        shared = _graph_posterior_kwargs(
+            inference_mode=inference_mode,
+            n_draws=n_draws,
+            prior_scale=prior_scale,
+            refute=refute,
+            seed=seed,
+            bootstrap=bootstrap,
+            threads=threads,
+            discovery=discovery,
+        )
         if isinstance(discovery, (ExactDagPosterior, GraphPosterior)) and isinstance(
             query, AverageEffect
         ):
@@ -2617,16 +2899,74 @@ class PreparedAnalysis:
                 query.outcome,
                 control_level=query.control_level,
                 active_level=query.active_level,
-                inference=inference_mode,
-                n_draws=n_draws,
-                prior_scale=prior_scale,
-                refute=refute,
-                seed=seed,
-                bootstrap=bootstrap if bootstrap is not None else 0,
-                threads=threads,
-                posterior=discovery if isinstance(discovery, GraphPosterior) else None,
+                **shared,
             )
-            return cls(native, kind="average", query=query)
+            return _bound_prepared(native, kind="average", query=query)
+        if isinstance(discovery, (ExactDagPosterior, GraphPosterior)) and isinstance(
+            query, ConditionalEffect
+        ):
+            native = _NativePreparedAnalysis.prepare_graph_posterior_conditional(
+                names,
+                columns,
+                query.treatment,
+                query.outcome,
+                query.modifier,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                **shared,
+            )
+            return _bound_prepared(native, kind="average", query=query)
+        if isinstance(discovery, (ExactDagPosterior, GraphPosterior)) and isinstance(
+            query, ResponseCurve
+        ):
+            native = _NativePreparedAnalysis.prepare_graph_posterior_response(
+                names,
+                columns,
+                query.treatment,
+                query.outcome,
+                list(query.grid),
+                **shared,
+            )
+            return _bound_prepared(native, kind="response_curve", query=query)
+        if isinstance(discovery, (ExactDagPosterior, GraphPosterior)) and isinstance(
+            query, InterventionResponse
+        ):
+            from . import intervention as intervention_specs
+
+            supplied = query.intervention
+            interventions = (
+                list(supplied)
+                if isinstance(supplied, Sequence) and not isinstance(supplied, (str, bytes))
+                else [supplied]
+            )
+            if not interventions:
+                raise CausalValueError("InterventionResponse requires at least one intervention")
+            treatments = []
+            intervention_kinds = []
+            intervention_parameters = []
+            for spec in interventions:
+                if isinstance(spec, intervention_specs.Set):
+                    kind, parameters = "set", [spec.value]
+                elif isinstance(spec, intervention_specs.Shift):
+                    kind, parameters = "shift", [spec.delta]
+                else:
+                    raise CausalUnsupportedError(
+                        "graph-posterior InterventionResponse currently requires one "
+                        "Set or Shift intervention coordinate"
+                    )
+                treatments.append(spec.variable)
+                intervention_kinds.append(kind)
+                intervention_parameters.append(parameters)
+            native = _NativePreparedAnalysis.prepare_graph_posterior_intervention_response(
+                names,
+                columns,
+                query.outcome,
+                treatments,
+                intervention_kinds,
+                intervention_parameters,
+                **shared,
+            )
+            return _bound_prepared(native, kind="intervention_response", query=query)
         if isinstance(discovery, (DbnPosterior, GraphPosterior)) and isinstance(
             query, (PulseEffect, SustainedEffect)
         ):
@@ -2634,107 +2974,48 @@ class PreparedAnalysis:
             # Frequentist atoms share one circular-block bootstrap for the mixture
             # SE, so the latency tier's replicate count applies; the Bayesian
             # mixture uses posterior draws and runs no bootstrap.
-            temporal_bootstrap = bootstrap if isinstance(inference, Frequentist) else 0
-            if isinstance(discovery, GraphPosterior):
-                native = _NativePreparedAnalysis.prepare_dbn_posterior_temporal(
-                    names,
-                    columns,
-                    query.treatment,
-                    query.outcome,
-                    policy=query.kind,
-                    window=window,
-                    treatment_lag=query.treatment_lag,
-                    horizon_steps=query.horizon_steps,
-                    active_level=query.active_level,
-                    inference=inference_mode,
-                    n_draws=n_draws,
-                    prior_scale=prior_scale,
-                    refute=refute,
-                    seed=seed,
-                    bootstrap=temporal_bootstrap,
-                    threads=threads,
-                    posterior=discovery,
-                )
-            else:
-                native = _NativePreparedAnalysis.prepare_dbn_posterior_temporal(
-                    names,
-                    columns,
-                    query.treatment,
-                    query.outcome,
-                    policy=query.kind,
-                    window=window,
-                    treatment_lag=query.treatment_lag,
-                    horizon_steps=query.horizon_steps,
-                    active_level=query.active_level,
-                    max_lag=discovery.max_lag,
-                    force_mcmc=discovery.force_mcmc,
-                    n_chains=discovery.n_chains,
-                    n_warmup=discovery.n_warmup,
-                    mcmc_draws=discovery.n_draws,
-                    inference=inference_mode,
-                    n_draws=n_draws,
-                    prior_scale=prior_scale,
-                    refute=refute,
-                    seed=seed,
-                    bootstrap=temporal_bootstrap,
-                    threads=threads,
-                )
-            return cls(native, kind="average", query=query)
+            native = _NativePreparedAnalysis.prepare_dbn_posterior_temporal(
+                names,
+                columns,
+                query.treatment,
+                query.outcome,
+                policy=query.kind,
+                window=window,
+                treatment_lag=query.treatment_lag,
+                horizon_steps=query.horizon_steps,
+                active_level=query.active_level,
+                **{
+                    **shared,
+                    "bootstrap": bootstrap if isinstance(inference, Frequentist) else 0,
+                },
+            )
+            return _bound_prepared(native, kind="average", query=query)
         if isinstance(discovery, (DbnPosterior, GraphPosterior)) and isinstance(
             query, TemporalMediationEffect
         ):
             # Frequentist atoms share one circular-block bootstrap for the mixture
             # SE, so the latency tier's replicate count applies; the Bayesian
             # mixture uses posterior draws and runs no bootstrap.
-            mediation_bootstrap = bootstrap if isinstance(inference, Frequentist) else 0
-            if isinstance(discovery, GraphPosterior):
-                native = _NativePreparedAnalysis.prepare_dbn_posterior_mediation(
-                    names,
-                    columns,
-                    query.treatment,
-                    query.mediator,
-                    query.outcome,
-                    contrast=query.contrast,
-                    control_level=query.control_level,
-                    active_level=query.active_level,
-                    horizons=list(query.horizons or (1,)),
-                    inference=inference_mode,
-                    n_draws=n_draws,
-                    prior_scale=prior_scale,
-                    refute=refute,
-                    seed=seed,
-                    bootstrap=mediation_bootstrap,
-                    threads=threads,
-                    posterior=discovery,
-                )
-            else:
-                native = _NativePreparedAnalysis.prepare_dbn_posterior_mediation(
-                    names,
-                    columns,
-                    query.treatment,
-                    query.mediator,
-                    query.outcome,
-                    contrast=query.contrast,
-                    control_level=query.control_level,
-                    active_level=query.active_level,
-                    horizons=list(query.horizons or (1,)),
-                    max_lag=discovery.max_lag,
-                    force_mcmc=discovery.force_mcmc,
-                    n_chains=discovery.n_chains,
-                    n_warmup=discovery.n_warmup,
-                    mcmc_draws=discovery.n_draws,
-                    inference=inference_mode,
-                    n_draws=n_draws,
-                    prior_scale=prior_scale,
-                    refute=refute,
-                    seed=seed,
-                    bootstrap=mediation_bootstrap,
-                    threads=threads,
-                )
-            return cls(native, kind="average", query=query)
+            native = _NativePreparedAnalysis.prepare_dbn_posterior_mediation(
+                names,
+                columns,
+                query.treatment,
+                query.mediator,
+                query.outcome,
+                contrast=query.contrast,
+                control_level=query.control_level,
+                active_level=query.active_level,
+                horizons=list(query.horizons or (1,)),
+                **{
+                    **shared,
+                    "bootstrap": bootstrap if isinstance(inference, Frequentist) else 0,
+                },
+            )
+            return _bound_prepared(native, kind="average", query=query)
         raise CausalTypeError(
             "PreparedAnalysis.prepare(discovery=) is licensed for ExactDagPosterior "
-            "or GraphPosterior (AverageEffect) and DbnPosterior or GraphPosterior "
+            "or GraphPosterior (AverageEffect / ConditionalEffect / ResponseCurve / "
+            "InterventionResponse) and DbnPosterior or GraphPosterior "
             "(PulseEffect / SustainedEffect / TemporalMediationEffect)"
         )
 
@@ -2805,7 +3086,7 @@ class PreparedAnalysis:
                 latency=latency,
                 accepted=structure_accepted,
             )
-            return cls(native, kind="response_curve", query=query)
+            return _bound_prepared(native, kind="response_curve", query=query)
         from . import intervention as intervention_specs
 
         supplied = query.intervention
@@ -2862,7 +3143,7 @@ class PreparedAnalysis:
             latency=latency,
             accepted=structure_accepted,
         )
-        return cls(native, kind="intervention_response", query=query)
+        return _bound_prepared(native, kind="intervention_response", query=query)
 
     @classmethod
     def _prepare_class_conditional(
@@ -2924,7 +3205,7 @@ class PreparedAnalysis:
                 getattr(query, "outcome_functional", None)
             ),
         )
-        return cls(native, kind="average", query=query)
+        return _bound_prepared(native, kind="average", query=query)
 
     @classmethod
     def _prepare_temporal(
@@ -2951,7 +3232,7 @@ class PreparedAnalysis:
             )
         native_bootstrap = _temporal_response_bootstrap(bootstrap, inference)
         lagged = [] if isinstance(graph, (TemporalCpdag, TemporalPag)) else _lagged_edges(graph)
-        from antecedent._analyze import _encode_temporal_interventions
+        from .intervention import encode_temporal_steps
 
         from .observation import (
             Complete,
@@ -2976,7 +3257,7 @@ class PreparedAnalysis:
             kinds: list[str] = []
             parameters_list: list[list[float]] = []
             for spec in interventions:
-                for variable, kind, parameters in _encode_temporal_interventions(spec):
+                for variable, kind, parameters in encode_temporal_steps(spec):
                     treatments.append(variable)
                     kinds.append(kind)
                     parameters_list.append(parameters)
@@ -3004,7 +3285,7 @@ class PreparedAnalysis:
                 **_max_completions_kwargs(max_completions),
                 **observation_kwargs,
             )
-            return cls(native, kind="intervention_response", query=query)
+            return _bound_prepared(native, kind="intervention_response", query=query)
         native = _NativePreparedAnalysis.prepare_temporal_response(
             names,
             columns,
@@ -3029,7 +3310,7 @@ class PreparedAnalysis:
             **_max_completions_kwargs(max_completions),
             **observation_kwargs,
         )
-        return cls(native, kind="response_curve", query=query)
+        return _bound_prepared(native, kind="response_curve", query=query)
 
     def export_artifact(
         self,
@@ -3051,7 +3332,16 @@ class PreparedAnalysis:
 
     def export_contracted_artifact(self, *, artifact_id: str = "prepared-contract") -> bytes:
         """Export the last estimate as an ``analysis_result`` with a contract section."""
+        if getattr(self, "_cancelled", False):
+            raise CausalUnsupportedError(
+                "Cancelled estimate produced no claim.",
+                reason_code="cancelled_no_claim",
+            )
         return self._native.export_contracted_artifact(artifact_id=artifact_id)
+
+    def export(self, *, artifact_id: str = "analysis-result") -> bytes:
+        """Export the last execution, or refuse if no claim was produced."""
+        return self.export_contracted_artifact(artifact_id=artifact_id)
 
     @property
     def structure_source(self) -> str:
@@ -3095,9 +3385,7 @@ class PreparedAnalysis:
         """Calibration availability for this prepared study."""
         from .results._execution import CalibrationInfo
 
-        return CalibrationInfo(
-            reason="No execution-bound calibration evidence is retained by this study."
-        )
+        return CalibrationInfo(status="unavailable", reason="not_executed")
 
     def preflight(self) -> ReasoningSlots:
         """Cheap structural-only inspection; identification and fitting are not run."""
@@ -3160,6 +3448,17 @@ class PreparedAnalysis:
         """Re-estimate without recompiling (same schema as prepare)."""
         seed = getattr(self, "_seed", 1) if seed is None else seed
         threads = getattr(self, "_threads", 1) if threads is None else threads
+        cancel = getattr(self, "_cancel", None)
+        if cancel is not None and getattr(cancel, "is_cancelled", lambda: False)():
+            self._cancelled = True
+            from .errors import CausalCancelled
+
+            raise CausalCancelled("estimation cancelled")
+        if data is not None and getattr(self, "_row_weights_bound", False):
+            raise CausalUnsupportedError(
+                "Row-weight retarget is bound to its data snapshot.",
+                reason_code="row_weights_bound_to_snapshot",
+            )
         if data is None:
             response = self._kind in ("response_curve", "intervention_response")
             fn = self._native.estimate_response_bound if response else self._native.estimate_bound
@@ -3217,6 +3516,7 @@ class PreparedAnalysis:
             seed=seed,
             threads=threads,
         )
+        self._row_weights_bound = True
         return _wrap_ate(raw, prepared=self)
 
     @describe_refusal
@@ -3228,6 +3528,11 @@ class PreparedAnalysis:
         threads: int | None = None,
     ) -> AnalysisResult | CausalResponseView:
         """Replace retained data and re-estimate."""
+        if getattr(self, "_row_weights_bound", False):
+            raise CausalUnsupportedError(
+                "Row-weight retarget is bound to its data snapshot.",
+                reason_code="row_weights_bound_to_snapshot",
+            )
         seed = getattr(self, "_seed", 1) if seed is None else seed
         threads = getattr(self, "_threads", 1) if threads is None else threads
         if isinstance(self._query, ResponseCurve) and self._query.observation is not None:
