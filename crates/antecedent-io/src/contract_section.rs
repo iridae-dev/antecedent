@@ -9,7 +9,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AcceptanceReport, ContractIdentities, IdentityDomain, SemanticDigest};
+use antecedent_core::{
+    AcceptanceReport, ConsumerProfile, ContractIdentities, HandoffReceipt, IdentityDomain,
+    SemanticDigest,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::identity::{
@@ -429,10 +432,17 @@ fn identification_product_matches_body(
     body: &AnalysisResultWire,
 ) -> bool {
     product.status == body.identification.status
-        && product.estimands == body.identification.estimands
-        && product.arena == body.identification.arena
         && product.derivation == body.identification.derivation
         && product.required_assumptions == body.identification.required_assumptions
+        && cbor_eq(&product.estimands, &body.identification.estimands)
+        && cbor_eq(&product.arena, &body.identification.arena)
+}
+
+fn cbor_eq<T: Serialize>(left: &T, right: &T) -> bool {
+    match (crate::to_cbor(left), crate::to_cbor(right)) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => false,
+    }
 }
 
 fn require_present<T>(unresolved: &mut Vec<Arc<str>>, label: &'static str, payload: Option<&T>) {
@@ -552,6 +562,172 @@ fn validate_slot<T>(name: &str, slot: &SlotSectionWire<T>) -> Result<(), IoError
 
 fn storage_ops() -> Arc<[Arc<str>]> {
     Arc::from([Arc::from("store"), Arc::from("forward"), Arc::from("read_body")])
+}
+
+/// Accept / verify a claim from bytes under a consumer profile.
+///
+/// Reuses [`consume_analysis_result`] / [`verify_contract_against_body`]. Unknown
+/// required features refuse claim acceptance; storage/forwarding remains allowed.
+///
+/// # Errors
+///
+/// Wrong artifact kind, missing header/body, or invalid CBOR.
+pub fn accept_claim(
+    bytes: &[u8],
+    profile: &ConsumerProfile,
+) -> Result<(AnalysisResultConsumption, HandoffReceipt), IoError> {
+    let mut consumed = consume_analysis_result(bytes)?;
+    let claim_id = consumption_claim_id(&consumed);
+    if !profile.understands("verify_contract") || !profile.understands("inspect_claim") {
+        consumed.acceptance = AcceptanceReport::opaque_storage();
+        return Ok((consumed, HandoffReceipt::opaque_forward(claim_id, profile.id.clone())));
+    }
+    if !consumed.acceptance.recognized {
+        return Ok((consumed, HandoffReceipt::opaque_forward(claim_id, profile.id.clone())));
+    }
+    if let Some(missing) = unknown_required_features(&consumed, profile) {
+        consumed.acceptance = AcceptanceReport::new(
+            false,
+            false,
+            [Arc::from(missing)],
+            storage_ops(),
+            Some(Arc::from("unknown_required_feature")),
+        );
+        return Ok((consumed, HandoffReceipt::opaque_forward(claim_id, profile.id.clone())));
+    }
+    let handoff = if consumed.acceptance.accepts_as_claim() {
+        HandoffReceipt::lossless(claim_id, profile.id.clone())
+    } else {
+        HandoffReceipt::new(
+            claim_id,
+            None,
+            profile.id.clone(),
+            "restricted_accept",
+            [Arc::from("bytes"), Arc::from("read_body")],
+            if consumed.acceptance.unresolved.is_empty() {
+                Vec::new()
+            } else {
+                vec![Arc::from("verified_references")]
+            },
+            consumed.acceptance.unresolved.clone(),
+            [Arc::from("accept_as_claim")],
+        )
+    };
+    let allowed: Vec<Arc<str>> = consumed
+        .acceptance
+        .supported_operations
+        .iter()
+        .filter(|op| profile.understands(op))
+        .cloned()
+        .collect();
+    consumed.acceptance.supported_operations = Arc::from(allowed);
+    Ok((consumed, handoff))
+}
+
+fn unknown_required_features(
+    consumed: &AnalysisResultConsumption,
+    profile: &ConsumerProfile,
+) -> Option<String> {
+    if !profile.understands("contract.v1") {
+        return Some("contract.v1".into());
+    }
+    let contract = consumed.contract.as_ref()?;
+    if let Some(claim) = &contract.claim {
+        let feature = format!("claim.{}", claim.kind);
+        if !profile.understands(&feature) {
+            return Some(feature);
+        }
+    }
+    if !profile.understands("reasoning.four_slots") {
+        return Some("reasoning.four_slots".into());
+    }
+    None
+}
+
+fn consumption_claim_id(consumed: &AnalysisResultConsumption) -> SemanticDigest {
+    consumed
+        .contract
+        .as_ref()
+        .and_then(|contract| contract.claim.as_ref())
+        .map_or(SemanticDigest::from_bytes([0; 32]), |claim| {
+            SemanticDigest::from_bytes(claim.claim_id)
+        })
+}
+
+/// JSON-compatible host projection. `null`, `0`, `unknown`, and `unsupported` stay distinct.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ClaimHostProjection {
+    /// Claim digest hex, when a claim section exists.
+    pub claim_id: Option<String>,
+    /// Claim kind, when present.
+    pub kind: Option<String>,
+    /// Point bits as a number, explicit absence as JSON `null`, else a distinct token.
+    pub value: serde_json::Value,
+    /// Identification domain status, or JSON `null` when no claim exists.
+    pub identification_domain: serde_json::Value,
+    /// Support domain status.
+    pub support_domain: serde_json::Value,
+    /// Evaluated domain status.
+    pub evaluated_domain: serde_json::Value,
+    /// Whether required semantics were recognized.
+    pub recognized: bool,
+    /// Whether the receiver accepts a usable causal claim.
+    pub accepts_as_claim: bool,
+}
+
+/// Project a consumed artifact for host JSON. Inspection does not fetch or run callbacks.
+#[must_use]
+pub fn project_claim_host(consumed: &AnalysisResultConsumption) -> ClaimHostProjection {
+    let Some(contract) = consumed.contract.as_ref() else {
+        return unsupported_host(consumed, false);
+    };
+    let Some(claim) = contract.claim.as_ref() else {
+        return unsupported_host(consumed, consumed.acceptance.accepts_as_claim());
+    };
+    let value = match (claim.kind.as_str(), claim.value_bits) {
+        ("point", Some(bits)) => serde_json::Value::from(f64::from_bits(bits)),
+        ("point", None) => serde_json::Value::Null,
+        ("bounds" | "incomplete", _) => serde_json::Value::String("unbounded".into()),
+        ("refusal", _) => serde_json::Value::String("unsupported".into()),
+        (_, _) => serde_json::Value::String("unknown".into()),
+    };
+    ClaimHostProjection {
+        claim_id: Some(digest_hex(&claim.claim_id)),
+        kind: Some(claim.kind.clone()),
+        value,
+        identification_domain: serde_json::Value::String(claim.identification_domain.clone()),
+        support_domain: serde_json::Value::String(claim.support_domain.clone()),
+        evaluated_domain: serde_json::Value::String(claim.evaluated_domain.clone()),
+        recognized: consumed.acceptance.recognized,
+        accepts_as_claim: consumed.acceptance.accepts_as_claim(),
+    }
+}
+
+fn unsupported_host(consumed: &AnalysisResultConsumption, accepts: bool) -> ClaimHostProjection {
+    ClaimHostProjection {
+        claim_id: None,
+        kind: None,
+        value: serde_json::Value::String("unsupported".into()),
+        identification_domain: serde_json::Value::Null,
+        support_domain: serde_json::Value::Null,
+        evaluated_domain: serde_json::Value::Null,
+        recognized: consumed.acceptance.recognized,
+        accepts_as_claim: accepts,
+    }
+}
+
+/// Lossy scalar view plus a handoff that cannot impersonate the complete claim.
+#[must_use]
+pub fn project_lossy_scalar(
+    consumed: &AnalysisResultConsumption,
+) -> (ClaimHostProjection, HandoffReceipt) {
+    let mut view = project_claim_host(consumed);
+    view.identification_domain = serde_json::Value::Null;
+    view.support_domain = serde_json::Value::Null;
+    view.evaluated_domain = serde_json::Value::Null;
+    view.accepts_as_claim = false;
+    let claim_id = consumption_claim_id(consumed);
+    (view, HandoffReceipt::lossy_scalar(claim_id, "restricted"))
 }
 
 /// Hex-encode a digest for host/Python reports.
@@ -783,7 +959,9 @@ mod tests {
                 support: SlotSectionWire {
                     value: Some(SupportSlotWire {
                         matrix_status: "licensed".into(),
-                        matrix_coordinate: Some("AverageEffect:Dag:explicit:Frequentist:none".into()),
+                        matrix_coordinate: Some(
+                            "AverageEffect:Dag:explicit:Frequentist:none".into(),
+                        ),
                         empirical: "unavailable:not_evaluated".into(),
                     }),
                     unavailable: None,
@@ -906,13 +1084,7 @@ mod tests {
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
         assert!(!consumed.acceptance.accepts_as_verified_program());
-        assert!(
-            consumed
-                .acceptance
-                .unresolved
-                .iter()
-                .any(|item| item.starts_with("identities."))
-        );
+        assert!(consumed.acceptance.unresolved.iter().any(|item| item.starts_with("identities.")));
     }
 
     #[test]
@@ -944,5 +1116,95 @@ mod tests {
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
         assert!(!consumed.acceptance.recognized);
         assert_eq!(consumed.acceptance.restriction.as_deref(), Some("unknown_contract_format"));
+    }
+
+    #[test]
+    fn claim_host_projection_keeps_null_zero_unknown_distinct() {
+        let (mut body, target, names) = fixture_body();
+        body.estimate = Some(0.0);
+        let mut zero = contract_for(target.clone(), &body);
+        if let Some(claim) = zero.claim.as_mut() {
+            claim.value_bits = Some(0.0f64.to_bits());
+            claim.claim_id = *claim_digest(&ClaimIdentityWire::new(
+                zero.identities.program,
+                zero.identities.target,
+                "point",
+                claim.value_bits,
+                claim.execution,
+            ))
+            .unwrap()
+            .as_bytes();
+        }
+        let consumed_zero =
+            consume_analysis_result(&to_bytes(&body, names.clone(), Some(&zero))).unwrap();
+        let proj_zero = project_claim_host(&consumed_zero);
+        assert_eq!(proj_zero.value, serde_json::Value::from(0.0));
+        assert_ne!(proj_zero.value, serde_json::Value::Null);
+        assert_ne!(proj_zero.value, serde_json::Value::String("unknown".into()));
+
+        body.estimate = None;
+        let mut absent = contract_for(target.clone(), &body);
+        if let Some(claim) = absent.claim.as_mut() {
+            claim.value_bits = None;
+            claim.claim_id = *claim_digest(&ClaimIdentityWire::new(
+                absent.identities.program,
+                absent.identities.target,
+                "point",
+                None,
+                claim.execution,
+            ))
+            .unwrap()
+            .as_bytes();
+        }
+        let consumed_absent =
+            consume_analysis_result(&to_bytes(&body, names.clone(), Some(&absent))).unwrap();
+        let proj_absent = project_claim_host(&consumed_absent);
+        assert_eq!(proj_absent.value, serde_json::Value::Null);
+
+        let consumed_old = consume_analysis_result(&{
+            let artifact = encode_analysis_result_artifact(&body, names, "legacy").unwrap();
+            let mut bytes = Vec::new();
+            artifact.write_to(&mut bytes).unwrap();
+            bytes
+        })
+        .unwrap();
+        let proj_old = project_claim_host(&consumed_old);
+        assert_eq!(proj_old.value, serde_json::Value::String("unsupported".into()));
+        assert_ne!(proj_old.value, serde_json::Value::Null);
+        assert_ne!(proj_old.value, serde_json::Value::from(0.0));
+    }
+
+    #[test]
+    fn accept_claim_unknown_feature_is_storage_not_acceptance() {
+        let (body, target, names) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        if let Some(claim) = contract.claim.as_mut() {
+            claim.kind = "mixture".into();
+            claim.claim_id = *claim_digest(&ClaimIdentityWire::new(
+                contract.identities.program,
+                contract.identities.target,
+                "mixture",
+                claim.value_bits,
+                claim.execution,
+            ))
+            .unwrap()
+            .as_bytes();
+        }
+        let bytes = to_bytes(&body, names, Some(&contract));
+        let (full, lossless) =
+            accept_claim(&bytes, &antecedent_core::ConsumerProfile::full()).unwrap();
+        assert!(full.acceptance.accepts_as_claim());
+        assert!(lossless.equivalent_claim());
+        let (restricted, receipt) =
+            accept_claim(&bytes, &antecedent_core::ConsumerProfile::restricted()).unwrap();
+        assert!(!restricted.acceptance.accepts_as_claim());
+        assert_eq!(restricted.acceptance.restriction.as_deref(), Some("unknown_required_feature"));
+        assert!(restricted.acceptance.supported_operations.iter().any(|op| &**op == "forward"));
+        assert!(!receipt.equivalent_claim());
+        let (_forward, forwarded) =
+            accept_claim(&bytes, &antecedent_core::ConsumerProfile::forwarding()).unwrap();
+        let chained = receipt.chain(&forwarded);
+        assert!(!chained.equivalent_claim());
+        assert!(chained.omitted.iter().any(|field| &**field == "required_semantics"));
     }
 }
