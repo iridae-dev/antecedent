@@ -849,8 +849,16 @@ impl super::Study {
             support: antecedent_core::SupportReport {
                 status: antecedent_core::SupportStatus::Supported,
                 query_region: antecedent_core::SupportRegion {
-                    minima: Arc::from([]),
-                    maxima: Arc::from([]),
+                    minima: Arc::from(
+                        (0..treatments.len())
+                            .map(|j| f64::from((requested_arm >> j) & 1))
+                            .collect::<Vec<_>>(),
+                    ),
+                    maxima: Arc::from(
+                        (0..treatments.len())
+                            .map(|j| f64::from((requested_arm >> j) & 1))
+                            .collect::<Vec<_>>(),
+                    ),
                 },
                 diagnostics: Vec::new(),
                 warnings: Vec::new(),
@@ -1692,7 +1700,14 @@ fn mix_class_responses(
                         "class-aware response could not construct a common identified envelope"
                             .into(),
                 })?;
-            if identified_set_is_singleton(&envelope) {
+            if identified_set_is_singleton(&envelope)
+                && matches!(
+                    envelope_status,
+                    IdentificationStatus::NonparametricallyIdentified
+                        | IdentificationStatus::IdentifiedUnderParametricRestrictions
+                        | IdentificationStatus::IdentifiedUnderPriorRestrictions
+                )
+            {
                 let value = singleton_response_value(&items, &envelope)?;
                 (envelope_status, ResponseIdentification::PointIdentified(value))
             } else {
@@ -2020,7 +2035,7 @@ fn estimate_general_id_response(
     let map_eval = |e: EvalError| {
         CausalError::from(antecedent_estimate::EstimationError::data_msg(e.to_string()))
     };
-    let (estimate, support) = match eval {
+    let (estimate, mut support) = match eval {
         Ok(ate) => (
             ResponseIdentification::PointIdentified(ResponseValue::Scalar(ate)),
             support_from_functional_eval(None).map_err(map_eval)?,
@@ -2033,6 +2048,23 @@ fn estimate_general_id_response(
         ),
         Err(err) => return Err(map_eval(err)),
     };
+    if let ResponseFunctional::InterventionResponse { interventions, .. } = &query.functional {
+        let levels = interventions
+            .iter()
+            .map(|intervention| match intervention {
+                Intervention::Set { value, .. } => value.as_f64().ok_or(CausalError::Unsupported {
+                    message: "general-ID response requires numeric Set levels",
+                }),
+                _ => Err(CausalError::Unsupported {
+                    message: "general-ID response requires Set interventions",
+                }),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        support.query_region = antecedent_core::SupportRegion {
+            minima: Arc::from(levels.clone()),
+            maxima: Arc::from(levels),
+        };
+    }
     Ok((
         CausalResponse {
             estimand: query.functional.clone(),

@@ -6,6 +6,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -551,12 +552,38 @@ impl StudyResult {
         ))
     }
 
-    /// Scalar / identification body for the composite `analysis_result` container.
+    /// Retain the full execution payload alongside a canonical result contract.
     ///
-    /// Heavy axes (posterior draws, mediation grids, structural mixtures) stay
-    /// on existing specialized encoders; this path records the query,
-    /// identification certificate, and scalar estimate used by the contract
-    /// section.
+    /// # Errors
+    ///
+    /// Invalid response, posterior, interval or structural weights.
+    pub fn fill_analysis_result_payloads(
+        &self,
+        wire: &mut AnalysisResultWire,
+        artifact_id: &str,
+    ) -> Result<(), CausalError> {
+        wire.response = self
+            .response
+            .as_ref()
+            .map(antecedent_io::causal_response_to_wire)
+            .transpose()
+            .map_err(|err| io_err(&err))?;
+        wire.posterior_artifact = self
+            .posterior
+            .as_ref()
+            .map(|posterior| antecedent_io::encode_causal_posterior_bytes(posterior, artifact_id))
+            .transpose()
+            .map_err(|err| io_err(&err))?;
+        wire.mediation_grid = self.mediation_grid.as_ref().map(mediation_grid_wire);
+        wire.structural_response =
+            self.structural_response.as_ref().map(structural_response_wire).transpose()?;
+        Ok(())
+    }
+
+    /// Full execution body for the composite `analysis_result` container.
+    ///
+    /// Response values, posterior draws, mediation grids and structural atoms
+    /// accompany the query, identification certificate and scalar summary.
     ///
     /// # Errors
     ///
@@ -585,7 +612,8 @@ struct ContractPayloads {
 }
 
 fn contract_payloads_for(study: &Study) -> Result<ContractPayloads, CausalError> {
-    let cached = cached_identification(study);
+    let cached = contract_identification(study);
+    let cached = cached.as_deref();
     contract_payloads(study, cached, cached.is_some_and(identification_search_capped))
 }
 
@@ -697,7 +725,8 @@ fn compile_with_payloads(
     study: &Study,
     prepared: Option<&PreparedStudy>,
 ) -> Result<(CausalContract, ContractPayloads), CausalError> {
-    let cached = cached_identification(study);
+    let cached = contract_identification(study);
+    let cached = cached.as_deref();
     let search_capped = cached.is_some_and(identification_search_capped);
     let payloads = contract_payloads(study, cached, search_capped)?;
     let reasoning = reasoning_view(study, prepared, cached, search_capped);
@@ -884,6 +913,25 @@ fn accepted_graph_identity(graph: &AcceptedGraph) -> Result<GraphIdentityWire, C
         GraphClass::TemporalPag => {
             Ok(temporal_pag_identity(graph.as_temporal_pag().expect("TemporalPag class")))
         }
+    }
+}
+
+// A first identified posterior atom is not the identification status of the
+// entire mixture. Preserve explicitly unidentified graph mass at compilation,
+// as the response executor does, so the program and execution agree.
+fn contract_identification(study: &Study) -> Option<Cow<'_, IdentificationResult>> {
+    let cached = cached_identification(study)?;
+    if study
+        .graph_posterior_identification_cache
+        .as_ref()
+        .is_some_and(|cache| cache.graphs.unidentified_mass() > 0.0)
+        && cached.status != IdentificationStatus::GraphDependent
+    {
+        let mut aggregate = cached.clone();
+        aggregate.status = IdentificationStatus::GraphDependent;
+        Some(Cow::Owned(aggregate))
+    } else {
+        Some(Cow::Borrowed(cached))
     }
 }
 
@@ -1347,7 +1395,7 @@ fn analysis_result_wire(
         .or_else(|| temporal_identification.first())
         .map(|entry| entry.variables.clone());
     identification.query = query_wire.clone();
-    Ok(AnalysisResultWire {
+    let mut wire = AnalysisResultWire {
         query: query_wire,
         identification,
         identification_variables,
@@ -1363,7 +1411,9 @@ fn analysis_result_wire(
         posterior_artifact: None,
         mediation_grid: None,
         structural_response: None,
-    })
+    };
+    result.fill_analysis_result_payloads(&mut wire, "execution-posterior")?;
+    Ok(wire)
 }
 
 fn temporal_identification_wires(
@@ -1600,4 +1650,175 @@ fn claim_kind(result: &StudyResult, reasoning: &ReasoningView) -> ClaimKind {
         }
     }
     ClaimKind::Point
+}
+
+fn identification_status_wire(
+    status: antecedent_core::IdentificationStatus,
+) -> antecedent_io::IdentificationStatusWire {
+    match status {
+        antecedent_core::IdentificationStatus::NonparametricallyIdentified => {
+            antecedent_io::IdentificationStatusWire::NonparametricallyIdentified
+        }
+        antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions => {
+            antecedent_io::IdentificationStatusWire::IdentifiedUnderParametricRestrictions
+        }
+        antecedent_core::IdentificationStatus::IdentifiedUnderPriorRestrictions => {
+            antecedent_io::IdentificationStatusWire::IdentifiedUnderPriorRestrictions
+        }
+        antecedent_core::IdentificationStatus::PartiallyIdentified => {
+            antecedent_io::IdentificationStatusWire::PartiallyIdentified
+        }
+        antecedent_core::IdentificationStatus::GraphDependent => {
+            antecedent_io::IdentificationStatusWire::GraphDependent
+        }
+        antecedent_core::IdentificationStatus::NotIdentified => {
+            antecedent_io::IdentificationStatusWire::NotIdentified
+        }
+    }
+}
+
+fn mediation_grid_wire(
+    grid: &crate::estimate::TemporalMediationGrid,
+) -> antecedent_io::TemporalMediationGridWire {
+    let interval = |summary: antecedent_estimate::MediationPosteriorSummary| {
+        antecedent_io::MediationPosteriorSummaryWire {
+            mean: summary.mean,
+            standard_deviation: summary.standard_deviation,
+            q025: summary.q025,
+            q975: summary.q975,
+        }
+    };
+    antecedent_io::TemporalMediationGridWire {
+        slices: grid
+            .slices
+            .iter()
+            .map(|slice| {
+                let uncertainty = match &slice.uncertainty {
+                    antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+                        standard_error,
+                    }
+                    | antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+                        requested: standard_error,
+                        ..
+                    } => antecedent_io::TemporalMediationUncertaintyWire::FrequentistPointwise {
+                        standard_error: *standard_error,
+                    },
+                    antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
+                        requested,
+                        total,
+                        direct,
+                        mediated,
+                        n_draws,
+                        backend,
+                    } => antecedent_io::TemporalMediationUncertaintyWire::BayesianPointwise {
+                        requested: interval(*requested),
+                        total: interval(*total),
+                        direct: interval(*direct),
+                        mediated: interval(*mediated),
+                        n_draws: u64::try_from(*n_draws).unwrap_or(u64::MAX),
+                        backend: backend.to_string(),
+                    },
+                    _ => antecedent_io::TemporalMediationUncertaintyWire::Unavailable,
+                };
+                antecedent_io::TemporalMediationSliceWire {
+                    horizon: slice.horizon,
+                    identification_status: identification_status_wire(slice.identification_status),
+                    method: slice.method.to_string(),
+                    adjustment: slice
+                        .adjustment
+                        .iter()
+                        .map(|key| antecedent_io::HorizonAdjustmentNodeWire {
+                            variable: key.variable.raw(),
+                            offset: key.offset,
+                        })
+                        .collect(),
+                    effect: slice.estimate.effect.ate,
+                    total: slice.estimate.total,
+                    direct: slice.estimate.direct,
+                    mediated: slice.estimate.mediated,
+                    uncertainty,
+                    identified_set: slice
+                        .identified_set
+                        .map(|identified| [identified.lower, identified.upper]),
+                    diagnostics: slice
+                        .diagnostics
+                        .iter()
+                        .map(antecedent_io::diagnostic_to_wire)
+                        .collect(),
+                }
+            })
+            .collect(),
+        joint_posterior: grid.joint_posterior,
+    }
+}
+
+fn structural_response_wire(
+    mixture: &crate::result::StructuralResponseMixture,
+) -> Result<antecedent_io::StructuralResponseMixtureWire, CausalError> {
+    let weight_basis = antecedent_io::StructuralWeightBasisWire::from(mixture.weight_basis);
+    // Core completion weights may be counts, or be normalized separately at
+    // each horizon. The portable container requires unit total while retaining
+    // the weight basis and every relative weight; no weights are inferred.
+    let total: f64 = mixture.atoms.iter().map(|atom| atom.weight).sum();
+    if !mixture.atoms.is_empty() && (!total.is_finite() || total <= 0.0) {
+        return Err(CausalError::Compile {
+            message: "cannot export structural atoms with invalid total weight".into(),
+        });
+    }
+    Ok(antecedent_io::StructuralResponseMixtureWire {
+        weight_basis,
+        atoms: mixture
+            .atoms
+            .iter()
+            .map(|atom| {
+                Ok(antecedent_io::StructuralResponseAtomWire {
+                    graph_key: atom.graph_key,
+                    weight: atom.weight / total,
+                    identification_status: identification_status_wire(atom.status),
+                    value: atom.value.as_ref().map(antecedent_io::response_value_to_wire),
+                    posterior_artifact: atom
+                        .posterior
+                        .as_ref()
+                        .map(|posterior| {
+                            antecedent_io::encode_causal_posterior_bytes(
+                                posterior,
+                                "structural_atom",
+                            )
+                        })
+                        .transpose()
+                        .map_err(|err| io_err(&err))?,
+                    response: atom
+                        .response
+                        .as_ref()
+                        .map(antecedent_io::causal_response_to_wire)
+                        .transpose()
+                        .map_err(|err| io_err(&err))?,
+                })
+            })
+            .collect::<Result<Vec<_>, CausalError>>()?,
+        identified_mass: mixture.identified_mass,
+        unidentified_mass: mixture.unidentified_mass,
+        unevaluable_mass: mixture.unevaluable_mass,
+        subsampled_out_mass: mixture.subsampled_out_mass,
+        identified_set: mixture.identified_set.as_ref().map(|envelope| {
+            antecedent_io::ResponseEnvelopeWire {
+                grid: envelope.grid.to_vec(),
+                dimension: u64::try_from(envelope.dimension).unwrap_or(u64::MAX),
+                lower: envelope.lower.to_vec(),
+                upper: envelope.upper.to_vec(),
+            }
+        }),
+        identified_set_interval: mixture
+            .identified_set_interval
+            .as_ref()
+            .map(antecedent_io::identified_set_interval_to_wire)
+            .transpose()
+            .map_err(|err| io_err(&err))?,
+        conditional_on_identified: mixture
+            .conditional_on_identified
+            .as_ref()
+            .map(antecedent_io::response_value_to_wire),
+        full_mass_scope: mixture.full_mass_scope,
+        truncated_atoms: u64::try_from(mixture.truncated_atoms).unwrap_or(u64::MAX),
+    })
 }

@@ -2728,3 +2728,22 @@ mod refresh_tests {
 #[cfg(test)]
 #[path = "dbn_mediation_cache_tests.rs"]
 mod dbn_mediation_cache_tests;
+
+impl PreparedStudy {
+    /// Estimate using the data retained by preparation or the latest successful refresh.
+    /// Uses the existing modality-specific executor and preserves identification caches.
+    ///
+    /// # Errors
+    ///
+    /// Execution failures, or an unsupported retained data modality.
+    pub fn estimate_retained(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
+        match &self.analysis.data {
+            DataInput::Tabular(data) => self.estimate(data, ctx),
+            DataInput::Temporal(data) | DataInput::Event(data) => self.estimate_series(data, ctx),
+            DataInput::Panel(data) => self.estimate_panel(data, ctx),
+            DataInput::MultiEnv(_) => Err(CausalError::Compile {
+                message: "retained multi-environment estimation is unavailable".into(),
+            }),
+        }
+    }
+}

@@ -306,10 +306,7 @@ pub fn intent_effects(intent: TransformIntent) -> Arc<[LayerEffect]> {
         ],
         TransformIntent::AverageUnweightedClass => vec![
             LayerEffect::new(Target, [Preserves]),
-            LayerEffect::new(
-                Identification,
-                [TransformEffect::Refused, Preserves],
-            ),
+            LayerEffect::new(Identification, [TransformEffect::Refused, Preserves]),
             LayerEffect::new(Program, [TransformEffect::Refused]),
             LayerEffect::new(Results, [TransformEffect::Refused]),
         ],
