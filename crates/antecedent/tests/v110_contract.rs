@@ -22,8 +22,8 @@ use antecedent_core::{
     HostOperation, IdentificationStatus, Intervention, InterventionSequence,
     InterventionalDistributionQuery, Lag, MeasurementSpec, MediationContrast, MediationQuery,
     ObligationKind, ObservationAssumption, ObservationSpec, PathSpecificEffectQuery, ProgressSink,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue, RoleHint,
-    SequencedIntervention, SharedEvidenceRef, SlotAvailability, SmallRoleSet,
+    QueryId, ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue, RoleHint,
+    SemanticDigest, SequencedIntervention, SharedEvidenceRef, SlotAvailability, SmallRoleSet,
     TEMPORAL_OBSERVATION_UNLICENSED, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
     TransformIntent, Value, ValueType, VariableId, compose_claims,
 };
@@ -3767,4 +3767,271 @@ fn derived_claim_compare_is_not_synthesis() {
         }
         other => panic!("expected contrast refusal, got {other:?}"),
     }
+}
+
+fn tiny_ranker() -> antecedent::design::DesignRanker {
+    use antecedent::design::{DesignRankConfig, DesignRanker};
+    DesignRanker::new().with_config(DesignRankConfig {
+        min_batches: 1,
+        max_batches: 2,
+        batch_size: 2,
+        rank_uncertainty_threshold: 0.5,
+    })
+}
+
+fn empty_eval(
+    graphs: &antecedent_prob::WeightedGraphSamples,
+) -> antecedent::design::DesignEvaluationContext<'_, (), ()> {
+    antecedent::design::DesignEvaluationContext {
+        graphs,
+        effect_width: None,
+        model_loglik: None,
+        decisions: None,
+        query_id_unlock: None,
+        env_id_unlock: None,
+        identified_under_intervention: None,
+        graph_features: None,
+    }
+}
+
+#[test]
+fn design_rank_pulse_bayesian_pins_synthetic_width_order() {
+    use antecedent::design::{
+        CandidateDesign, DesignCost, DesignObjective, EffectWidthContext, SamplingPlan,
+    };
+
+    let ctx = ExecutionContext::for_tests(1);
+    let (series, graph) = lag1_series();
+    let prepared = Study::series(series)
+        .graph(graph)
+        .temporal_query(pulse_query())
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let width = EffectWidthContext {
+        xtx: Arc::from([1.0]),
+        sigma2: 1.0,
+        treatment_col: 0,
+        n: 16,
+        measure_columns: None,
+        intervention_design: None,
+        environment_grams: None,
+    };
+    let graphs = antecedent_prob::WeightedGraphSamples::new(
+        vec![1.0],
+        vec![antecedent_prob::GraphIdentFlag::Identified],
+        vec![1],
+    )
+    .unwrap();
+    let eval = antecedent::design::DesignEvaluationContext::<(), ()> {
+        graphs: &graphs,
+        effect_width: Some(&width),
+        ..empty_eval(&graphs)
+    };
+    let candidates = vec![
+        CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+            additional_samples: 4,
+            cost: DesignCost::zero(),
+            tag: 1,
+        }),
+        CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+            additional_samples: 64,
+            cost: DesignCost::zero(),
+            tag: 2,
+        }),
+        CandidateDesign::Measure(antecedent::design::MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(0)]),
+            cost: DesignCost::zero(),
+            tag: 3,
+        }),
+    ];
+    let preview = prepared
+        .preview_rank_designs(
+            &DesignObjective::ReduceEffectPosteriorWidth { query: QueryId::from_raw(0) },
+            &candidates,
+            &eval,
+            None,
+        )
+        .unwrap();
+    assert!(!preview.unresolved);
+    assert_eq!(preview.violations.len(), 1);
+    assert_eq!(preview.violations[0].candidate_index, 2);
+    assert_eq!(preview.violations[0].constraint.as_ref(), "unlicensed_candidate");
+    assert!(preview.obligations.iter().any(|item| item.id.as_ref() == "design.update_rule"));
+
+    let ranking = prepared
+        .rank_designs(
+            &tiny_ranker(),
+            &DesignObjective::ReduceEffectPosteriorWidth { query: QueryId::from_raw(0) },
+            &candidates,
+            &eval,
+            &ctx,
+        )
+        .unwrap();
+    assert_eq!(ranking.ranked.len(), 2);
+    assert_eq!(ranking.ranked[0].candidate_index, 1);
+    assert!(ranking.ranked[0].score > ranking.ranked[1].score);
+    assert_eq!(ranking.violations.len(), 1);
+    assert_eq!(ranking.violations[0].candidate_index, 2);
+}
+
+#[test]
+fn design_rank_pulse_window_refuses_incomparable_width() {
+    use antecedent::design::{CandidateDesign, DesignCost, DesignObjective, SamplingPlan};
+
+    let ctx = ExecutionContext::for_tests(1);
+    let (series, graph) = lag1_series();
+    let prepared = Study::series(series)
+        .graph(graph)
+        .temporal_query(pulse_query())
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let graphs = antecedent_prob::WeightedGraphSamples::new(
+        vec![1.0],
+        vec![antecedent_prob::GraphIdentFlag::Identified],
+        vec![1],
+    )
+    .unwrap();
+    let eval = empty_eval(&graphs);
+    let candidates = vec![CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+        additional_samples: 8,
+        cost: DesignCost::zero(),
+        tag: 1,
+    })];
+    let other = SemanticDigest::from_bytes([7; 32]);
+    let err = prepared
+        .rank_designs_bound(
+            &tiny_ranker(),
+            &DesignObjective::ReduceEffectPosteriorWidth { query: QueryId::from_raw(0) },
+            &candidates,
+            &eval,
+            &ctx,
+            Some(other),
+        )
+        .unwrap_err();
+    assert!(err.to_string().contains("incomparable estimands"), "{err}");
+}
+
+#[test]
+fn design_rank_width_without_model_is_unresolved() {
+    use antecedent::design::{CandidateDesign, DesignCost, DesignObjective, SamplingPlan};
+
+    let ctx = ExecutionContext::for_tests(1);
+    let (series, graph) = lag1_series();
+    let prepared = Study::series(series)
+        .graph(graph)
+        .temporal_query(
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::sustained(-1, -1))
+                .with_horizon_steps(1),
+        )
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let graphs = antecedent_prob::WeightedGraphSamples::new(
+        vec![1.0],
+        vec![antecedent_prob::GraphIdentFlag::Identified],
+        vec![1],
+    )
+    .unwrap();
+    let eval = empty_eval(&graphs);
+    let candidates = vec![CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+        additional_samples: 8,
+        cost: DesignCost::zero(),
+        tag: 1,
+    })];
+    let ranking = prepared
+        .rank_designs(
+            &tiny_ranker(),
+            &DesignObjective::ReduceEffectPosteriorWidth { query: QueryId::from_raw(0) },
+            &candidates,
+            &eval,
+            &ctx,
+        )
+        .unwrap();
+    assert!(ranking.ranked.is_empty());
+    assert_eq!(ranking.violations[0].constraint.as_ref(), "unresolved_utility");
+    assert_eq!(ranking.violations[0].detail.as_ref(), "missing_effect_width_model");
+}
+
+#[test]
+fn design_rank_graph_posterior_ate_preserves_unidentified_mass() {
+    use antecedent::design::{
+        CandidateDesign, DesignCost, DesignObjective, MeasurementPlan, SamplingPlan,
+    };
+
+    let ctx = ExecutionContext::for_tests(1);
+    let data = mixture_data();
+    let prepared = Study::tabular(data)
+        .graph_posterior(mixture_graph_posterior())
+        .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let graphs = antecedent_prob::WeightedGraphSamples::new(
+        vec![0.6, 0.4],
+        vec![
+            antecedent_prob::GraphIdentFlag::Identified,
+            antecedent_prob::GraphIdentFlag::Unidentified,
+        ],
+        vec![1, 2],
+    )
+    .unwrap();
+    let query = QueryId::from_raw(0);
+    let unlock = [(query, Arc::from([VariableId::from_raw(2)]))];
+    let eval = antecedent::design::DesignEvaluationContext::<(), ()> {
+        graphs: &graphs,
+        query_id_unlock: Some(&unlock),
+        ..empty_eval(&graphs)
+    };
+    let candidates = vec![
+        CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+            additional_samples: 1_000,
+            cost: DesignCost::zero(),
+            tag: 1,
+        }),
+        CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(2)]),
+            cost: DesignCost::zero(),
+            tag: 2,
+        }),
+    ];
+    let preview = prepared
+        .preview_rank_designs(
+            &DesignObjective::IncreaseIdentificationProbability { query },
+            &candidates,
+            &eval,
+            None,
+        )
+        .unwrap();
+    assert!((preview.unidentified_mass.unwrap() - 0.4).abs() < 1e-12);
+    assert_eq!(preview.violations.len(), 1);
+    assert_eq!(preview.violations[0].candidate_index, 0);
+    assert!(preview.violations[0].detail.contains("observational units"));
+
+    let ranking = prepared
+        .rank_designs(
+            &tiny_ranker(),
+            &DesignObjective::IncreaseIdentificationProbability { query },
+            &candidates,
+            &eval,
+            &ctx,
+        )
+        .unwrap();
+    assert_eq!(ranking.ranked.len(), 1);
+    assert_eq!(ranking.ranked[0].candidate_index, 1);
+    assert!((graphs.unidentified_mass() - 0.4).abs() < 1e-12);
+    assert_eq!(ranking.violations[0].constraint.as_ref(), "unlicensed_candidate");
 }
