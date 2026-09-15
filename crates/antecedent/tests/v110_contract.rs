@@ -6,12 +6,13 @@
 
 use std::sync::Arc;
 
-use antecedent::{EstimatorId, IdentifierId, Study};
+use antecedent::{EstimatorId, IdentifierId, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalRng, CausalSchemaBuilder, ClaimKind, ExecutionContext,
-    IdentificationStatus, MeasurementSpec, RoleHint, SlotAvailability, SmallRoleSet,
+    IdentificationStatus, MeasurementSpec, ProgressSink, RoleHint, SlotAvailability, SmallRoleSet,
     TransformIntent, ValueType, VariableId,
 };
+use antecedent_io::query_wire::{CausalQueryWire, InterventionWire, TargetPopulationWire, ValueWire};
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
 };
@@ -90,6 +91,60 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
 
 fn study(data: TabularData, dag: Dag, query: AverageEffectQuery) -> Study {
     Study::tabular(data).graph(dag).query(query).bootstrap_replicates(0).build().unwrap()
+}
+
+#[derive(Default)]
+struct RecordingProgress(std::sync::Mutex<Vec<String>>);
+
+impl ProgressSink for RecordingProgress {
+    fn report(&self, _fraction: f64, stage: &str) {
+        self.0.lock().unwrap().push(stage.to_owned());
+    }
+}
+
+fn identify_computations(sink: &RecordingProgress) -> usize {
+    sink.0.lock().unwrap().iter().filter(|stage| stage.as_str() == "identify.compute").count()
+}
+
+fn assert_executed_binary_ate(query: &CausalQueryWire, names: &[String]) {
+    let CausalQueryWire::AverageEffect {
+        treatment,
+        outcome,
+        control,
+        active,
+        target_population,
+        outcome_functional,
+        ..
+    } = query
+    else {
+        panic!("executed functional must be AverageEffect, got {query:?}");
+    };
+    assert_eq!(names[*treatment as usize], "t");
+    assert_eq!(names[*outcome as usize], "y");
+    assert_eq!(*treatment, 0);
+    assert_eq!(*outcome, 1);
+    match control {
+        InterventionWire::Set { variable, value: ValueWire::Float64(value) } => {
+            assert_eq!(*variable, *treatment);
+            assert_eq!(value.to_bits(), 0.0f64.to_bits());
+        }
+        other => panic!("control must be do(t=0), got {other:?}"),
+    }
+    match active {
+        InterventionWire::Set { variable, value: ValueWire::Float64(value) } => {
+            assert_eq!(*variable, *treatment);
+            assert_eq!(value.to_bits(), 1.0f64.to_bits());
+        }
+        other => panic!("active must be do(t=1), got {other:?}"),
+    }
+    assert!(
+        matches!(target_population, TargetPopulationWire::AllObserved),
+        "population must stay AllObserved, got {target_population:?}"
+    );
+    assert!(
+        matches!(outcome_functional, antecedent_io::query_wire::OutcomeFunctionalWire::Mean),
+        "temporal coordinates are absent on static AverageEffect"
+    );
 }
 
 #[test]
@@ -347,9 +402,16 @@ fn dag_average_effect_vertical_path_is_independently_accepted() {
         Some(*contract.identities.program.as_bytes())
     );
     assert_eq!(consumed.body.estimate, Some(result.effect()));
-    let body = result.analysis_result_wire(prepared.query()).unwrap();
     let names: Vec<String> =
         data.schema().variables().iter().map(|variable| variable.name.to_string()).collect();
+    let section = consumed.contract.as_ref().expect("verified contract");
+    assert_executed_binary_ate(&section.target.query, &names);
+    assert_eq!(section.target.query, consumed.body.query);
+    assert_eq!(section.target.query, consumed.body.identification.query);
+    assert_eq!(section.target.schema.variable_names(), names);
+    assert!(result.estimate.se_analytic.is_finite());
+    assert!((result.effect() - 2.0).abs() < 1.96 * result.estimate.se_analytic);
+    let body = result.analysis_result_wire(prepared.query()).unwrap();
     let mut legacy = Vec::new();
     antecedent_io::encode_analysis_result_artifact(&body, names, "legacy")
         .unwrap()
@@ -358,6 +420,76 @@ fn dag_average_effect_vertical_path_is_independently_accepted() {
     let old = antecedent_io::consume_analysis_result(&legacy).unwrap();
     assert_eq!(old.body.estimate, consumed.body.estimate);
     assert!(!old.acceptance.accepts_as_verified_program());
+}
+
+#[test]
+fn dag_average_effect_vertical_path_binds_functional_after_retarget() {
+    let ctx = ExecutionContext::for_tests(1);
+    let (data, dag, query) = confounded_scm(256, 41);
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let contract = prepared.contract().unwrap();
+    let estimated = prepared.estimate(&data, &ctx).unwrap();
+    let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
+    let weights = vec![1.0; data.row_count()];
+    let retargeted = prepared.apply_retarget(&preview, &weights, &[], &ctx).unwrap();
+    assert_eq!(retargeted.certificate.as_ref().map(|c| &c.query), Some(prepared.query()));
+    assert_eq!(
+        contract.identities.identification_product,
+        prepared.contract().unwrap().identities.identification_product
+    );
+    assert!(retargeted.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    assert!(retargeted.estimate.se_analytic.is_finite());
+    assert!((retargeted.effect() - 2.0).abs() < 0.35);
+    assert!((retargeted.effect() - estimated.effect()).abs() < 1e-10);
+    let bytes = prepared.encode_contracted_result(&retargeted, "dag-ate-retarget", &ctx).unwrap();
+    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+    assert!(consumed.acceptance.accepts_as_verified_program());
+    let names: Vec<String> =
+        data.schema().variables().iter().map(|variable| variable.name.to_string()).collect();
+    let section = consumed.contract.as_ref().expect("verified contract");
+    assert_executed_binary_ate(&section.target.query, &names);
+    assert_eq!(section.target.query, consumed.body.query);
+    assert_eq!(section.target.query, consumed.body.identification.query);
+    assert_eq!(section.identities.program, *contract.identities.program.as_bytes());
+}
+
+#[test]
+fn dag_average_effect_vertical_path_counts_identify_compute() {
+    let sink = Arc::new(RecordingProgress::default());
+    let mut ctx = ExecutionContext::for_tests(1);
+    ctx.progress = Some(Arc::clone(&sink) as Arc<dyn ProgressSink>);
+    let (data, dag, query) = confounded_scm(128, 41);
+    let built = study(data.clone(), dag, query);
+    let _ = built.inspect().unwrap();
+    assert_eq!(identify_computations(&sink), 0, "inspect must not identify");
+    let mut prepared = built.prepare(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 1, "prepare identifies once");
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 1);
+    let refuted = prepared.refute(&first, &data, RefuteSuite::Cheap, &ctx).unwrap();
+    assert_eq!(refuted.effect().to_bits(), first.effect().to_bits());
+    assert_eq!(identify_computations(&sink), 1, "refute must not re-identify");
+    let compatible = data
+        .with_replaced_float(
+            VariableId::from_raw(1),
+            data.float64_slice(VariableId::from_raw(1)).unwrap().to_vec().into(),
+        )
+        .unwrap();
+    let refreshed = prepared.refresh(compatible.clone(), &ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 1, "compatible refresh must not re-identify");
+    let second = prepared.estimate(&compatible, &ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 1);
+    assert!(second.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    assert!((refreshed.effect() - first.effect()).abs() < 1e-12);
+    assert!((second.effect() - 2.0).abs() < 0.25);
 }
 
 #[test]
