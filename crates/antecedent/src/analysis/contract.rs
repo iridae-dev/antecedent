@@ -1337,7 +1337,8 @@ fn analysis_result_wire(
     temporal: Option<&CachedTemporalIdentification>,
     cached: Option<&IdentificationResult>,
 ) -> Result<AnalysisResultWire, CausalError> {
-    let identification = identification_to_wire(cached.unwrap_or(&result.identification))
+    let query_wire = causal_query_to_wire(query).map_err(|err| io_err(&err))?;
+    let mut identification = identification_to_wire(cached.unwrap_or(&result.identification))
         .map_err(|err| io_err(&err))?;
     let temporal_identification = temporal_identification_wires(temporal)?;
     let identification_variables = temporal_identification
@@ -1345,8 +1346,9 @@ fn analysis_result_wire(
         .find(|entry| entry.identification.query == identification.query)
         .or_else(|| temporal_identification.first())
         .map(|entry| entry.variables.clone());
+    identification.query = query_wire.clone();
     Ok(AnalysisResultWire {
-        query: causal_query_to_wire(query).map_err(|err| io_err(&err))?,
+        query: query_wire,
         identification,
         identification_variables,
         temporal_identification,
