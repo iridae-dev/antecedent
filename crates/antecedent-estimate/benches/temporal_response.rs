@@ -160,15 +160,68 @@ fn intervention_shift_series(
     (data, query, estimand, id_res.indexer)
 }
 
+/// Six horizons × five doses on a persistent series: every horizon is its own
+/// lag-aligned design, so a Bayesian curve pays one REML residual fit per horizon.
+fn wide_bayesian_series(
+    n: usize,
+) -> (TimeSeriesData, ResponseQuery, IdentifiedEstimand, TemporalIndexer) {
+    let (data, _, estimand, indexer) = series(n);
+    let temporal = TemporalResponseSpec::new(
+        Arc::from([1_u32, 2, 3, 4, 6, 8]),
+        TemporalPolicy::pulse(0),
+        None,
+    )
+    .unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(Arc::from(vec![0.0_f64, 0.25, 0.5, 1.0, 1.5])),
+        ),
+    })
+    .with_temporal(temporal);
+    (data, query, estimand, indexer)
+}
+
 #[allow(clippy::too_many_lines)]
 fn bench_temporal_response(c: &mut Criterion) {
     // Soft budgets (temporal_response.md); 2× headroom for gate `--test` noise.
     const MULTI_HORIZON_BUDGET: Duration = Duration::from_millis(25);
+    // Cold Bayesian curve: six per-horizon REML residual fits (the serial-dependence
+    // tempering factor) plus six conjugate fits at n = 2000. The fits are cached per
+    // design afterwards, so this runs first, before any bench has touched the series.
+    const BAYESIAN_WIDE_COLD_BUDGET: Duration = Duration::from_millis(40);
     // n = 100_000 is comfortably fast for the closed-form O(n*p) path (fit-dominated,
     // same order as the MeanCurve bench above) but would be ~100x+ over budget if the
     // additive-shift path regressed to an O(n) (or worse, the original O(n^2)) loop
     // averaging g-comp over every observed treatment level.
     const INTERVENTION_SHIFT_BUDGET: Duration = Duration::from_millis(200);
+
+    {
+        let (data, query, estimand, indexer) = wide_bayesian_series(2000);
+        let bayes = antecedent_estimate::BayesianGComputationAte::conjugate().with_n_draws(512);
+        let ctx = ExecutionContext::for_tests(12);
+        let started = Instant::now();
+        let response = TemporalResponseEstimator::new()
+            .estimate_bayesian(
+                &data,
+                &[(&estimand, &indexer); 6],
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+                &bayes,
+                &ctx,
+            )
+            .unwrap();
+        let elapsed = started.elapsed();
+        black_box(response);
+        eprintln!("bayesian_temporal_response_n2000_draws512_h6_grid5 (cold): {elapsed:?}");
+        assert!(
+            elapsed < BAYESIAN_WIDE_COLD_BUDGET,
+            "bayesian_temporal_response_n2000_draws512_h6_grid5 (cold) exceeded soft budget: \
+             {elapsed:?} >= {BAYESIAN_WIDE_COLD_BUDGET:?}"
+        );
+    }
 
     let est = TemporalResponseEstimator::new();
     for bayesian in [false, true] {
@@ -245,6 +298,36 @@ fn bench_temporal_response(c: &mut Criterion) {
             {
                 assert_eq!(grid.len(), 8); // four dose/horizon pairs, no row × grid expansion
                 assert_eq!(mean.len(), 4);
+            } else {
+                panic!("expected dose/horizon surface");
+            }
+            black_box(response);
+        });
+    });
+
+    // Warm path: the per-horizon residual fits are cached after the first iteration, so
+    // this measures the per-level tempering work and the conjugate fits.
+    c.bench_function("bayesian_temporal_response_n2000_draws512_h6_grid5", |b| {
+        let (data, query, estimand, indexer) = wide_bayesian_series(2000);
+        let bayes = antecedent_estimate::BayesianGComputationAte::conjugate().with_n_draws(512);
+        let ctx = ExecutionContext::for_tests(12);
+        b.iter(|| {
+            let response = est
+                .estimate_bayesian(
+                    &data,
+                    &[(&estimand, &indexer); 6],
+                    &query,
+                    IdentificationStatus::NonparametricallyIdentified,
+                    AssumptionSet::new(),
+                    &bayes,
+                    &ctx,
+                )
+                .unwrap();
+            if let antecedent_core::ResponseIdentification::PointIdentified(
+                antecedent_core::ResponseValue::Surface { mean, .. },
+            ) = &response.estimate
+            {
+                assert_eq!(mean.len(), 30);
             } else {
                 panic!("expected dose/horizon surface");
             }

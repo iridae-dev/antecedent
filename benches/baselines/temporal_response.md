@@ -12,6 +12,7 @@ Criterion benches (run with `--test` in release / feature gates):
 |------|---------------------|
 | temporal_response_multi_horizon_n800 | asserted gate **25 ms** (2× headroom for `--test` noise) |
 | temporal_response_intervention_shift_n100000 | asserted gate **200 ms** (measured ~10.7 ms steady state; wide headroom is deliberate — see below) |
+| bayesian_temporal_response_n2000_draws512_h6_grid5 (cold) | asserted gate **40 ms** (see below) |
 
 Allocation / memory contract: prepare-once identification + indexer are reused
 across estimate clicks on the facade `PreparedStudy::estimate_series` path;
@@ -29,6 +30,29 @@ from ~10 ms to well over the 200 ms budget, while the closed-form path stays
 comfortably within it. This repo already suffered one silent O(n^2) response-curve
 regression (0.5.2, 77× fix); this bench exists so that class of regression on the
 temporal `InterventionResponse` path fails the gate instead of shipping unnoticed.
+
+`bayesian_temporal_response_n2000_draws512_h6_grid5` covers the Bayesian curve
+at six horizons and five doses on `n = 2000` rows. Every horizon is its own
+lag-aligned design, and each design's likelihood is tempered by the
+serial-dependence factor of `antecedent_estimate::serial_dependence`, whose
+REML AR(q) residual fit (Nelder–Mead over the partial autocorrelations at four
+candidate orders with a Newton polish, the projected trace, the observed
+information) is the expensive part: it is computed once per design and cached
+by row content, so the Criterion loop measures the warm path (per-dose
+quadratic forms, the score HAC bound of the driving doses, the conjugate fits)
+while the asserted cold budget runs first, before any bench has touched the
+series, and pays all six residual fits. Before the per-design fit and the
+O(q²p²) likelihood from precomputed lagged cross-products, the fit cost
+~15–30 ms per design at `n = 800`–`2000` (measured 2026-09-15 before the
+change: the n = 800 response bench at 16.9 ms, the sustained window at 70 ms,
+mediation at 32 ms, all min-of-5 interleaved); now each likelihood evaluation is O(q²p²) whatever `n`,
+and a design costs ~1–6 ms cold depending on the selected order and the
+simplex iteration count (the whole cold curve measured 18.7–21.7 ms across
+five runs, of which the six residual fits are most), which is what the 40 ms
+gate (2× headroom) protects. Warm, the curve measures ~1.7 ms and the n = 800
+response bench ~142 µs (1.5× its 1.2 reference below; with tempering
+short-circuited it measures ~145 µs, so the warm tempering path is within
+noise).
 
 ## 1.2 posterior and sustained-window reference
 
