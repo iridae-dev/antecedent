@@ -229,13 +229,11 @@ fn max_deviation_band_by(
                 .iter()
                 .zip(&scale)
                 .enumerate()
-                .map(|(cell, (mid, s))| {
-                    if *s <= f64::EPSILON {
-                        0.0
-                    } else {
-                        (value(r, cell) - mid).abs() / s
-                    }
-                })
+                .map(
+                    |(cell, (mid, s))| {
+                        if *s <= f64::EPSILON { 0.0 } else { (value(r, cell) - mid).abs() / s }
+                    },
+                )
                 .fold(0.0_f64, f64::max)
         })
         .collect();
