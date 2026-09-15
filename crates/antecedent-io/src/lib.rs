@@ -10,6 +10,7 @@ pub mod analysis_wire;
 pub mod arrow_section;
 pub mod causal_artifact;
 pub mod container;
+pub mod contract_section;
 pub mod contrast_wire;
 pub mod convert;
 pub mod discovery_wire;
@@ -20,6 +21,7 @@ pub mod graph_gml;
 pub mod graph_json;
 pub mod graph_mixed;
 pub mod graph_networkx;
+pub mod identity;
 pub mod mechanism_wire;
 pub mod migrate;
 /// Thin mmap wrapper — sole `unsafe` boundary in antecedent-io.
@@ -46,7 +48,8 @@ pub use analysis_result_artifact::{
     StructuralResponseMixtureWire, StructuralWeightBasisWire, TemporalIdentificationWire,
     TemporalMediationGridWire, TemporalMediationSliceWire, TemporalMediationUncertaintyWire,
     decode_analysis_result_artifact, encode_analysis_result_artifact,
-    identified_set_interval_from_wire, identified_set_interval_to_wire,
+    encode_analysis_result_artifact_with_contract, identified_set_interval_from_wire,
+    identified_set_interval_to_wire,
 };
 pub use analysis_wire::{
     DiagnosticWire, EffectEstimateWire, IdentificationResultWire, IdentifiedEstimandWire,
@@ -63,6 +66,14 @@ pub use container::{
     AUTO_COMPRESS_MAX_RATIO, AUTO_COMPRESS_MIN_BYTES, ArtifactManifest, COMPRESSION_ZSTD,
     CONTAINER_VERSION, CompressPolicy, EncodedArtifact, MAGIC, SectionBytes, pack_section,
     pack_section_shared, section_descriptor, section_descriptor_with_policy,
+};
+pub use contract_section::{
+    AnalysisResultConsumption, AnalysisResultContractWire, AssumptionSlotWire, CONTRACT_SECTION,
+    CONTRACT_SECTION_FORMAT, ClaimSectionWire, ContractIdentitiesWire, IdentificationSlotWire,
+    ObligationSectionWire, ReasoningSectionWire, SlotSectionWire, SupportSlotWire,
+    UncertaintyComponentWire, UncertaintySlotWire, consume_analysis_result,
+    decode_analysis_result_contract, digest_hex, validate_contract_section,
+    verify_contract_against_body,
 };
 pub use contrast_wire::{ContrastBundleWire, RecordedContrastWire};
 pub use convert::{
@@ -91,6 +102,18 @@ pub use graph_mixed::{
 pub use graph_networkx::{
     NetworkXAdjacency, NetworkXNodeLink, dag_from_networkx_adjacency, dag_from_networkx_node_link,
     dag_to_networkx_adjacency, dag_to_networkx_node_link,
+};
+pub use identity::{
+    ClaimIdentityWire, DataPartitionIdentityWire, DataSnapshotIdentityWire, ExecutionIdentityWire,
+    GraphIdentityWire, IdentificationIdentityWire, IdentificationProductWire, InferenceBindingWire,
+    InferentialCommitmentsWire, ObservationIdentityWire, ProgramIdentityWire, TargetIdentityWire,
+    TemporalClassIdentityWire, admg_identity, claim_digest, cpdag_identity, dag_identity,
+    data_snapshot_digest, digest_canonical, digest_wire, execution_digest,
+    execution_identity_from_context, identification_digest,
+    identification_product_digest, identification_product_digest_wire, identification_product_wire,
+    inference_binding_digest, observation_digest, observation_identity_wire, pag_identity,
+    program_digest, target_digest, temporal_cpdag_identity, temporal_dag_identity,
+    temporal_pag_identity, validate_mixture_masses,
 };
 pub use mechanism_wire::{
     MechanismSlotWire, MechanismStoreWire, ModelKindWire, mechanisms_from_wire, mechanisms_to_wire,

@@ -378,7 +378,7 @@ pub struct AnalysisResultHeader {
     pub variable_names: Vec<String>,
 }
 
-/// Encode a composite result artifact.
+/// Encode a composite result artifact without a contract section.
 ///
 /// # Errors
 ///
@@ -388,7 +388,36 @@ pub fn encode_analysis_result_artifact(
     variable_names: Vec<String>,
     artifact_id: &str,
 ) -> Result<EncodedArtifact, IoError> {
+    encode_analysis_result_artifact_with_contract(result, variable_names, artifact_id, None)
+}
+
+/// Encode a composite result, optionally attaching [`crate::CONTRACT_SECTION`].
+///
+/// The section is additive. Old readers ignore it; this encoder does not raise
+/// `minimum_reader_version`. A present contract is validated and bound to the
+/// body query and header names before write.
+///
+/// # Errors
+///
+/// Returns an error when validation, contract binding, or CBOR encoding fails.
+pub fn encode_analysis_result_artifact_with_contract(
+    result: &AnalysisResultWire,
+    variable_names: Vec<String>,
+    artifact_id: &str,
+    contract: Option<&crate::AnalysisResultContractWire>,
+) -> Result<EncodedArtifact, IoError> {
     validate_result(result, &variable_names)?;
+    if let Some(contract) = contract {
+        crate::validate_contract_section(contract)?;
+        let header = AnalysisResultHeader { variable_names: variable_names.clone() };
+        let unresolved = crate::verify_contract_against_body(&header, result, contract);
+        if !unresolved.is_empty() {
+            return Err(IoError::Convert(format!(
+                "contract does not verify against analysis_result body: {}",
+                unresolved.join(",")
+            )));
+        }
+    }
     let header = to_cbor(&AnalysisResultHeader { variable_names })?;
     let body = to_cbor(result)?;
     let (header_descriptor, header_section) = pack_section_shared(
@@ -399,6 +428,19 @@ pub fn encode_analysis_result_artifact(
     );
     let (body_descriptor, body_section) =
         pack_section_shared(BODY_SECTION, "application/cbor", body.into(), CompressPolicy::Auto);
+    let mut sections_desc = vec![header_descriptor, body_descriptor];
+    let mut sections = vec![header_section, body_section];
+    if let Some(contract) = contract {
+        let payload = to_cbor(contract)?;
+        let (descriptor, section) = pack_section_shared(
+            crate::CONTRACT_SECTION,
+            "application/cbor",
+            payload.into(),
+            CompressPolicy::Auto,
+        );
+        sections_desc.push(descriptor);
+        sections.push(section);
+    }
     Ok(EncodedArtifact {
         manifest: ArtifactManifest {
             format_version: STABLE_FORMAT,
@@ -406,10 +448,10 @@ pub fn encode_analysis_result_artifact(
             artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
             library_version: SemanticVersion::from_crate_version(antecedent_core::VERSION)?,
             artifact_id: artifact_id.into(),
-            sections: vec![header_descriptor, body_descriptor],
+            sections: sections_desc,
             provenance: ProvenanceWire { note: "composite analysis result".into() },
         },
-        sections: vec![header_section, body_section],
+        sections,
     })
 }
 
