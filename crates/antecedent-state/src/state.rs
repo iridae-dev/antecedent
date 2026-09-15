@@ -194,6 +194,27 @@ impl CausalState {
         Ok(())
     }
 
+    /// Like [`Self::refresh_results`], but refuse if `expected` is no longer
+    /// the current state version. A stale commit cannot mark results fresh.
+    ///
+    /// # Errors
+    ///
+    /// Version mismatch, unknown query, or cache budget refusal.
+    pub fn refresh_results_at(
+        &mut self,
+        expected: StateVersion,
+        updates: &[(QueryId, u64, u64)],
+    ) -> Result<(), StateError> {
+        if self.version != expected {
+            return Err(StateError::InvalidEvent(format!(
+                "stale commit: expected version {} but state is {}",
+                expected.raw(),
+                self.version.raw()
+            )));
+        }
+        self.refresh_results(updates)
+    }
+
     /// Current data version.
     #[must_use]
     pub fn data_version(&self) -> DataVersion {
@@ -262,6 +283,29 @@ mod tests {
             .expect("apply");
         assert!(state.is_stale(q));
         assert!(state.cached_results.results.is_empty());
+    }
+
+    #[test]
+    fn refresh_results_at_rejects_a_stale_expected_version() {
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        )));
+        let expected = state.version;
+        state
+            .apply(StateEvent::AppendData(DataBatchRef {
+                id: Arc::from("b_stale"),
+                nrows: 4,
+                bytes: 32,
+            }))
+            .expect("append");
+        let err = state.refresh_results_at(expected, &[(q, 1, 16)]).expect_err("stale");
+        assert!(matches!(err, StateError::InvalidEvent(_)));
+        assert!(state.is_stale(q));
+        assert!(state.cached_results.results.is_empty());
+        state.refresh_results_at(state.version, &[(q, 1, 16)]).expect("current version");
+        assert!(!state.is_stale(q));
     }
 
     #[test]
