@@ -49,6 +49,105 @@ from .query import (
 )
 from .results import IdentificationView
 
+_VERDICT_PARTIAL = ("partial",)
+_VERDICT_GRAPH_DEPENDENT = ("graphdependent", "graph_dependent", "graph-dependent")
+
+
+def _query_phrase(query: object) -> str:
+    name = type(query).__name__
+    treatment = getattr(query, "treatment", None)
+    outcome = getattr(query, "outcome", None)
+    if isinstance(treatment, str) and isinstance(outcome, str):
+        mediators = getattr(query, "mediators", None)
+        if mediators:
+            via = ", ".join(str(item) for item in mediators)
+            return f"{name} of {outcome} from {treatment} via {via}"
+        modifier = getattr(query, "modifier", None)
+        if isinstance(modifier, str):
+            return f"{name} of {outcome} from {treatment} given {modifier}"
+        return f"{name} of {outcome} from {treatment}"
+    return name
+
+
+def _verdict_for(status: str, *, identified: bool) -> str:
+    normalized = status.strip().lower().replace(" ", "")
+    if any(marker in normalized for marker in _VERDICT_PARTIAL):
+        return "partially identified"
+    if any(marker in normalized for marker in _VERDICT_GRAPH_DEPENDENT):
+        return "graph-dependent"
+    if identified:
+        return "identified"
+    return "not identified"
+
+
+def _assumption_line(item: object) -> str | None:
+    if isinstance(item, str) and item.strip():
+        return item.strip()
+    if not isinstance(item, Mapping):
+        return None
+    tag = item.get("assumption", item.get("id", item.get("kind")))
+    if isinstance(tag, Mapping):
+        description = tag.get("description")
+        if isinstance(description, str) and description.strip():
+            return description.strip()
+        tag = tag.get("id") or tag.get("kind") or next(iter(tag), None)
+    if tag is None:
+        return None
+    label = str(tag).replace("_", " ")
+    extras = [
+        str(item[key])
+        for key in ("source", "status")
+        if isinstance(item.get(key), str) and item[key]
+    ]
+    return f"{label} ({', '.join(extras)})" if extras else label
+
+
+def _certificate_cases(certificate: Mapping[str, Any] | None) -> list[Mapping[str, Any]]:
+    if not certificate:
+        return []
+    cases = certificate.get("cases")
+    if not isinstance(cases, list):
+        return []
+    return [case for case in cases if isinstance(case, Mapping)]
+
+
+def _assumption_statements(certificate: Mapping[str, Any] | None) -> tuple[str, ...]:
+    seen: list[str] = []
+    for case in _certificate_cases(certificate):
+        identification = case.get("identification")
+        raw = (
+            identification.get("required_assumptions")
+            if isinstance(identification, Mapping)
+            else None
+        )
+        entries = raw.get("entries", raw) if isinstance(raw, Mapping) else raw
+        if not isinstance(entries, list):
+            continue
+        for item in entries:
+            line = _assumption_line(item)
+            if line and line not in seen:
+                seen.append(line)
+    return tuple(seen)
+
+
+def _derivation_statements(certificate: Mapping[str, Any] | None) -> tuple[str, ...]:
+    seen: list[str] = []
+    for case in _certificate_cases(certificate):
+        identification = case.get("identification")
+        steps = identification.get("derivation") if isinstance(identification, Mapping) else None
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if isinstance(step, str) and step.strip() and step not in seen:
+                seen.append(step.strip())
+                continue
+            if not isinstance(step, Mapping):
+                continue
+            detail = step.get("detail") or step.get("rule")
+            if isinstance(detail, str) and detail.strip() and detail not in seen:
+                seen.append(detail.strip())
+    return tuple(seen)
+
 
 @dataclass(frozen=True)
 class Identification:
@@ -56,7 +155,11 @@ class Identification:
 
     Produced by :func:`identify` or :meth:`from_view`. Typed-structure
     certificates retain each case's assumptions, derivation and search diagnostics;
-    aggregate counts remain unset when there is no single point certificate. Conceptually immutable, like :class:`antecedent.AcceptedGraph`.
+    aggregate counts remain unset when there is no single point certificate.
+    :attr:`statement`, :attr:`verdict`, :attr:`assumption_statements`, and
+    :attr:`derivation_statements` are human-readable state on this object —
+    not a notebook renderer. Conceptually immutable, like
+    :class:`antecedent.AcceptedGraph`.
     """
 
     status: str
@@ -129,6 +232,58 @@ class Identification:
                 derivation_step_count=self.derivation_step_count or 0,
             )
         )
+
+    @property
+    def verdict(self) -> str:
+        """Stable human label: identified, not identified, partial, or graph-dependent."""
+        return _verdict_for(self.status, identified=bool(self))
+
+    @property
+    def assumption_statements(self) -> tuple[str, ...]:
+        """Readable assumption lines retained from the identification certificate."""
+        return _assumption_statements(self.certificate)
+
+    @property
+    def derivation_statements(self) -> tuple[str, ...]:
+        """Readable derivation steps retained from the identification certificate."""
+        return _derivation_statements(self.certificate)
+
+    @property
+    def statement(self) -> str:
+        """One-sentence identification state. This is data, not a display hook."""
+        query = _query_phrase(self.query)
+        verdict = self.verdict
+        if verdict == "not identified":
+            return f"{query} is not identified."
+        if verdict == "graph-dependent":
+            phrase = f"{query} is graph-dependent, not a single identified effect"
+        else:
+            phrase = f"{query} is {verdict}"
+        method = self.method.strip() if self.method else ""
+        if method and method.lower() not in {"none", "unavailable"}:
+            phrase = f"{phrase} by {method}"
+        if self.adjustment_set:
+            adjusted = ", ".join(self.adjustment_set)
+            phrase = f"{phrase}, adjusting for {adjusted}"
+        return f"{phrase}."
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe identification state, including the human-readable fields."""
+        return {
+            "status": self.status,
+            "verdict": self.verdict,
+            "statement": self.statement,
+            "method": self.method,
+            "adjustment_set": list(self.adjustment_set),
+            "identifier": self.identifier,
+            "assumption_count": self.assumption_count,
+            "derivation_step_count": self.derivation_step_count,
+            "assumption_statements": list(self.assumption_statements),
+            "derivation_statements": list(self.derivation_statements),
+        }
+
+    def __repr__(self) -> str:
+        return f"<Identification {self.statement}>"
 
     def to_identify_result(self) -> IdentifyResult:
         """Convert down to the legacy identify-only result shape.

@@ -605,6 +605,9 @@ class AnalysisResult(ResultAPI):
     assumptions: list[str] | None = None
     support: list[str] | None = None
     reasoning: ReasoningSlots | None = None
+    #: Compiled program identity. Distinct from ``claim_id``.
+    program_id: str | None = None
+    #: Execution claim identity. Distinct from ``program_id``.
     claim_id: str | None = None
     data_version: str | None = None
 
@@ -613,9 +616,11 @@ class AnalysisResult(ResultAPI):
         """Primary requested contrast, including mediation and mean ITE.
 
         Function-valued results omit a scalar; the response or mediation grid
-        is authoritative.
+        is authoritative. Prefer :attr:`answer` when identification may be
+        partial; this field warns when a point display would misrepresent.
         """
-        return self.estimate.ate
+        self._warn_legacy_scalar("effect")
+        return self._scalar_effect()
 
     @property
     def ate(self) -> float | None:
@@ -625,16 +630,18 @@ class AnalysisResult(ResultAPI):
         Prefer :attr:`mean_ite` or :attr:`effect` there. Function-valued
         results omit a scalar rather than publishing NaN.
         """
-        return self.effect
+        self._warn_legacy_scalar("ate")
+        return self._scalar_effect()
 
     @property
     def mean_ite(self) -> float:
         """Mean two-world ITE. Only defined when ``unit_effects`` is present."""
         if self.unit_effects is None:
             raise AttributeError("mean_ite is only defined for counterfactual results")
-        if self.effect is None:
+        value = self._scalar_effect()
+        if value is None:
             raise AttributeError("mean_ite requires a scalar effect")
-        return self.effect
+        return value
 
     def __repr__(self) -> str:
         limitation = self.rendering_limitation()
@@ -651,15 +658,16 @@ class AnalysisResult(ResultAPI):
             else self.estimate.se_analytic
         )
         se_text = fmt_se(se)
+        effect = self._scalar_effect()
         if self.unit_effects is not None:
-            parts = [verdict, f"mean_ite={fmt_float(self.effect)}"]
+            parts = [verdict, f"mean_ite={fmt_float(effect)}"]
         elif self.estimate.mean_interval is not None:
             interval_text = fmt_probability_interval(self.estimate.mean_interval)
-            parts = [verdict, f"effect={fmt_float(self.effect)} {interval_text}"]
+            parts = [verdict, f"effect={fmt_float(effect)} {interval_text}"]
         elif se_text is None:
-            parts = [verdict, f"effect={fmt_float(self.effect)} se=unavailable"]
+            parts = [verdict, f"effect={fmt_float(effect)} se=unavailable"]
         else:
-            parts = [verdict, f"effect={fmt_float(self.effect)} ±{se_text}"]
+            parts = [verdict, f"effect={fmt_float(effect)} ±{se_text}"]
         if self.validation.ran:
             n = len(self.validation)
             n_passed = n - len(self.validation.failed)
@@ -733,4 +741,4 @@ class AnalysisResult(ResultAPI):
 
     def display_effect(self) -> float:
         """Point effect only when the four-slot claim is a complete scalar."""
-        return require_scalar_display(self.rendering_limitation(), self.effect)
+        return require_scalar_display(self.rendering_limitation(), self._scalar_effect())

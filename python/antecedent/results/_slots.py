@@ -76,6 +76,9 @@ class ReasoningSlots:
     support: SlotView
     uncertainty: SlotView
     assumptions: SlotView
+    #: Compiled program identity (`contract["program"]`). Distinct from claim_id.
+    program_id: str | None
+    #: Execution claim identity (`contract["claim"]["claim_id"]`). Distinct from program_id.
     claim_id: str | None
     data_version: str | None
     answer: Any = None
@@ -127,7 +130,8 @@ class ReasoningSlots:
                 if "assumption_obligations" in contract
                 else None,
             ),
-            claim_id=contract.get("program"),
+            program_id=contract.get("program"),
+            claim_id=contract.get("claim_id"),
             data_version=contract.get("data_snapshot"),
         )
 

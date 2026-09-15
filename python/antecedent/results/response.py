@@ -377,6 +377,9 @@ class CausalResponseView(ResultAPI):
     diagnostics: Sequence[str] = ()
     certificate: dict[str, Any] | None = None
     reasoning: ReasoningSlots | None = None
+    #: Compiled program identity. Distinct from ``claim_id``.
+    program_id: str | None = None
+    #: Execution claim identity. Distinct from ``program_id``.
     claim_id: str | None = None
     data_version: str | None = None
     _prepared: Any = field(default=None, repr=False, compare=False)
