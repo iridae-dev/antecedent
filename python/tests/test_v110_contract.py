@@ -106,3 +106,117 @@ def test_contracted_artifact_is_independently_accepted() -> None:
     assert accepted["population"] == "all_observed"
     assert accepted["temporal_coordinates"] == "none"
     assert accepted["variable_names"] == "t,y,z"
+
+
+def test_conditional_effect_contracted_artifact_is_independently_accepted() -> None:
+    from antecedent import artifacts
+    from antecedent.query import ConditionalEffect
+
+    n = 120
+    t = np.array([float(i % 2) for i in range(n)])
+    w = np.array([float(i % 5) for i in range(n)])
+    y = 1.0 + 2.0 * t + 0.5 * t * w
+    data = {"t": t, "y": y, "w": w}
+    prepared = PreparedAnalysis.prepare(
+        data,
+        graph=[("t", "y"), ("w", "y")],
+        query=ConditionalEffect("t", "y", "w"),
+        refute="none",
+        bootstrap=0,
+    )
+    result = prepared.estimate(data)
+    contract = prepared.contract()
+    accepted = artifacts.accept(prepared.export_contracted_artifact())
+    assert accepted["accepts_as_verified_program"] == "true"
+    assert accepted["program"] == contract["program"]
+    assert accepted["target"] == contract["target"]
+    assert accepted["query_kind"] == "conditional_effect"
+    assert accepted["treatment"] == contract["treatment"]
+    assert accepted["outcome"] == contract["outcome"]
+    assert accepted["treatment"] == "0"
+    assert accepted["outcome"] == "1"
+    assert accepted["population"] == "all_observed"
+    assert contract["matrix_coordinate"].startswith("ConditionalEffect:")
+    assert abs(result.estimate.ate - 3.0) < 1e-6
+
+
+def test_mediation_contracted_artifact_is_independently_accepted() -> None:
+    from antecedent import artifacts
+    from antecedent.query import MediationEffect
+
+    a = np.sin(np.arange(200) * 0.71)
+    m = 2.0 * a + np.cos(np.arange(200) * 1.13)
+    y = 3.0 * a + 4.0 * m + 0.1 * np.sin(np.arange(200) * 0.31)
+    data = {"a": a, "m": m, "y": y}
+    prepared = PreparedAnalysis.prepare(
+        data,
+        graph=[("a", "m"), ("a", "y"), ("m", "y")],
+        query=MediationEffect("a", "y", mediators=["m"], contrast="direct"),
+        refute="none",
+        bootstrap=0,
+    )
+    result = prepared.estimate(data)
+    contract = prepared.contract()
+    accepted = artifacts.accept(prepared.export_contracted_artifact())
+    assert accepted["accepts_as_verified_program"] == "true"
+    assert accepted["program"] == contract["program"]
+    assert accepted["target"] == contract["target"]
+    assert accepted["query_kind"] == "mediation"
+    assert accepted["treatment"] == "0"
+    assert accepted["outcome"] == "2"
+    assert contract["matrix_coordinate"].startswith("MediationEffect:")
+    assert np.isfinite(result.estimate.ate)
+
+
+def test_response_curve_contracted_artifact_is_independently_accepted() -> None:
+    from antecedent import artifacts
+    from antecedent.query import ResponseCurve
+
+    n = 240
+    z = np.sin(np.arange(n) / 17.0)
+    treatment = z + np.cos(np.arange(n) / 11.0) + (np.arange(n) % 7) * 0.03
+    outcome = 1.0 + 2.0 * treatment + 0.8 * z
+    data = {"treatment": treatment, "outcome": outcome, "confounder": z}
+    prepared = PreparedAnalysis.prepare(
+        data,
+        graph=[("confounder", "treatment"), ("confounder", "outcome"), ("treatment", "outcome")],
+        query=ResponseCurve("treatment", "outcome", grid=[-0.5, 0.0, 0.5]),
+        refute="none",
+        bootstrap=0,
+    )
+    prepared.estimate(data)
+    contract = prepared.contract()
+    accepted = artifacts.accept(prepared.export_contracted_artifact())
+    assert accepted["accepts_as_verified_program"] == "true"
+    assert accepted["program"] == contract["program"]
+    assert accepted["query_kind"] == "response"
+    assert accepted["temporal_coordinates"] == "none"
+    assert contract["matrix_coordinate"].startswith("ResponseCurve:")
+
+
+def test_intervention_response_contracted_artifact_is_independently_accepted() -> None:
+    from antecedent import artifacts
+    from antecedent.intervention import Set
+    from antecedent.query import InterventionResponse
+
+    n = 240
+    z = np.sin(np.arange(n) / 17.0)
+    treatment = z + np.cos(np.arange(n) / 11.0)
+    outcome = 1.0 + 2.0 * treatment + 0.8 * z
+    data = {"treatment": treatment, "outcome": outcome, "confounder": z}
+    prepared = PreparedAnalysis.prepare(
+        data,
+        graph=[("confounder", "treatment"), ("confounder", "outcome"), ("treatment", "outcome")],
+        query=InterventionResponse("outcome", intervention=Set("treatment", 0.25)),
+        refute="none",
+        bootstrap=0,
+    )
+    result = prepared.estimate(data)
+    contract = prepared.contract()
+    accepted = artifacts.accept(prepared.export_contracted_artifact())
+    assert accepted["accepts_as_verified_program"] == "true"
+    assert accepted["program"] == contract["program"]
+    assert accepted["query_kind"] == "response"
+    assert accepted["temporal_coordinates"] == "none"
+    assert contract["matrix_coordinate"].startswith("InterventionResponse:")
+    assert abs(float(np.asarray(result.response.values).ravel()[0]) - 1.5) < 0.25
