@@ -1,5 +1,8 @@
 # Python API
 
+Start with the [1.10 Python workflow](python-workflow.md) and the
+[runnable examples](../examples/README.md).
+
 The generated reference is published with this site (no download):
 
 **[Browse the Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html)**

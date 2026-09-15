@@ -2,8 +2,9 @@
 """Spreadsheet-style discover-once → many interactive estimates (backlog D).
 
 Contrast with one-shot ``analyze(..., discovery=...)`` (script path). Interactive
-products should: discover → accept into ``AcceptedGraph`` → estimate clicks with
-``graph=`` / ``AcceptedGraph.analyze``; rediscover only on explicit refresh.
+products can discover → review an ``AcceptedGraph`` → call ``analyze`` once
+and retain ``result.study`` for estimate clicks. Study refresh rebinds data;
+rediscovery is a separate, explicit operation.
 
 Requires a built antecedent extension (`maturin develop` in python/).
 """
@@ -47,7 +48,9 @@ def main() -> None:
     antecedent.discovery.PC.run = counted_run  # type: ignore[method-assign]
 
     # Structure-ready click (once).
-    evidence = antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0).accept(data, seed=1)
+    evidence = antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0).accept(
+        data, seed=1
+    )
     assert discovery_calls["n"] == 1
     assert isinstance(evidence.graph, (antecedent.Dag, antecedent.Cpdag))
 
@@ -63,10 +66,14 @@ def main() -> None:
     query = antecedent.AverageEffect(treatment="t", outcome="y")
 
     # Effect-ready clicks (many) — must not re-enter discovery.
-    first = accepted.analyze(data, query=query, seed=1)
-    second = accepted.analyze(data, query=query, seed=1, bootstrap=0)
-    prepared = accepted.prepare(data, query=query, seed=1)
-    third = prepared.estimate(data, seed=1)
+    first = antecedent.analyze(
+        data, graph=accepted, query=query, seed=1, latency="interactive"
+    )
+    study = first.study
+    second = study.estimate()
+    third = study.refresh(_confounded_scm(seed=8))
+    assert first.data_version != third.data_version
+    print("Calibration:", first.calibration.status)
 
     assert discovery_calls["n"] == 1, (
         f"second estimate re-ran discovery (calls={discovery_calls['n']})"

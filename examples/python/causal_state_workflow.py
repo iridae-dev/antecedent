@@ -9,8 +9,9 @@ Interactive products should prefer this over fresh ``analyze()`` on every batch:
    identification summary with a new estimate.
 
 For full re-estimate on a fixed graph/query with a new table (same schema), use
-``antecedent.estimation.PreparedAnalysis`` instead — compile once, ``estimate`` / ``refresh``
-many times.
+``antecedent.prepare(data, graph=graph, query=query)`` or retain
+``antecedent.analyze(...).study``. Then use ``study.estimate()`` or
+``study.refresh(new_data)`` for repeated full estimation.
 """
 
 from __future__ import annotations

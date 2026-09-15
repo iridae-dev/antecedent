@@ -37,8 +37,12 @@ def main() -> None:
     assert identified.status == "PartiallyIdentified"
 
     envelope = analyze(data, graph=partial, query=query, refute="none", bootstrap=0)
-    print(f"partial ate={envelope.ate:.4f} class=Cpdag")
-    assert np.isfinite(envelope.ate)
+    print("Partial answer:", envelope.answer)
+    print("Identification:", envelope.inspect().identification)
+    print("Calibration:", envelope.calibration.status)
+    assert envelope.answer.kind in {"bounds", "partial"}
+    assert envelope.answer.value is None
+    assert envelope.study.estimate().answer == envelope.answer
 
     oriented = Cpdag.from_directed_undirected(
         names,

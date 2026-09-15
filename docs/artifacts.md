@@ -157,7 +157,46 @@ refuses a 0.5 artifact rather than silently dropping the interval.
 
 ## Exporting prepared results
 
-`PreparedAnalysis.export_artifact()` exports the last fitted scalar Bayesian
+For the 1.10 Python workflow, export the execution result directly:
+
+```python
+import antecedent as ant
+
+result = ant.analyze(data, graph=graph, query=query)
+encoded = result.export()
+loaded = ant.load(encoded)
+assert loaded.acceptance.verified
+report = loaded.inspect().to_dict()
+assert loaded.export() == encoded
+
+# Refreshing the study does not change this execution or its archive.
+updated = result.study.refresh(new_data)
+assert result.export() == encoded
+```
+
+The export retains the compiled execution contract and applicable numerical
+payloads, including posterior draws, response functions and structural mixtures.
+Loading verifies semantic consistency; it does not verify causal assumptions or
+reconstruct a live study. Missing calibration evidence remains explicitly
+unavailable. See the [workflow guide](python-workflow.md) for retention boundaries.
+
+### Posterior and query payloads for stage consumers
+
+`Bayesian(prior_from=...)` and the prior catalog consume a posterior payload,
+not a full `analysis_result` archive. Export it from the retained study immediately
+after the source fit, before any subsequent estimate or refresh:
+
+```python
+source = ant.analyze(data, graph=graph, query=query, inference=ant.Bayesian())
+posterior_bytes = source.study.export_artifact()
+next_result = ant.analyze(
+    independent_data, graph=graph, query=query,
+    inference=ant.Bayesian(prior_from=posterior_bytes),
+)
+query_bytes = source.study.export_artifact(payload="query")
+```
+
+The lower-level `PreparedAnalysis.export_artifact()` exports the last fitted scalar Bayesian
 posterior, response result, or static 1.3 result (mediation contrast or unit
 ITE) without refitting. Use
 `export_artifact(payload="query")` for the frozen original query, including its
@@ -203,8 +242,9 @@ spreadsheet / dashboard spine:
 
 ```text
 discover_* once  →  AcceptedGraph (versioned) / JSON hold
-  →  many analyze(graph=..., latency="interactive") or PreparedAnalysis
-  →  rediscover only on explicit AcceptedGraph.rediscover / refresh
+  →  analyze(graph=..., latency="interactive") once → result.study
+  →  study.estimate() or study.refresh(new_data)
+  →  rediscover only on an explicit AcceptedGraph.rediscover call
 ```
 
 Static graphs: Dag / Cpdag / Pag / Admg. Temporal completions: `TemporalDag`

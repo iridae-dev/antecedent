@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Python one-call analyses retain reusable studies on the prepared routes:
+  `result.study`, `prepare(...).estimate()`, immutable `result.export()`, and
+  semantically checked `load(...)`. `inspect().to_dict()` includes answer shape,
+  reasoning slots, explicit calibration availability and diagnostics; refusals
+  retain their exception type and gain structured context. `estimate(other_data)`
+  leaves the study binding intact; successful `refresh(new_data)` updates it.
+  Contracted exports retain full response, posterior and structural payloads.
+  See [the Python workflow](docs/python-workflow.md) for supported routes and
+  remaining portability boundaries.
+
 - 1.10 contracts-first foundation ([ADR 0022](adr/0022-causal-compiler-contract.md)):
   domain-separated target / identification / program / inference / observation /
   data identities, four reasoning slots, transformation-effect reports, a

@@ -49,7 +49,10 @@ Rules enforced throughout:
 
 ## Getting started
 
-`pip install antecedent`, then start from the runnable examples in the
+For the 1.10 branch, build the source using the
+[example setup](https://github.com/iridae-dev/antecedent/blob/1.10.0/examples/README.md#python-environment-110-branch)
+and start with the [Python workflow](python-workflow.md). The released
+`pip install antecedent` package has the earlier API. Browse the examples in the
 [project README](https://github.com/iridae-dev/antecedent#readme) — notebooks
 for attribution, prior transfer, experiment design, continuous response, and
 observation-aware pricing. The Rust entry point is

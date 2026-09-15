@@ -11,7 +11,7 @@ regressions that omit Z are not those numbers.
 from __future__ import annotations
 
 import numpy as np
-from antecedent import Bayesian, Counterfactual, MediationEffect, analyze
+from antecedent import Bayesian, Counterfactual, MediationEffect, analyze, prepare
 
 
 def confounded_scm(n: int = 500) -> tuple[dict[str, np.ndarray], list[tuple[str, str]]]:
@@ -39,7 +39,7 @@ def main() -> None:
         ("natural_indirect", 4.8),
         ("total", 6.6),
     ):
-        result = analyze(
+        study = prepare(
             data,
             graph=graph,
             query=MediationEffect(
@@ -53,7 +53,11 @@ def main() -> None:
             refute="none",
             bootstrap=0,
         )
-        print(f"{contrast}={result.effect:.4f} estimator={result.estimate.estimator_id}")
+        result = study.estimate()
+        print("Calibration:", result.calibration.status)
+        print(
+            f"{contrast}={result.effect:.4f} estimator={result.estimate.estimator_id}"
+        )
         assert abs(result.effect - expected) < 0.03, result.effect
         assert result.estimate.estimator_id == "mediation.linear"
 
@@ -97,7 +101,9 @@ def main() -> None:
         inference=Bayesian(n_draws=64),
         refute="none",
     )
-    print(f"bayesian_ite={bayes_cf.mean_ite:.4f} estimator={bayes_cf.estimate.estimator_id}")
+    print(
+        f"bayesian_ite={bayes_cf.mean_ite:.4f} estimator={bayes_cf.estimate.estimator_id}"
+    )
     assert abs(bayes_cf.mean_ite - 6.6) < 0.25, bayes_cf.mean_ite
     assert bayes_cf.posterior is not None
 

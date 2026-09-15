@@ -1,10 +1,63 @@
 # Examples
 
+## Python environment (1.10 branch)
+
+These Python scripts and all five notebooks use the **1.10 Python API**.
+Build the `1.10.0` checkout; older published wheels do not have `prepare`,
+`load`, or `result.study`. The notebook setup checks the API and will not
+silently install an older release over a development build.
+
+With the repository's Rust toolchain installed, from the repository root:
+
+```bash
+python -m venv python/.venv
+source python/.venv/bin/activate
+python -m pip install maturin numpy pandas matplotlib ipykernel jupyterlab
+maturin develop --release --manifest-path python/Cargo.toml
+python -m ipykernel install --sys-prefix --name antecedent --display-name "Antecedent 1.10"
+jupyter lab examples/notebooks
+```
+
+Choose the **Antecedent 1.10** kernel. For Google Colab, first install a Rust
+toolchain that supports this repository (see [development](../docs/development.md)),
+then install the branch from source in a setup cell:
+
+```python
+%pip install "git+https://github.com/iridae-dev/antecedent.git@1.10.0#subdirectory=python" numpy pandas matplotlib
+```
+
+Restart the Colab session after installation if Antecedent was already imported.
+The branch reference follows development; record the git commit or pin the source
+URL to a commit for a reproducible run. Building from source can take several minutes.
+
+## Shared Python workflow
+
+```python
+import antecedent as ant
+
+result = ant.analyze(data, graph=graph, query=query)
+study = result.study
+report = result.inspect().to_dict()
+updated = study.refresh(new_data)
+loaded = ant.load(result.export())
+```
+
+Use `ant.prepare(...)` followed by `study.estimate()` when you want to stop
+before estimation. Keep ordinary notebook analyses as a single `analyze(...)`
+call. Reports preserve answer shape, uncertainty, assumptions, support and
+calibration availability. See the [workflow guide](../docs/python-workflow.md)
+for prepared-route boundaries and descriptive refusal reports.
+
+The Bayesian transfer examples use `result.study.export_artifact()` to obtain
+the posterior payload required by `Bayesian(prior_from=...)`. Full execution
+archives use `result.export()` and `ant.load(...)`; they serve a different purpose.
+Design ranking and incremental `CausalState` keep their stage APIs.
+
 ## Notebooks
 
-The fastest way to see Antecedent on a real decision. View them on GitHub, or
-open in Google Colab from the instructions inside each notebook — no local
-install required.
+See Antecedent on a real decision. Open a notebook locally or in Google Colab
+after the source-build setup above. The saved outputs were regenerated with this branch; run all cells to reproduce
+the tables, plots and execution reports in your environment.
 
 ### [Paid-search attribution](notebooks/marketing_channel_structural_uncertainty.ipynb)
 
@@ -34,8 +87,11 @@ shows that an observation-adjusted demand derivative still fails closed.
 
 Paired Python and Rust demos for the same workflows.
 
+[The Python analysis workflow](python/analysis_workflow.py) demonstrates the 1.10 one-call
+API, retained study, inspection, refresh, and verified artifact loading.
+
 ```bash
-# Python (from repo root; requires `maturin develop` in python/)
+# Python (from repo root, with the environment above activated)
 python examples/python/<name>.py
 
 # Rust

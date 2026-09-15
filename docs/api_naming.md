@@ -5,9 +5,11 @@ Rust and Python expose the **same capabilities** with idiomatic shapes on each s
 
 ## The shape
 
-Every analysis is three verbs:
+The day-1 workflow has five verbs:
 
-- `analyze(data, graph=..., query=...)` — identify, then estimate, in one call.
+- `analyze(data, graph=..., query=...)` — identify, then estimate, retaining a reusable study on prepared routes.
+- `prepare(data, graph=..., query=...)` — stop after preparation; call `.estimate()` on retained data.
+- `load(result.export())` — consume a portable execution through semantic verification.
 - `identify(graph=..., query=...)` — identify only; returns a staged
   `Identification` that can continue into `.estimate(data)` / `.validate(data)`
   while retaining the resolved strategy and query. The one-shot execution
@@ -16,11 +18,13 @@ Every analysis is three verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 52 names as of 1.9**.
+The root namespace (`import antecedent`) is **frozen at 54 names as of 1.10**.
 Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 adds
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
-them — the licensed cells are Rust `Study` only. The set is: the three verbs
+them — the licensed cells are Rust `Study` only. Version 1.10 adds `prepare` and `load`.
+See [the Python workflow](python-workflow.md) for lifetime and report semantics.
+The set is: the five verbs
 above; the accepted-structure and result types (`AcceptedGraph`, `Identification`,
 `AnalysisResult`); the nine typed queries (`AverageEffect`, `PulseEffect`,
 `SustainedEffect`, `InterventionalDistribution`, `PathSpecificEffect`,
@@ -47,7 +51,7 @@ the module path rather than importing it flat:
 ``antecedent.priors``, ``antecedent.state``, ``antecedent.validation``.
 
 Each of those twelve modules has an explicit, separately frozen `__all__`
-surface. The 52-name count is only the package-root contract; it does not add
+surface. The 54-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
 **15** further modules are reachable as ``antecedent.<name>`` (nothing stops
@@ -120,7 +124,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Named CPDAG | `Cpdag::from_named_edges` + `insert_undirected` | `Cpdag.from_directed_undirected(names, directed, undirected)` |
 | EconML handoff | — | `antecedent.handoff.econml(result, modifiers=…, target_weights=…, outcome_functional=…)` — point-identified backdoor / generalized adjustment; temporal specs carry offsets |
 | Outcome functional | `OutcomeFunctional::{Mean, Exceedance, ExceedanceGrid}` | `antecedent.query.Mean` / `Exceedance` / `ExceedanceGrid` on `AverageEffect`, `ConditionalEffect`, `InterventionResponse` |
-| Retarget prepared plan | `PreparedStudy::retarget(weights, depends_on, ctx)` — requires a frozen AllObserved iid AIPW or cell-AIPW score table; nonempty `depends_on` needs a directed graph (DAG or ADMG); nonconstant weights require nonempty `depends_on` | `PreparedAnalysis.retarget(weights, depends_on)` — same; `analyze()` has no retarget handle and does not always return scores |
+| Retarget prepared plan | `PreparedStudy::retarget(weights, depends_on, ctx)` — requires a frozen AllObserved iid AIPW or cell-AIPW score table; nonempty `depends_on` needs a directed graph (DAG or ADMG); nonconstant weights require nonempty `depends_on` | `PreparedAnalysis.retarget(weights, depends_on)` — same; `analyze(...).study` retains the prepared handle on supported routes; scores require a licensed score-table estimator |
 | Tiered background | `StudyBuilder::tiered_background(TieredBackground)` | `antecedent.graph.TieredBackground` / `WithinTier` as `analyze(..., graph=…)` |
 | Cell-saturated joint AIPW | `EstimatorId::CellAipw` (`cell.aipw`) | `Estimator.CELL_AIPW` / `"cell.aipw"` |
 | Average effect | `AverageEffectQuery` | `AverageEffect` |
