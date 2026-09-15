@@ -93,8 +93,11 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
+from .results._slots import slots_from_prepared
 from .results import (
     AnalysisResult,
+    ConsumerIntent,
+    ReasoningSlots,
     CausalResponseView,
     ConflictSummaryView,
     DistributionAtomView,
@@ -331,6 +334,7 @@ def _wrap_ate(
     calls resolve to ``None`` on the temporal DTO exactly as the old
     `_wrap_temporal` left them.
     """
+    slots = slots_from_prepared(prepared)
 
     def _conflict_from_raw(r: Any) -> ConflictSummaryView | None:
         ids = getattr(r, "conflict_source_ids", None)
@@ -592,6 +596,9 @@ def _wrap_ate(
         ),
         _raw=raw,
         _prepared=prepared,
+        reasoning=slots,
+        claim_id=None if slots is None else slots.claim_id,
+        data_version=None if slots is None else slots.data_version,
     )
 
 
@@ -1360,9 +1367,12 @@ class _TemporalPrepareKwargs(TypedDict):
 
 
 def _wrap_prepared_response(
-    raw: Any, query: ResponseCurve | InterventionResponse | None = None
+    raw: Any,
+    query: ResponseCurve | InterventionResponse | None = None,
+    prepared: Any | None = None,
 ) -> CausalResponseView:
     """Build a :class:`CausalResponseView` from a prepared-response native DTO."""
+    slots = slots_from_prepared(prepared)
     from typing import cast
 
     response = (
@@ -1475,6 +1485,9 @@ def _wrap_prepared_response(
         allowlist_reason=getattr(raw, "allowlist_reason", None),
         allowlist_parent=getattr(raw, "allowlist_parent", None),
         diagnostics=tuple(getattr(raw, "diagnostics", ()) or ()),
+        reasoning=slots,
+        claim_id=None if slots is None else slots.claim_id,
+        data_version=None if slots is None else slots.data_version,
     )
 
 
@@ -3039,6 +3052,32 @@ class PreparedAnalysis:
         """Domain-separated identities and four reasoning slots (ADR 0022)."""
         return dict(self._native.contract())
 
+    def inspect(self) -> ReasoningSlots:
+        """Four slots without using cached identification."""
+        return ReasoningSlots.from_contract(self._native.inspect())
+
+    def reasoning(self) -> ReasoningSlots:
+        """Prepared four-slot view, including cached identification when present."""
+        return ReasoningSlots.from_contract(self.contract())
+
+    def preview_intent(self, intent: ConsumerIntent | str) -> dict[str, str]:
+        """Route a consumer intent. Display/presentation do not preview science."""
+        parsed = intent if isinstance(intent, ConsumerIntent) else ConsumerIntent(intent)
+        if parsed.kind != "scientific":
+            return {
+                "intent": parsed.value,
+                "kind": parsed.kind,
+                "refused": "false",
+                "scientific": "false",
+            }
+        name = parsed.preview_name()
+        if name is None:
+            raise CausalValueError(f"scientific intent {parsed.value} has no preview route")
+        preview = dict(self._native.preview_transform(name))
+        preview["kind"] = parsed.kind
+        preview["scientific"] = "true"
+        return preview
+
     def preview_transform(self, intent: str) -> dict[str, str]:
         """Pure preview with frozen input identities under ``input_<domain>`` keys."""
         return dict(self._native.preview_transform(intent))
@@ -3089,6 +3128,7 @@ class PreparedAnalysis:
                 query=self._query
                 if isinstance(self._query, (ResponseCurve, InterventionResponse))
                 else None,
+                prepared=self,
             )
         fn = self._native.estimate_arrow_c if arrow else self._native.estimate
         raw = fn(names, columns, seed=seed, threads=threads)
@@ -3145,6 +3185,7 @@ class PreparedAnalysis:
                 query=self._query
                 if isinstance(self._query, (ResponseCurve, InterventionResponse))
                 else None,
+                prepared=self,
             )
         fn = self._native.refresh_arrow_c if arrow else self._native.refresh
         raw = fn(names, columns, seed=seed, threads=threads)

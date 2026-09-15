@@ -7,10 +7,10 @@ use std::sync::Arc;
 use antecedent::discovery::{
     BayesianDiscoverParams, GraphMcmcSchedule, discover_dbn_posterior, discover_exact_dag_posterior,
 };
-use antecedent::{EstimatorId, IdentifierId, PreparedStudy, Study};
+use antecedent::{CausalContract, EstimatorId, IdentifierId, PreparedStudy, Study};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, GridSpec,
-    Intervention, InterventionalDistributionQuery, MediationContrast, MediationQuery,
+    AverageEffectQuery, CausalQuery, CausalSchema, ConditionalEffectQuery, ContinuousDomain,
+    GridSpec, Intervention, InterventionalDistributionQuery, MediationContrast, MediationQuery,
     PathSpecificEffectQuery, ResponseFunctional, ResponseQuery, TemporalResponseSpec, Value,
 };
 use antecedent_data::{TableView, TabularData};
@@ -29,6 +29,75 @@ use crate::{
     suite_from_refute, tabular_from_arrow_c_objs, tabular_from_numpy, tabular_from_py_columns,
     temporal_dag_from_schema_edges,
 };
+
+fn contract_to_map(
+    contract: &CausalContract,
+    schema: &CausalSchema,
+    query: &CausalQuery,
+) -> std::collections::HashMap<String, String> {
+    let mut out = std::collections::HashMap::new();
+    out.insert("target".into(), contract.identities.target.to_hex());
+    out.insert("identification".into(), contract.identities.identification.to_hex());
+    if let Some(product) = contract.identities.identification_product {
+        out.insert("identification_product".into(), product.to_hex());
+    }
+    out.insert("program".into(), contract.identities.program.to_hex());
+    out.insert("inference_binding".into(), contract.identities.inference_binding.to_hex());
+    out.insert("observation".into(), contract.identities.observation.to_hex());
+    out.insert("data_snapshot".into(), contract.identities.data_snapshot.to_hex());
+    out.insert("graph_class".into(), contract.graph_class.as_str().to_string());
+    out.insert("structure_source".into(), contract.structure_source.as_str().to_string());
+    out.insert("accepted_version".into(), contract.accepted_version.to_string());
+    if let Some(algorithm) = &contract.discovery_algorithm {
+        out.insert("discovery_algorithm".into(), algorithm.to_string());
+    }
+    out.insert(
+        "accepted_variable_binding".into(),
+        if contract.accepted_variable_names.is_some() { "explicit" } else { "unbound" }.into(),
+    );
+    if let Some(status) = contract.support_status {
+        out.insert("matrix_status".into(), status.as_str().to_string());
+    }
+    if let Some(support) = contract.reasoning.support.as_ref() {
+        if let Some(coordinate) = &support.matrix_coordinate {
+            out.insert("matrix_coordinate".into(), coordinate.to_string());
+        }
+        out.insert(
+            "empirical_support".into(),
+            support.empirical.label(std::string::ToString::to_string),
+        );
+    }
+    out.insert(
+        "assumptions".into(),
+        contract.reasoning.assumptions.label(|slot| {
+            slot.obligations.iter().map(|o| o.id.to_string()).collect::<Vec<_>>().join(",")
+        }),
+    );
+    out.insert(
+        "identification_status".into(),
+        contract.reasoning.identification.label(|slot| slot.status.as_str().to_string()),
+    );
+    if let Some(slot) = contract.reasoning.identification.as_ref() {
+        out.insert("identified_mass".into(), slot.identified_mass.to_string());
+        out.insert("unidentified_mass".into(), slot.unidentified_mass.to_string());
+    }
+    out.insert("uncertainty".into(), contract.reasoning.uncertainty.label(|_| "available".into()));
+    out.insert(
+        "variable_names".into(),
+        schema
+            .variables()
+            .iter()
+            .map(|variable| variable.name.to_string())
+            .collect::<Vec<_>>()
+            .join(","),
+    );
+    if let Ok(wire) = antecedent_io::causal_query_to_wire(query) {
+        for (key, value) in antecedent_io::executed_functional_labels(&wire) {
+            out.insert(key, value);
+        }
+    }
+    out
+}
 
 fn require_prepared_names(expected: &[String], names: &[String], op: &str) -> PyResult<()> {
     if names != expected {
@@ -3238,75 +3307,16 @@ impl PyPreparedAnalysis {
         out
     }
 
+    /// Cheap inspect: four slots without using cached identification.
+    fn inspect(&self) -> PyResult<std::collections::HashMap<String, String>> {
+        let contract = self.inner.inspect().map_err(py_err)?;
+        Ok(contract_to_map(&contract, self.inner.schema(), self.inner.query()))
+    }
+
     /// Domain-separated contract identities and four reasoning slots.
     fn contract(&self) -> PyResult<std::collections::HashMap<String, String>> {
         let contract = self.inner.contract().map_err(py_err)?;
-        let mut out = std::collections::HashMap::new();
-        out.insert("target".into(), contract.identities.target.to_hex());
-        out.insert("identification".into(), contract.identities.identification.to_hex());
-        if let Some(product) = contract.identities.identification_product {
-            out.insert("identification_product".into(), product.to_hex());
-        }
-        out.insert("program".into(), contract.identities.program.to_hex());
-        out.insert("inference_binding".into(), contract.identities.inference_binding.to_hex());
-        out.insert("observation".into(), contract.identities.observation.to_hex());
-        out.insert("data_snapshot".into(), contract.identities.data_snapshot.to_hex());
-        out.insert("graph_class".into(), contract.graph_class.as_str().to_string());
-        out.insert("structure_source".into(), contract.structure_source.as_str().to_string());
-        out.insert("accepted_version".into(), contract.accepted_version.to_string());
-        if let Some(algorithm) = &contract.discovery_algorithm {
-            out.insert("discovery_algorithm".into(), algorithm.to_string());
-        }
-        out.insert(
-            "accepted_variable_binding".into(),
-            if contract.accepted_variable_names.is_some() { "explicit" } else { "unbound" }.into(),
-        );
-        if let Some(status) = contract.support_status {
-            out.insert("matrix_status".into(), status.as_str().to_string());
-        }
-        if let Some(support) = contract.reasoning.support.as_ref() {
-            if let Some(coordinate) = &support.matrix_coordinate {
-                out.insert("matrix_coordinate".into(), coordinate.to_string());
-            }
-            out.insert(
-                "empirical_support".into(),
-                support.empirical.label(std::string::ToString::to_string),
-            );
-        }
-        out.insert(
-            "assumptions".into(),
-            contract.reasoning.assumptions.label(|slot| {
-                slot.obligations.iter().map(|o| o.id.to_string()).collect::<Vec<_>>().join(",")
-            }),
-        );
-        out.insert(
-            "identification_status".into(),
-            contract.reasoning.identification.label(|slot| slot.status.as_str().to_string()),
-        );
-        if let Some(slot) = contract.reasoning.identification.as_ref() {
-            out.insert("identified_mass".into(), slot.identified_mass.to_string());
-            out.insert("unidentified_mass".into(), slot.unidentified_mass.to_string());
-        }
-        out.insert(
-            "uncertainty".into(),
-            contract.reasoning.uncertainty.label(|_| "available".into()),
-        );
-        out.insert(
-            "variable_names".into(),
-            self.inner
-                .schema()
-                .variables()
-                .iter()
-                .map(|variable| variable.name.to_string())
-                .collect::<Vec<_>>()
-                .join(","),
-        );
-        if let Ok(wire) = antecedent_io::causal_query_to_wire(self.inner.query()) {
-            for (key, value) in antecedent_io::executed_functional_labels(&wire) {
-                out.insert(key, value);
-            }
-        }
-        Ok(out)
+        Ok(contract_to_map(&contract, self.inner.schema(), self.inner.query()))
     }
 
     /// Transformation preview retaining all frozen contract input identities.

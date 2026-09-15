@@ -151,6 +151,7 @@ def _analysis_result_body(result: AnalysisResult) -> str:
     banner_class = "ar-ok" if identified else "ar-bad"
     banner_text = "Identified" if identified else "Not identified"
 
+    limitation = result.rendering_limitation()
     se = (
         result.estimate.se_bootstrap
         if result.estimate.se_bootstrap is not None
@@ -159,7 +160,14 @@ def _analysis_result_body(result: AnalysisResult) -> str:
     se_kind = "bootstrap" if result.estimate.se_bootstrap is not None else "analytic"
     se_text = fmt_se(se)
     interval = result.estimate.mean_interval
-    if interval is not None and result.unit_effects is None:
+    if limitation is not None:
+        label = "Claim"
+        value = (
+            f'<span class="antecedent-ar-muted">'
+            f"partial; cannot display a point mean ({_esc(limitation)})"
+            f"</span>"
+        )
+    elif interval is not None and result.unit_effects is None:
         from ._views import fmt_probability_interval
 
         label = "Effect"
@@ -181,6 +189,8 @@ def _analysis_result_body(result: AnalysisResult) -> str:
         value = f"{_esc(fmt_float(result.effect))} ± {_esc(se_text)} ({_esc(se_kind)})"
 
     mass = result.posterior.unidentified_mass if result.posterior is not None else None
+    if mass is None:
+        mass = result.structural_unidentified_mass
     callout = _unidentified_callout_html(mass)
     refute_table = _refutation_table_html(result.validation)
     chips = _adjustment_chips_html(ident.adjustment_set)
@@ -210,14 +220,21 @@ def _analysis_result_body(result: AnalysisResult) -> str:
 
 
 def _reasoning_slots_html(result: AnalysisResult) -> str:
-    identification = "identified" if result.identification else "unavailable"
-    support = getattr(result, "support_status", None) or "unknown"
-    uncertainty = (
-        "available"
-        if result.estimate.se_analytic is not None or result.estimate.se_bootstrap is not None
-        else "unavailable"
-    )
-    assumptions = "declared" if result.identification else "unavailable"
+    slots = result.reasoning
+    if slots is not None:
+        identification = slots.identification.summary
+        support = slots.support.summary
+        uncertainty = slots.uncertainty.summary
+        assumptions = slots.assumptions.summary
+    else:
+        identification = "identified" if result.identification else "unavailable"
+        support = "unknown"
+        uncertainty = (
+            "available"
+            if result.estimate.se_analytic is not None or result.estimate.se_bootstrap is not None
+            else "unavailable"
+        )
+        assumptions = "declared" if result.identification else "unavailable"
     return (
         '<div class="antecedent-ar-row">'
         '<span class="antecedent-ar-label">Identification</span>'
