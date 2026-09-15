@@ -225,6 +225,15 @@ pub fn score_effective_rows(scores: &[&[f64]], block_length: usize) -> f64 {
         .fold(f64::NAN, f64::min)
 }
 
+/// Variance at or below which a score series is treated as degenerate.
+///
+/// GEMM dust on a numerically exact score (the orthogonal treatment-column
+/// score of the noiseless period-4 dose × horizon fixture) has `γ̂_0 ~ 1e-30`
+/// on `aarch64` and 0 on `x86_64`. Dividing `ρ̂ = γ̂_k / γ̂_0` then invents an
+/// architecture-specific Politis–White length. Real estimating scores sit
+/// many orders above this floor.
+const SCORE_VARIANCE_FLOOR: f64 = 1e-20;
+
 /// Data-driven circular-block length for the mean of `scores` (Politis & White
 /// 2004, with the Patton, Politis & White 2009 correction for the circular
 /// bootstrap): `b = (2 Ĝ² / D̂)^{1/3} n^{1/3}`, `D̂ = (4/3) ĝ(0)²`, from flat-top
@@ -241,7 +250,7 @@ pub fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
     let mean = scores.iter().sum::<f64>() / nf;
     let autocov = |k: usize| score_autocovariance(scores, mean, k, nf);
     let gamma0 = autocov(0);
-    if gamma0 <= 0.0 {
+    if !gamma0.is_finite() || gamma0 <= SCORE_VARIANCE_FLOOR {
         return None;
     }
     let k_n = 5usize.max(nf.log10().sqrt().ceil() as usize);
@@ -779,6 +788,11 @@ mod tests {
         let long = dependence_block_length(2, 400, &[&iid, &persistent]);
         assert!(long > rule && long <= 400 / 3, "persistent score must lengthen blocks: {long}");
         assert!(politis_white_block_length(&[1.0; 4]).is_none());
+        // Orthogonal treatment-column score plus aarch64-scale GEMM dust must
+        // not invent a testing length the exact zeros on x86_64 would skip.
+        let dust: Vec<f64> = (0u32..240).map(|i| 1e-15 * (f64::from(i % 4) - 1.0)).collect();
+        assert!(politis_white_block_length(&dust).is_none());
+        assert!(politis_white_block_length(&[0.0; 240]).is_none());
     }
 
     /// The lag-by-lag bandwidth search of [`politis_white_block_length`] against

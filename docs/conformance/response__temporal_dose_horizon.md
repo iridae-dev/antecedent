@@ -91,10 +91,12 @@ Pinned fields, all in the dose-major layout of `surface.mean`:
   support diagnostics; the critical value is the max-studentized-deviation
   order statistic over the 60 joint replicates.
 - `block_length`: the `response.temporal.block_length` diagnostic
-  `[length, rule, testing, rows, dispersion_factor]`; the block is the
-  Politis–White testing length 75 (the rule `max(span, ceil(sqrt(240))) = 16`
-  is shorter) over 240 lag-aligned rows, and the dispersion factor is the
-  circular-Bartlett fixed-b ratio times HC1.
+  `[length, rule, testing, rows, dispersion_factor]`; the block stays at the
+  rule `max(span, ceil(sqrt(240))) = 16` because every estimating score on
+  this noiseless period-4 DGP is degenerate or negatively dependent
+  (`testing = 0`). 16 is a multiple of the period, so every circular resample
+  stays orthogonal and the band collapses to the point surface. The
+  dispersion factor is the circular-Bartlett fixed-b ratio times HC1.
 - `kernel_bias_factor` / `effective_rows`: the per-cell
   `response.temporal.kernel_bias_factor` and `response.temporal.effective_rows`
   diagnostics.
@@ -110,8 +112,9 @@ deliberately. The coverage evidence for the band is the weekly gate
 above, and the band is a seeded bootstrap that cannot be re-derived
 independently in numpy without reimplementing the resampler, its RNG stream
 and the dispersion factors, so no independent numeric cross-check of the band
-is claimed. Every cell's width is strictly positive, including dose zero at
-horizon 1 (the old zero-width-at-dose-0 regression guard).
+is claimed. Widths sit at GEMM scale because the rule block preserves
+orthogonality; they must not vanish only at dose zero (the old
+|dose|-scaled analytic-band regression).
 
 Empirical support on this fixture is fully `supported` at every cell: the
 period-4 treatment lives in `{-1,0,1}`, so the union of horizon ranges equals

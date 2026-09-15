@@ -71,43 +71,43 @@
       "level": 0.95,
       "layout": "dose_major (same as surface.mean)",
       "pointwise_lower": [
-        0.9418241449811526,
-        0.9639551586751005,
-        2.941744079445834,
-        3.963937442805505
+        1.0,
+        1.0,
+        3.0,
+        4.0
       ],
       "pointwise_upper": [
-        1.0581758550188471,
-        1.0360448413248988,
-        3.058255920554167,
-        4.036062557194499
+        1.0,
+        1.0,
+        3.0,
+        4.0
       ],
       "simultaneous_lower": [
-        0.9375637096764553,
-        0.961315460221454,
-        2.937477780642727,
-        3.961296446952512
+        1.0,
+        1.0,
+        3.0,
+        4.0
       ],
       "simultaneous_upper": [
-        1.0624362903235445,
-        1.0386845397785454,
-        3.062522219357274,
-        4.038703553047491
+        1.0,
+        1.0,
+        3.0,
+        4.0
       ],
-      "simultaneous_critical": 2.1034994728103062,
+      "simultaneous_critical": 1.959963984540054,
       "block_length": {
-        "length": 75,
+        "length": 16,
         "rule": 16,
-        "testing": 75,
+        "testing": 0,
         "rows": 240,
-        "dispersion_factor": 1.5472423400875637,
+        "dispersion_factor": 1.0956184671164233,
         "diagnostic": "response.temporal.block_length = [length, rule, testing, rows, dispersion_factor]"
       },
       "kernel_bias_factor": [
-        1.0000553305790147,
-        1.0000555611502975,
-        1.0000553305790147,
-        1.0000555611502975
+        1.0002594414946573,
+        1.0002605229608346,
+        1.0002594414946573,
+        1.0002605229608346
       ],
       "effective_rows": [
         241.0,
@@ -115,7 +115,7 @@
         241.0,
         240.0
       ],
-      "note": "Determinism pin of the seeded circular-block bootstrap through the public Study API (ExecutionContext seed 21, 60 replicates, serial and bounded-thread contexts agree bit for bit). Not a coverage claim: coverage evidence is the weekly gate crates/antecedent/tests/v19_temporal_response_calibration.rs. Every cell's width is strictly positive, including dose zero at horizon 1 (the old zero-width-at-dose-0 regression guard)."
+      "note": "Determinism pin of the seeded circular-block bootstrap through the public Study API (ExecutionContext seed 21, 60 replicates, serial and bounded-thread contexts agree bit for bit). Not a coverage claim: coverage evidence is the weekly gate crates/antecedent/tests/v19_temporal_response_calibration.rs. The noiseless period-4 DGP makes every estimating score degenerate or negatively dependent, so testing lengthens nothing and the block stays at the rule (16). That length is a multiple of the period: every circular resample stays orthogonal and the band collapses to the point surface (GEMM-scale width). The old |dose|-scaled analytic band vanished only at dose zero; these cells collapse together."
     },
     "intervention_paths": {
       "set_1": [

@@ -207,9 +207,11 @@ def _assert_block_bands(result: Any, replicates: int) -> None:
     assert result.uncertainty.lower is not None and result.uncertainty.upper is not None
     lower = _column(result.uncertainty.lower)
     upper = _column(result.uncertainty.upper)
-    # Strictly positive at every cell, including dose zero at horizon 1 (the old
-    # zero-width-at-dose-0 regression guard).
-    assert np.all(upper - lower > 0.0)
+    widths = upper - lower
+    assert np.all(widths >= 0.0)
+    # Retired |dose|-scaled analytic band vanished only at dose zero.
+    if np.any(widths[2:] > 1e-8):
+        assert np.all(widths[:2] > 1e-8)
     assert np.all(lower <= means) and np.all(means <= upper)
     band = result.simultaneous_band
     assert band is not None
