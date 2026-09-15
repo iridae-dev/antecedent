@@ -38,6 +38,15 @@ run_and_count "antecedent-core request identity" \
 run_and_count "antecedent v110_contract" \
   cargo test -p antecedent --test v110_contract -- --nocapture
 
+run_and_count "antecedent prepared identify counts" \
+  cargo test -p antecedent --test prepared_analysis prepared_second_shot_reuses_identification -- --nocapture
+
+run_and_count "antecedent-io identity encoding" \
+  cargo test -p antecedent-io --lib encoding_rule_changes_change_the_advertised_digest -- --nocapture
+
+run_and_count "antecedent-io dbn atom identity" \
+  cargo test -p antecedent-io --lib dbn_atom_identity_includes_lags_namespace_and_execution_key -- --nocapture
+
 if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
   echo "SKIP_PYTHON_SMOKE=1; skipping Python v110 contract tests"
 elif ! command -v uv >/dev/null 2>&1; then

@@ -249,10 +249,13 @@ fn prepared_second_shot_reuses_identification() {
     ctx.progress = Some(Arc::clone(&sink) as Arc<dyn antecedent_core::ProgressSink>);
 
     let analysis = build_analysis(data.clone(), dag.clone(), query.clone());
-    let prepared = analysis.prepare(&ctx).unwrap();
+    let _ = analysis.inspect().unwrap();
+    assert_eq!(identify_computations(&sink), 0, "inspect must not identify");
+    let mut prepared = analysis.prepare(&ctx).unwrap();
     assert_eq!(identify_computations(&sink), 1, "prepare computes identification once");
-    let _ = prepared.estimate(&data, &ctx).unwrap();
-    let _ = prepared.estimate(&data, &ctx).unwrap();
+    let first = prepared.estimate(&data, &ctx).unwrap();
+    let _ = prepared.refute(&first, &data, RefuteSuite::Cheap, &ctx).unwrap();
+    let _ = prepared.refresh(data.clone(), &ctx).unwrap();
     let third = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(prepared.plan().record.plan_id.as_ref(), third.physical_plan.plan_id.as_ref());
     assert!(
@@ -262,7 +265,7 @@ fn prepared_second_shot_reuses_identification() {
     assert_eq!(
         identify_computations(&sink),
         1,
-        "three prepared clicks must not compute identification again"
+        "inspect/estimate/refute/refresh/estimate must not compute identification again"
     );
 }
 
