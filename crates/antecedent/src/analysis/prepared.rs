@@ -577,10 +577,7 @@ fn dbn_temporal_effect_estimator(
     query: &TemporalEffectQuery,
 ) -> crate::strategy_table::EstimatorId {
     use crate::strategy_table::EstimatorId;
-    if matches!(
-        query.policy,
-        antecedent_core::TemporalPolicy::Sustained { from, until } if from != until
-    ) {
+    if query.is_multi_step_sustained() {
         EstimatorId::TemporalSequentialGcomp
     } else {
         EstimatorId::TemporalLinearAdjustment
@@ -1567,8 +1564,13 @@ impl Study {
                     self.prepare_cpdag_identification(&plan)?.map(Arc::new);
             }
             (DataInput::Panel(_), CausalQuery::TemporalEffect(_), None) => {
-                analysis.temporal_identification_cache =
-                    self.prepare_temporal_identification()?.map(Arc::new);
+                if analysis.graph.class().is_incomplete_temporal() {
+                    analysis.temporal_class_identification_cache =
+                        self.prepare_temporal_class_identification()?.map(Arc::new);
+                } else {
+                    analysis.temporal_identification_cache =
+                        self.prepare_temporal_identification()?.map(Arc::new);
+                }
             }
             (_, _, None) => {
                 analysis.temporal_identification_cache =
@@ -1945,8 +1947,7 @@ impl Study {
                     .map_err(CausalError::from)?;
                 let estimand = select_estimand(
                     &id_res.result,
-                    if matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
-                    {
+                    if query.is_multi_step_sustained() {
                         EstimatorId::TemporalSequentialGcomp
                     } else {
                         EstimatorId::TemporalLinearAdjustment
@@ -2539,17 +2540,29 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 });
             }
         }
-        (DataInput::Panel(_), CausalQuery::TemporalEffect(_)) => {
-            if analysis.graph.class() != GraphClass::TemporalDag {
+        (DataInput::Panel(_), query) => {
+            if !matches!(
+                (query, analysis.graph.class()),
+                (
+                    CausalQuery::TemporalEffect(_) | CausalQuery::Response(_),
+                    GraphClass::TemporalDag
+                ) | (
+                    CausalQuery::TemporalEffect(_),
+                    GraphClass::TemporalCpdag | GraphClass::TemporalPag
+                )
+            ) {
                 return Err(CausalError::Unsupported {
-                    message: "PreparedStudy supports panel Pulse/Sustained only on TemporalDag",
+                    message: "PreparedStudy supports panel Pulse/Sustained on TemporalDag, \
+                              Frequentist Pulse/single-step Sustained on \
+                              TemporalCpdag/TemporalPag, or Frequentist temporal response \
+                              on TemporalDag",
                 });
             }
-        }
-        (DataInput::Panel(_), CausalQuery::Response(_)) => {
-            return Err(CausalError::Unsupported {
-                message: super::builder::PANEL_RESPONSE_REFUSAL,
-            });
+            super::builder::refuse_unlicensed_panel_route(
+                query,
+                analysis.graph.class(),
+                &analysis.inference,
+            )?;
         }
         _ => {
             return Err(CausalError::Unsupported {

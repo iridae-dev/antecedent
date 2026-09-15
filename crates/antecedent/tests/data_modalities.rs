@@ -20,7 +20,7 @@ use antecedent_data::{
 use antecedent_estimate::{
     BayesianGCompWorkspace, BayesianGComputationAte, TemporalLinearAdjustment,
 };
-use antecedent_graph::{TemporalDag, ensure_lagged};
+use antecedent_graph::{TemporalCpdag, TemporalDag, ensure_lagged};
 use antecedent_identify::TemporalBackdoorIdentifier;
 
 fn xy_series(n: usize, seed: f64) -> TimeSeriesData {
@@ -396,32 +396,143 @@ fn prepared_panel_refuses_units_with_mixed_regularity() {
     );
 }
 
-#[test]
-fn panel_response_curve_is_refused() {
-    let panel = PanelData::try_new(Arc::from([
-        PanelUnit { unit_id: 0, series: xy_series(80, 0.1) },
-        PanelUnit { unit_id: 1, series: xy_series(80, 0.4) },
-    ]))
-    .unwrap();
-    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+fn panel_mean_curve_query() -> ResponseQuery {
+    ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: VariableId::from_raw(1),
         treatment: ContinuousDomain::new(
             VariableId::from_raw(0),
             GridSpec::Values(vec![0.0, 1.0].into()),
         ),
     })
-    .with_temporal(TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap());
-    let err = Study::panel(panel)
+    .with_temporal(
+        TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), Some(1)).unwrap(),
+    )
+}
+
+#[test]
+fn panel_response_curve_uses_unit_cluster_bands() {
+    let panel = PanelData::try_new(Arc::from([
+        PanelUnit { unit_id: 0, series: xy_series(80, 0.1) },
+        PanelUnit { unit_id: 1, series: xy_series(80, 0.4) },
+        PanelUnit { unit_id: 2, series: xy_series(80, 0.7) },
+    ]))
+    .unwrap();
+    let query = panel_mean_curve_query();
+    let result = Study::panel(panel)
         .graph(lagged_xy_graph())
         .query(CausalQuery::Response(query))
         .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(2))
+        .unwrap();
+    assert_eq!(result.logical_plan.data_classification, DataClassification::Panel);
+    let response = result.response.as_ref().expect("panel response surface");
+    let antecedent_core::ResponseIdentification::PointIdentified(
+        antecedent_core::ResponseValue::Surface { mean, .. },
+    ) = &response.estimate
+    else {
+        panic!("expected a point-identified surface, got {:?}", response.estimate);
+    };
+    assert!(mean.iter().all(|value| value.is_finite()));
+    assert!(
+        (mean[1] - mean[0] - 0.8).abs() < 0.15,
+        "unit-average pulse contrast should stay near 0.8, got {:?}",
+        mean
+    );
+    match &response.uncertainty {
+        antecedent_core::ResponseUncertainty::PointwiseBand { lower, upper, .. } => {
+            assert_eq!(lower.len(), mean.len());
+            assert!(lower.iter().zip(upper.iter()).all(|(lo, hi)| lo < hi));
+        }
+        other => panic!("panel response must publish between-unit pointwise bands, got {other:?}"),
+    }
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|item| item.code.as_ref() == "estimate.temporal_response.panel.cluster_units"),
+        "missing cluster-unit diagnostic"
+    );
+}
+
+#[test]
+fn bayesian_panel_response_stays_refused() {
+    let panel = PanelData::try_new(Arc::from([
+        PanelUnit { unit_id: 0, series: xy_series(80, 0.1) },
+        PanelUnit { unit_id: 1, series: xy_series(80, 0.4) },
+    ]))
+    .unwrap();
+    let err = Study::panel(panel)
+        .graph(lagged_xy_graph())
+        .query(CausalQuery::Response(panel_mean_curve_query()))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
+        .refute(RefuteSuite::None)
         .build()
         .unwrap_err();
-    let text = err.to_string();
+    assert!(err.to_string().contains("single-series response likelihood"), "{err}");
+}
+
+#[test]
+fn panel_class_pulse_uses_completion_masses() {
+    let panel = PanelData::try_new(Arc::from([
+        PanelUnit { unit_id: 0, series: xy_series(180, 0.1) },
+        PanelUnit { unit_id: 1, series: xy_series(180, 0.4) },
+        PanelUnit { unit_id: 2, series: xy_series(180, 0.7) },
+    ]))
+    .unwrap();
+    let result = Study::panel(panel)
+        .graph(TemporalCpdag::from_temporal_dag(&lagged_xy_graph()))
+        .temporal_query(pulse_query())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(2))
+        .unwrap();
+    assert_eq!(result.logical_plan.data_classification, DataClassification::Panel);
+    assert!((result.estimate.ate - 0.8).abs() < 0.08, "ate={}", result.estimate.ate);
+    assert!(result.structural_response.is_some(), "class Pulse must publish completion masses");
     assert!(
-        text.contains("scalar panel") || text.contains("do not license response bands"),
-        "{text}"
+        result.diagnostics.iter().any(|item| {
+            item.code.as_ref() == "estimate.temporal_effect.panel.class.cluster_units"
+        }),
+        "missing panel class diagnostic"
     );
+}
+
+#[test]
+fn bayesian_panel_class_pulse_stays_refused() {
+    let panel = PanelData::try_new(Arc::from([
+        PanelUnit { unit_id: 0, series: xy_series(80, 0.1) },
+        PanelUnit { unit_id: 1, series: xy_series(80, 0.4) },
+    ]))
+    .unwrap();
+    let err = Study::panel(panel)
+        .graph(TemporalCpdag::from_temporal_dag(&lagged_xy_graph()))
+        .temporal_query(pulse_query())
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap_err();
+    assert!(err.to_string().contains("series class-posterior is not a panel class model"), "{err}");
+}
+
+#[test]
+fn incomplete_class_panel_response_stays_refused() {
+    let panel = PanelData::try_new(Arc::from([
+        PanelUnit { unit_id: 0, series: xy_series(80, 0.1) },
+        PanelUnit { unit_id: 1, series: xy_series(80, 0.4) },
+    ]))
+    .unwrap();
+    let err = Study::panel(panel)
+        .graph(TemporalCpdag::from_temporal_dag(&lagged_xy_graph()))
+        .query(CausalQuery::Response(panel_mean_curve_query()))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap_err();
+    assert!(err.to_string().contains("incomplete temporal classes"), "{err}");
 }
 
 #[test]

@@ -15,8 +15,8 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, CausalSchema, PopulationRegistry, TemporalEffectQuery,
-    VariableId,
+    AverageEffectQuery, CausalQuery, CausalSchema, PopulationRegistry, ResponseQuery,
+    TemporalEffectQuery, VariableId,
 };
 use antecedent_data::{
     DiscoveryEstimationSplit, EventData, MultiEnvironmentData, NetworkData, PanelData, TableView,
@@ -91,14 +91,76 @@ pub struct InterferenceSpec {
     pub assignment: Arc<[bool]>,
 }
 
-/// Refusal for panel data paired with a [`CausalQuery::Response`] query.
-///
-/// Checked at build, compile, and prepare; one message keeps them in step.
-pub(crate) const PANEL_RESPONSE_REFUSAL: &str = concat!(
-    "panel ResponseCurve / InterventionResponse is not licensed in 1.9: scalar panel ",
-    "Pulse/Sustained SEs do not license response bands, and the single-series response ",
-    "likelihood is not a panel model",
+/// Refusal for Bayesian panel response (no panel response likelihood yet).
+pub(crate) const PANEL_RESPONSE_BAYES_REFUSAL: &str = concat!(
+    "Bayesian panel ResponseCurve / InterventionResponse is not licensed: the ",
+    "single-series response likelihood is not a panel model",
 );
+
+/// Refusal for panel response on an incomplete temporal class.
+pub(crate) const PANEL_RESPONSE_CLASS_REFUSAL: &str = concat!(
+    "panel ResponseCurve / InterventionResponse is licensed only on a supplied ",
+    "TemporalDag; incomplete temporal classes keep the series class-response owner",
+);
+
+/// Refusal for Bayesian panel Pulse on an incomplete temporal class.
+pub(crate) const PANEL_CLASS_BAYES_REFUSAL: &str = concat!(
+    "Bayesian panel Pulse/Sustained on TemporalCpdag/TemporalPag is not licensed: ",
+    "the series class-posterior is not a panel class model",
+);
+
+/// Refusal for multi-step panel Sustained on an incomplete temporal class.
+pub(crate) const PANEL_CLASS_SEQUENCE_REFUSAL: &str = concat!(
+    "panel multi-step Sustained on TemporalCpdag/TemporalPag is not licensed; ",
+    "keep the series sequential class owner",
+);
+
+/// Single owner for panel data-route licenses. Build, prepare, compile, and
+/// execute consult this; they do not restate the same refusals.
+pub(crate) fn refuse_unlicensed_panel_route(
+    query: &CausalQuery,
+    class: GraphClass,
+    inference: &InferenceMode,
+) -> Result<(), CausalError> {
+    match query {
+        CausalQuery::Response(query) => refuse_unlicensed_panel_response(query, class, inference),
+        CausalQuery::TemporalEffect(query) => {
+            refuse_unlicensed_panel_effect(query, class, inference)
+        }
+        _ => Ok(()),
+    }
+}
+
+pub(crate) fn refuse_unlicensed_panel_response(
+    query: &ResponseQuery,
+    class: GraphClass,
+    inference: &InferenceMode,
+) -> Result<(), CausalError> {
+    if !query.is_temporal() || class != GraphClass::TemporalDag {
+        return Err(CausalError::Unsupported { message: PANEL_RESPONSE_CLASS_REFUSAL });
+    }
+    if matches!(inference, InferenceMode::Bayesian(_)) {
+        return Err(CausalError::Unsupported { message: PANEL_RESPONSE_BAYES_REFUSAL });
+    }
+    Ok(())
+}
+
+pub(crate) fn refuse_unlicensed_panel_effect(
+    query: &TemporalEffectQuery,
+    class: GraphClass,
+    inference: &InferenceMode,
+) -> Result<(), CausalError> {
+    if !class.is_incomplete_temporal() {
+        return Ok(());
+    }
+    if query.is_multi_step_sustained() {
+        return Err(CausalError::Unsupported { message: PANEL_CLASS_SEQUENCE_REFUSAL });
+    }
+    if matches!(inference, InferenceMode::Bayesian(_)) {
+        return Err(CausalError::Unsupported { message: PANEL_CLASS_BAYES_REFUSAL });
+    }
+    Ok(())
+}
 
 #[derive(Clone, Debug)]
 pub(crate) enum DataInput {
@@ -1241,8 +1303,8 @@ impl StudyBuilder {
                 _ => {}
             }
         }
-        if matches!((&data, &query), (DataInput::Panel(_), CausalQuery::Response(_))) {
-            return Err(CausalError::Unsupported { message: PANEL_RESPONSE_REFUSAL });
+        if matches!(data, DataInput::Panel(_)) {
+            refuse_unlicensed_panel_route(&query, graph.class(), &inference)?;
         }
         if self.class_prior.is_some() && matches!(inference, crate::InferenceMode::Frequentist) {
             return Err(CausalError::Unsupported {
@@ -1252,12 +1314,7 @@ impl StudyBuilder {
                           probabilities",
             });
         }
-        if self.class_prior.is_some()
-            && !matches!(
-                graph.class(),
-                crate::GraphClass::TemporalCpdag | crate::GraphClass::TemporalPag
-            )
-        {
+        if self.class_prior.is_some() && !graph.class().is_incomplete_temporal() {
             return Err(CausalError::Unsupported {
                 message: "class_prior requires an incomplete temporal graph class",
             });
