@@ -401,7 +401,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         queries: Some(&["ConditionalEffect"]),
         graph_classes: Some(&["Cpdag", "Pag"]),
         structures: Some(&["graph_posterior"]),
-        inferences: Some(&["Bayesian"]),
+        inferences: None,
         validations: None,
         reason: "ConditionalEffect graph-posterior mixing is licensed only for DAG atoms. Cpdag/Pag posterior atoms remain refused.",
     },
@@ -460,6 +460,14 @@ pub static CLOSED_RULES: &[NaRule] = &[
         inferences: Some(&["Bayesian"]),
         validations: None,
         reason: "Graph-posterior derivative mixtures are not staged; the licensed derivative cells are Frequentist or Bayesian explicit or accepted Dag at validation none.",
+    },
+    NaRule {
+        queries: Some(&["MediationEffect"]),
+        graph_classes: Some(&["Dag"]),
+        structures: Some(&["graph_posterior"]),
+        inferences: Some(&["Bayesian"]),
+        validations: None,
+        reason: "Graph-posterior mediation mixtures are not staged; the licensed MediationEffect cells are Frequentist or Bayesian explicit or accepted Dag.",
     },
     NaRule {
         queries: Some(&["Counterfactual"]),

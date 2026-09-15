@@ -222,6 +222,14 @@ pub enum CausalError {
         /// What disagreed, naming the specific variable or count.
         detail: String,
     },
+    /// In-process callback failed (design utility, not portable).
+    #[error("callback {name}: {message}")]
+    Callback {
+        /// Callback name.
+        name: String,
+        /// Failure detail.
+        message: String,
+    },
 }
 
 /// Shared with [`crate::PreparedStudy::rank_designs`] and capability reports.

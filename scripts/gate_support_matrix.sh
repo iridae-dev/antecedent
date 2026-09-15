@@ -556,10 +556,16 @@ if all_queries and graph_classes and structures and inferences and validations:
         elif is_allowed(cell):
             allowed_count += 1
     refused = cartesian - n_a_count - len(cells)
+    unreasoned = refused - reason_backed_refused_count - allowed_count
     if refused < 0:
         fail.append("licensed + n/a exceeds the cartesian product")
     if reason_backed_refused_count + allowed_count > refused:
         fail.append("reason-backed refusals + compatibility entries exceed refused cells")
+    if unreasoned:
+        fail.append(
+            f"{unreasoned} meaningful refused cell(s) have no reason in "
+            "parity/support_closed.toml; every refused cell must name why"
+        )
 else:
     cartesian = n_a_count = reason_backed_refused_count = allowed_count = refused = 0
     fail.append("axes are incomplete; cannot form a cartesian product")

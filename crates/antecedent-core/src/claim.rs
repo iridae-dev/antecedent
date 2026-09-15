@@ -122,6 +122,61 @@ pub struct ClaimEnvelope {
     pub execution: Option<SemanticDigest>,
     /// Evidence / dependency references (artifact ids, fixture names).
     pub evidence: Arc<[Arc<str>]>,
+    /// Calibration slot recorded at claim time.
+    pub calibration: CalibrationView,
+    /// Attested custom-validator evidence.
+    pub attested: Arc<[AttestedEvidence]>,
+}
+
+/// Calibration slot projected onto a claim.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CalibrationView {
+    /// `calibrated` | `scope_not_assessed` | `unavailable`.
+    pub status: Arc<str>,
+    /// Matching coverage record id.
+    pub record_id: Option<Arc<str>>,
+    /// Reason code when not calibrated.
+    pub reason: Option<Arc<str>>,
+    /// Record `n`.
+    pub scope_n: Option<u64>,
+    /// Record dependence label.
+    pub scope_dependence: Option<Arc<str>>,
+    /// Record SHA.
+    pub calibration_sha: Option<Arc<str>>,
+}
+
+impl Default for CalibrationView {
+    fn default() -> Self {
+        Self {
+            status: Arc::from("unavailable"),
+            record_id: None,
+            reason: Some(Arc::from("not_executed")),
+            scope_n: None,
+            scope_dependence: None,
+            calibration_sha: None,
+        }
+    }
+}
+
+/// Caller-attested validator evidence.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AttestedEvidence {
+    /// Validator name.
+    pub name: Arc<str>,
+    /// Evidence kind.
+    pub kind: Arc<str>,
+    /// Whether the validator passed.
+    pub passed: bool,
+    /// Refuted ATE, when reported.
+    pub refuted_ate: Option<f64>,
+    /// Comparison value, when reported.
+    pub comparison: Option<f64>,
+    /// Whether the result is informative.
+    pub informative: bool,
+    /// Failure condition, when reported.
+    pub failure_condition: Option<Arc<str>>,
+    /// Always false at 1.10.0.
+    pub reverifiable: bool,
 }
 
 impl ClaimEnvelope {
@@ -149,6 +204,8 @@ impl ClaimEnvelope {
             domains,
             execution,
             evidence: evidence.into(),
+            calibration: CalibrationView::default(),
+            attested: Arc::from([]),
         }
     }
 }

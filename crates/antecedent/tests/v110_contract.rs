@@ -4785,3 +4785,351 @@ fn composition_prepared_estimate_matches_fresh() {
     assert!((prepared_result.effect() - fresh.effect()).abs() < 1e-12);
     assert!((prepared_result.estimate.se_analytic - fresh.estimate.se_analytic).abs() < 1e-12);
 }
+
+fn bayesian_average_effect(n: usize, seed: u64) -> (antecedent::PreparedStudy, TabularData) {
+    let ctx = ExecutionContext::for_tests(seed);
+    let (data, dag, query) = confounded_scm(n, seed);
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(32)))
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    (prepared, data)
+}
+
+#[test]
+fn calibration_slot_is_calibrated_inside_record_scope() {
+    let ctx = ExecutionContext::for_tests(21);
+    let (prepared, data) = bayesian_average_effect(1200, 21);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let contract = prepared.contract().unwrap();
+    let claim = result.claim(&contract, &ctx).unwrap();
+    assert_eq!(claim.calibration.status.as_ref(), "calibrated");
+    assert_eq!(
+        claim.calibration.record_id.as_deref(),
+        Some("cov.average_effect.dag.bayesian.none.none.iid")
+    );
+}
+
+#[test]
+fn calibration_slot_is_scope_not_assessed_below_record_n() {
+    let ctx = ExecutionContext::for_tests(22);
+    let (prepared, data) = bayesian_average_effect(50, 22);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let contract = prepared.contract().unwrap();
+    let claim = result.claim(&contract, &ctx).unwrap();
+    assert_eq!(claim.calibration.status.as_ref(), "scope_not_assessed");
+    assert_eq!(
+        claim.calibration.record_id.as_deref(),
+        Some("cov.average_effect.dag.bayesian.none.none.iid")
+    );
+    assert!(claim.calibration.reason.is_none());
+}
+
+#[test]
+fn calibration_slot_is_unavailable_with_code_when_no_record() {
+    let ctx = ExecutionContext::for_tests(7);
+    let (data, dag, query) = confounded_scm(40, 7);
+    let prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let contract = prepared.contract().unwrap();
+    let claim = result.claim(&contract, &ctx).unwrap();
+    assert_eq!(claim.calibration.status.as_ref(), "unavailable");
+    assert!(claim.calibration.reason.is_some());
+}
+
+#[test]
+fn calibration_slot_is_covered_by_claim_id() {
+    let ctx = ExecutionContext::for_tests(8);
+    let (prepared, data) = bayesian_average_effect(80, 8);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&result, "cal-slot", &ctx).unwrap();
+    let mut flipped = bytes.clone();
+    if let Some(pos) = flipped.windows(11).position(|w| w == b"unavailable" || w == b"calibrated\0")
+    {
+        flipped[pos] ^= 0x01;
+    } else {
+        let mid = flipped.len() / 2;
+        flipped[mid] ^= 0x01;
+    }
+    let flipped_ok = consume_analysis_result(&flipped)
+        .ok()
+        .is_some_and(|consumed| consumed.acceptance.accepts_as_verified_program());
+    assert!(!flipped_ok);
+    let consumed = consume_analysis_result(&bytes).unwrap();
+    assert!(consumed.acceptance.accepts_as_verified_program());
+}
+
+#[test]
+fn every_licensed_cell_has_a_calibration_record_or_code() {
+    let licensed = include_str!("../../../parity/support_licensed.toml");
+    let mut missing = Vec::new();
+    for block in licensed.split("[[cell]]").skip(1) {
+        let has_record = block.contains("calibration =");
+        let has_reason = block.contains("calibration_reason =");
+        if has_record == has_reason {
+            missing.push(block.lines().take(6).collect::<Vec<_>>().join(" "));
+        }
+        if has_record {
+            for line in block.lines() {
+                let line = line.trim();
+                if let Some(rest) = line.strip_prefix("calibration =") {
+                    for id in rest.split(['[', ']', ',', '"']).filter(|s| s.starts_with("cov.")) {
+                        assert!(
+                            antecedent::coverage_records_data::RECORDS.iter().any(|row| row.id == id),
+                            "missing coverage record {id}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "cells missing exactly one of calibration / calibration_reason: {missing:?}"
+    );
+}
+
+#[test]
+fn estimator_spec_changes_inference_binding_and_program_stays() {
+    let ctx = ExecutionContext::for_tests(9);
+    let (data, dag, query) = confounded_scm(96, 9);
+    let a = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(query.clone())
+        .estimator(antecedent_estimate::LinearAdjustmentAte::new().with_bootstrap_replicates(0))
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let b = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .estimator(antecedent_estimate::LinearAdjustmentAte::new().with_bootstrap_replicates(0).with_se_kind(
+            antecedent_estimate::AnalyticSeKind::Hc1,
+        ))
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let ca = a.contract().unwrap();
+    let cb = b.contract().unwrap();
+    assert_ne!(ca.identities.inference_binding, cb.identities.inference_binding);
+}
+
+#[test]
+fn rd_config_changes_identification() {
+    let ctx = ExecutionContext::for_tests(10);
+    let (data, dag, query) = confounded_scm(96, 10);
+    let a = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(query.clone())
+        .rd_config(VariableId::from_raw(2), 0.0, 1.0)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let b = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .rd_config(VariableId::from_raw(2), 0.0, 2.0)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    assert_ne!(
+        a.contract().unwrap().identities.identification,
+        b.contract().unwrap().identities.identification
+    );
+}
+
+#[test]
+fn constant_nonunit_weights_do_not_change_target() {
+    assert!(!antecedent_estimate::changes_target(&[7.0; 8]));
+    assert!(antecedent_estimate::changes_target(&[1.0, 2.0, 3.0]));
+    assert!(antecedent_estimate::changes_target(&[f64::NAN, 1.0]));
+}
+
+#[test]
+fn encoder_refuses_result_population_mismatch() {
+    let ctx = ExecutionContext::for_tests(11);
+    let (data, dag, query) = confounded_scm(64, 11);
+    let prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let mut result = prepared.estimate(&data, &ctx).unwrap();
+    result.retarget_population = Some(antecedent_core::TargetPopulation::Treated);
+    let err = prepared.encode_contracted_result(&result, "mismatch", &ctx).unwrap_err();
+    assert!(format!("{err}").contains("target_population"));
+}
+
+#[test]
+fn nonconstant_retarget_exports_with_target_weights_identity() {
+    let ctx = ExecutionContext::for_tests(12);
+    let (data, dag, query) = confounded_scm(128, 12);
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let estimated = prepared.estimate(&data, &ctx).unwrap();
+    let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
+    let mut weights = vec![1.0; data.row_count()];
+    weights[0] = 2.0;
+    let retargeted = prepared
+        .apply_retarget(&preview, &weights, &[VariableId::from_raw(2)], &ctx)
+        .unwrap();
+    let bytes = prepared.encode_contracted_result(&retargeted, "reweight", &ctx).unwrap();
+    let consumed = consume_analysis_result(&bytes).unwrap();
+    assert!(consumed.acceptance.accepts_as_verified_program());
+    let _ = estimated;
+}
+
+#[test]
+fn retarget_preserves_identification_digest() {
+    let ctx = ExecutionContext::for_tests(13);
+    let (data, dag, query) = confounded_scm(128, 13);
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let before = prepared.contract().unwrap().identities.identification;
+    let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
+    let mut weights = vec![1.0; data.row_count()];
+    weights[1] = 3.0;
+    let _ = prepared
+        .apply_retarget(&preview, &weights, &[VariableId::from_raw(2)], &ctx)
+        .unwrap();
+    assert_eq!(before, prepared.contract().unwrap().identities.identification);
+}
+
+#[test]
+fn retarget_report_matches_identity_deltas() {
+    use antecedent_core::{SemanticLayer, TransformEffect};
+    let ctx = ExecutionContext::for_tests(14);
+    let (data, dag, query) = confounded_scm(128, 14);
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let estimated = prepared.estimate(&data, &ctx).unwrap();
+    let before_bytes = prepared.encode_contracted_result(&estimated, "before-retarget", &ctx).unwrap();
+    let before = consume_analysis_result(&before_bytes).unwrap().contract.unwrap();
+    let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
+    assert!(preview.layer(SemanticLayer::Identification).is_some_and(|layer| {
+        layer.effects.iter().any(|effect| *effect == TransformEffect::Preserves)
+    }));
+    assert!(preview.layer(SemanticLayer::Data).is_some_and(|layer| {
+        layer.effects.iter().any(|effect| *effect == TransformEffect::Preserves)
+    }));
+    assert!(preview.layer(SemanticLayer::Inference).is_some_and(|layer| {
+        layer.effects.iter().any(|effect| *effect == TransformEffect::Preserves)
+    }));
+    let mut weights = vec![1.0; data.row_count()];
+    weights[0] = 2.0;
+    let retargeted = prepared
+        .apply_retarget(&preview, &weights, &[VariableId::from_raw(2)], &ctx)
+        .unwrap();
+    let bytes = prepared.encode_contracted_result(&retargeted, "retarget-report", &ctx).unwrap();
+    let after = consume_analysis_result(&bytes).unwrap().contract.unwrap();
+    match &after.target.query {
+        CausalQueryWire::AverageEffect { target_population, .. } => {
+            assert!(matches!(target_population, TargetPopulationWire::RowWeights { .. }));
+        }
+        other => panic!("expected AverageEffect, got {other:?}"),
+    }
+    assert_eq!(before.identities.identification, after.identities.identification);
+    assert_eq!(before.identities.data_snapshot, after.identities.data_snapshot);
+    assert_eq!(before.identities.inference_binding, after.identities.inference_binding);
+    assert_ne!(before.identities.target, after.identities.target);
+}
+
+#[test]
+fn custom_distribution_weights_enter_target_identity() {
+    use antecedent_core::{DistributionRef, PopulationRegistry};
+    let ctx = ExecutionContext::for_tests(15);
+    let (data, dag, query) = confounded_scm(64, 15);
+    let mut first = PopulationRegistry::new();
+    first.insert_distribution_with_dependence(
+        DistributionRef::from_raw(1),
+        vec![1.0; data.row_count()],
+        [VariableId::from_raw(2)],
+    );
+    let mut second = PopulationRegistry::new();
+    let mut weights = vec![1.0; data.row_count()];
+    weights[0] = 3.0;
+    second.insert_distribution_with_dependence(
+        DistributionRef::from_raw(1),
+        weights,
+        [VariableId::from_raw(2)],
+    );
+    let query = query.with_target_population(antecedent_core::TargetPopulation::CustomDistribution(
+        DistributionRef::from_raw(1),
+    ));
+    let a = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(query.clone())
+        .population_registry(first)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let b = Study::tabular(data)
+        .graph(dag)
+        .query(query)
+        .population_registry(second)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    assert_ne!(a.contract().unwrap().identities.target, b.contract().unwrap().identities.target);
+}
+
+#[test]
+fn multi_env_prepares_and_exports() {
+    let ctx = ExecutionContext::for_tests(16);
+    let (series, graph) = lag1_series();
+    let multi = antecedent_data::MultiEnvironmentData::try_new(std::sync::Arc::from([
+        series.clone(),
+        series,
+    ]))
+    .unwrap();
+    let prepared = Study::series_multi(multi)
+        .graph(graph)
+        .temporal_query(pulse_query())
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let (again, _) = lag1_series();
+    let again_multi =
+        antecedent_data::MultiEnvironmentData::try_new(std::sync::Arc::from([again.clone(), again]))
+            .unwrap();
+    let result = prepared.estimate_multi_env(&again_multi, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&result, "multi-env", &ctx).unwrap();
+    let consumed = consume_analysis_result(&bytes).unwrap();
+    assert!(consumed.acceptance.accepts_as_verified_program());
+}

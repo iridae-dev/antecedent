@@ -500,7 +500,7 @@ where
                     "ReduceDecisionRegret requires decisions context".into(),
                 ));
             };
-            Ok(decision_regret_reduction(candidate, reg, *decision, rng))
+            decision_regret_reduction(candidate, reg, *decision, rng)
         }
     }
 }
@@ -821,20 +821,20 @@ fn decision_regret_reduction<A, O>(
     reg: &DecisionRegistry<A, O>,
     decision: DecisionProblemId,
     rng: &mut CausalRng,
-) -> f64
+) -> Result<f64, DesignError>
 where
     A: Clone,
     O: Clone,
 {
     let idx = decision.raw() as usize;
     let Some(Some(problem)) = reg.problems.get(idx) else {
-        return 0.0;
+        return Ok(0.0);
     };
     if reg.outcomes.is_empty() {
-        return 0.0;
+        return Ok(0.0);
     }
     // Baseline regret.
-    let base: DecisionEvaluation = evaluate_decision(problem, &reg.outcomes);
+    let base: DecisionEvaluation = evaluate_decision(problem, &reg.outcomes)?;
     // Candidate: subsample outcomes with replacement (information → tighter effective support).
     let keep = match candidate {
         CandidateDesign::IncreaseSamplingRate(s) => {
@@ -853,9 +853,9 @@ where
     }
     // Strength reduces effective regret toward 0.
     let strength = evidence_strength(candidate);
-    let after = evaluate_decision(problem, &sample);
+    let after = evaluate_decision(problem, &sample)?;
     let reduced = after.posterior_regret * (1.0 - strength);
-    (base.posterior_regret - reduced).max(0.0)
+    Ok((base.posterior_regret - reduced).max(0.0))
 }
 
 #[cfg(test)]
@@ -1341,13 +1341,19 @@ mod tests {
 
     struct LinearUtility;
     impl Utility<f64, f64> for LinearUtility {
-        fn evaluate_batch(&self, actions: &[f64], outcomes: &[f64], out: &mut [f64]) {
+        fn evaluate_batch(
+            &self,
+            actions: &[f64],
+            outcomes: &[f64],
+            out: &mut [f64],
+        ) -> Result<(), crate::error::DesignError> {
             let n_o = outcomes.len();
             for (ai, a) in actions.iter().enumerate() {
                 for (oi, o) in outcomes.iter().enumerate() {
                     out[ai * n_o + oi] = a * o;
                 }
             }
+            Ok(())
         }
     }
 
@@ -1376,7 +1382,7 @@ mod tests {
         );
         let reg =
             DecisionRegistry::<f64, f64> { problems: vec![Some(problem)], outcomes: vec![2.0] };
-        let base = evaluate_decision(reg.problems[0].as_ref().unwrap(), &reg.outcomes);
+        let base = evaluate_decision(reg.problems[0].as_ref().unwrap(), &reg.outcomes).unwrap();
         assert!((base.posterior_regret - 8.0).abs() < 1e-12, "base={:?}", base.posterior_regret);
 
         let candidate = CandidateDesign::Measure(MeasurementPlan {
@@ -1392,7 +1398,8 @@ mod tests {
         let expected = 8.0 * expected_strength;
         let mut rng = ExecutionContext::for_tests(1).rng.stream(0);
         let got =
-            decision_regret_reduction(&candidate, &reg, DecisionProblemId::from_raw(0), &mut rng);
+            decision_regret_reduction(&candidate, &reg, DecisionProblemId::from_raw(0), &mut rng)
+                .unwrap();
         assert!((got - expected).abs() < 1e-9, "got={got} expected={expected}");
     }
 
@@ -1406,7 +1413,8 @@ mod tests {
         });
         let mut rng = ExecutionContext::for_tests(1).rng.stream(0);
         let got =
-            decision_regret_reduction(&candidate, &reg, DecisionProblemId::from_raw(0), &mut rng);
+            decision_regret_reduction(&candidate, &reg, DecisionProblemId::from_raw(0), &mut rng)
+                .unwrap();
         assert_eq!(got, 0.0);
     }
 }

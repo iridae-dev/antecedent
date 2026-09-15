@@ -277,6 +277,9 @@ pub fn intent_effects(intent: TransformIntent) -> Arc<[LayerEffect]> {
             LayerEffect::new(Identification, [Preserves]),
             LayerEffect::new(Program, [Invalidates]),
             LayerEffect::new(Support, [RequiresReestimation]),
+            LayerEffect::new(Data, [Preserves]),
+            LayerEffect::new(Inference, [Preserves]),
+            LayerEffect::new(Execution, [Invalidates]),
             LayerEffect::new(Results, [Invalidates]),
         ],
         TransformIntent::FilterPopulation | TransformIntent::NewConditionalQuery => vec![

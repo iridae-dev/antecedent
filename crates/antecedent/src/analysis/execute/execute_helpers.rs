@@ -1775,6 +1775,30 @@ impl super::Study {
                 diagnostics.push(diagnostic);
             }
         }
+        if let (Some(mode), Some(n)) = (self.latency_mode, extras.n_draws) {
+            let tier = match mode {
+                crate::analysis::latency::LatencyMode::Interactive => {
+                    crate::analysis::latency::INTERACTIVE_N_DRAWS
+                }
+                crate::analysis::latency::LatencyMode::Standard => {
+                    crate::analysis::latency::STANDARD_N_DRAWS
+                }
+                crate::analysis::latency::LatencyMode::Report => {
+                    crate::analysis::latency::REPORT_N_DRAWS
+                }
+            };
+            if usize::try_from(n).ok() != Some(tier) {
+                diagnostics.push(Diagnostic::new(
+                    "latency.explicit_budget_kept",
+                    DiagnosticKind::Execution,
+                    DiagnosticSeverity::Info,
+                    format!(
+                        "explicit n_draws={n} kept over {} tier default {tier}",
+                        mode.as_str()
+                    ),
+                ));
+            }
+        }
         let (id_artifact, id_op) = extras.identify_provenance.unwrap_or_else(|| {
             let (a, b) = identify_provenance_step(args.identifier_id);
             provenance_ids(a, b)
@@ -1812,6 +1836,15 @@ impl super::Study {
                 Some(GcmSlot::Unit(v)) => (None, None, None, None, Some(v)),
                 None => (None, None, None, None, None),
             };
+        let interval_method = if extras.posterior.is_some() {
+            antecedent_core::IntervalMethod::PosteriorQuantile
+        } else if args.bootstrap_replicates_ok.unwrap_or(0) > 0
+            || extras.bootstrap_replicates_requested.flatten().unwrap_or(0) > 0
+        {
+            antecedent_core::IntervalMethod::BootstrapSe
+        } else {
+            antecedent_core::IntervalMethod::AnalyticSe
+        };
         let mut result = assemble_result(AssembleArgs {
             logical: &args.physical.logical.record,
             physical: &physical_record,
@@ -1842,6 +1875,11 @@ impl super::Study {
             n_draws: extras.n_draws,
             cancelled: args.cancelled,
             early_stopped: args.early_stopped,
+            interval: crate::result::IntervalBinding {
+                method: interval_method,
+                se_kind: None,
+                level: 0.95,
+            },
         });
         result.certificate = certificate.map(|identification| crate::AnalysisIdentification {
             identification,

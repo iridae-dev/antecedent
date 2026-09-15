@@ -42,6 +42,7 @@ pub mod execution;
 pub mod identification;
 pub mod identity;
 pub mod ids;
+pub mod interval;
 pub mod intervention;
 pub mod node;
 pub mod obligation;
@@ -65,10 +66,10 @@ pub use capability::{
     OperationReport, PremiseChange, SemanticApplicability,
 };
 pub use claim::{
-    AcceptanceReport, ClaimCompatibility, ClaimDomainAxis, ClaimDomains, ClaimEnvelope,
-    ClaimFreshness, ClaimKind, ClaimOperation, ConsumerProfile, DerivedClaim, DerivedClaimOutcome,
-    DomainStatus, EvidenceDependence, HandoffReceipt, HostOperation, SharedEvidenceRef,
-    claim_compatibility, compose_claims,
+    AcceptanceReport, AttestedEvidence, CalibrationView, ClaimCompatibility, ClaimDomainAxis,
+    ClaimDomains, ClaimEnvelope, ClaimFreshness, ClaimKind, ClaimOperation, ConsumerProfile,
+    DerivedClaim, DerivedClaimOutcome, DomainStatus, EvidenceDependence, HandoffReceipt,
+    HostOperation, SharedEvidenceRef, claim_compatibility, compose_claims,
 };
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
@@ -83,6 +84,7 @@ pub use identity::{
     ContractIdentities, IDENTITY_FORMAT, IDENTITY_FORMAT_TAG, IdentityDomain, IdentityRef,
     SemanticDigest,
 };
+pub use interval::IntervalMethod;
 pub use ids::{
     CategoryDomainId, ComponentId, DistributionRef, DynamicRuleId, EnvironmentId, Lag, ModelId,
     QueryId, RegimeId, StateVersion, VariableId,

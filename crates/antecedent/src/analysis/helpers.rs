@@ -71,6 +71,8 @@ pub(crate) struct AssembleArgs<'a> {
     pub(crate) cancelled: bool,
     /// Adaptive early-stop (bootstrap SE and/or Bayesian draws).
     pub(crate) early_stopped: bool,
+    /// Interval recorded on the assembled result.
+    pub(crate) interval: crate::result::IntervalBinding,
 }
 
 pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
@@ -123,6 +125,9 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         },
         treatment: args.treatment,
         outcome: args.outcome,
+        interval: Some(args.interval),
+        retarget_population: None,
+        custom_validator_names: Vec::new(),
     }
 }
 

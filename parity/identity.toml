@@ -1,0 +1,90 @@
+# Identity dictionary. One row per IdentityDomain plus target_weights.
+# Docs rows are checked, never generated.
+
+[[identity]]
+domain = "target"
+rust = "ContractIdentities.target"
+contract_key = "identities.target"
+python = "inspect().target_id"
+availability = "prepared|loaded"
+naming_row = "Target identity"
+
+[[identity]]
+domain = "identification"
+rust = "ContractIdentities.identification"
+contract_key = "identities.identification"
+python = "inspect().identification_id"
+availability = "prepared|loaded"
+naming_row = "Identification premises identity"
+
+[[identity]]
+domain = "identification_product"
+rust = "ContractIdentities.identification_product"
+contract_key = "identities.identification_product"
+python = "inspect().identification_product_id"
+availability = "prepared|loaded"
+naming_row = "Identification product identity"
+
+[[identity]]
+domain = "program"
+rust = "ContractIdentities.program"
+contract_key = "identities.program"
+python = "inspect().program_id"
+availability = "prepared|loaded"
+naming_row = "Compiled program identity"
+
+[[identity]]
+domain = "inference_binding"
+rust = "ContractIdentities.inference_binding"
+contract_key = "identities.inference_binding"
+python = "inspect().inference_binding_id"
+availability = "prepared|loaded"
+naming_row = "Inference binding identity"
+
+[[identity]]
+domain = "observation"
+rust = "ContractIdentities.observation"
+contract_key = "identities.observation"
+python = "inspect().observation_id"
+availability = "prepared|loaded"
+naming_row = "Observation identity"
+
+[[identity]]
+domain = "data_snapshot"
+rust = "ContractIdentities.data_snapshot"
+contract_key = "identities.data_snapshot"
+python = "inspect().data_snapshot_id"
+availability = "prepared|loaded"
+naming_row = "Data snapshot identity"
+
+[[identity]]
+domain = "execution"
+rust = "ExecutionIdentityWire"
+contract_key = "identities.execution"
+python = "inspect().execution_id"
+availability = "loaded"
+naming_row = "Execution identity"
+
+[[identity]]
+domain = "claim"
+rust = "ClaimIdentityWire"
+contract_key = "claim.claim_id"
+python = "inspect().claim_id"
+availability = "loaded"
+naming_row = "Execution claim identity"
+
+[[identity]]
+domain = "score_reuse"
+rust = "ScoreReuseIdentityWire"
+contract_key = "identities.score_reuse"
+python = "inspect().score_reuse_id"
+availability = "prepared|loaded"
+naming_row = "Score reuse identity"
+
+[[identity]]
+domain = "target_weights"
+rust = "TargetWeightsIdentityWire"
+contract_key = "identities.target_weights"
+python = "inspect().target_weights_id"
+availability = "loaded"
+naming_row = "Target-weight identity"

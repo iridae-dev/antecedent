@@ -26,4 +26,12 @@ pub enum DesignError {
     /// Probability / stats layer failure.
     #[error("probability error: {0}")]
     Prob(String),
+    /// In-process utility / constraint callback failed.
+    #[error("callback {name}: {message}")]
+    Callback {
+        /// Callback name (`utility` or a constraint name).
+        name: String,
+        /// Failure detail.
+        message: String,
+    },
 }

@@ -46,9 +46,26 @@ pub enum IdentityDomain {
     /// Score-table, fold, nuisance, and shared-draw reuse. Stricter than
     /// identification: matching names and shapes are not this layer.
     ScoreReuse,
+    /// Row-weight retarget payload bound to one data snapshot.
+    TargetWeights,
 }
 
 impl IdentityDomain {
+    /// Closed set of domains. A new variant fails dictionary tests until listed.
+    pub const ALL: [IdentityDomain; 11] = [
+        Self::Target,
+        Self::Identification,
+        Self::IdentificationProduct,
+        Self::Program,
+        Self::InferenceBinding,
+        Self::Observation,
+        Self::DataSnapshot,
+        Self::Execution,
+        Self::Claim,
+        Self::ScoreReuse,
+        Self::TargetWeights,
+    ];
+
     /// Stable `snake_case` name.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -63,6 +80,7 @@ impl IdentityDomain {
             Self::Execution => "execution",
             Self::Claim => "claim",
             Self::ScoreReuse => "score_reuse",
+            Self::TargetWeights => "target_weights",
         }
     }
 
@@ -80,6 +98,7 @@ impl IdentityDomain {
             Self::Execution => "antecedent.identity.execution.v1",
             Self::Claim => "antecedent.identity.claim.v1",
             Self::ScoreReuse => "antecedent.identity.score_reuse.v1",
+            Self::TargetWeights => "antecedent.identity.target_weights.v1",
         }
     }
 }
@@ -214,18 +233,7 @@ mod tests {
 
     #[test]
     fn domains_are_distinct_and_named() {
-        let domains = [
-            IdentityDomain::Target,
-            IdentityDomain::Identification,
-            IdentityDomain::IdentificationProduct,
-            IdentityDomain::Program,
-            IdentityDomain::InferenceBinding,
-            IdentityDomain::Observation,
-            IdentityDomain::DataSnapshot,
-            IdentityDomain::Execution,
-            IdentityDomain::Claim,
-            IdentityDomain::ScoreReuse,
-        ];
+        let domains = IdentityDomain::ALL;
         let mut keys = std::collections::BTreeSet::new();
         let mut names = std::collections::BTreeSet::new();
         for domain in domains {
@@ -233,7 +241,7 @@ mod tests {
             assert!(names.insert(domain.as_str()));
             assert!(domain.derive_key().contains(domain.as_str()) || domain.as_str().contains('_'));
         }
-        assert_eq!(keys.len(), 10);
+        assert_eq!(keys.len(), IdentityDomain::ALL.len());
     }
 
     #[test]

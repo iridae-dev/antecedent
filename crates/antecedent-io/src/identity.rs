@@ -49,6 +49,12 @@ use crate::trace::{AssumptionRecordWire, DerivationStepWire, assumptions_to_wire
 use crate::wire::{AdmgWire, CpdagWire, DagWire, EndpointWire, PagWire, SchemaWire};
 use crate::{from_cbor, to_cbor};
 
+/// Unkeyed BLAKE3 of a CBOR payload (claim slot digests).
+#[must_use]
+pub fn hash_payload(payload: &[u8]) -> [u8; 32] {
+    *blake3::hash(payload).as_bytes()
+}
+
 /// Domain-separated BLAKE3 digest of a canonical CBOR payload.
 ///
 /// Hash is `BLAKE3-derive-key(domain)(IDENTITY_FORMAT_le || payload)`. Changing
@@ -270,11 +276,14 @@ fn population_label(population: &TargetPopulationWire) -> String {
         TargetPopulationWire::Treated => "treated".into(),
         TargetPopulationWire::Untreated => "untreated".into(),
         TargetPopulationWire::Environment(id) => format!("environment:{id}"),
-        TargetPopulationWire::PredicateNamed(name) => format!("predicate:{name}"),
+        TargetPopulationWire::PredicateNamed { name, .. } => format!("predicate:{name}"),
         TargetPopulationWire::PredicateRows(rows) => {
             format!("rows:{}", rows.iter().map(ToString::to_string).collect::<Vec<_>>().join(","))
         }
-        TargetPopulationWire::CustomDistribution(id) => format!("custom_distribution:{id}"),
+        TargetPopulationWire::CustomDistribution { handle, .. } => {
+            format!("custom_distribution:{handle}")
+        }
+        TargetPopulationWire::RowWeights { .. } => "row_weights".into(),
     }
 }
 
@@ -610,13 +619,32 @@ pub fn dbn_atom_identities(
     Ok(atoms)
 }
 
+/// RD configuration hashed with identification premises.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct RdConfigWire {
+    /// Running-variable id.
+    pub running_variable: u32,
+    /// Cutoff bits.
+    pub cutoff_bits: u64,
+    /// Bandwidth bits.
+    pub bandwidth_bits: u64,
+    /// Analytic SE kind, when set.
+    pub se_kind: Option<String>,
+}
+
 /// Identification-layer payload.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct IdentificationIdentityWire {
     /// Identity format.
     pub format: u16,
-    /// Target digest bytes.
-    pub target: [u8; 32],
+    /// Target digest of the query with `AllObserved` population.
+    pub target_question: [u8; 32],
+    /// Population `depends_on` variable ids (empty when the population is not weight-backed).
+    #[serde(default)]
+    pub population_depends_on: Vec<u32>,
+    /// RD configuration, when the identifier is a discontinuity design.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rd_config: Option<RdConfigWire>,
     /// Graph class wire name.
     pub graph_class: String,
     /// Audit metadata: how structure was supplied. Excluded from semantic identity.
@@ -644,7 +672,9 @@ pub fn identification_digest(wire: &IdentificationIdentityWire) -> Result<Semant
     #[derive(Serialize)]
     struct Premises<'a> {
         format: u16,
-        target: &'a [u8; 32],
+        target_question: &'a [u8; 32],
+        population_depends_on: &'a [u32],
+        rd_config: &'a Option<RdConfigWire>,
         graph_class: &'a str,
         schema_names: &'a Option<Vec<String>>,
         graph: &'a GraphIdentityWire,
@@ -654,7 +684,9 @@ pub fn identification_digest(wire: &IdentificationIdentityWire) -> Result<Semant
         IdentityDomain::Identification,
         &Premises {
             format: wire.format,
-            target: &wire.target,
+            target_question: &wire.target_question,
+            population_depends_on: &wire.population_depends_on,
+            rd_config: &wire.rd_config,
             graph_class: &wire.graph_class,
             schema_names: &wire.schema_names,
             graph: &wire.graph,
@@ -940,21 +972,51 @@ pub fn score_reuse_digest(wire: &ScoreReuseIdentityWire) -> Result<SemanticDiges
     digest_wire(IdentityDomain::ScoreReuse, wire)
 }
 
+/// Row-weight identity bound to one data snapshot.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TargetWeightsIdentityWire {
+    /// Identity format.
+    pub format: u16,
+    /// BLAKE3 of little-endian `f64` weight bits.
+    pub weights: [u8; 32],
+    /// Row count the weights cover.
+    pub row_count: u64,
+    /// Data snapshot digest.
+    pub data_snapshot: [u8; 32],
+    /// Score-reuse digest.
+    pub score_reuse: [u8; 32],
+    /// Covariates the weights are declared to depend on.
+    pub depends_on: Vec<u32>,
+}
+
+/// Digest target weights.
+///
+/// # Errors
+///
+/// CBOR encode failure.
+pub fn target_weights_digest(wire: &TargetWeightsIdentityWire) -> Result<SemanticDigest, IoError> {
+    digest_wire(IdentityDomain::TargetWeights, wire)
+}
+
 /// Licensed inferential commitments (not numeric knobs).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct InferentialCommitmentsWire {
     /// Identity format.
     pub format: u16,
-    /// Estimator family id.
+    /// Caller-selected estimator family id.
     pub estimator: Option<String>,
+    /// Resolved estimator from the compiled plan.
+    pub resolved_estimator: Option<String>,
     /// Identifier id.
     pub identifier: Option<String>,
     /// `frequentist` or `bayesian`.
     pub inference: String,
     /// Validation suite id.
     pub validation_suite: Option<String>,
-    /// Interval target (`analytic_se`, `bootstrap_se`, `posterior_quantile`, …).
-    pub interval_target: String,
+    /// Interval method (`IntervalMethod::as_str()`).
+    pub interval_method: String,
+    /// Analytic SE kind, when the interval is analytic.
+    pub se_kind: Option<String>,
     /// Whether a prior is required.
     pub prior_required: bool,
 }
@@ -1002,6 +1064,76 @@ pub struct InferenceBindingWire {
     pub validation_suite: Option<String>,
     /// Overlap policy tag.
     pub overlap_policy: Option<String>,
+    /// Typed estimator configuration, when the caller supplied one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub estimator_spec: Option<EstimatorSpecWire>,
+    /// Response options, when a response surface is configured.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_options: Option<ResponseOptionsWire>,
+}
+
+/// Content digest plus length for a data-sized estimator field.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EstimatorPayloadDigest {
+    /// BLAKE3 of the payload bytes.
+    pub digest: [u8; 32],
+    /// Element count.
+    pub len: u64,
+}
+
+/// Scalar + payload identity for one configured estimator variant.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EstimatorSpecPayloads {
+    /// Digest of non-row configuration fields.
+    pub digest: [u8; 32],
+    /// Cluster ids, when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cluster_ids: Option<EstimatorPayloadDigest>,
+    /// Multiway cluster ids, when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub multiway_ids: Option<EstimatorPayloadDigest>,
+    /// Panel times, when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub panel_times: Option<EstimatorPayloadDigest>,
+}
+
+/// Portable estimator-spec identity (mirrors [`antecedent::EstimatorSpec`] variants).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum EstimatorSpecWire {
+    /// Id only.
+    Default(String),
+    /// Caller-configured OLS / linear adjustment.
+    LinearAdjustmentAte(EstimatorSpecPayloads),
+    /// Caller-configured inverse-probability weighting.
+    PropensityWeighting(EstimatorSpecPayloads),
+    /// Caller-configured propensity-score matching.
+    PropensityMatching(EstimatorSpecPayloads),
+    /// Caller-configured propensity stratification.
+    PropensityStratification(EstimatorSpecPayloads),
+    /// Caller-configured covariate distance matching.
+    DistanceMatching(EstimatorSpecPayloads),
+    /// Caller-configured augmented IPW.
+    Aipw(EstimatorSpecPayloads),
+    /// Caller-configured GLM adjustment.
+    GlmAdjustment(EstimatorSpecPayloads),
+    /// Caller-configured front-door two-stage.
+    FrontDoorTwoStage(EstimatorSpecPayloads),
+    /// Caller-configured Wald IV.
+    IvWald(EstimatorSpecPayloads),
+    /// Caller-configured two-stage least squares.
+    Iv2Sls(EstimatorSpecPayloads),
+}
+
+/// Portable response-surface options.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ResponseOptionsWire {
+    /// Bandwidth bits, when set.
+    pub bandwidth_bits: Option<u64>,
+    /// Simultaneous band requested.
+    pub simultaneous_band: bool,
+    /// Point / elasticity variant tag.
+    pub variant: Option<String>,
 }
 
 /// Digest an inference binding.
@@ -1070,6 +1202,10 @@ pub struct ClaimIdentityWire {
     pub value_bits: Option<u64>,
     /// Execution digest, when an execution exists.
     pub execution: Option<[u8; 32]>,
+    /// BLAKE3 of the calibration slot CBOR.
+    pub calibration: [u8; 32],
+    /// BLAKE3 of attested evidence CBOR; zero digest when empty.
+    pub attested: [u8; 32],
 }
 
 impl ClaimIdentityWire {
@@ -1081,8 +1217,19 @@ impl ClaimIdentityWire {
         kind: impl Into<String>,
         value_bits: Option<u64>,
         execution: Option<[u8; 32]>,
+        calibration: [u8; 32],
+        attested: [u8; 32],
     ) -> Self {
-        Self { format: IDENTITY_FORMAT, program, target, kind: kind.into(), value_bits, execution }
+        Self {
+            format: IDENTITY_FORMAT,
+            program,
+            target,
+            kind: kind.into(),
+            value_bits,
+            execution,
+            calibration,
+            attested,
+        }
     }
 }
 
@@ -1172,6 +1319,18 @@ mod tests {
     }
 
     #[test]
+    fn identity_dictionary_covers_every_domain() {
+        let text = include_str!("../../../parity/identity.toml");
+        let listed: Vec<&str> = text
+            .lines()
+            .filter_map(|line| line.strip_prefix("domain = \""))
+            .map(|line| line.trim_end_matches('"'))
+            .collect();
+        let domains: Vec<_> = IdentityDomain::ALL.iter().map(|domain| domain.as_str()).collect();
+        assert_eq!(listed, domains);
+    }
+
+    #[test]
     fn domain_separation_changes_the_digest() {
         let payload = b"same-bytes";
         let target = digest_canonical(IdentityDomain::Target, payload);
@@ -1218,7 +1377,9 @@ mod tests {
         let observation = observation_digest(&schema, std::iter::empty::<String>()).unwrap();
         let first = IdentificationIdentityWire {
             format: IDENTITY_FORMAT,
-            target: *target.as_bytes(),
+            target_question: *target.as_bytes(),
+            population_depends_on: Vec::new(),
+            rd_config: None,
             graph_class: "Dag".into(),
             structure_source: "explicit".into(),
             accepted_version: 1,
@@ -1233,7 +1394,7 @@ mod tests {
             IdentificationIdentityWire { graph: dag_identity(&other).unwrap(), ..first.clone() };
         assert_eq!(identification_digest(&first).unwrap(), identification_digest(&first).unwrap());
         assert_ne!(identification_digest(&first).unwrap(), identification_digest(&second).unwrap());
-        assert_eq!(first.target, second.target);
+        assert_eq!(first.target_question, second.target_question);
         let reviewed = IdentificationIdentityWire {
             structure_source: "accepted".into(),
             accepted_version: 9,
@@ -1247,7 +1408,7 @@ mod tests {
         let decoded: IdentificationIdentityWire = from_cbor(&to_cbor(&reviewed).unwrap()).unwrap();
         assert_eq!(decoded, reviewed, "audit metadata must survive serialization");
         for changed in [
-            IdentificationIdentityWire { target: [9; 32], ..first.clone() },
+            IdentificationIdentityWire { target_question: [9; 32], ..first.clone() },
             IdentificationIdentityWire { observation: [9; 32], ..first.clone() },
             IdentificationIdentityWire { graph_class: "Cpdag".into(), ..first.clone() },
             IdentificationIdentityWire {
@@ -1352,14 +1513,31 @@ mod tests {
             prior_mapping: None,
             validation_suite: None,
             overlap_policy: None,
+            estimator_spec: None,
+            response_options: None,
         };
         let plus_zero = inference_binding_digest(&binding).unwrap();
         binding.prior_scale = Some(-0.0);
         assert_ne!(inference_binding_digest(&binding).unwrap(), plus_zero);
 
-        let claim = ClaimIdentityWire::new([2; 32], [3; 32], "point", Some(0.0f64.to_bits()), None);
-        let flipped =
-            ClaimIdentityWire::new([2; 32], [3; 32], "point", Some((-0.0f64).to_bits()), None);
+        let claim = ClaimIdentityWire::new(
+            [2; 32],
+            [3; 32],
+            "point",
+            Some(0.0f64.to_bits()),
+            None,
+            [0; 32],
+            [0; 32],
+        );
+        let flipped = ClaimIdentityWire::new(
+            [2; 32],
+            [3; 32],
+            "point",
+            Some((-0.0f64).to_bits()),
+            None,
+            [0; 32],
+            [0; 32],
+        );
         assert_ne!(claim_digest(&claim).unwrap(), claim_digest(&flipped).unwrap());
     }
 

@@ -93,6 +93,20 @@ pub fn needs_recheck(n_sim: u32, level: f64, rate: f64) -> bool {
     n_sim < PRECISION_N_SIM && rate < level - RECHECK_SHORTFALL
 }
 
+/// Match-key fields for a licensed coverage record.
+#[derive(Debug, Clone, Copy)]
+pub struct RecordKey {
+    pub query: &'static str,
+    pub graph_class: &'static str,
+    pub inference: &'static str,
+    pub estimator: &'static str,
+    pub interval_method: &'static str,
+    pub se_kind: &'static str,
+    pub dgp: &'static str,
+    pub n: u64,
+    pub dependence: &'static str,
+}
+
 /// Running coverage count for one calibration target.
 #[derive(Debug, Clone)]
 pub struct CoverageTally {
@@ -104,6 +118,7 @@ pub struct CoverageTally {
     /// Scored replicates that produced a finite, ordered interval.
     with_interval: u32,
     length_sum: f64,
+    record: Option<RecordKey>,
 }
 
 impl CoverageTally {
@@ -118,7 +133,59 @@ impl CoverageTally {
             skipped: 0,
             with_interval: 0,
             length_sum: 0.0,
+            record: None,
         }
+    }
+
+    /// Tally that backs a licensed coverage record.
+    #[must_use]
+    pub fn for_record(key: RecordKey, level: f64) -> Self {
+        let id = format!(
+            "cov.{}.{}.{}.{}.{}.{}",
+            snake(key.query),
+            snake(key.graph_class),
+            key.inference.to_ascii_lowercase(),
+            if key.estimator.is_empty() { "none" } else { key.estimator },
+            if key.se_kind.is_empty() { "none" } else { key.se_kind },
+            key.dependence
+        );
+        Self {
+            name: id,
+            level,
+            covered: 0,
+            scored: 0,
+            skipped: 0,
+            with_interval: 0,
+            length_sum: 0.0,
+            record: Some(key),
+        }
+    }
+
+    fn emit_record(&self, boundary: bool) {
+        let Some(key) = self.record else {
+            return;
+        };
+        eprintln!(
+            "calibration-record {}",
+            serde_json::json!({
+                "id": self.name,
+                "query": key.query,
+                "graph_class": key.graph_class,
+                "inference": key.inference,
+                "estimator": key.estimator,
+                "interval_method": key.interval_method,
+                "se_kind": key.se_kind,
+                "dgp": key.dgp,
+                "n": key.n,
+                "dependence": key.dependence,
+                "nominal": self.level,
+                "observed": self.rate(),
+                "mcse": coverage_mcse(self.scored, self.level),
+                "replicates": self.scored,
+                "boundary": boundary,
+                "test": "",
+            })
+        );
     }
 
     /// Record one replicate's interval `[lo, hi]` against `truth`.
@@ -223,7 +290,23 @@ impl CoverageTally {
                 self.name, self.level, self.scored
             );
         }
+        self.emit_record(false);
     }
+}
+
+fn snake(name: &str) -> String {
+    let mut out = String::new();
+    for (i, ch) in name.chars().enumerate() {
+        if ch.is_uppercase() {
+            if i > 0 {
+                out.push('_');
+            }
+            out.extend(ch.to_lowercase());
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 impl CoverageTally {
@@ -268,6 +351,7 @@ impl CoverageTally {
             self.covered,
             self.scored
         );
+        self.emit_record(true);
     }
 }
 

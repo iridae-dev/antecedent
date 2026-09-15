@@ -294,11 +294,14 @@ pub(crate) fn build_graph_posterior_identification_cache(
                     {
                         return Ok(None);
                     }
-                    let estimand =
+                    let Ok(estimand) =
                         select_estimand(&identification, EstimatorId::LinearAdjustmentAte)
                             .or_else(|_| {
                                 select_estimand(&identification, EstimatorId::BayesianGcomp)
-                            })?;
+                            })
+                    else {
+                        return Ok(None);
+                    };
                     Ok(Some((estimand, identification)))
                 })()?;
             by_mask.insert(mask, value.clone());
@@ -667,6 +670,9 @@ enum PreparedModality {
     Series,
     /// Multi-unit panel: [`PreparedStudy::estimate_panel`] / [`PreparedStudy::refresh_panel`].
     Panel,
+    /// Multi-environment series: [`PreparedStudy::estimate_multi_env`] /
+    /// [`PreparedStudy::refresh_multi_env`].
+    MultiEnv,
 }
 
 impl PreparedModality {
@@ -675,6 +681,7 @@ impl PreparedModality {
             Self::Tabular => "tabular",
             Self::Series => "series",
             Self::Panel => "panel",
+            Self::MultiEnv => "multi_env",
         }
     }
 
@@ -683,6 +690,7 @@ impl PreparedModality {
             Self::Tabular => "estimate",
             Self::Series => "estimate_series",
             Self::Panel => "estimate_panel",
+            Self::MultiEnv => "estimate_multi_env",
         }
     }
 }
@@ -730,6 +738,28 @@ impl PreparedStudy {
     #[must_use]
     pub fn query(&self) -> &CausalQuery {
         &self.analysis.query
+    }
+
+    /// Replace custom validators. Incoming names must match the prepare-time set.
+    ///
+    /// # Errors
+    ///
+    /// Name mismatch.
+    pub fn rebind_custom_validators(
+        &mut self,
+        validators: Vec<std::sync::Arc<dyn antecedent_validate::CustomEffectValidator>>,
+    ) -> Result<(), CausalError> {
+        let expected: std::collections::BTreeSet<&str> =
+            self.analysis.custom_validators.iter().map(|v| v.name()).collect();
+        let incoming: std::collections::BTreeSet<&str> =
+            validators.iter().map(|v| v.name()).collect();
+        if expected != incoming {
+            return Err(CausalError::Unsupported {
+                message: "reason=attested_not_reverifiable: rebind_validators names must match attested names",
+            });
+        }
+        self.analysis.custom_validators = validators;
+        Ok(())
     }
 
     /// Frozen horizon-specific identification and its exact unfolded variable namespace.
@@ -818,7 +848,7 @@ impl PreparedStudy {
             });
         }
         let inference = table.inference(Some(weights))?;
-        self.retarget_to_result(out, inference, weights)
+        self.retarget_to_result(out, inference, weights, depends_on)
     }
 
     #[allow(clippy::float_cmp)] // Exact membership in binary intervention levels.
@@ -827,6 +857,7 @@ impl PreparedStudy {
         out: RetargetResult,
         inference: antecedent_estimate::scores::ScoreInference,
         weights: &[f64],
+        depends_on: &[antecedent_core::VariableId],
     ) -> Result<StudyResult, CausalError> {
         let cache =
             self.analysis.identification_cache.as_ref().ok_or(CausalError::Unsupported {
@@ -1004,6 +1035,11 @@ impl PreparedStudy {
             n_draws: None,
             cancelled: false,
             early_stopped: false,
+            interval: crate::result::IntervalBinding {
+                method: antecedent_core::IntervalMethod::AnalyticSe,
+                se_kind: None,
+                level: 0.95,
+            },
         });
         result.certificate = Some(crate::result::AnalysisIdentification {
             identification: crate::Identification::Point {
@@ -1022,6 +1058,27 @@ impl PreparedStudy {
             query: self.analysis.query.clone(),
             graph_class: self.analysis.graph.class(),
         });
+        if antecedent_estimate::changes_target(weights) {
+            let digest = {
+                let mut bytes = Vec::with_capacity(weights.len() * 8);
+                for weight in weights {
+                    bytes.extend_from_slice(&weight.to_le_bytes());
+                }
+                *antecedent_io::digest_canonical(
+                    antecedent_core::IdentityDomain::TargetWeights,
+                    &bytes,
+                )
+                .as_bytes()
+            };
+            let population = TargetPopulation::RowWeights {
+                weights: digest,
+                depends_on: Arc::from(depends_on.to_vec()),
+            };
+            result.retarget_population = Some(population.clone());
+            if let Some(certificate) = &mut result.certificate {
+                set_query_population(&mut certificate.query, population);
+            }
+        }
         if let CausalQuery::Response(q) = &self.analysis.query {
             result.response = Some(antecedent_core::CausalResponse {
                 estimand: q.functional.clone(),
@@ -1370,6 +1427,56 @@ impl PreparedStudy {
         Ok(result)
     }
 
+    /// Re-estimate a prepared multi-environment temporal analysis (no re-identify).
+    ///
+    /// # Errors
+    ///
+    /// Schema / regularity mismatch, or estimation failures.
+    pub fn estimate_multi_env(
+        &self,
+        data: &antecedent_data::MultiEnvironmentData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.ensure_multi_env_compatible(data)?;
+        self.analysis.execute_on(&DataInput::MultiEnv(data.clone()), &self.plan, ctx)
+    }
+
+    /// Replace retained multi-environment data and re-estimate without re-identifying.
+    ///
+    /// # Errors
+    ///
+    /// Same refusals as [`Self::estimate_multi_env`].
+    pub fn refresh_multi_env(
+        &mut self,
+        data: antecedent_data::MultiEnvironmentData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.ensure_multi_env_compatible(&data)?;
+        let mut refreshed = self.analysis.clone();
+        refreshed.data = DataInput::MultiEnv(data);
+        let result = refreshed.execute(&self.plan, ctx)?;
+        self.analysis = refreshed;
+        Ok(result)
+    }
+
+    fn ensure_multi_env_compatible(
+        &self,
+        data: &antecedent_data::MultiEnvironmentData,
+    ) -> Result<(), CausalError> {
+        self.ensure_modality(PreparedModality::MultiEnv)?;
+        if data.schema() != &self.schema {
+            return Err(CausalError::Compile {
+                message: "prepared multi-env analysis requires the same schema \
+                    (variable names, types, and order) as prepare-time data"
+                    .into(),
+            });
+        }
+        for env in data.environments() {
+            self.ensure_regularity(&env.time_index().regularity)?;
+        }
+        Ok(())
+    }
+
     fn ensure_panel_compatible(&self, data: &PanelData) -> Result<(), CausalError> {
         self.ensure_modality(PreparedModality::Panel)?;
         if data.schema() != &self.schema {
@@ -1418,6 +1525,25 @@ impl PreparedStudy {
 /// Refresh requires every unit to match the frozen regularity, so prepare
 /// refuses a panel whose units already disagree rather than freezing one
 /// unit's grid and then refusing the same data on refresh.
+fn multi_env_regularity(
+    multi: &antecedent_data::MultiEnvironmentData,
+) -> Result<antecedent_data::SamplingRegularity, CausalError> {
+    let first = multi
+        .environment(0)
+        .map_err(|err| CausalError::Compile { message: err.to_string() })?
+        .time_index()
+        .regularity
+        .clone();
+    if multi.environments().iter().any(|env| env.time_index().regularity != first) {
+        return Err(CausalError::Compile {
+            message: "PreparedStudy requires every multi-env series to share one time-index \
+                      regularity; align the environments before preparing"
+                .into(),
+        });
+    }
+    Ok(first)
+}
+
 fn panel_regularity(panel: &PanelData) -> Result<antecedent_data::SamplingRegularity, CausalError> {
     let first = &panel
         .unit(0)
@@ -1487,11 +1613,11 @@ impl Study {
             DataInput::Panel(panel) => {
                 (panel.schema().clone(), PreparedModality::Panel, Some(panel_regularity(panel)?))
             }
-            DataInput::MultiEnv(_) => {
-                return Err(CausalError::Unsupported {
-                    message: "PreparedStudy requires tabular, temporal series, or panel data",
-                });
-            }
+            DataInput::MultiEnv(multi) => (
+                multi.schema().clone(),
+                PreparedModality::MultiEnv,
+                Some(multi_env_regularity(multi)?),
+            ),
         };
         let mut analysis = self.clone();
         match (&self.data, &self.query, self.graph_posterior.as_ref()) {
@@ -2544,6 +2670,13 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 });
             }
         }
+        (DataInput::MultiEnv(_), CausalQuery::TemporalEffect(_)) => {
+            if analysis.graph.class() != GraphClass::TemporalDag {
+                return Err(CausalError::Unsupported {
+                    message: "PreparedStudy supports multi-env TemporalEffect on TemporalDag",
+                });
+            }
+        }
         (DataInput::Panel(_), query) => {
             if !matches!(
                 (query, analysis.graph.class()),
@@ -2741,9 +2874,20 @@ impl PreparedStudy {
             DataInput::Tabular(data) => self.estimate(data, ctx),
             DataInput::Temporal(data) | DataInput::Event(data) => self.estimate_series(data, ctx),
             DataInput::Panel(data) => self.estimate_panel(data, ctx),
-            DataInput::MultiEnv(_) => Err(CausalError::Compile {
-                message: "retained multi-environment estimation is unavailable".into(),
-            }),
+            DataInput::MultiEnv(data) => self.estimate_multi_env(data, ctx),
         }
+    }
+}
+
+fn set_query_population(query: &mut CausalQuery, population: TargetPopulation) {
+    match query {
+        CausalQuery::AverageEffect(inner) => inner.target_population = population,
+        CausalQuery::TemporalEffect(inner) => inner.target_population = population,
+        CausalQuery::Mediation(inner) => inner.target_population = population,
+        CausalQuery::Distribution(inner) => inner.target_population = population,
+        CausalQuery::PathSpecific(inner) => inner.target_population = population,
+        CausalQuery::Response(inner) => inner.target_population = population,
+        CausalQuery::ConditionalEffect(inner) => inner.inner.target_population = population,
+        _ => {}
     }
 }
