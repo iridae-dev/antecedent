@@ -70,11 +70,11 @@ run_and_count "antecedent v110 licensed compiler inspect" \
 
 run_and_count "antecedent panel response cluster bands" \
   cargo test -p antecedent --test data_modalities -- --nocapture \
-  'panel_response_curve_uses_unit_cluster_bands|bayesian_panel_response_stays_refused|incomplete_class_panel_response_stays_refused'
+  'panel_response_curve_uses_unit_cluster_bands|bayesian_panel_response_uses_unit_cluster_bands|panel_class_response_uses_completion_surfaces'
 
 run_and_count "antecedent panel class Pulse masses" \
   cargo test -p antecedent --test data_modalities -- --nocapture \
-  'panel_class_pulse_uses_completion_masses|bayesian_panel_class_pulse_stays_refused'
+  'panel_class_pulse_uses_completion_masses|bayesian_panel_class_pulse_uses_completion_masses|panel_class_multi_step_sustained_uses_completion_masses'
 
 run_and_count "antecedent prepared identify counts" \
   cargo test -p antecedent --test prepared_analysis prepared_second_shot_reuses_identification -- --nocapture
