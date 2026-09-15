@@ -10,9 +10,15 @@ use antecedent::state::{
     DataBatchRef, InterventionRecord, apply_state_event, new_antecedent_state,
     publish_recomputed_results, result_lineage_fingerprint,
 };
+use antecedent::discovery::{
+    DiscoverParams, MultiDatasetConstraints, StaticDiscoverParams, discover_ges, discover_pc,
+    discover_pcmci_plus,
+};
+use antecedent::discovery_defaults::resolve_ci;
 use antecedent::{
-    BayesianConfig, EstimatorId, IdentifierId, InferenceMode, IntoGraphInput, OperationKind,
-    OperationReadiness, RefuteSuite, SemanticApplicability, Study, StudyResult,
+    AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, IntoGraphInput,
+    OperationKind, OperationReadiness, RefuteSuite, SemanticApplicability, StructureSource, Study,
+    StudyResult,
 };
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
@@ -33,8 +39,8 @@ use antecedent_data::{
 };
 use antecedent_discovery::{GraphPosterior, set_edge};
 use antecedent_graph::{
-    Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag,
-    TemporalDag, TemporalPag, ensure_lagged,
+    Admg, Cpdag, CpdagReview, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag,
+    TemporalCpdag, TemporalCpdagReview, TemporalDag, TemporalPag, ensure_lagged,
 };
 use antecedent_io::query_wire::{
     CausalQueryWire, InterventionWire, TargetPopulationWire, ValueWire,
@@ -1411,6 +1417,364 @@ fn licensed_family_sustained_temporal_consumes() {
             .collect();
     assert_eq!(labels["query_kind"], "temporal_effect");
     assert!(labels["temporal_coordinates"].contains("horizon:1"));
+}
+
+fn static_discover_params() -> StaticDiscoverParams {
+    StaticDiscoverParams {
+        alpha: 0.05,
+        max_cond_size: 3,
+        fdr: None,
+        ci: resolve_ci("parcorr", None).unwrap(),
+        screen_pc: false,
+        max_subset: None,
+    }
+}
+
+fn temporal_discover_params(max_lag: u32) -> DiscoverParams {
+    DiscoverParams {
+        max_lag,
+        alpha: 0.05,
+        fdr: None,
+        ci: resolve_ci("parcorr", None).unwrap(),
+        multi_dataset: MultiDatasetConstraints::default(),
+        max_cond_size: 2,
+    }
+}
+
+/// Accept directed discovery marks; leave undirected marks as the class.
+fn accept_static_class(mut review: CpdagReview) -> AcceptedGraph {
+    let pending = review.pending_edges.clone();
+    for &(from, to) in pending.iter() {
+        review = review.accept_edge(from, to);
+    }
+    assert_eq!(review.graph.conflict_edge_count(), 0);
+    AcceptedGraph::accept(review).expect("undirected marks stay on the CPDAG class")
+}
+
+fn accept_temporal_class(mut review: TemporalCpdagReview) -> AcceptedGraph {
+    let pending = review.pending_edges.clone();
+    for &(from, to) in pending.iter() {
+        review = review.accept_edge(from, to);
+    }
+    assert_eq!(review.graph.conflict_edge_count(), 0);
+    AcceptedGraph::accept(review).expect("undirected marks stay on the TemporalCpdag class")
+}
+
+#[test]
+fn composition_pc_and_ges_accepted_class_stays_cpdag() {
+    let ctx = ExecutionContext::for_tests(7);
+    let (data, dag, query) = confounded_scm(400, 7);
+    let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let params = static_discover_params();
+
+    let pc = discover_pc(&data, &vars, &params, &ctx).unwrap();
+    let undirected = pc.review.pending_undirected.len();
+    let class = accept_static_class(pc.review);
+    assert_eq!(class.class().as_str(), "Cpdag");
+    assert_eq!(class.algorithm_id(), Some("pc"));
+    if undirected > 0 {
+        assert!(class.as_cpdag().unwrap().undirected_edge_count() > 0);
+    }
+
+    let built = Study::tabular(data.clone())
+        .graph(class)
+        .query(query.clone())
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let inspected = built.inspect().unwrap();
+    assert_eq!(inspected.graph_class.as_str(), "Cpdag");
+    assert_eq!(inspected.structure_source, StructureSource::Accepted);
+    assert_eq!(inspected.discovery_algorithm.as_deref(), Some("pc"));
+    let prepared = built.prepare(&ctx).unwrap();
+    let unweighted = prepared.preview_transform(TransformIntent::AverageUnweightedClass).unwrap();
+    assert!(unweighted.refused, "class path must not average over completions");
+    let (result, _) = consume_licensed_family(
+        &built,
+        |prepared| prepared.estimate(&data, &ctx).unwrap(),
+        "pc-class",
+        &ctx,
+    );
+    assert!(result.effect().is_finite());
+
+    let dag_built = Study::tabular(data.clone())
+        .graph(AcceptedGraph::dag(dag))
+        .query(query.clone())
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    assert_eq!(dag_built.inspect().unwrap().graph_class.as_str(), "Dag");
+    let class_ids = prepared.contract().unwrap().identities;
+    let dag_ids = dag_built.prepare(&ctx).unwrap().contract().unwrap().identities;
+    assert_eq!(class_ids.target, dag_ids.target);
+    assert_ne!(class_ids.program, dag_ids.program);
+    let (dag_result, _) = consume_licensed_family(
+        &dag_built,
+        |prepared| prepared.estimate(&data, &ctx).unwrap(),
+        "pc-dag",
+        &ctx,
+    );
+    assert!((dag_result.effect() - 2.0).abs() < 0.2);
+
+    let ges = discover_ges(&data, &vars, &params, &ctx).unwrap();
+    let ges_class = accept_static_class(ges.review);
+    assert_eq!(ges_class.class().as_str(), "Cpdag");
+    assert_eq!(ges_class.algorithm_id(), Some("ges"));
+    let ges_built = Study::tabular(data.clone())
+        .graph(ges_class)
+        .query(query)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let ges_inspected = ges_built.inspect().unwrap();
+    assert_eq!(ges_inspected.graph_class.as_str(), "Cpdag");
+    assert_eq!(ges_inspected.discovery_algorithm.as_deref(), Some("ges"));
+    let (ges_result, _) = consume_licensed_family(
+        &ges_built,
+        |prepared| prepared.estimate(&data, &ctx).unwrap(),
+        "ges-class",
+        &ctx,
+    );
+    assert!(ges_result.effect().is_finite());
+}
+
+fn lag1_discoverable_series() -> (TimeSeriesData, TemporalDag) {
+    let n = 160usize;
+    let mut rng = CausalRng::from_seed(11);
+    let mut x = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for t in 1..n {
+        let u1 = rng.next_f64().max(1e-12);
+        let u2 = rng.next_f64();
+        x[t] = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+        y[t] = 0.8 * x[t - 1]
+            + 0.05
+                * (-2.0 * rng.next_f64().max(1e-12).ln()).sqrt()
+                * (2.0 * std::f64::consts::PI * rng.next_f64()).cos();
+    }
+    let data = TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
+    let series = TimeSeriesData::try_new(
+        data.storage().clone(),
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    let mut graph = TemporalDag::empty();
+    let x1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(x1, y0).unwrap();
+    (series, graph)
+}
+
+#[test]
+fn composition_pcmci_plus_accepted_temporal_cpdag_retains_class() {
+    let ctx = ExecutionContext::for_tests(11);
+    let (series, dag) = lag1_discoverable_series();
+    let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+    let discovered = discover_pcmci_plus(&series, &vars, &temporal_discover_params(1), &ctx).unwrap();
+    let undirected = discovered.review.pending_undirected.len();
+    let class = accept_temporal_class(discovered.review);
+    assert_eq!(class.class().as_str(), "TemporalCpdag");
+    assert_eq!(class.algorithm_id(), Some("pcmci_plus"));
+    if undirected > 0 {
+        assert!(class.as_temporal_cpdag().unwrap().undirected_edge_count() > 0);
+    }
+
+    let query = pulse_query().with_max_history_lag(Some(4));
+    let built = Study::series(series.clone())
+        .graph(class)
+        .temporal_query(query.clone())
+        .inference(InferenceMode::Frequentist)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let inspected = built.inspect().unwrap();
+    assert_eq!(inspected.graph_class.as_str(), "TemporalCpdag");
+    assert_eq!(inspected.structure_source, StructureSource::Accepted);
+    assert_eq!(inspected.discovery_algorithm.as_deref(), Some("pcmci_plus"));
+    let (result, consumed) = consume_licensed_family(
+        &built,
+        |prepared| prepared.estimate_series(&series, &ctx).unwrap(),
+        "pcmci-plus-class",
+        &ctx,
+    );
+    assert!(result.effect().is_finite());
+    let labels: std::collections::HashMap<_, _> =
+        executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
+            .into_iter()
+            .collect();
+    assert_eq!(labels["query_kind"], "temporal_effect");
+
+    let dag_built = Study::series(series.clone())
+        .graph(AcceptedGraph::temporal_dag(dag))
+        .temporal_query(query)
+        .inference(InferenceMode::Frequentist)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let class_ids = built.prepare(&ctx).unwrap().contract().unwrap().identities;
+    let dag_ids = dag_built.prepare(&ctx).unwrap().contract().unwrap().identities;
+    assert_eq!(class_ids.target, dag_ids.target);
+    assert_ne!(class_ids.program, dag_ids.program);
+    assert_eq!(dag_built.inspect().unwrap().graph_class.as_str(), "TemporalDag");
+}
+
+#[test]
+fn composition_two_programs_compare_only_on_shared_data() {
+    let ctx = ExecutionContext::for_tests(18);
+    let data = mixture_data();
+    let query = ConditionalEffectQuery::try_new(
+        AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+            .with_effect_modifiers([VariableId::from_raw(2)]),
+    )
+    .unwrap();
+    let mut dag = Dag::with_variables(3);
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+
+    let dag_built = Study::tabular(data.clone())
+        .graph(AcceptedGraph::dag(dag))
+        .query(CausalQuery::ConditionalEffect(query.clone()))
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let mixture_built = Study::tabular(data.clone())
+        .graph_posterior(mixture_graph_posterior())
+        .query(CausalQuery::ConditionalEffect(query))
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+
+    let dag_inspected = dag_built.inspect().unwrap();
+    let mixture_inspected = mixture_built.inspect().unwrap();
+    assert_eq!(dag_inspected.identities.target, mixture_inspected.identities.target);
+    assert_eq!(dag_inspected.structure_source, StructureSource::Accepted);
+    assert_eq!(mixture_inspected.structure_source, StructureSource::GraphPosterior);
+
+    let dag_prepared = dag_built.prepare(&ctx).unwrap();
+    let dag_contract = dag_prepared.contract().unwrap();
+    let dag_result = dag_prepared.estimate(&data, &ctx).unwrap();
+    let mixture_prepared = mixture_built.prepare(&ctx).unwrap();
+    let mixture_contract = mixture_prepared.contract().unwrap();
+    let mixture_result = mixture_prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(dag_contract.identities.target, mixture_contract.identities.target);
+    assert_ne!(dag_contract.identities.program, mixture_contract.identities.program);
+    assert_ne!(dag_contract.identities.identification, mixture_contract.identities.identification);
+
+    let left = dag_result.claim(&dag_contract, &ctx).unwrap();
+    let right = mixture_result.claim(&mixture_contract, &ctx).unwrap();
+    assert_eq!(right.kind, ClaimKind::Mixture);
+    match &right.reasoning.identification {
+        SlotAvailability::Available(slot) => {
+            assert!((slot.unidentified_mass - 0.2).abs() < 1e-9);
+            assert!((slot.identified_mass - 0.8).abs() < 1e-9);
+        }
+        other => panic!("mixture identification must remain available, got {other:?}"),
+    }
+    assert_eq!(mixture_result.identification.status, IdentificationStatus::GraphDependent);
+    match compose_claims(&[&left, &right], ClaimOperation::Compare, None, None) {
+        DerivedClaimOutcome::Comparison(report) => {
+            assert!(!report.operation.synthesizes());
+        }
+        other => panic!("expected comparison, got {other:?}"),
+    }
+    match compose_claims(&[&left, &right], ClaimOperation::Pool, None, None) {
+        DerivedClaimOutcome::Refused { restriction, .. } => {
+            assert_eq!(&*restriction, "unlicensed_synthesis");
+        }
+        other => panic!("expected pool refusal, got {other:?}"),
+    }
+}
+
+#[test]
+fn composition_score_table_retarget_reuses_scores_and_refuses_illegal_weights() {
+    let ctx = ExecutionContext::for_tests(41);
+    let (data, dag, query) = confounded_scm(256, 41);
+    let built = Study::tabular(data.clone())
+        .graph(AcceptedGraph::dag(dag))
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    assert_eq!(built.inspect().unwrap().support_status.unwrap().as_str(), "licensed");
+    let mut prepared = built.prepare(&ctx).unwrap();
+    let before = prepared.contract().unwrap();
+    let score_before = prepared.score_reuse_identity().unwrap().expect("score key");
+    let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
+    assert!(!preview.refused);
+    assert!(preview.binds_program(before.identities.program));
+    let weights = vec![1.0; data.row_count()];
+    let retargeted = prepared.apply_retarget(&preview, &weights, &[], &ctx).unwrap();
+    assert_eq!(
+        prepared.contract().unwrap().identities.identification,
+        before.identities.identification
+    );
+    assert_eq!(prepared.score_reuse_identity().unwrap().expect("score key"), score_before);
+    assert!(retargeted.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    assert!((retargeted.effect() - 2.0).abs() < 0.35);
+    let illegal = prepared.retarget(&weights, &[VariableId::from_raw(0)], &ctx);
+    assert!(illegal.is_err(), "treatment-dependent weights must refuse");
+
+    let (other, _, _) = confounded_scm(256, 42);
+    assert_eq!(other.row_count(), data.row_count());
+    prepared.refresh(other, &ctx).unwrap();
+    let after = prepared.contract().unwrap();
+    assert_eq!(before.identities.identification, after.identities.identification);
+    assert_eq!(before.identities.program, after.identities.program);
+    assert_ne!(before.identities.data_snapshot, after.identities.data_snapshot);
+    assert_ne!(prepared.score_reuse_identity().unwrap().expect("score key"), score_before);
+}
+
+#[test]
+fn composition_artifact_reload_in_separate_process() {
+    const FLAG: &str = "ANTECEDENT_I6_RELOAD";
+    if let Ok(path) = std::env::var(FLAG) {
+        let bytes = std::fs::read(path).unwrap();
+        let consumed = consume_analysis_result(&bytes).unwrap();
+        assert!(consumed.acceptance.accepts_as_verified_program());
+        let section = consumed.contract.as_ref().expect("reloaded contract");
+        assert_eq!(section.graph_class.as_str(), "Dag");
+        assert!(section.reasoning.identification.value.is_some());
+        assert!(section.reasoning.support.value.is_some());
+        assert!(section.reasoning.uncertainty.value.is_some());
+        assert!(section.reasoning.assumptions.value.is_some());
+        println!("I6_RELOAD_OK");
+        return;
+    }
+
+    let ctx = ExecutionContext::for_tests(41);
+    let (data, dag, query) = confounded_scm(80, 41);
+    let built = study(data.clone(), dag, query);
+    let prepared = built.prepare(&ctx).unwrap();
+    let contract = prepared.contract().unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&result, "i6-reload", &ctx).unwrap();
+    let path = std::env::temp_dir().join(format!("antecedent-i6-{}.bin", std::process::id()));
+    std::fs::write(&path, bytes).unwrap();
+
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .env(FLAG, &path)
+        .args(["composition_artifact_reload_in_separate_process", "--exact", "--nocapture"])
+        .output()
+        .unwrap();
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        output.status.success(),
+        "child reload failed:\nstdout={}\nstderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("I6_RELOAD_OK"), "{stdout}");
+    let consumed = consume_analysis_result(
+        &prepared.encode_contracted_result(&result, "i6-parent", &ctx).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        consumed.contract.as_ref().map(|section| section.identities.program),
+        Some(*contract.identities.program.as_bytes())
+    );
 }
 
 #[test]
