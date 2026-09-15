@@ -20,6 +20,7 @@ pub struct OwnedColumnarStorage {
     analysis_mask: Option<crate::column::ValidityBitmap>,
     /// Optional observation weights.
     weights: Option<Arc<[f64]>>,
+    content_digest: [u8; 32],
 }
 
 impl OwnedColumnarStorage {
@@ -75,7 +76,36 @@ impl OwnedColumnarStorage {
                 });
             }
         }
-        Ok(Self { schema, columns: Arc::from(columns), row_count, analysis_mask, weights })
+        let content_digest = crate::content_identity::storage_digest(
+            &columns,
+            row_count,
+            analysis_mask.as_ref(),
+            weights.as_deref(),
+        );
+        Ok(Self {
+            schema,
+            columns: Arc::from(columns),
+            row_count,
+            analysis_mask,
+            weights,
+            content_digest,
+        })
+    }
+
+    /// Version-1 BLAKE3 digest of typed column contents, validity, mask, and weights.
+    ///
+    /// Computed once at construction without copying cell buffers; this accessor
+    /// and storage clones never rescan rows. The enclosing snapshot must also bind
+    /// schema, modality, temporal metadata, and unit/environment partitions.
+    ///
+    /// Encoding uses the `antecedent.data.storage.v1` derive-key domain, little-endian
+    /// integers, exact float bits, length-prefixed strings, and dense column/row
+    /// order. Validity padding is ignored; missing payloads and explicit optional
+    /// mask/weight presence are retained. Equality is representational, not a claim
+    /// of equivalent statistical meaning or proof against hash collisions.
+    #[must_use]
+    pub const fn content_digest(&self) -> [u8; 32] {
+        self.content_digest
     }
 
     /// Optional analysis mask.

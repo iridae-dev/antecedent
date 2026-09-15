@@ -123,6 +123,7 @@ dependencies = [
  "arrow-buffer",
  "arrow-data",
  "arrow-schema",
+ "blake3",
  "realfft",
  "serde_json",
  "thiserror 2.0.19",

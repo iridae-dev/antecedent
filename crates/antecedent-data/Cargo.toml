@@ -36,6 +36,7 @@ arrow-buffer = { workspace = true, optional = true }
 arrow-data = { workspace = true, optional = true }
 thiserror = { workspace = true }
 realfft = { workspace = true }
+blake3 = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
