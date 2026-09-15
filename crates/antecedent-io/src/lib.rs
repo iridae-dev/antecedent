@@ -104,16 +104,16 @@ pub use graph_networkx::{
     dag_to_networkx_adjacency, dag_to_networkx_node_link,
 };
 pub use identity::{
-    ClaimIdentityWire, DataPartitionIdentityWire, DataSnapshotIdentityWire, ExecutionIdentityWire,
-    GraphIdentityWire, IdentificationIdentityWire, IdentificationProductWire, InferenceBindingWire,
-    InferentialCommitmentsWire, ObservationIdentityWire, ProgramIdentityWire, TargetIdentityWire,
-    TemporalClassIdentityWire, admg_identity, claim_digest, cpdag_identity, dag_identity,
-    data_snapshot_digest, digest_canonical, digest_wire, execution_digest,
-    execution_identity_from_context, identification_digest,
-    identification_product_digest, identification_product_digest_wire, identification_product_wire,
-    inference_binding_digest, observation_digest, observation_identity_wire, pag_identity,
-    program_digest, target_digest, temporal_cpdag_identity, temporal_dag_identity,
-    temporal_pag_identity, validate_mixture_masses,
+    ClaimIdentityWire, DataPartitionIdentityWire, DataSnapshotIdentityWire, DbnAtomIdentityWire,
+    ExecutionIdentityWire, GraphIdentityWire, IdentificationIdentityWire,
+    IdentificationProductWire, InferenceBindingWire, InferentialCommitmentsWire,
+    ObservationIdentityWire, ProgramIdentityWire, TargetIdentityWire, TemporalClassIdentityWire,
+    admg_identity, claim_digest, cpdag_identity, dag_identity, data_snapshot_digest, dbn_atom_digest,
+    dbn_atom_identities, digest_canonical, digest_wire, execution_digest, executed_functional_labels,
+    execution_identity_from_context, identification_digest, identification_product_digest,
+    identification_product_digest_wire, identification_product_wire, inference_binding_digest,
+    observation_digest, observation_identity_wire, pag_identity, program_digest, target_digest,
+    temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity, validate_mixture_masses,
 };
 pub use mechanism_wire::{
     MechanismSlotWire, MechanismStoreWire, ModelKindWire, mechanisms_from_wire, mechanisms_to_wire,

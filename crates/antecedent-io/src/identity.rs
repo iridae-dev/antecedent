@@ -4,12 +4,29 @@
 //! domains from [`antecedent_core::IdentityDomain`]. `Debug`, Rust `Hash`,
 //! arena offsets, and process-local keys are not durable identity.
 //!
+//! # Canonical encoding (`antecedent.identity.v1`)
+//!
+//! [`digest_canonical`] is the only advertised digest. Rules live next to it:
+//!
+//! | Rule | Encoding |
+//! | --- | --- |
+//! | Format tag | `IDENTITY_FORMAT` (little-endian `u16`) prefixes the hash; the same tag is stored on every payload. |
+//! | Ordered fields | Schema variables, query lists, partitions, graph edge lists, and estimands keep writer order. |
+//! | Set-valued fields | Observation tags and named prior-parameter pairs are sorted then deduplicated before hashing. |
+//! | Floats | Claim values and overlap knobs use IEEE-754 bits (`f64::to_bits`). Other `f64` fields use CBOR float64 of those bits (`+0.0` ≠ `-0.0`). |
+//! | Collision | BLAKE3-256 equality is identity under this encoding, not a proof. Independent consume rehashes stored payloads; a colliding advertisement without a matching payload is unresolved. Bump [`IDENTITY_FORMAT`] to change a rule. |
+//!
+//! DBN posterior atoms are not position-derived cache keys. Durable identity
+//! includes lagged and contemporaneous edges, the variable namespace, and the
+//! local envelope key used by the frozen handle.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
     CausalSchema, ExecutionContext, IDENTITY_FORMAT, IdentificationStatus, IdentityDomain, NodeRef,
-    SemanticDigest,
+    SemanticDigest, VariableId,
 };
+use antecedent_discovery::{GraphPosterior, temporal_dag_from_dbn_masks};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{
     Admg, Cpdag, Dag, MarkedEdge, Pag, TemporalCpdag, TemporalDag, TemporalPag,
@@ -24,12 +41,19 @@ use crate::convert::{
 use crate::discovery_wire::{TemporalGraphWire, temporal_dag_to_wire};
 use crate::error::IoError;
 use crate::expr_wire::{ExprArenaWire, expr_arena_to_wire};
-use crate::query_wire::{CausalQueryWire, causal_query_to_wire};
+use crate::query_wire::{
+    CausalQueryWire, InterventionWire, OutcomeFunctionalWire, TargetPopulationWire, ValueWire,
+    causal_query_to_wire,
+};
 use crate::trace::{AssumptionRecordWire, DerivationStepWire, assumptions_to_wire};
 use crate::wire::{AdmgWire, CpdagWire, DagWire, EndpointWire, PagWire, SchemaWire};
 use crate::{from_cbor, to_cbor};
 
 /// Domain-separated BLAKE3 digest of a canonical CBOR payload.
+///
+/// Hash is `BLAKE3-derive-key(domain)(IDENTITY_FORMAT_le || payload)`. Changing
+/// the format tag, domain key, ordered-versus-set rule, or float-bit rule
+/// changes the advertised digest. See the module docs for the encoding table.
 #[must_use]
 pub fn digest_canonical(domain: IdentityDomain, payload: &[u8]) -> SemanticDigest {
     let mut hasher = blake3::Hasher::new_derive_key(domain.derive_key());
@@ -48,6 +72,250 @@ pub fn digest_wire<T: Serialize>(
     value: &T,
 ) -> Result<SemanticDigest, IoError> {
     Ok(digest_canonical(domain, &to_cbor(value)?))
+}
+
+/// Host/Python view of the executed functional. Stable tags, not `Debug`.
+///
+/// Every query kind reports through this owner so consume and prepare do not
+/// re-decide science in the adapter.
+#[must_use]
+pub fn executed_functional_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
+    match query {
+        CausalQueryWire::AverageEffect {
+            treatment,
+            outcome,
+            control,
+            active,
+            target_population,
+            outcome_functional,
+            ..
+        } => contrast_labels(ContrastLabels {
+            kind: "average_effect",
+            treatment: *treatment,
+            outcome: *outcome,
+            control,
+            active,
+            population: target_population,
+            functional: Some(outcome_functional),
+            temporal: "none".into(),
+        }),
+        CausalQueryWire::TemporalEffect {
+            treatment,
+            outcome,
+            control,
+            active,
+            horizon_steps,
+            target_population,
+            ..
+        } => contrast_labels(ContrastLabels {
+            kind: "temporal_effect",
+            treatment: *treatment,
+            outcome: *outcome,
+            control,
+            active,
+            population: target_population,
+            functional: None,
+            temporal: format!("horizon:{horizon_steps}"),
+        }),
+        CausalQueryWire::ConditionalEffect { inner } => {
+            let mut labels = executed_functional_labels(inner);
+            labels.retain(|(key, _)| key != "query_kind");
+            let mut out = vec![("query_kind".into(), "conditional_effect".into())];
+            out.extend(labels);
+            out
+        }
+        CausalQueryWire::Mediation {
+            treatment,
+            outcome,
+            control,
+            active,
+            target_population,
+            horizons,
+            ..
+        } => contrast_labels(ContrastLabels {
+            kind: "mediation",
+            treatment: *treatment,
+            outcome: *outcome,
+            control,
+            active,
+            population: target_population,
+            functional: None,
+            temporal: horizons_label(horizons),
+        }),
+        CausalQueryWire::PathSpecific(path) => contrast_labels(ContrastLabels {
+            kind: "path_specific",
+            treatment: path.treatment,
+            outcome: path.outcome,
+            control: &path.control,
+            active: &path.active,
+            population: &path.target_population,
+            functional: None,
+            temporal: "none".into(),
+        }),
+        other => other_query_labels(other),
+    }
+}
+
+struct ContrastLabels<'a> {
+    kind: &'static str,
+    treatment: u32,
+    outcome: u32,
+    control: &'a InterventionWire,
+    active: &'a InterventionWire,
+    population: &'a TargetPopulationWire,
+    functional: Option<&'a OutcomeFunctionalWire>,
+    temporal: String,
+}
+
+fn contrast_labels(contrast: ContrastLabels<'_>) -> Vec<(String, String)> {
+    let mut out = vec![
+        ("query_kind".into(), contrast.kind.into()),
+        ("treatment".into(), contrast.treatment.to_string()),
+        ("outcome".into(), contrast.outcome.to_string()),
+        ("control".into(), intervention_label(contrast.control)),
+        ("active".into(), intervention_label(contrast.active)),
+        ("population".into(), population_label(contrast.population)),
+        ("temporal_coordinates".into(), contrast.temporal),
+    ];
+    if let Some(functional) = contrast.functional {
+        out.push(("outcome_functional".into(), outcome_functional_label(functional)));
+    }
+    out
+}
+
+fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
+    match query {
+        CausalQueryWire::Counterfactual { outcomes, interventions, .. } => vec![
+            ("query_kind".into(), "counterfactual".into()),
+            ("outcome".into(), join_ids(outcomes)),
+            (
+                "active".into(),
+                interventions.iter().map(intervention_label).collect::<Vec<_>>().join(";"),
+            ),
+            ("temporal_coordinates".into(), "none".into()),
+        ],
+        CausalQueryWire::Distribution(distribution) => vec![
+            ("query_kind".into(), "distribution".into()),
+            ("outcome".into(), join_ids(&distribution.outcomes)),
+            ("population".into(), population_label(&distribution.target_population)),
+            ("temporal_coordinates".into(), "none".into()),
+        ],
+        CausalQueryWire::Response(response) => vec![
+            ("query_kind".into(), "response".into()),
+            ("population".into(), population_label(&response.target_population)),
+            ("outcome_functional".into(), outcome_functional_label(&response.outcome_functional)),
+            (
+                "temporal_coordinates".into(),
+                response
+                    .temporal
+                    .as_ref()
+                    .map_or_else(|| "none".into(), |spec| horizons_label(&spec.horizons)),
+            ),
+        ],
+        CausalQueryWire::Transport(transport) => vec![
+            ("query_kind".into(), "transport".into()),
+            (
+                "population".into(),
+                format!(
+                    "source:{}->target:{}",
+                    transport.source_population, transport.target_population
+                ),
+            ),
+            ("temporal_coordinates".into(), "none".into()),
+        ],
+        CausalQueryWire::Interference(_) => vec![
+            ("query_kind".into(), "interference".into()),
+            ("temporal_coordinates".into(), "none".into()),
+        ],
+        CausalQueryWire::AnomalyAttribution { targets, .. } => {
+            named_outcomes("anomaly_attribution", targets)
+        }
+        CausalQueryWire::ChangeAttribution { outcome, .. } => {
+            named_outcomes("change_attribution", &[*outcome])
+        }
+        CausalQueryWire::UnitChange { outcome, .. } => named_outcomes("unit_change", &[*outcome]),
+        CausalQueryWire::MechanismChange { targets, .. } => {
+            named_outcomes("mechanism_change", targets)
+        }
+        _ => unreachable!("contrast variants are handled by executed_functional_labels"),
+    }
+}
+
+fn named_outcomes(kind: &'static str, outcomes: &[u32]) -> Vec<(String, String)> {
+    vec![
+        ("query_kind".into(), kind.into()),
+        ("outcome".into(), join_ids(outcomes)),
+        ("temporal_coordinates".into(), "none".into()),
+    ]
+}
+
+fn join_ids(ids: &[u32]) -> String {
+    ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
+}
+
+fn horizons_label(horizons: &[u32]) -> String {
+    if horizons.is_empty() {
+        "none".into()
+    } else {
+        format!(
+            "horizons:{}",
+            horizons.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
+        )
+    }
+}
+
+fn population_label(population: &TargetPopulationWire) -> String {
+    match population {
+        TargetPopulationWire::AllObserved => "all_observed".into(),
+        TargetPopulationWire::Treated => "treated".into(),
+        TargetPopulationWire::Untreated => "untreated".into(),
+        TargetPopulationWire::Environment(id) => format!("environment:{id}"),
+        TargetPopulationWire::PredicateNamed(name) => format!("predicate:{name}"),
+        TargetPopulationWire::PredicateRows(rows) => format!(
+            "rows:{}",
+            rows.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
+        ),
+        TargetPopulationWire::CustomDistribution(id) => format!("custom_distribution:{id}"),
+    }
+}
+
+fn outcome_functional_label(functional: &OutcomeFunctionalWire) -> String {
+    match functional {
+        OutcomeFunctionalWire::Mean => "mean".into(),
+        OutcomeFunctionalWire::Exceedance(threshold) => format!("exceedance:{threshold}"),
+        OutcomeFunctionalWire::ExceedanceGrid(grid) => format!(
+            "exceedance_grid:{}",
+            grid.iter().map(ToString::to_string).collect::<Vec<_>>().join(",")
+        ),
+        OutcomeFunctionalWire::Quantile(tau) => format!("quantile:{tau}"),
+    }
+}
+
+fn intervention_label(intervention: &InterventionWire) -> String {
+    match intervention {
+        InterventionWire::Set { variable, value } => {
+            format!("set:{variable}={}", value_label(value))
+        }
+        InterventionWire::Shift { variable, delta } => {
+            format!("shift:{variable}={}", value_label(delta))
+        }
+        InterventionWire::Stochastic { variable, .. } => format!("stochastic:{variable}"),
+        InterventionWire::Soft { variable, .. } => format!("soft:{variable}"),
+        InterventionWire::Sequence { steps } => format!(
+            "sequence:{}",
+            steps.iter().map(|step| intervention_label(&step.intervention)).collect::<Vec<_>>().join(",")
+        ),
+    }
+}
+
+fn value_label(value: &ValueWire) -> String {
+    match value {
+        ValueWire::Float64(value) => value.to_string(),
+        ValueWire::Int64(value) => value.to_string(),
+        ValueWire::Bool(value) => value.to_string(),
+        ValueWire::Category(value) => format!("cat:{value}"),
+        ValueWire::Label(value) => value.clone(),
+    }
 }
 
 /// Target-layer payload: schema bindings plus the typed query.
@@ -96,12 +364,15 @@ pub enum GraphIdentityWire {
     TemporalDag(TemporalGraphWire),
     /// Temporal class with lagged/context nodes and marked edges.
     TemporalClass(TemporalClassIdentityWire),
-    /// Graph-posterior placeholder: class only; atoms live on the product layer.
+    /// Graph-posterior atoms. Static posteriors omit [`Self::GraphPosterior::atoms`].
     GraphPosterior {
         /// Declared graph class of the posterior atoms.
         graph_class: String,
         /// Number of retained atoms.
         n_atoms: u64,
+        /// Durable DBN atom identities (lagged + contemporaneous + namespace).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        atoms: Vec<DbnAtomIdentityWire>,
     },
 }
 
@@ -248,21 +519,96 @@ pub fn temporal_dag_identity(graph: &TemporalDag) -> Result<GraphIdentityWire, I
 /// Encode a temporal CPDAG, including lagged and contemporaneous edges.
 #[must_use]
 pub fn temporal_cpdag_identity(graph: &TemporalCpdag) -> GraphIdentityWire {
-    GraphIdentityWire::TemporalClass(TemporalClassIdentityWire {
-        kind: "temporal_cpdag".into(),
-        nodes: graph.nodes().iter().copied().map(IdentityNodeWire::from_node).collect(),
-        edges: graph.edges().into_iter().map(marked_identity_edge).collect(),
-    })
+    temporal_class_identity("temporal_cpdag", graph.nodes(), graph.edges())
 }
 
 /// Encode a temporal PAG, including lagged and contemporaneous edges.
 #[must_use]
 pub fn temporal_pag_identity(graph: &TemporalPag) -> GraphIdentityWire {
+    temporal_class_identity("temporal_pag", graph.nodes(), graph.edges())
+}
+
+fn temporal_class_identity(
+    kind: &'static str,
+    nodes: &[NodeRef],
+    edges: impl IntoIterator<Item = MarkedEdge>,
+) -> GraphIdentityWire {
     GraphIdentityWire::TemporalClass(TemporalClassIdentityWire {
-        kind: "temporal_pag".into(),
-        nodes: graph.nodes().iter().copied().map(IdentityNodeWire::from_node).collect(),
-        edges: graph.edges().into_iter().map(marked_identity_edge).collect(),
+        kind: kind.into(),
+        nodes: nodes.iter().copied().map(IdentityNodeWire::from_node).collect(),
+        edges: edges.into_iter().map(marked_identity_edge).collect(),
     })
+}
+
+/// Durable DBN posterior atom. Not a position-derived envelope key.
+///
+/// Edges include lagged and contemporaneous structure. `variables` is the
+/// dense-id namespace. `execution_key` maps this identity back to the local
+/// cache key used by the frozen handle (`dbn_envelope_key`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DbnAtomIdentityWire {
+    /// Identity format.
+    pub format: u16,
+    /// Variable names in dense-id order.
+    pub variables: Vec<String>,
+    /// Lagged and contemporaneous edges (existing temporal DAG wire).
+    pub graph: TemporalGraphWire,
+    /// Local envelope key for this frozen handle.
+    pub execution_key: u64,
+}
+
+/// Digest one durable DBN atom.
+///
+/// # Errors
+///
+/// CBOR encode failure.
+pub fn dbn_atom_digest(wire: &DbnAtomIdentityWire) -> Result<SemanticDigest, IoError> {
+    digest_wire(IdentityDomain::IdentificationProduct, wire)
+}
+
+/// Durable identities for DBN posterior atoms.
+///
+/// Static graph posteriors (no lag masks) return an empty list so their
+/// identification digest stays the pre-1.10 class + `n_atoms` encoding.
+///
+/// # Errors
+///
+/// Namespace length mismatch, invalid masks, or temporal encode failure.
+pub fn dbn_atom_identities(
+    posterior: &GraphPosterior,
+    variables: &[String],
+) -> Result<Vec<DbnAtomIdentityWire>, IoError> {
+    let Some(lag_masks) = posterior.lag_masks.as_ref() else {
+        return Ok(Vec::new());
+    };
+    if variables.len() != posterior.n_vars {
+        return Err(IoError::Convert(
+            "DBN atom namespace length must match posterior n_vars".into(),
+        ));
+    }
+    let max_lag = posterior.max_lag.unwrap_or(1);
+    let ids: Vec<VariableId> =
+        (0..posterior.n_vars).map(|i| VariableId::from_raw(u32::try_from(i).unwrap_or(u32::MAX))).collect();
+    let mut atoms = Vec::with_capacity(posterior.n_graphs);
+    for (index, (&adjacency, &lag_mask)) in
+        posterior.adjacency.iter().zip(lag_masks.iter()).enumerate()
+    {
+        let graph = temporal_dag_from_dbn_masks(
+            adjacency,
+            lag_mask,
+            posterior.n_vars,
+            max_lag,
+            &ids,
+        )
+        .map_err(|err| IoError::Convert(err.to_string()))?;
+        atoms.push(DbnAtomIdentityWire {
+            format: IDENTITY_FORMAT,
+            variables: variables.to_vec(),
+            graph: temporal_dag_to_wire(&graph)?,
+            execution_key: u64::try_from(index).unwrap_or(u64::MAX),
+        });
+    }
+    Ok(atoms)
 }
 
 /// Identification-layer payload.
@@ -880,5 +1226,123 @@ mod tests {
         assert!(validate_mixture_masses(0.5, 0.3, 0.1, 0.0).is_err());
         assert!(validate_mixture_masses(1.2, 0.0, 0.0, 0.0).is_err());
         assert!(validate_mixture_masses(f64::NAN, 0.0, 0.0, 0.0).is_err());
+    }
+
+    #[test]
+    fn encoding_rule_changes_change_the_advertised_digest() {
+        let (schema, query, _) = schema_and_query();
+        let canonical = TargetIdentityWire {
+            format: IDENTITY_FORMAT,
+            schema: schema_to_wire(&schema),
+            query: causal_query_to_wire(&query).unwrap(),
+        };
+        let advertised = digest_wire(IdentityDomain::Target, &canonical).unwrap();
+        let mut bumped = canonical.clone();
+        bumped.format = IDENTITY_FORMAT + 1;
+        assert_ne!(digest_wire(IdentityDomain::Target, &bumped).unwrap(), advertised);
+        let payload = to_cbor(&canonical).unwrap();
+        let mut hasher = blake3::Hasher::new_derive_key(IdentityDomain::Target.derive_key());
+        hasher.update(&(IDENTITY_FORMAT + 1).to_le_bytes());
+        hasher.update(&payload);
+        assert_ne!(SemanticDigest::from_bytes(*hasher.finalize().as_bytes()), advertised);
+
+        let set_a = observation_digest(&schema, ["b", "a"]).unwrap();
+        let set_b = observation_digest(&schema, ["a", "b", "a"]).unwrap();
+        assert_eq!(set_a, set_b);
+        let unsorted = ObservationIdentityWire {
+            format: IDENTITY_FORMAT,
+            schema: schema_to_wire(&schema),
+            observation: vec!["b".into(), "a".into()],
+        };
+        assert_ne!(digest_wire(IdentityDomain::Observation, &unsorted).unwrap(), set_a);
+
+        let mut binding = InferenceBindingWire {
+            format: IDENTITY_FORMAT,
+            program: [1; 32],
+            inference: "bayesian".into(),
+            bootstrap_replicates: 0,
+            n_draws: Some(64),
+            prior_scale: Some(1.0),
+            prior_mapping: None,
+            validation_suite: None,
+            overlap_policy: None,
+        };
+        let plus_zero = inference_binding_digest(&binding).unwrap();
+        binding.prior_scale = Some(-0.0);
+        assert_ne!(inference_binding_digest(&binding).unwrap(), plus_zero);
+
+        let claim = ClaimIdentityWire::new([2; 32], [3; 32], "point", Some(0.0f64.to_bits()), None);
+        let flipped = ClaimIdentityWire::new(
+            [2; 32],
+            [3; 32],
+            "point",
+            Some((-0.0f64).to_bits()),
+            None,
+        );
+        assert_ne!(claim_digest(&claim).unwrap(), claim_digest(&flipped).unwrap());
+    }
+
+    #[test]
+    fn executed_functional_labels_are_stable_tags() {
+        let (_, query, _) = schema_and_query();
+        let wire = causal_query_to_wire(&query).unwrap();
+        let labels: std::collections::HashMap<_, _> =
+            executed_functional_labels(&wire).into_iter().collect();
+        assert_eq!(labels.get("query_kind").map(String::as_str), Some("average_effect"));
+        assert_eq!(labels.get("treatment").map(String::as_str), Some("0"));
+        assert_eq!(labels.get("outcome").map(String::as_str), Some("1"));
+        assert_eq!(labels.get("control").map(String::as_str), Some("set:0=0"));
+        assert_eq!(labels.get("active").map(String::as_str), Some("set:0=1"));
+        assert_eq!(labels.get("population").map(String::as_str), Some("all_observed"));
+        assert_eq!(labels.get("temporal_coordinates").map(String::as_str), Some("none"));
+    }
+
+    #[test]
+    fn dbn_atom_identity_includes_lags_namespace_and_execution_key() {
+        use antecedent_discovery::set_edge;
+
+        let contemporaneous = set_edge(0, 3, 2, 0, true);
+        // Packing is `(lag-1)*n² + from*n + to` for lag=1, n=3.
+        let confounder_to_outcome = 1_u64 << 7;
+        let treatment_to_outcome = 1_u64 << 1;
+        let names = ["treatment".into(), "outcome".into(), "confounder".into()];
+        let posterior = GraphPosterior::new(
+            3,
+            vec![0.5, 0.5],
+            vec![contemporaneous; 2],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            2.0,
+            antecedent_prob::InferenceDiagnostics::analytic("dbn_atom"),
+            0,
+        )
+        .unwrap()
+        .with_lagged_marginals(1, vec![0.0; 9])
+        .unwrap()
+        .with_lag_masks(vec![confounder_to_outcome, treatment_to_outcome])
+        .unwrap();
+        assert_eq!(posterior.graph_keys[0], posterior.graph_keys[1]);
+        let atoms = dbn_atom_identities(&posterior, &names).unwrap();
+        assert_eq!(atoms.len(), 2);
+        assert_eq!(atoms[0].execution_key, 0);
+        assert_eq!(atoms[1].execution_key, 1);
+        assert_eq!(atoms[0].variables, names);
+        assert_ne!(dbn_atom_digest(&atoms[0]).unwrap(), dbn_atom_digest(&atoms[1]).unwrap());
+        let mut renamed = atoms[0].clone();
+        renamed.variables[0] = "t".into();
+        assert_ne!(dbn_atom_digest(&renamed).unwrap(), dbn_atom_digest(&atoms[0]).unwrap());
+        assert!(dbn_atom_identities(&posterior, &["t".into()]).is_err());
+        let static_posterior = GraphPosterior::new(
+            3,
+            vec![1.0],
+            vec![contemporaneous],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            1.0,
+            antecedent_prob::InferenceDiagnostics::analytic("static"),
+            0,
+        )
+        .unwrap();
+        assert!(dbn_atom_identities(&static_posterior, &names).unwrap().is_empty());
     }
 }
