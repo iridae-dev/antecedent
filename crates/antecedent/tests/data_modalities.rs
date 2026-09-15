@@ -580,6 +580,12 @@ fn panel_class_response_uses_completion_surfaces() {
         mean
     );
     assert!(result.structural_response.is_some(), "class response must publish completion masses");
+    let mixture = result.structural_response.as_ref().expect("masses");
+    assert!(
+        (mixture.identified_mass + mixture.unidentified_mass + mixture.unevaluable_mass - 1.0)
+            .abs()
+            < 1e-12
+    );
 }
 
 #[test]

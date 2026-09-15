@@ -359,6 +359,7 @@ impl PyPreparedAnalysis {
         let claim = result.claim(&contract, &ctx).map_err(py_err)?;
         contract.reasoning = claim.reasoning;
         let mut report = contract_to_map(&contract, inner.schema(), inner.query());
+        report.insert("claim_id".into(), claim.claim_id.to_hex());
         if self.last_retargeted {
             // Target weights have no canonical contract payload yet.
             report.remove("program");
@@ -3294,7 +3295,8 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
     ) -> PyResult<AteAnalysisResult> {
-        let changes_target = weights.windows(2).any(|w| w[0].to_bits() != w[1].to_bits());
+        let ones = 1.0f64.to_bits();
+        let changes_target = weights.iter().any(|weight| weight.to_bits() != ones);
         let inner = Arc::clone(&self.inner);
         let out_names = self.names.clone();
         let (mapped, result) = detach_catch(py, move || {
@@ -3544,7 +3546,20 @@ impl PyPreparedAnalysis {
                 mediation: result
                     .mediation
                     .as_ref()
-                    .map(|m| [m.total.unwrap(), m.direct.unwrap(), m.mediated.unwrap()]),
+                    .map(|m| {
+                        Ok::<_, PyErr>([
+                            m.total.ok_or_else(|| {
+                                PyValueError::new_err("mediation total is unavailable")
+                            })?,
+                            m.direct.ok_or_else(|| {
+                                PyValueError::new_err("mediation direct is unavailable")
+                            })?,
+                            m.mediated.ok_or_else(|| {
+                                PyValueError::new_err("mediation mediated is unavailable")
+                            })?,
+                        ])
+                    })
+                    .transpose()?,
                 control_level: control_level
                     .ok_or_else(|| PyValueError::new_err("missing control"))?,
                 active_level: active_level

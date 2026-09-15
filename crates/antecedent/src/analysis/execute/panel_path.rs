@@ -497,6 +497,15 @@ impl super::Study {
                 unit_responses.len()
             ),
         ));
+        if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            diagnostics.push(Diagnostic::new(
+                "estimate.temporal_response.panel.bayesian_cluster_band",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "Bayesian panel response mixes per-unit posterior means; the published band is \
+                 frequentist between-unit cluster variation, not a posterior interval",
+            ));
+        }
         diagnostics.push(Diagnostic::new(
             "response.simultaneous_band_withheld",
             DiagnosticKind::Scientific,
@@ -591,79 +600,109 @@ impl super::Study {
             .as_deref()
             .unwrap_or(IdentifierId::GeneralizedAdjustment.as_str());
         let identifier_id: IdentifierId = identifier.parse()?;
-        let effect_query = TemporalEffectQuery {
-            treatment,
-            outcome,
-            policy: temporal.policy.clone(),
-            control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
-            active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
-            horizon_steps: temporal.horizons.first().copied().unwrap_or(1),
-            max_history_lag: temporal.max_history_lag,
-            target_population: query.target_population.clone(),
-        };
-        let (bundle, identify_cached) =
-            if let Some(cache) = self.temporal_class_identification_cache.as_deref() {
-                (cache.clone(), true)
-            } else {
-                report_identify_compute(ctx);
-                (self.identify_temporal_class(identifier_id, &effect_query)?, false)
-            };
-        let envelope = &bundle.envelope.envelope;
-        if matches!(envelope.status, IdentificationStatus::NotIdentified)
-            || envelope.identified_weight.0 <= 0.0
-        {
+        let identify_cached = self.temporal_class_cache_covers(&temporal.horizons);
+        if self.temporal_class_identification_cache.is_some() && !identify_cached {
             return Err(CausalError::Compile {
-                message:
-                    "panel class-aware response not identified (no identified mass in envelope)"
-                        .into(),
+                message: "prepared panel class identification cache missing a requested horizon"
+                    .into(),
             });
         }
-        let mut diagnostics = vec![super::temporal_path::temporal_class_envelope_diagnostic(
-            envelope,
-            self.graph.class(),
-        )];
-        let mut weighted = Vec::new();
-        let mut atom_values: Vec<Option<f64>> = vec![None; envelope.cases.len()];
+        let mut diagnostics = Vec::new();
+        let mut atom_values = Vec::new();
         let mut primary_estimand = None;
-        let mut primary_identification = None;
         let mut assumptions = antecedent_core::AssumptionSet::default();
-        for (i, (case, indexer)) in
-            envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
-        {
-            if !identification_status_ok_for_case(case.result.status)
-                || case.result.estimands.is_empty()
+        let mut leftover_mass = false;
+        let mut horizon_surfaces = Vec::with_capacity(temporal.horizons.len());
+        let mut structural_bundle = None;
+        let mut n_fitted = 0usize;
+        for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
+            let horizon_query = TemporalEffectQuery {
+                treatment,
+                outcome,
+                policy: temporal.policy.clone(),
+                control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
+                active: Intervention::set(treatment, antecedent_core::Value::f64(1.0)),
+                horizon_steps: horizon,
+                max_history_lag: temporal.max_history_lag,
+                target_population: query.target_population.clone(),
+            };
+            if !identify_cached {
+                report_identify_compute(ctx);
+            }
+            let bundle = self.identify_temporal_class(identifier_id, &horizon_query)?;
+            let envelope = &bundle.envelope.envelope;
+            diagnostics.push(super::temporal_path::temporal_class_envelope_diagnostic(
+                envelope,
+                self.graph.class(),
+            ));
+            if matches!(envelope.status, IdentificationStatus::NotIdentified)
+                || envelope.identified_weight.0 <= 0.0
             {
-                continue;
+                return Err(CausalError::Compile {
+                    message:
+                        "panel class-aware response not identified (no identified mass in envelope)"
+                            .into(),
+                });
             }
-            let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand.clone());
-                primary_identification = Some(case.result.clone());
-                assumptions = case.result.required_assumptions.clone();
+            leftover_mass |= envelope.unidentified_weight.0 > 1e-12
+                || envelope.truncated_completions > 0
+                || matches!(envelope.status, IdentificationStatus::GraphDependent);
+            let mut qh = query.clone();
+            let mut temporal_h = temporal.clone();
+            temporal_h.horizons = Arc::from([horizon]);
+            qh.temporal = Some(temporal_h);
+            let mut weighted = Vec::new();
+            if horizon_index == 0 {
+                atom_values = vec![None; envelope.cases.len()];
             }
-            let identifications: Vec<_> =
-                temporal.horizons.iter().map(|_| (&estimand, indexer)).collect();
-            let unit_responses = fit_unit_panel_responses(
-                panel,
-                &identifications,
-                query,
-                case.result.status,
-                case.result.required_assumptions.clone(),
-                &self.inference,
-                ctx,
-            )?;
-            let response = average_unit_panel_responses(&unit_responses)?;
-            if let Some(mean) = surface_mean(&response) {
-                atom_values[i] = mean.first().copied();
+            for (i, (case, indexer)) in
+                envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
+            {
+                if !identification_status_ok_for_point_mix(case.result.status)
+                    || case.result.estimands.is_empty()
+                {
+                    leftover_mass |= case.weight.0 > 0.0;
+                    continue;
+                }
+                let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
+                if primary_estimand.is_none() {
+                    primary_estimand = Some(estimand.clone());
+                    assumptions = case.result.required_assumptions.clone();
+                }
+                let unit_responses = fit_unit_panel_responses(
+                    panel,
+                    &[(&estimand, indexer)],
+                    &qh,
+                    case.result.status,
+                    case.result.required_assumptions.clone(),
+                    &self.inference,
+                    ctx,
+                )?;
+                let response = average_unit_panel_responses(&unit_responses)?;
+                if horizon_index == 0 {
+                    if let Some(mean) = surface_mean(&response) {
+                        atom_values[i] = mean.first().copied();
+                    }
+                }
+                weighted.push((case.weight.0, response));
             }
-            weighted.push((case.weight.0, response));
+            if weighted.is_empty() {
+                return Err(CausalError::Compile {
+                    message: "panel class-aware response had no estimable identified cases".into(),
+                });
+            }
+            leftover_mass |= weighted.len() < envelope.cases.len();
+            n_fitted = weighted.len();
+            horizon_surfaces.push(mix_weighted_panel_responses(&weighted, leftover_mass)?);
+            if structural_bundle.is_none() {
+                structural_bundle = Some(bundle);
+            }
         }
-        if weighted.is_empty() {
-            return Err(CausalError::Compile {
-                message: "panel class-aware response had no estimable identified cases".into(),
-            });
-        }
-        let response = mix_weighted_panel_responses(&weighted)?;
+        let bundle = structural_bundle.ok_or_else(|| CausalError::Compile {
+            message: "panel class-aware response missing class envelope".into(),
+        })?;
+        let envelope = &bundle.envelope.envelope;
+        let response = assemble_horizon_panel_responses(&horizon_surfaces, leftover_mass)?;
         let (scalar, standard_error) = super::response_path::response_scalar_summary(&response);
         let estimate = EffectEstimate::new(
             scalar,
@@ -671,9 +710,8 @@ impl super::Study {
             assumptions,
             OverlapPolicy::ExplicitOverride,
         );
-        let identification = primary_identification.unwrap_or_else(|| {
-            envelope_to_identification_result_for(envelope, CausalQuery::Response(query.clone()))
-        });
+        let identification =
+            envelope_to_identification_result_for(envelope, CausalQuery::Response(query.clone()));
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "panel class-aware response missing estimand".into(),
         })?;
@@ -682,9 +720,9 @@ impl super::Study {
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
             format!(
-                "panel class response averages unit surfaces on {} identified completions \
-                 and mixes by completion mass; units are not stacked",
-                weighted.len()
+                "panel class response identifies each horizon, averages unit surfaces on {} \
+                 identified completions, and mixes by completion mass; units are not stacked",
+                n_fitted
             ),
         ));
         diagnostics.push(Diagnostic::new(
@@ -1049,13 +1087,19 @@ fn cluster_bootstrap_panel_response(
             cell.push(*value / scale);
         }
     }
+    let Some(original) = surface_mean(response) else {
+        return;
+    };
+    let original = original.to_vec();
     let mut lower = Vec::with_capacity(n_cells);
     let mut upper = Vec::with_capacity(n_cells);
-    for cell_draws in draws {
-        let m = cell_draws.iter().sum::<f64>() / cell_draws.len() as f64;
-        let se = sample_sd(&cell_draws).unwrap_or(0.0);
-        lower.push(m - NORMAL_Z_95 * se);
-        upper.push(m + NORMAL_Z_95 * se);
+    for (center, cell_draws) in original.iter().zip(draws) {
+        let Some(se) = sample_sd(&cell_draws) else {
+            response.uncertainty = ResponseUncertainty::None;
+            return;
+        };
+        lower.push(*center - NORMAL_Z_95 * se);
+        upper.push(*center + NORMAL_Z_95 * se);
     }
     response.uncertainty = ResponseUncertainty::PointwiseBand {
         level: 0.95,
@@ -1117,6 +1161,7 @@ fn fit_unit_panel_responses(
 
 fn mix_weighted_panel_responses(
     weighted: &[(f64, CausalResponse)],
+    leftover_mass: bool,
 ) -> Result<CausalResponse, CausalError> {
     let first = weighted.first().ok_or_else(|| CausalError::Compile {
         message: "panel class response requires at least one identified completion".into(),
@@ -1136,7 +1181,8 @@ fn mix_weighted_panel_responses(
     };
     let mut acc = vec![0.0; n_cells];
     let mut total_w = 0.0;
-    for (weight, response) in weighted {
+    let mut atoms = Vec::with_capacity(weighted.len());
+    for (index, (weight, response)) in weighted.iter().enumerate() {
         match &response.estimate {
             ResponseIdentification::PointIdentified(ResponseValue::Surface {
                 grid: unit_grid,
@@ -1150,6 +1196,14 @@ fn mix_weighted_panel_responses(
                 for (total, value) in acc.iter_mut().zip(mean.iter()) {
                     *total += *weight * *value;
                 }
+                atoms.push((
+                    u64::try_from(index).unwrap_or(u64::MAX),
+                    ResponseValue::Surface {
+                        grid: Arc::clone(unit_grid),
+                        dimension: *unit_dim,
+                        mean: Arc::clone(mean),
+                    },
+                ));
             }
             _ => {
                 return Err(CausalError::Compile {
@@ -1168,11 +1222,111 @@ fn mix_weighted_panel_responses(
         *value /= total_w;
     }
     let mut response = first.1.clone();
+    if leftover_mass {
+        response.identification_status = IdentificationStatus::GraphDependent;
+        response.estimate = ResponseIdentification::GraphDependent(atoms);
+        response.uncertainty = ResponseUncertainty::None;
+    } else if weighted.len() == 1 {
+        return Ok(first.1.clone());
+    } else {
+        response.estimate = ResponseIdentification::PointIdentified(ResponseValue::Surface {
+            grid,
+            dimension,
+            mean: acc.into(),
+        });
+        // Shared-sample completion SEs are not independent; do not publish
+        // the first atom's between-unit band as the mixture interval.
+        response.uncertainty = ResponseUncertainty::None;
+    }
+    response.provenance_id = Arc::from("estimate.temporal_response.gcomp.panel.class");
+    Ok(response)
+}
+
+fn assemble_horizon_panel_responses(
+    horizons: &[CausalResponse],
+    leftover_mass: bool,
+) -> Result<CausalResponse, CausalError> {
+    let first = horizons.first().ok_or_else(|| CausalError::Compile {
+        message: "panel class response requires at least one horizon".into(),
+    })?;
+    if leftover_mass
+        || horizons.iter().any(|item| {
+            matches!(
+                item.estimate,
+                ResponseIdentification::GraphDependent(_)
+                    | ResponseIdentification::Unidentified { .. }
+            )
+        })
+    {
+        let mut atoms = Vec::new();
+        for (horizon_index, response) in horizons.iter().enumerate() {
+            match &response.estimate {
+                ResponseIdentification::GraphDependent(values) => {
+                    for (key, value) in values {
+                        atoms.push(((*key) | ((horizon_index as u64) << 32), value.clone()));
+                    }
+                }
+                ResponseIdentification::PointIdentified(value)
+                | ResponseIdentification::PartiallyIdentified(value) => {
+                    atoms.push((horizon_index as u64, value.clone()));
+                }
+                ResponseIdentification::Unidentified { .. } => {}
+            }
+        }
+        let mut response = first.clone();
+        response.identification_status = IdentificationStatus::GraphDependent;
+        response.estimate = ResponseIdentification::GraphDependent(atoms);
+        response.uncertainty = ResponseUncertainty::None;
+        response.provenance_id = Arc::from("estimate.temporal_response.gcomp.panel.class");
+        return Ok(response);
+    }
+    if horizons.len() == 1 {
+        return Ok(first.clone());
+    }
+    let (grid, dimension, n_cells) = match &first.estimate {
+        ResponseIdentification::PointIdentified(ResponseValue::Surface {
+            grid,
+            dimension,
+            mean,
+        }) => (Arc::clone(grid), *dimension, mean.len()),
+        _ => {
+            return Err(CausalError::Compile {
+                message: "panel class response requires a point-identified surface per horizon"
+                    .into(),
+            });
+        }
+    };
+    let n_horizons = horizons.len();
+    let mut mean = vec![0.0; n_cells * n_horizons];
+    for (horizon, response) in horizons.iter().enumerate() {
+        match &response.estimate {
+            ResponseIdentification::PointIdentified(ResponseValue::Surface {
+                grid: unit_grid,
+                dimension: unit_dim,
+                mean: values,
+            }) if unit_grid.as_ref() == grid.as_ref()
+                && *unit_dim == dimension
+                && values.len() == n_cells =>
+            {
+                for (cell, value) in values.iter().enumerate() {
+                    mean[cell * n_horizons + horizon] = *value;
+                }
+            }
+            _ => {
+                return Err(CausalError::Compile {
+                    message: "panel class horizon surfaces disagree on grid or identification"
+                        .into(),
+                });
+            }
+        }
+    }
+    let mut response = first.clone();
     response.estimate = ResponseIdentification::PointIdentified(ResponseValue::Surface {
         grid,
         dimension,
-        mean: acc.into(),
+        mean: mean.into(),
     });
+    response.uncertainty = ResponseUncertainty::None;
     response.provenance_id = Arc::from("estimate.temporal_response.gcomp.panel.class");
     Ok(response)
 }
@@ -1245,14 +1399,16 @@ fn fit_panel_sequential_atom(
             last_assumptions = estimate.assumptions;
         }
     }
-    if ates.is_empty() {
+    if ates.len() != panel.unit_count() {
         return Err(CausalError::Compile {
-            message: "panel sequential atom had no finite unit estimates".into(),
+            message: "panel sequential atom dropped a requested unit; the survivor mean is not \
+                      the panel effect"
+                .into(),
         });
     }
     let n = ates.len() as f64;
     let ate = ates.iter().sum::<f64>() / n;
-    let se = sample_sd(&ates).map(|sd| sd / n.sqrt()).unwrap_or(0.0);
+    let se = sample_sd(&ates).map(|sd| sd / n.sqrt()).unwrap_or(f64::NAN);
     Ok(EffectEstimate::new(ate, se, last_assumptions, OverlapPolicy::ExplicitOverride))
 }
 

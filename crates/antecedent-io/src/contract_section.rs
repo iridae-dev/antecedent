@@ -20,7 +20,7 @@ use crate::identity::{
     IdentificationProductWire, InferenceBindingWire, ObservationIdentityWire, ProgramIdentityWire,
     TargetIdentityWire, claim_digest, data_snapshot_digest, digest_wire, execution_digest,
     identification_digest, identification_product_digest_wire, inference_binding_digest,
-    program_digest,
+    program_digest, validate_mixture_masses,
 };
 use crate::{
     AnalysisResultHeader, AnalysisResultWire, EncodedArtifact, ExecutionIdentityWire, IoError,
@@ -303,6 +303,25 @@ pub fn verify_contract_against_body(
         if slot.status != body.identification.status {
             unresolved.push(Arc::from("identification.status"));
         }
+        if validate_mixture_masses(
+            slot.identified_mass,
+            slot.unidentified_mass,
+            slot.unevaluable_mass,
+            slot.incomplete_search_mass,
+        )
+        .is_err()
+        {
+            unresolved.push(Arc::from("reasoning.identification.masses"));
+        }
+        if let Some(structural) = &body.structural_response {
+            let masses_match = (slot.identified_mass - structural.identified_mass).abs() <= 1e-12
+                && (slot.unidentified_mass - structural.unidentified_mass).abs() <= 1e-12
+                && (slot.unevaluable_mass - structural.unevaluable_mass).abs() <= 1e-12
+                && (slot.incomplete_search_mass - structural.subsampled_out_mass).abs() <= 1e-12;
+            if !masses_match {
+                unresolved.push(Arc::from("reasoning.identification.masses"));
+            }
+        }
     }
     if let Some(product) = &contract.identification_product {
         if !identification_product_matches_body(product, body) {
@@ -396,7 +415,52 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
             unresolved.push(Arc::from("claim.id"));
         }
     }
+    require_nested_digest(
+        &mut unresolved,
+        "identification.target",
+        contract.identification.as_ref().map(|item| item.target),
+        Some(&contract.identities.target),
+    );
+    require_nested_digest(
+        &mut unresolved,
+        "program.identification",
+        contract.program.as_ref().map(|item| item.identification),
+        Some(&contract.identities.identification),
+    );
+    require_nested_digest(
+        &mut unresolved,
+        "program.identification_product",
+        contract.program.as_ref().and_then(|item| item.identification_product),
+        contract.identities.identification_product.as_ref(),
+    );
+    require_nested_digest(
+        &mut unresolved,
+        "inference_binding.program",
+        contract.inference_binding.as_ref().map(|item| item.program),
+        Some(&contract.identities.program),
+    );
+    require_nested_digest(
+        &mut unresolved,
+        "data_snapshot.observation",
+        contract.data_snapshot.as_ref().map(|item| item.observation),
+        Some(&contract.identities.observation),
+    );
     unresolved
+}
+
+fn require_nested_digest(
+    unresolved: &mut Vec<Arc<str>>,
+    label: &'static str,
+    nested: Option<[u8; 32]>,
+    advertised: Option<&[u8; 32]>,
+) {
+    match (nested, advertised) {
+        (Some(got), Some(want)) if got == *want => {}
+        (None, None) => {}
+        (None, Some(_)) | (Some(_), None) | (Some(_), Some(_)) => {
+            unresolved.push(Arc::from(label));
+        }
+    }
 }
 
 fn claim_identity_wire(
@@ -1047,6 +1111,67 @@ mod tests {
     }
 
     #[test]
+    fn nested_identification_target_must_match_advertised_target() {
+        let (body, target, names) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        let identification = contract.identification.as_mut().expect("identification");
+        identification.target = [0u8; 32];
+        let identification_digest = crate::identity::identification_digest(identification).unwrap();
+        contract.identities.identification = *identification_digest.as_bytes();
+        if let Some(program) = contract.program.as_mut() {
+            program.identification = *identification_digest.as_bytes();
+            let program_digest = crate::identity::program_digest(program).unwrap();
+            contract.identities.program = *program_digest.as_bytes();
+            if let Some(inference) = contract.inference_binding.as_mut() {
+                inference.program = *program_digest.as_bytes();
+                contract.identities.inference_binding =
+                    *crate::identity::inference_binding_digest(inference).unwrap().as_bytes();
+            }
+        }
+        if let Some(claim) = contract.claim.clone() {
+            let claim_id =
+                crate::identity::claim_digest(&super::claim_identity_wire(&contract, &claim))
+                    .unwrap();
+            if let Some(claim) = contract.claim.as_mut() {
+                claim.claim_id = *claim_id.as_bytes();
+            }
+        }
+        let consumed =
+            consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|item| &**item == "identification.target"),
+            "{:?}",
+            consumed.acceptance.unresolved
+        );
+    }
+
+    #[test]
+    fn invented_reasoning_masses_are_not_verified() {
+        let (body, target, names) = fixture_body();
+        let mut contract = contract_for(target, &body);
+        let slot = contract.reasoning.identification.value.as_mut().expect("slot");
+        slot.identified_mass = 1.0;
+        slot.unidentified_mass = 0.3;
+        let consumed =
+            consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
+        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|item| &**item == "reasoning.identification.masses"),
+            "{:?}",
+            consumed.acceptance.unresolved
+        );
+    }
+
+    #[test]
     fn tampered_target_identity_is_not_promoted() {
         let (body, target, names) = fixture_body();
         let mut contract = contract_for(target, &body);
@@ -1062,6 +1187,9 @@ mod tests {
         let (mut body, target, names) = fixture_body();
         let contract = contract_for(target, &body);
         if let CausalQueryWire::AverageEffect { outcome, .. } = &mut body.query {
+            *outcome = 0;
+        }
+        if let CausalQueryWire::AverageEffect { outcome, .. } = &mut body.identification.query {
             *outcome = 0;
         }
         let consumed =

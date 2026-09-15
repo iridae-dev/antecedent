@@ -502,10 +502,10 @@ impl SharedEvidenceRef {
         }
     }
 
-    /// Same snapshot or same claim id is one source, not two.
+    /// Same snapshot is one source. Matching identification is same premises, not same data.
     #[must_use]
     pub fn same_source(&self, other: &Self) -> bool {
-        self.snapshot == other.snapshot || self.graph_origin == other.graph_origin
+        self.snapshot == other.snapshot
     }
 
     /// Forwarding the same claim id is a shared source, never independence.
@@ -816,20 +816,22 @@ pub fn claim_compatibility(
 }
 
 fn alignment_is_licensed(parents: &[&ClaimEnvelope], alignment: Option<&str>) -> bool {
-    let declared = alignment.map(str::to_owned).or_else(|| {
-        parents.iter().find_map(|parent| parent.evidence_ref().alignment.map(|a| a.to_string()))
-    });
-    matches!(
-        declared.as_deref(),
-        Some(
-            "joint_draws"
-                | "covariance"
-                | "replicate_ids"
-                | "alignment:joint_draws"
-                | "alignment:covariance"
-                | "alignment:replicate_ids"
-        )
-    )
+    fn token(value: &str) -> Option<&str> {
+        let stripped = value.strip_prefix("alignment:").unwrap_or(value);
+        matches!(stripped, "joint_draws" | "covariance" | "replicate_ids").then_some(stripped)
+    }
+    let parent_alignments: Vec<Option<String>> = parents
+        .iter()
+        .map(|parent| parent.evidence_ref().alignment.map(|item| item.to_string()))
+        .collect();
+    let parent_tokens: Vec<Option<&str>> =
+        parent_alignments.iter().map(|item| item.as_deref().and_then(token)).collect();
+    let Some(expected) =
+        alignment.and_then(token).or_else(|| parent_tokens.iter().copied().flatten().next())
+    else {
+        return false;
+    };
+    parent_tokens.iter().all(|item| *item == Some(expected))
 }
 
 /// Compose parent claims. Reuses [`ProvenanceGraph`]; does not invent a verifier.
@@ -993,6 +995,21 @@ mod tests {
         let id = digest(9);
         assert!(SharedEvidenceRef::forwarded_duplicate(id, id));
         assert!(!SharedEvidenceRef::forwarded_duplicate(id, digest(8)));
+    }
+
+    #[test]
+    fn same_source_is_snapshot_not_identification() {
+        let left = SharedEvidenceRef {
+            snapshot: digest(1),
+            graph_origin: digest(2),
+            prior_origin: None,
+            alignment: None,
+            dependence: EvidenceDependence::Unknown,
+        };
+        let same_graph = SharedEvidenceRef { snapshot: digest(3), ..left.clone() };
+        let same_snapshot = SharedEvidenceRef { graph_origin: digest(4), ..left.clone() };
+        assert!(!left.same_source(&same_graph));
+        assert!(left.same_source(&same_snapshot));
     }
 
     #[test]

@@ -104,10 +104,22 @@ impl IdentificationSlot {
         }
     }
 
-    /// Single-atom identified result (DAG / ADMG point identification).
+    /// Single-atom result whose status alone determines the mass partition.
+    ///
+    /// Only uniquely identified point statuses report mass 1. `GraphDependent`
+    /// and reserved prior-restricted statuses cannot infer a partition from the
+    /// status tag; they report unidentified mass 1 so a class/posterior product
+    /// cannot look like a DAG point. Set-valued [`IdentificationStatus::PartiallyIdentified`]
+    /// keeps identified mass 1 (the set is identified; display still refuses a
+    /// point via `rendering_limitation`).
     #[must_use]
     pub fn identified_singleton(status: IdentificationStatus) -> Self {
-        let identified = !matches!(status, IdentificationStatus::NotIdentified);
+        let identified = matches!(
+            status,
+            IdentificationStatus::NonparametricallyIdentified
+                | IdentificationStatus::IdentifiedUnderParametricRestrictions
+                | IdentificationStatus::PartiallyIdentified
+        );
         Self {
             status,
             identified_mass: if identified { 1.0 } else { 0.0 },
@@ -300,5 +312,13 @@ mod tests {
         let slot = IdentificationSlot::identified_singleton(IdentificationStatus::NotIdentified);
         assert!((slot.identified_mass - 0.0).abs() < f64::EPSILON);
         assert!((slot.unidentified_mass - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn singleton_graph_dependent_does_not_claim_full_identified_mass() {
+        let slot = IdentificationSlot::identified_singleton(IdentificationStatus::GraphDependent);
+        assert!((slot.identified_mass - 0.0).abs() < f64::EPSILON);
+        assert!((slot.unidentified_mass - 1.0).abs() < f64::EPSILON);
+        assert_eq!(slot.status, IdentificationStatus::GraphDependent);
     }
 }
