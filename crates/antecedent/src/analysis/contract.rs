@@ -206,6 +206,15 @@ impl PreparedStudy {
         &self.analysis
     }
 
+    /// Cheap inspect of the bound study. Does not use cached identification.
+    ///
+    /// # Errors
+    ///
+    /// Canonical-encoding failures.
+    pub fn inspect(&self) -> Result<CausalContract, CausalError> {
+        self.study().inspect()
+    }
+
     /// Contract built from cached identification products.
     ///
     /// # Errors

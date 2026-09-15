@@ -14,6 +14,7 @@ from typing import Any, Literal
 
 from ..errors import CausalValueError
 from ._format import fmt_float, fmt_pct
+from ._slots import ReasoningSlots, mass_limitation
 from ._views import IdentificationView
 
 SupportStatus = Literal["supported", "weak_overlap", "extrapolative", "outside_empirical_support"]
@@ -374,6 +375,9 @@ class CausalResponseView:
     allowlist_parent: str | None = None
     diagnostics: Sequence[str] = ()
     certificate: dict[str, Any] | None = None
+    reasoning: ReasoningSlots | None = None
+    claim_id: str | None = None
+    data_version: str | None = None
 
     @property
     def simultaneous_band(self) -> SimultaneousBand | None:
@@ -415,6 +419,14 @@ class CausalResponseView:
             f"<CausalResponseView estimate={estimate} support={self.support.status!r} "
             f"uncertainty={self.uncertainty.kind!r}{extra}>"
         )
+
+    def rendering_limitation(self) -> str | None:
+        if self.reasoning is not None:
+            limit = self.reasoning.rendering_limitation()
+            if limit is not None:
+                return limit
+        mass = None if self.envelope is None else self.envelope.unidentified_mass
+        return mass_limitation(mass)
 
 
 __all__ = [

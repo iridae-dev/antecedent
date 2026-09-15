@@ -247,6 +247,8 @@ def test_repr_html_amber_callout_present_when_mass_positive():
     assert "gives no identified estimand" in html
     assert "50.0%" in html
     assert "no identified estimand" in html
+    assert "partial; cannot display a point mean" in html
+    assert "unidentified_mass" in html
 
 
 def test_repr_html_amber_callout_absent_when_mass_zero():

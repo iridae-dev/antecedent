@@ -64,6 +64,14 @@ class CausalTypeError(CausalValidateError, TypeError):
     """
 
 
+class RenderingLimitation(CausalUnsupportedError):
+    """Display cannot represent a partial claim without substituting a mean."""
+
+    def __init__(self, reason: str, message: str | None = None) -> None:
+        super().__init__(message or f"rendering limitation: {reason}")
+        self.reason = reason
+
+
 class CausalValueError(CausalValidateError, ValueError):
     """Input-validation failure: right type, invalid value at a public entry point.
 
@@ -197,6 +205,7 @@ __all__ = [
     "CausalValidateError",
     "CausalValueError",
     "PendingEdge",
+    "RenderingLimitation",
     "ReviewRequired",
     "build_review_error",
     "pending_edges",

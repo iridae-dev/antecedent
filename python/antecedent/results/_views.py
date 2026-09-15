@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 from ..ids import Refute
 from ._format import fmt_float, fmt_pct, fmt_se
+from ._slots import ReasoningSlots, mass_limitation, require_scalar_display
 
 __all__ = [
     "IdentificationView",
@@ -601,6 +602,9 @@ class AnalysisResult:
     unit_effects: list[float] | None = None
     assumptions: list[str] | None = None
     support: list[str] | None = None
+    reasoning: ReasoningSlots | None = None
+    claim_id: str | None = None
+    data_version: str | None = None
 
     @property
     def effect(self) -> float | None:
@@ -695,3 +699,18 @@ class AnalysisResult:
         if isinstance(suite, Refute):
             suite = str(suite)
         return self._prepared.refute(data, suite, seed=seed, threads=threads, cancel=cancel)
+
+    def rendering_limitation(self) -> str | None:
+        """Stable id when a point-mean display would misrepresent the claim."""
+        if self.reasoning is not None:
+            limit = self.reasoning.rendering_limitation()
+            if limit is not None:
+                return limit
+        mass = self.structural_unidentified_mass
+        if mass is None and self.posterior is not None:
+            mass = self.posterior.unidentified_mass
+        return mass_limitation(mass, identified_set=self.structural_identified_set is not None)
+
+    def display_effect(self) -> float:
+        """Point effect only when the four-slot claim is a complete scalar."""
+        return require_scalar_display(self.rendering_limitation(), self.effect)

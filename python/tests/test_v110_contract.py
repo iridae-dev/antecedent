@@ -220,3 +220,83 @@ def test_intervention_response_contracted_artifact_is_independently_accepted() -
     assert accepted["temporal_coordinates"] == "none"
     assert contract["matrix_coordinate"].startswith("InterventionResponse:")
     assert abs(float(np.asarray(result.response.values).ravel()[0]) - 1.5) < 0.25
+
+
+def test_four_slots_agree_between_inspect_and_prepared_contract() -> None:
+    from antecedent.results import ConsumerIntent
+
+    prepared = PreparedAnalysis.prepare(
+        _data(),
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=AverageEffect("t", "y"),
+        refute="none",
+        bootstrap=0,
+    )
+    inspected = prepared.inspect()
+    reasoned = prepared.reasoning()
+    contract = prepared.contract()
+    assert inspected.support.payload["matrix_coordinate"] == contract["matrix_coordinate"]
+    assert inspected.claim_id == reasoned.claim_id == contract["program"]
+    assert inspected.data_version == reasoned.data_version == contract["data_snapshot"]
+    assert inspected.identification.summary.startswith("unavailable:")
+    assert inspected.identification.available is False
+    assert reasoned.identification.available is True
+    assert reasoned.identification.payload["identified_mass"] == 1.0
+    assert reasoned.rendering_limitation() is None
+    result = prepared.estimate(_data())
+    assert result.reasoning is not None
+    assert result.claim_id == reasoned.claim_id
+    assert result.display_effect() == result.effect
+    display = prepared.preview_intent(ConsumerIntent.DISPLAY)
+    assert display["scientific"] == "false"
+    assert display["kind"] == "display"
+    scientific = prepared.preview_intent(ConsumerIntent.NEW_CAUSAL_TARGET)
+    assert scientific["scientific"] == "true"
+    assert scientific["intent"] == "new_conditional_query"
+
+
+def test_four_slots_refuse_identified_atom_mean_for_partial_claim() -> None:
+    from antecedent.errors import RenderingLimitation
+    from antecedent.results import AnalysisResult, EstimateView, IdentificationView, PerformanceView
+    from antecedent.results import PosteriorView, ValidationView
+
+    result = AnalysisResult(
+        identification=IdentificationView(
+            status="graph_dependent",
+            method="mixture",
+            adjustment_set=[],
+            assumption_count=0,
+            derivation_step_count=0,
+        ),
+        estimate=EstimateView(
+            ate=2.29,
+            se_analytic=0.03,
+            se_bootstrap=None,
+            estimator_id="ols",
+            method="mixture",
+        ),
+        posterior=PosteriorView(
+            effect_mean=2.29,
+            effect_sd=0.03,
+            q025=2.2,
+            q975=2.4,
+            n_draws=200,
+            p_below_zero=0.0,
+            backend="conjugate",
+            unidentified_mass=0.2,
+        ),
+        validation=ValidationView(passed=True, ran=False, count=0),
+        performance=PerformanceView(),
+        diagnostics=[],
+        provenance={},
+        structural_unidentified_mass=0.2,
+    )
+    assert result.rendering_limitation() == "unidentified_mass"
+    try:
+        result.display_effect()
+    except RenderingLimitation as err:
+        assert err.reason == "unidentified_mass"
+    else:
+        raise AssertionError("partial claim must not display a point mean")
+    html = result._repr_html_()
+    assert "partial; cannot display a point mean" in html

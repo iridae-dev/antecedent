@@ -1,6 +1,7 @@
 """Result view dataclasses for :mod:`antecedent.estimation`."""
 
 from . import _html  # noqa: F401 — side effect: attaches _repr_html_ to the views below
+from ._slots import ConsumerIntent, ReasoningSlots, RenderingLimitation, SlotView
 from ._views import (
     AnalysisResult,
     ConflictSummaryView,
@@ -34,6 +35,10 @@ from .response import (
 )
 
 __all__ = [
+    "ConsumerIntent",
+    "ReasoningSlots",
+    "RenderingLimitation",
+    "SlotView",
     "IdentificationView",
     "MediationView",
     "TemporalMediationGridView",
