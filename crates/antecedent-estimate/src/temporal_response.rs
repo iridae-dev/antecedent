@@ -154,7 +154,8 @@ pub struct MaxDeviationBand {
 /// # Errors
 ///
 /// Fewer than [`SIMULTANEOUS_BAND_MIN_REPLICATES`] replicates, ragged or non-finite draws,
-/// a level outside `(0, 1)`, or a cell whose replicates do not vary.
+/// or a level outside `(0, 1)`. A cell that does not vary contributes a zero
+/// studentized deviation and a zero-width slice; it does not withhold the band.
 pub fn max_deviation_band(
     center: &[f64],
     draws: &[Vec<f64>],
@@ -212,18 +213,29 @@ fn max_deviation_band_by(
     let scale: Vec<f64> = (0..center.len())
         .map(|cell| sample_std(&(0..n_draws).map(|r| value(r, cell)).collect::<Vec<_>>()))
         .collect();
-    if scale.iter().any(|s| !s.is_finite() || *s <= f64::EPSILON) {
+    if scale.iter().any(|s| !s.is_finite()) {
         return Err(EstimationError::unsupported(
-            "simultaneous band needs every grid cell to vary across joint draws",
+            "simultaneous band needs finite joint draws and a finite center",
         ));
     }
+    // A noiseless cell can have SD at machine epsilon (x86_64 GEMM on the
+    // deterministic dose × horizon fixture). Dividing by that blows up the
+    // studentized max and used to withhold the whole band while the pointwise
+    // band — the same SDs, no division — stayed published. A non-varying cell
+    // contributes 0 to the max and a zero-width slice.
     let mut maxima: Vec<f64> = (0..n_draws)
         .map(|r| {
             center
                 .iter()
                 .zip(&scale)
                 .enumerate()
-                .map(|(cell, (mid, s))| (value(r, cell) - mid).abs() / s)
+                .map(|(cell, (mid, s))| {
+                    if *s <= f64::EPSILON {
+                        0.0
+                    } else {
+                        (value(r, cell) - mid).abs() / s
+                    }
+                })
                 .fold(0.0_f64, f64::max)
         })
         .collect();
@@ -3709,7 +3721,10 @@ mod tests {
         assert_eq!(max_deviation_band_columns(&center, &column_refs, 0.95).unwrap(), band);
         assert!(max_deviation_band(&center, &draws[..39], 0.95).is_err());
         let flat: Vec<Vec<f64>> = (0..50).map(|r| vec![f64::from(r), 10.0]).collect();
-        assert!(max_deviation_band(&center, &flat, 0.95).is_err());
+        let flat_band = max_deviation_band(&center, &flat, 0.95).unwrap();
+        assert!((flat_band.lower[1] - 10.0).abs() < 1e-12);
+        assert!((flat_band.upper[1] - 10.0).abs() < 1e-12);
+        assert!(flat_band.upper[0] > flat_band.lower[0]);
         // Perfectly correlated, light-tailed (uniform) cells: the Monte Carlo rank sits near
         // 1.65 SD, below z; the band is floored at the one-cell normal band.
         let uniform: Vec<Vec<f64>> =
