@@ -128,6 +128,14 @@ pub const TEMPORAL_RESPONSE_BAND_WITHHELD: &str = "estimate.temporal_response.ba
 /// information about the tail it is meant to estimate.
 pub const SIMULTANEOUS_BAND_MIN_REPLICATES: usize = 40;
 
+/// Cell SD at or below which a grid cell is treated as non-varying.
+///
+/// Machine epsilon is too tight: `aarch64` GEMM on the noiseless dose × horizon
+/// fixture lands an SD of ~1e-15, which then studentizes into an
+/// architecture-specific critical value. `x86_64` lands at 0. Real bootstrap
+/// SEs sit many orders above this floor.
+const NONVARYING_CELL_SD: f64 = 1e-12;
+
 /// Max-studentized-deviation (sup-t) simultaneous band over a response grid.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MaxDeviationBand {
@@ -218,25 +226,28 @@ fn max_deviation_band_by(
             "simultaneous band needs finite joint draws and a finite center",
         ));
     }
-    // A noiseless cell can have SD at machine epsilon (x86_64 GEMM on the
-    // deterministic dose × horizon fixture). Dividing by that blows up the
-    // studentized max and used to withhold the whole band while the pointwise
-    // band — the same SDs, no division — stayed published. A non-varying cell
-    // contributes 0 to the max and a zero-width slice.
-    let mut maxima: Vec<f64> = (0..n_draws)
-        .map(|r| {
-            center
-                .iter()
-                .zip(&scale)
-                .enumerate()
-                .map(
-                    |(cell, (mid, s))| {
-                        if *s <= f64::EPSILON { 0.0 } else { (value(r, cell) - mid).abs() / s }
-                    },
-                )
-                .fold(0.0_f64, f64::max)
-        })
-        .collect();
+    // A noiseless cell can have SD at GEMM scale (the deterministic dose ×
+    // horizon fixture). Dividing by that blows up the studentized max — and
+    // used to withhold the whole band while the pointwise band stayed
+    // published — and the resulting critical value is architecture noise.
+    // A non-varying cell contributes 0 to the max and a zero-width slice.
+    let mut maxima: Vec<f64> =
+        (0..n_draws)
+            .map(|r| {
+                center
+                    .iter()
+                    .zip(&scale)
+                    .enumerate()
+                    .map(|(cell, (mid, s))| {
+                        if *s <= NONVARYING_CELL_SD {
+                            0.0
+                        } else {
+                            (value(r, cell) - mid).abs() / s
+                        }
+                    })
+                    .fold(0.0_f64, f64::max)
+            })
+            .collect();
     maxima.sort_by(f64::total_cmp);
     let b = maxima.len();
     // A band over the whole grid is never narrower than the one-cell normal band

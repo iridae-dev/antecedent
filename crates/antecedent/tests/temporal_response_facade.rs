@@ -1073,7 +1073,9 @@ fn assert_close_rel(actual: &[f64], expected: &[f64], rtol: f64, label: &str) {
 /// Requested replicates publish the joint circular-block bands, and the
 /// fixture's `block_band` pins every value of that seeded run (pointwise and
 /// simultaneous edges, critical value, block length, dispersion and
-/// kernel-bias factors) as a determinism guard; coverage is the weekly gate.
+/// kernel-bias factors) as a determinism guard — on this noiseless period-4
+/// DGP the rule block is a multiple of the period, so the band collapses to
+/// the point surface; coverage is the weekly gate.
 #[test]
 fn temporal_dose_horizon_point_and_block_bands_match_fixture() {
     use antecedent_core::ResponseUncertainty;
@@ -1131,10 +1133,15 @@ fn temporal_dose_horizon_point_and_block_bands_match_fixture() {
     assert!((level - pin["level"].as_f64().unwrap()).abs() <= rtol);
     assert_close_rel(lower, &fixture_f64s(&pin["pointwise_lower"]), rtol, "pointwise_lower");
     assert_close_rel(upper, &fixture_f64s(&pin["pointwise_upper"]), rtol, "pointwise_upper");
-    assert!(
-        lower.iter().zip(upper.iter()).all(|(lo, hi)| hi - lo > 0.0),
-        "every cell's band must have positive width, including dose zero"
-    );
+    let widths: Vec<f64> = lower.iter().zip(upper.iter()).map(|(lo, hi)| hi - lo).collect();
+    assert!(widths.iter().all(|width| *width >= 0.0), "band edges must not cross");
+    // Retired |dose|-scaled analytic band vanished only at dose zero.
+    if widths[2..].iter().any(|width| *width > 1e-8) {
+        assert!(
+            widths[..2].iter().all(|width| *width > 1e-8),
+            "dose-zero width must not vanish alone"
+        );
+    }
 
     assert_block_band_diagnostics(response, pin, replicates, rtol, lower, upper);
 }
