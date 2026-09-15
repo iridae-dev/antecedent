@@ -10,7 +10,8 @@ Give it data, a causal question, and a graph or discovery strategy. Antecedent d
 
 ## Python: one call, reusable study
 
-The `1.10.0` branch adds a reusable study to the ordinary one-call workflow:
+Ordinary analyses now retain reusable studies. This is not every Antecedent
+analysis — see the [workflow boundaries](docs/python-workflow.md#current-boundaries).
 
 ```python
 import antecedent as ant
@@ -85,17 +86,18 @@ For example, consider an average treatment effect estimated with AIPW. The publi
 
 ## Project status and documentation
 
-The current package version is **1.9.0**.
-The release calibrates the licensed intervals: every licensed cell was
-reviewed, its intervals are checked by a two-sided repeated-sampling coverage
-gate, and cells measured outside their gated scope are disclosed as boundary
-records. It adds ADMG interventional distributions, accepted-Dag
-counterfactuals, Frequentist DBN-posterior mediation, and staged
-`AnomalyAttribution` / `ChangeAttribution` / `TransportQuery` /
-`InterferenceQuery` cells (Rust Study API only). The
-[1.9.0 release notes](docs/release-notes/v1.9.0.md), [support
-matrix](docs/support-matrix.md), and [conformance index](docs/conformance/README.md)
-state the implemented scope and verification limits. The [1.5 Python
+The current package version is **1.10.0**.
+1.10 is a composition release of the existing 341 licensed cells (1423
+meaningful combinations). Every licensed cell has a first-class
+inspect/contract coordinate and completes the Rust compiler path
+inspect → preview → execute → claim → consume. That is composition-seam
+evidence, not inherited estimator-oracle truth, not interval calibration,
+and not Python `.study` retention on every cell. Interval calibration
+remains the 1.9 weekly gate and is **not** bound onto individual 1.10
+executions. See the
+[1.10.0 release notes](docs/release-notes/v1.10.0.md), [1.9.0 calibration
+notes](docs/release-notes/v1.9.0.md), [support matrix](docs/support-matrix.md),
+and [conformance index](docs/conformance/README.md). The [1.5 Python
 walkthrough](docs/local-distributional-joint.md) remains the guide for
 retargeting, CDFs, and joint interventions; see the [release
 checklist](docs/development.md#releases) for release requirements.

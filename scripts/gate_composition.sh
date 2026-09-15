@@ -6,7 +6,6 @@ cd "$ROOT"
 
 echo "== 1.10 composition consuming tests =="
 REVISION="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
-SKIPPED=()
 
 echo "== existing evidence gates over composition records =="
 bash scripts/gate_parity_schema.sh
@@ -65,7 +64,7 @@ run_and_count "antecedent v110_contract" \
 run_and_count "antecedent v110 licensed families" \
   cargo test -p antecedent --test v110_contract licensed_family_ -- --nocapture
 
-run_and_count "antecedent v110 licensed compiler inspect" \
+run_and_count "antecedent v110 licensed compiler inspect+e2e" \
   cargo test -p antecedent --test v110_licensed_compiler -- --nocapture
 
 run_and_count "antecedent panel response cluster bands" \
@@ -132,11 +131,16 @@ run_and_count "antecedent v110 consuming compositions" \
   composition_
 
 if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
-  SKIPPED+=("python test_v110_contract (SKIP_PYTHON_SMOKE=1)")
-  SKIPPED+=("python test_native_stub_conformance (SKIP_PYTHON_SMOKE=1)")
-elif ! command -v uv >/dev/null 2>&1; then
-  SKIPPED+=("python test_v110_contract (uv missing)")
-  SKIPPED+=("python test_native_stub_conformance (uv missing)")
+  echo "FAIL: SKIP_PYTHON_SMOKE=1 is not composition evidence"
+  echo "RC requires this smoke plus the Python lint/pytest and wheel jobs."
+  echo "Unset SKIP_PYTHON_SMOKE or run those jobs separately; do not skip here."
+  exit 1
+fi
+if ! command -v uv >/dev/null 2>&1; then
+  echo "FAIL: uv is required for the composition Python smoke"
+  echo "Install uv, then rebuild python/_native (uv run maturin develop)."
+  echo "A green rust-only run is not Python RC evidence."
+  exit 1
 else
   (
     cd python
@@ -160,12 +164,4 @@ else
 fi
 
 echo "revision: ${REVISION}"
-if ((${#SKIPPED[@]})); then
-  echo "skipped (not evidence):"
-  for item in "${SKIPPED[@]}"; do
-    echo "  - ${item}"
-  done
-  echo "gate_composition: rust consuming tests ran; skipped checks are not evidence"
-else
-  echo "gate_composition: ok"
-fi
+echo "gate_composition: ok"

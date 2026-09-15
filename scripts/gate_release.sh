@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
-# Release gate (also run in CI on every PR via the `gates` job).
+# PR inventory / composition umbrella (also run in CI on every PR via `gates`).
 #
-# Inventory honesty, docs, artifacts, security, Criterion smokes, and prior
-# feature gates. CI's `gates` job runs this on every PR; the separate `rust` job
-# runs fmt + clippy + cargo test --workspace (+ DCO). `gate_calibration.sh` is
-# NOT invoked from here — it runs weekly via .github/workflows/calibration.yml.
-# Run this when cutting a release or when a change might break a domain:
-#   bash scripts/gate_release.sh
+# This script is not a release candidate. Cut with
+# `scripts/gate_release_candidate.sh` (calibration-surface identity, this
+# inventory, Python lint/pytest, one local wheel). The CI `python-wheels`
+# matrix remains required on the candidate SHA.
+#
+# `gate_calibration.sh` is NOT invoked from here (weekly
+# .github/workflows/calibration.yml). Everyday PRs stay cheap. A release cut
+# must set REQUIRE_CALIBRATION_ATTESTATION=1 and CALIBRATION_SHA to a weekly
+# pass whose statistical surface matches HEAD:
+#   REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<sha> \
+#     bash scripts/gate_release_candidate.sh
 #
 # Invokes prior feature gates unless SKIP_PRIOR_GATES=1.
 # Optional: cargo deny check when cargo-deny is on PATH.
+# Composition Python smoke requires `uv` (fail, do not skip).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -42,6 +48,9 @@ bash scripts/gate_evidence_reachability.sh
 
 echo "== coverage citations name existing test fns =="
 bash scripts/gate_coverage_citations.sh
+
+echo "== calibration attestation (PR policy; RC requires SHA) =="
+bash scripts/gate_calibration_attestation.sh
 
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   echo "== prior feature gates =="
@@ -293,4 +302,11 @@ else
   echo "WARN: cargo-deny not installed; skipping deny check (optional local tool)."
 fi
 
-echo "Release gate PASSED"
+if [[ "${REQUIRE_CALIBRATION_ATTESTATION:-0}" == "1" ]]; then
+  echo "PR inventory gate PASSED under RC flags."
+  echo "This is still not a complete RC: run scripts/gate_release_candidate.sh"
+else
+  echo "PR inventory / composition gate PASSED (not an RC)."
+  echo "Cut with: REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<sha> \\"
+  echo "  bash scripts/gate_release_candidate.sh"
+fi

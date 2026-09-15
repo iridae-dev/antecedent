@@ -140,7 +140,7 @@ New `unsafe` needs justification in review. Dependency and license policy:
 
 ## Versions
 
-Workspace and Python package version are kept in sync (currently **1.9.0**).
+Workspace and Python package version are kept in sync (currently **1.10.0**).
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
@@ -172,21 +172,28 @@ Before merging the release PR:
    Keep the generated support/conformance output current and the worktree clean.
 2. Run `cargo test --workspace`, strict all-target Clippy, Python tests against
    the rebuilt extension, Python lint/type checks, and `bash scripts/gate_release.sh`.
-   Run `bash scripts/gate_codeql.sh` with the existing query configuration. Require
-   CI on the same commit; a local partial gate run is not equivalent.
-3. Run `cargo deny check` with a freshly fetched advisory database. A cached
+   `gate_release.sh` is the PR inventory / composition umbrella; a green
+   local run is not an RC. Run `bash scripts/gate_codeql.sh` with the existing
+   query configuration. Require CI on the same commit, including the Python
+   lint/pytest and `python-wheels` jobs.
+3. For an actual release cut, run
+   `REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<weekly-pass-sha>
+   bash scripts/gate_release_candidate.sh`. The SHA must resolve to a commit
+   whose `scripts/calibration_surface.list` tree matches HEAD. Everyday PRs
+   do not run the 400-replicate gate.
+4. Run `cargo deny check` with a freshly fetched advisory database. A cached
    offline audit is useful evidence, but does not establish current advisory status.
-4. Run `bash scripts/publish_crates.sh --dry-run`. Inspect any fallback to
+5. Run `bash scripts/publish_crates.sh --dry-run`. Inspect any fallback to
    `cargo check` for unpublished workspace dependencies: that is not a completed
    package verification for those crates.
-5. Build wheel and source-distribution artifacts and test installation outside
+6. Build wheel and source-distribution artifacts and test installation outside
    the checkout, without an editable install. Verify the supported OS/Python wheel
    matrix before publishing; one local extension build covers only that environment.
-6. Check the changelog, release notes, user examples, refusal/compatibility scope,
+7. Check the changelog, release notes, user examples, refusal/compatibility scope,
    and evidence ledger. Record measured timings separately from test ceilings.
 
-Before tagging, confirm the dated 1.9.0 changelog section is present, Unreleased
-is empty, its comparison link is `v1.9.0...HEAD`, and release-status text matches
+Before tagging, confirm the dated 1.10.0 changelog section is present, Unreleased
+is empty, its comparison link is `v1.10.0...HEAD`, and release-status text matches
 the cut. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 
@@ -196,16 +203,17 @@ PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
 
 ```bash
 # Optional: bump and commit on main first
-bash scripts/set_version.sh 1.9.0
+bash scripts/set_version.sh 1.10.0
 cargo update -p antecedent
 git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
   python/antecedent/__init__.py crates/*/Cargo.toml fuzz/Cargo.lock \
   CHANGELOG.md CITATION.cff docs/release-notes/
-git commit -s -m "chore: bump version to 1.9.0"
+git commit -s -m "chore: bump version to 1.10.0"
 
 # Tag current (or just-bumped) version and push
-bash scripts/tag_release.sh          # or: bash scripts/tag_release.sh 1.9.0
-git push origin v1.9.0
+REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<weekly-pass-sha> \
+  bash scripts/tag_release.sh          # runs gate_release_candidate.sh
+git push origin v1.10.0
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
@@ -253,4 +261,4 @@ Checklist before the first public crate release:
 2. Enable Actions.
 3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
 4. Configure PyPI trusted publisher for `publish-release.yml`.
-5. Tag `v1.9.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).
+5. Tag `v1.10.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).

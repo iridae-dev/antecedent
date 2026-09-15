@@ -5,7 +5,12 @@ These examples require the built `1.10.0` branch; see the
 
 ## Start with one call
 
-The existing notebook call still works. It now retains a prepared study on the
+Ordinary one-call analyses now retain a reusable study. This is not every
+Antecedent analysis: callbacks, custom estimator settings, RD, panel / event /
+multi-environment data, and some discovery paths stay on legacy routes and
+refuse `.study` / `.export()`.
+
+The existing notebook call still works. It retains a prepared study on the
 ordinary tabular and temporal routes supported by `PreparedAnalysis`:
 
 ```python
@@ -21,10 +26,12 @@ The paid-search and continuous-response notebooks need no extra preparation
 steps. Their results can now be retained for repeated estimation. See the
 [executable workflow example](../examples/python/analysis_workflow.py).
 
-`result.answer` describes the answer shape. A partial answer does not expose an
-unrestricted scalar there. Historical numerical fields (`effect`, `posterior`,
-`response`, etc.) remain available for callers that explicitly handle their
-scientific scope.
+`result.answer` is the safe consumption interface: `point`, `bounds`, `partial`,
+or `unavailable`. A partial answer does not expose an unrestricted scalar there.
+Historical fields (`effect`, `ate`, `posterior`, `response`) remain accessible
+for existing callers. `.effect` / `.ate` emit a `UserWarning` when a point
+display would misrepresent the claim; `ANTECEDENT_STRICT_ANSWER=1` raises
+instead. That is a safe interface plus a warning, not misuse-proofing.
 
 ## Prepare explicitly when useful
 
@@ -34,10 +41,19 @@ report = study.inspect()        # includes cached identification; does not estim
 result = study.estimate()      # uses retained data and preparation's seed/threads
 ```
 
-`prepare` uses the one-call workflow's scalar and response defaults. The older
-`estimation.PreparedAnalysis.prepare` remains available with its historical
-interactive defaults. `study.preflight()` is the explicit structural-only view;
-`study.inspect()` reports everything already known.
+**Two `prepare` default regimes.** `ant.prepare(...)` uses one-call `analyze`
+defaults (standard bootstrap and placebo refutation for scalar effects).
+`antecedent.estimation.PreparedAnalysis.prepare(...)` keeps historical
+interactive defaults (`refute=False`, `latency="interactive"`). Pass `refute`,
+`bootstrap`, and `latency` explicitly if the two entry points must agree.
+
+`study.preflight()` is the explicit structural-only view; `study.inspect()`
+reports everything already known.
+
+`identify(...)` returns an `Identification` whose `statement`, `verdict`,
+`assumption_statements`, and `derivation_statements` are human-readable
+state on the object (`identification.to_dict()` includes them). That is
+readable identification data, not a notebook renderer.
 
 | Operation | Data used | Changes the study's retained data? |
 |---|---|---|
@@ -74,12 +90,12 @@ Reports retain identification mass, uncertainty sources and targets (including
 omitted components), assumption obligations, and support evidence. A licensed
 matrix cell does not establish empirical support or validate its assumptions.
 
-Calibration is explicit on every result report and prepared inspection. Current
-executions do not bind a calibration coverage artifact, so the default status is
-`unavailable` with a reason. Supplied certificate calibration evidence is retained
-with `scope_not_assessed`; neither refutation success nor a licensed matrix cell
-is promoted into a calibration claim. This refactor does not add calibration
-experiments or an MCP server.
+Calibration is a **1.10 non-goal** for execution-bound coverage artifacts.
+`CalibrationInfo.status` defaults to `unavailable`: no 1.9 weekly coverage
+record is attached to this execution. That is not a measured failure.
+Supplied certificate evidence is retained as `scope_not_assessed`. Neither
+refutation success nor a licensed matrix cell is promoted into a calibration
+claim. Interval theory remains the 1.9 weekly gate.
 
 ## Portable executions
 
@@ -104,20 +120,35 @@ payload from `result.study.export_artifact()`, taken before the study changes.
 The full `result.export()` archive is intended for execution inspection and
 forwarding. See [artifact examples](artifacts.md#exporting-prepared-results).
 
-The legacy `claim_id` property names the compiled program identity; use the
-artifact's `contract["claim"]["claim_id"]` for the execution's claim identity.
+`program_id` is the compiled program identity (`contract["program"]`).
+`claim_id` is the execution claim identity (`contract["claim"]["claim_id"]`).
+They are different layers. A prepared inspect has a program and no claim.
+Earlier 1.10 drafts used `claim_id` for the program digest; that name now
+means the execution claim, and `program_id` is the alias for the compiled
+program.
 
 ## Current boundaries
 
-One-call retention covers ordinary prepared tabular / temporal scalar, class,
-posterior-mixture and response routes. Legacy one-call paths with execution
-callbacks, custom validators or estimator configuration, RD settings, panel /
-event / multi-environment data, and non-posterior discovery configurations retain
-their existing execution APIs. Accessing `.study` or `.export()` on a result that
-has no retained execution gives a descriptive refusal; it never silently reruns
-discovery. Derivatives can use explicit `prepare` on their licensed cells.
+**Composition evidence.** Every licensed support-matrix cell has a first-class
+inspect/contract coordinate and completes inspect → preview → execute →
+claim → consume on the Rust compiler path
+(`compiler.e2e_licensed_cells`). That is composition-seam evidence on
+synthetic licensed-coordinate fixtures (`internal_cross_check`). Parent
+estimator evidence is not inherited. Python `.study` / `.export()`
+retention is not claimed for every cell.
+
+**Reusable studies.** One-call retention covers ordinary prepared tabular /
+temporal scalar, class, posterior-mixture and response routes. Legacy one-call
+paths with execution callbacks, custom validators or estimator configuration, RD
+settings, panel / event / multi-environment data, and non-posterior discovery
+configurations retain their existing execution APIs. Accessing `.study` or
+`.export()` on a result that has no retained execution gives a descriptive
+refusal; it never silently reruns discovery. Derivatives can use explicit
+`prepare` on their licensed cells.
 
 Retargeting remains available from frozen scores. A nonconstant-weight retarget
 cannot yet export a contracted result: its target-weight identity is not encoded
-in the portable contract. This is reported explicitly instead of labeling a new
-population with the original target identity.
+in the portable contract. `program_id` is withheld so the original compiled
+program is not reused as the new target's identity. A local `claim_id` may still
+exist. This is reported explicitly instead of labeling a new population with the
+original target identity.
