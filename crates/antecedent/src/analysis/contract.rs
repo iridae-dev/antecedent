@@ -30,7 +30,7 @@ use antecedent_io::{
     encode_analysis_result_artifact_with_contract, execution_digest,
     execution_identity_from_context, identification_digest, identification_product_digest_wire,
     identification_product_wire, identification_to_wire, inference_binding_digest,
-    observation_identity_wire, pag_identity, program_digest, schema_to_wire,
+    dbn_atom_identities, observation_identity_wire, pag_identity, program_digest, schema_to_wire,
     temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity,
 };
 
@@ -641,9 +641,15 @@ fn observation_assumption_tag(assumption: &antecedent_core::ObservationAssumptio
 
 fn graph_identity(study: &Study) -> Result<GraphIdentityWire, CausalError> {
     if let Some(posterior) = &study.graph_posterior {
+        let names: Vec<String> = data_schema(&study.data)
+            .variables()
+            .iter()
+            .map(|variable| variable.name.to_string())
+            .collect();
         return Ok(GraphIdentityWire::GraphPosterior {
             graph_class: study.graph.class().as_str().into(),
             n_atoms: u64::try_from(posterior.n_graphs).unwrap_or(u64::MAX),
+            atoms: dbn_atom_identities(posterior, &names).map_err(|err| io_err(&err))?,
         });
     }
     accepted_graph_identity(&study.graph)
