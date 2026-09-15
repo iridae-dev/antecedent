@@ -129,6 +129,7 @@ MANIFESTS = {
     "parity/design_state.toml": ((), True),
     "parity/release.toml": ((), False),
     "parity/response.toml": ((), True),
+    "parity/compiler.toml": (("group", "description", "owner"), True),
 }
 
 # The parser every feature gate embeds. Reproduced verbatim so this gate checks
@@ -298,6 +299,44 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
                 f"{rel}: {label} carries external_oracle but evidence_kind="
                 f"{kind!r} does not claim an external comparison — drop one"
             )
+
+        test_rel = row.get("evidence_test")
+        assertion = row.get("evidence_assertion")
+        if (test_rel is None) != (assertion is None):
+            problems.append(
+                f"{rel}: {label} must set evidence_test and evidence_assertion together"
+            )
+        elif isinstance(test_rel, str) and isinstance(assertion, str):
+            test_path = root / test_rel
+            if not test_path.is_file():
+                problems.append(
+                    f"{rel}: {label} evidence_test {test_rel!r} does not exist"
+                )
+            elif test_path.suffix not in {".rs", ".py"}:
+                problems.append(
+                    f"{rel}: {label} evidence_test must be Rust or Python test code"
+                )
+            else:
+                text_src = test_path.read_text(errors="ignore")
+                if test_path.suffix == ".rs":
+                    test_pattern = re.compile(
+                        rf"#\[test\][^\n]*\n((?:\s*#\[[^\n]*\n)*)\s*fn\s+{re.escape(assertion)}\s*\(",
+                        re.M,
+                    )
+                else:
+                    test_pattern = re.compile(
+                        rf"()^\s*def\s+{re.escape(assertion)}\s*\(", re.M
+                    )
+                match = test_pattern.search(text_src)
+                if not match:
+                    problems.append(
+                        f"{rel}: {label} evidence_assertion {assertion!r} is not "
+                        f"an executing test function in {test_rel}"
+                    )
+                elif re.search(r"#\[\s*ignore\b", match.group(1)):
+                    problems.append(
+                        f"{rel}: {label} evidence_assertion {assertion!r} is #[ignore]d"
+                    )
 
         if isinstance(cid, str) and cid.strip():
             if cid in seen_ids:

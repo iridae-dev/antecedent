@@ -130,7 +130,7 @@ id = "bayes.prior_bank.temporal_transfer"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_prior_transfer"
-notes = "Same-design and mapped prior transfer ride licensed Bayesian Pulse / single-step Sustained / temporal ResponseCurve on explicit TemporalDag via the staged path. Fixture names source cell, target cell, and PriorCatalog.filter_compatible. Incompatible catalogs fail closed (require_compatible / require_usable). Conflict-sensitive weights stay diagnostic. Multi-step Sequence refuses transfer; no new filter. python_facade=full (PreparedAnalysis + antecedent.priors.PriorCatalog)"
+notes = "Same-design and mapped prior transfer ride licensed Bayesian Pulse / single-step Sustained / temporal ResponseCurve on explicit TemporalDag via the staged path. Fixture names source cell, target cell, and PriorCatalog.filter_compatible. Incompatible catalogs fail closed (require_compatible / require_usable). Conflict-sensitive weights stay diagnostic. Multi-step Sequence refuses transfer; no new filter. python_facade=full (PreparedAnalysis + antecedent.priors.PriorCatalog). 1.10 composition: composition_prior_transfer_keeps_identification_and_refuses_mismatch (implementation_exists; does not inherit this known-truth fixture)."
 
 [[capabilities]]
 id = "bayes.prior_bank.catalog"

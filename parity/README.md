@@ -15,6 +15,7 @@ and [docs/development.md](../docs/development.md).
 - [design_state.toml](design_state.toml) — Design / incremental-state
 - [release.toml](release.toml) — Release-prep / parity-closure
 - [response.toml](response.toml) — 0.5.0 response / observation / transport / interference
+- [compiler.toml](compiler.toml) — 1.10 inspect / claim / reuse / handoff compositions (not analysis-matrix cells)
 
 **Support matrix** (license, not an inventory; see ADR 0020):
 
@@ -97,8 +98,9 @@ the evidence external — external means an upstream implementation of the
 capability under test produced the compared values.
 
 **`group` / `description` / `owner`** are required in
-[estimate.toml](estimate.toml), [discovery.toml](discovery.toml), and
-[context.toml](context.toml), and unused elsewhere.
+[estimate.toml](estimate.toml), [discovery.toml](discovery.toml),
+[context.toml](context.toml), and [compiler.toml](compiler.toml), and unused
+elsewhere.
 
 The required-key contract is enforced by
 [`scripts/gate_parity_schema.sh`](../scripts/gate_parity_schema.sh), which every
@@ -141,6 +143,7 @@ bash scripts/gate_pag.sh
 bash scripts/gate_context.sh
 bash scripts/gate_attribution.sh
 bash scripts/gate_design_state.sh
+bash scripts/gate_composition.sh
 bash scripts/gate_upstream_names.sh
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh

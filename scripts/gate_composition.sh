@@ -5,6 +5,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "== 1.10 composition consuming tests =="
+REVISION="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+SKIPPED=()
+
+echo "== existing evidence gates over composition records =="
+bash scripts/gate_parity_schema.sh
+bash scripts/gate_provenance_schema.sh
+bash scripts/gate_metadata_consistency.sh
+bash scripts/gate_evidence_reachability.sh
 
 run_and_count() {
   local label="$1"
@@ -35,6 +43,15 @@ run_and_count "antecedent-io contract_section" \
 run_and_count "antecedent-core request identity" \
   cargo test -p antecedent-core --lib request_identity_conflicts_on_reused_key -- --nocapture
 
+run_and_count "antecedent-io validate_result seams" \
+  cargo test -p antecedent-io --lib validate_result_ -- --nocapture
+
+run_and_count "antecedent-core provenance ancestry" \
+  cargo test -p antecedent-core --lib try_push_rejects_duplicates_and_cycles -- --nocapture
+
+run_and_count "antecedent inspect does not identify" \
+  cargo test -p antecedent --test v110_contract -- --nocapture inspect_does_not_identify
+
 run_and_count "antecedent v110_contract" \
   cargo test -p antecedent --test v110_contract -- --nocapture
 
@@ -51,12 +68,20 @@ run_and_count "antecedent v110 licensed families" \
 run_and_count "antecedent v110 licensed compiler inspect" \
   cargo test -p antecedent --test v110_licensed_compiler -- --nocapture
 
+run_and_count "antecedent panel response cluster bands" \
+  cargo test -p antecedent --test data_modalities -- --nocapture \
+  'panel_response_curve_uses_unit_cluster_bands|bayesian_panel_response_stays_refused|incomplete_class_panel_response_stays_refused'
+
+run_and_count "antecedent panel class Pulse masses" \
+  cargo test -p antecedent --test data_modalities -- --nocapture \
+  'panel_class_pulse_uses_completion_masses|bayesian_panel_class_pulse_stays_refused'
+
 run_and_count "antecedent prepared identify counts" \
   cargo test -p antecedent --test prepared_analysis prepared_second_shot_reuses_identification -- --nocapture
 
 run_and_count "antecedent prepared family contracts" \
   cargo test -p antecedent --test prepared_analysis -- --nocapture \
-  'prepared_conditional_effect_reestimate_matches_fresh|prepared_conditional_bayesian_records_bayesian_estimator|prepared_path_specific_reestimate_matches_fresh|prepared_distribution_reestimate_matches_fresh|prepare_accepts_temporal_effect_query_and_reuses_identification'
+  'prepared_reestimate_matches_fresh_analyze|prepared_conditional_effect_reestimate_matches_fresh|prepared_conditional_bayesian_records_bayesian_estimator|prepared_path_specific_reestimate_matches_fresh|prepared_distribution_reestimate_matches_fresh|prepare_accepts_temporal_effect_query_and_reuses_identification'
 
 run_and_count "antecedent-io identity encoding" \
   cargo test -p antecedent-io --lib encoding_rule_changes_change_the_advertised_digest -- --nocapture
@@ -107,29 +132,40 @@ run_and_count "antecedent v110 consuming compositions" \
   composition_
 
 if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
-  echo "SKIP_PYTHON_SMOKE=1; skipping Python v110 contract tests"
+  SKIPPED+=("python test_v110_contract (SKIP_PYTHON_SMOKE=1)")
+  SKIPPED+=("python test_native_stub_conformance (SKIP_PYTHON_SMOKE=1)")
 elif ! command -v uv >/dev/null 2>&1; then
-  echo "WARN: uv not on PATH; skipping Python v110 contract tests"
+  SKIPPED+=("python test_v110_contract (uv missing)")
+  SKIPPED+=("python test_native_stub_conformance (uv missing)")
 else
   (
     cd python
     log="$(mktemp)"
-    if ! uv run pytest -q tests/test_v110_contract.py >"$log" 2>&1; then
-      echo "FAIL: python test_v110_contract"
+    if ! uv run pytest -q tests/test_v110_contract.py tests/test_native_stub_conformance.py >"$log" 2>&1; then
+      echo "FAIL: python v110/stub conformance"
       cat "$log"
       rm -f "$log"
       exit 1
     fi
     ran="$(grep -cE 'passed' "$log" || true)"
     if [[ "$ran" -lt 1 ]]; then
-      echo "FAIL: python test_v110_contract reported no executed tests"
+      echo "FAIL: python v110/stub conformance reported no executed tests"
       cat "$log"
       rm -f "$log"
       exit 1
     fi
-    echo "ok: python test_v110_contract"
+    echo "ok: python v110/stub conformance"
     rm -f "$log"
   )
 fi
 
-echo "gate_composition: ok"
+echo "revision: ${REVISION}"
+if ((${#SKIPPED[@]})); then
+  echo "skipped (not evidence):"
+  for item in "${SKIPPED[@]}"; do
+    echo "  - ${item}"
+  done
+  echo "gate_composition: rust consuming tests ran; skipped checks are not evidence"
+else
+  echo "gate_composition: ok"
+fi

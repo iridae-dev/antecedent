@@ -46,6 +46,7 @@ description = "Model, identify, estimate, refute workflow"
 status = "done"
 evidence_kind = "implementation_exists"
 owner = "estimate"
+notes = "1.10 composition: inspect_does_not_identify and dag_average_effect_vertical_path_* in crates/antecedent/tests/v110_contract.rs. Compiler inspect/capability rows live in parity/compiler.toml and do not inherit estimator known-truth."
 
 [[capabilities]]
 id = "estimate.identify.adjustment_sets"

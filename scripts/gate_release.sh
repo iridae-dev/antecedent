@@ -93,6 +93,7 @@ for manifest in [
     "parity/gcm.toml",
     "parity/attribution.toml",
     "parity/response.toml",
+    "parity/compiler.toml",
 ]:
     for c in caps(Path(manifest)):
         if c["status"] == "intentional_deviation":

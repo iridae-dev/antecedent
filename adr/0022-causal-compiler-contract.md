@@ -23,10 +23,12 @@ can come from a different graph, a different prior, or a different data
 snapshot. Arena-local expression IDs, `Debug` text, and DBN
 position-derived keys are not durable semantic identity.
 
-Panel `ResponseCurve` / `InterventionResponse` on `TemporalDag`, and panel
-Pulse / single-step Sustained / response on `TemporalCpdag` / `TemporalPag`,
-remain separately gated. The compiler foundation must not depend on opening
-those cells.
+Frequentist panel `ResponseCurve` / `InterventionResponse` on a supplied
+`TemporalDag` is a licensed data route: per-unit surfaces, equal-weight
+average, between-unit pointwise bands. Bayesian panel response, and panel
+Pulse / Sustained / response on `TemporalCpdag` / `TemporalPag`, remain
+separately gated. The compiler foundation must not depend on opening
+those remaining cells.
 
 ## Decision
 
@@ -146,13 +148,17 @@ IDs, and estimator selection. Composition metadata cannot grant a license.
 
 ### Panel workstream (independent)
 
-The following routes stay refused in 1.10 unless a later, separately gated
-promotion supplies each route's own fixture, clustered replicate contract,
-and evidence record:
+Frequentist panel `ResponseCurve` / `InterventionResponse` on a supplied
+`TemporalDag` is licensed via per-unit surfaces and between-unit pointwise
+bands. Frequentist panel Pulse / single-step Sustained on `TemporalCpdag` /
+`TemporalPag` fits each identified completion with panel cluster SEs and
+mixes by completion mass. The following routes stay refused unless a later
+promotion supplies each route's own contract:
 
-- panel `ResponseCurve` / `InterventionResponse` on `TemporalDag`
-- panel Pulse / single-step Sustained / response on `TemporalCpdag`
-- panel Pulse / single-step Sustained / response on `TemporalPag`
+- Bayesian panel `ResponseCurve` / `InterventionResponse`
+- Bayesian panel Pulse / Sustained on `TemporalCpdag` / `TemporalPag`
+- panel response on `TemporalCpdag` / `TemporalPag`
+- panel multi-step Sustained on `TemporalCpdag` / `TemporalPag`
 
 Shipped panel Pulse / single-step Sustained on explicit or accepted
 `TemporalDag` already use `PanelClusterHac`; they are not an iid-SE defect.
