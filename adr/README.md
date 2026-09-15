@@ -26,3 +26,4 @@ compatibility analysis where applicable. See [docs/architecture.md](../docs/arch
 | [0019](0019-response-artifact-format.md) | Causal-response wire types and historical format 0.3 (superseded by 0021 format 0.4) |
 | [0020](0020-support-matrix-and-prepared-workflow.md) | Support matrix and prepared-workflow contract |
 | [0021](0021-temporal-response.md) | Temporal response (dose × horizon; format 0.4) |
+| [0022](0022-causal-compiler-contract.md) | Causal compiler contract and domain-separated identity |
