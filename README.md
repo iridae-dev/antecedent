@@ -91,10 +91,11 @@ The current package version is **1.10.0**.
 meaningful combinations). Every licensed cell has a first-class
 inspect/contract coordinate and completes the Rust compiler path
 inspect → preview → execute → claim → consume. That is composition-seam
-evidence, not inherited estimator-oracle truth, not interval calibration,
-and not Python `.study` retention on every cell. Interval calibration
-remains the 1.9 weekly gate and is **not** bound onto individual 1.10
-executions. See the
+evidence, not inherited estimator-oracle truth.
+Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
+Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists.
+Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
+See the
 [1.10.0 release notes](docs/release-notes/v1.10.0.md), [1.9.0 calibration
 notes](docs/release-notes/v1.9.0.md), [support matrix](docs/support-matrix.md),
 and [conformance index](docs/conformance/README.md). The [1.5 Python

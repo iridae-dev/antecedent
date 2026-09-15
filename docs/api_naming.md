@@ -153,8 +153,17 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | d-separation | `Dag::is_d_separated` | `Dag.d_separated(x, y, z=…)` |
 | Latent projection | `latent_project` | `Dag.latent_project(observed)` |
 | External prior bank | `antecedent-prob::conjugate_moment_match` / `compose_external_priors` | `antecedent.priors.beta_from_moments` / `compose_external_priors` / `PriorCatalog` (module renamed from `prior_bank` to `priors`) |
-| Compiled program identity | program digest on the inspect/contract | `result.program_id` / `inspect().program_id` — compiled program, not the execution claim |
+| Target identity | target digest on the inspect/contract | `inspect().target_id` |
+| Identification premises identity | identification digest | `inspect().identification_id` |
+| Identification product identity | identification-product digest | `inspect().identification_product_id` |
+| Compiled program identity | program digest on the inspect/contract | `result.program_id` / `inspect().program_id` — compiled program, not the execution claim; loaded (executed) study only for `claim_id` |
+| Inference binding identity | inference-binding digest | `inspect().inference_binding_id` |
+| Observation identity | observation digest | `inspect().observation_id` |
+| Data snapshot identity | data-snapshot digest | `inspect().data_snapshot_id` |
+| Execution identity | execution digest | `inspect().execution_id` |
 | Execution claim identity | `StudyResult::claim` digest | `result.claim_id` / `inspect().claim_id` / `contract["claim"]["claim_id"]` |
+| Score reuse identity | score-reuse digest | `inspect().score_reuse_id` |
+| Target-weight identity | target-weights digest | `inspect().target_weights_id` |
 | Safe consumption shape | withheld leftover / partial ID | `result.answer` (`point` / `bounds` / `partial` / `unavailable`); historical `.effect` / `.posterior` / `.response` remain accessible and are not misuse-proof |
 | Primary scalar effect | `result.effect()` | `result.effect` (`.ate` alias) |
 | Rich result display | `Debug` / `Display` impls | `AnalysisResult.__repr__` / `_repr_html_` (amber callout when `unidentified_mass > 0`); `ValidationView` supports `len()` / iteration / indexing / `.failed` / `.to_pandas()`; `PosteriorView` supports `__array__` / `.interval()` |

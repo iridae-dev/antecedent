@@ -367,7 +367,7 @@ static mediation, counterfactuals, and derivatives read inference mode
 instead of being rewritten to `bayesian.gcomp`. ConditionalEffect × Dag ×
 graph-posterior retains unidentified mass as a separate axis. Staged
 prior transfer is fail-closed. Graph-posterior composed with transfer
-stays 1.10; calibration stays 1.9.
+closed in 1.10: graph-posterior composition and calibration binding.
 
 ## 1.9 — Calibration of licensed intervals
 

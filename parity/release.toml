@@ -41,3 +41,9 @@ notes = "unsafe/license/dependency review + cargo-deny"
 id = "release.artifact_mmap_stream_skip"
 status = "done"
 notes = "ArtifactReader/MappedArtifactReader skip+mmap; SectionBytes Arc; Arrow Never-compress; posterior meta-only"
+
+[[capabilities]]
+id = "release.ci_required_jobs"
+status = "done"
+notes = "Job ids from .github/workflows/ci.yml that must succeed on the candidate SHA"
+required_jobs = ["rust", "gates", "python-lint", "python-wheels"]

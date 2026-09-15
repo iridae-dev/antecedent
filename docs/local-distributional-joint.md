@@ -59,10 +59,10 @@ new data under the prepared identification contract; `refresh(new_data)` also
 replaces retained data and scores after success. A one-call `antecedent.analyze(...)`
 result offers the same handle as `result.study`.
 
-A nonconstant-weight retarget currently refuses `result.export()` because the
-portable contract cannot encode its target-weight identity. Inspect its
-`result.inspect()` report in process; do not label it with the original
-population identity. Calibration availability is explicit in that report.
+A nonconstant-weight retarget exports with a `target_weights` identity bound to
+its data snapshot. Re-execution on a different snapshot raises
+`row_weights_bound_to_snapshot`. Calibration availability is explicit in that
+report.
 
 ## Read a CDF and its supported bands
 

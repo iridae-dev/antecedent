@@ -177,8 +177,8 @@ assert result.export() == encoded
 The export retains the compiled execution contract and applicable numerical
 payloads, including posterior draws, response functions and structural mixtures.
 Loading verifies semantic consistency; it does not verify causal assumptions or
-reconstruct a live study. Missing calibration evidence remains explicitly
-unavailable. See the [workflow guide](python-workflow.md) for retention boundaries.
+reconstruct a live study. Every reported interval states its calibration on the
+claim. See the [workflow guide](python-workflow.md) for retention boundaries.
 
 ### Posterior and query payloads for stage consumers
 

@@ -11,12 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Ordinary one-call analyses retain reusable studies on prepared tabular /
-  temporal scalar, class, posterior-mixture, and response routes:
-  `result.study`, `prepare(...).estimate()`, immutable `result.export()`, and
-  semantically checked `load(...)`. Callbacks, custom estimator settings, RD,
-  panel/event/multi-environment, and some discovery paths stay on legacy routes
-  and refuse `.study` / `.export()`. `inspect().to_dict()` includes answer
+- `analyze` is `prepare(...).estimate()`. Ordinary one-call analyses retain
+  reusable studies: `result.study`, immutable `result.export()`, and
+  semantically checked `load(...)`. `inspect().to_dict()` includes answer
   shape, reasoning slots, explicit calibration availability and diagnostics;
   refusals retain their exception type and gain structured context.
   `estimate(other_data)` leaves the study binding intact; successful
@@ -27,9 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.response` remain accessible. See [the Python workflow](docs/python-workflow.md).
 - `program_id` is the compiled program identity. `claim_id` is the execution
   claim identity. They are different layers.
-- `PreparedAnalysis.prepare` omitted `refute` / `latency` keep interactive
-  defaults and emit `FutureWarning`; they will converge to `analyze` defaults
-  in 1.11. `antecedent.prepare` already uses analyze defaults.
+- One omitted-default table (`antecedent._defaults.OMITTED`, from
+  `_native.omitted_defaults()`) is shared by `analyze`, `antecedent.prepare`,
+  and `PreparedAnalysis.prepare`. Latency is never injected when omitted.
 - Composition/release gates require `uv` for the Python smoke.
   `gate_release.sh` is the PR inventory. Release cuts run
   `gate_release_candidate.sh`: `REQUIRE_CALIBRATION_ATTESTATION=1` and a
@@ -40,9 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   completes inspect → preview → execute → claim → consume on the Rust
   compiler path (`compiler.e2e_licensed_cells`). That is composition-seam
   evidence, not inherited parent-estimator truth or interval calibration.
-  Python `.study` / `.export()` retention is not claimed for every cell.
-  Execution-bound calibration is a 1.10 non-goal; interval coverage remains
-  the 1.9 weekly gate.
+  Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
+  Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists.
+  Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
 
 - 1.10 contracts-first foundation ([ADR 0022](adr/0022-causal-compiler-contract.md)):
   domain-separated target / identification / program / inference / observation /
