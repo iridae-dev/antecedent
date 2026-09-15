@@ -1563,7 +1563,11 @@ impl Study {
                 analysis.cpdag_identification_cache =
                     self.prepare_cpdag_identification(&plan)?.map(Arc::new);
             }
-            (DataInput::Panel(_), CausalQuery::TemporalEffect(_), None) => {
+            (
+                DataInput::Panel(_),
+                CausalQuery::TemporalEffect(_) | CausalQuery::Response(_),
+                None,
+            ) => {
                 if analysis.graph.class().is_incomplete_temporal() {
                     analysis.temporal_class_identification_cache =
                         self.prepare_temporal_class_identification()?.map(Arc::new);
@@ -2545,17 +2549,12 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 (query, analysis.graph.class()),
                 (
                     CausalQuery::TemporalEffect(_) | CausalQuery::Response(_),
-                    GraphClass::TemporalDag
-                ) | (
-                    CausalQuery::TemporalEffect(_),
-                    GraphClass::TemporalCpdag | GraphClass::TemporalPag
+                    GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
                 )
             ) {
                 return Err(CausalError::Unsupported {
-                    message: "PreparedStudy supports panel Pulse/Sustained on TemporalDag, \
-                              Frequentist Pulse/single-step Sustained on \
-                              TemporalCpdag/TemporalPag, or Frequentist temporal response \
-                              on TemporalDag",
+                    message: "PreparedStudy supports panel Pulse/Sustained and temporal \
+                              response on TemporalDag, TemporalCpdag, or TemporalPag",
                 });
             }
             super::builder::refuse_unlicensed_panel_route(

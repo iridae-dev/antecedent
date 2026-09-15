@@ -91,28 +91,10 @@ pub struct InterferenceSpec {
     pub assignment: Arc<[bool]>,
 }
 
-/// Refusal for Bayesian panel response (no panel response likelihood yet).
-pub(crate) const PANEL_RESPONSE_BAYES_REFUSAL: &str = concat!(
-    "Bayesian panel ResponseCurve / InterventionResponse is not licensed: the ",
-    "single-series response likelihood is not a panel model",
-);
-
-/// Refusal for panel response on an incomplete temporal class.
+/// Refusal for panel response on a non-temporal or static graph.
 pub(crate) const PANEL_RESPONSE_CLASS_REFUSAL: &str = concat!(
-    "panel ResponseCurve / InterventionResponse is licensed only on a supplied ",
-    "TemporalDag; incomplete temporal classes keep the series class-response owner",
-);
-
-/// Refusal for Bayesian panel Pulse on an incomplete temporal class.
-pub(crate) const PANEL_CLASS_BAYES_REFUSAL: &str = concat!(
-    "Bayesian panel Pulse/Sustained on TemporalCpdag/TemporalPag is not licensed: ",
-    "the series class-posterior is not a panel class model",
-);
-
-/// Refusal for multi-step panel Sustained on an incomplete temporal class.
-pub(crate) const PANEL_CLASS_SEQUENCE_REFUSAL: &str = concat!(
-    "panel multi-step Sustained on TemporalCpdag/TemporalPag is not licensed; ",
-    "keep the series sequential class owner",
+    "panel ResponseCurve / InterventionResponse is licensed on a supplied ",
+    "TemporalDag, TemporalCpdag, or TemporalPag",
 );
 
 /// Single owner for panel data-route licenses. Build, prepare, compile, and
@@ -136,12 +118,15 @@ pub(crate) fn refuse_unlicensed_panel_response(
     class: GraphClass,
     inference: &InferenceMode,
 ) -> Result<(), CausalError> {
-    if !query.is_temporal() || class != GraphClass::TemporalDag {
+    if !query.is_temporal()
+        || !matches!(
+            class,
+            GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
+        )
+    {
         return Err(CausalError::Unsupported { message: PANEL_RESPONSE_CLASS_REFUSAL });
     }
-    if matches!(inference, InferenceMode::Bayesian(_)) {
-        return Err(CausalError::Unsupported { message: PANEL_RESPONSE_BAYES_REFUSAL });
-    }
+    let _ = inference;
     Ok(())
 }
 
@@ -150,14 +135,9 @@ pub(crate) fn refuse_unlicensed_panel_effect(
     class: GraphClass,
     inference: &InferenceMode,
 ) -> Result<(), CausalError> {
+    let _ = (query, inference);
     if !class.is_incomplete_temporal() {
         return Ok(());
-    }
-    if query.is_multi_step_sustained() {
-        return Err(CausalError::Unsupported { message: PANEL_CLASS_SEQUENCE_REFUSAL });
-    }
-    if matches!(inference, InferenceMode::Bayesian(_)) {
-        return Err(CausalError::Unsupported { message: PANEL_CLASS_BAYES_REFUSAL });
     }
     Ok(())
 }

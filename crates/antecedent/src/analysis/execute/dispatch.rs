@@ -61,7 +61,12 @@ impl super::Study {
                                 GraphClass::TemporalDag
                                     | GraphClass::TemporalCpdag
                                     | GraphClass::TemporalPag
-                            ) | (DataInput::Panel(_), GraphClass::TemporalDag)
+                            ) | (
+                                DataInput::Panel(_),
+                                GraphClass::TemporalDag
+                                    | GraphClass::TemporalCpdag
+                                    | GraphClass::TemporalPag
+                            )
                         ))) =>
             {
                 return Err(CausalError::Unsupported {
@@ -127,13 +132,13 @@ impl super::Study {
             }
             (
                 DataInput::Panel(_),
-                CausalQuery::TemporalEffect(_),
+                CausalQuery::TemporalEffect(_) | CausalQuery::Response(_),
                 GraphClass::TemporalCpdag | GraphClass::TemporalPag,
             ) => {}
             (DataInput::Panel(_), _, class) if class != GraphClass::TemporalDag => {
                 return Err(CausalError::Compile {
-                    message: "panel data supports only a supplied TemporalDag, or Frequentist \
-                              Pulse/single-step Sustained on TemporalCpdag/TemporalPag"
+                    message: "panel data supports only a supplied TemporalDag, TemporalCpdag, \
+                              or TemporalPag with Pulse/Sustained or temporal response"
                         .into(),
                 });
             }
@@ -462,6 +467,9 @@ impl super::Study {
             Some(AnalysisRoute::PanelTemporalResponse) => {
                 let DataInput::Panel(panel) = data else { unreachable!() };
                 let CausalQuery::Response(q) = &self.query else { unreachable!() };
+                if self.graph.class().is_incomplete_temporal() {
+                    return self.execute_panel_class_response(panel, q, physical, ctx);
+                }
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
                     message: "Ready panel-response plan missing resolved graph".into(),
                 })?;
