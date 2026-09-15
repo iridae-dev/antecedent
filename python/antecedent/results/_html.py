@@ -184,6 +184,7 @@ def _analysis_result_body(result: AnalysisResult) -> str:
     callout = _unidentified_callout_html(mass)
     refute_table = _refutation_table_html(result.validation)
     chips = _adjustment_chips_html(ident.adjustment_set)
+    slots = _reasoning_slots_html(result)
 
     return (
         f'<div class="antecedent-ar-card">'
@@ -202,8 +203,38 @@ def _analysis_result_body(result: AnalysisResult) -> str:
         f'<div class="antecedent-ar-row">'
         f'<span class="antecedent-ar-label">Adjustment set</span>{chips}'
         f"</div>"
+        f"{slots}"
         f"{refute_table}"
         f"</div>"
+    )
+
+
+def _reasoning_slots_html(result: AnalysisResult) -> str:
+    identification = "identified" if result.identification else "unavailable"
+    support = getattr(result, "support_status", None) or "unknown"
+    uncertainty = (
+        "available"
+        if result.estimate.se_analytic is not None or result.estimate.se_bootstrap is not None
+        else "unavailable"
+    )
+    assumptions = "declared" if result.identification else "unavailable"
+    return (
+        '<div class="antecedent-ar-row">'
+        '<span class="antecedent-ar-label">Identification</span>'
+        f'<span class="antecedent-ar-value">{_esc(identification)}</span>'
+        "</div>"
+        '<div class="antecedent-ar-row">'
+        '<span class="antecedent-ar-label">Support</span>'
+        f'<span class="antecedent-ar-value">{_esc(support)}</span>'
+        "</div>"
+        '<div class="antecedent-ar-row">'
+        '<span class="antecedent-ar-label">Uncertainty</span>'
+        f'<span class="antecedent-ar-value">{_esc(uncertainty)}</span>'
+        "</div>"
+        '<div class="antecedent-ar-row">'
+        '<span class="antecedent-ar-label">Assumptions</span>'
+        f'<span class="antecedent-ar-value">{_esc(assumptions)}</span>'
+        "</div>"
     )
 
 

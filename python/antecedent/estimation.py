@@ -3010,6 +3010,10 @@ class PreparedAnalysis:
         """
         return self._native.export_artifact(artifact_id=artifact_id, payload=payload)
 
+    def export_contracted_artifact(self, *, artifact_id: str = "prepared-contract") -> bytes:
+        """Export the last estimate as an ``analysis_result`` with a contract section."""
+        return self._native.export_contracted_artifact(artifact_id=artifact_id)
+
     @property
     def structure_source(self) -> str:
         """Support-matrix structure axis frozen at prepare (`explicit` or `accepted`)."""
@@ -3030,6 +3034,14 @@ class PreparedAnalysis:
     def allowlist_parent(self) -> str | None:
         raw = self._native.plan_summary().get("allowlist_parent")
         return str(raw) if raw is not None else None
+
+    def contract(self) -> dict[str, str]:
+        """Domain-separated identities and four reasoning slots (ADR 0022)."""
+        return dict(self._native.contract())
+
+    def preview_transform(self, intent: str) -> dict[str, str]:
+        """Pure preview with frozen input identities under ``input_<domain>`` keys."""
+        return dict(self._native.preview_transform(intent))
 
     @property
     def plan(self) -> PhysicalPlanView:

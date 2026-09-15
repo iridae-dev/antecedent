@@ -13,6 +13,9 @@ from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 from ._native import (
+    accept_analysis_result_contract as _accept_analysis_result_contract,
+)
+from ._native import (
     decode_causal_artifact as _decode_causal_artifact,
 )
 from ._native import (
@@ -39,6 +42,7 @@ class CausalArtifact:
     payload_kind: PayloadKind
     variable_names: Sequence[str]
     payload: Mapping[str, Any]
+    contract: Mapping[str, Any] | None = None
 
 
 def dumps(
@@ -67,13 +71,26 @@ def loads(data: bytes) -> CausalArtifact:
     payload = json.loads(decoded.payload_json)
     if not isinstance(payload, dict):  # canonical wire payloads are object-shaped
         raise ValueError("decoded causal artifact payload is not an object")
+    contract = None
+    if decoded.contract_json is not None:
+        parsed = json.loads(decoded.contract_json)
+        if not isinstance(parsed, dict):
+            raise ValueError("decoded analysis_result contract is not an object")
+        contract = parsed
     return CausalArtifact(
         decoded.artifact_id,
         (decoded.format_major, decoded.format_minor),
         cast(PayloadKind, decoded.payload_kind),
         tuple(decoded.variable_names),
         payload,
+        contract,
     )
 
 
-__all__ = ["CausalArtifact", "PayloadKind", "dumps", "loads"]
+def accept(data: bytes) -> dict[str, str]:
+    """Independently accept an ``analysis_result`` contract from bytes alone."""
+
+    return dict(_accept_analysis_result_contract(data))
+
+
+__all__ = ["CausalArtifact", "PayloadKind", "accept", "dumps", "loads"]
