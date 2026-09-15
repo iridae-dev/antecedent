@@ -656,7 +656,18 @@ pub(crate) fn validate_response_result(
             crate::ResponseIdentificationWire::Unidentified { .. }
         )
     );
-    if !status_matches {
+    // Identification can succeed while a required empirical cell is absent.
+    // Keep that identification status, the refusal certificate, and the failed
+    // support evidence together; no numerical value or interval is licensed.
+    let unevaluable = matches!(
+        (&wire.estimate, &wire.support.status, &wire.uncertainty),
+        (
+            crate::ResponseIdentificationWire::Unidentified { .. },
+            crate::SupportStatusWire::OutsideEmpiricalSupport,
+            crate::ResponseUncertaintyWire::None
+        )
+    );
+    if !status_matches && !unevaluable {
         return Err(IoError::Convert(
             "response identification status does not match its identification payload".into(),
         ));
@@ -886,8 +897,16 @@ fn validate_value_for_estimand(
 
 fn support_dimension(estimand: &crate::ResponseFunctionalWire, temporal: bool) -> usize {
     if temporal {
-        // Temporal support is always assessed over treatment/evaluation level × horizon,
-        // including intervention paths whose numerical response is indexed by horizon only.
+        if let crate::ResponseFunctionalWire::InterventionResponse { interventions, .. } = estimand
+        {
+            if interventions.iter().any(|i| matches!(i, crate::InterventionWire::Sequence { .. })) {
+                // Overlay schedules have no single treatment-level coordinate.
+                // The sequence executor reports a horizon region and retains
+                // the overlay coordinates in its support diagnostics.
+                return 1;
+            }
+        }
+        // Other temporal support uses treatment/evaluation level × horizon.
         return 2;
     }
     match estimand {
@@ -1654,6 +1673,20 @@ mod tests {
             lower: vec![lower],
             upper: vec![upper],
         })
+    }
+
+    #[test]
+    fn unevaluable_response_preserves_identification_without_a_number() {
+        let mut wire = partially_identified_scalar(scalar_interval(-0.19, 0.01));
+        wire.identification_status = IdentificationStatusWire::NonparametricallyIdentified;
+        wire.estimate = ResponseIdentificationWire::Unidentified {
+            certificate: "estimate.response.general_id.unevaluable_cell".into(),
+        };
+        wire.uncertainty = ResponseUncertaintyWire::None;
+        wire.support.status = SupportStatusWire::OutsideEmpiricalSupport;
+        assert!(validate_response_result(&wire, 2).is_ok());
+        wire.support.status = SupportStatusWire::Supported;
+        assert!(validate_response_result(&wire, 2).is_err());
     }
 
     #[test]
