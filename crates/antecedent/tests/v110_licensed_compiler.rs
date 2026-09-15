@@ -1,4 +1,5 @@
-//! Every licensed support-matrix cell is first-class on inspect.
+//! Every licensed support-matrix cell is first-class on inspect and completes
+//! inspect → preview → execute → claim → consume.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -269,6 +270,68 @@ fn uses_pag_envelope(cell: &antecedent::SupportCell) -> bool {
     cell.graph_class == "Pag" && matches!(cell.query, "AverageEffect" | "ConditionalEffect")
 }
 
+fn uses_identified_temporal_pag(cell: &antecedent::SupportCell) -> bool {
+    cell.graph_class == "TemporalPag"
+}
+
+fn identified_pag_pin() -> serde_json::Value {
+    serde_json::from_str(include_str!(
+        "../../../conformance/estimate/temporal_class_envelope/identified_pag.json"
+    ))
+    .unwrap()
+}
+
+fn identified_pag_series(pin: &serde_json::Value) -> TimeSeriesData {
+    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+    let names: Vec<&str> =
+        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+    let mut cols = vec![vec![0.0; n]; names.len()];
+    let [t, y, z, m, v] = [0, 1, 2, 3, 4];
+    for i in 0..n {
+        let x = i as f64;
+        cols[z][i] = (0.37 * x).sin() + 0.5 * (1.3 * x).cos();
+        cols[t][i] = 0.6 * cols[z][i] + 0.8 * (0.23 * x + 0.4).sin();
+        cols[v][i] = 0.5 * cols[t][i] + (0.41 * x).cos();
+        cols[m][i] = 0.7 * cols[z][i] + 0.6 * (0.29 * x + 0.2).cos();
+        if i > 0 {
+            cols[y][i] = 1.0 + 2.0 * cols[t][i - 1] + 1.5 * cols[m][i - 1] + 0.3 * (0.53 * x).sin();
+        }
+    }
+    TimeSeriesData::from_f64_columns(names.iter().copied().zip(cols.iter().map(Vec::as_slice)), 1)
+        .unwrap()
+}
+
+fn identified_pag(pin: &serde_json::Value) -> TemporalPag {
+    let names: Vec<&str> =
+        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+    let mark = |m: &str| match m {
+        "tail" => Endpoint::Tail,
+        "arrow" => Endpoint::Arrow,
+        "circle" => Endpoint::Circle,
+        other => panic!("unknown endpoint {other}"),
+    };
+    let node = |g: &mut TemporalPag, name: &str, lag: &serde_json::Value| {
+        let var = u32::try_from(names.iter().position(|c| *c == name).unwrap()).unwrap();
+        let lag = Lag::from_raw(u32::try_from(lag.as_u64().unwrap()).unwrap());
+        g.add_lagged(vid(var), lag).unwrap()
+    };
+    let mut graph = TemporalPag::empty();
+    for edge in pin["marked_edges"].as_array().unwrap() {
+        let a = node(&mut graph, edge[0].as_str().unwrap(), &edge[1]);
+        let b = node(&mut graph, edge[2].as_str().unwrap(), &edge[3]);
+        graph
+            .insert_marked(MarkedEdge {
+                a,
+                b,
+                at_a: mark(edge[4].as_str().unwrap()),
+                at_b: mark(edge[5].as_str().unwrap()),
+                middle: MiddleMark::Empty,
+            })
+            .unwrap();
+    }
+    graph
+}
+
 fn uses_pag_response_curve(cell: &antecedent::SupportCell) -> bool {
     cell.graph_class == "Pag" && cell.query == "ResponseCurve"
 }
@@ -357,21 +420,6 @@ fn temporal_dag(n_vars: u32) -> TemporalDag {
         let x1 = ensure_lagged(&mut g, vid(0), Lag::from_raw(1)).unwrap();
         let y0 = ensure_lagged(&mut g, vid(1), Lag::CONTEMPORANEOUS).unwrap();
         g.insert_directed(x1, y0).unwrap();
-    }
-    g
-}
-
-fn temporal_pag(n_vars: u32) -> TemporalPag {
-    let mut g = TemporalPag::empty();
-    if n_vars >= 2 {
-        let x1 = g.add_lagged(vid(0), Lag::from_raw(1)).unwrap();
-        let y0 = g.add_lagged(vid(1), Lag::CONTEMPORANEOUS).unwrap();
-        g.insert_directed(x1, y0).unwrap();
-    }
-    if n_vars >= 3 {
-        let m1 = g.add_lagged(vid(1), Lag::from_raw(1)).unwrap();
-        let y0 = g.add_lagged(vid(2), Lag::CONTEMPORANEOUS).unwrap();
-        g.insert_directed(m1, y0).unwrap();
     }
     g
 }
@@ -637,7 +685,11 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
     let inference = inference_of(cell.inference);
     let refute = refute_of(cell.validation);
 
-    let (mut builder, data) = if series {
+    let (mut builder, data) = if uses_identified_temporal_pag(cell) {
+        let pin = identified_pag_pin();
+        let series = identified_pag_series(&pin);
+        (Study::series(series.clone()), CellData::Series(series))
+    } else if series {
         let names: Vec<&str> = match n {
             2 => vec!["x", "y"],
             3 => vec!["t", "m", "y"],
@@ -760,7 +812,7 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
                     if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
                 }
                 "TemporalPag" => {
-                    let g = temporal_pag(n);
+                    let g = identified_pag(&identified_pag_pin());
                     if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
                 }
                 "CoDetermined" => {
@@ -872,27 +924,12 @@ fn inspect_cell(cell: antecedent::SupportCell) -> Result<antecedent::CausalContr
     inspect_setup(&cell_setup(&cell)?)
 }
 
-fn is_honest_unidentified_refuse(message: &str) -> bool {
-    message.contains("no identified mass")
-        || message.contains("no evaluable atom")
-        || message.contains("not identified")
-}
-
 fn consume_setup(setup: CellSetup) -> Result<(), String> {
     let expected = setup.expected.clone();
     inspect_setup(&setup)?;
     let ctx = ExecutionContext::for_tests(1);
     let built = setup.builder.build().map_err(|e| format!("{expected}: build {e}"))?;
-    let prepared = match built.prepare(&ctx) {
-        Ok(prepared) => prepared,
-        Err(err)
-            if expected.contains("TemporalPag")
-                && is_honest_unidentified_refuse(&err.to_string()) =>
-        {
-            return Ok(());
-        }
-        Err(err) => return Err(format!("{expected}: prepare {err}")),
-    };
+    let prepared = built.prepare(&ctx).map_err(|e| format!("{expected}: prepare {e}"))?;
     let contract = prepared.contract().map_err(|e| format!("{expected}: contract {e}"))?;
     let preview = prepared
         .preview_transform(TransformIntent::CompatibleDataReplace)
@@ -906,22 +943,16 @@ fn consume_setup(setup: CellSetup) -> Result<(), String> {
     let result = match &setup.data {
         CellData::Tabular(data) => prepared.estimate(data, &ctx),
         CellData::Series(data) => prepared.estimate_series(data, &ctx),
-    };
-    let result = match result {
-        Ok(result) => result,
-        Err(err)
-            if expected.contains("TemporalPag")
-                && is_honest_unidentified_refuse(&err.to_string()) =>
-        {
-            return Ok(());
-        }
-        Err(err) => return Err(format!("{expected}: execute {err}")),
-    };
+    }
+    .map_err(|e| format!("{expected}: execute {e}"))?;
     let claim = result.claim(&contract, &ctx).map_err(|e| format!("{expected}: claim {e}"))?;
     if claim.identities.program != contract.identities.program
         || claim.identities.target != contract.identities.target
     {
         return Err(format!("{expected}: claim identities drifted"));
+    }
+    if claim.claim_id == contract.identities.program {
+        return Err(format!("{expected}: claim identity collapsed onto program identity"));
     }
     let bytes = prepared
         .encode_contracted_result(&result, &expected, &ctx)
