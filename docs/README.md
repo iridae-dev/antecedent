@@ -6,6 +6,7 @@ explicit stage contracts. Package version **1.9.0**.
 
 | Doc | Contents |
 |-----|----------|
+| [Python workflow](python-workflow.md) | One-call analysis, retained studies, reports, refresh and portable executions |
 | [Causal responses](causal-responses.md) | Curves, derivatives, support, uncertainty, observation mechanisms |
 | [Observation contract](observation-contract.md) | Licensed ResponseCurve observation-spec × assumption pairs |
 | [Transport and interference](transport-interference.md) | Selection diagrams, trial generalization, assignment designs, exposure mappings |

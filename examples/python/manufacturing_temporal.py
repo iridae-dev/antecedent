@@ -32,11 +32,13 @@ def main() -> None:
         bootstrap=0,
         seed=42,
     )
+    assert result.answer.kind == "point"
+    print("Calibration:", result.calibration.status)
     print(
-        f"ATE={result.ate:.4f} plan={result.performance.plan_id} "
+        f"ATE={result.answer.value:.4f} plan={result.performance.plan_id} "
         f"peak_mem={result.performance.peak_memory_bytes} method={result.estimate.method}"
     )
-    assert abs(result.ate - 0.9) < 0.05, result.ate
+    assert abs(result.answer.value - 0.9) < 0.05, result.answer.value
 
 
 if __name__ == "__main__":

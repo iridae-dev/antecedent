@@ -70,6 +70,7 @@ nav:
       - "0.5.1": release-notes/v0.5.1.md
       - "0.5.0": release-notes/v0.5.0.md
       - "0.4.0": release-notes/v0.4.0.md
+  - Python workflow: python-workflow.md
   - Python API: python-api.md
   - Architecture: architecture.md
   - Development: development.md

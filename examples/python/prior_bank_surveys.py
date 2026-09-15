@@ -40,12 +40,12 @@ def _fit_artifact(
         graph=edges,
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
         inference=antecedent.Bayesian(n_draws=96, backend="conjugate"),
-        refute=False,
+        refute="none",
         seed=seed,
-        return_posterior_artifact=True,
     )
     assert result.posterior is not None
-    return bytes(result.posterior.artifact), float(result.posterior.effect_mean)
+    # The prior catalog consumes a posterior payload, not a full execution export.
+    return result.study.export_artifact(), float(result.posterior.effect_mean)
 
 
 def main() -> None:
@@ -163,6 +163,7 @@ def main() -> None:
         refute="full",
         seed=13,
     )
+    print("Calibration:", target.calibration.status)
     assert target.posterior is not None
     assert np.isfinite(target.posterior.effect_mean)
     sens = target.validation.prior_sensitivity

@@ -41,13 +41,15 @@ def main() -> None:
         bootstrap=30,
         seed=11,
     )
+    assert result.answer.kind == "point"
+    print("Calibration:", result.calibration.status)
     print(
-        f"ATE={result.ate:.4f} method={result.estimate.method} "
+        f"ATE={result.answer.value:.4f} method={result.estimate.method} "
         f"estimator={result.estimate.estimator_id} "
         f"overlap_ess={result.estimate.overlap_ess} "
         f"overlap_propensity_min={result.estimate.overlap_propensity_min}"
     )
-    assert abs(result.ate - 2.0) < 0.35, result.ate
+    assert abs(result.answer.value - 2.0) < 0.35, result.answer.value
     assert result.estimate.estimator_id == "propensity.weighting"
     assert result.estimate.overlap_ess is not None
 

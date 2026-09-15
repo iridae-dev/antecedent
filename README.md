@@ -8,17 +8,42 @@ Antecedent applies high-assurance engineering principles to causal inference: cl
 
 Give it data, a causal question, and a graph or discovery strategy. Antecedent determines what is identified, runs only a licensed inference path, or refuses claims the available evidence does not warrant. Results preserve assumptions, uncertainty, diagnostics, and provenance across system boundaries, so analyses can be composed, reviewed, reused, and audited without losing their scientific meaning.
 
+## Python: one call, reusable study
+
+The `1.10.0` branch adds a reusable study to the ordinary one-call workflow:
+
+```python
+import antecedent as ant
+
+result = ant.analyze(data, graph=graph, query=ant.AverageEffect("treatment", "outcome"))
+study = result.study
+updated = study.refresh(new_data)
+report = result.inspect().to_dict()
+loaded = ant.load(result.export())
+```
+
+The original result remains tied to its own execution after refresh. Start with
+`ant.prepare(...)` and call `study.estimate()` when preparation should be separate.
+Reports include descriptive answer scope, uncertainty, assumptions, support and
+calibration availability. Calibration is explicitly unavailable when no evidence
+is bound to the execution.
+
+See the [Python workflow](docs/python-workflow.md) for scope and the
+[example setup](examples/README.md#python-environment-110-branch) for building
+this branch before the 1.10 release.
+
 ## Try it in Colab
 
-Five decision-focused notebooks run without local setup:
+Five decision-focused notebooks use the 1.10 source-build environment described
+in the [example setup](examples/README.md#python-environment-110-branch):
 
 | Notebook | Run |
 | --- | --- |
-| [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb) — see how a naive dashboard can overstate paid-search impact by crediting the campaign for demand that would have existed anyway. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/marketing_channel_structural_uncertainty.ipynb) |
-| [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb) — reuse evidence from a previous campaign without assuming the new campaign is identical, then let current data update or contradict it. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/sales_campaign_prior_transfer.ipynb) |
-| [Experiment design](examples/notebooks/marketing_experiment_design.ipynb) — compare a holdout, better intent data, and more CRM records to find the best feasible action under a £40,000 budget. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/marketing_experiment_design.ipynb) |
-| [Continuous causal response](examples/notebooks/continuous_causal_response.ipynb) — estimate a nonlinear dose–response curve and examine identification, empirical support, and uncertainty as separate result axes. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/continuous_causal_response.ipynb) |
-| [Pricing, availability, and latent demand](examples/notebooks/pricing_availability_latent_demand.ipynb) — compare observed sales with an explicit censoring mechanism and see the fail-closed boundary for observation-aware response. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/main/examples/notebooks/pricing_availability_latent_demand.ipynb) |
+| [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb) — see how a naive dashboard can overstate paid-search impact by crediting the campaign for demand that would have existed anyway. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb) |
+| [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb) — reuse evidence from a previous campaign without assuming the new campaign is identical, then let current data update or contradict it. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/sales_campaign_prior_transfer.ipynb) |
+| [Experiment design](examples/notebooks/marketing_experiment_design.ipynb) — compare a holdout, better intent data, and more CRM records to find the best feasible action under a £40,000 budget. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/marketing_experiment_design.ipynb) |
+| [Continuous causal response](examples/notebooks/continuous_causal_response.ipynb) — estimate a nonlinear dose–response curve and examine identification, empirical support, and uncertainty as separate result axes. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/continuous_causal_response.ipynb) |
+| [Pricing, availability, and latent demand](examples/notebooks/pricing_availability_latent_demand.ipynb) — compare observed sales with an explicit censoring mechanism and see the fail-closed boundary for observation-aware response. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/pricing_availability_latent_demand.ipynb) |
 
 The [examples directory](examples/README.md) also contains paired Python and Rust workflows for discovery, propensity weighting, temporal response, Bayesian prior transfer, design ranking, incremental state, class-preserving CPDAG estimation, and end-to-end analysis.
 
@@ -40,9 +65,9 @@ The point is not simply breadth. It is that distinctions established upstream re
 
 See [**Capabilities**](docs/capabilities.md) for the full inventory and [**Support Matrix**](docs/support-matrix.md) for the analysis combinations licensed in the current release.
 
-Artifact contents depend on the payload. Scalar posterior exports retain draws
-and identification metadata but omit the complete assumption and validation
-ledger; keep the analysis result alongside them. See the
+On supported prepared routes, `result.export()` preserves the execution contract
+and its numerical payloads for `ant.load(...)`. Posterior-only payloads used for
+prior transfer have narrower scope. See the
 [artifact contracts](docs/artifacts.md#exporting-prepared-results).
 
 ## Epistemic Honesty
