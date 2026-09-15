@@ -193,7 +193,7 @@ was not available, published as boundary records with a runtime disclosure.
   Every horizon of a replicate is refit on the same calendar times over the
   window all horizons can evaluate. They publish no band without bootstrap
   replicates (`estimate.temporal_response.band_withheld`). AR(1) ρ = 0.9
-  residuals are a boundary record (0.883–0.943 pointwise, 0.873 simultaneous at
+  residuals are a boundary record (0.887–0.943 pointwise, 0.877 simultaneous at
   nominal 0.95), disclosed on every band; a persistent AR(1) φ = 0.9 treatment
   is gated for the dose curve.
 - The static Kennedy-DR multiplier band, the Gaussian max-t band and the
@@ -231,7 +231,8 @@ was not available, published as boundary records with a runtime disclosure.
   the projection), times n/(n − tr(HR)) for the residual scale the projection
   removes, times exp(τ²/2) for the delta-method spread of log κ; the
   prewhitened Newey–West ratio remains only as a bound, and κ stays 1 on exact
-  fits. Nominal-90% coverage is 0.87–0.91 for AR(2)(0.3, 0.5), ARMA(1,1) and
+  fits. Nominal-90% coverage is 0.873–0.907 for Pulse and Sustained and
+  0.895–0.945 for temporal mediation under AR(2)(0.3, 0.5), ARMA(1,1) and
   MA(2) treatment and residual at n = 60–400 (AR(2) Pulse was 0.81 at n = 60
   and 0.87 at n = 160), with AR(1) and iid cells unchanged in band and 3–17%
   shorter. Long memory is still not corrected. Temporal mediation tempers the
@@ -295,7 +296,7 @@ was not available, published as boundary records with a runtime disclosure.
   `mean ± z·se` could leave `[0, 1]` near 0 and 1. A binary outcome's mean
   carries its `Y = 1` atom's interval. A plug-in probability of exactly 0 or
   1 publishes no interval and warns `estimate.distribution.interval_unavailable`.
-  400-replicate coverage at the 199-replicate default is 0.932–0.958 at
+  400-replicate coverage at the 199-replicate default is 0.935–0.950 at
   0.035, 0.465 and 0.965. Rust:
   `InterventionalDistributionEstimate::atom_uncertainty` / `mean_interval`;
   Python: `EstimateView.distribution` / `mean_interval`, and result reprs

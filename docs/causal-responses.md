@@ -263,9 +263,9 @@ of the variance. The circular-block variance behaves like a Bartlett-kernel
 long-run variance with bandwidth `ℓ`, and the testing-optimal Bartlett bandwidth
 grows like `n^{1/2}` (Sun, Phillips & Jin 2008). With the `n^{1/3}` rule of the
 scalar temporal effect resamplers, the kernel truncation bias left
-observation-adjusted bands under AR(1) `ρ = 0.5` residuals at 0.89–0.91 for nominal
-95%, and neither a `t_ν/z` batch-means factor nor longer blocks under that factor
-repaired it. The fixed-b factor carries the extra estimation noise of the longer
+observation-adjusted bands under AR(1) `ρ = 0.5` residuals under the band for
+nominal 95% (that run was not retained), and neither a `t_ν/z` batch-means
+factor nor longer blocks under that factor repaired it. The fixed-b factor carries the extra estimation noise of the longer
 block, so independent rows are not over-covered.
 
 The kernel-bias factor is what the block length cannot buy. The Bartlett kernel
@@ -362,10 +362,10 @@ Politis–White threshold, the fitted autoregression sees a lag-1 coefficient ne
 0.14 (factor within 2% of 1), the influence reads about 90 effective rows (no
 short-series warning), and an AR(1)-plus-noise fit of the influence's long-run
 ratio spans 1.2–5.9 at `n = 160` (1.7–6.0 at `n = 400`) around the truth of 3.7.
-Lengthening the blocks to `n/3` regardless was measured at 0.905–0.922 pointwise
-and 0.865 simultaneous, so it does not gate the design either. The block-length
-rule catches this component only once `n` is large enough for its
-autocorrelations to clear the threshold (about `n = 2000`).
+Lengthening the blocks to `n/3` regardless did not bring the design into the
+band either (that experiment's run was not retained), so it does not gate it.
+The block-length rule catches this component only once `n` is large enough for
+its autocorrelations to clear the threshold (about `n = 2000`).
 
 Prepared responses require complete observations and the AllObserved empirical
 population. Unsupported observation mechanisms, observation assumptions, or
@@ -415,8 +415,9 @@ row's covariates, `∫ mu(a, x) dP_n(x)`, so each row also moves the level throu
 its covariates. With the additive outcome nuisance this is the per-row
 constant `c_i = mu(a_i, x_i) - ∫ mu(a_i, x) dP_n(x) = h(x_i) - mean h(x)` from
 the row's own cross-fit fold, identical at every grid point. Without it the
-pointwise band measured 0.80–0.86 coverage at nominal 0.90 on a confounded
-linear law (`crates/antecedent/tests/v19_static_calibration.rs`). The values
+pointwise band under-covered at nominal 0.90 on a confounded linear law
+(`crates/antecedent/tests/v19_static_calibration.rs`; that pre-fix run was not
+retained). The values
 still condition on the fitted nuisances and bandwidth: second-order nuisance
 error and bandwidth selection are not inside them.
 
