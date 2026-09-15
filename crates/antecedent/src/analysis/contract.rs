@@ -367,11 +367,38 @@ impl PreparedStudy {
         Ok(self.contract()?.capability_for(OperationKind::Execute))
     }
 
+    /// Inspect ranking obligations without scoring.
+    ///
+    /// # Errors
+    ///
+    /// Unlicensed support, missing identification product, or a width ranking
+    /// across incomparable estimands.
+    pub fn preview_rank_designs<A, O>(
+        &self,
+        objective: &crate::design::DesignObjective,
+        candidates: &[crate::design::CandidateDesign],
+        eval: &crate::design::DesignEvaluationContext<'_, A, O>,
+        decision_target: Option<antecedent_core::SemanticDigest>,
+    ) -> Result<crate::design::DesignRankPreview, CausalError>
+    where
+        A: Clone,
+        O: Clone,
+    {
+        crate::design::preview_design_rank(
+            &self.contract()?,
+            objective,
+            candidates,
+            eval,
+            decision_target,
+        )
+    }
+
     /// Compose the existing design ranker onto this prepared handle.
     ///
     /// # Errors
     ///
-    /// Unlicensed support, missing identification product, or ranker failure.
+    /// Unlicensed support, missing identification product, incomparable width
+    /// targets, or ranker failure.
     pub fn rank_designs<A, O>(
         &self,
         ranker: &crate::design::DesignRanker,
@@ -384,18 +411,40 @@ impl PreparedStudy {
         A: Clone,
         O: Clone,
     {
-        let contract = self.contract()?;
-        if !matches!(contract.support_status, Some(CellStatus::Licensed)) {
-            return Err(CausalError::Unsupported {
-                message: crate::error::RANK_DESIGNS_REQUIRES_LICENSE,
-            });
-        }
-        if contract.identities.identification_product.is_none() {
-            return Err(CausalError::Unsupported {
-                message: crate::error::RANK_DESIGNS_REQUIRES_PRODUCT,
-            });
-        }
-        crate::design::rank_designs(ranker, objective, candidates, eval, ctx)
+        self.rank_designs_bound(ranker, objective, candidates, eval, ctx, None)
+    }
+
+    /// Rank after binding an optional decision target.
+    ///
+    /// A width ranking across a different target is refused unless the caller
+    /// uses a common decision utility instead of width.
+    ///
+    /// # Errors
+    ///
+    /// Unlicensed support, missing identification product, incomparable width
+    /// targets, or ranker failure.
+    pub fn rank_designs_bound<A, O>(
+        &self,
+        ranker: &crate::design::DesignRanker,
+        objective: &crate::design::DesignObjective,
+        candidates: &[crate::design::CandidateDesign],
+        eval: &crate::design::DesignEvaluationContext<'_, A, O>,
+        ctx: &ExecutionContext,
+        decision_target: Option<antecedent_core::SemanticDigest>,
+    ) -> Result<crate::design::DesignRanking, CausalError>
+    where
+        A: Clone,
+        O: Clone,
+    {
+        crate::design::rank_designs_bound(
+            &self.contract()?,
+            ranker,
+            objective,
+            candidates,
+            eval,
+            ctx,
+            decision_target,
+        )
     }
 
     fn require_bound_preview(
@@ -843,6 +892,9 @@ fn cached_identification(study: &Study) -> Option<&IdentificationResult> {
         return cache.by_horizon.first().map(|horizon| &horizon.identification);
     }
     if let Some(cache) = study.dbn_posterior_identification_cache.as_ref() {
+        return cache.atoms.first().map(|atom| &atom.identification);
+    }
+    if let Some(cache) = study.graph_posterior_identification_cache.as_ref() {
         return cache.atoms.first().map(|atom| &atom.identification);
     }
     None

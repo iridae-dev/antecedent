@@ -229,6 +229,10 @@ pub(crate) const RANK_DESIGNS_REQUIRES_LICENSE: &str =
     "design ranking requires a licensed prepared contract";
 pub(crate) const RANK_DESIGNS_REQUIRES_PRODUCT: &str =
     "design ranking requires cached identification products";
+pub(crate) const RANK_DESIGNS_INCOMPARABLE_TARGETS: &str =
+    "width ranking refuses incomparable estimands; declare a common decision utility";
+pub(crate) const RANK_DESIGNS_RENORMALIZED_MASS: &str =
+    "design ranking must not renormalize unidentified mass onto favorable atoms";
 
 impl CausalError {
     /// Build a structured review-required error.
