@@ -3291,6 +3291,21 @@ impl PyPreparedAnalysis {
             "uncertainty".into(),
             contract.reasoning.uncertainty.label(|_| "available".into()),
         );
+        out.insert(
+            "variable_names".into(),
+            self.inner
+                .schema()
+                .variables()
+                .iter()
+                .map(|variable| variable.name.to_string())
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+        if let Ok(wire) = antecedent_io::causal_query_to_wire(self.inner.query()) {
+            for (key, value) in antecedent_io::executed_functional_labels(&wire) {
+                out.insert(key, value);
+            }
+        }
         Ok(out)
     }
 

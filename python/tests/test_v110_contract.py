@@ -89,3 +89,20 @@ def test_contracted_artifact_is_independently_accepted() -> None:
     assert accepted["accepts_as_verified_program"] == "true"
     assert accepted["program"] == contract["program"]
     assert accepted["target"] == contract["target"]
+    for key in (
+        "treatment",
+        "outcome",
+        "control",
+        "active",
+        "population",
+        "temporal_coordinates",
+        "variable_names",
+    ):
+        assert accepted[key] == contract[key], key
+    assert accepted["treatment"] == "0"
+    assert accepted["outcome"] == "1"
+    assert accepted["control"] == "set:0=0"
+    assert accepted["active"] == "set:0=1"
+    assert accepted["population"] == "all_observed"
+    assert accepted["temporal_coordinates"] == "none"
+    assert accepted["variable_names"] == "t,y,z"
