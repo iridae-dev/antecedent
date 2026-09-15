@@ -510,6 +510,20 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
         crate::identification_from_wire(&horizon.identification)?;
     }
     crate::identification_from_wire(&result.identification)?;
+    if result.identification_variables.is_none() && result.identification.query != result.query {
+        return Err(IoError::Convert(
+            "identification.query does not match the enclosing query".into(),
+        ));
+    }
+    if let crate::CausalQueryWire::TemporalEffect { horizon_steps, .. } = &result.query {
+        if !result.temporal_identification.is_empty()
+            && !result.temporal_identification.iter().any(|item| item.horizon == *horizon_steps)
+        {
+            return Err(IoError::Convert(
+                "temporal certificate horizon does not match the enclosing query".into(),
+            ));
+        }
+    }
     if result.estimate.is_some_and(|estimate| !estimate.is_finite()) {
         return Err(IoError::Convert(
             "analysis scalar estimate must be finite when present".into(),
@@ -534,6 +548,19 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             return Err(IoError::Convert(
                 "structural subsampled_out_mass must be a fraction in [0, 1]".into(),
             ));
+        }
+        let total = structural.identified_mass
+            + structural.unidentified_mass
+            + structural.unevaluable_mass
+            + structural.subsampled_out_mass;
+        if !total.is_finite() || (total - 1.0).abs() > 1e-9 {
+            return Err(IoError::Convert("structural masses must sum to one".into()));
+        }
+        if !structural.atoms.is_empty() {
+            let weight: f64 = structural.atoms.iter().map(|atom| atom.weight).sum();
+            if !weight.is_finite() || (weight - 1.0).abs() > 1e-9 {
+                return Err(IoError::Convert("inconsistent atom totals".into()));
+            }
         }
         for atom in &structural.atoms {
             if !atom.weight.is_finite() || atom.weight < 0.0 {
@@ -845,5 +872,80 @@ mod tests {
             encode_analysis_result_artifact(&result, vec!["x".into(), "y".into()], "invalid")
                 .is_err()
         );
+    }
+
+    #[test]
+    fn validate_result_refuses_wrong_query_ids_and_keeps_the_valid_counterpart() {
+        let names = vec!["a".into(), "y".into()];
+        let ok = fixture();
+        assert!(encode_analysis_result_artifact(&ok, names.clone(), "ok").is_ok());
+        let mut wrong = ok;
+        let mut query = serde_json::to_value(&wrong.identification.query).unwrap();
+        query["response"]["functional"]["average_derivative"]["treatment"] = 1.into();
+        query["response"]["functional"]["average_derivative"]["outcome"] = 0.into();
+        wrong.identification.query = serde_json::from_value(query).unwrap();
+        let err = encode_analysis_result_artifact(&wrong, names, "wrong").unwrap_err();
+        assert!(err.to_string().contains("enclosing query"), "{err}");
+    }
+
+    fn pulse_query_wire(horizon: u32) -> crate::CausalQueryWire {
+        use crate::query_wire::causal_query_to_wire;
+        use antecedent_core::{CausalQuery, TemporalEffectQuery, VariableId};
+        causal_query_to_wire(&CausalQuery::TemporalEffect(
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_horizon_steps(horizon),
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn validate_result_refuses_changed_horizon_and_keeps_the_matching_certificate() {
+        let names = vec!["x".into(), "y".into()];
+        let mut ok = fixture();
+        ok.query = pulse_query_wire(1);
+        ok.identification.query = ok.query.clone();
+        ok.temporal_identification.push(TemporalIdentificationWire {
+            horizon: 1,
+            variables: vec![
+                crate::HorizonAdjustmentNodeWire { variable: 0, offset: -1 },
+                crate::HorizonAdjustmentNodeWire { variable: 1, offset: 0 },
+            ],
+            identification: ok.identification.clone(),
+        });
+        assert!(encode_analysis_result_artifact(&ok, names.clone(), "horizon-ok").is_ok());
+        let mut stale = ok;
+        stale.temporal_identification[0].horizon = 2;
+        let err = encode_analysis_result_artifact(&stale, names, "horizon-stale").unwrap_err();
+        assert!(err.to_string().contains("horizon"), "{err}");
+    }
+
+    #[test]
+    fn validate_result_refuses_inconsistent_atom_totals_and_keeps_unit_mass() {
+        let names = vec!["a".into(), "y".into()];
+        let mut ok = with_structural(None);
+        ok.structural_response.as_mut().unwrap().atoms.push(StructuralResponseAtomWire {
+            graph_key: 1,
+            weight: 1.0,
+            identification_status: crate::IdentificationStatusWire::NonparametricallyIdentified,
+            value: None,
+            posterior_artifact: None,
+            response: None,
+        });
+        assert!(encode_analysis_result_artifact(&ok, names.clone(), "atoms-ok").is_ok());
+        let mut bad = ok;
+        bad.structural_response.as_mut().unwrap().atoms[0].weight = 0.4;
+        let err = encode_analysis_result_artifact(&bad, names, "atoms-bad").unwrap_err();
+        assert!(err.to_string().contains("atom totals"), "{err}");
+    }
+
+    #[test]
+    fn validate_result_refuses_inconsistent_masses_and_keeps_unit_mass() {
+        let names = vec!["a".into(), "y".into()];
+        let ok = with_structural(None);
+        assert!(encode_analysis_result_artifact(&ok, names.clone(), "mass-ok").is_ok());
+        let mut bad = ok;
+        bad.structural_response.as_mut().unwrap().identified_mass = 0.5;
+        let err = encode_analysis_result_artifact(&bad, names, "mass-bad").unwrap_err();
+        assert!(err.to_string().contains("masses must sum to one"), "{err}");
     }
 }
