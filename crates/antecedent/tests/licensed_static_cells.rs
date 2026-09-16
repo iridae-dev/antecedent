@@ -28,9 +28,12 @@ use antecedent_core::{
     MediationQuery, Value, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, set_edge};
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_prob::InferenceDiagnostics;
+
+mod common;
+
+// The three-atom static graph posterior, in one owner.
+use common::fixtures::mixture_graph_posterior;
 
 const SUITES: [RefuteSuite; 3] = [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full];
 
@@ -314,32 +317,6 @@ fn conditional_effect_dag_frequentist_known_truth_all_structures_and_suites() {
             }
         }
     }
-}
-
-/// Graph posterior over three DAG atoms (weights 0.5 / 0.3 / 0.2): a direct
-/// `t -> y` graph, a `z`-adjusted graph, and a reversed `y -> t` graph that
-/// leaves the effect unidentified.
-fn mixture_graph_posterior() -> GraphPosterior {
-    let weights = [0.5, 0.3, 0.2];
-    let direct = set_edge(0, 3, 0, 1, true);
-    let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
-    let unidentified = set_edge(0, 3, 1, 0, true);
-    let mut marginals = vec![0.0; 9];
-    marginals[1] = weights[0] + weights[1];
-    marginals[3] = weights[2];
-    marginals[6] = weights[1];
-    marginals[7] = weights[1];
-    GraphPosterior::new(
-        3,
-        weights.to_vec(),
-        vec![direct, adjusted, unidentified],
-        marginals.clone(),
-        marginals,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
-    )
-    .unwrap()
 }
 
 /// `Y = 2T + 2Z ± 0.2` on a balanced `(z, t)` design.

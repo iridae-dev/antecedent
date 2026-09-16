@@ -29,10 +29,15 @@ use antecedent_discovery::GraphPosterior;
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{
     Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag,
-    TemporalDag, TemporalPag, TieredBackground, WithinTier, ensure_lagged,
+    TemporalDag, TieredBackground, WithinTier, ensure_lagged,
 };
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
+
+mod common;
+
+// The pinned temporal-PAG law and structure, in one owner.
+use common::fixtures::{pinned_pag as identified_pag, pinned_pag_series as identified_pag_series};
 
 fn vid(raw: u32) -> VariableId {
     VariableId::from_raw(raw)
@@ -287,57 +292,6 @@ fn identified_pag_pin() -> serde_json::Value {
         "../../../conformance/estimate/temporal_class_envelope/identified_pag.json"
     ))
     .unwrap()
-}
-
-fn identified_pag_series(pin: &serde_json::Value) -> TimeSeriesData {
-    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
-    let names: Vec<&str> =
-        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
-    let mut cols = vec![vec![0.0; n]; names.len()];
-    let [t, y, z, m, v] = [0, 1, 2, 3, 4];
-    for i in 0..n {
-        let x = i as f64;
-        cols[z][i] = (0.37 * x).sin() + 0.5 * (1.3 * x).cos();
-        cols[t][i] = 0.6 * cols[z][i] + 0.8 * (0.23 * x + 0.4).sin();
-        cols[v][i] = 0.5 * cols[t][i] + (0.41 * x).cos();
-        cols[m][i] = 0.7 * cols[z][i] + 0.6 * (0.29 * x + 0.2).cos();
-        if i > 0 {
-            cols[y][i] = 1.0 + 2.0 * cols[t][i - 1] + 1.5 * cols[m][i - 1] + 0.3 * (0.53 * x).sin();
-        }
-    }
-    TimeSeriesData::from_f64_columns(names.iter().copied().zip(cols.iter().map(Vec::as_slice)), 1)
-        .unwrap()
-}
-
-fn identified_pag(pin: &serde_json::Value) -> TemporalPag {
-    let names: Vec<&str> =
-        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
-    let mark = |m: &str| match m {
-        "tail" => Endpoint::Tail,
-        "arrow" => Endpoint::Arrow,
-        "circle" => Endpoint::Circle,
-        other => panic!("unknown endpoint {other}"),
-    };
-    let node = |g: &mut TemporalPag, name: &str, lag: &serde_json::Value| {
-        let var = u32::try_from(names.iter().position(|c| *c == name).unwrap()).unwrap();
-        let lag = Lag::from_raw(u32::try_from(lag.as_u64().unwrap()).unwrap());
-        g.add_lagged(vid(var), lag).unwrap()
-    };
-    let mut graph = TemporalPag::empty();
-    for edge in pin["marked_edges"].as_array().unwrap() {
-        let a = node(&mut graph, edge[0].as_str().unwrap(), &edge[1]);
-        let b = node(&mut graph, edge[2].as_str().unwrap(), &edge[3]);
-        graph
-            .insert_marked(MarkedEdge {
-                a,
-                b,
-                at_a: mark(edge[4].as_str().unwrap()),
-                at_b: mark(edge[5].as_str().unwrap()),
-                middle: MiddleMark::Empty,
-            })
-            .unwrap();
-    }
-    graph
 }
 
 fn uses_pag_response_curve(cell: &antecedent::SupportCell) -> bool {

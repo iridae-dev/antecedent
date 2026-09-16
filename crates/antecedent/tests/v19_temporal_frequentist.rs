@@ -35,7 +35,10 @@ use antecedent_core::{
 use antecedent_data::TimeSeriesData;
 use antecedent_estimate::CircularBlockFamily;
 use antecedent_graph::TemporalDag;
-use common::calibration::{CoverageTally, Z90, n_sim, normal_interval};
+use common::calibration::{
+    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, n_sim, normal_interval,
+};
+use common::calibration_bind::bind_all;
 use common::driven_dgp::{
     A, ALPHA, B, BETA, C, DELTA, Scenario, mediation_dag, mediation_query, mediation_series, pulse,
     pulse_dag, pulse_series, single_sustained,
@@ -59,16 +62,27 @@ fn run(
     boot: u32,
     seed: u64,
 ) -> StudyResult {
-    Study::series(data)
+    run_study(data, graph, query, boot, seed).1
+}
+
+/// [`run`], returning the study as well (coverage records bind to it).
+fn run_study(
+    data: TimeSeriesData,
+    graph: TemporalDag,
+    query: CausalQuery,
+    boot: u32,
+    seed: u64,
+) -> (Study, StudyResult) {
+    let study = Study::series(data)
         .graph(graph)
         .query(query)
         .inference(InferenceMode::Frequentist)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(boot)
         .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(seed))
-        .unwrap()
+        .unwrap();
+    let result = study.run(&ExecutionContext::for_tests(seed)).unwrap();
+    (study, result)
 }
 
 fn has_diagnostic(result: &StudyResult, code: &str) -> bool {
@@ -77,6 +91,26 @@ fn has_diagnostic(result: &StudyResult, code: &str) -> bool {
 
 const SHORT_SERIES: &str = "estimate.temporal.circular_block_se.short_series";
 
+/// Tallies of one design: the gated 90% tallies, the runtime's reported 95%
+/// interval scored on the same replicates (recorded, not gated), and how many
+/// replicates carried the short-series warning.
+struct Coverage {
+    tallies: Vec<CoverageTally>,
+    reported: Vec<CoverageTally>,
+    warned: u32,
+}
+
+/// The gated 90% tally and the unasserted reported-level tally of the headline
+/// circular-block interval `ate ± z·se_bootstrap` (the primary interval the
+/// runtime reports for a Frequentist TemporalDag scalar).
+fn headline_tallies(test: &'static str, dgp: &'static str) -> (CoverageTally, CoverageTally) {
+    let key = RecordKey { test, dgp, interval: "circular_block_se" };
+    (
+        CoverageTally::for_record(key, 0.9),
+        CoverageTally::for_record(key, REPORTED_LEVEL).unasserted(),
+    )
+}
+
 /// Coverage of the headline circular-block interval `ate ± z·se_bootstrap`,
 /// plus how many replicates carried the short-series warning.
 ///
@@ -84,20 +118,21 @@ const SHORT_SERIES: &str = "estimate.temporal.circular_block_se.short_series";
 /// single-step Sustained fit the same regression) so each gate is independent
 /// evidence.
 fn effect_coverage(
+    test: &'static str,
     s: Scenario,
     what: &str,
     query: &TemporalEffectQuery,
     truth: f64,
     seed_offset: u64,
-) -> (Vec<CoverageTally>, u32) {
+) -> Coverage {
     let s = Scenario { seed: s.seed + seed_offset, ..s };
-    let mut boot =
-        CoverageTally::new(format!("{what} [{}] circular-block se_bootstrap", s.label), 0.9);
+    let (mut boot, mut reported) =
+        headline_tallies(test, "crates/antecedent/tests/common/driven_dgp.rs::pulse_series");
     let two_step = query.horizon_steps >= 2;
     let mut spread = Spread::default();
     let mut warned = 0;
     for rep in 0..n_sim() {
-        let result = run(
+        let (study, result) = run_study(
             pulse_series(s, rep, two_step),
             pulse_dag(two_step),
             CausalQuery::TemporalEffect(query.clone()),
@@ -107,29 +142,40 @@ fn effect_coverage(
         let est = &result.estimate;
         assert_eq!(result.estimand.adjustment_set.len(), 0, "{what}: unexpected adjustment");
         assert!(est.se_analytic.is_nan(), "{what}: no analytic SE is calibrated");
-        boot.record(normal_interval(est.ate, est.se_bootstrap, Z90), truth);
+        let interval = normal_interval(est.ate, est.se_bootstrap, Z90);
+        if interval.is_some() {
+            bind_all(&mut [&mut boot, &mut reported], &study, &result);
+        }
+        boot.record(interval, truth);
+        reported.record(normal_interval(est.ate, est.se_bootstrap, Z95), truth);
         spread.push(est.ate, est.se_bootstrap.unwrap_or(f64::NAN));
         warned += u32::from(has_diagnostic(&result, SHORT_SERIES));
     }
     spread.report(&format!("{what} [{}]", s.label), truth);
-    (vec![boot], warned)
+    Coverage { tallies: vec![boot], reported: vec![reported], warned }
 }
 
 /// In-assumption gate: nominal coverage must hold (the short-series warning may
 /// or may not fire; its rate is reported).
-fn gate((tallies, warned): (Vec<CoverageTally>, u32)) {
-    eprintln!("short_series warnings: {warned}/{}", n_sim());
-    assert_all(&tallies.iter().collect::<Vec<_>>());
+fn gate(coverage: Coverage) {
+    eprintln!("short_series warnings: {}/{}", coverage.warned, n_sim());
+    assert_all(&coverage.tallies.iter().collect::<Vec<_>>());
+    for tally in &coverage.reported {
+        tally.emit();
+    }
 }
 
 /// Named boundary cell: a design whose interval measures below the gate's
 /// precision floor at 2000 replicates (the mechanism is named at the test);
 /// every contrast is asserted against the band around `measured`, and the
 /// short-series warning rate is reported.
-fn boundary_gate((tallies, warned): (Vec<CoverageTally>, u32), measured: f64) {
-    eprintln!("short_series warnings: {warned}/{}", n_sim());
-    for tally in &tallies {
+fn boundary_gate(coverage: Coverage, measured: f64) {
+    eprintln!("short_series warnings: {}/{}", coverage.warned, n_sim());
+    for tally in &coverage.tallies {
         tally.assert_boundary(measured);
+    }
+    for tally in &coverage.reported {
+        tally.emit();
     }
 }
 
@@ -138,8 +184,13 @@ fn boundary_gate((tallies, warned): (Vec<CoverageTally>, u32), measured: f64) {
 /// warning fires on at least 95% of replicates (the statistic is estimated per
 /// series, so a few draws land above the family threshold) — and coverage is
 /// measured and reported, not gated.
-fn boundary((tallies, warned): (Vec<CoverageTally>, u32)) {
-    for tally in &tallies {
+fn boundary(coverage: Coverage) {
+    let warned = coverage.warned;
+    for tally in &coverage.tallies {
+        if tally.record_interval().is_some() {
+            tally.emit_named_boundary();
+            continue;
+        }
         let (lo, hi) = common::calibration::coverage_band(n_sim(), 0.9);
         eprintln!(
             "calibration-boundary {tally:?}: coverage={:.3} band=[{lo:.3}, {hi:.3}] \
@@ -148,6 +199,10 @@ fn boundary((tallies, warned): (Vec<CoverageTally>, u32)) {
             tally.mean_length(),
             n_sim()
         );
+    }
+    eprintln!("short_series warnings: {warned}/{}", n_sim());
+    for tally in &coverage.reported {
+        tally.emit();
     }
     assert!(
         warned * 20 >= n_sim() * 19,
@@ -158,7 +213,11 @@ fn boundary((tallies, warned): (Vec<CoverageTally>, u32)) {
 
 /// Coverage of the headline interval of a design given by its data and graph
 /// (`data(seed)` draws one series), plus the short-series warning count.
+/// `test` / `dgp` key the coverage records (`dgp` names the function `data` calls).
+#[allow(clippy::too_many_arguments)]
 fn headline_coverage(
+    test: &'static str,
+    dgp: &'static str,
     what: &str,
     label: &str,
     seed: u64,
@@ -166,13 +225,13 @@ fn headline_coverage(
     graph: impl Fn() -> TemporalDag,
     query: &TemporalEffectQuery,
     truth: f64,
-) -> (Vec<CoverageTally>, u32) {
-    let mut boot = CoverageTally::new(format!("{what} [{label}] circular-block se_bootstrap"), 0.9);
+) -> Coverage {
+    let (mut boot, mut reported) = headline_tallies(test, dgp);
     let mut spread = Spread::default();
     let mut warned = 0;
     for rep in 0..n_sim() {
         let rep_seed = seed + u64::from(rep);
-        let result = run(
+        let (study, result) = run_study(
             data(rep_seed),
             graph(),
             CausalQuery::TemporalEffect(query.clone()),
@@ -181,12 +240,17 @@ fn headline_coverage(
         );
         let est = &result.estimate;
         assert!(est.se_analytic.is_nan(), "{what}: no analytic SE is calibrated");
-        boot.record(normal_interval(est.ate, est.se_bootstrap, Z90), truth);
+        let interval = normal_interval(est.ate, est.se_bootstrap, Z90);
+        if interval.is_some() {
+            bind_all(&mut [&mut boot, &mut reported], &study, &result);
+        }
+        boot.record(interval, truth);
+        reported.record(normal_interval(est.ate, est.se_bootstrap, Z95), truth);
         spread.push(est.ate, est.se_bootstrap.unwrap_or(f64::NAN));
         warned += u32::from(has_diagnostic(&result, SHORT_SERIES));
     }
     spread.report(&format!("{what} [{label}]"), truth);
-    (vec![boot], warned)
+    Coverage { tallies: vec![boot], reported: vec![reported], warned }
 }
 
 /// Print every tally's calibration line before failing on any of them.
@@ -231,25 +295,40 @@ impl Spread {
 }
 
 /// Coverage of all three contrasts from the shared block replicate of one run.
-fn mediation_coverage(s: Scenario) -> (Vec<CoverageTally>, u32) {
-    mediation_coverage_on(s.label, s.seed, |rep| mediation_series(s, rep), mediation_dag)
+fn mediation_coverage(test: &'static str, s: Scenario) -> Coverage {
+    mediation_coverage_on(
+        test,
+        "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
+        s.label,
+        s.seed,
+        |rep| mediation_series(s, rep),
+        mediation_dag,
+    )
 }
 
 /// [`mediation_coverage`] on any one-mediator design with an empty adjustment
 /// set (`data(rep)` draws replicate `rep`; the run seed is `seed + rep`).
+///
+/// The query asks for the Mediated contrast, so the runtime's reported
+/// (primary) interval is the Mediated circular-block interval: that tally backs
+/// the coverage record. Total and Direct are grid slices beside it, not a
+/// reported interval, so their tallies emit no record.
 fn mediation_coverage_on(
+    test: &'static str,
+    dgp: &'static str,
     label: &str,
     seed: u64,
     data: impl Fn(u32) -> TimeSeriesData,
     graph: fn() -> TemporalDag,
-) -> (Vec<CoverageTally>, u32) {
+) -> Coverage {
+    // No record: the Total / Direct slices are not the reported interval of a Mediated query.
     let mut total = CoverageTally::new(format!("temporal mediation Total [{label}]"), 0.9);
     let mut direct = CoverageTally::new(format!("temporal mediation Direct [{label}]"), 0.9);
-    let mut mediated = CoverageTally::new(format!("temporal mediation Mediated [{label}]"), 0.9);
+    let (mut mediated, mut reported) = headline_tallies(test, dgp);
     let mut spreads = [Spread::default(), Spread::default(), Spread::default()];
     let mut warned = 0;
     for rep in 0..n_sim() {
-        let result = run(
+        let (study, result) = run_study(
             data(rep),
             graph(),
             mediation_query(MediationContrast::Mediated),
@@ -270,7 +349,12 @@ fn mediation_coverage_on(
         warned += u32::from(has_diagnostic(&result, SHORT_SERIES));
         total.record(normal_interval(points.total.unwrap(), block.total, Z90), C + A * B);
         direct.record(normal_interval(points.direct.unwrap(), block.direct, Z90), C);
-        mediated.record(normal_interval(points.mediated.unwrap(), block.mediated, Z90), A * B);
+        let interval = normal_interval(points.mediated.unwrap(), block.mediated, Z90);
+        if interval.is_some() {
+            bind_all(&mut [&mut mediated, &mut reported], &study, &result);
+        }
+        mediated.record(interval, A * B);
+        reported.record(normal_interval(points.mediated.unwrap(), block.mediated, Z95), A * B);
         for (spread, (point, se)) in spreads.iter_mut().zip([
             (points.total, block.total),
             (points.direct, block.direct),
@@ -284,7 +368,7 @@ fn mediation_coverage_on(
     {
         spread.report(&format!("temporal mediation {name} [{label}]"), truth);
     }
-    (vec![total, direct, mediated], warned)
+    Coverage { tallies: vec![total, direct, mediated], reported: vec![reported], warned }
 }
 
 /// WP-F2: Total / Direct / Mediated coverage on the mediator-outcome-confounded
@@ -292,7 +376,10 @@ fn mediation_coverage_on(
 /// w[t-1] -> y` confounds `m -> y` but not `t -> y`) at n = 160, iid. The
 /// intervals are only calibrated if the outcome model adjusts `{z[t-1],
 /// w[t-1]}` as well as the (empty) `t -> y` back-door set.
-fn confounded_mediation_coverage() -> Vec<CoverageTally> {
+///
+/// As in [`mediation_coverage_on`], only the Mediated tally (the reported
+/// interval of the Mediated query) backs a coverage record.
+fn confounded_mediation_coverage(test: &'static str) -> Coverage {
     use common::fixtures;
     const SEED: u64 = 600_000;
     let label = "kappa=0.5 iid n=160";
@@ -301,16 +388,20 @@ fn confounded_mediation_coverage() -> Vec<CoverageTally> {
         ("Direct", fixtures::mediation_direct_truth()),
         ("Mediated", fixtures::mediation_truth()),
     ];
-    let mut tallies: Vec<CoverageTally> = truths
+    let (mediated, mut reported) =
+        headline_tallies(test, "crates/antecedent/tests/common/fixtures.rs::mediation_series");
+    // No record for Total / Direct: not the reported interval of a Mediated query.
+    let mut tallies: Vec<CoverageTally> = truths[..2]
         .iter()
         .map(|(name, _)| {
             CoverageTally::new(format!("temporal mediation {name} confounded [{label}]"), 0.9)
         })
         .collect();
+    tallies.push(mediated);
     let mut spreads = [Spread::default(), Spread::default(), Spread::default()];
     for rep in 0..n_sim() {
         let seed = SEED + u64::from(rep);
-        let result = run(
+        let (study, result) = run_study(
             fixtures::mediation_series(160, fixtures::MED_KAPPA, seed),
             fixtures::mediation_dag(),
             mediation_query(MediationContrast::Mediated),
@@ -336,21 +427,33 @@ fn confounded_mediation_coverage() -> Vec<CoverageTally> {
         .enumerate()
         {
             let point = point.unwrap();
-            tallies[i].record(normal_interval(point, se, Z90), truths[i].1);
+            let interval = normal_interval(point, se, Z90);
+            if i == 2 {
+                if interval.is_some() {
+                    bind_all(&mut [&mut tallies[i], &mut reported], &study, &result);
+                }
+                reported.record(normal_interval(point, se, Z95), truths[i].1);
+            }
+            tallies[i].record(interval, truths[i].1);
             spreads[i].push(point, se.unwrap_or(f64::NAN));
         }
     }
     for (spread, (name, truth)) in spreads.iter().zip(truths) {
         spread.report(&format!("temporal mediation {name} confounded [{label}]"), truth);
     }
-    tallies
+    Coverage { tallies, reported: vec![reported], warned: 0 }
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage() {
-    let tallies = confounded_mediation_coverage();
-    assert_all(&tallies.iter().collect::<Vec<_>>());
+    let coverage = confounded_mediation_coverage(
+        "temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage",
+    );
+    assert_all(&coverage.tallies.iter().collect::<Vec<_>>());
+    for tally in &coverage.reported {
+        tally.emit();
+    }
 }
 
 macro_rules! effect_gate {
@@ -358,7 +461,7 @@ macro_rules! effect_gate {
         #[test]
         #[ignore = "calibration: run via scripts/gate_calibration.sh"]
         fn $name() {
-            gate(effect_coverage($scenario, $what, &$query, $truth, $offset));
+            gate(effect_coverage(stringify!($name), $scenario, $what, &$query, $truth, $offset));
         }
     };
 }
@@ -368,7 +471,10 @@ macro_rules! effect_boundary_gate {
         #[test]
         #[ignore = "calibration: run via scripts/gate_calibration.sh"]
         fn $name() {
-            boundary_gate(effect_coverage($scenario, $what, &$query, $truth, $offset), $measured);
+            boundary_gate(
+                effect_coverage(stringify!($name), $scenario, $what, &$query, $truth, $offset),
+                $measured,
+            );
         }
     };
 }
@@ -378,7 +484,7 @@ macro_rules! mediation_gate {
         #[test]
         #[ignore = "calibration: run via scripts/gate_calibration.sh"]
         fn $name() {
-            gate(mediation_coverage($scenario));
+            gate(mediation_coverage(stringify!($name), $scenario));
         }
     };
 }
@@ -534,8 +640,10 @@ mediation_gate!(temporal_dag_mediation_ar09_n160_nominal_90_coverage, AR09_160);
 /// Multi-step Sustained over lags 2..=1 on `fixtures::confounded_series` with its
 /// generating DAG (`fixtures::confounded_dag`, truth `B1 + B2`): sequential
 /// g-computation refits every mechanism on each circular-block replicate.
-fn sequential_coverage(label: &str, rho: f64, n: usize, seed: u64) -> (Vec<CoverageTally>, u32) {
+fn sequential_coverage(test: &'static str, label: &str, rho: f64, n: usize, seed: u64) -> Coverage {
     headline_coverage(
+        test,
+        "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         "TemporalDag multi-step Sustained",
         label,
         seed,
@@ -549,13 +657,25 @@ fn sequential_coverage(label: &str, rho: f64, n: usize, seed: u64) -> (Vec<Cover
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage() {
-    gate(sequential_coverage("AR(1) rho=0.5 n=160", 0.5, 160, 700_000));
+    gate(sequential_coverage(
+        "temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage",
+        "AR(1) rho=0.5 n=160",
+        0.5,
+        160,
+        700_000,
+    ));
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage() {
-    gate(sequential_coverage("AR(1) rho=0.9 n=400", 0.9, 400, 710_000));
+    gate(sequential_coverage(
+        "temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage",
+        "AR(1) rho=0.9 n=400",
+        0.9,
+        400,
+        710_000,
+    ));
 }
 
 // Boundary records: an AR(1) treatment as well as residual at n = 60 (ρ = 0.9;
@@ -570,6 +690,8 @@ fn temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary() {
     boundary(headline_coverage(
+        "temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary",
+        "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         "TemporalDag Pulse h=1, AR(1) treatment",
         "AR(1) rho=0.9 n=60 (boundary)",
         800_000,
@@ -585,6 +707,8 @@ fn temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary() {
 fn temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary() {
     const SEED: u64 = 810_000;
     boundary(mediation_coverage_on(
+        "temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary",
+        "crates/antecedent/tests/common/persistent_dgp.rs::mediation_series",
         "AR(1) treatment, AR(1) rho=0.9 n=60 (boundary)",
         SEED,
         |rep| persistent_dgp::mediation_series(60, 0.9, SEED + u64::from(rep)),
@@ -596,6 +720,8 @@ fn temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary() {
     boundary(headline_coverage(
+        "temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary",
+        "crates/antecedent/tests/common/persistent_dgp.rs::sequential_series",
         "TemporalDag multi-step Sustained, AR(1) treatment",
         "AR(1) rho=0.95 n=60 (boundary)",
         820_000,
