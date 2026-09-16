@@ -216,6 +216,7 @@ fn temporal_effect_query(
     y_id: antecedent_core::VariableId,
     treatment_lag: u32,
     horizon_steps: u32,
+    control_level: f64,
     active_level: f64,
     opts: &PrepareOptions,
 ) -> PyResult<antecedent_core::TemporalEffectQuery> {
@@ -233,6 +234,7 @@ fn temporal_effect_query(
         }
         q = q.with_policy(antecedent_core::TemporalPolicy::sustained(from, until));
     }
+    q.control = Intervention::set(t_id, Value::f64(control_level));
     if let Some(population) = opts.target_population.clone() {
         q.target_population = population;
     }
@@ -1853,6 +1855,7 @@ impl PyPreparedAnalysis {
         window=None,
         treatment_lag=1,
         horizon_steps=1,
+        control_level=0.0,
         active_level=1.0,
         accepted=false,
         class_graph=None,
@@ -1876,6 +1879,7 @@ impl PyPreparedAnalysis {
         window: Option<(i32, i32)>,
         treatment_lag: u32,
         horizon_steps: u32,
+        control_level: f64,
         active_level: f64,
         accepted: bool,
         class_graph: Option<Bound<'_, PyAny>>,
@@ -1903,6 +1907,7 @@ impl PyPreparedAnalysis {
                 y_id,
                 treatment_lag,
                 horizon_steps,
+                control_level,
                 active_level,
                 &opts,
             )?;
@@ -2245,6 +2250,7 @@ impl PyPreparedAnalysis {
         window=None,
         treatment_lag=1,
         horizon_steps=1,
+        control_level=0.0,
         active_level=1.0,
         max_lag=1,
         force_mcmc=false,
@@ -2268,6 +2274,7 @@ impl PyPreparedAnalysis {
         window: Option<(i32, i32)>,
         treatment_lag: u32,
         horizon_steps: u32,
+        control_level: f64,
         active_level: f64,
         max_lag: u32,
         force_mcmc: bool,
@@ -2307,6 +2314,7 @@ impl PyPreparedAnalysis {
                 y_id,
                 treatment_lag,
                 horizon_steps,
+                control_level,
                 active_level,
                 &opts,
             )?;

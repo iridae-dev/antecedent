@@ -1846,6 +1846,7 @@ class _PrepareRoute:
                 window=getattr(query, "window", None),
                 treatment_lag=query.treatment_lag,
                 horizon_steps=query.horizon_steps,
+                control_level=query.control_level,
                 active_level=query.active_level,
                 **dbn,
                 **shared,
@@ -1906,6 +1907,7 @@ class _PrepareRoute:
                 window=getattr(query, "window", None),
                 treatment_lag=query.treatment_lag,
                 horizon_steps=query.horizon_steps,
+                control_level=query.control_level,
                 active_level=query.active_level,
                 **common,
             )
