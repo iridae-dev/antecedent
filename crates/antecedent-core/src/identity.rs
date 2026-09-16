@@ -185,7 +185,11 @@ pub struct ContractIdentities {
     /// Cached identification products, when preparation produced them.
     pub identification_product: Option<SemanticDigest>,
     /// Program: target + premises + products + licensed inferential commitments.
-    pub program: SemanticDigest,
+    ///
+    /// `None` on a cheap structural inspection: it runs no identification, so
+    /// the products the program covers do not exist yet and the program
+    /// identity is unavailable rather than a digest of a different program.
+    pub program: Option<SemanticDigest>,
     /// Inference binding (priors, numeric knobs, validation, dependence).
     pub inference_binding: SemanticDigest,
     /// Schema / observation contract.
@@ -201,7 +205,7 @@ impl ContractIdentities {
         target: SemanticDigest,
         identification: SemanticDigest,
         identification_product: Option<SemanticDigest>,
-        program: SemanticDigest,
+        program: Option<SemanticDigest>,
         inference_binding: SemanticDigest,
         observation: SemanticDigest,
         data_snapshot: SemanticDigest,
@@ -227,8 +231,10 @@ impl ContractIdentities {
         if let Some(product) = self.identification_product {
             out.push(IdentityRef::new(IdentityDomain::IdentificationProduct, product));
         }
+        if let Some(program) = self.program {
+            out.push(IdentityRef::new(IdentityDomain::Program, program));
+        }
         out.extend([
-            IdentityRef::new(IdentityDomain::Program, self.program),
             IdentityRef::new(IdentityDomain::InferenceBinding, self.inference_binding),
             IdentityRef::new(IdentityDomain::Observation, self.observation),
             IdentityRef::new(IdentityDomain::DataSnapshot, self.data_snapshot),

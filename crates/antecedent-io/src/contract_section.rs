@@ -82,22 +82,29 @@ pub struct TargetWeightsSectionWire {
     pub values: Vec<f64>,
 }
 
-impl From<&ContractIdentities> for ContractIdentitiesWire {
-    fn from(identities: &ContractIdentities) -> Self {
-        Self {
+impl TryFrom<&ContractIdentities> for ContractIdentitiesWire {
+    type Error = crate::IoError;
+
+    /// A portable section advertises a program, so a structural inspection
+    /// (which has none) cannot be encoded as one.
+    fn try_from(identities: &ContractIdentities) -> Result<Self, Self::Error> {
+        let program = identities.program.ok_or(crate::IoError::ManifestMismatch {
+            message: "a structural inspection has no program identity to encode",
+        })?;
+        Ok(Self {
             target: *identities.target.as_bytes(),
             identification: *identities.identification.as_bytes(),
             identification_product: identities
                 .identification_product
                 .map(|digest| *digest.as_bytes()),
-            program: *identities.program.as_bytes(),
+            program: *program.as_bytes(),
             inference_binding: *identities.inference_binding.as_bytes(),
             observation: *identities.observation.as_bytes(),
             data_snapshot: *identities.data_snapshot.as_bytes(),
             execution: None,
             score_reuse: None,
             target_weights: None,
-        }
+        })
     }
 }
 

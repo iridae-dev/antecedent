@@ -159,7 +159,8 @@ fn class_identities(
     if let Some(cap) = max_completions {
         builder = builder.max_completions(cap);
     }
-    builder.build().unwrap().inspect().unwrap().identities
+    let ctx = ExecutionContext::for_tests(1);
+    builder.build().unwrap().prepare(&ctx).unwrap().contract().unwrap().identities
 }
 
 #[test]

@@ -196,12 +196,16 @@ impl CausalContract {
     }
 
     /// Advertised identities, including the reuse layers this export carries.
-    fn identities_wire(&self, execution: Option<[u8; 32]>) -> ContractIdentitiesWire {
-        let mut identities = ContractIdentitiesWire::from(&self.identities);
+    fn identities_wire(
+        &self,
+        execution: Option<[u8; 32]>,
+    ) -> Result<ContractIdentitiesWire, CausalError> {
+        let mut identities =
+            ContractIdentitiesWire::try_from(&self.identities).map_err(|err| io_err(&err))?;
         identities.execution = execution;
         identities.score_reuse = self.score_reuse.map(|digest| *digest.as_bytes());
         identities.target_weights = self.target_weights.map(|digest| *digest.as_bytes());
-        identities
+        Ok(identities)
     }
 
     /// Seal over this contract's identities, `reasoning`, and audit fields.
@@ -214,7 +218,7 @@ impl CausalContract {
         execution: Option<[u8; 32]>,
     ) -> Result<[u8; 32], CausalError> {
         antecedent_io::contract_seal(
-            &self.identities_wire(execution),
+            &self.identities_wire(execution)?,
             reasoning,
             self.graph_class.as_str(),
             self.structure_source.as_str(),
@@ -239,7 +243,7 @@ impl CausalContract {
         // identity.
         Ok(AnalysisResultContractWire {
             format: antecedent_io::CONTRACT_SECTION_FORMAT,
-            identities: self.identities_wire(executed),
+            identities: self.identities_wire(executed)?,
             seal: self.seal(&reasoning, executed)?,
             target: program.target.clone(),
             reasoning,
@@ -903,7 +907,10 @@ impl StudyResult {
                     "identification:{}",
                     contract.identities.identification.to_hex()
                 )),
-                Arc::from(format!("program:{}", contract.identities.program.to_hex())),
+                Arc::from(format!(
+                    "program:{}",
+                    contract.identities.program.map_or_else(String::new, |p| p.to_hex())
+                )),
             ],
         );
         envelope.calibration = calibration_view(&calibration);
@@ -990,7 +997,7 @@ impl ProgramPayloads {
             self.target_digest,
             self.identification_digest,
             self.identification_product_digest,
-            self.program_digest,
+            Some(self.program_digest),
             self.inference_binding_digest,
             self.observation_digest,
             data_snapshot,
@@ -1187,7 +1194,12 @@ fn compile_with_payloads(
             Arc::new(program_payloads(study, cached, search_capped, resolved_estimator.as_deref())?)
         }
     };
-    let payloads = contract_payloads(program, study)?;
+    let mut payloads = contract_payloads(program, study)?;
+    if prepared.is_none() {
+        // Cheap inspection runs no identification: the program the prepared
+        // handle compiles covers products that do not exist yet.
+        payloads.identities.program = None;
+    }
     let reasoning = reasoning_view(study, prepared, cached, search_capped);
     let lagged = study
         .temporal_identification_cache

@@ -907,7 +907,7 @@ fn consume_setup(setup: CellSetup) -> Result<(), String> {
     if preview.refused {
         return Err(format!("{expected}: compatible-data preview refused"));
     }
-    if !preview.binds_program(contract.identities.program) {
+    if !contract.identities.program.is_some_and(|program| preview.binds_program(program)) {
         return Err(format!("{expected}: preview unbound from program"));
     }
     let result = match &setup.data {
@@ -921,7 +921,7 @@ fn consume_setup(setup: CellSetup) -> Result<(), String> {
     {
         return Err(format!("{expected}: claim identities drifted"));
     }
-    if claim.claim_id == contract.identities.program {
+    if Some(claim.claim_id) == contract.identities.program {
         return Err(format!("{expected}: claim identity collapsed onto program identity"));
     }
     // A partially identified answer must carry its bounds. `mixture` is the
