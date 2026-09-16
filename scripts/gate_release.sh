@@ -7,11 +7,12 @@
 # suite against one locally built wheel). The CI `python-wheels` matrix is
 # required on the candidate SHA through CI_RUN_ID.
 #
-# `gate_calibration.sh` is NOT invoked from here (weekly
-# .github/workflows/calibration.yml). Everyday PRs stay cheap. A release cut
-# must set REQUIRE_CALIBRATION_ATTESTATION=1 and CALIBRATION_SHA to a weekly
-# pass whose statistical surface matches HEAD:
-#   REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<sha> CI_RUN_ID=<run> \
+# `gate_calibration.sh` is NOT invoked from here: the measurement runs on
+# demand (.github/workflows/calibration.yml) and is owed only when the surface
+# a record measured has changed. Everyday PRs stay cheap and report that
+# drift. A release cut sets REQUIRE_CALIBRATION_ATTESTATION=1, which requires
+# every record's facets to match the commit it was measured at:
+#   REQUIRE_CALIBRATION_ATTESTATION=1 CI_RUN_ID=<run> \
 #     bash scripts/gate_release_candidate.sh
 #
 # Invokes prior feature gates unless SKIP_PRIOR_GATES=1.
@@ -35,6 +36,7 @@ bash scripts/gate_parity_schema.sh --self-test
 bash scripts/gate_docs_support_matrix.sh --self-test
 bash scripts/gate_composition.sh --self-test
 bash scripts/gate_release_candidate.sh --self-test
+bash scripts/gate_calibration_attestation.sh --self-test
 # ---- end gate self-tests ---------------------------------------------------
 
 echo "== algorithm provenance schema and paths =="
@@ -60,7 +62,7 @@ bash scripts/gate_evidence_reachability.sh
 echo "== coverage citations name existing test fns =="
 bash scripts/gate_coverage_citations.sh
 
-echo "== calibration attestation (PR policy; RC requires SHA) =="
+echo "== calibration attestation (PR reports drift; RC requires every record attested) =="
 bash scripts/gate_calibration_attestation.sh
 
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
@@ -320,6 +322,6 @@ if [[ "${REQUIRE_CALIBRATION_ATTESTATION:-0}" == "1" ]]; then
   echo "This is still not a complete RC: run scripts/gate_release_candidate.sh"
 else
   echo "PR inventory / composition gate PASSED (not an RC)."
-  echo "Cut with: REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<sha> CI_RUN_ID=<run> \\"
+  echo "Cut with: REQUIRE_CALIBRATION_ATTESTATION=1 CI_RUN_ID=<run> \\"
   echo "  bash scripts/gate_release_candidate.sh"
 fi

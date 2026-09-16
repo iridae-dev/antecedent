@@ -12,7 +12,7 @@
 #   5. builds one local wheel into a fresh directory, installs it into a fresh
 #      venv, and runs the full Python test suite against the installed wheel
 #
-#   REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<weekly-pass-sha> \
+#   REQUIRE_CALIBRATION_ATTESTATION=1 \
 #     CI_RUN_ID=<actions run id for HEAD> bash scripts/gate_release_candidate.sh
 #   bash scripts/gate_release_candidate.sh --self-test
 #
@@ -89,7 +89,7 @@ PY
     fi
   done
 
-  if env -u CI_RUN_ID REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=x \
+  if env -u CI_RUN_ID REQUIRE_CALIBRATION_ATTESTATION=1 \
       bash "$0" >"$tmp/out" 2>&1; then
     echo "SELF-TEST FAIL: RC ran without CI_RUN_ID"; status=1
   elif ! grep -q "requires CI_RUN_ID" "$tmp/out"; then
@@ -121,9 +121,9 @@ if ! command -v uv >/dev/null 2>&1; then
   echo "FAIL: uv is required for the RC CI job check and Python suites"
   exit 1
 fi
-if [[ "${REQUIRE_CALIBRATION_ATTESTATION:-0}" != "1" || -z "${CALIBRATION_SHA:-}" ]]; then
-  echo "FAIL: RC requires REQUIRE_CALIBRATION_ATTESTATION=1 and CALIBRATION_SHA"
-  echo "  REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<weekly-pass-sha> CI_RUN_ID=<id> \\"
+if [[ "${REQUIRE_CALIBRATION_ATTESTATION:-0}" != "1" ]]; then
+  echo "FAIL: RC requires REQUIRE_CALIBRATION_ATTESTATION=1"
+  echo "  REQUIRE_CALIBRATION_ATTESTATION=1 CI_RUN_ID=<id> \\"
   echo "    bash scripts/gate_release_candidate.sh"
   exit 1
 fi
@@ -134,7 +134,7 @@ trap 'rm -f "$RUN_JSON"' EXIT
 gh run view "$CI_RUN_ID" --json headSha,jobs >"$RUN_JSON"
 check_ci_run "$RUN_JSON" "$(git rev-parse HEAD)"
 
-echo "== release candidate: calibration surface =="
+echo "== release candidate: calibration records attested against this tree =="
 REQUIRE_CALIBRATION_ATTESTATION=1 bash scripts/gate_calibration_attestation.sh
 
 echo "== release candidate: PR inventory + composition =="

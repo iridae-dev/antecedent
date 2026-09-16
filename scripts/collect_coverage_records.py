@@ -16,8 +16,24 @@ A group that was rechecked at more replicates writes
 `<group>.recheck.log`; its records replace the first run's, because the
 recheck's verdict is the one the gate takes.
 
+Every record is written with `facets`: the parts of the statistical surface it
+depends on, derived by `scripts/calibration_facets.py` from the record itself.
+A record stands until one of those facets changes, so a partial re-measurement
+is enough when only some facets drifted:
+
+    python3 scripts/collect_coverage_records.py --keep-attested
+
+keeps every existing record the logs do not re-measure whose facets are
+unchanged since its own `calibration_sha`, and drops (and names) the ones
+that still owe a re-measurement. Without it the registry is exactly the logs.
+
+`--retag` rewrites only the `facets` of the existing records (after a change
+to `scripts/calibration_surface.list`); nothing is measured or re-stamped.
+
 `--sha <sha>` overrides the stamped SHA (for collecting logs measured at
-another commit); `--no-cells` leaves the registries alone.
+another commit); `--no-cells` leaves the registries alone. Without `--sha` the
+collector refuses to stamp HEAD while the worktree's statistical surface
+differs from HEAD, because the logs would then describe uncommitted code.
 """
 
 from __future__ import annotations
@@ -31,6 +47,9 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+import calibration_facets as facets  # noqa: E402
+
 LOG_DIR = ROOT / "target" / "calibration-records"
 OUT = ROOT / "parity" / "coverage_records.toml"
 LICENSED = ROOT / "parity" / "support_licensed.toml"
@@ -73,6 +92,7 @@ FIELDS = (
     "role",
     "dgp",
     "test",
+    "facets",
     "calibration_sha",
 )
 
@@ -139,10 +159,38 @@ def toml_value(key: str, value) -> str:
         return "true" if value else "false"
     if isinstance(value, (int, float)) and key != "id":
         return repr(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(toml_value(key, item) for item in value) + "]"
     return '"' + str(value).replace('"', '\\"') + '"'
 
 
+def tag_facets(records: dict[str, dict]) -> None:
+    """Set each record's `facets` from the record itself and the surface list."""
+    surface = facets.load_surface()
+    if surface.errors:
+        raise SystemExit("scripts/calibration_surface.list: " + "; ".join(surface.errors))
+    refs = facets.references(surface)
+    for rec in records.values():
+        rec["facets"] = facets.record_facets(rec, surface, refs)
+
+
+def keep_attested(measured: dict[str, dict]) -> dict[str, dict]:
+    """Existing records the logs did not re-measure and that still stand."""
+    surface = facets.load_surface()
+    existing = [rec for rec in facets.load_records(OUT) if rec["id"] not in measured]
+    kept: dict[str, dict] = {}
+    for assessment in facets.assess(surface, existing):
+        stale = {rec["id"] for rec in assessment.stale}
+        for rec in assessment.records:
+            if assessment.resolved and rec["id"] not in stale:
+                kept[rec["id"]] = rec
+            else:
+                print(f"dropped {rec['id']}: owes a re-measurement the logs do not contain")
+    return kept
+
+
 def write_registry(records: dict[str, dict]) -> None:
+    tag_facets(records)
     lines = [HEADER]
     for rid in sorted(records):
         rec = records[rid]
@@ -230,13 +278,46 @@ def main() -> int:
         action="store_true",
         help="do not rewrite support_licensed.toml / estimate.toml",
     )
+    parser.add_argument(
+        "--keep-attested",
+        action="store_true",
+        help="keep existing records the logs do not re-measure whose facets have not drifted",
+    )
+    parser.add_argument(
+        "--retag",
+        action="store_true",
+        help="only recompute the facets of the existing records",
+    )
     args = parser.parse_args()
+    if args.retag:
+        existing = {rec["id"]: rec for rec in facets.load_records(OUT)}
+        write_registry(existing)
+        print(f"retagged the facets of {len(existing)} records in {OUT.relative_to(ROOT)}")
+        return 0
     sha = args.sha or subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
     ).strip()
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise SystemExit(f"calibration SHA must be 40 hex, got {sha!r}")
     records = load_records(sha)
+    if not args.sha:
+        tag_facets(records)
+        surface = facets.load_surface()
+        depended = set().union(*(rec["facets"] for rec in records.values()))
+        dirty = [
+            rel
+            for rel in facets.changed_paths(surface, sha)
+            if (surface.facet_of(rel) or facets.CORE) in depended
+        ]
+        if dirty:
+            raise SystemExit(
+                "the statistical surface differs from HEAD, so these logs do not describe "
+                "a commit; commit first (or pass --sha):\n  " + "\n  ".join(dirty)
+            )
+    if args.keep_attested:
+        kept = keep_attested(records)
+        print(f"kept {len(kept)} attested records the logs did not re-measure")
+        records = {**kept, **records}
     write_registry(records)
     print(f"wrote {len(records)} records to {OUT.relative_to(ROOT)} at {sha}")
     if not args.no_cells:
