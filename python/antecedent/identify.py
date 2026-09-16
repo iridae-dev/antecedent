@@ -505,6 +505,7 @@ def _identify_typed_graph(
             "treatment_lag": query.treatment_lag,
             "horizon_steps": query.horizon_steps,
             "active_level": query.active_level,
+            "max_history_lag": query.max_history_lag,
         }
     elif isinstance(query, SustainedEffect):
         kind = "sustained"
@@ -514,6 +515,7 @@ def _identify_typed_graph(
             "treatment_lag": query.treatment_lag,
             "horizon_steps": query.horizon_steps,
             "active_level": query.active_level,
+            "max_history_lag": query.max_history_lag,
             "window": query.window,
         }
     else:

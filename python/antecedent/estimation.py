@@ -1889,6 +1889,7 @@ class _PrepareRoute:
                 horizon_steps=query.horizon_steps,
                 control_level=query.control_level,
                 active_level=query.active_level,
+                max_history_lag=query.max_history_lag,
                 **dbn,
                 **shared,
             )
@@ -1950,6 +1951,7 @@ class _PrepareRoute:
                 horizon_steps=query.horizon_steps,
                 control_level=query.control_level,
                 active_level=query.active_level,
+                max_history_lag=query.max_history_lag,
                 **common,
             )
             return native, "average"

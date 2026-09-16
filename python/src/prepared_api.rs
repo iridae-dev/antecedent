@@ -218,6 +218,7 @@ fn temporal_effect_query(
     horizon_steps: u32,
     control_level: f64,
     active_level: f64,
+    max_history_lag: Option<u32>,
     opts: &PrepareOptions,
 ) -> PyResult<antecedent_core::TemporalEffectQuery> {
     let mut q = crate::temporal_api::temporal_query_from_policy(
@@ -235,6 +236,7 @@ fn temporal_effect_query(
         q = q.with_policy(antecedent_core::TemporalPolicy::sustained(from, until));
     }
     q.control = Intervention::set(t_id, Value::f64(control_level));
+    q.max_history_lag = max_history_lag;
     if let Some(population) = opts.target_population.clone() {
         q.target_population = population;
     }
@@ -1923,6 +1925,7 @@ impl PyPreparedAnalysis {
         horizon_steps=1,
         control_level=0.0,
         active_level=1.0,
+        max_history_lag=None,
         accepted=false,
         class_graph=None,
         class_prior_ordered=None,
@@ -1947,6 +1950,7 @@ impl PyPreparedAnalysis {
         horizon_steps: u32,
         control_level: f64,
         active_level: f64,
+        max_history_lag: Option<u32>,
         accepted: bool,
         class_graph: Option<Bound<'_, PyAny>>,
         class_prior_ordered: Option<Vec<f64>>,
@@ -1975,6 +1979,7 @@ impl PyPreparedAnalysis {
                 horizon_steps,
                 control_level,
                 active_level,
+                max_history_lag,
                 &opts,
             )?;
             let mut builder = data.builder()?;
@@ -2330,6 +2335,7 @@ impl PyPreparedAnalysis {
         horizon_steps=1,
         control_level=0.0,
         active_level=1.0,
+        max_history_lag=None,
         max_lag=1,
         force_mcmc=false,
         n_chains=2,
@@ -2354,6 +2360,7 @@ impl PyPreparedAnalysis {
         horizon_steps: u32,
         control_level: f64,
         active_level: f64,
+        max_history_lag: Option<u32>,
         max_lag: u32,
         force_mcmc: bool,
         n_chains: u32,
@@ -2394,6 +2401,7 @@ impl PyPreparedAnalysis {
                 horizon_steps,
                 control_level,
                 active_level,
+                max_history_lag,
                 &opts,
             )?;
             let ctx = opts.ctx(seed, threads);
