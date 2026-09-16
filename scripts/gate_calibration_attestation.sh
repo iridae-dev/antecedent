@@ -21,7 +21,8 @@ root = Path(".")
 surface = (root / "scripts/calibration_surface.list").read_text().splitlines()
 entries = [line.strip() for line in surface if line.strip() and not line.startswith("#")]
 missing = []
-for path in sorted((root / "crates/antecedent/tests").glob("v19_*.rs")):
+tests = root / "crates/antecedent/tests"
+for path in sorted([*tests.glob("v19_*.rs"), *tests.glob("v110_calibration_*.rs")]):
     rel = path.as_posix()
     if not any(rel == e or rel.startswith(e.rstrip("/") + "/") or e.rstrip("/") == str(path.parent.as_posix()) for e in entries):
         missing.append(rel)

@@ -54,76 +54,13 @@ use antecedent_io::{
 };
 use antecedent_prob::InferenceDiagnostics;
 
-fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
-    let mut rng = CausalRng::from_seed(seed);
-    let mut t = Vec::with_capacity(n);
-    let mut y = Vec::with_capacity(n);
-    let mut z = Vec::with_capacity(n);
-    for _ in 0..n {
-        let u1 = rng.next_f64().max(1e-12);
-        let u2 = rng.next_f64();
-        let zi = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
-        let logit = -0.4 + 0.9 * zi;
-        let p = 1.0 / (1.0 + (-logit).exp());
-        let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
-        let e = (-2.0 * rng.next_f64().max(1e-12).ln()).sqrt()
-            * (2.0 * std::f64::consts::PI * rng.next_f64()).cos()
-            * 0.4;
-        z.push(zi);
-        t.push(ti);
-        y.push(2.0 * ti + zi + e);
-    }
-    let mut b = CausalSchemaBuilder::new();
-    b.add_variable(
-        "t",
-        ValueType::Continuous,
-        SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
-        None,
-        None,
-        MeasurementSpec::default(),
-    )
-    .unwrap();
-    b.add_variable(
-        "y",
-        ValueType::Continuous,
-        SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
-        None,
-        None,
-        MeasurementSpec::default(),
-    )
-    .unwrap();
-    b.add_variable(
-        "z",
-        ValueType::Continuous,
-        SmallRoleSet::from_hint(RoleHint::Context),
-        None,
-        None,
-        MeasurementSpec::default(),
-    )
-    .unwrap();
-    let schema = b.build().unwrap();
-    let cols = vec![
-        OwnedColumn::Float64(
-            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                .unwrap(),
-        ),
-        OwnedColumn::Float64(
-            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                .unwrap(),
-        ),
-        OwnedColumn::Float64(
-            Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
-                .unwrap(),
-        ),
-    ];
-    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
-    let mut dag = Dag::with_variables(3);
-    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
-    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    (data, dag, query)
-}
+mod common;
+
+// The confounded static ATE study five suites run, in one owner.
+use common::fixtures::{
+    confounded_scm, mixture_graph_posterior, pinned_pag as identified_pag,
+    pinned_pag_series as identified_pag_series,
+};
 
 fn study(data: TabularData, dag: Dag, query: AverageEffectQuery) -> Study {
     Study::tabular(data).graph(dag).query(query).bootstrap_replicates(0).build().unwrap()
@@ -1248,29 +1185,6 @@ fn licensed_family_response_curve_frequentist_consumes() {
             .collect();
     assert_eq!(labels["query_kind"], "response");
     assert_eq!(labels["temporal_coordinates"], "none");
-}
-
-fn mixture_graph_posterior() -> GraphPosterior {
-    let weights = [0.5, 0.3, 0.2];
-    let direct = set_edge(0, 3, 0, 1, true);
-    let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
-    let unidentified = set_edge(0, 3, 1, 0, true);
-    let mut marginals = vec![0.0; 9];
-    marginals[1] = weights[0] + weights[1];
-    marginals[3] = weights[2];
-    marginals[6] = weights[1];
-    marginals[7] = weights[1];
-    GraphPosterior::new(
-        3,
-        weights.to_vec(),
-        vec![direct, adjusted, unidentified],
-        marginals.clone(),
-        marginals,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
-    )
-    .unwrap()
 }
 
 fn mixture_data() -> TabularData {
@@ -3417,57 +3331,6 @@ fn identified_pag_pin() -> serde_json::Value {
         "../../../conformance/estimate/temporal_class_envelope/identified_pag.json"
     ))
     .unwrap()
-}
-
-fn identified_pag_series(pin: &serde_json::Value) -> TimeSeriesData {
-    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
-    let names: Vec<&str> =
-        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
-    let mut cols = vec![vec![0.0; n]; names.len()];
-    let [t, y, z, m, v] = [0, 1, 2, 3, 4];
-    for i in 0..n {
-        let x = i as f64;
-        cols[z][i] = (0.37 * x).sin() + 0.5 * (1.3 * x).cos();
-        cols[t][i] = 0.6 * cols[z][i] + 0.8 * (0.23 * x + 0.4).sin();
-        cols[v][i] = 0.5 * cols[t][i] + (0.41 * x).cos();
-        cols[m][i] = 0.7 * cols[z][i] + 0.6 * (0.29 * x + 0.2).cos();
-        if i > 0 {
-            cols[y][i] = 1.0 + 2.0 * cols[t][i - 1] + 1.5 * cols[m][i - 1] + 0.3 * (0.53 * x).sin();
-        }
-    }
-    TimeSeriesData::from_f64_columns(names.iter().copied().zip(cols.iter().map(Vec::as_slice)), 1)
-        .unwrap()
-}
-
-fn identified_pag(pin: &serde_json::Value) -> TemporalPag {
-    let names: Vec<&str> =
-        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
-    let mark = |m: &str| match m {
-        "tail" => Endpoint::Tail,
-        "arrow" => Endpoint::Arrow,
-        "circle" => Endpoint::Circle,
-        other => panic!("unknown endpoint {other}"),
-    };
-    let node = |g: &mut TemporalPag, name: &str, lag: &serde_json::Value| {
-        let var = u32::try_from(names.iter().position(|c| *c == name).unwrap()).unwrap();
-        let lag = Lag::from_raw(u32::try_from(lag.as_u64().unwrap()).unwrap());
-        g.add_lagged(VariableId::from_raw(var), lag).unwrap()
-    };
-    let mut graph = TemporalPag::empty();
-    for edge in pin["marked_edges"].as_array().unwrap() {
-        let a = node(&mut graph, edge[0].as_str().unwrap(), &edge[1]);
-        let b = node(&mut graph, edge[2].as_str().unwrap(), &edge[3]);
-        graph
-            .insert_marked(MarkedEdge {
-                a,
-                b,
-                at_a: mark(edge[4].as_str().unwrap()),
-                at_b: mark(edge[5].as_str().unwrap()),
-                middle: MiddleMark::Empty,
-            })
-            .unwrap();
-    }
-    graph
 }
 
 #[test]

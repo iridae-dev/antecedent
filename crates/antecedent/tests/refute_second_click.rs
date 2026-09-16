@@ -4,77 +4,16 @@
 
 #![allow(clippy::cast_precision_loss, clippy::many_single_char_names)]
 
-use std::sync::Arc;
-
 use antecedent::{BayesianConfig, InferenceMode, LatencyMode, RefuteSuite, Study};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, CausalRng, CausalSchemaBuilder, ContinuousDomain,
-    ExecutionContext, GridSpec, MeasurementSpec, ResponseFunctional, ResponseQuery, RoleHint,
-    SmallRoleSet, ValueType, VariableId,
+    CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, ResponseFunctional, ResponseQuery,
+    VariableId,
 };
-use antecedent_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
-};
-use antecedent_graph::{Dag, DenseNodeId};
 
-fn confounded_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
-    let mut rng = CausalRng::from_seed(seed);
-    let mut t = Vec::with_capacity(n);
-    let mut y = Vec::with_capacity(n);
-    let mut z = Vec::with_capacity(n);
-    for _ in 0..n {
-        let u1 = rng.next_f64().max(1e-12);
-        let u2 = rng.next_f64();
-        let zi = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
-        let logit = -0.4 + 0.9 * zi;
-        let p = 1.0 / (1.0 + (-logit).exp());
-        let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
-        let e = (-2.0 * rng.next_f64().max(1e-12).ln()).sqrt()
-            * (2.0 * std::f64::consts::PI * rng.next_f64()).cos()
-            * 0.4;
-        z.push(zi);
-        t.push(ti);
-        y.push(2.0 * ti + zi + e);
-    }
-    let mut b = CausalSchemaBuilder::new();
-    for (name, role) in [
-        ("t", RoleHint::TreatmentCandidate),
-        ("y", RoleHint::OutcomeCandidate),
-        ("z", RoleHint::Context),
-    ] {
-        b.add_variable(
-            name,
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(role),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-    }
-    let schema = b.build().unwrap();
-    let cols = vec![
-        OwnedColumn::Float64(
-            Float64Column::new(VariableId::from_raw(0), Arc::from(t), ValidityBitmap::all_valid(n))
-                .unwrap(),
-        ),
-        OwnedColumn::Float64(
-            Float64Column::new(VariableId::from_raw(1), Arc::from(y), ValidityBitmap::all_valid(n))
-                .unwrap(),
-        ),
-        OwnedColumn::Float64(
-            Float64Column::new(VariableId::from_raw(2), Arc::from(z), ValidityBitmap::all_valid(n))
-                .unwrap(),
-        ),
-    ];
-    let data = TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
-    let mut dag = Dag::with_variables(3);
-    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
-    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
-    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    (data, dag, query)
-}
+mod common;
+
+// The confounded static ATE study five suites run, in one owner.
+use common::fixtures::confounded_scm;
 
 #[test]
 fn prepared_refute_second_click_preserves_ate() {

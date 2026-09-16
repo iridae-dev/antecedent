@@ -52,7 +52,7 @@ fns_cache = {}
 # `v19_static_calibration::name`, `crates/antecedent/tests/v19_x.rs::name`, and the
 # shorthand `::name` that continues the last-named module inside one citation.
 CITE_RE = re.compile(
-    r"(?:crates/antecedent/tests/)?(v19_[a-z0-9_]+)(?:\.rs)?::([A-Za-z0-9_{},*]+)"
+    r"(?:crates/antecedent/tests/)?(v1(?:9|10)_[a-z0-9_]+)(?:\.rs)?::([A-Za-z0-9_{},*]+)"
     r"((?:,\s*::[A-Za-z0-9_{},*]+)*)"
 )
 CONT_RE = re.compile(r"::([A-Za-z0-9_{},*]+)")

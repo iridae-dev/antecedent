@@ -12,6 +12,12 @@
 
 mod common;
 
+// The pinned temporal-PAG structure, in one owner. This file keeps its own
+// series builder: it stamps an explicit schema and time index rather than
+// taking `from_f64_columns`'s defaults, so it is a different construction, not
+// a copy of `pinned_pag_series`.
+use common::fixtures::pinned_pag as identified_pag;
+
 use std::sync::Arc;
 
 use antecedent::{AcceptedGraph, PreparedStudy, RefuteSuite, Study};
@@ -560,37 +566,6 @@ fn identified_pag_series(pin: &serde_json::Value) -> TimeSeriesData {
         TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
     )
     .unwrap()
-}
-
-fn identified_pag(pin: &serde_json::Value) -> TemporalPag {
-    use antecedent_graph::{Endpoint, MarkedEdge, MiddleMark};
-    let names: Vec<&str> =
-        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
-    let mark = |m: &str| match m {
-        "tail" => Endpoint::Tail,
-        "arrow" => Endpoint::Arrow,
-        "circle" => Endpoint::Circle,
-        other => panic!("unknown endpoint {other}"),
-    };
-    let node = |g: &mut TemporalPag, name: &str, lag: &serde_json::Value| {
-        let var = u32::try_from(names.iter().position(|c| *c == name).unwrap()).unwrap();
-        let lag = Lag::from_raw(u32::try_from(lag.as_u64().unwrap()).unwrap());
-        g.add_lagged(VariableId::from_raw(var), lag).unwrap()
-    };
-    let mut g = TemporalPag::empty();
-    for edge in pin["marked_edges"].as_array().unwrap() {
-        let a = node(&mut g, edge[0].as_str().unwrap(), &edge[1]);
-        let b = node(&mut g, edge[2].as_str().unwrap(), &edge[3]);
-        g.insert_marked(MarkedEdge {
-            a,
-            b,
-            at_a: mark(edge[4].as_str().unwrap()),
-            at_b: mark(edge[5].as_str().unwrap()),
-            middle: MiddleMark::Empty,
-        })
-        .unwrap();
-    }
-    g
 }
 
 /// R-10: positive multi-completion `TemporalPag` evidence for Frequentist Pulse

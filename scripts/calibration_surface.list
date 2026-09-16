@@ -1,4 +1,4 @@
-# Paths whose contents determine 1.9 interval / Type-I / discovery-null numbers.
+# Paths whose contents determine 1.9 / 1.10 interval / Type-I / discovery-null numbers.
 # A weekly calibration SHA covers this worktree iff `git diff SHA --` these
 # paths is empty. Crate manifests are excluded: a version pin is not interval
 # theory. Comments and blank lines are ignored.
@@ -22,5 +22,12 @@ crates/antecedent/tests/v19_temporal_frequentist.rs
 crates/antecedent/tests/v19_tiered_known_truth.rs
 crates/antecedent/tests/v19_short_series_measurement.rs
 crates/antecedent/tests/v19_bayesian_prior_in_force.rs
+crates/antecedent/tests/v110_panel_calibration.rs
+crates/antecedent/tests/v110_calibration_response.rs
+crates/antecedent/tests/v110_calibration_admg.rs
+crates/antecedent/tests/v110_calibration_design.rs
+crates/antecedent/tests/v110_calibration_estimate.rs
+crates/antecedent/tests/v110_calibration_temporal.rs
+crates/antecedent/tests/v110_calibration_bayesian_static.rs
 scripts/gate_calibration.sh
 scripts/gate_response_calibration.sh
