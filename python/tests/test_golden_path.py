@@ -332,7 +332,7 @@ def test_autoregressive_treatment_pulse_is_identified_by_parent_adjustment(
 
     identification = report["identification"]["payload"]
     assert identification["status"] == "NonparametricallyIdentified"
-    assert identification["adjustment_set"] == ["t", "z"]
+    assert result.identification.adjustment_set == ["t", "z"]
     (case,) = report["assumptions"]["payload"]["certificate"]["cases"]
     assert [step["rule"] for step in case["identification"]["derivation"]][0] == PARENT_ADJUSTMENT
     assert [(c["name"], c["offset"]) for c in case["adjustment_coordinates"][0]] == [
