@@ -15,6 +15,13 @@
 //! emission point; the construction each record describes is read from the
 //! execution's own contract rather than declared there.
 //!
+//! The file also measures the interval an ordinary default Bayesian
+//! `PulseEffect` on a `TemporalDag` reports: the facade's default Bayesian
+//! configuration (Laplace backend, 1000 draws, prior scale 10 — Python
+//! `Bayesian()`), whose posterior-quantile interval is scored at 0.95 and 0.90
+//! on the driven-treatment Pulse law `common::driven_dgp::pulse_series` (iid
+//! residuals, truth `BETA`).
+//!
 //! Ignored tests run via `scripts/gate_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -23,7 +30,7 @@
 
 mod common;
 
-use antecedent::{AcceptedGraph, RefuteSuite, Study, StudyResult};
+use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     CausalQuery, ExecutionContext, MediationContrast, MediationQuery, VariableId,
 };
@@ -31,8 +38,11 @@ use antecedent_data::TimeSeriesData;
 use antecedent_estimate::{CircularBlockFamily, TemporalMediationUncertainty};
 use common::calibration::{CoverageTally, RecordKey, grid_n, n_sim};
 use common::calibration_bind::{bind_all, constructions};
+use common::driven_dgp::{BETA, Scenario, pulse, pulse_dag, pulse_series};
 use common::fixtures::{self, mediation_cpdag_two, mediation_series};
-use common::reported::{GATE_LEVEL, REPORTED_LEVEL, gate, normal_at, record_pair, skip_pair};
+use common::reported::{
+    GATE_LEVEL, REPORTED_LEVEL, gate, normal_at, posterior_pair, record_pair, skip_pair,
+};
 
 const N: usize = 160;
 
@@ -41,11 +51,12 @@ const N: usize = 160;
 /// declared here; `label` separates the two mediator-confounding designs the
 /// same test name would otherwise collide on.
 fn keyed(test: &'static str, label: &str, level: f64) -> CoverageTally {
-    CoverageTally::for_record(
-        RecordKey { test, dgp: "mediation_series", interval: "circular_block_se" },
-        level,
-    )
-    .labelled(label.to_owned())
+    keyed_record(RecordKey { test, dgp: "mediation_series", interval: "circular_block_se" }, level)
+        .labelled(label.to_owned())
+}
+
+fn keyed_record(key: RecordKey, level: f64) -> CoverageTally {
+    CoverageTally::for_record(key, level)
 }
 
 fn mediated_query() -> CausalQuery {
@@ -148,6 +159,47 @@ fn temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage() {
         0.0,
         0x110_0402 << 20,
     );
+}
+
+/// Driven-treatment Pulse law, iid residuals, base length 160 (grid 80, 160, 320).
+const DEFAULT_PULSE: Scenario = Scenario { label: "iid n=160", rho: 0.0, n: N, seed: 0x110_0450 };
+
+/// The facade's default Bayesian `PulseEffect` on a `TemporalDag`.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn pulse_effect_temporal_dag_bayesian_default_nominal_coverage() {
+    let key = RecordKey {
+        test: "pulse_effect_temporal_dag_bayesian_default_nominal_coverage",
+        dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
+        interval: "posterior_quantile",
+    };
+    let mut tallies = [keyed_record(key, REPORTED_LEVEL), keyed_record(key, GATE_LEVEL)];
+    let scenario = Scenario { n: grid_n(DEFAULT_PULSE.n), ..DEFAULT_PULSE };
+    for rep in 0..n_sim() {
+        let seed = scenario.seed + u64::from(rep);
+        let study = Study::series(pulse_series(scenario, rep, false))
+            .graph(pulse_dag(false))
+            .query(pulse(1))
+            .inference(InferenceMode::Bayesian(BayesianConfig::laplace()))
+            .refute(RefuteSuite::None)
+            .build()
+            .expect("the default Bayesian study builds");
+        let Ok(result) = study.run(&ExecutionContext::for_tests(seed)) else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        let Some(column) =
+            result.posterior.as_ref().and_then(antecedent::CausalPosterior::effect_column)
+        else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        let intervals = posterior_pair(&result, column);
+        let [first, second] = &mut tallies;
+        bind_all(&mut [first, second], &study, &result);
+        record_pair(&mut tallies, intervals, BETA);
+    }
+    gate(&tallies, &[None, None]);
 }
 
 /// The class slice's interval is the `TemporalDag` route's interval on the

@@ -89,9 +89,9 @@ SUITE_SECONDS = {
     "v110_calibration_bayesian_static": (14448.34, 22, 2),
     "v110_calibration_admg": (709.34, 3, 2),
     "v110_calibration_design": (51.55, 2, 2),
-    "v110_calibration_estimate": (35.83, 1, 2),
+    "v110_calibration_estimate": (35.83, 1, 2),  # one test when measured; two now
     "v110_calibration_response": (6.67, 6, 2),
-    "v110_calibration_temporal": (2.30, 2, 2),
+    "v110_calibration_temporal": (2.30, 2, 2),  # two tests when measured; three now
     "v110_panel_calibration": (4.58, 4, 2),
     "v19_bayesian_temporal": (17.88, 47, 2),
     "v19_calibration": (206.66, 27, 2),
