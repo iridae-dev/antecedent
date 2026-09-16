@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod basis;
 pub mod batch;
 pub mod compile;
 pub mod do_sampler;
@@ -20,6 +21,7 @@ pub mod overlay;
 pub mod registry;
 pub mod sample;
 
+pub use basis::{BasisTerm, ParentBasis};
 pub use batch::{
     MechanismWorkspace, NoiseBatch, NoiseBatchMut, ParentBatch, ValueBatch, ValueBatchMut,
 };
