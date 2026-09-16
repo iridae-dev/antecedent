@@ -232,6 +232,64 @@ pub enum CausalError {
     },
 }
 
+/// Build a [`CausalError::Unsupported`] refusal carrying a registered
+/// runtime-refusal reason code.
+///
+/// The code is checked at compile time against `parity/reason_codes.toml` (the
+/// generated `antecedent_core::reason_code` lists), so an unregistered code
+/// cannot be emitted. The message is `reason=<code>: <message>`; the Python
+/// layer parses that prefix into `reason_code`.
+///
+/// ```
+/// let err = antecedent::unsupported_reason!("attested_not_reverifiable", "names differ");
+/// assert_eq!(err.to_string(), "reason=attested_not_reverifiable: names differ");
+/// ```
+///
+/// ```compile_fail
+/// let _ = antecedent::unsupported_reason!("bogus", "not registered");
+/// ```
+#[macro_export]
+macro_rules! unsupported_reason {
+    ($code:literal, $message:literal) => {{
+        const _: () = assert!(
+            $crate::error::is_runtime_refusal_code($code),
+            concat!("`", $code, "` is not a runtime_refusal code in parity/reason_codes.toml")
+        );
+        $crate::CausalError::Unsupported { message: concat!("reason=", $code, ": ", $message) }
+    }};
+}
+
+/// [`unsupported_reason!`] for a support-matrix refusal, which carries the
+/// cell's [`crate::support::SupportRefusal`] verdict alongside the reason.
+///
+/// ```
+/// let err = antecedent::support_reason!(
+///     "data_modality_not_licensed",
+///     "that cell is not licensed for this data modality"
+/// );
+/// assert!(err.to_string().contains("reason=data_modality_not_licensed: "));
+/// ```
+#[macro_export]
+macro_rules! support_reason {
+    ($code:literal, $message:literal) => {{
+        const _: () = assert!(
+            $crate::error::is_runtime_refusal_code($code),
+            concat!("`", $code, "` is not a runtime_refusal code in parity/reason_codes.toml")
+        );
+        $crate::CausalError::Support {
+            id: $crate::support::SupportRefusal::Refused,
+            message: concat!("reason=", $code, ": ", $message),
+        }
+    }};
+}
+
+/// Compile-time check used by [`unsupported_reason!`] and [`support_reason!`].
+#[doc(hidden)]
+#[must_use]
+pub const fn is_runtime_refusal_code(code: &str) -> bool {
+    antecedent_core::reason_code::is_runtime_refusal(code)
+}
+
 /// Shared with [`crate::PreparedStudy::rank_designs`] and capability reports.
 pub(crate) const RANK_DESIGNS_REQUIRES_LICENSE: &str =
     "design ranking requires a licensed prepared contract";
