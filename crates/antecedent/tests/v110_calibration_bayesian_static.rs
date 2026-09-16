@@ -317,6 +317,162 @@ fn average_effect_dag_bayesian_default_nominal_coverage() {
     );
 }
 
+// ------------------------------------------- non-Gaussian likelihoods (ATE)
+
+/// Standard normal CDF (Abramowitz–Stegun 7.1.26, |error| < 1.5e-7), kept
+/// independent of the library so a probit truth does not reuse the link the
+/// estimator fits with.
+fn std_normal_cdf(x: f64) -> f64 {
+    let t = 1.0 / (1.0 + 0.327_591_1 * x.abs() / std::f64::consts::SQRT_2);
+    let poly = t
+        * (0.254_829_592
+            + t * (-0.284_496_736
+                + t * (1.421_413_741 + t * (-1.453_152_027 + t * 1.061_405_429))));
+    let tail = 0.5 * poly * (-(x * x) / 2.0).exp();
+    if x >= 0.0 { 1.0 - tail } else { tail }
+}
+
+/// Poisson draw by multiplication of uniforms (the means here stay below 10).
+fn poisson(u: &mut impl FnMut() -> f64, mean: f64) -> f64 {
+    let limit = (-mean).exp();
+    let (mut k, mut product) = (0.0, u());
+    while product > limit {
+        k += 1.0;
+        product *= u();
+    }
+    k
+}
+
+/// Outcome law of a non-Gaussian likelihood design.
+#[derive(Clone, Copy)]
+enum Link {
+    Logit,
+    Probit,
+    Poisson,
+}
+
+impl Link {
+    fn likelihood(self) -> antecedent_prob::BayesLikelihood {
+        match self {
+            Self::Logit => antecedent_prob::BayesLikelihood::BernoulliLogit,
+            Self::Probit => antecedent_prob::BayesLikelihood::BernoulliProbit,
+            Self::Poisson => antecedent_prob::BayesLikelihood::PoissonLog,
+        }
+    }
+
+    /// Outcome mean at linear predictor `eta`.
+    fn mean(self, eta: f64) -> f64 {
+        match self {
+            Self::Logit => common::static_dgp::sigmoid(eta),
+            Self::Probit => std_normal_cdf(eta),
+            Self::Poisson => eta.exp(),
+        }
+    }
+
+    /// `(intercept, treatment, confounder)` coefficients of the outcome model.
+    const fn coefficients(self) -> (f64, f64, f64) {
+        match self {
+            Self::Logit => (-0.5, 1.0, 0.8),
+            Self::Probit => (-0.3, 0.6, 0.5),
+            Self::Poisson => (0.2, 0.5, 0.3),
+        }
+    }
+}
+
+/// `z ~ N(0,1)`, `t ~ Bern(σ(−0.8 + z))`, and an outcome drawn from `link`
+/// at `η = a + b·t + c·z` (columns `t, y, z`; graph `z → t`, `z → y`,
+/// `t → y`). Returns the data and the replicate's truth: the average over the
+/// observed confounders of `mean(a + b + c·z) − mean(a + c·z)`, the effect
+/// g-computation standardizes over the rows it was given.
+fn glm_ate_data(link: Link, n: usize, seed: u64) -> (TabularData, f64) {
+    let mut g = gaussian(seed);
+    let mut u = uniform(seed);
+    let (a, b, c) = link.coefficients();
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    let mut truth = 0.0;
+    for i in 0..n {
+        z[i] = g();
+        t[i] = bernoulli(&mut u, common::static_dgp::sigmoid(-0.8 + z[i]));
+        let mean = link.mean(a + b * t[i] + c * z[i]);
+        y[i] = match link {
+            Link::Logit | Link::Probit => bernoulli(&mut u, mean),
+            Link::Poisson => poisson(&mut u, mean),
+        };
+        truth += link.mean(a + b + c * z[i]) - link.mean(a + c * z[i]);
+    }
+    (table(&[("t", &t), ("y", &y), ("z", &z)]), truth / n as f64)
+}
+
+/// The facade's default Bayesian configuration under `link`'s likelihood
+/// (Python `Bayesian(likelihood=...)`) on a Dag `AverageEffect`.
+fn glm_likelihood_coverage(test: &'static str, dgp: &'static str, link: Link, stream: u64) {
+    let cell = Cell {
+        query: "AverageEffect",
+        graph_class: "Dag",
+        estimator: "bayesian.gcomp",
+        dgp,
+        label: None,
+    };
+    let graph = dag(3, &[(2, 0), (2, 1), (0, 1)]);
+    coverage(
+        test,
+        &[cell],
+        |rep| {
+            let seed = stream_seed(stream, rep);
+            let (data, truth) = glm_ate_data(link, grid_n(500), seed);
+            let study = Study::tabular(data)
+                .graph(graph.clone())
+                .query(AverageEffectQuery::binary_ate(v(0), v(1)))
+                .inference(InferenceMode::Bayesian(
+                    BayesianConfig::laplace().likelihood(link.likelihood()),
+                ))
+                .refute(RefuteSuite::None)
+                .build()
+                .ok()?;
+            let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+            if rep == 0 {
+                check_estimator(&result, cell);
+            }
+            let pairs = vec![effect_pair(&result)];
+            Some(Replicate::from_one((study, result), pairs, vec![truth]))
+        },
+        &[None, None],
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn average_effect_dag_bayesian_logit_nominal_coverage() {
+    glm_likelihood_coverage(
+        "average_effect_dag_bayesian_logit_nominal_coverage",
+        "glm_ate_data",
+        Link::Logit,
+        0x110_0530,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn average_effect_dag_bayesian_probit_nominal_coverage() {
+    glm_likelihood_coverage(
+        "average_effect_dag_bayesian_probit_nominal_coverage",
+        "glm_ate_data",
+        Link::Probit,
+        0x110_0531,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn average_effect_dag_bayesian_poisson_nominal_coverage() {
+    glm_likelihood_coverage(
+        "average_effect_dag_bayesian_poisson_nominal_coverage",
+        "glm_ate_data",
+        Link::Poisson,
+        0x110_0532,
+    );
+}
+
 // ------------------------------------------------------ class envelopes (ATE)
 
 const ALPHA: f64 = 0.8;
