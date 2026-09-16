@@ -344,6 +344,78 @@ fn response_query(functional: ResponseFunctional, opts: &PrepareOptions) -> Caus
     CausalQuery::Response(query)
 }
 
+/// Continuous-response estimator options from a `response_options` mapping.
+///
+/// Every [`antecedent_estimate::ContinuousResponseOptions`] field has a key; an
+/// omitted key keeps the estimator default and an unknown key is refused, so
+/// no option is dropped. `None` leaves the builder without response options.
+fn parse_response_options(
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Option<antecedent_estimate::ContinuousResponseOptions>> {
+    const KEYS: &[&str] = &[
+        "folds",
+        "nuisance_basis",
+        "nuisance_lambda",
+        "bandwidth",
+        "minimum_local_ess",
+        "confidence_level",
+        "simultaneous_replicates",
+        "multiplier_seed",
+        "export_row_diagnostics",
+    ];
+    let Some(dict) = options else {
+        return Ok(None);
+    };
+    for (key, _) in dict.iter() {
+        let key: String = key.extract()?;
+        if !KEYS.contains(&key.as_str()) {
+            return Err(PyValueError::new_err(format!(
+                "unknown response option {key:?}; expected one of {KEYS:?}"
+            )));
+        }
+    }
+    let item = |key: &str| -> PyResult<Option<Bound<'_, PyAny>>> {
+        Ok(dict.get_item(key)?.filter(|value| !value.is_none()))
+    };
+    let mut parsed = antecedent_estimate::ContinuousResponseOptions::default();
+    if let Some(value) = item("folds")? {
+        parsed.folds = value.extract()?;
+    }
+    if let Some(value) = item("nuisance_basis")? {
+        parsed.nuisance_basis = value.extract()?;
+    }
+    if let Some(value) = item("nuisance_lambda")? {
+        parsed.nuisance_lambda = value.extract()?;
+    }
+    parsed.bandwidth = item("bandwidth")?.map(|value| value.extract()).transpose()?;
+    if let Some(value) = item("minimum_local_ess")? {
+        parsed.minimum_local_ess = value.extract()?;
+    }
+    if let Some(value) = item("confidence_level")? {
+        parsed.confidence_level = value.extract()?;
+    }
+    parsed.simultaneous_replicates =
+        item("simultaneous_replicates")?.map(|value| value.extract()).transpose()?;
+    if let Some(value) = item("multiplier_seed")? {
+        parsed.multiplier_seed = value.extract()?;
+    }
+    if let Some(value) = item("export_row_diagnostics")? {
+        parsed.export_row_diagnostics = value.extract()?;
+    }
+    Ok(Some(parsed))
+}
+
+/// Set parsed response options on the builder, when any were supplied.
+fn with_response_options(
+    builder: antecedent::StudyBuilder,
+    options: Option<antecedent_estimate::ContinuousResponseOptions>,
+) -> antecedent::StudyBuilder {
+    match options {
+        Some(options) => builder.response_options(options),
+        None => builder,
+    }
+}
+
 /// A supplied static class structure (PAG / CPDAG) or bidirected ADMG.
 enum StaticClassGraph {
     Pag(antecedent_graph::Pag),
@@ -737,12 +809,14 @@ fn dbn_posterior(
     .map_err(py_err)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn finish_static_graph_posterior(
     data: TabularData,
     names: Vec<String>,
     gp: antecedent::discovery::GraphPosterior,
     query: CausalQuery,
     spec: Option<antecedent::EstimatorSpec>,
+    response_options: Option<antecedent_estimate::ContinuousResponseOptions>,
     mut opts: PrepareOptions,
     ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<PyPreparedAnalysis> {
@@ -754,7 +828,10 @@ fn finish_static_graph_posterior(
              Bayesian g-computation per atom; a configured Frequentist estimator does not apply",
         ));
     }
-    let builder = Study::tabular(data).graph_posterior(gp).query(query);
+    let builder = with_response_options(
+        Study::tabular(data).graph_posterior(gp).query(query),
+        response_options,
+    );
     let builder = apply_estimator(opts.apply_budget_for(builder, spec.is_some()), None, spec)?;
     let analysis = opts.apply_inference(builder)?.build().map_err(py_err)?;
     Ok(finished_prepared(analysis.prepare(ctx).map_err(py_err)?, names, false))
@@ -1366,6 +1443,7 @@ impl PyPreparedAnalysis {
         intervention_parameters=None,
         identifier=None,
         estimator=None,
+        response_options=None,
         accepted=false,
         seed=1,
         threads=1,
@@ -1385,6 +1463,7 @@ impl PyPreparedAnalysis {
         intervention_parameters: Option<Vec<Vec<f64>>>,
         identifier: Option<String>,
         estimator: Option<String>,
+        response_options: Option<Bound<'_, PyDict>>,
         accepted: bool,
         seed: u64,
         threads: u32,
@@ -1392,6 +1471,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
         opts.refuse_prior_transfer("a Cpdag/Pag response envelope")?;
+        let response_options = parse_response_options(response_options.as_ref())?;
         let graph = StaticClassGraph::extract(&graph, &names)?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         detach_catch(py, move || {
@@ -1411,9 +1491,10 @@ impl PyPreparedAnalysis {
                 antecedent_core::DerivativeWeighting::Observed,
             )?;
             let query = response_query(functional, &opts);
-            let mut builder = opts.apply(
+            let mut builder = opts.apply(with_response_options(
                 graph.bind(Study::tabular(data), accepted, opts.discovery_algorithm()).query(query),
-            );
+                response_options,
+            ));
             if let Some(id) = parse_identifier(identifier)? {
                 builder = builder.identifier(id);
             }
@@ -1553,7 +1634,7 @@ impl PyPreparedAnalysis {
     /// Freeze identification for a complete-data static derivative.
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, kind, treatments, outcomes, *, at=None,
-        direction=None, order=1, scale="identity", weighting="observed", bandwidth=None,
+        direction=None, order=1, scale="identity", weighting="observed", response_options=None,
         accepted=false, seed=1, threads=1, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_derivative(
@@ -1569,7 +1650,7 @@ impl PyPreparedAnalysis {
         order: u8,
         scale: &str,
         weighting: &str,
-        bandwidth: Option<f64>,
+        response_options: Option<Bound<'_, PyDict>>,
         accepted: bool,
         seed: u64,
         threads: u32,
@@ -1577,6 +1658,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
         opts.refuse_prior_transfer("a response derivative")?;
+        let response_options = parse_response_options(response_options.as_ref())?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let scale = crate::response_api::parse_scale(scale)?;
         let weighting = crate::response_api::parse_weighting(weighting)?;
@@ -1587,13 +1669,11 @@ impl PyPreparedAnalysis {
                 &kind, &ts, &ys, None, at, direction, None, None, order, scale, weighting,
             )?;
             let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let builder =
+            let builder = with_response_options(
                 with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
-                    .query(response_query(functional, &opts))
-                    .response_options(antecedent_estimate::ContinuousResponseOptions {
-                        bandwidth,
-                        ..Default::default()
-                    });
+                    .query(response_query(functional, &opts)),
+                response_options,
+            );
             let study = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
             let prepared = study.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
             Ok(finished_prepared(prepared, names, false))
@@ -1613,11 +1693,7 @@ impl PyPreparedAnalysis {
         identifier=None,
         estimator=None,
         accepted=false,
-        bandwidth=None,
-        simultaneous_replicates=None,
-        confidence_level=0.95,
-        multiplier_seed=0xA17E_CEDE_0500,
-        export_row_diagnostics=false,
+        response_options=None,
         seed=1,
         threads=1,
         options=None,
@@ -1634,16 +1710,13 @@ impl PyPreparedAnalysis {
         identifier: Option<String>,
         estimator: Option<String>,
         accepted: bool,
-        bandwidth: Option<f64>,
-        simultaneous_replicates: Option<u32>,
-        confidence_level: f64,
-        multiplier_seed: u64,
-        export_row_diagnostics: bool,
+        response_options: Option<Bound<'_, PyDict>>,
         seed: u64,
         threads: u32,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
+        let response_options = parse_response_options(response_options.as_ref())?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         detach_catch(py, move || {
             let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
@@ -1656,18 +1729,11 @@ impl PyPreparedAnalysis {
                 },
                 &opts,
             );
-            let mut builder = opts.apply(
+            let mut builder = opts.apply(with_response_options(
                 with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
-                    .query(query)
-                    .response_options(antecedent_estimate::ContinuousResponseOptions {
-                        bandwidth,
-                        simultaneous_replicates,
-                        confidence_level,
-                        multiplier_seed,
-                        export_row_diagnostics,
-                        ..Default::default()
-                    }),
-            );
+                    .query(query),
+                response_options,
+            ));
             if let Some(id) = parse_identifier(identifier)? {
                 builder = builder.identifier(id);
             }
@@ -2076,7 +2142,7 @@ impl PyPreparedAnalysis {
             )?);
             let ctx = opts.ctx(seed, threads);
             let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            finish_static_graph_posterior(data, names, gp, query, spec, opts, &ctx)
+            finish_static_graph_posterior(data, names, gp, query, spec, None, opts, &ctx)
         })
     }
 
@@ -2130,7 +2196,7 @@ impl PyPreparedAnalysis {
             )?;
             let ctx = opts.ctx(seed, threads);
             let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            finish_static_graph_posterior(data, names, gp, query, None, opts, &ctx)
+            finish_static_graph_posterior(data, names, gp, query, None, None, opts, &ctx)
         })
     }
 
@@ -2143,6 +2209,7 @@ impl PyPreparedAnalysis {
         outcome,
         grid,
         *,
+        response_options=None,
         posterior=None,
         seed=1,
         threads=1,
@@ -2156,12 +2223,14 @@ impl PyPreparedAnalysis {
         treatment: String,
         outcome: String,
         grid: Vec<f64>,
+        response_options: Option<Bound<'_, PyDict>>,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
         seed: u64,
         threads: u32,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let opts = PrepareOptions::parse(options.as_ref())?;
+        let response_options = parse_response_options(response_options.as_ref())?;
         let supplied = take_supplied_posterior(posterior, &names)?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         detach_catch(py, move || {
@@ -2176,7 +2245,16 @@ impl PyPreparedAnalysis {
             );
             let ctx = opts.ctx(seed, threads);
             let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            finish_static_graph_posterior(data, names, gp, query, None, opts, &ctx)
+            finish_static_graph_posterior(
+                data,
+                names,
+                gp,
+                query,
+                None,
+                response_options,
+                opts,
+                &ctx,
+            )
         })
     }
 
@@ -2231,7 +2309,7 @@ impl PyPreparedAnalysis {
             let query = response_query(functional, &opts);
             let ctx = opts.ctx(seed, threads);
             let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            finish_static_graph_posterior(data, names, gp, query, None, opts, &ctx)
+            finish_static_graph_posterior(data, names, gp, query, None, None, opts, &ctx)
         })
     }
 
