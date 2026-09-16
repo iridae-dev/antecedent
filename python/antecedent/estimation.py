@@ -60,6 +60,7 @@ from .inference import (
     _max_completions_kwargs,
 )
 from .interference import InterferenceEstimate, InterferenceQuery, RandomizationContrast
+from .population import coerce_target_population
 from .query import (
     AverageDerivative,
     AverageEffect,
@@ -883,6 +884,7 @@ def analyze_many(
             float(q.control_level),
             float(q.active_level),
             coerce_outcome_functional(q.outcome_functional),
+            coerce_target_population(q.target_population),
         )
         for q in queries
     ]
@@ -1056,6 +1058,7 @@ class PreparedBatch:
                 float(q.control_level),
                 float(q.active_level),
                 coerce_outcome_functional(q.outcome_functional),
+                coerce_target_population(q.target_population),
             )
             for q in queries
         ]
@@ -2762,7 +2765,7 @@ class PreparedAnalysis:
         routes that have them. The handle retains all three; a click may
         override them.
         """
-        from .population import coerce_target_population, registry_wire
+        from .population import registry_wire
 
         coerce_query(query)
         if isinstance(identifier, Identifier):

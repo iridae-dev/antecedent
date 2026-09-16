@@ -125,6 +125,14 @@ CASES = [
         {"inference": ant.Bayesian(n_draws=200)},
     ),
     Case(
+        "dag-average-treated",
+        _static,
+        STATIC_DAG,
+        ant.AverageEffect("treatment", "outcome", target_population=ant.population.Treated()),
+        "point",
+        {"estimator": "aipw"},
+    ),
+    Case(
         "cpdag-average-bounds",
         _static,
         ant.Cpdag.from_directed_undirected(

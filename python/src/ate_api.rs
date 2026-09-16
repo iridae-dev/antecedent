@@ -419,8 +419,10 @@ pub(crate) fn panel_multi_dataset_constraints(
     })
 }
 
-// Python batch query: treatment, outcome, control, active, functional specification.
-type PyBatchQuery<'py> = (String, String, f64, f64, Option<Bound<'py, PyDict>>);
+// Python batch query: treatment, outcome, control, active, functional specification,
+// target population specification.
+type PyBatchQuery<'py> =
+    (String, String, f64, f64, Option<Bound<'py, PyDict>>, Option<Bound<'py, PyDict>>);
 
 /// Run standalone discovery over panel data and return a builder already seeded with the
 /// accepted graph via [`Study::panel`] + [`antecedent::StudyBuilder::graph`].
@@ -901,17 +903,25 @@ fn parse_latency_mode(latency: Option<&str>) -> PyResult<Option<antecedent::Late
     }
 }
 
-type AteBatchQuerySpec = (String, String, f64, f64, Option<antecedent_core::OutcomeFunctional>);
+type AteBatchQuerySpec = (
+    String,
+    String,
+    f64,
+    f64,
+    Option<antecedent_core::OutcomeFunctional>,
+    Option<antecedent_core::TargetPopulation>,
+);
 
 fn parse_ate_batch_query_specs(queries: Vec<PyBatchQuery<'_>>) -> PyResult<Vec<AteBatchQuerySpec>> {
     let mut parsed = Vec::with_capacity(queries.len());
-    for (treatment, outcome, control, active, functional) in queries {
+    for (treatment, outcome, control, active, functional, population) in queries {
         parsed.push((
             treatment,
             outcome,
             control,
             active,
             parse_outcome_functional(functional.as_ref())?,
+            parse_target_population(population.as_ref())?,
         ));
     }
     Ok(parsed)
@@ -990,12 +1000,15 @@ fn compile_ate_batch(
     within_tier: Option<String>,
 ) -> PyResult<(antecedent::BatchStudy, Vec<AverageEffectQuery>)> {
     let mut ate_queries = Vec::with_capacity(parsed_queries.len());
-    for (treatment, outcome, control, active, functional) in &parsed_queries {
+    for (treatment, outcome, control, active, functional, population) in &parsed_queries {
         let t_id = data.schema().id_of(treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(outcome).map_err(py_err)?;
         let mut query = AverageEffectQuery::with_levels(t_id, y_id, *control, *active);
         if let Some(functional) = functional.clone() {
             query = query.with_outcome_functional(functional);
+        }
+        if let Some(population) = population.clone() {
+            query = query.with_target_population(population);
         }
         ate_queries.push(query);
     }

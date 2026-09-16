@@ -1547,7 +1547,9 @@ def analyze_ate_many(
     names: list[str],
     columns: Sequence[Any],
     edges: list[tuple[str, str]],
-    queries: list[tuple[str, str, float, float, dict[str, object] | None]],
+    queries: list[
+        tuple[str, str, float, float, dict[str, object] | None, dict[str, object] | None]
+    ],
     *,
     identifier: str | None = None,
     estimator: str | None = None,
@@ -1583,7 +1585,9 @@ def prepare_ate_batch(
     names: list[str],
     columns: Sequence[Any],
     edges: list[tuple[str, str]],
-    queries: list[tuple[str, str, float, float, dict[str, object] | None]],
+    queries: list[
+        tuple[str, str, float, float, dict[str, object] | None, dict[str, object] | None]
+    ],
     *,
     identifier: str | None = None,
     estimator: str | None = None,
