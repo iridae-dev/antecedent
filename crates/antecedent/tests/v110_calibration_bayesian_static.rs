@@ -67,8 +67,8 @@ use common::reported::{
 // the 1.9 and 1.10 records of a cell are comparable only if the replicate data
 // is literally the same, which a copy makes a convention and this makes a fact.
 use common::static_dgp::{
-    bernoulli, counterfactual_data, distribution_data, envelope_pag as pag, path_data,
-    response_data, sigmoid, table, two_path_data, uniform,
+    bernoulli, counterfactual_data, distribution_data, envelope_pag as pag, linear_ate_data,
+    path_data, response_data, table, two_path_data, uniform,
 };
 
 // ---------------------------------------------------------------- emission
@@ -284,20 +284,6 @@ fn effect_pair(result: &StudyResult) -> Pair {
 
 // ================================================================ scalar ATE
 
-/// `v19_static_calibration::misspecified_data` at `q = h = 0` (columns `t, y, z`):
-/// `z ~ N(0,1)`, `t ~ Bern(σ(−0.8 + z))`, `y = 2t + z + e`; ATE 2.
-fn linear_ate_data(n: usize, seed: u64) -> TabularData {
-    let mut g = gaussian(seed);
-    let mut u = uniform(seed);
-    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
-    for i in 0..n {
-        z[i] = g();
-        t[i] = bernoulli(&mut u, sigmoid(-0.8 + z[i]));
-        y[i] = 2.0 * t[i] + z[i] + g();
-    }
-    table(&[("t", &t), ("y", &y), ("z", &z)])
-}
-
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn average_effect_dag_bayesian_default_nominal_coverage() {
@@ -305,7 +291,7 @@ fn average_effect_dag_bayesian_default_nominal_coverage() {
         query: "AverageEffect",
         graph_class: "Dag",
         estimator: "bayesian.gcomp",
-        dgp: "linear_ate_data",
+        dgp: "crates/antecedent/tests/common/static_dgp.rs::linear_ate_data",
         label: None,
     };
     let graph = dag(3, &[(2, 0), (2, 1), (0, 1)]);

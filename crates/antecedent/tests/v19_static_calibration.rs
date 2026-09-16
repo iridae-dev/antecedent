@@ -33,7 +33,9 @@ mod common;
 
 use std::sync::Arc;
 
-use antecedent::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study, StudyResult};
+use antecedent::{
+    BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study, StudyBuilder, StudyResult,
+};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ContinuousDomain, CounterfactualQuery, ExecutionContext,
     GridSpec, Intervention, InterventionalDistributionQuery, MediationContrast, MediationQuery,
@@ -806,7 +808,7 @@ fn run_mediation_study(
         .query(mediation_query(contrast))
         .inference(inference)
         .refute(RefuteSuite::None)
-        .bootstrap_replicates(if bayesian { 0 } else { 200 })
+        .bootstrap_replicates(if bayesian { 0 } else { StudyBuilder::OMITTED_BOOTSTRAP })
         .build()
         .ok()?;
     let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
@@ -862,7 +864,10 @@ fn mediation_coverage(
             continue;
         };
         if !bayesian && rep == 0 {
-            assert_eq!(result.estimate.bootstrap_replicates_ok, Some(200));
+            assert_eq!(
+                result.estimate.bootstrap_replicates_ok,
+                Some(StudyBuilder::OMITTED_BOOTSTRAP)
+            );
             assert_eq!(result.estimate.bootstrap_replicates_failed, Some(0));
         }
         bind_all(&mut [&mut tally, &mut reported], &study, &result);
@@ -985,7 +990,7 @@ fn run_path(
         .query(CausalQuery::PathSpecific(query))
         .inference(inference)
         .refute(RefuteSuite::None)
-        .bootstrap_replicates(if bayesian { 0 } else { 200 })
+        .bootstrap_replicates(if bayesian { 0 } else { StudyBuilder::OMITTED_BOOTSTRAP })
         .build()
         .map_err(|e| e.to_string())?;
     let result = study.run(&ExecutionContext::for_tests(seed)).map_err(|e| e.to_string())?;

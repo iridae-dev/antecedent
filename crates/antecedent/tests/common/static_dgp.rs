@@ -60,6 +60,23 @@ fn d(i: u32) -> DenseNodeId {
     DenseNodeId::from_raw(i)
 }
 
+/// `v19_static_calibration::misspecified_data` at `q = h = 0` (columns `t, y, z`):
+/// `z ~ N(0,1)`, `t ~ Bern(σ(−0.8 + z))`, `y = 2t + z + e`; ATE 2. The ordinary
+/// binary-treatment adjustment law both the facade's default Frequentist and
+/// default Bayesian `AverageEffect` records are measured on.
+#[must_use]
+pub fn linear_ate_data(n: usize, seed: u64) -> TabularData {
+    let mut g = gaussian(seed);
+    let mut u = uniform(seed);
+    let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        z[i] = g();
+        t[i] = bernoulli(&mut u, sigmoid(-0.8 + z[i]));
+        y[i] = 2.0 * t[i] + z[i] + g();
+    }
+    table(&[("t", &t), ("y", &y), ("z", &z)])
+}
+
 /// Binary chain `t -> m -> y` (columns `t, m, y`): `t ~ Bern(1/2)`,
 /// `m | t ~ Bern(0.3 + 0.4t)`, `y | m ~ Bern(0.2 + 0.5m)`. The only directed
 /// path runs through `m`, so the path-specific effect is `0.4·0.5 = 0.2`.

@@ -17,6 +17,12 @@
 //! file's one emission point; the construction each record describes is read
 //! from that execution's own contract rather than declared here.
 //!
+//! The file also measures the interval an ordinary default Frequentist
+//! `AverageEffect` on a DAG reports (`linear.adjustment.ate`, the Study's
+//! default 199 bootstrap replicates, `bootstrap_se`) on the
+//! binary-treatment adjustment law `common::static_dgp::linear_ate_data`, the
+//! same law the default Bayesian record is measured on.
+//!
 //! Ignored tests run via `scripts/gate_calibration.sh` (release build).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -30,7 +36,7 @@
 
 mod common;
 
-use antecedent::{EstimatorId, RefuteSuite, Study, StudyResult};
+use antecedent::{EstimatorId, RefuteSuite, Study, StudyBuilder, StudyResult};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
@@ -38,7 +44,10 @@ use common::calibration::{
     CoverageTally, RecordKey, gaussian, grid_n, n_sim, stream_seed, unit_uniform,
 };
 use common::calibration_bind::bind_all;
-use common::reported::{GATE_LEVEL, REPORTED_LEVEL, gate, normal_at, record_pair, skip_pair};
+use common::reported::{
+    GATE_LEVEL, REPORTED_LEVEL, gate, normal_at, record_pair, scalar_normal_pair, skip_pair,
+};
+use common::static_dgp::linear_ate_data;
 
 const N: usize = 800;
 
@@ -46,8 +55,13 @@ const N: usize = 800;
 /// record describes is not declared here: it is read from the execution the
 /// tally scores (`bind`), so the record can only name the interval the facade
 /// reported.
-fn keyed(test: &'static str, interval_method: &'static str, level: f64) -> CoverageTally {
-    CoverageTally::for_record(RecordKey { test, dgp: "glm_data", interval: interval_method }, level)
+fn keyed(
+    test: &'static str,
+    dgp: &'static str,
+    interval_method: &'static str,
+    level: f64,
+) -> CoverageTally {
+    CoverageTally::for_record(RecordKey { test, dgp, interval: interval_method }, level)
 }
 
 fn sigmoid(x: f64) -> f64 {
@@ -109,10 +123,14 @@ fn run(data: TabularData, bootstrap: Option<u32>, seed: u64) -> Option<(Study, S
 fn glm_adjustment_binary_outcome_nominal_coverage() {
     const TEST: &str = "glm_adjustment_binary_outcome_nominal_coverage";
     let truth = glm_truth();
-    let mut bootstrap =
-        [keyed(TEST, "bootstrap_se", REPORTED_LEVEL), keyed(TEST, "bootstrap_se", GATE_LEVEL)];
-    let mut analytic =
-        [keyed(TEST, "analytic_se", REPORTED_LEVEL), keyed(TEST, "analytic_se", GATE_LEVEL)];
+    let mut bootstrap = [
+        keyed(TEST, "glm_data", "bootstrap_se", REPORTED_LEVEL),
+        keyed(TEST, "glm_data", "bootstrap_se", GATE_LEVEL),
+    ];
+    let mut analytic = [
+        keyed(TEST, "glm_data", "analytic_se", REPORTED_LEVEL),
+        keyed(TEST, "glm_data", "analytic_se", GATE_LEVEL),
+    ];
     for rep in 0..u64::from(n_sim()) {
         let seed = stream_seed(0x110_0301, rep);
         let data = glm_data(grid_n(N), seed);
@@ -159,4 +177,54 @@ fn glm_adjustment_binary_outcome_nominal_coverage() {
     eprintln!("info glm.adjustment: population ATE truth {truth:.6}");
     let tallies = [bootstrap, analytic].concat();
     gate(&tallies, &[None, None, None, None]);
+}
+
+// ============================================ default Frequentist AverageEffect
+
+const LINEAR_ATE_DATA: &str = "crates/antecedent/tests/common/static_dgp.rs::linear_ate_data";
+
+/// Base rows of the default `AverageEffect` design (grid 250, 500, 1000).
+const N_DEFAULT_ATE: usize = 500;
+
+/// The facade's default Frequentist `AverageEffect` on a DAG: no estimator,
+/// no bootstrap count and no interval method chosen by the caller, so the
+/// study resolves `linear.adjustment.ate` and reports the bootstrap-SE
+/// interval at its default replicate count. Scored at 0.95 (reported) and 0.90.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn average_effect_dag_frequentist_default_nominal_coverage() {
+    const TEST: &str = "average_effect_dag_frequentist_default_nominal_coverage";
+    let mut tallies = [
+        keyed(TEST, LINEAR_ATE_DATA, "bootstrap_se", REPORTED_LEVEL),
+        keyed(TEST, LINEAR_ATE_DATA, "bootstrap_se", GATE_LEVEL),
+    ];
+    let mut dag = Dag::with_variables(3);
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    for rep in 0..u64::from(n_sim()) {
+        let seed = stream_seed(0x110_0310, rep);
+        let study = Study::tabular(linear_ate_data(grid_n(N_DEFAULT_ATE), seed))
+            .graph(dag.clone())
+            .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+            .refute(RefuteSuite::None)
+            .build()
+            .expect("the default study builds");
+        let Ok(result) = study.run(&ExecutionContext::for_tests(seed)) else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        if rep == 0 {
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some("linear.adjustment.ate"));
+            assert_eq!(
+                result.estimate.bootstrap_replicates_ok,
+                Some(StudyBuilder::OMITTED_BOOTSTRAP),
+                "the Study default bootstrap"
+            );
+        }
+        let [reported, gated] = &mut tallies;
+        bind_all(&mut [reported, gated], &study, &result);
+        record_pair(&mut tallies, scalar_normal_pair(&result), 2.0);
+    }
+    gate(&tallies, &[None, None]);
 }
