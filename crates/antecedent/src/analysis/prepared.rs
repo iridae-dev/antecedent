@@ -2269,6 +2269,7 @@ impl Study {
             }
             CausalQuery::TemporalEffect(query) => {
                 let id_res = TemporalBackdoorIdentifier::new()
+                    .with_parent_adjustment_fallback()
                     .identify_temporal(graph, query)
                     .map_err(CausalError::from)?;
                 let estimand = select_estimand(
