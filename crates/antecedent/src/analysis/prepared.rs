@@ -908,6 +908,44 @@ impl PreparedStudy {
         self.analysis.shared_batch_design.as_deref()
     }
 
+    /// The prepared score table a retarget reweights.
+    ///
+    /// # Errors
+    ///
+    /// `score_table_unavailable` when prepare built none.
+    fn retarget_score_table(&self) -> Result<&antecedent_estimate::ScoreTable, CausalError> {
+        self.score_table.as_ref().ok_or_else(|| {
+            crate::unsupported_reason!(
+                "score_table_unavailable",
+                "retarget requires a prepared score table on AverageEffect or discrete joint \
+                 InterventionResponse"
+            )
+        })
+    }
+
+    /// Whether this handle can perform `intent` at all, before any data or
+    /// weights are supplied.
+    ///
+    /// The one check both [`Self::preview_transform`] and the apply run, so a
+    /// preview never authorizes what the apply refuses. Only retarget depends
+    /// on the handle (it needs a prepared score table); a compatible-data
+    /// refresh is always available, and its schema check needs the new data.
+    /// The remaining intents change the question or structure and are
+    /// performed by preparing a new study, not applied to this handle.
+    ///
+    /// # Errors
+    ///
+    /// The reason-coded refusal the apply raises.
+    pub fn transform_capability(
+        &self,
+        intent: antecedent_core::TransformIntent,
+    ) -> Result<(), CausalError> {
+        match intent {
+            antecedent_core::TransformIntent::Retarget => self.retarget_score_table().map(|_| ()),
+            _ => Ok(()),
+        }
+    }
+
     /// Estimate `E_Q[μ_a(X)]` from frozen scores. Does not refit or re-identify.
     ///
     /// `weights` must align with the score-table complete-case rows.
@@ -926,10 +964,7 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let _ = ctx;
-        let table = self.score_table.as_ref().ok_or(CausalError::Unsupported {
-            message: "retarget requires a prepared score table on AverageEffect or \
-                      discrete joint InterventionResponse",
-        })?;
+        let table = self.retarget_score_table()?;
         let graph: Option<&dyn antecedent_estimate::DirectedAncestry> = self
             .analysis
             .graph
@@ -1270,6 +1305,7 @@ impl PreparedStudy {
         data: TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
         self.ensure_schema_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.shared_batch_design = refreshed
@@ -1562,6 +1598,7 @@ impl PreparedStudy {
         data: PanelData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
         self.ensure_panel_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = DataInput::Panel(data);
@@ -1597,6 +1634,7 @@ impl PreparedStudy {
         data: antecedent_data::MultiEnvironmentData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
         self.ensure_multi_env_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = DataInput::MultiEnv(data);
@@ -1674,6 +1712,7 @@ impl PreparedStudy {
         data: TimeSeriesData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
         self.ensure_series_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = self.series_input(data);

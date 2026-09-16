@@ -178,6 +178,9 @@ pub struct TransformationReport {
     pub obligations: Arc<[ObligationRecord]>,
     /// Whether any layer refused the transformation.
     pub refused: bool,
+    /// Reason-coded refusal the apply of this transformation raises on the
+    /// previewed handle, when the handle cannot perform it at all.
+    pub refusal: Option<Arc<str>>,
 }
 
 impl TransformationReport {
@@ -198,7 +201,29 @@ impl TransformationReport {
             layer_effects: Arc::from(layer_effects),
             obligations: obligations.into(),
             refused,
+            refusal: None,
         }
+    }
+
+    /// Mark the transformation refused on the previewed handle.
+    ///
+    /// `refusal` is the reason-coded message the apply raises; the program and
+    /// results layers record the refusal, so [`Self::refused`] agrees with it.
+    #[must_use]
+    pub fn refused_on_handle(mut self, refusal: impl Into<Arc<str>>) -> Self {
+        let mut layers: Vec<LayerEffect> = self.layer_effects.iter().cloned().collect();
+        for layer in [SemanticLayer::Program, SemanticLayer::Results] {
+            let refused = LayerEffect::new(layer, [TransformEffect::Refused]);
+            match layers.iter_mut().find(|entry| entry.layer == layer) {
+                Some(entry) => *entry = entry.union(&refused),
+                None => layers.push(refused),
+            }
+        }
+        layers.sort_by_key(|layer| layer.layer);
+        self.layer_effects = Arc::from(layers);
+        self.refused = true;
+        self.refusal = Some(refusal.into());
+        self
     }
 
     /// Effects recorded for `layer`, if any.
@@ -267,7 +292,11 @@ impl TransformationReport {
             }
             obligations.push(obligation.clone());
         }
-        Self::new(next.intent, self.input_identities.clone(), layers, obligations)
+        let mut composed =
+            Self::new(next.intent, self.input_identities.clone(), layers, obligations);
+        // A refusal anywhere in the chain refuses the chain.
+        composed.refusal = self.refusal.clone().or_else(|| next.refusal.clone());
+        composed
     }
 }
 

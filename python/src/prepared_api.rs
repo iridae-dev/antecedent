@@ -3383,6 +3383,12 @@ impl PyPreparedAnalysis {
             out.insert(format!("input_{}", identity.domain.as_str()), identity.digest.to_hex());
         }
         out.insert("refused".into(), report.refused.to_string());
+        if let Some(refusal) = &report.refusal {
+            if let Some((code, _)) = antecedent_core::reason_code::split_prefix(refusal) {
+                out.insert("refusal_code".into(), code.to_string());
+            }
+            out.insert("refusal".into(), refusal.to_string());
+        }
         out.insert(
             "obligations".into(),
             report.obligations.iter().map(|o| o.id.to_string()).collect::<Vec<_>>().join(","),

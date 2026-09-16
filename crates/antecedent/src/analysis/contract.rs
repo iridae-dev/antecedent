@@ -618,6 +618,13 @@ impl PreparedStudy {
 
     /// Pure transformation preview bound to this handle's program identity.
     ///
+    /// The preview reports the refusal the apply raises when this handle
+    /// cannot perform the transformation at all (a retarget on a study with no
+    /// prepared score table), from the same check the apply runs
+    /// ([`Self::transform_capability`]). Data-dependent checks — schema
+    /// compatibility of refreshed data, retarget weights, dependencies and
+    /// weighted overlap — can only run at apply and stay as obligations.
+    ///
     /// # Errors
     ///
     /// Canonical-encoding failures while reading the contract.
@@ -625,7 +632,11 @@ impl PreparedStudy {
         &self,
         intent: TransformIntent,
     ) -> Result<TransformationReport, CausalError> {
-        Ok(self.contract()?.preview_transform(intent))
+        let report = self.contract()?.preview_transform(intent);
+        Ok(match self.transform_capability(intent) {
+            Ok(()) => report,
+            Err(refusal) => report.refused_on_handle(refusal.to_string()),
+        })
     }
 
     /// Encode an executed result with a verified contract section.
