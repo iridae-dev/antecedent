@@ -22,6 +22,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# --self-test: each broken input, applied alone to an overlay of the repo, must
+# fail this gate with the expected message (scripts/selftest_cases.py).
+if [[ "${1:-}" == "--self-test" ]]; then
+  exec python3 "$ROOT/scripts/selftest_cases.py" reachability
+fi
+
 python3 - <<'PY'
 from pathlib import Path
 import re
@@ -31,47 +37,20 @@ import tomllib
 root = Path(".")
 fail = []
 
-# ------------------------------------------------ corpus of executing code
-# Files that can make a fixture "exercised": Rust sources/tests (fixtures are
-# loaded via include_str!/fs paths naming the directory), Python tests and
-# package code, and gate scripts (which name test binaries and fixture paths).
-corpus_files = []
-for pat in (
-    "crates/**/*.rs",
-    "python/tests/**/*.py",
-    "python/antecedent/**/*.py",
-    "scripts/*.sh",
-    "scripts/*.py",
-):
-    corpus_files.extend(root.glob(pat))
-corpus_files = [
-    p
-    for p in corpus_files
-    if "target" not in p.parts
-    and ".venv" not in p.parts
-    # This gate names fixtures in its own comments; it is not executing evidence.
-    and p.name != "gate_evidence_reachability.sh"
-]
-corpus = "\n".join(p.read_text(errors="ignore") for p in corpus_files)
+# ------------------------------------------------ executing consumers
+# A fixture is exercised only by an executing test that consumes it: a compiled,
+# non-ignored test function (or collected pytest) whose own body, with the helpers
+# it calls, names the fixture's full `conformance/<category>/<name>` path outside
+# comments (or passes the quoted name to a helper that builds the category
+# directory), parses it and asserts (scripts/test_evidence.py). A basename in a
+# comment, a gate script, non-test source, or another category's fixture of the
+# same name does not count.
+sys.path.insert(0, str((root / "scripts").resolve()))
+import test_evidence  # noqa: E402  (the one reader of test source for the gates)
 
 
-def referenced(name: str) -> bool:
-    """True when `name` appears in the corpus as a path/string component.
-
-    Word-boundary matched: an occurrence embedded in a longer identifier does
-    not count. Found the hard way — `conformance/context/path_specific_natural`
-    passed the original substring scan solely because a test *function* was
-    named `end_to_end_path_specific_natural_effect`; the test hardcodes its own
-    scenario and never reads the fixture. Real references are quote- or
-    slash-delimited (`load_expected("gam")`, `join(".../general_id_hedge/...")`)
-    and survive this rule.
-    """
-    for m in re.finditer(re.escape(name), corpus):
-        before = corpus[m.start() - 1] if m.start() > 0 else ""
-        after = corpus[m.end()] if m.end() < len(corpus) else ""
-        if not re.match(r"[A-Za-z0-9_]", before) and not re.match(r"[A-Za-z0-9_]", after):
-            return True
-    return False
+def referenced(fixture: str) -> bool:
+    return bool(test_evidence.fixture_consumers(fixture))
 
 # ------------------------------------------------ declared unexercised list
 declared = {}
@@ -89,15 +68,15 @@ if unex_path.exists():
 fixtures = sorted(p for p in root.glob("conformance/*/*") if p.is_dir())
 for f in fixtures:
     path = f.as_posix()
-    is_ref = referenced(f.name)
+    is_ref = referenced(path)
     if is_ref and path in declared:
         fail.append(
-            f"{path} is loaded by executing code but still listed in "
+            f"{path} is consumed by an executing test but still listed in "
             "conformance/UNEXERCISED.toml — remove the entry (the list only shrinks)"
         )
     if not is_ref and path not in declared:
         fail.append(
-            f"{path} is loaded by no Rust/Python test or gate script and is not "
+            f"{path} is consumed by no executing Rust/Python test function and is not "
             "declared in conformance/UNEXERCISED.toml — either wire a consuming "
             "test or declare it recorded-but-unexercised with a reason"
         )
@@ -200,8 +179,8 @@ if lic_path.exists():
 obs_spec = re.compile(r"ObservationSpec::(?!Complete\b)\w+")
 if licensed_obs:
     joint = False
-    for p in corpus_files:
-        if p.suffix != ".rs":
+    for p in sorted(root.glob("crates/**/*.rs")):
+        if "target" in p.parts:
             continue
         text = p.read_text(errors="ignore")
         for block in re.split(r"\n\s*fn\s+", text):
