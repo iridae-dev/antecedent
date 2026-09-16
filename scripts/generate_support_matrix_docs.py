@@ -19,6 +19,9 @@ from itertools import product
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+import external_evidence  # noqa: E402
+
 OUT = ROOT / "docs" / "support-matrix.md"
 RUST_OUT = ROOT / "crates" / "antecedent" / "src" / "support_matrix_data.rs"
 COVERAGE_OUT = ROOT / "crates" / "antecedent-io" / "src" / "coverage_records_data.rs"
@@ -63,9 +66,7 @@ def freeze_licensed_block(path: Path) -> bool:
     text = path.read_text()
     if RN_BEGIN not in text and RN_END not in text:
         return False
-    path.write_text(
-        text.replace(RN_BEGIN, FROZEN_BEGIN).replace(RN_END, FROZEN_END)
-    )
+    path.write_text(text.replace(RN_BEGIN, FROZEN_BEGIN).replace(RN_END, FROZEN_END))
     return True
 
 
@@ -178,20 +179,21 @@ def main() -> int:
             for key in ("queries", "graph_classes", "structures", "inferences", "validations"):
                 if key in rule:
                     bits.append(f"{key} ∈ {{{', '.join(rule[key])}}}")
-            lines.append(
-                f"- {' ∧ '.join(bits)} — {rule['reason']} (parent: {rule['parent']})"
-            )
+            lines.append(f"- {' ∧ '.join(bits)} — {rule['reason']} (parent: {rule['parent']})")
         return lines
 
     allowed_md_lines = allowed_lines(allowed_rules)
 
     if cells:
+
         def md_cell(value: str) -> str:
             return " ".join(value.split()).replace("|", r"\|")
 
+        components = external_evidence.component_rows()
+        routes = external_evidence.routes()
         lic_rows = [
-            "| query | graph | structure | inference | validation | evidence | limitations |",
-            "|---|---|---|---|---|---|---|",
+            "| query | graph | structure | inference | validation | evidence | external oracles | limitations |",
+            "|---|---|---|---|---|---|---|---|",
         ]
         for row in cells:
             ev = row.get("evidence_kind", "")
@@ -205,9 +207,13 @@ def main() -> int:
             else:
                 ev_s = f"{ev}"
             limitations = md_cell(row.get("limitations", ""))
+            links = external_evidence.cell_links(
+                row, routes.get(external_evidence.coordinate(row)), components
+            )
+            external = md_cell(external_evidence.render(links))
             lic_rows.append(
                 f"| `{row['query']}` | `{row['graph_class']}` | `{row['structure']}` | "
-                f"`{row['inference']}` | `{row['validation']}` | {ev_s} | {limitations} |"
+                f"`{row['inference']}` | `{row['validation']}` | {ev_s} | {external} | {limitations} |"
             )
         licensed_md = "\n".join(lic_rows)
     else:
@@ -216,6 +222,15 @@ def main() -> int:
             "until it runs on the staged path (`identify` → prepare → estimate) "
             "with recorded evidence."
         )
+
+    ext = external_evidence.counts()
+    ext_summary = (
+        f"Of {len(cells)} licensed cells, {ext['cell_level']} compare their own output with "
+        f"an external oracle; {ext['component_level_only']} more run an identifier or "
+        f"estimator that an external oracle checks; {ext['discovery_only']} more are "
+        f"accepted-graph cells whose class a discovery oracle backs; {ext['neither']} rest "
+        "on internal evidence only."
+    )
 
     text = f"""# Support matrix
 
@@ -310,6 +325,17 @@ n/a, or refused.
 
 ## Licensed cells
 
+The **evidence** column is the row's own evidence: the test that runs the whole
+route. The **external oracles** column keeps two kinds apart. *Cell output
+compared with* means the cell's own result is checked against a pinned upstream
+run. *Component oracles* means a component the cell's execution ran (its
+identifier or estimator, from `parity/licensed_routes.toml`, generated from the
+executed plans) is checked against an external oracle by that parity row; the
+cell's own output is not. *Discovery oracles* apply when an accepted graph of
+that class came from that discovery strategy.
+
+{ext_summary}
+
 {licensed_md}
 """
     OUT.write_text(text)
@@ -325,11 +351,7 @@ n/a, or refused.
             "reason_backed_refused": reason_backed_refused_count,
             "allowed": allowed_count,
             "unreasoned_refused": (
-                cartesian
-                - n_a_count
-                - reason_backed_refused_count
-                - allowed_count
-                - len(cells)
+                cartesian - n_a_count - reason_backed_refused_count - allowed_count - len(cells)
             ),
         },
         axes,
@@ -354,23 +376,15 @@ def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
     lines: list[str] = []
     for q in order_q:
         for inf in order_i:
-            rows = [
-                c
-                for c in cells
-                if c["query"] == q and c["inference"] == inf
-            ]
+            rows = [c for c in cells if c["query"] == q and c["inference"] == inf]
             if not rows:
                 continue
-            expected = {
-                (c["graph_class"], c["structure"], c["validation"]) for c in rows
-            }
+            expected = {(c["graph_class"], c["structure"], c["validation"]) for c in rows}
             emitted: set[tuple[str, str, str]] = set()
             profiles: dict[frozenset[tuple[str, str]], list[str]] = {}
             for graph in order_g:
                 profile = frozenset(
-                    (c["structure"], c["validation"])
-                    for c in rows
-                    if c["graph_class"] == graph
+                    (c["structure"], c["validation"]) for c in rows if c["graph_class"] == graph
                 )
                 if profile:
                     profiles.setdefault(profile, []).append(graph)
@@ -396,9 +410,7 @@ def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
                 s_part = " / ".join(f"`{s}`" for s in structs)
                 v_part = " / ".join(f"`{v}`" for v in vals)
                 g_part = " / ".join(f"`{g}`" for g in graphs)
-                lines.append(
-                    f"- `{q}` × {g_part} × {s_part} × `{inf}` × validation {v_part}"
-                )
+                lines.append(f"- `{q}` × {g_part} × {s_part} × `{inf}` × validation {v_part}")
                 emitted.update(iproduct(graphs, structs, vals))
 
             # Focused invariant: compaction must preserve the exact licensed
@@ -407,8 +419,7 @@ def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
                 missing = sorted(expected - emitted)
                 extra = sorted(emitted - expected)
                 raise AssertionError(
-                    f"release-note compaction changed {q}/{inf}: "
-                    f"missing={missing}, extra={extra}"
+                    f"release-note compaction changed {q}/{inf}: missing={missing}, extra={extra}"
                 )
     return lines
 
@@ -431,8 +442,7 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
     text = RELEASE_NOTES.read_text()
     if RN_BEGIN not in text or RN_END not in text:
         raise SystemExit(
-            f"{RELEASE_NOTES}: missing generated-block markers "
-            f"{RN_BEGIN!r} / {RN_END!r}"
+            f"{RELEASE_NOTES}: missing generated-block markers {RN_BEGIN!r} / {RN_END!r}"
         )
     body_lines = [
         f"{counts['licensed']} licensed of {counts['cartesian'] - counts['n_a']} meaningful "
@@ -651,7 +661,7 @@ def render_rules(rules: list[dict]) -> str:
             f"        structures: {rust_list(rule.get('structures'))},\n"
             f"        inferences: {rust_list(rule.get('inferences'))},\n"
             f"        validations: {rust_list(rule.get('validations'))},\n"
-            f"        reason: \"{rust_escape(rule['reason'])}\",\n"
+            f'        reason: "{rust_escape(rule["reason"])}",\n'
             "    }"
         )
     return ",\n".join(items) if items else ""
@@ -667,8 +677,8 @@ def render_allowed_rules(rules: list[dict]) -> str:
             f"        structures: {rust_list(rule.get('structures'))},\n"
             f"        inferences: {rust_list(rule.get('inferences'))},\n"
             f"        validations: {rust_list(rule.get('validations'))},\n"
-            f"        reason: \"{rust_escape(rule['reason'])}\",\n"
-            f"        parent: \"{rust_escape(rule['parent'])}\",\n"
+            f'        reason: "{rust_escape(rule["reason"])}",\n'
+            f'        parent: "{rust_escape(rule["parent"])}",\n'
             "    }"
         )
     return ",\n".join(items) if items else ""
@@ -687,11 +697,11 @@ def render_rust(
     for row in cells:
         lic_items.append(
             "    LicensedCell {\n"
-            f"        query: \"{rust_escape(row['query'])}\",\n"
-            f"        graph_class: \"{rust_escape(row['graph_class'])}\",\n"
-            f"        structure: \"{rust_escape(row['structure'])}\",\n"
-            f"        inference: \"{rust_escape(row['inference'])}\",\n"
-            f"        validation: \"{rust_escape(row['validation'])}\",\n"
+            f'        query: "{rust_escape(row["query"])}",\n'
+            f'        graph_class: "{rust_escape(row["graph_class"])}",\n'
+            f'        structure: "{rust_escape(row["structure"])}",\n'
+            f'        inference: "{rust_escape(row["inference"])}",\n'
+            f'        validation: "{rust_escape(row["validation"])}",\n'
             "    }"
         )
     lic_block = ",\n".join(lic_items) if lic_items else ""

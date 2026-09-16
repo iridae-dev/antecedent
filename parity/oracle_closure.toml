@@ -504,8 +504,10 @@ status = "closed"
 id = "estimate.temporal_mediation"
 audit_stage = 5
 audit_row = "Temporal mediation"
-oracle_project = "independent matrix functional"
-oracle_pin = "fixture-algorithm-v1"
+# The fixture records a pinned statsmodels run (three OLS fits and the Sobel
+# product variance), not a clean-room functional.
+oracle_project = "statsmodels"
+oracle_pin = "statsmodels==0.14.4, numpy==2.1.3, scipy==1.14.1, pandas==2.2.3"
 fixture_dir = "conformance/estimate/temporal_mediation_grid"
 comparison = "numeric"
 case_profile = "statistical"
