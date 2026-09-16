@@ -29,10 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `PreparedAnalysis.prepare`. Latency is never injected when omitted.
 - Composition/release gates require `uv` for the Python smoke.
   `gate_release.sh` is the PR inventory. Release cuts run
-  `gate_release_candidate.sh`: `REQUIRE_CALIBRATION_ATTESTATION=1` and a
-  `CALIBRATION_SHA` whose statistical surface matches HEAD, plus Python
-  lint/pytest and one local wheel. Everyday PRs do not run the
-  400-replicate calibration gate.
+  `gate_release_candidate.sh`: a green CI run on HEAD, the inventory
+  (including the calibration attestation: every coverage record's
+  statistical surface unchanged since the commit it was measured at), plus
+  Python lint/pytest and one local wheel. `publish-release.yml` and
+  `publish-crates.yml` run the attestation before building or publishing.
+  No PR or release job runs the 400-replicate calibration.
 - Every licensed support-matrix cell inspects as a first-class contract and
   completes inspect → preview → execute → claim → consume on the Rust
   compiler path (`compiler.e2e_licensed_cells`). That is composition-seam
