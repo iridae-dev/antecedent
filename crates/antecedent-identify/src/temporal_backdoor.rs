@@ -155,12 +155,9 @@ impl TemporalBackdoorIdentifier {
         let base_history = min_offset.unsigned_abs().max(max_lag).max(minimum_history);
         // The user's max_history_lag, when set, caps window growth; otherwise
         // bound simple confounder chains through every template variable.
-        let history_cap = query
-            .max_history_lag
-            .unwrap_or_else(|| {
-                variable_count.saturating_mul(max_lag).saturating_add(min_offset.unsigned_abs())
-            })
-            .max(base_history);
+        let chain_cap =
+            variable_count.saturating_mul(max_lag).saturating_add(min_offset.unsigned_abs());
+        let history_cap = query.max_history_lag.unwrap_or(chain_cap).max(base_history);
 
         let treatment_key = TemporalNodeKey { variable: query.treatment, offset: treatment_at };
         let outcome_key = TemporalNodeKey { variable: query.outcome, offset: outcome_at };
@@ -194,12 +191,7 @@ impl TemporalBackdoorIdentifier {
                 break (history, unfolded, treatment_dense, outcome_dense);
             }
             if history >= history_cap {
-                return Err(IdentificationError::NotCertified {
-                    message: "temporal unfolding reached its history cap while confounder \
-                              ancestry still crossed the truncated boundary; cannot certify \
-                              backdoor identification over the finite window (raise \
-                              max_history_lag or shorten confounder chains)",
-                });
+                return Err(history_cap_refusal(history_cap, chain_cap));
             }
             history += 1;
         };
@@ -316,12 +308,9 @@ impl TemporalBackdoorIdentifier {
         let variable_count = required_variable_count(template, variables);
         let max_lag = template_max_lag(template);
         let base_history = min_offset.unsigned_abs().max(max_lag);
-        let history_cap = query
-            .max_history_lag
-            .unwrap_or_else(|| {
-                variable_count.saturating_mul(max_lag).saturating_add(min_offset.unsigned_abs())
-            })
-            .max(base_history);
+        let chain_cap =
+            variable_count.saturating_mul(max_lag).saturating_add(min_offset.unsigned_abs());
+        let history_cap = query.max_history_lag.unwrap_or(chain_cap).max(base_history);
 
         let treatment_key = TemporalNodeKey { variable: query.treatment, offset: from };
         let outcome_key = TemporalNodeKey { variable: query.outcome, offset: outcome_at };
@@ -357,11 +346,7 @@ impl TemporalBackdoorIdentifier {
                 break (history, unfolded, treatment_nodes, outcome_dense);
             }
             if history >= history_cap {
-                return Err(IdentificationError::NotCertified {
-                    message: "temporal unfolding reached its history cap while confounder \
-                              ancestry still crossed the truncated boundary; cannot certify \
-                              identification over the finite window",
-                });
+                return Err(history_cap_refusal(history_cap, chain_cap));
             }
             history += 1;
         };
@@ -418,6 +403,31 @@ impl TemporalBackdoorIdentifier {
             outcome_key,
         })
     }
+}
+
+/// The refusal when window growth stops at `history_cap` with ancestry still
+/// crossing the truncated boundary.
+///
+/// A confounder chain that repeats no variable reaches at most `chain_cap`
+/// slices back (`variable_count * template_max_lag + |min_offset|`). Reaching
+/// that depth therefore means an ancestor lies on a lagged cycle, such as an
+/// autoregressive edge `x(t-1) -> x(t)`, whose ancestry never ends: no finite
+/// window certifies it, and a larger `max_history_lag` cannot help. Only a
+/// caller-set `max_history_lag` below `chain_cap` can stop growth early, and
+/// then raising it is the remedy.
+fn history_cap_refusal(history_cap: u32, chain_cap: u32) -> IdentificationError {
+    let message = if history_cap < chain_cap {
+        "temporal unfolding reached the query's max_history_lag while confounder ancestry \
+         still crossed the truncated boundary; cannot certify backdoor identification over \
+         the finite window (raise max_history_lag)"
+    } else {
+        "temporal unfolding reached its history cap while confounder ancestry still crossed \
+         the truncated boundary: an ancestor of the treatment or outcome lies on a lagged \
+         cycle (for example an autoregressive edge x(t-1) -> x(t)), so no finite window \
+         certifies backdoor identification; review whether that lagged edge belongs in the \
+         graph"
+    };
+    IdentificationError::NotCertified { message }
 }
 
 fn template_max_lag(template: &TemporalDag) -> u32 {
@@ -624,6 +634,66 @@ mod tests {
                 .iter()
                 .any(|a| a.assumption == Assumption::Stationarity)
         );
+    }
+
+    #[test]
+    fn autoregressive_ancestry_refusal_names_the_lagged_cycle() {
+        // Template: X_{t-1} -> X_t, X_{t-1} -> Y_t. The treatment's ancestry is
+        // an unbounded autoregressive chain, so no window certifies it and the
+        // refusal must not advise a max_history_lag that cannot help.
+        let mut template = TemporalDag::empty();
+        let x_lag = template.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let x_now = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(x_lag, x_now).unwrap();
+        template.insert_directed(x_lag, y).unwrap();
+
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1);
+        for query in [query.clone(), query.with_max_history_lag(Some(50))] {
+            let Err(IdentificationError::NotCertified { message }) =
+                TemporalBackdoorIdentifier::new().identify_temporal(&template, &query)
+            else {
+                panic!("an autoregressive treatment chain must not certify");
+            };
+            assert!(message.contains("lagged cycle"), "{message}");
+            assert!(message.contains("history cap"), "{message}");
+            assert!(!message.contains("max_history_lag"), "{message}");
+        }
+    }
+
+    #[test]
+    fn caller_history_cap_below_the_chain_bound_names_max_history_lag() {
+        // Template: W_{t-1} -> Z_t, Z_{t-1} -> X_t, X_{t-1} -> Y_t. The chain is
+        // finite (three slices deep) and certifies under the default cap; a
+        // caller cap of one slice stops growth early, and only then is raising
+        // max_history_lag the remedy.
+        let mut template = TemporalDag::empty();
+        let w = template.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
+        let z_lag = template.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+        let z_now = template.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        let x_lag = template.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let x_now = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(w, z_now).unwrap();
+        template.insert_directed(z_lag, x_now).unwrap();
+        template.insert_directed(x_lag, y).unwrap();
+
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1);
+        let identifier = TemporalBackdoorIdentifier::new();
+        identifier.identify_temporal(&template, &query).expect("finite chain certifies");
+        let Err(IdentificationError::NotCertified { message }) =
+            identifier.identify_temporal(&template, &query.with_max_history_lag(Some(1)))
+        else {
+            panic!("a one-slice cap must stop growth before the chain ends");
+        };
+        assert!(message.contains("raise max_history_lag"), "{message}");
+        assert!(!message.contains("lagged cycle"), "{message}");
     }
 
     #[test]
