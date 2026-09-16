@@ -74,9 +74,6 @@ older artifacts and clients, but no 0.9 matrix cell can produce it.
 - `SemiElasticity`
 - `SustainedEffect`
 - `TemporalMediationEffect`
-
-**Stage queries** (not folded into `analyze`):
-
 - `TransportQuery`
 - `InterferenceQuery`
 
