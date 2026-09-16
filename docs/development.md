@@ -65,6 +65,50 @@ independent consumer both match a reported interval against these rows through
 `antecedent_io::calibration`, so a row that no test emitted cannot make an
 interval `calibrated`.
 
+### Sample-size grid
+
+A record's scope is a measured range of row counts, not one row count. Every
+record-keyed design draws its sample size through `SampleGrid`
+(`crates/antecedent/tests/common/calibration.rs`), and the gate runs each
+record-emitting group once per grid point with
+`ANTECEDENT_CALIBRATION_GRID_POINT=0|1|2`:
+
+| grid | points | used for |
+| --- | --- | --- |
+| `STANDARD` | `n/2, n, 2n` | every design whose base `n` exceeds 100 (`grid_n`) |
+| `SHORT_SERIES` | `3n/4, n, 2n` | series of at most 100 steps, whose base is already the shortest series the construction is licensed for (`grid_n`) |
+| `HEAVY` | `n/2, n, 3n/2` | designs that run for hours at their base (Bayesian derivative and Jacobian bands, ADMG front door, the 2500-row counterfactual designs) |
+
+The base point (point 1, also what an unset variable means) is the design as it
+was measured before the grid, on the same replicate data; points 0 and 2 salt
+every generator in the harness, so each point measures independent data and
+stays deterministic. A test name's `nNNN` names the base point.
+
+Each point is gated on its own: the band, the 2000-replicate recheck (logged as
+`<group>.p<k>.recheck.log`) and the precision floor apply per point.
+`scripts/collect_coverage_records.py` merges the lines of one record id into one
+row: `grid` holds the coverage measured at each point, `n_min..n_max` spans the
+points, and the row is a boundary when any point is. It refuses a record that
+misses a point, or whose points do not measure strictly growing sample sizes (a
+design that does not scale its `n`). The matcher labels an execution
+`calibrated` only inside `n_min..n_max` of a record that passed at every point;
+a record that failed at any point is `scope_not_assessed` /
+`boundary_record` over its whole range, reporting the failing point's
+coverage; outside the range it is `scope_not_assessed` /
+`sample_size_outside_measured_range`. Nothing is extrapolated.
+
+A named boundary asserts its measured coverage at the base point with
+`CoverageTally::assert_boundary(m)` and is recorded, not gated, at the other
+points; once those points are measured, `assert_boundary_at([m0, m1, m2])`
+holds each point to its own value (`None` gates a point at nominal). A gated
+design that fails at one point is named the boundary it measures the same way.
+
+A wiring smoke run (`ANTECEDENT_CALIBRATION_SMOKE=1` with a small
+`ANTECEDENT_CALIBRATION_NSIM`) never gates and flags its lines
+`"smoke": true`. The collector refuses them except with
+`--smoke --log-dir <dir> --out <scratch.toml>`, which writes a scratch registry
+and never touches `parity/`.
+
 ### When a record stands
 
 The measurement is deterministic: every replicate's data and resamples come
@@ -142,9 +186,11 @@ commit. It then works in four steps:
    (or name a commit this clone lacks). `scripts/calibration_groups.py` maps
    those records to the gate groups that measure them.
 2. It builds the selected test binaries once, then runs each group alone through
-   the unchanged `scripts/gate_calibration.sh`, several at a time. The run
-   includes the gate's inline 2000-replicate rechecks. It prints each group's
-   start and its result with elapsed time. The gate's logs go to
+   `scripts/gate_calibration.sh`, several at a time; a record-emitting group runs
+   as one job per sample-size grid point
+   (`ANTECEDENT_CALIBRATION_GRID_POINTS=<k>`), so the points of a long group run
+   side by side. The run includes the gate's inline 2000-replicate rechecks, per
+   point. It prints each job's start and its result with elapsed time. The gate's logs go to
    `target/calibration-records/`, where the collector reads them, and earlier
    logs move to `target/calibration-records.previous/`. Each group's console
    output goes to `target/calibration-console/`, and its wall time is appended
@@ -173,19 +219,24 @@ Facets and replay waivers keep the cost proportional to the change:
 - a reviewed change that cannot move a number owes nothing, through a waiver;
 - only a `core` change owes everything.
 
-**How long it takes.** The last full sweep ran on an M-series laptop with the
-suites in parallel:
+**How long it takes.** The last full sweep, measured at one sample size per
+design, ran on an M-series laptop with the suites in parallel:
 
 - most suites finished well under an hour;
 - the Bayesian static suite (`v110_calibration_bayesian_static`) took about 4 h;
 - a single heavy Bayesian derivative cell whose 2000-replicate recheck fires can
   take several hours on its own. One ran for more than 2 h 50 min.
 
-A full re-measurement is therefore an afternoon-to-overnight job. A change that
-drifts one suite or facet costs only the groups behind its records.
+The grid measures each design at three sample sizes: about 3.5 times the
+single-size work for a design whose cost is linear in `n` (3.0 on the heavy
+grid, 3.75 on the short-series grid). `--dry-run` scales the sweep's suite
+timings by that factor until local per-point timings replace them; with every
+grid point its own parallel job, the wall clock grows less than the total. A
+full re-measurement is therefore an overnight job. A change that drifts one
+suite or facet costs only the groups behind its records.
 
 The collector refuses to stamp HEAD while the surface its records depend on
-differs from HEAD. It keeps a rechecked group's more precise run, rewrites the
+differs from HEAD. It keeps a rechecked point's more precise run, rewrites the
 `calibration` / `calibration_reason` pair on every licensed cell and estimator
 row, and regenerates `crates/antecedent-io/src/coverage_records_data.rs`.
 `scripts/gate_parity_schema.sh` then checks what those rows claim. To collect
