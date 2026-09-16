@@ -2,10 +2,21 @@
 # Support-matrix honesty: axes match the live public surface; n/a and licensed
 # rows are well-formed; unspecified cells do not exist (default is refused).
 #
+# Every licensed row's evidence_test / evidence_assertion must be an executing
+# test (resolved through `cargo test -- --list`, not ignored; or a collected
+# pytest), and, read with the helpers it calls (scripts/test_evidence.py), must
+# consume the row's known_truth_fixture when the row claims known truth and build
+# every axis value of the row.
+#
 # Run standalone or via scripts/gate_release.sh.
+#   bash scripts/gate_support_matrix.sh --self-test   # broken evidence must fail
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+if [[ "${1:-}" == "--self-test" ]]; then
+  exec python3 "$ROOT/scripts/test_evidence_selftest.py"
+fi
 
 python3 - <<'PY'
 from __future__ import annotations
@@ -188,63 +199,11 @@ def rule_matches(rule: dict, cell: dict) -> bool:
 def is_n_a(cell: dict) -> bool:
     return any(rule_matches(rule, cell) for rule in na_rules)
 
-corpus_files = []
-for pat in (
-    "crates/**/*.rs",
-    "python/tests/**/*.py",
-    "python/antecedent/**/*.py",
-    "scripts/*.sh",
-    "scripts/*.py",
-):
-    corpus_files.extend(root.glob(pat))
-corpus = "\n".join(
-    p.read_text(errors="ignore")
-    for p in corpus_files
-    if "target" not in p.parts and ".venv" not in p.parts
-)
-test_files = set(root.glob("crates/**/tests/**/*.rs"))
-test_files.update(root.glob("python/tests/**/*.py"))
-rust_src_files = set(root.glob("crates/**/src/**/*.rs"))
-
-def referenced(name: str) -> bool:
-    for m in re.finditer(re.escape(name), corpus):
-        before = corpus[m.start() - 1] if m.start() > 0 else ""
-        after = corpus[m.end()] if m.end() < len(corpus) else ""
-        if not re.match(r"[A-Za-z0-9_]", before) and not re.match(r"[A-Za-z0-9_]", after):
-            return True
-    return False
-
-# A fixture "referenced" only by a bare `include_str!(...); assert!(!pin.is_empty())`
-# (or Python equivalent) is named but never consumed -- the string literal reads as
-# evidence to a human skimming the row, but nothing is parsed or compared. Rows that
-# claim `internal_known_truth` / `frozen_external_oracle` must do better: the fixture's
-# path must appear in a test that also parses it (`serde_json::from_str`,
-# `serde_json::Value`, `from_str::<...>`, `json.loads`/`json.load`, `tomllib.loads`, or a
-# `load_expected` helper) within a reasonable distance of the mention, in the SAME file.
-# This does not weaken `referenced()` above -- it is an additional, stricter bar that
-# only applies to the two strongest evidence kinds.
-PARSE_MARKERS = re.compile(
-    r"serde_json::from_str|serde_json::Value|from_str::<|json\.loads|json\.load\(|"
-    r"tomllib\.loads|tomllib\.load\(|load_expected"
-)
-ASSERT_MARKERS = re.compile(r"assert(?:_eq|_ne)?!|\bassert\s|pytest\.approx|approx::")
-CONSUMPTION_WINDOW = 800
-
-
-def meaningfully_consumed(name: str) -> bool:
-    for p in test_files | rust_src_files:
-        text = p.read_text(errors="ignore")
-        for m in re.finditer(re.escape(name), text):
-            before = text[m.start() - 1] if m.start() > 0 else ""
-            after = text[m.end()] if m.end() < len(text) else ""
-            if re.match(r"[A-Za-z0-9_]", before) or re.match(r"[A-Za-z0-9_]", after):
-                continue
-            if p in rust_src_files and "#[cfg(test)]" not in text[: m.start()]:
-                continue
-            window = text[max(0, m.start() - CONSUMPTION_WINDOW) : m.end() + CONSUMPTION_WINDOW]
-            if PARSE_MARKERS.search(window) and ASSERT_MARKERS.search(text):
-                return True
-    return False
+# Cited evidence is read through scripts/test_evidence.py, the one reader of test
+# source for the gates: the cited function must be an executing test and, with the
+# helpers it calls, must consume its fixture and build the row's axis values.
+sys.path.insert(0, str((root / "scripts").resolve()))
+import test_evidence  # noqa: E402
 
 closed_rules = closed_doc.get("closed") or []
 for i, rule in enumerate(closed_rules, 1):
@@ -385,46 +344,11 @@ legal_q = set(all_queries)
 missing_evidence: set[str] = set()
 
 
-def check_evidence_test(label: str, test_rel: str, assertion: str) -> None:
-    test_path = root / test_rel
-    try:
-        test_path.resolve().relative_to(root.resolve())
-    except ValueError:
-        fail.append(f"{label}: evidence_test must remain inside the repository")
-        return
-    if not test_path.is_file():
-        fail.append(f"{label}: evidence_test {test_rel!r} does not exist")
-        return
-    if test_path.suffix not in {".rs", ".py"}:
-        fail.append(f"{label}: evidence_test must be Rust or Python test code")
-        return
-    test_text = test_path.read_text(errors="ignore")
-    if test_path.suffix == ".rs":
-        # `#[test]`, optionally followed by further attributes; the attribute
-        # block is captured so an `#[ignore]`d test can be rejected below.
-        test_pattern = re.compile(
-            rf"#\[test\][^\n]*\n((?:\s*#\[[^\n]*\n)*)\s*fn\s+{re.escape(assertion)}\s*\(",
-            re.M,
-        )
-    else:
-        test_pattern = re.compile(rf"()^\s*def\s+{re.escape(assertion)}\s*\(", re.M)
-    match = test_pattern.search(test_text)
-    if not match:
-        fail.append(
-            f"{label}: evidence_assertion {assertion!r} is not an "
-            f"executing test function in {test_rel}"
-        )
-    elif re.search(r"#\[\s*ignore\b", match.group(1)):
-        # `cargo test` and gate_release.sh skip `#[ignore]` tests; only
-        # scripts/gate_calibration.sh, run locally, runs them. A row's evidence must
-        # execute on every test run, so a calibration test may be cited in the
-        # limitations prose but not as evidence_test/evidence_assertion.
-        fail.append(
-            f"{label}: evidence_assertion {assertion!r} in {test_rel} is "
-            "#[ignore]d -- calibration tests run only under "
-            "scripts/gate_calibration.sh and are not executing evidence; name a "
-            "test that cargo test runs and cite the calibration test in limitations"
-        )
+def check_evidence_test(label: str, row: dict) -> None:
+    for problem in test_evidence.row_evidence_problems(row):
+        fail.append(f"{label}: {problem}")
+
+
 for i, row in enumerate(cells, 1):
     label = f"parity/support_licensed.toml cell #{i}"
     for key in required:
@@ -458,15 +382,10 @@ for i, row in enumerate(cells, 1):
             fail.append(f"{label}: {kind} requires known_truth_fixture")
         elif not (root / fixture).exists():
             fail.append(f"{label}: known_truth_fixture {fixture!r} does not exist")
-        elif not referenced(Path(fixture).name):
+        elif not (row.get("evidence_test") and row.get("evidence_assertion")):
             fail.append(
-                f"{label}: known_truth_fixture {fixture!r} is not named in executing tests"
-            )
-        elif not meaningfully_consumed(Path(fixture).name):
-            fail.append(
-                f"{label}: known_truth_fixture {fixture!r} is named ({kind!r}) but never "
-                "parsed by a test (e.g. only reachable via a bare include_str!/is_empty "
-                "check) -- parse it and compare a real field, or demote evidence_kind"
+                f"{label}: {kind} requires evidence_test/evidence_assertion whose own "
+                "function consumes the fixture"
             )
     elif kind == "internal_cross_check":
         if fixture is not None:
@@ -488,7 +407,7 @@ for i, row in enumerate(cells, 1):
     if has_test != has_assertion:
         fail.append(f"{label}: evidence_test and evidence_assertion must be set together")
     elif has_test:
-        check_evidence_test(label, test_rel, assertion)
+        check_evidence_test(label, row)
     if row.get("staged") is True and not (has_test and has_assertion):
         missing_evidence.add("|".join(str(x) for x in (q, g, s, inf, v)))
     key = (q, g, s, inf, v)

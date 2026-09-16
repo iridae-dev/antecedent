@@ -4,6 +4,8 @@
     python3 scripts/selftest_cases.py docs     # gate_docs_support_matrix.sh --self-test
     python3 scripts/selftest_cases.py schema   # gate_parity_schema.sh --self-test
     python3 scripts/selftest_cases.py citations  # gate_coverage_citations.sh --self-test
+    python3 scripts/selftest_cases.py reachability  # gate_evidence_reachability.sh --self-test
+    python3 scripts/selftest_cases.py metadata  # gate_metadata_consistency.sh --self-test
 
 Each case builds a disposable overlay of the repo (every tracked file hard
 linked, `python/` linked so the built extension is reused), copies the files it
@@ -389,6 +391,19 @@ def schema_cases() -> list[bool]:
             {".github/workflows/ci.yml": replace("  python-lint:\n", "  python-lint-renamed:\n")},
             ["required job 'python-lint' missing from ci.yml"],
         ),
+        # An external-oracle row's test stops loading the fixture; the file still
+        # names it (a data helper reads its data.csv) and asserts on other values.
+        case(
+            g,
+            "external_fixture_not_parsed_by_the_cited_test",
+            {
+                "crates/antecedent-discovery/tests/discovery_masked_mci_lag1.rs": replace(
+                    "let expected = load_expected();",
+                    "let expected = serde_json::Value::Null;",
+                )
+            },
+            ["external fixture 'conformance/discovery/masked_mci_lag1' is not parsed and compared"],
+        ),
         case(
             g,
             "publish_without_attestation",
@@ -553,8 +568,85 @@ def citation_cases() -> list[bool]:
     ]
 
 
+def reachability_cases() -> list[bool]:
+    g = "gate_evidence_reachability.sh"
+    consumer = "crates/antecedent-discovery/tests/dag_posterior_conformance.rs"
+    return [
+        case(g, "control", {}, [], must_fail=False),
+        # The only consuming test stops reading the fixture; its path survives in a
+        # comment, in gate_bayesian.sh's file list and in non-test library source.
+        case(
+            g,
+            "named_only_in_comment_gate_script_and_source",
+            {
+                consumer: replace(
+                    '.join("../../conformance/bayesian/dag_posterior/expected.json");',
+                    '.join("../../conformance/bayesian/shared_functional_ate/expected.json");'
+                    " // conformance/bayesian/dag_posterior",
+                ),
+                "crates/antecedent-discovery/src/exact_enumeration.rs": append(
+                    'pub const DAG_POSTERIOR_FIXTURE: &str = "conformance/bayesian/dag_posterior";'
+                ),
+            },
+            ["conformance/bayesian/dag_posterior is consumed by no executing"],
+        ),
+        # `estimate/refuters` loses its consumer while `validate/refuters`, a fixture
+        # with the same basename, is still read.
+        case(
+            g,
+            "duplicate_basename_in_another_category",
+            {
+                "crates/antecedent-validate/tests/refuters.rs": replace(
+                    '.join("../../conformance/estimate/refuters/expected.json");',
+                    '.join("../../conformance/validate/refuters/expected.json");',
+                )
+            },
+            ["conformance/estimate/refuters is consumed by no executing"],
+        ),
+        # A consuming test that is #[ignore]d does not execute.
+        case(
+            g,
+            "only_consumer_ignored",
+            {
+                consumer: replace(
+                    "#[test]\nfn dag_posterior_engines_put_fixture_mass_on_the_true_structure()",
+                    '#[ignore = "off"]\n#[test]\n'
+                    "fn dag_posterior_engines_put_fixture_mass_on_the_true_structure()",
+                )
+            },
+            ["conformance/bayesian/dag_posterior is consumed by no executing"],
+        ),
+    ]
+
+
+def metadata_cases() -> list[bool]:
+    g = "gate_metadata_consistency.sh"
+    return [
+        case(g, "control", {}, [], must_fail=False),
+        # The closed GAM row's test stops loading its fixture; the file still names
+        # "gam" in another test's list, parses other fixtures and asserts elsewhere.
+        case(
+            g,
+            "assertion_not_bound_to_the_fixture",
+            {
+                "crates/antecedent-stats/tests/foundations_oracle.rs": replace(
+                    'let expected = fixture("gam");',
+                    "let expected = serde_json::Value::Null;",
+                )
+            },
+            ["oracle_closure foundations.gam: conformance/stats/gam is not named by an executing"],
+        ),
+    ]
+
+
 def main(argv: list[str]) -> int:
-    suites = {"docs": docs_cases, "schema": schema_cases, "citations": citation_cases}
+    suites = {
+        "docs": docs_cases,
+        "schema": schema_cases,
+        "citations": citation_cases,
+        "reachability": reachability_cases,
+        "metadata": metadata_cases,
+    }
     if len(argv) != 1 or argv[0] not in suites:
         print(f"usage: {sys.argv[0]} {{{'|'.join(suites)}}}")
         return 2

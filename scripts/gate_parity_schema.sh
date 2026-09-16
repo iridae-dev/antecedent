@@ -65,9 +65,8 @@ EXTERNAL_KINDS = {"frozen_external_oracle", "behavioral_parity"}
 
 # An external claim is a three-link evidence contract, not just prose on an
 # inventory row: immutable baseline metadata, a frozen JSON fixture, and an
-# executing test that consumes that fixture.  Keep this stricter than the
-# repository-wide reachability scan, which also accepts package code and gate
-# scripts because it answers the broader question "is this artifact used?".
+# executing test that consumes that fixture (scripts/test_evidence.py, the same
+# reader gate_evidence_reachability.sh uses).
 baseline_versions = {}
 for path in sorted(root.glob("parity/baselines/*.toml")):
     baseline = tomllib.load(open(path, "rb"))
@@ -81,42 +80,17 @@ for path in sorted(root.glob("parity/baselines/*.toml")):
     }
     baseline_versions.setdefault(project, set()).update(versions)
 
-test_sources = set(root.glob("crates/**/tests/**/*.rs"))
-test_sources.update(root.glob("python/tests/**/*.py"))
-# Rust unit/conformance tests commonly live next to the implementation.  They
-# count only when the fixture reference occurs below a cfg(test) marker.
-rust_src = set(root.glob("crates/**/src/**/*.rs"))
-PARSE_MARKERS = re.compile(
-    r"serde_json::from_str|serde_json::Value|from_str::<|json\.loads|json\.load\(|"
-    r"tomllib\.loads|tomllib\.load\(|load_expected"
-)
-ASSERT_MARKERS = re.compile(r"assert(?:_eq|_ne)?!|\bassert\s|pytest\.approx|approx::")
-
-
-def consuming_test_file(text: str) -> bool:
-    # Fixture-loader helpers commonly live at the top of a long conformance
-    # test file while comparisons appear in several tests below. Requiring all
-    # three signals in that same test source avoids accepting a prose mention
-    # or bare existence check without imposing a brittle line-distance rule.
-    return bool(PARSE_MARKERS.search(text) and ASSERT_MARKERS.search(text))
+sys.path.insert(0, str((root / "scripts").resolve()))
+import test_evidence  # noqa: E402  (the one reader of test source for the gates)
 
 
 def has_consuming_test(fixture: str) -> bool:
-    name = Path(fixture).name
-    marker = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])")
-    for path in test_sources:
-        text = path.read_text(errors="ignore")
-        if marker.search(text) and consuming_test_file(text):
-            return True
-    for path in rust_src:
-        text = path.read_text(errors="ignore")
-        hits = list(marker.finditer(text))
-        if path.name == "tests.rs" and hits and consuming_test_file(text):
-            return True
-        for hit in hits:
-            if "#[cfg(test)]" in text[: hit.start()] and consuming_test_file(text):
-                return True
-    return False
+    """An executing test whose own function (with the helpers it calls) names the
+    fixture's `conformance/<category>/<name>` path outside comments, parses it and
+    asserts: not a file that merely mentions the basename and asserts elsewhere."""
+    path = Path(fixture)
+    directory = path.parent if path.suffix == ".json" else path
+    return bool(test_evidence.fixture_consumers(directory.as_posix()))
 
 # Inventory manifests and the extra keys each one requires beyond BASE_REQUIRED.
 # Kept explicit rather than inferred from whichever keys the majority of rows

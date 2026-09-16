@@ -37,6 +37,9 @@ bash scripts/gate_composition.sh --self-test
 bash scripts/gate_release_candidate.sh --self-test
 bash scripts/gate_calibration_attestation.sh --self-test
 bash scripts/gate_coverage_citations.sh --self-test
+bash scripts/gate_evidence_reachability.sh --self-test
+bash scripts/gate_metadata_consistency.sh --self-test
+bash scripts/gate_support_matrix.sh --self-test
 # ---- end gate self-tests ---------------------------------------------------
 
 echo "== algorithm provenance schema and paths =="
