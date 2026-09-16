@@ -232,6 +232,25 @@ def docs_cases() -> list[bool]:
             {"docs/python-workflow.md": replace("retains a reusable study", "retains a study")},
             ["docs/python-workflow.md: claim reusable_headline occurs 0 times"],
         ),
+        case(
+            g,
+            "later_release_deferral",
+            {"docs/capabilities.md": append("Panel ATE is planned for the next release.")},
+            ["forbidden deferral_prose 'next release'"],
+        ),
+        # Stating a limitation is not deferring work.
+        case(
+            g,
+            "known_limitations_allowed",
+            {
+                "docs/capabilities.md": append(
+                    "## Known limitations\n\nThe known limitation of the ADMG path is that "
+                    "Frequentist distributions are Rust-only."
+                )
+            },
+            [],
+            must_fail=False,
+        ),
         # Earlier CHANGELOG sections are frozen history and are not rescanned.
         case(
             g,
