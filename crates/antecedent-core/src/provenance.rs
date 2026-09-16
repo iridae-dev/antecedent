@@ -81,17 +81,57 @@ impl ProvenanceGraph {
     }
 
     /// Insert a node after checking unique identity, nonempty ids, and that
-    /// adding it would not create a cycle among nodes already in the graph
-    /// plus this node. Unresolved external parent ids are allowed; they are
-    /// recorded as missing, not invented.
+    /// adding it does not close a cycle through this node. Unresolved external
+    /// parent ids are allowed; they are recorded as missing, not invented.
+    ///
+    /// Ids are unique, so a new cycle must pass through the new node, and it
+    /// can only close through an existing node that already names the new id
+    /// as a parent. Appending a leaf is one scan with no clones; otherwise only
+    /// the ancestry reachable from the new node's parents is searched. Nodes
+    /// appended with [`Self::push`] are checked by [`Self::validate`].
     ///
     /// # Errors
     ///
     /// Empty ids, duplicate identity, or a cycle.
     pub fn try_push(&mut self, node: ProvenanceNode) -> Result<(), ProvenanceError> {
-        Self::validate_node(&self.nodes, &node)?;
+        Self::validate_node_shape(&node)?;
+        let mut referenced = node.parents.contains(&node.artifact_id);
+        for existing in &self.nodes {
+            if existing.artifact_id == node.artifact_id {
+                return Err(ProvenanceError::DuplicateIdentity { id: node.artifact_id.clone() });
+            }
+            referenced = referenced || existing.parents.contains(&node.artifact_id);
+        }
+        if referenced {
+            let mut index: BTreeMap<&str, usize> = BTreeMap::new();
+            for (position, existing) in self.nodes.iter().enumerate() {
+                index.entry(existing.artifact_id.as_ref()).or_insert(position);
+            }
+            if self.reaches(&node.parents, &node.artifact_id, &index) {
+                return Err(ProvenanceError::Cycle { id: node.artifact_id.clone() });
+            }
+        }
         self.nodes.push(node);
         Ok(())
+    }
+
+    /// Whether `target` is reachable by following parent links from `start`.
+    fn reaches(&self, start: &[ArtifactId], target: &str, index: &BTreeMap<&str, usize>) -> bool {
+        let mut visited = vec![false; self.nodes.len()];
+        let mut stack: Vec<&str> = start.iter().map(AsRef::as_ref).collect();
+        while let Some(id) = stack.pop() {
+            if id == target {
+                return true;
+            }
+            let Some(&position) = index.get(id) else {
+                continue;
+            };
+            if std::mem::replace(&mut visited[position], true) {
+                continue;
+            }
+            stack.extend(self.nodes[position].parents.iter().map(AsRef::as_ref));
+        }
+        false
     }
 
     /// Validate unique identities, nonempty ids, and acyclicity of the
@@ -144,19 +184,6 @@ impl ProvenanceGraph {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
-    }
-
-    fn validate_node(
-        existing: &[ProvenanceNode],
-        node: &ProvenanceNode,
-    ) -> Result<(), ProvenanceError> {
-        Self::validate_node_shape(node)?;
-        if existing.iter().any(|n| n.artifact_id == node.artifact_id) {
-            return Err(ProvenanceError::DuplicateIdentity { id: node.artifact_id.clone() });
-        }
-        let mut nodes: Vec<ProvenanceNode> = existing.to_vec();
-        nodes.push(node.clone());
-        Self { nodes }.assert_acyclic()
     }
 
     fn validate_node_shape(node: &ProvenanceNode) -> Result<(), ProvenanceError> {
@@ -233,6 +260,29 @@ mod tests {
         assert!(matches!(graph.try_push(node("c", &["c"])), Err(ProvenanceError::Cycle { .. })));
         let missing = graph.validate().unwrap();
         assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn try_push_detects_a_cycle_closed_through_an_earlier_external_parent() {
+        let mut graph = ProvenanceGraph::new();
+        graph.try_push(node("b", &["a"])).unwrap();
+        graph.try_push(node("c", &["b"])).unwrap();
+        assert!(matches!(graph.try_push(node("a", &["c"])), Err(ProvenanceError::Cycle { .. })));
+        graph.try_push(node("a", &["root"])).unwrap();
+        assert_eq!(graph.validate().unwrap().as_ref(), [Arc::<str>::from("root")]);
+    }
+
+    #[test]
+    fn try_push_accepts_a_long_chain() {
+        let mut graph = ProvenanceGraph::new();
+        graph.try_push(node("n0", &[])).unwrap();
+        for i in 1..4_000 {
+            let id = format!("n{i}");
+            let parent = format!("n{}", i - 1);
+            graph.try_push(node(&id, &[parent.as_str()])).unwrap();
+        }
+        assert_eq!(graph.len(), 4_000);
+        assert!(graph.validate().unwrap().is_empty());
     }
 
     #[test]

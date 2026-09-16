@@ -401,17 +401,20 @@ pub fn envelope_shared_block_diagnostics(
     unidentified_mass: f64,
     block: &SharedCircularBlockSe,
 ) -> Vec<Diagnostic> {
-    let mut out = vec![Diagnostic::new(
-        "estimate.temporal_class.frequentist.shared_block",
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
-        shared_block_mixture_message(
-            "frozen completion weights",
-            identified_mass,
-            unidentified_mass,
-            block,
-        ),
-    )];
+    let mut out = vec![
+        Diagnostic::new(
+            "estimate.temporal_class.frequentist.shared_block",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            shared_block_mixture_message(
+                "frozen completion weights",
+                identified_mass,
+                unidentified_mass,
+                block,
+            ),
+        )
+        .with_fields(super::mass_fields(Some(identified_mass), unidentified_mass)),
+    ];
     out.extend(super::short_series_warning(
         block.effective_rows,
         antecedent_estimate::CircularBlockFamily::Mixture,

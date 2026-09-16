@@ -69,6 +69,21 @@ impl ClassPrior {
         Ok(Self { inner: ClassPriorInner::Ordered(masses) })
     }
 
+    /// Canonical identity: exact mass bits, keyed pairs sorted by fingerprint.
+    pub(crate) fn identity_wire(&self) -> antecedent_io::ClassPriorIdentityWire {
+        match &self.inner {
+            ClassPriorInner::Ordered(masses) => antecedent_io::ClassPriorIdentityWire::Ordered(
+                masses.iter().map(|mass| mass.to_bits()).collect(),
+            ),
+            ClassPriorInner::Pairs(pairs) => {
+                let mut pairs: Vec<(u64, u64)> =
+                    pairs.iter().map(|&(key, mass)| (key, mass.to_bits())).collect();
+                pairs.sort_unstable();
+                antecedent_io::ClassPriorIdentityWire::Pairs(pairs)
+            }
+        }
+    }
+
     /// Bind this prior to an identified envelope.
     ///
     /// Returned masses sum to one, avoiding scale-dependent arithmetic in consumers.

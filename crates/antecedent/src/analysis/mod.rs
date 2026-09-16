@@ -13,6 +13,7 @@
 mod batch;
 mod builder;
 mod contract;
+mod contract_identity;
 mod execute;
 mod helpers;
 mod latency;

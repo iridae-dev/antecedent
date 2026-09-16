@@ -77,7 +77,9 @@ pub enum TargetPopulation {
     CustomDistribution(DistributionRef),
     /// Row-weight retarget bound to one data snapshot.
     RowWeights {
-        /// BLAKE3 of little-endian `f64` bits in row order.
+        /// Target-weights identity (`antecedent.identity.target_weights.v1`):
+        /// the exact weight bits in row order, their row count, the data
+        /// snapshot, the score table they reweight, and `depends_on`.
         weights: [u8; 32],
         /// Covariates the weights are declared to depend on.
         depends_on: Arc<[VariableId]>,

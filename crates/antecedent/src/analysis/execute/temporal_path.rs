@@ -458,6 +458,11 @@ impl super::Study {
                     self.bootstrap_replicates,
                 ));
             }
+            let estimate = if bayes.is_none() {
+                estimate.with_block_family(antecedent_estimate::CircularBlockFamily::Sequential)
+            } else {
+                estimate
+            };
             return Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
                 physical,
                 identification,
@@ -538,7 +543,8 @@ impl super::Study {
                     .map_err(CausalError::from)?;
                 dependence_se = Some(info);
                 (
-                    estimate,
+                    estimate
+                        .with_block_family(antecedent_estimate::CircularBlockFamily::SingleWindow),
                     None,
                     "estimate.temporal_linear_adjustment",
                     "estimate.temporal.linear.adjustment",
@@ -849,7 +855,11 @@ impl super::Study {
             message: "temporal mediation requires at least one horizon".into(),
         })?;
         let estimate = if single_horizon {
-            first.estimate.effect.clone()
+            first
+                .estimate
+                .effect
+                .clone()
+                .with_block_family(antecedent_estimate::CircularBlockFamily::Mediation)
         } else {
             extra_diagnostics.push(Diagnostic::new(
                 "estimate.temporal_mediation.multi_horizon",
@@ -2813,7 +2823,8 @@ impl super::Study {
             OverlapPolicy::ExplicitOverride,
             None,
             None,
-        );
+        )
+        .with_block_family(antecedent_estimate::CircularBlockFamily::Mixture);
         let identification = envelope_to_identification_result_for(
             envelope,
             CausalQuery::TemporalEffect(query.clone()),
@@ -3191,7 +3202,8 @@ impl super::Study {
                     OverlapPolicy::ExplicitOverride,
                     None,
                     None,
-                ),
+                )
+                .with_block_family(antecedent_estimate::CircularBlockFamily::Mixture),
                 None,
             )
         } else {

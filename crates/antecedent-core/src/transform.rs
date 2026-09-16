@@ -226,7 +226,13 @@ impl TransformationReport {
 
     /// Compose `self` then `next`. Unresolved obligations are concatenated;
     /// layer effects are unioned. A later `Preserves` cannot erase an earlier
-    /// `Invalidates` or unresolved obligation.
+    /// `Invalidates` or unresolved obligation, and a later record that reuses
+    /// an obligation id cannot hide its own unresolved status behind an
+    /// earlier resolved one.
+    ///
+    /// The composed report binds `self`'s input identities: the chain starts
+    /// from that state, so it cannot authorize execution after those
+    /// identities change.
     #[must_use]
     pub fn compose(&self, next: &Self) -> Self {
         let mut layers: Vec<LayerEffect> = self.layer_effects.iter().cloned().collect();
@@ -239,11 +245,29 @@ impl TransformationReport {
         }
         let mut obligations: Vec<ObligationRecord> = self.obligations.iter().cloned().collect();
         for obligation in next.obligations.iter() {
-            if !obligations.iter().any(|existing| existing.id == obligation.id) {
-                obligations.push(obligation.clone());
+            let same_id: Vec<usize> = obligations
+                .iter()
+                .enumerate()
+                .filter(|(_, existing)| existing.id == obligation.id)
+                .map(|(index, _)| index)
+                .collect();
+            if same_id.iter().any(|&index| obligations[index] == *obligation) {
+                continue;
             }
+            if !obligation.is_unresolved() && !same_id.is_empty() {
+                // An earlier record with this id stays; a resolved later record
+                // cannot erase it.
+                continue;
+            }
+            if obligation.is_unresolved() {
+                // An earlier resolved record with this id no longer describes
+                // the chain; the later unresolved check replaces it.
+                obligations
+                    .retain(|existing| existing.id != obligation.id || existing.is_unresolved());
+            }
+            obligations.push(obligation.clone());
         }
-        Self::new(next.intent, next.input_identities.clone(), layers, obligations)
+        Self::new(next.intent, self.input_identities.clone(), layers, obligations)
     }
 }
 
@@ -365,6 +389,51 @@ mod tests {
         assert!(support.effects.contains(&TransformEffect::RequiresReestimation));
         let identification = chained.layer(SemanticLayer::Identification).expect("id layer");
         assert!(identification.effects.contains(&TransformEffect::Preserves));
+    }
+
+    #[test]
+    fn later_failed_check_reusing_an_id_survives_composition() {
+        let first_input = [IdentityRef::new(IdentityDomain::Program, digest(1))];
+        let second_input = [IdentityRef::new(IdentityDomain::Program, digest(2))];
+        let supported = ObligationRecord::new(
+            "overlap",
+            ObligationScope::Program,
+            AssumptionSource::UserDeclared,
+            ObligationKind::EmpiricalDiagnostic,
+            AssumptionStatus::Supported,
+            "overlap diagnostic passed",
+        );
+        let failed = ObligationRecord::new(
+            "overlap",
+            ObligationScope::Program,
+            AssumptionSource::UserDeclared,
+            ObligationKind::FailedCheck,
+            AssumptionStatus::Contradicted,
+            "overlap diagnostic failed on the new data",
+        );
+        assert!(!supported.is_unresolved());
+        assert!(failed.is_unresolved());
+        let first = TransformationReport::new(
+            TransformIntent::CompatibleDataReplace,
+            first_input,
+            intent_effects(TransformIntent::CompatibleDataReplace).iter().cloned(),
+            [supported.clone()],
+        );
+        let second = TransformationReport::new(
+            TransformIntent::CompatibleDataReplace,
+            second_input,
+            intent_effects(TransformIntent::CompatibleDataReplace).iter().cloned(),
+            [failed.clone()],
+        );
+        let chained = first.compose(&second);
+        assert!(chained.obligations.iter().any(|o| *o == failed));
+        assert!(chained.obligations.iter().any(ObligationRecord::is_unresolved));
+        assert_eq!(chained.input_identities.as_ref(), first_input.as_slice());
+
+        // A later resolved record cannot erase an earlier unresolved one.
+        let reversed = second.compose(&first);
+        assert!(reversed.obligations.iter().any(|o| *o == failed));
+        assert_eq!(reversed.input_identities.as_ref(), second_input.as_slice());
     }
 
     #[test]

@@ -137,6 +137,9 @@ pub struct Study {
     pub(crate) identifier: Option<IdentifierId>,
     pub(crate) estimator: Option<EstimatorId>,
     pub(crate) estimator_spec: Option<crate::estimator_spec::EstimatorSpec>,
+    /// Structured identity of [`Self::estimator_spec`], digested once at build
+    /// so data-sized cluster / panel vectors are never rehashed per contract.
+    pub(crate) estimator_spec_identity: Option<antecedent_io::EstimatorSpecWire>,
     pub(crate) response_options: Option<antecedent_estimate::ContinuousResponseOptions>,
     pub(crate) observation_options: antecedent_estimate::ObservationEstimatorOptions,
     pub(crate) observation_delayed_entry: Option<antecedent_core::VariableId>,
@@ -175,6 +178,9 @@ pub struct Study {
     /// Optional tier-rule background for O(p) closure certification.
     pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
     /// Refused: coarsened continuous coordinate is not a point CDE.
+    ///
+    /// `StudyBuilder::build` refuses a study that declares one, so a built
+    /// study always carries `None` and no identity layer binds it.
     pub(crate) continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
     /// Shared fold assignment / covariate design when this study is part of a batch.
     pub(crate) shared_batch_design: Option<std::sync::Arc<super::batch::SharedBatchDesign>>,
@@ -209,6 +215,7 @@ impl std::fmt::Debug for Study {
             .field("identifier", &self.identifier)
             .field("estimator", &self.estimator)
             .field("estimator_spec", &self.estimator_spec)
+            .field("estimator_spec_identity", &self.estimator_spec_identity)
             .field("response_options", &self.response_options)
             .field("observation_options", &self.observation_options)
             .field("observation_delayed_entry", &self.observation_delayed_entry)

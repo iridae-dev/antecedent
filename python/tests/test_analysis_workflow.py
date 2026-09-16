@@ -53,7 +53,14 @@ def test_report_has_json_types_and_explicit_calibration_scope():
     report = result.inspect()
     assert report.answer.kind == "point"
     assert report.answer.value == result.effect
-    assert report.calibration.status == "unavailable"
+    # A record measured this exact construction (Dag / Frequentist /
+    # analytic_se at 0.95), but it measured it at n = 300 and this study runs
+    # 128 rows, so the scope is not assessed and the slot names which bound put
+    # it outside and which record it would otherwise cite. That is the explicit
+    # scope the test is about: an unqualified "unavailable" would hide it.
+    assert report.calibration.status == "scope_not_assessed"
+    assert report.calibration.reason == "sample_size_outside_measured_range"
+    assert report.calibration.record_id is not None
     assert report.uncertainty.available
     json.dumps(report.to_dict(), allow_nan=False)
 
@@ -222,7 +229,10 @@ def test_contracted_posterior_keeps_draws_and_native_uncertainty_target():
     json.dumps(result.inspect().to_dict(), allow_nan=False)
 
 
-def test_retarget_refuses_export_without_target_weight_identity():
+def test_retarget_exports_target_weight_identity():
+    import re
+
+    hex64 = re.compile(r"[0-9a-f]{64}")
     data = sample()
     result = ant.analyze(
         data,
@@ -233,13 +243,25 @@ def test_retarget_refuses_export_without_target_weight_identity():
         refute="none",
     )
     retargeted = result.study.retarget(np.exp(data["z"] / 3), depends_on=["z"])
-    encoded = retargeted.export()
-    loaded = ant.load(encoded)
+    loaded = ant.load(retargeted.export())
     assert loaded.acceptance.verified
-    assert getattr(loaded.inspect(), "target_weights_id", None) or True
-    assert ant.load(result.export()).acceptance.verified
-    uniform = result.study.retarget(np.ones(len(data["t"])), depends_on=[])
-    assert ant.load(uniform.export()).acceptance.verified
+    weights_id = loaded.inspect().target_weights_id
+    assert isinstance(weights_id, str) and hex64.fullmatch(weights_id)
+    assert retargeted.inspect().target_weights_id == weights_id
+    assert retargeted.inspect().claim_id == loaded.inspect().claim_id
+    original = ant.load(result.export())
+    assert original.acceptance.verified
+    assert original.inspect().target_weights_id is None
+    assert loaded.inspect().target_id != original.inspect().target_id
+    assert loaded.inspect().identification_id == original.inspect().identification_id
+    other = ant.load(result.study.retarget(np.exp(data["z"] / 2), depends_on=["z"]).export())
+    assert other.acceptance.verified
+    assert hex64.fullmatch(other.inspect().target_weights_id)
+    assert other.inspect().target_weights_id != weights_id
+    uniform = ant.load(result.study.retarget(np.ones(len(data["t"])), depends_on=[]).export())
+    assert uniform.acceptance.verified
+    assert uniform.inspect().target_weights_id is None
+    assert uniform.inspect().target_id == original.inspect().target_id
 
 
 def test_prepare_entry_points_share_omitted_defaults():

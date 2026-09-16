@@ -3516,7 +3516,25 @@ class PreparedAnalysis:
             seed=seed,
             threads=threads,
         )
-        self._row_weights_bound = True
+        return _wrap_ate(raw, prepared=self)
+
+    @describe_refusal
+    def reexecute_retarget(
+        self,
+        artifact: bytes,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AnalysisResult:
+        """Re-execute the row-weight retarget an exported contract carries.
+
+        The weights travel in the artifact with the identity that binds them to
+        one data snapshot and one score table. Re-executing them on a study
+        that holds a different snapshot raises ``CausalUnsupportedError`` with
+        ``reason_code="row_weights_bound_to_snapshot"`` instead of silently
+        reweighting other rows.
+        """
+        raw = self._native.reexecute_retarget(bytes(artifact), seed=seed, threads=threads)
         return _wrap_ate(raw, prepared=self)
 
     @describe_refusal

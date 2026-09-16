@@ -251,6 +251,51 @@ impl From<InterferenceQuery> for CausalQuery {
 }
 
 impl CausalQuery {
+    /// Target population of a population-scoped query.
+    ///
+    /// `None` for kinds that carry no [`TargetPopulation`] (counterfactual,
+    /// attribution, change, transport, and interference queries). The single
+    /// owner of which query kinds are population-scoped.
+    #[must_use]
+    pub const fn target_population(&self) -> Option<&TargetPopulation> {
+        match self {
+            Self::AverageEffect(inner) => Some(&inner.target_population),
+            Self::TemporalEffect(inner) => Some(&inner.target_population),
+            Self::Mediation(inner) => Some(&inner.target_population),
+            Self::Distribution(inner) => Some(&inner.target_population),
+            Self::PathSpecific(inner) => Some(&inner.target_population),
+            Self::Response(inner) => Some(&inner.target_population),
+            Self::ConditionalEffect(inner) => Some(&inner.inner.target_population),
+            Self::Counterfactual(_)
+            | Self::AnomalyAttribution(_)
+            | Self::ChangeAttribution(_)
+            | Self::MechanismChange(_)
+            | Self::UnitChange(_)
+            | Self::Transport(_)
+            | Self::Interference(_) => None,
+        }
+    }
+
+    /// Mutable target population; `None` exactly when [`Self::target_population`] is.
+    pub fn target_population_mut(&mut self) -> Option<&mut TargetPopulation> {
+        match self {
+            Self::AverageEffect(inner) => Some(&mut inner.target_population),
+            Self::TemporalEffect(inner) => Some(&mut inner.target_population),
+            Self::Mediation(inner) => Some(&mut inner.target_population),
+            Self::Distribution(inner) => Some(&mut inner.target_population),
+            Self::PathSpecific(inner) => Some(&mut inner.target_population),
+            Self::Response(inner) => Some(&mut inner.target_population),
+            Self::ConditionalEffect(inner) => Some(&mut inner.inner.target_population),
+            Self::Counterfactual(_)
+            | Self::AnomalyAttribution(_)
+            | Self::ChangeAttribution(_)
+            | Self::MechanismChange(_)
+            | Self::UnitChange(_)
+            | Self::Transport(_)
+            | Self::Interference(_) => None,
+        }
+    }
+
     /// Whether this query is the static ATE path.
     #[must_use]
     pub const fn is_static_ate(&self) -> bool {

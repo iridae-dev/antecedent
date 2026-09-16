@@ -293,13 +293,13 @@ notes = "Identity encoding."
 [[capabilities]]
 id = "compiler.dbn_atom_identity"
 group = "identities"
-description = "DBN atom identity includes lags namespace and execution key"
+description = "Posterior atom identity includes lags and weights, not the execution key"
 status = "done"
 evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent-io/src/identity.rs"
-evidence_assertion = "dbn_atom_identity_includes_lags_namespace_and_execution_key"
-notes = "DBN atom identity."
+evidence_assertion = "dbn_atom_identity_includes_lags_and_ignores_execution_key"
+notes = "Graph-posterior atom identity."
 
 [[capabilities]]
 id = "compiler.score_reuse_identity"

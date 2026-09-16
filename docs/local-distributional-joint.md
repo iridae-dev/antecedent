@@ -59,10 +59,14 @@ new data under the prepared identification contract; `refresh(new_data)` also
 replaces retained data and scores after success. A one-call `antecedent.analyze(...)`
 result offers the same handle as `result.study`.
 
-A nonconstant-weight retarget exports with a `target_weights` identity bound to
-its data snapshot. Re-execution on a different snapshot raises
-`row_weights_bound_to_snapshot`. Calibration availability is explicit in that
-report.
+A nonconstant-weight retarget exports under a `RowWeights` target whose
+`target_weights` identity binds the weight bits, row count, data snapshot, score
+table and `depends_on`; the weights travel in the artifact and consume re-derives
+the identity. Re-executing those weights on a different snapshot raises
+`row_weights_bound_to_snapshot` (`PreparedAnalysis.reexecute_retarget`, Rust
+`PreparedStudy::reexecute_retarget`); the prepared plan itself keeps
+re-estimating, since the binding belongs to the retargeted result.
+Calibration availability is explicit in that report.
 
 ## Read a CDF and its supported bands
 

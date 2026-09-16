@@ -1,0 +1,416 @@
+//! Calibration match: one reported interval against the coverage records.
+//!
+//! The only implementation of the rule. The runtime claim
+//! (`antecedent::StudyResult::claim`) and the independent consumer
+//! ([`crate::verify_contract_against_body`]) both call [`calibration_slot`]
+//! on the same [`CalibrationBasisWire`], which the claim carries and
+//! `claim_id` covers. Records come from the generated
+//! [`crate::coverage_records_data::RECORDS`] table
+//! (`parity/coverage_records.toml`, emitted by the coverage tests through
+//! `CoverageTally::for_record` and collected by
+//! `scripts/collect_coverage_records.py`).
+//!
+//! Vocabulary:
+//!
+//! - `calibrated`: a non-boundary record measured this construction (every key
+//!   field equal, including the nominal level and the identification label)
+//!   and the execution lies inside what it measured: its row count inside the
+//!   record's measured row-count range, at least as many successful resampling
+//!   replicates and posterior draws, and no more non-identified mass.
+//! - `scope_not_assessed`: a record measured the construction but the
+//!   execution is outside its scope (the reason names which bound), or the
+//!   covering record is a named boundary / under-coverage measurement
+//!   (`boundary_record`, with its observed coverage).
+//! - `unavailable`: no record measured this construction, level or
+//!   identification; or no interval was reported.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use serde::{Deserialize, Serialize};
+
+use crate::contract_section::CalibrationSlotWire;
+use crate::coverage_records_data::{CoverageRecord, RECORDS};
+
+/// No interval was reported.
+pub const NO_INTERVAL_REPORTED: &str = "no_interval_reported";
+/// No coverage record measured this construction.
+pub const CONSTRUCTION_NOT_MEASURED: &str = "estimator_grid_not_measured";
+/// Records measured the construction, but at another nominal level.
+pub const LEVEL_NOT_MEASURED: &str = "interval_level_not_measured";
+/// Records measured the construction, but under another identification label.
+pub const IDENTIFICATION_NOT_MEASURED: &str = "identification_not_measured";
+/// The covering record is a named boundary (under-coverage) measurement.
+pub const BOUNDARY_RECORD: &str = "boundary_record";
+/// The execution's row count lies outside every measured range.
+pub const SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE: &str = "sample_size_outside_measured_range";
+/// Fewer resampling replicates succeeded than the record measured.
+pub const REPLICATES_BELOW_MEASURED: &str = "resampling_replicates_below_measured";
+/// Fewer posterior draws than the record measured.
+pub const POSTERIOR_DRAWS_BELOW_MEASURED: &str = "posterior_draws_below_measured";
+/// More non-identified structural mass than the record measured.
+pub const UNIDENTIFIED_MASS_ABOVE_MEASURED: &str = "unidentified_mass_above_measured";
+/// The claim carries no match basis to re-derive the slot from.
+pub const BASIS_MISSING: &str = "calibration_basis_missing";
+
+/// Every reason code the matcher can emit (all listed in `parity/reason_codes.toml`).
+pub const REASON_CODES: [&str; 10] = [
+    NO_INTERVAL_REPORTED,
+    CONSTRUCTION_NOT_MEASURED,
+    LEVEL_NOT_MEASURED,
+    IDENTIFICATION_NOT_MEASURED,
+    BOUNDARY_RECORD,
+    SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE,
+    REPLICATES_BELOW_MEASURED,
+    POSTERIOR_DRAWS_BELOW_MEASURED,
+    UNIDENTIFIED_MASS_ABOVE_MEASURED,
+    BASIS_MISSING,
+];
+
+/// Tolerance for comparing nominal levels and structural masses.
+const TOLERANCE: f64 = 1e-9;
+
+/// Construction of one reported interval: the fields a coverage record must
+/// equal to describe it.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct CalibrationKeyWire {
+    /// Support-matrix query axis name.
+    pub query: String,
+    /// Support-matrix graph axis, including `CoDetermined` / `Unknown`.
+    pub graph_class: String,
+    /// `fixed` (explicit or accepted structure) or `graph_posterior`.
+    pub structure: String,
+    /// Data modality the execution ran on (`tabular`, `series`, `panel`,
+    /// `event`, `multi_env`): a record binds only to the modality it measured.
+    pub modality: String,
+    /// `Frequentist` or `Bayesian`.
+    pub inference: String,
+    /// Resolved plan estimator (`logical_plan.estimator`); empty when none.
+    pub estimator: String,
+    /// `IntervalMethod::as_str()`.
+    pub interval_method: String,
+    /// Analytic SE kind recorded by the estimator; empty when not analytic.
+    pub se_kind: String,
+    /// `iid`, `panel_cluster`, or `circular_block:<family>`.
+    pub dependence: String,
+    /// Posterior construction (`<backend>.<likelihood>.<prior>`); empty for
+    /// Frequentist executions.
+    pub posterior: String,
+    /// Target population, outcome functional, contrast, horizon and policy
+    /// the support axis query name leaves open.
+    pub functional: String,
+    /// Nominal level of the reported interval.
+    pub level: f64,
+    /// `point` (all structural mass identified under an identified status) or
+    /// `partial`.
+    pub identification: String,
+}
+
+/// Execution facts a record's scope is checked against.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct CalibrationScopeWire {
+    /// Data-snapshot rows.
+    pub row_count: u64,
+    /// Resampling replicates that succeeded, when resampling-based.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replicates_ok: Option<u32>,
+    /// Posterior draws, when posterior-based.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub posterior_draws: Option<u32>,
+    /// Structural mass that is not identified (unidentified + unevaluable +
+    /// incomplete search).
+    pub unidentified_mass: f64,
+}
+
+/// Match key plus scope facts of one reported interval.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct CalibrationBasisWire {
+    /// Construction.
+    pub key: CalibrationKeyWire,
+    /// Execution facts.
+    pub scope: CalibrationScopeWire,
+}
+
+impl CalibrationKeyWire {
+    fn same_construction(&self, record: &CoverageRecord) -> bool {
+        record.query == self.query
+            && record.graph_class == self.graph_class
+            && record.structure == self.structure
+            && record.modality == self.modality
+            && record.inference == self.inference
+            && record.estimator == self.estimator
+            && record.interval_method == self.interval_method
+            && record.se_kind == self.se_kind
+            && record.dependence == self.dependence
+            && record.posterior == self.posterior
+            && record.functional == self.functional
+    }
+}
+
+/// Calibration slot of one reported interval (secondary list empty).
+#[must_use]
+pub fn calibration_slot(basis: &CalibrationBasisWire) -> CalibrationSlotWire {
+    calibration_slot_in(basis, RECORDS)
+}
+
+/// Calibration slot of the primary interval, with one secondary slot per
+/// further reported interval, in order.
+#[must_use]
+pub fn calibration_slots(bases: &[CalibrationBasisWire]) -> CalibrationSlotWire {
+    let Some((primary, rest)) = bases.split_first() else {
+        return CalibrationSlotWire::unavailable(BASIS_MISSING);
+    };
+    let mut slot = calibration_slot(primary);
+    slot.secondary = rest.iter().map(calibration_slot).collect();
+    slot
+}
+
+/// [`calibration_slot`] against an explicit record table.
+#[must_use]
+pub fn calibration_slot_in(
+    basis: &CalibrationBasisWire,
+    records: &[CoverageRecord],
+) -> CalibrationSlotWire {
+    let key = &basis.key;
+    let scope = &basis.scope;
+    let unavailable = |reason: &str| CalibrationSlotWire::unavailable(reason).with_basis(basis);
+    if key.interval_method == "none" {
+        return unavailable(NO_INTERVAL_REPORTED);
+    }
+    let construction: Vec<&CoverageRecord> =
+        records.iter().filter(|record| key.same_construction(record)).collect();
+    if construction.is_empty() {
+        return unavailable(CONSTRUCTION_NOT_MEASURED);
+    }
+    let at_level: Vec<&CoverageRecord> = construction
+        .into_iter()
+        .filter(|record| (record.nominal - key.level).abs() <= TOLERANCE)
+        .collect();
+    if at_level.is_empty() {
+        return unavailable(LEVEL_NOT_MEASURED);
+    }
+    let measured: Vec<&CoverageRecord> =
+        at_level.into_iter().filter(|record| record.identification == key.identification).collect();
+    if measured.is_empty() {
+        return unavailable(IDENTIFICATION_NOT_MEASURED);
+    }
+    let covering: Vec<&CoverageRecord> = measured
+        .iter()
+        .copied()
+        .filter(|record| record.n_min <= scope.row_count && scope.row_count <= record.n_max)
+        .collect();
+    let Some(governing) = worst(&covering) else {
+        let nearest = measured
+            .iter()
+            .copied()
+            .min_by_key(|record| {
+                (record.n_min.saturating_sub(scope.row_count))
+                    .max(scope.row_count.saturating_sub(record.n_max))
+            })
+            .expect("measured is non-empty");
+        return CalibrationSlotWire::from_record(nearest, "scope_not_assessed")
+            .with_reason(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE)
+            .with_basis(basis);
+    };
+    let boundaries: Vec<&CoverageRecord> =
+        covering.iter().copied().filter(|record| record.boundary).collect();
+    if let Some(boundary) = worst(&boundaries) {
+        return CalibrationSlotWire::from_record(boundary, "scope_not_assessed")
+            .with_reason(BOUNDARY_RECORD)
+            .with_basis(basis);
+    }
+    let outside = if covering.iter().any(|record| {
+        record.replicates_min > 0 && scope.replicates_ok.unwrap_or(0) < record.replicates_min
+    }) {
+        Some(REPLICATES_BELOW_MEASURED)
+    } else if covering.iter().any(|record| {
+        record.posterior_draws_min > 0
+            && scope.posterior_draws.unwrap_or(0) < record.posterior_draws_min
+    }) {
+        Some(POSTERIOR_DRAWS_BELOW_MEASURED)
+    } else if covering
+        .iter()
+        .any(|record| scope.unidentified_mass > record.unidentified_mass_max + TOLERANCE)
+    {
+        Some(UNIDENTIFIED_MASS_ABOVE_MEASURED)
+    } else {
+        None
+    };
+    match outside {
+        Some(reason) => CalibrationSlotWire::from_record(governing, "scope_not_assessed")
+            .with_reason(reason)
+            .with_basis(basis),
+        None => CalibrationSlotWire::from_record(governing, "calibrated").with_basis(basis),
+    }
+}
+
+/// Lowest observed coverage among `records` (ties broken by id): the record
+/// that governs a slot when several measurements cover one execution.
+fn worst<'a>(records: &[&'a CoverageRecord]) -> Option<&'a CoverageRecord> {
+    records.iter().copied().min_by(|a, b| a.observed.total_cmp(&b.observed).then(a.id.cmp(b.id)))
+}
+
+/// Re-derive a claim's slot (primary and secondary) from the bases it carries.
+///
+/// A slot without a basis re-derives to `unavailable` / `calibration_basis_missing`.
+#[must_use]
+pub fn rederive_calibration(slot: &CalibrationSlotWire) -> CalibrationSlotWire {
+    let Some(primary) = slot.basis.as_ref() else {
+        return CalibrationSlotWire::unavailable(BASIS_MISSING);
+    };
+    let mut bases = vec![primary.clone()];
+    for secondary in &slot.secondary {
+        let Some(reported) = secondary.basis.as_ref() else {
+            let mut out = calibration_slots(&bases);
+            out.secondary.push(CalibrationSlotWire::unavailable(BASIS_MISSING));
+            return out;
+        };
+        bases.push(reported.clone());
+    }
+    calibration_slots(&bases)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn record(id: &'static str) -> CoverageRecord {
+        CoverageRecord {
+            id,
+            query: "AverageEffect",
+            graph_class: "Dag",
+            structure: "fixed",
+            modality: "tabular",
+            inference: "Frequentist",
+            estimator: "aipw",
+            interval_method: "bootstrap_se",
+            se_kind: "",
+            dependence: "iid",
+            posterior: "",
+            functional: "all_observed.mean",
+            identification: "point",
+            nominal: 0.95,
+            n_min: 500,
+            n_max: 500,
+            replicates_min: 200,
+            posterior_draws_min: 0,
+            unidentified_mass_max: 0.0,
+            observed: 0.948,
+            mcse: 0.011,
+            replicates: 400,
+            boundary: false,
+            dgp: "crates/antecedent/tests/x.rs::dgp",
+            test: "crates/antecedent/tests/x.rs::test",
+            calibration_sha: "0123456789abcdef0123456789abcdef01234567",
+        }
+    }
+
+    fn basis() -> CalibrationBasisWire {
+        CalibrationBasisWire {
+            key: CalibrationKeyWire {
+                query: "AverageEffect".into(),
+                graph_class: "Dag".into(),
+                structure: "fixed".into(),
+                modality: "tabular".into(),
+                inference: "Frequentist".into(),
+                estimator: "aipw".into(),
+                interval_method: "bootstrap_se".into(),
+                se_kind: String::new(),
+                dependence: "iid".into(),
+                posterior: String::new(),
+                functional: "all_observed.mean".into(),
+                level: 0.95,
+                identification: "point".into(),
+            },
+            scope: CalibrationScopeWire {
+                row_count: 500,
+                replicates_ok: Some(200),
+                posterior_draws: None,
+                unidentified_mass: 0.0,
+            },
+        }
+    }
+
+    #[test]
+    fn inside_scope_is_calibrated_against_the_worst_covering_record() {
+        let mut low = record("cov.low");
+        low.observed = 0.94;
+        let slot = calibration_slot_in(&basis(), &[record("cov.high"), low]);
+        assert_eq!(slot.status, "calibrated");
+        assert_eq!(slot.record_id.as_deref(), Some("cov.low"));
+        assert_eq!(slot.observed, Some(0.94));
+        assert_eq!(slot.reason, None);
+    }
+
+    #[test]
+    fn too_few_successful_replicates_are_not_calibrated() {
+        let mut b = basis();
+        b.scope.replicates_ok = Some(2);
+        let slot = calibration_slot_in(&b, &[record("cov.a")]);
+        assert_eq!(slot.status, "scope_not_assessed");
+        assert_eq!(slot.reason.as_deref(), Some(REPLICATES_BELOW_MEASURED));
+    }
+
+    #[test]
+    fn level_and_identification_mismatches_are_unavailable() {
+        let mut b = basis();
+        b.key.level = 0.9;
+        assert_eq!(
+            calibration_slot_in(&b, &[record("cov.a")]).reason.as_deref(),
+            Some(LEVEL_NOT_MEASURED)
+        );
+        let mut b = basis();
+        b.key.identification = "partial".into();
+        let slot = calibration_slot_in(&b, &[record("cov.a")]);
+        assert_eq!(slot.status, "unavailable");
+        assert_eq!(slot.reason.as_deref(), Some(IDENTIFICATION_NOT_MEASURED));
+    }
+
+    #[test]
+    fn row_count_outside_the_measured_range_is_not_assessed() {
+        let mut b = basis();
+        b.scope.row_count = 1200;
+        let slot = calibration_slot_in(&b, &[record("cov.a")]);
+        assert_eq!(slot.status, "scope_not_assessed");
+        assert_eq!(slot.reason.as_deref(), Some(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE));
+        assert_eq!(slot.scope_n, Some(500));
+    }
+
+    #[test]
+    fn a_covering_boundary_record_is_reported_with_its_coverage() {
+        let mut boundary = record("cov.boundary");
+        boundary.boundary = true;
+        boundary.observed = 0.885;
+        let slot = calibration_slot_in(&basis(), &[record("cov.a"), boundary]);
+        assert_eq!(slot.status, "scope_not_assessed");
+        assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
+        assert_eq!(slot.record_id.as_deref(), Some("cov.boundary"));
+        assert_eq!(slot.observed, Some(0.885));
+    }
+
+    #[test]
+    fn no_interval_and_no_record_are_unavailable_with_codes() {
+        let mut b = basis();
+        b.key.interval_method = "none".into();
+        assert_eq!(
+            calibration_slot_in(&b, &[record("cov.a")]).reason.as_deref(),
+            Some(NO_INTERVAL_REPORTED)
+        );
+        assert_eq!(
+            calibration_slot_in(&basis(), &[]).reason.as_deref(),
+            Some(CONSTRUCTION_NOT_MEASURED)
+        );
+    }
+
+    #[test]
+    fn rederive_reproduces_primary_and_secondary_slots() {
+        let mut secondary = basis();
+        secondary.key.interval_method = "identified_set".into();
+        let slot = calibration_slots(&[basis(), secondary]);
+        assert_eq!(slot.secondary.len(), 1);
+        assert_eq!(rederive_calibration(&slot), slot);
+        let mut forged = slot.clone();
+        forged.status = "calibrated".into();
+        forged.secondary[0].status = "calibrated".into();
+        assert_ne!(rederive_calibration(&forged), forged);
+    }
+}

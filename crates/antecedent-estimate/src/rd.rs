@@ -382,7 +382,9 @@ impl SharpRegressionDiscontinuity {
             Some(self.bootstrap_se(problem, workspace, ctx)?)
         };
 
-        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap).with_bootstrap(boot))
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_se_kind(self.se_kind)
+            .with_bootstrap(boot))
     }
 
     fn bootstrap_se(

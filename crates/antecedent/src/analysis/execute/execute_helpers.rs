@@ -370,6 +370,22 @@ pub(super) fn report_subsampled_out_mass(
     }
 }
 
+/// Structured identification-mass fields carried beside an envelope message.
+///
+/// The reasoning slot reads these; `identified` is absent when the emitter
+/// knows only the unidentified share.
+pub(crate) fn mass_fields(
+    identified: Option<f64>,
+    unidentified: f64,
+) -> Vec<(Arc<str>, Arc<str>)> {
+    let mut fields: Vec<(Arc<str>, Arc<str>)> = Vec::with_capacity(2);
+    if let Some(identified) = identified {
+        fields.push((Arc::from("identified_mass"), Arc::from(identified.to_string())));
+    }
+    fields.push((Arc::from("unidentified_mass"), Arc::from(unidentified.to_string())));
+    fields
+}
+
 /// Envelope mass summary for a Bayesian graph envelope: unidentified mass and,
 /// when the Interactive tier skipped atoms, their subsampled-out mass as a
 /// separate field (the message is unchanged when nothing was skipped).
@@ -386,6 +402,7 @@ pub(super) fn envelope_mass_diagnostic(
         format!("unidentified_mass={}", posterior.unidentified_mass)
     };
     Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message)
+        .with_fields(mass_fields(None, posterior.unidentified_mass))
 }
 
 /// Resolve the shared envelope prior from a prepared Bayesian problem.
@@ -1836,15 +1853,6 @@ impl super::Study {
                 Some(GcmSlot::Unit(v)) => (None, None, None, None, Some(v)),
                 None => (None, None, None, None, None),
             };
-        let interval_method = if extras.posterior.is_some() {
-            antecedent_core::IntervalMethod::PosteriorQuantile
-        } else if args.bootstrap_replicates_ok.unwrap_or(0) > 0
-            || extras.bootstrap_replicates_requested.flatten().unwrap_or(0) > 0
-        {
-            antecedent_core::IntervalMethod::BootstrapSe
-        } else {
-            antecedent_core::IntervalMethod::AnalyticSe
-        };
         let mut result = assemble_result(AssembleArgs {
             logical: &args.physical.logical.record,
             physical: &physical_record,
@@ -1875,11 +1883,7 @@ impl super::Study {
             n_draws: extras.n_draws,
             cancelled: args.cancelled,
             early_stopped: args.early_stopped,
-            interval: crate::result::IntervalBinding {
-                method: interval_method,
-                se_kind: None,
-                level: 0.95,
-            },
+            bayesian: matches!(self.inference, InferenceMode::Bayesian(_)),
         });
         result.certificate = certificate.map(|identification| crate::AnalysisIdentification {
             identification,

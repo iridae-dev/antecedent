@@ -189,8 +189,10 @@ class ReasoningSlots:
             data_snapshot_id=contract.get("data_snapshot")
             or _nested(contract, "identities", "data_snapshot"),
             execution_id=_nested(contract, "identities", "execution"),
-            score_reuse_id=_nested(contract, "identities", "score_reuse"),
-            target_weights_id=_nested(contract, "identities", "target_weights"),
+            score_reuse_id=contract.get("score_reuse")
+            or _nested(contract, "identities", "score_reuse"),
+            target_weights_id=contract.get("target_weights")
+            or _nested(contract, "identities", "target_weights"),
             data_version=contract.get("data_snapshot")
             or _nested(contract, "identities", "data_snapshot"),
             contract=dict(contract) if contract else None,

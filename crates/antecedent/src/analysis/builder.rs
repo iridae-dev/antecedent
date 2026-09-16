@@ -423,7 +423,68 @@ impl std::fmt::Debug for StudyBuilder {
     }
 }
 
+/// Whether an omitted replicate count is a real resampling budget for this route.
+///
+/// Static response surfaces carry analytic or influence-function uncertainty,
+/// Bayesian responses carry posterior intervals, and counterfactual unit
+/// effects have no sampling uncertainty. Reporting [`StudyBuilder::OMITTED_BOOTSTRAP`]
+/// replicates there would describe a budget that never runs, so the omitted
+/// count is zero. An explicit count is never rewritten here.
+fn omitted_bootstrap_resamples(query: &CausalQuery, inference: &InferenceMode) -> bool {
+    match query {
+        CausalQuery::Response(q) => {
+            q.is_temporal() && matches!(inference, InferenceMode::Frequentist)
+        }
+        CausalQuery::Counterfactual(_) => false,
+        _ => true,
+    }
+}
+
+/// Whether the executors for `query` run caller custom validators.
+///
+/// A custom validator refutes one scalar average effect. Function-valued
+/// responses, distributions, path-specific and mediation contrasts,
+/// counterfactual unit effects, and attribution have no such refutation
+/// problem, panel class completions are mixed without a per-completion scalar
+/// refuter, and a Bayesian graph-posterior response level is not refuted.
+/// Supplying validators there is refused rather than skipped.
+fn custom_validators_apply(
+    query: &CausalQuery,
+    data: &DataInput,
+    class: GraphClass,
+    graph_posterior: bool,
+    inference: &InferenceMode,
+) -> bool {
+    match query {
+        CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_) => true,
+        CausalQuery::TemporalEffect(_) => {
+            !(matches!(data, DataInput::Panel(_)) && class.is_incomplete_temporal())
+        }
+        CausalQuery::Response(q) => {
+            !q.is_temporal()
+                && matches!(class, GraphClass::Dag | GraphClass::Admg)
+                && matches!(
+                    q.functional,
+                    antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                )
+                && !(graph_posterior && matches!(inference, InferenceMode::Bayesian(_)))
+        }
+        _ => false,
+    }
+}
+
 impl StudyBuilder {
+    /// Replicate count used when the caller omits [`Self::bootstrap_replicates`]
+    /// on a route that resamples. Language bindings read this value instead of
+    /// keeping their own copy.
+    ///
+    /// The omitted tier *is* the Standard tier, so this is the Standard tier's
+    /// replicate count by construction rather than a second copy of `199`.
+    pub const OMITTED_BOOTSTRAP: u32 = super::latency::STANDARD_BOOTSTRAP;
+    /// Validation suite used when the caller omits [`Self::refute`]. A cell
+    /// that does not license this suite is downgraded at build.
+    pub const OMITTED_REFUTE: RefuteSuite = RefuteSuite::PlaceboAndRcc;
+
     fn from_data(data: DataInput) -> Self {
         Self {
             data,
@@ -433,9 +494,9 @@ impl StudyBuilder {
             max_completions: None,
             structure_source: None,
             query: None,
-            refute: RefuteSuite::PlaceboAndRcc,
+            refute: Self::OMITTED_REFUTE,
             refute_explicit: false,
-            bootstrap_replicates: 199,
+            bootstrap_replicates: Self::OMITTED_BOOTSTRAP,
             bootstrap_explicit: false,
             split: None,
             identifier: None,
@@ -1381,6 +1442,10 @@ impl StudyBuilder {
             split: self.split,
             identifier: self.identifier,
             estimator: self.estimator,
+            estimator_spec_identity: self
+                .estimator_spec
+                .as_ref()
+                .map(super::contract_identity::estimator_spec_identity),
             estimator_spec: self.estimator_spec,
             response_options: self.response_options,
             observation_options: self.observation_options,
