@@ -208,10 +208,11 @@ fn refuse_unestimable_transport(identified: &TransportIdentification) -> Result<
         TransportIdentification::Transportable {
             formula: antecedent_identify::TransportFormula::RecursiveFactorization { .. },
             ..
-        } => Err(CausalError::Unsupported {
-            message: "RecursiveFactorization is identified but not estimable on the \
-                      licensed trial-to-target IPW path",
-        }),
+        } => Err(crate::support_reason!(
+            "construction_not_licensed",
+            "RecursiveFactorization is identified but not estimable on the licensed \
+             trial-to-target IPW path"
+        )),
         TransportIdentification::Transportable { .. } => Ok(()),
     }
 }

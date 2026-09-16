@@ -266,3 +266,89 @@ fn interference_click_executes_on_the_clicked_outcomes() {
         "the refreshed snapshot names the refreshed outcomes under the frozen network"
     );
 }
+
+/// A support refusal renders as `refused: reason=<code>: <message>`.
+fn refused_with(error: &antecedent::CausalError) -> Option<String> {
+    let text = error.to_string();
+    let rest = text.strip_prefix("refused: ")?;
+    antecedent_core::reason_code::split_prefix(rest).map(|(code, _)| code.to_string())
+}
+
+/// The licensed interference cell is NeighborCount under Bernoulli assignment;
+/// another design on the same coordinate is refused, not executed under the
+/// cell's license.
+#[test]
+fn interference_outside_the_licensed_construction_is_refused() {
+    let units = TabularData::from_f64_columns([("y", &[1.0, 4.0, 2.0, 3.0][..])]).unwrap();
+    let network = NetworkData::try_new(units.clone(), []).unwrap();
+    let contrast = InterferenceFunctional::ExposureContrast {
+        outcome: VariableId::from_raw(0),
+        from: ExposureLevel { own: 0.0, neighbors: 0.0 },
+        to: ExposureLevel { own: 1.0, neighbors: 0.0 },
+    };
+    for query in [
+        InterferenceQuery::new(
+            AssignmentDesign::CompleteRandomization { treated: 2 },
+            ExposureMapping::NeighborCount,
+            contrast.clone(),
+        ),
+        InterferenceQuery::new(
+            AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+            ExposureMapping::NeighborFraction,
+            contrast,
+        ),
+    ] {
+        let error = Study::tabular(units.clone())
+            .graph(Dag::with_variables(1))
+            .query(CausalQuery::Interference(query))
+            .interference(InterferenceSpec {
+                network: network.clone(),
+                assignment: Arc::from([false, true, false, true]),
+            })
+            .refute(RefuteSuite::None)
+            .build()
+            .expect_err("an unlicensed interference construction must refuse");
+        assert_eq!(refused_with(&error).as_deref(), Some("construction_not_licensed"), "{error}");
+    }
+}
+
+/// The licensed transport cell transports a mean ResponseCurve; a derivative
+/// would be labelled with a binary IPW contrast it is not, so it is refused.
+#[test]
+fn transport_outside_the_licensed_construction_is_refused() {
+    let data = TabularData::from_f64_columns([
+        ("a", &[1.0, 0.0, 0.0, 0.0][..]),
+        ("y", &[3.0, 1.0, 0.0, 0.0][..]),
+        ("trial", &[1.0, 1.0, 0.0, 0.0][..]),
+        ("s", &[0.5, 0.5, 0.5, 0.5][..]),
+        ("e", &[0.5, 0.5, 0.5, 0.5][..]),
+    ])
+    .unwrap();
+    let mut admg = Admg::with_variables(5);
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let response = ResponseQuery::new(ResponseFunctional::PointDerivative {
+        outcome: VariableId::from_raw(1),
+        treatment: VariableId::from_raw(0),
+        at: 0.5,
+        order: 1,
+        scale: antecedent_core::DerivativeScale::Identity,
+    });
+    let error = Study::tabular(data)
+        .graph(admg)
+        .query(CausalQuery::Transport(TransportQuery::new(
+            response,
+            "trial",
+            "target",
+            [VariableId::from_raw(0)],
+        )))
+        .selection_targets(Arc::from([]))
+        .transport_trial(TransportTrialSpec {
+            trial: VariableId::from_raw(2),
+            selection_probability: VariableId::from_raw(3),
+            treatment_probability: VariableId::from_raw(4),
+        })
+        .refute(RefuteSuite::None)
+        .build()
+        .expect_err("a transported derivative is not the licensed construction");
+    assert_eq!(refused_with(&error).as_deref(), Some("construction_not_licensed"), "{error}");
+}

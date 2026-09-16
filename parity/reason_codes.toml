@@ -79,6 +79,12 @@ meaning = "The option has no meaning for the selected route, so it is refused ra
 max_uses = 2
 
 [[code]]
+id = "construction_not_licensed"
+applies_to = ["python_product", "runtime_refusal"]
+meaning = "The coordinate is licensed for one named construction (TransportQuery: a mean ResponseCurve transported by Direct or S-admissible trial-to-target IPW; InterferenceQuery: NeighborCount exposure under Bernoulli assignment); another design, exposure mapping, formula or inner functional on that coordinate is refused."
+max_uses = 0
+
+[[code]]
 id = "validators_not_applicable"
 applies_to = ["runtime_refusal"]
 meaning = "Custom validators refute one scalar average effect; this estimand has no such refutation problem."

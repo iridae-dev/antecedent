@@ -119,6 +119,50 @@ impl InterferenceSpec {
     }
 }
 
+/// Refuse a transport construction outside the licensed cell.
+///
+/// The licensed `TransportQuery` cell transports a mean `ResponseCurve` on the
+/// complete, all-observed, static response by binary trial-to-target IPW. A
+/// derivative, a non-mean outcome functional, an embedded population, an
+/// observation mechanism or a temporal attachment would be labelled with the
+/// executed binary contrast it is not, so it is refused.
+fn refuse_unlicensed_transport(query: &antecedent_core::TransportQuery) -> Result<(), CausalError> {
+    let response = &query.response;
+    let licensed =
+        matches!(response.functional, antecedent_core::ResponseFunctional::MeanCurve { .. })
+            && response.outcome_functional.is_mean()
+            && matches!(response.target_population, antecedent_core::TargetPopulation::AllObserved)
+            && matches!(response.observation, antecedent_core::ObservationSpec::Complete)
+            && response.observation_assumptions.is_empty()
+            && response.temporal.is_none();
+    if licensed {
+        Ok(())
+    } else {
+        Err(crate::support_reason!(
+            "construction_not_licensed",
+            "TransportQuery is licensed for a mean ResponseCurve on the complete, all-observed \
+             static response, transported by binary trial-to-target IPW"
+        ))
+    }
+}
+
+/// Refuse an interference design outside the licensed cell (NeighborCount
+/// exposure under Bernoulli assignment).
+fn refuse_unlicensed_interference(
+    query: &antecedent_core::InterferenceQuery,
+) -> Result<(), CausalError> {
+    let licensed = matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
+        && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount);
+    if licensed {
+        Ok(())
+    } else {
+        Err(crate::support_reason!(
+            "construction_not_licensed",
+            "InterferenceQuery is licensed for NeighborCount exposure under Bernoulli assignment"
+        ))
+    }
+}
+
 /// Refusal for panel response on a non-temporal or static graph.
 pub(crate) const PANEL_RESPONSE_CLASS_REFUSAL: &str = concat!(
     "panel ResponseCurve / InterventionResponse is licensed on a supplied ",
@@ -1481,7 +1525,10 @@ impl StudyBuilder {
         };
 
         let (selection_diagram, transport_trial, interference) = match &query {
-            CausalQuery::Transport(_) => {
+            CausalQuery::Transport(transport) => {
+                if !inspect_only {
+                    refuse_unlicensed_transport(transport)?;
+                }
                 if self.interference.is_some() {
                     return Err(CausalError::Unsupported {
                         message: "interference network is not used by TransportQuery",
@@ -1498,7 +1545,10 @@ impl StudyBuilder {
                 })?;
                 (Some(diagram), Some(trial), None)
             }
-            CausalQuery::Interference(_) => {
+            CausalQuery::Interference(design) => {
+                if !inspect_only {
+                    refuse_unlicensed_interference(design)?;
+                }
                 if self.transport_trial.is_some() || self.selection_targets.is_some() {
                     return Err(CausalError::Unsupported {
                         message: "transport trial columns are not used by InterferenceQuery",
