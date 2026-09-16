@@ -264,6 +264,7 @@ fn run_static_ate_from_builder(
         prior_artifact,
         prior_mapping,
         composed_prior,
+        antecedent_prob::BayesLikelihood::GaussianIdentity,
     )?;
     let analysis = builder.build().map_err(py_err)?;
     let ctx =

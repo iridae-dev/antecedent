@@ -41,6 +41,7 @@ json.dump(
         "AnalysisResult": members(AnalysisResult),
         "PreparedAnalysis": members(PreparedAnalysis),
         "LoadedResult": members(LoadedResult),
+        "Bayesian": members(antecedent.Bayesian),
     },
     sys.stdout,
 )
@@ -220,6 +221,17 @@ SNAPSHOT: dict[str, set[str]] = {
         "inspect",
         "program_id",
         "study",
+    },
+    # Estimator options are reviewed surface, like the verbs.
+    "Bayesian": {
+        "backend",
+        "kind",
+        "likelihood",
+        "mapping",
+        "n_draws",
+        "n_draws_explicit",
+        "prior_from",
+        "prior_scale",
     },
 }
 

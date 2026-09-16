@@ -45,6 +45,8 @@ pub(crate) struct InferenceSpec {
     pub prior_artifact: Option<Vec<u8>>,
     pub prior_mapping: Option<antecedent_io::PriorMapping>,
     pub composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
+    /// Outcome likelihood; `None` keeps the Gaussian identity-link default.
+    pub likelihood: Option<antecedent_prob::BayesLikelihood>,
 }
 
 impl InferenceSpec {
@@ -68,6 +70,9 @@ impl InferenceSpec {
                     crate::prior_bank::owned_composed_prior_from_dict(value.cast::<PyDict>()?)
                 })
                 .transpose()?,
+            likelihood: item("likelihood")?
+                .map(|value| parse_likelihood(&value.extract::<String>()?))
+                .transpose()?,
         })
     }
 
@@ -75,6 +80,23 @@ impl InferenceSpec {
     pub(crate) fn is_bayesian(&self) -> bool {
         self.mode.as_deref().is_some_and(|mode| !mode.eq_ignore_ascii_case("frequentist"))
     }
+}
+
+/// Rust likelihood of a Python `Bayesian(likelihood=...)` name.
+fn parse_likelihood(name: &str) -> PyResult<antecedent_prob::BayesLikelihood> {
+    use antecedent_prob::BayesLikelihood;
+    Ok(match name {
+        "gaussian" => BayesLikelihood::GaussianIdentity,
+        "logit" => BayesLikelihood::BernoulliLogit,
+        "probit" => BayesLikelihood::BernoulliProbit,
+        "poisson" => BayesLikelihood::PoissonLog,
+        other => {
+            return Err(crate::refusal(
+                antecedent_core::reason_code!("invalid_argument"),
+                format!("unknown Bayesian likelihood {other:?}; use gaussian|logit|probit|poisson"),
+            ));
+        }
+    })
 }
 
 /// Parsed shared prepare options.
@@ -180,6 +202,7 @@ impl PrepareOptions {
             artifact.as_deref(),
             spec.prior_mapping.take(),
             spec.composed_prior.take(),
+            spec.likelihood.unwrap_or(antecedent_prob::BayesLikelihood::GaussianIdentity),
         )
     }
 

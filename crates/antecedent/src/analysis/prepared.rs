@@ -777,6 +777,11 @@ impl PreparedStudy {
 
     /// Stamp the contract `result` was executed under on `data`.
     fn stamp(&self, data: &DataInput, mut result: StudyResult) -> Result<StudyResult, CausalError> {
+        super::execute::push_gaussian_likelihood_disclosure(
+            &mut result,
+            &self.analysis.inference,
+            data,
+        );
         result.executed_contract =
             Some(self.executed_contract(data, self.analysis.refute, None)?);
         Ok(result)
