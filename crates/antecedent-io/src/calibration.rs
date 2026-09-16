@@ -104,8 +104,37 @@ pub struct CalibrationKeyWire {
     /// Nominal level of the reported interval.
     pub level: f64,
     /// `point` (all structural mass identified under an identified status) or
-    /// `partial`.
+    /// `partial`, followed by `+<rule>` for every derivation rule in
+    /// [`CONSTRUCTION_RULES`] the identification used ([`identification_key`]):
+    /// an interval over a different identified adjustment is a different
+    /// construction and binds only to records measured for it.
     pub identification: String,
+}
+
+/// Derivation rules that make an identification a distinct interval
+/// construction for coverage matching. A parent-adjusted temporal pulse
+/// (`temporal.parent_adjustment`) fits a different adjustment set than the
+/// unfolding-derived one on the same query, so its coverage is separate
+/// evidence.
+pub const CONSTRUCTION_RULES: &[&str] = &["temporal.parent_adjustment"];
+
+/// The calibration key's `identification` field: the `point` / `partial`
+/// label plus `+<rule>` for each [`CONSTRUCTION_RULES`] entry among
+/// `derivation_rules`, in [`CONSTRUCTION_RULES`] order.
+#[must_use]
+pub fn identification_key<'a>(
+    label: &str,
+    derivation_rules: impl IntoIterator<Item = &'a str>,
+) -> String {
+    let used: Vec<&str> = derivation_rules.into_iter().collect();
+    let mut key = label.to_string();
+    for rule in CONSTRUCTION_RULES {
+        if used.contains(rule) {
+            key.push('+');
+            key.push_str(rule);
+        }
+    }
+    key
 }
 
 /// Execution facts a record's scope is checked against.
@@ -399,6 +428,33 @@ mod tests {
         b.key.identification = "partial".into();
         let slot = calibration_slot_in(&b, &[record("cov.a")]);
         assert_eq!(slot.status, "unavailable");
+        assert_eq!(slot.reason.as_deref(), Some(IDENTIFICATION_NOT_MEASURED));
+    }
+
+    #[test]
+    fn parent_adjustment_binds_only_to_records_measured_for_it() {
+        assert_eq!(identification_key("point", ["backdoor.criterion", "temporal.unfold"]), "point");
+        let parent = identification_key(
+            "point",
+            ["temporal.parent_adjustment", "backdoor.adjustment_set", "temporal.unfold"],
+        );
+        assert_eq!(parent, "point+temporal.parent_adjustment");
+
+        let unfolding = record("cov.unfolding");
+        let mut measured = record("cov.parent");
+        measured.identification = "point+temporal.parent_adjustment";
+
+        let mut b = basis();
+        b.key.identification = parent;
+        let slot = calibration_slot_in(&b, &[unfolding]);
+        assert_eq!(slot.status, "unavailable");
+        assert_eq!(slot.reason.as_deref(), Some(IDENTIFICATION_NOT_MEASURED));
+        let slot = calibration_slot_in(&b, &[unfolding, measured]);
+        assert_eq!(slot.status, "calibrated");
+        assert_eq!(slot.record_id.as_deref(), Some("cov.parent"));
+
+        // And an unfolding-identified result never binds to the parent record.
+        let slot = calibration_slot_in(&basis(), &[measured]);
         assert_eq!(slot.reason.as_deref(), Some(IDENTIFICATION_NOT_MEASURED));
     }
 
