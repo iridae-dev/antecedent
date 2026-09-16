@@ -6,16 +6,15 @@
 #   1. requires CI_RUN_ID: a GitHub Actions `ci` run on this exact HEAD in which
 #      every display-name expansion of every `required_jobs` id
 #      (parity/release.toml) concluded `success`
-#   2. requires every coverage record attested against HEAD: its facets unchanged
-#      since its own calibration_sha, or attested_by_replay under a valid replay
-#      waiver (the attestation gate prints that count and the waiver ids)
-#   3. runs gate_release.sh (inventory, composition, prior feature gates)
-#   4. runs Python lint/types and the full Python test suite
-#   5. builds one local wheel into a fresh directory, installs it into a fresh
+#   2. runs gate_release.sh (inventory, composition, prior feature gates, and
+#      the calibration attestation every PR runs: each coverage record's facets
+#      unchanged since its own calibration_sha, or attested_by_replay under a
+#      valid replay waiver)
+#   3. runs Python lint/types and the full Python test suite
+#   4. builds one local wheel into a fresh directory, installs it into a fresh
 #      venv, and runs the full Python test suite against the installed wheel
 #
-#   REQUIRE_CALIBRATION_ATTESTATION=1 \
-#     CI_RUN_ID=<actions run id for HEAD> bash scripts/gate_release_candidate.sh
+#   CI_RUN_ID=<actions run id for HEAD> bash scripts/gate_release_candidate.sh
 #   bash scripts/gate_release_candidate.sh --self-test
 #
 # Job ids are workflow keys; `gh run view --json jobs` reports display names
@@ -91,8 +90,7 @@ PY
     fi
   done
 
-  if env -u CI_RUN_ID REQUIRE_CALIBRATION_ATTESTATION=1 \
-      bash "$0" >"$tmp/out" 2>&1; then
+  if env -u CI_RUN_ID bash "$0" >"$tmp/out" 2>&1; then
     echo "SELF-TEST FAIL: RC ran without CI_RUN_ID"; status=1
   elif ! grep -q "requires CI_RUN_ID" "$tmp/out"; then
     echo "SELF-TEST FAIL: missing CI_RUN_ID failed for the wrong reason"; cat "$tmp/out"; status=1
@@ -123,12 +121,6 @@ if ! command -v uv >/dev/null 2>&1; then
   echo "FAIL: uv is required for the RC CI job check and Python suites"
   exit 1
 fi
-if [[ "${REQUIRE_CALIBRATION_ATTESTATION:-0}" != "1" ]]; then
-  echo "FAIL: RC requires REQUIRE_CALIBRATION_ATTESTATION=1"
-  echo "  REQUIRE_CALIBRATION_ATTESTATION=1 CI_RUN_ID=<id> \\"
-  echo "    bash scripts/gate_release_candidate.sh"
-  exit 1
-fi
 
 echo "== release candidate: CI run ${CI_RUN_ID} =="
 RUN_JSON="$(mktemp)"
@@ -136,11 +128,8 @@ trap 'rm -f "$RUN_JSON"' EXIT
 gh run view "$CI_RUN_ID" --json headSha,jobs >"$RUN_JSON"
 check_ci_run "$RUN_JSON" "$(git rev-parse HEAD)"
 
-echo "== release candidate: calibration records attested against this tree =="
-REQUIRE_CALIBRATION_ATTESTATION=1 bash scripts/gate_calibration_attestation.sh
-
-echo "== release candidate: PR inventory + composition =="
-REQUIRE_CALIBRATION_ATTESTATION=1 bash scripts/gate_release.sh
+echo "== release candidate: PR inventory + composition + calibration attestation =="
+bash scripts/gate_release.sh
 
 echo "== release candidate: Python lint / types =="
 bash scripts/gate_python_lint.sh

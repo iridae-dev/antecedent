@@ -7,13 +7,12 @@
 # suite against one locally built wheel). The CI `python-wheels` matrix is
 # required on the candidate SHA through CI_RUN_ID.
 #
-# `gate_calibration.sh` is NOT invoked from here: the measurement runs on
-# demand (.github/workflows/calibration.yml) and is owed only when the surface
-# a record measured has changed. Everyday PRs stay cheap and report that
-# drift. A release cut sets REQUIRE_CALIBRATION_ATTESTATION=1, which requires
-# every record's facets to match the commit it was measured at:
-#   REQUIRE_CALIBRATION_ATTESTATION=1 CI_RUN_ID=<run> \
-#     bash scripts/gate_release_candidate.sh
+# `gate_calibration.sh` is NOT invoked from here, nor anywhere in CI: the
+# statistical measurement is made on a development machine before upload
+# (scripts/measure_calibration.sh). This gate, on every PR, push and release
+# cut alike, requires every coverage record to match the code it was measured
+# at (gate_calibration_attestation.sh, a git comparison that runs in seconds).
+#   CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh
 #
 # Invokes prior feature gates unless SKIP_PRIOR_GATES=1.
 # Optional: cargo deny check when cargo-deny is on PATH.
@@ -62,7 +61,7 @@ bash scripts/gate_evidence_reachability.sh
 echo "== coverage citations name existing test fns =="
 bash scripts/gate_coverage_citations.sh
 
-echo "== calibration attestation (PR reports drift; RC requires every record attested) =="
+echo "== calibration attestation (every coverage record matches the code) =="
 bash scripts/gate_calibration_attestation.sh
 
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
@@ -317,11 +316,5 @@ else
   echo "WARN: cargo-deny not installed; skipping deny check (optional local tool)."
 fi
 
-if [[ "${REQUIRE_CALIBRATION_ATTESTATION:-0}" == "1" ]]; then
-  echo "PR inventory gate PASSED under RC flags."
-  echo "This is still not a complete RC: run scripts/gate_release_candidate.sh"
-else
-  echo "PR inventory / composition gate PASSED (not an RC)."
-  echo "Cut with: REQUIRE_CALIBRATION_ATTESTATION=1 CI_RUN_ID=<run> \\"
-  echo "  bash scripts/gate_release_candidate.sh"
-fi
+echo "PR inventory / composition gate PASSED (not an RC)."
+echo "Cut with: CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh"
