@@ -120,8 +120,12 @@ status = "closed"
 [[method]]
 id = "foundations.gam"
 audit_stage = 2
-audit_row = "GAM penalized smooth fit"
-oracle_project = "SciPy BSpline and NumPy clean-room ridge oracle"
+audit_row = "GAM B-spline basis (the penalized fit is a self-snapshot regression pin)"
+# Only the basis matrices come from the external SciPy run. The fixture's fit
+# fields (intercept, coefficients, fitted, edf, prediction) were written by this
+# crate's own `update_gam_oracle_fixture`, so they pin drift, not correctness;
+# no NumPy ridge oracle was generated.
+oracle_project = "SciPy BSpline basis matrices only"
 oracle_pin = "numpy==2.1.3, scipy==1.14.1"
 fixture_dir = "conformance/stats/gam"
 comparison = "numeric"
@@ -381,7 +385,9 @@ status = "closed"
 id = "identify.efficient_adjustment"
 audit_stage = 4
 audit_row = "Efficient adjustment"
-oracle_project = "DAGitty"
+# No DAGitty run: the frozen optimal sets come from a clean-room exhaustive
+# enumeration of valid back-door sets (see the fixture's oracle block).
+oracle_project = "clean-room exhaustive O-set enumeration"
 oracle_pin = "fixture-algorithm-v1"
 fixture_dir = "conformance/identify/efficient_adjustment"
 comparison = "set-semantic"
