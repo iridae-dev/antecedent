@@ -34,7 +34,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 
 from __future__ import annotations
 
-from typing import NoReturn
+from typing import NoReturn as _NoReturn
 
 # A debug-profile extension returns bit-identical estimates while running
 # ~50x slower, so nothing downstream would ever notice on its own. The flag
@@ -246,7 +246,7 @@ _RETIRED_DAG_PREFIXES = ("dag_from_", "dag_to_")
 _RETIRED_TARGET_PREFIX = "target_"
 
 
-def __getattr__(name: str) -> NoReturn:
+def __getattr__(name: str) -> _NoReturn:
     if name in _RETIRED_MODULES:
         raise AttributeError(
             f"antecedent.{name} was renamed to antecedent.{_RETIRED_MODULES[name]} in 0.4.0"

@@ -1,0 +1,260 @@
+"""Public-member snapshot of the objects the five-line API touches.
+
+``antecedent`` (the package root), ``AnalysisResult``, ``PreparedAnalysis`` and
+``LoadedResult`` are what ``analyze`` → ``.study`` → ``refresh`` →
+``inspect().to_dict()`` → ``load(export())`` hands a caller. Their public names
+are listed here in full, so adding or removing one fails this test until the
+snapshot is edited in the same change: growth of the surface is a reviewed act,
+not an accident.
+
+The names are read in a fresh interpreter, because other tests import stage
+modules lazily and would otherwise add attributes to the package root.
+A dataclass contributes its public fields as well as its class attributes.
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+
+import pytest
+
+pytest.importorskip("antecedent")
+
+_DUMP = """
+import dataclasses, json, sys
+import antecedent
+from antecedent import AnalysisResult
+from antecedent._workflow import LoadedResult
+from antecedent.estimation import PreparedAnalysis
+
+def members(obj):
+    names = {n for n in dir(obj) if not n.startswith("_")}
+    if dataclasses.is_dataclass(obj):
+        names |= {f.name for f in dataclasses.fields(obj) if not f.name.startswith("_")}
+    return sorted(names)
+
+json.dump(
+    {
+        "antecedent": members(antecedent),
+        "AnalysisResult": members(AnalysisResult),
+        "PreparedAnalysis": members(PreparedAnalysis),
+        "LoadedResult": members(LoadedResult),
+    },
+    sys.stdout,
+)
+"""
+
+# `annotations` is the `from __future__ import annotations` binding every module
+# carries; it is not API.
+_NOT_API = {"annotations"}
+
+SNAPSHOT: dict[str, set[str]] = {
+    "antecedent": {
+        # Verbs
+        "analyze",
+        "estimate",
+        "identify",
+        "load",
+        "prepare",
+        # Structure, results and selectors
+        "AcceptedGraph",
+        "Admg",
+        "AnalysisResult",
+        "Bayesian",
+        "CausalError",
+        "ClassPrior",
+        "Cpdag",
+        "Dag",
+        "Estimator",
+        "Frequentist",
+        "Identification",
+        "Identifier",
+        "Latency",
+        "Pag",
+        "Refute",
+        "ReviewRequired",
+        "TemporalDag",
+        # Queries
+        "AnomalyAttribution",
+        "AverageDerivative",
+        "AverageEffect",
+        "ChangeAttribution",
+        "ConditionalEffect",
+        "Counterfactual",
+        "DirectionalDerivative",
+        "Elasticity",
+        "InterventionResponse",
+        "InterventionalDistribution",
+        "MediationEffect",
+        "PathSpecificEffect",
+        "PointDerivative",
+        "PulseEffect",
+        "ResponseCurve",
+        "ResponseJacobian",
+        "SemiElasticity",
+        "SustainedEffect",
+        "TemporalMediationEffect",
+        # Stage modules
+        "accepted_graph",
+        "artifacts",
+        "attribution",
+        "counterfactual",
+        "data",
+        "design",
+        "discovery",
+        "errors",
+        "estimation",
+        "estimators",
+        "extensibility",
+        "gcm",
+        "graph",
+        "handoff",
+        "ids",
+        "inference",
+        "interference",
+        "intervention",
+        "model",
+        "observation",
+        "population",
+        "priors",
+        "query",
+        "results",
+        "state",
+        "transport",
+        "validation",
+    },
+    "AnalysisResult": {
+        # The five-line API (`ResultAPI`)
+        "answer",
+        "calibration",
+        "export",
+        "inspect",
+        "study",
+        # Identities
+        "claim_id",
+        "data_snapshot_id",
+        "program_id",
+        # Sections
+        "assumptions",
+        "certificate",
+        "diagnostics",
+        "estimate",
+        "evidence_status",
+        "allowlist_parent",
+        "allowlist_reason",
+        "identification",
+        "mediation",
+        "mediation_grid",
+        "performance",
+        "plan",
+        "posterior",
+        "provenance",
+        "query",
+        "reasoning",
+        "rendering_limitation",
+        "support",
+        "validation",
+        # Historical scalars and result-level clicks
+        "ate",
+        "effect",
+        "mean_ite",
+        "refresh",
+        "refute",
+        # Structural uncertainty
+        "structural_identified_mass",
+        "structural_identified_set",
+        "structural_identified_set_interval",
+        "structural_identified_set_interval_level",
+        "structural_identified_set_interval_method",
+        "structural_identified_set_interval_truncated",
+        "structural_unevaluable_mass",
+        "structural_unidentified_mass",
+        "structural_weight_basis",
+        # Unit-level counterfactual effects
+        "unit_effect_intervals",
+        "unit_effect_intervals_level",
+        "unit_effect_intervals_method",
+        "unit_effects",
+        "unit_extrapolative",
+    },
+    "PreparedAnalysis": {
+        # Compile, execute, and the two views
+        "prepare",
+        "estimate",
+        "refresh",
+        "inspect",
+        "preflight",
+        "preview_transform",
+        "export",
+        # Second clicks on the retained execution
+        "refute",
+        "retarget",
+        "reexecute_retarget",
+        # Callback validators frozen at prepare
+        "rebind_validators",
+        "validator_names",
+        # Plan coordinates
+        "allowlist_parent",
+        "allowlist_reason",
+        "evidence_status",
+        "plan",
+        "structure_source",
+        # Posterior / response payload for prior transfer
+        "export_artifact",
+    },
+    "LoadedResult": {
+        "acceptance",
+        "answer",
+        "artifact",
+        "calibration",
+        "claim_id",
+        "export",
+        "inspect",
+        "program_id",
+        "study",
+    },
+}
+
+
+@pytest.fixture(scope="module")
+def live() -> dict[str, set[str]]:
+    completed = subprocess.run(
+        [sys.executable, "-c", _DUMP], check=True, text=True, capture_output=True
+    )
+    return {name: set(names) - _NOT_API for name, names in json.loads(completed.stdout).items()}
+
+
+@pytest.mark.parametrize("surface", sorted(SNAPSHOT))
+def test_public_members_match_the_snapshot(surface: str, live: dict[str, set[str]]) -> None:
+    added = sorted(live[surface] - SNAPSHOT[surface])
+    removed = sorted(SNAPSHOT[surface] - live[surface])
+    assert not added and not removed, (
+        f"{surface}: public surface changed (added {added}, removed {removed}); "
+        "update SNAPSHOT in this file in the same change if that is intended"
+    )
+
+
+def test_duplicate_spellings_stay_retired(live: dict[str, set[str]]) -> None:
+    """The five lines have one spelling each; their retired duplicates do not return."""
+    assert not {"export_contracted_artifact", "contract", "reasoning", "calibration"} & (
+        live["PreparedAnalysis"]
+    )
+    assert "preview_intent" not in live["PreparedAnalysis"]
+    assert not {"display_effect", "display_mass", "data_version"} & live["AnalysisResult"]
+
+
+def test_only_rpcmci_accept_takes_regimes() -> None:
+    import inspect
+
+    from antecedent import discovery
+
+    takes = {
+        name
+        for name in discovery.__all__
+        if isinstance(config := getattr(discovery, name), type)
+        and callable(getattr(config, "accept", None))
+        and "regimes" in inspect.signature(config.accept).parameters
+    }
+    assert takes == {"RPCMCI"}
