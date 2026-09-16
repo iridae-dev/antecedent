@@ -19,10 +19,13 @@ GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
 
 CI does **not** run `gate_calibration.sh` per PR. Criterion benchmark smokes
 do run through `gate_release.sh`; they check execution, not timing regressions.
-The statistical calibration suite runs weekly via
+The statistical calibration measurement has no schedule: coverage records stand
+until the surface they measured changes (see [Coverage records](#coverage-records)),
+so it runs on demand through
 [`.github/workflows/calibration.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/calibration.yml)
-(`schedule` + `workflow_dispatch`); `cargo deny` runs inside `gate_release.sh`
-only when `cargo-deny` is on PATH, which it is not in CI.
+(`workflow_dispatch`) and is owed only when the `gates` job reports a drifted
+facet. `cargo deny` runs inside `gate_release.sh` only when `cargo-deny` is on
+PATH, which it is not in CI.
 
 ## Gates (local / slow path)
 
@@ -46,7 +49,7 @@ bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_support_matrix.sh   # public license cells; default refused
 bash scripts/gate_docs_support_matrix.sh
-bash scripts/gate_calibration.sh   # SE coverage / CI Type I — weekly / pre-release
+bash scripts/gate_calibration.sh   # SE coverage / CI Type I — on demand, when records owe it
 bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
 bash scripts/gate_python_lint.sh   # local equivalent of the CI lint/type checks
 ```
@@ -62,21 +65,73 @@ independent consumer both match a reported interval against these rows through
 `antecedent_io::calibration`, so a row that no test emitted cannot make an
 interval `calibrated`.
 
-Refresh them on a committed, clean worktree — the records are only valid for
-the commit whose statistical surface produced them:
+### When a record stands
+
+The measurement is deterministic: every replicate's data and resamples come
+from fixed seeds, so re-running unchanged code reproduces the same numbers
+(`crates/antecedent-estimate/tests/coverage_determinism.rs` holds that in
+ordinary CI). A record therefore stands until the code it measured changes,
+and is never re-measured on a timer.
+
+`scripts/calibration_surface.list` is the only owner of that code. It assigns
+every path that can move a number (crate sources, manifests, the toolchain, the
+shared harness, each calibration suite) to a facet:
+
+- `core` — code every record depends on; a change invalidates every record.
+  Any path under the surface that no narrower line claims is `core`, and a
+  crate, manifest or record-emitting suite the list does not cover fails the
+  gate, so an unmapped edit never looks harmless.
+- narrower facets — `mechanism` (the fitted-SCM crates and the dispatch path
+  that alone reaches them), `design`, one `suite.<file>` per calibration
+  suite, and `registry_mirror` (generated tables no measurement reads). A
+  change invalidates only the records carrying the facet.
+
+Each record's `facets` are derived from the record itself by
+`scripts/calibration_facets.py`: `core`, the facet of its test and DGP file,
+facets the list's `key` lines assign to its query or estimator, and any facet
+whose items its suite names. `scripts/gate_parity_schema.sh` rejects a record
+whose facets are not exactly the derived set. A narrow facet is only sound
+while no other code runs it, so `calibration_facets.py check` fails when a file
+outside a facet names the facet's items, unless an `allow` line in the list
+records that reviewed reference exactly (an error conversion, a result slot,
+the query-keyed dispatch arm); a new reference or a stale entry fails.
+
+A record is **attested** while none of its facets differs between its
+`calibration_sha` and the tree. `scripts/gate_calibration_attestation.sh`
+reports this on every PR (a `DRIFTED` facet names the changed paths and the
+records that now owe a re-measurement) and requires it at a release cut.
+
+### Measuring
+
+Measure on a committed worktree; the collector refuses to stamp HEAD while
+the surface its records depend on differs from HEAD:
 
 ```bash
-bash scripts/gate_calibration.sh                  # writes target/calibration-records/*.log
-python3 scripts/collect_coverage_records.py       # registry + support cells + generated table
+python3 scripts/calibration_facets.py status          # which facets drifted, which records owe
+python3 scripts/calibration_shards.py run all --only-stale   # or dispatch calibration.yml
+python3 scripts/collect_coverage_records.py --keep-attested
 ```
 
-The collector stamps `git rev-parse HEAD`, keeps a rechecked group's more
-precise run, rewrites the `calibration` / `calibration_reason` pair on every
-licensed cell and estimator row, and regenerates
-`crates/antecedent-io/src/coverage_records_data.rs`. `scripts/gate_parity_schema.sh`
-then checks what those rows claim (`--sha <commit>` collects logs measured at
-another commit). The registry is rewritten from the logs present, so collect
-from a complete run: a record whose group was not re-run is dropped, not kept.
+`--only-stale` runs only the gate groups behind records that owe a
+re-measurement, plus the pass/fail gates that emit no record (CI Type I,
+discovery FPR, SBC), which nothing can attest. `--keep-attested` keeps every
+existing record the logs did not re-measure whose facets have not drifted, at
+its own `calibration_sha`, and drops (naming them) the ones that still owe.
+Without it the registry is exactly the logs present. The collector keeps a
+rechecked group's more precise run, rewrites the `calibration` /
+`calibration_reason` pair on every licensed cell and estimator row, and
+regenerates `crates/antecedent-io/src/coverage_records_data.rs`;
+`scripts/gate_parity_schema.sh` then checks what those rows claim (`--sha
+<commit>` collects logs measured at another commit). After editing
+`scripts/calibration_surface.list`, `collect_coverage_records.py --retag`
+recomputes the facets without measuring anything.
+
+`calibration.yml` splits the gate across 24 runners with
+`scripts/calibration_shards.py`: each long group (a Bayesian derivative cell,
+or another whose 2000-replicate recheck has measured tens of minutes to hours)
+gets a runner to itself and the short groups are dealt across the rest, the
+same way on every runner. When the gate grows, the scheduler refuses a shard
+count that no longer fits; raise the shard count, not the timeout.
 
 Mark a `parity/*.toml` capability `done` only with conformance under `conformance/`
 **or** a named harness in the gate script, plus a recorded reference-generation
@@ -88,11 +143,10 @@ Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
 
 `gate_release.sh` is the PR inventory; a release is cut with
 `scripts/gate_release_candidate.sh` (which `scripts/tag_release.sh` runs before
-tagging). It needs three inputs:
+tagging). It needs two inputs:
 
 ```bash
 REQUIRE_CALIBRATION_ATTESTATION=1 \
-CALIBRATION_SHA=<sha of a weekly calibration pass> \
 CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   bash scripts/gate_release_candidate.sh
 ```
@@ -106,7 +160,12 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   combination ("Rust ubuntu-latest", "Wheel macos-14 py3.12").
   `scripts/ci_workflow.py` parses `ci.yml` as YAML and expands every matrix
   combination, so a missing or failed wheel leg fails the cut.
-- **`CALIBRATION_SHA`** is checked by `gate_calibration_attestation.sh`.
+- **`REQUIRE_CALIBRATION_ATTESTATION=1`** makes `gate_calibration_attestation.sh`
+  require every coverage record to be attested: each record's facets unchanged
+  between its own `calibration_sha` (a commit that must be in the clone) and
+  this tree. An unchanged surface passes with no re-measurement. A drifted
+  facet fails, naming the changed paths and the records that owe a
+  re-measurement.
 - The gate then runs `gate_release.sh`, Python lint/types, the Python suite with
   its coverage floor, and builds one wheel into a fresh directory, installs it
   into a fresh venv and runs the full Python test suite against that installed
@@ -239,10 +298,11 @@ Before merging the release PR:
    query configuration. Require CI on the same commit, including the Python
    lint/pytest and `python-wheels` jobs.
 3. For an actual release cut, run
-   `REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<weekly-pass-sha>
-   bash scripts/gate_release_candidate.sh`. The SHA must resolve to a commit
-   whose `scripts/calibration_surface.list` tree matches HEAD. Everyday PRs
-   do not run the 400-replicate gate.
+   `REQUIRE_CALIBRATION_ATTESTATION=1 CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh`.
+   Every coverage record must be attested: measured at a commit whose
+   calibration surface matches HEAD in every facet the record depends on, in a
+   run that passed. Everyday PRs do not run the 400-replicate gate; they report
+   which records a change leaves owing a re-measurement.
 4. Run `cargo deny check` with a freshly fetched advisory database. A cached
    offline audit is useful evidence, but does not establish current advisory status.
 5. Run `bash scripts/publish_crates.sh --dry-run`. Inspect any fallback to
@@ -273,7 +333,7 @@ git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
 git commit -s -m "chore: bump version to 1.10.0"
 
 # Tag current (or just-bumped) version and push
-REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<weekly-pass-sha> \
+REQUIRE_CALIBRATION_ATTESTATION=1 CI_RUN_ID=<ci run on HEAD> \
   bash scripts/tag_release.sh          # runs gate_release_candidate.sh
 git push origin v1.10.0
 ```

@@ -1075,7 +1075,7 @@ fn assert_close_rel(actual: &[f64], expected: &[f64], rtol: f64, label: &str) {
 /// simultaneous edges, critical value, block length, dispersion and
 /// kernel-bias factors) as a determinism guard — on this noiseless period-4
 /// DGP the rule block is a multiple of the period, so the band collapses to
-/// the point surface; coverage is the weekly gate.
+/// the point surface; coverage is the calibration gate.
 #[test]
 fn temporal_dose_horizon_point_and_block_bands_match_fixture() {
     use antecedent_core::ResponseUncertainty;
