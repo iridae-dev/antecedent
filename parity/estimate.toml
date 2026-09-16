@@ -365,7 +365,7 @@ tabpfn = "pending"
 
 [[capabilities]]
 id = "estimate.temporal_sequential"
-group = "identify_estimate"
+group = "estimation"
 description = "1.2 staged estimate.temporal_sequential with independent evidence"
 owner = "estimate"
 status = "done"

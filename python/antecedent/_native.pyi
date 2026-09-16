@@ -16,6 +16,9 @@ __build_optimized__: bool
 def temporal_response_spec() -> dict[str, Any]:
     """Licensed temporal-response query policy from Rust ``TemporalResponseSpec::license``."""
 
+def runtime_refusal_codes() -> list[str]:
+    """Registered runtime-refusal reason codes (``parity/reason_codes.toml``)."""
+
 class CausalError(Exception): ...
 class CausalIdentifyError(CausalError): ...
 class CausalEstimateError(CausalError): ...

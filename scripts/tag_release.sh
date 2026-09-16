@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Create an annotated release tag from the workspace version (or an explicit semver).
-# Usage:
-#   bash scripts/tag_release.sh           # tag current Cargo.toml version
-#   bash scripts/tag_release.sh X.Y.Z     # set version, then tag (commit the bump first)
+# Usage (tagging runs scripts/gate_release_candidate.sh first):
+#   REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<weekly-pass-sha> \
+#     CI_RUN_ID=<ci run on HEAD> bash scripts/tag_release.sh        # tag Cargo.toml version
+#   ... bash scripts/tag_release.sh X.Y.Z   # set version, then tag (commit the bump first)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -44,12 +45,14 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ "${REQUIRE_CALIBRATION_ATTESTATION:-0}" != "1" || -z "${CALIBRATION_SHA:-}" ]]; then
-  echo "FAIL: tagging requires REQUIRE_CALIBRATION_ATTESTATION=1 and CALIBRATION_SHA" >&2
-  echo "  REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<weekly-pass-sha> $0" >&2
+if [[ "${REQUIRE_CALIBRATION_ATTESTATION:-0}" != "1" || -z "${CALIBRATION_SHA:-}" \
+    || -z "${CI_RUN_ID:-}" ]]; then
+  echo "FAIL: tagging requires REQUIRE_CALIBRATION_ATTESTATION=1, CALIBRATION_SHA and CI_RUN_ID" >&2
+  echo "  REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<weekly-pass-sha> \\" >&2
+  echo "    CI_RUN_ID=<ci run on HEAD> $0" >&2
   exit 1
 fi
-REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA="${CALIBRATION_SHA}" \
+REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA="${CALIBRATION_SHA}" CI_RUN_ID="${CI_RUN_ID}" \
   bash scripts/gate_release_candidate.sh
 
 git tag -a "$TAG" -m "Release $TAG"

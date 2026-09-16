@@ -17,6 +17,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# --self-test: each broken ledger, applied alone to an overlay of the repo,
+# must fail this gate with the expected message (scripts/selftest_cases.py).
+if [[ "${1:-}" == "--self-test" ]]; then
+  exec python3 "$ROOT/scripts/selftest_cases.py" schema
+fi
+
 python3 - <<'PY'
 from pathlib import Path
 import json
@@ -374,6 +380,7 @@ PY
 
 python3 - "$@" <<'PY'
 from pathlib import Path
+import json
 import re
 import subprocess
 import sys
@@ -453,6 +460,7 @@ if not pp.is_file():
     problems.append("parity/python_products.toml missing")
 else:
     products = tomllib.loads(pp.read_text())
+    route_tests = []
     for i, row in enumerate(products.get("route", []), 1):
         for key in ("kind", "data", "structure", "test"):
             if key not in row:
@@ -460,15 +468,22 @@ else:
         if row.get("retains") is not True and not row.get("reason"):
             problems.append(f"python_products.toml route {row.get('kind')} retains=false without reason")
         test = row.get("test")
-        if isinstance(test, str):
-            node = test.removeprefix("python/")
-            collected = subprocess.run(
-                ["uv", "run", "pytest", "--collect-only", "-q", node],
-                cwd=root / "python",
-                capture_output=True,
-                text=True,
-            )
-            if collected.returncode != 0:
+        if isinstance(test, str) and test not in route_tests:
+            route_tests.append(test)
+
+    def _collects(tests):
+        return subprocess.run(
+            ["uv", "run", "pytest", "--collect-only", "-q", *(t.removeprefix("python/") for t in tests)],
+            cwd=root / "python",
+            capture_output=True,
+            text=True,
+        ).returncode == 0
+
+    # One collection for every route node; only on failure, one per node to
+    # name the uncollectable ones.
+    if route_tests and not _collects(route_tests):
+        for test in route_tests:
+            if not _collects([test]):
                 problems.append(f"python_products.toml route test not collected: {test}")
     for i, row in enumerate(products.get("parameter", []), 1):
         for key in ("name", "entry_points", "binding", "test"):

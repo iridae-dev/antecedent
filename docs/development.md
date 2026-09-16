@@ -51,11 +51,71 @@ bash scripts/gate_release.sh       # prior gates + inventory + benches + optiona
 bash scripts/gate_python_lint.sh   # local equivalent of the CI lint/type checks
 ```
 
+## Coverage records
+
+`parity/coverage_records.toml` holds only measurements. Each row is a
+`calibration-record` line a coverage test emitted through
+`CoverageTally::for_record` (`crates/antecedent/tests/common/calibration.rs`),
+keyed with the construction the runtime reports for the execution it scored,
+and stamped with the commit it was measured at. The runtime claim and the
+independent consumer both match a reported interval against these rows through
+`antecedent_io::calibration`, so a row that no test emitted cannot make an
+interval `calibrated`.
+
+Refresh them on a committed, clean worktree — the records are only valid for
+the commit whose statistical surface produced them:
+
+```bash
+bash scripts/gate_calibration.sh                  # writes target/calibration-records/*.log
+python3 scripts/collect_coverage_records.py       # registry + support cells + generated table
+```
+
+The collector stamps `git rev-parse HEAD`, keeps a rechecked group's more
+precise run, rewrites the `calibration` / `calibration_reason` pair on every
+licensed cell and estimator row, and regenerates
+`crates/antecedent-io/src/coverage_records_data.rs`. `scripts/gate_parity_schema.sh`
+then checks what those rows claim (`--sha <commit>` collects logs measured at
+another commit). The registry is rewritten from the logs present, so collect
+from a complete run: a record whose group was not re-run is dropped, not kept.
+
 Mark a `parity/*.toml` capability `done` only with conformance under `conformance/`
 **or** a named harness in the gate script, plus a recorded reference-generation
 command when black-box comparison applies.
 
 Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
+
+## Release candidates
+
+`gate_release.sh` is the PR inventory; a release is cut with
+`scripts/gate_release_candidate.sh` (which `scripts/tag_release.sh` runs before
+tagging). It needs three inputs:
+
+```bash
+REQUIRE_CALIBRATION_ATTESTATION=1 \
+CALIBRATION_SHA=<sha of a weekly calibration pass> \
+CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
+  bash scripts/gate_release_candidate.sh
+```
+
+- **`CI_RUN_ID`** is the database id of a `ci` workflow run whose `headSha` is
+  the commit being cut (`gh run list --workflow ci.yml --commit "$(git rev-parse HEAD)"`).
+  The gate reads it with `gh run view <id> --json headSha,jobs` and requires
+  every job id listed in `parity/release.toml` `required_jobs` to have
+  succeeded. Job ids are `ci.yml` keys (`rust`, `gates`, `python-lint`,
+  `python-wheels`); a run reports display names instead, one per matrix
+  combination ("Rust ubuntu-latest", "Wheel macos-14 py3.12").
+  `scripts/ci_workflow.py` parses `ci.yml` as YAML and expands every matrix
+  combination, so a missing or failed wheel leg fails the cut.
+- **`CALIBRATION_SHA`** is checked by `gate_calibration_attestation.sh`.
+- The gate then runs `gate_release.sh`, Python lint/types, the Python suite with
+  its coverage floor, and builds one wheel into a fresh directory, installs it
+  into a fresh venv and runs the full Python test suite against that installed
+  wheel (outside `python/`, so the source tree cannot shadow it).
+
+Each gate that decides a release has a `--self-test` mode that feeds it
+deliberately broken input and requires a failure: `gate_composition.sh`,
+`gate_parity_schema.sh`, `gate_docs_support_matrix.sh` and
+`gate_release_candidate.sh`. `gate_release.sh` runs all of them.
 
 ## Python lint / types
 
@@ -128,8 +188,10 @@ Always on: `faer`, portable kernels, `ExecutionContext` parallelism (`rayon`
 rejected).
 
 Present today (examples): `antecedent-data/arrow`, `antecedent-model/gaussian-process`,
-`antecedent-prob/hmc`. Reserved / unfinished: `smc`, `simd-runtime`. Optional ingest
-and exchange adapters may land later without reshaping core types.
+`antecedent-prob/hmc`. `antecedent-prob/smc` is an empty feature that enables no
+backend, and there is no `simd-runtime` feature, so `KernelPolicy::allow_arch_simd`
+always selects the portable kernels. Ingest and exchange adapters are optional
+features and never reshape core types.
 
 ## Unsafe / deps
 

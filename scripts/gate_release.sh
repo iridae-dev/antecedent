@@ -2,15 +2,16 @@
 # PR inventory / composition umbrella (also run in CI on every PR via `gates`).
 #
 # This script is not a release candidate. Cut with
-# `scripts/gate_release_candidate.sh` (calibration-surface identity, this
-# inventory, Python lint/pytest, one local wheel). The CI `python-wheels`
-# matrix remains required on the candidate SHA.
+# `scripts/gate_release_candidate.sh` (a green CI run on the SHA via CI_RUN_ID,
+# calibration-surface identity, this inventory, Python lint/pytest, the Python
+# suite against one locally built wheel). The CI `python-wheels` matrix is
+# required on the candidate SHA through CI_RUN_ID.
 #
 # `gate_calibration.sh` is NOT invoked from here (weekly
 # .github/workflows/calibration.yml). Everyday PRs stay cheap. A release cut
 # must set REQUIRE_CALIBRATION_ATTESTATION=1 and CALIBRATION_SHA to a weekly
 # pass whose statistical surface matches HEAD:
-#   REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<sha> \
+#   REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<sha> CI_RUN_ID=<run> \
 #     bash scripts/gate_release_candidate.sh
 #
 # Invokes prior feature gates unless SKIP_PRIOR_GATES=1.
@@ -25,6 +26,16 @@ cd "$ROOT"
 # must not skip the schema contract that pass depends on.
 echo "== parity manifest schema =="
 bash scripts/gate_parity_schema.sh
+
+# ---- gate self-tests -------------------------------------------------------
+# Unconditional: each gate that decides a release must fail on deliberately
+# broken input, or its green result proves nothing.
+echo "== gate self-tests (broken inputs must fail) =="
+bash scripts/gate_parity_schema.sh --self-test
+bash scripts/gate_docs_support_matrix.sh --self-test
+bash scripts/gate_composition.sh --self-test
+bash scripts/gate_release_candidate.sh --self-test
+# ---- end gate self-tests ---------------------------------------------------
 
 echo "== algorithm provenance schema and paths =="
 bash scripts/gate_provenance_schema.sh
@@ -309,6 +320,6 @@ if [[ "${REQUIRE_CALIBRATION_ATTESTATION:-0}" == "1" ]]; then
   echo "This is still not a complete RC: run scripts/gate_release_candidate.sh"
 else
   echo "PR inventory / composition gate PASSED (not an RC)."
-  echo "Cut with: REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<sha> \\"
+  echo "Cut with: REQUIRE_CALIBRATION_ATTESTATION=1 CALIBRATION_SHA=<sha> CI_RUN_ID=<run> \\"
   echo "  bash scripts/gate_release_candidate.sh"
 fi

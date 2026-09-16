@@ -319,6 +319,7 @@ n/a, or refused.
     OUT.write_text(text)
     RUST_OUT.write_text(render_rust(na_rules, closed_rules, allowed_rules, cells))
     COVERAGE_OUT.write_text(render_coverage_records())
+    REASON_CODES_OUT.write_text(render_reason_codes())
     write_release_notes_block(
         cells,
         {
@@ -340,6 +341,7 @@ n/a, or refused.
     print(f"Wrote {OUT.relative_to(ROOT)}")
     print(f"Wrote {RUST_OUT.relative_to(ROOT)}")
     print(f"Wrote {COVERAGE_OUT.relative_to(ROOT)}")
+    print(f"Wrote {REASON_CODES_OUT.relative_to(ROOT)}")
     print(f"Wrote {RELEASE_NOTES.relative_to(ROOT)} (licensed block)")
     return 0
 
@@ -569,6 +571,29 @@ pub static RECORDS: &[CoverageRecord] = &[
 pub static INTERVAL_METHOD_REASONS: &[(antecedent_core::IntervalMethod, Option<&'static str>)] = &[
 {reason_items}
 ];
+"""
+
+
+def render_reason_codes() -> str:
+    """Closed reason-code vocabulary for the runtime (`antecedent_core::reason_code`)."""
+    codes = load("parity/reason_codes.toml").get("code") or []
+    every = sorted(row["id"] for row in codes)
+    runtime = sorted(row["id"] for row in codes if "runtime_refusal" in row.get("applies_to", []))
+
+    def lines(ids: list[str]) -> str:
+        return "".join(f'    "{rust_escape(i)}",\n' for i in ids)
+
+    return f"""//! Generated from `parity/reason_codes.toml`. Do not edit.
+
+#![cfg_attr(rustfmt, rustfmt::skip)]
+
+/// Every registered reason code.
+pub const REASON_CODES: &[&str] = &[
+{lines(every)}];
+
+/// Codes whose `applies_to` includes `runtime_refusal`.
+pub const RUNTIME_REFUSAL_CODES: &[&str] = &[
+{lines(runtime)}];
 """
 
 
