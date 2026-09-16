@@ -28,7 +28,6 @@ from dataclasses import dataclass
 
 from ._native import (
     CausalAttributionError,
-    CausalCancelledError as CausalCancelled,
     CausalCancelledError,
     CausalCompileError,
     CausalCounterfactualError,
@@ -44,10 +43,19 @@ from ._native import (
     CausalReviewError,
     CausalSerializationError,
     CausalStateError,
-    CausalUnsupportedError as _NativeUnsupported,
     CausalValidateError,
 )
+from ._native import (
+    CausalCancelledError as CausalCancelled,
+)
+from ._native import (
+    CausalUnsupportedError as _NativeUnsupported,
+)
+from ._native import runtime_refusal_codes as _runtime_refusal_codes
 from ._native import set_review_error_class as _set_review_error_class
+from ._native import set_unsupported_error_class as _set_unsupported_error_class
+
+_RUNTIME_REFUSAL_CODES = frozenset(_runtime_refusal_codes())
 
 
 class CausalTypeError(CausalValidateError, TypeError):
@@ -66,9 +74,24 @@ class CausalTypeError(CausalValidateError, TypeError):
 
 
 class CausalUnsupportedError(_NativeUnsupported):
-    """Native unsupported refusal, with an optional closed reason code."""
+    """A refusal, with an optional closed reason code.
+
+    The native layer instantiates this same class for refusals raised in Rust
+    (see ``set_unsupported_error_class``), reading the ``reason=<code>:``
+    prefix into :attr:`reason_code`, so a caller catches one class either way.
+
+    ``reason_code`` must be a registered runtime-refusal code
+    (``parity/reason_codes.toml``, exposed as ``_native.runtime_refusal_codes()``);
+    constructing the error with any other code raises ``ValueError`` so an
+    unregistered code cannot be emitted.
+    """
 
     def __init__(self, message: str = "", *, reason_code: str | None = None) -> None:
+        if reason_code is not None and reason_code not in _RUNTIME_REFUSAL_CODES:
+            raise ValueError(
+                f"unregistered runtime reason code {reason_code!r}; "
+                "add it to parity/reason_codes.toml with applies_to runtime_refusal"
+            )
         text = f"reason={reason_code}: {message}" if reason_code else message
         super().__init__(text)
         self.reason_code = reason_code

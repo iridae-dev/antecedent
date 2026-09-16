@@ -23,13 +23,10 @@ def test_every_runtime_reason_code_is_in_the_vocabulary():
     import re
     from pathlib import Path
 
-    vocab = {
-        row["id"]
-        for row in CODES["code"]
-        if "runtime_refusal" in row.get("applies_to", [])
-    }
+    vocab = {row["id"] for row in CODES["code"] if "runtime_refusal" in row.get("applies_to", [])}
     text = "\n".join(
-        path.read_text() for path in Path(__file__).resolve().parents[1].joinpath("antecedent").rglob("*.py")
+        read_text(path)
+        for path in Path(__file__).resolve().parents[1].joinpath("antecedent").rglob("*.py")
     )
     for code in re.findall(r'reason_code="([^"]+)"', text):
         assert code in vocab, code
@@ -38,3 +35,21 @@ def test_every_runtime_reason_code_is_in_the_vocabulary():
 def test_unsupported_error_carries_code():
     err = CausalUnsupportedError("no study", reason_code="not_executed")
     assert err.reason_code == "not_executed"
+
+
+def test_native_runtime_codes_match_the_registry():
+    from antecedent import _native
+
+    registry = {
+        row["id"] for row in CODES["code"] if "runtime_refusal" in row.get("applies_to", [])
+    }
+    assert set(_native.runtime_refusal_codes()) == registry
+
+
+def test_unregistered_reason_code_cannot_be_constructed():
+    import pytest
+
+    bogus = "bog" + "us"  # computed, so no source grep for literals could see it
+    for code in (bogus, "no_interval_reported", ""):
+        with pytest.raises(ValueError, match="unregistered runtime reason code"):
+            CausalUnsupportedError("refused", reason_code=code)

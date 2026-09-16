@@ -7,6 +7,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# --self-test: each broken input, applied alone to an overlay of the repo,
+# must fail this gate with the expected message.
+if [[ "${1:-}" == "--self-test" ]]; then
+  exec python3 "$ROOT/scripts/selftest_cases.py" docs
+fi
+
 python3 - <<'PY'
 from __future__ import annotations
 
@@ -176,12 +182,31 @@ for claim in claims.get("claim", []):
         if count != 1:
             fail.append(f"{rel}: claim {claim['id']} occurs {count} times (want 1)")
 
+def changelog_current(text: str) -> str:
+    # The current version's section only; earlier sections are frozen history.
+    head = f"## [{version}]"
+    if head not in text:
+        fail.append(f"CHANGELOG.md: no {head} section to scan")
+        return ""
+    return text.split(head, 1)[1].split("\n## [", 1)[0]
+
+
 for row in claims.get("forbidden", []):
     pat = re.compile(row["pattern"])
     for rel in row.get("files", []):
-        text = (root / rel).read_text()
-        if pat.search(text):
-            fail.append(f"{rel}: forbidden pattern {row['pattern']!r}")
+        path = root / rel
+        if not path.is_file():
+            fail.append(f"{rel}: listed in claims.toml forbidden files but missing")
+            continue
+        text = path.read_text()
+        if rel == "CHANGELOG.md" and row.get("changelog_section") == "current":
+            text = changelog_current(text)
+        for m in pat.finditer(text):
+            line = text.count("\n", 0, m.start()) + 1
+            fail.append(
+                f"{rel}: forbidden {row.get('id', 'pattern')} {m.group(0)!r} "
+                f"(line {line} of the scanned text)"
+            )
 
 if fail:
     print("Docs support-matrix gate FAILED:")

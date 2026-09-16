@@ -2303,12 +2303,21 @@ fn identification_status_names() -> Vec<String> {
     .collect()
 }
 
+/// Registered runtime-refusal reason codes (`parity/reason_codes.toml`), the
+/// list `CausalUnsupportedError(reason_code=...)` validates against.
+#[pyfunction]
+fn runtime_refusal_codes() -> Vec<&'static str> {
+    antecedent_core::reason_code::RUNTIME_REFUSAL_CODES.to_vec()
+}
+
 fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
     m.add_function(wrap_pyfunction!(set_review_error_class, m)?)?;
+    m.add_function(wrap_pyfunction!(set_unsupported_error_class, m)?)?;
     m.add_function(wrap_pyfunction!(omitted_defaults, m)?)?;
     m.add_function(wrap_pyfunction!(identification_status_names, m)?)?;
+    m.add_function(wrap_pyfunction!(runtime_refusal_codes, m)?)?;
     ate_api::register(m)?;
     discovery_api::register(m)?;
     temporal_api::register(m)?;
