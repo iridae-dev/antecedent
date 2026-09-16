@@ -276,10 +276,6 @@ older artifacts and clients, but no 0.9 matrix cell can produce it.
 
 {bullets(list(axes["queries"]))}
 
-**Stage queries** (not folded into `analyze`):
-
-{bullets(list(axes.get("stage_queries") or []))}
-
 **Graph classes** (`GraphClass`, plus classification-only `CoDetermined` / `Unknown`):
 
 {bullets(graphs)}
