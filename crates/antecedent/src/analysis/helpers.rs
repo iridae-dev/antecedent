@@ -28,7 +28,7 @@ use antecedent_estimate::{
     summarize_functional,
 };
 use antecedent_expr::{IdentifiedEstimand, RdDesignParams};
-use antecedent_validate::{RefutationProblem, RefutationReport, ValidationSuite};
+use antecedent_validate::{EValue, RefutationProblem, RefutationReport, ValidationSuite};
 
 use crate::error::CausalError;
 use crate::result::StudyResult;
@@ -650,6 +650,35 @@ pub(crate) fn quantile_scope_diagnostic() -> Diagnostic {
         "piecewise-linear CDF inversion conditional on the frozen grid; interpolation bias and grid-selection uncertainty are excluded; a response quantile is a level, not an arm contrast",
     )
 }
+
+/// Mirror the E-value the `sensitivity.evalue` refuter reported onto the typed
+/// estimate fields, so a consumer reads the number and the threshold it was judged
+/// against without parsing report prose.
+///
+/// The refuter stays the single owner of the number: this copies
+/// [`antecedent_validate::RefutationReport::comparison`] verbatim and pairs it with
+/// the threshold of the very [`EValue`] the suite constructs. Nothing is recomputed.
+/// When the refuter did not run, a value this function previously mirrored is cleared
+/// (a threshold-less E-value from another premise is left alone).
+pub(crate) fn mirror_refuted_evalue(
+    estimate: &mut EffectEstimate,
+    refutations: &[RefutationReport],
+) {
+    match refutations.iter().find(|r| r.refuter.as_ref() == EVALUE_REFUTER) {
+        Some(report) => {
+            estimate.evalue = Some(report.comparison);
+            estimate.evalue_threshold = Some(EValue::new().threshold);
+        }
+        None if estimate.evalue_threshold.is_some() => {
+            estimate.evalue = None;
+            estimate.evalue_threshold = None;
+        }
+        None => {}
+    }
+}
+
+/// Report name the [`EValue`] validator publishes.
+pub(crate) const EVALUE_REFUTER: &str = "sensitivity.evalue";
 
 /// Attach a point E-value for the tier-closure no-latent-to-outcome premise.
 pub(crate) fn attach_tiered_evalue(

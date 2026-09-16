@@ -194,6 +194,9 @@ class EstimateView:
     family_contrast_interval: tuple[float, float, float] | None = None
     candidate_selection: Any = None
     evalue: float | None = None
+    #: Threshold the ``sensitivity.evalue`` refuter judged :attr:`evalue` against.
+    #: ``None`` (with ``evalue`` ``None``) when that refuter did not run.
+    evalue_threshold: float | None = None
     #: Interventional-distribution atoms, each with its bounded probability
     #: interval (Frequentist) — ``None`` for other queries.
     distribution: tuple[DistributionAtomView, ...] | None = None

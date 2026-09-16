@@ -1369,6 +1369,7 @@ impl PreparedStudy {
             let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
             let mut out = prior.clone();
             out.refutations = validated.refutations;
+            super::helpers::mirror_refuted_evalue(&mut out.estimate, &out.refutations);
             out.predictive_checks = validated.predictive_checks;
             out.posterior = validated.posterior;
             out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
@@ -1412,6 +1413,7 @@ impl PreparedStudy {
 
         let mut out = prior.clone();
         out.refutations = reports;
+        super::helpers::mirror_refuted_evalue(&mut out.estimate, &out.refutations);
         out.diagnostics.extend(na_diagnostics);
         out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
         out.performance.wall_time_ns =

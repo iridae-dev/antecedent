@@ -204,6 +204,7 @@ def _section_estimate(raw: Any) -> Any:
         family_contrast_interval=getattr(raw, "family_contrast_interval", None),
         candidate_selection=getattr(raw, "candidate_selection", None),
         evalue=getattr(raw, "evalue", None),
+        evalue_threshold=getattr(raw, "evalue_threshold", None),
         joint_covariance=getattr(raw, "joint_covariance", None),
         score_inference=getattr(raw, "score_inference", None),
         scenario_effects=getattr(raw, "scenario_effects", None),
@@ -522,6 +523,7 @@ def _wrap_ate(
             family_contrast_interval=getattr(sec_estimate, "family_contrast_interval", None),
             candidate_selection=getattr(sec_estimate, "candidate_selection", None),
             evalue=getattr(sec_estimate, "evalue", None),
+            evalue_threshold=getattr(sec_estimate, "evalue_threshold", None),
             distribution=_distribution_atoms_from_raw(sec_estimate),
             mean_interval=_probability_interval_from_raw(
                 getattr(sec_estimate, "mean_interval", None)

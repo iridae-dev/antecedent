@@ -101,6 +101,9 @@ pub struct EffectEstimateWire {
     /// Point E-value for a named no-latent premise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evalue: Option<f64>,
+    /// Threshold the E-value refuter judged [`EffectEstimateWire::evalue`] against.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evalue_threshold: Option<f64>,
     /// Candidate-selection provenance, including screen/estimate row splits.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub candidate_selection: Option<CandidateSelectionWire>,
@@ -368,6 +371,7 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
         family_contrast_interval: e.family_contrast_interval,
         unit_effects_homogeneous: e.unit_effects_homogeneous.then_some(true),
         evalue: e.evalue,
+        evalue_threshold: e.evalue_threshold,
         candidate_selection: e.candidate_selection.as_ref().map(|s| CandidateSelectionWire {
             screen_id: s.screen_id.to_string(),
             procedure: s.procedure.to_string(),
@@ -546,6 +550,7 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     estimate.family_contrast = w.family_contrast;
     estimate.family_contrast_interval = w.family_contrast_interval;
     estimate.evalue = w.evalue;
+    estimate.evalue_threshold = w.evalue_threshold;
     estimate.candidate_selection =
         w.candidate_selection.as_ref().map(candidate_selection_from_wire).transpose()?;
     estimate.scenario_effects = w.scenario_effects.clone().map(Into::into);
@@ -1033,6 +1038,7 @@ mod tests {
             interaction_structurally_zero: None,
             unit_effects_homogeneous: None,
             evalue: None,
+            evalue_threshold: None,
             candidate_selection: None,
         };
         let domain = effect_estimate_from_wire(&wire).unwrap();

@@ -2102,6 +2102,9 @@ impl super::Study {
         // A named predicate or custom distribution is a handle; encoding the
         // executed query (certificates, artifacts) needs its bindings.
         result.population_registry.clone_from(&self.population_registry);
+        if !is_quantile {
+            super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        }
         if !is_quantile
             && self
                 .tiered
