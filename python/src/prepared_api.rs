@@ -2989,6 +2989,11 @@ impl PyPreparedAnalysis {
                     .map(antecedent_io::refutation_to_wire)
                     .collect(),
                 unit_effects: result.counterfactual.as_ref().map(|c| c.unit_effects.to_vec()),
+                unit_extrapolative: result
+                    .counterfactual
+                    .as_ref()
+                    .and_then(|c| c.unit_extrapolative.as_ref())
+                    .map(|flags| flags.to_vec()),
                 mediation: result
                     .mediation
                     .as_ref()

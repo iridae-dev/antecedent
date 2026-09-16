@@ -455,6 +455,8 @@ run_v110 v110_calibration_bayesian_static elasticity_bayesian_default_nominal_co
 run_v110 v110_calibration_bayesian_static directional_derivative_bayesian_default_nominal_coverage
 # Boundary cell: the Jacobian band's measured coverage is asserted, not nominal.
 run_v110 v110_calibration_bayesian_static response_jacobian_bayesian_default_coverage
+run_v110 v110_calibration_counterfactual counterfactual_interaction_bayesian_unit_and_mean_ite_coverage
+run_v110 v110_calibration_counterfactual counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage
 
 echo "== 0.5.0 response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh

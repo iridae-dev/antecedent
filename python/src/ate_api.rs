@@ -2324,6 +2324,26 @@ pub(crate) fn ate_result_from_analysis(
             .map(|d| d.message.to_string())
             .collect(),
         unit_effects: result.counterfactual.as_ref().map(|cf| cf.unit_effects.to_vec()),
+        unit_effect_intervals: result
+            .counterfactual
+            .as_ref()
+            .and_then(|cf| cf.unit_effect_intervals.as_ref())
+            .map(|i| i.lower.iter().copied().zip(i.upper.iter().copied()).collect()),
+        unit_effect_intervals_level: result
+            .counterfactual
+            .as_ref()
+            .and_then(|cf| cf.unit_effect_intervals.as_ref())
+            .map(|i| i.level),
+        unit_effect_intervals_method: result
+            .counterfactual
+            .as_ref()
+            .and_then(|cf| cf.unit_effect_intervals.as_ref())
+            .map(|i| i.method.to_owned()),
+        unit_extrapolative: result
+            .counterfactual
+            .as_ref()
+            .and_then(|cf| cf.unit_extrapolative.as_ref())
+            .map(|flags| flags.to_vec()),
         mediation_total: result.mediation.as_ref().and_then(|m| m.total),
         mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
         mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),
