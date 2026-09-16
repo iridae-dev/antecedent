@@ -959,6 +959,20 @@ impl StudyResult {
         wire.mediation_grid = self.mediation_grid.as_ref().map(mediation_grid_wire);
         wire.structural_response =
             self.structural_response.as_ref().map(structural_response_wire).transpose()?;
+        wire.unit_effects =
+            self.counterfactual.as_ref().map(|ite| antecedent_io::UnitEffectsWire {
+                effects: ite.unit_effects.to_vec(),
+                homogeneous: self.estimate.unit_effects_homogeneous,
+                intervals: ite.unit_effect_intervals.as_ref().map(|intervals| {
+                    antecedent_io::UnitEffectIntervalsWire {
+                        lower: intervals.lower.to_vec(),
+                        upper: intervals.upper.to_vec(),
+                        level: intervals.level,
+                        method: intervals.method.to_string(),
+                    }
+                }),
+                extrapolative: ite.unit_extrapolative.as_ref().map(|flags| flags.to_vec()),
+            });
         Ok(())
     }
 
@@ -2363,6 +2377,7 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         posterior_artifact: None,
         mediation_grid: None,
         structural_response: None,
+        unit_effects: None,
     };
     result.fill_analysis_result_payloads(&mut wire, "execution-posterior")?;
     Ok(wire)

@@ -95,6 +95,79 @@ __all__ = [
 ]
 
 
+def portable_evidence(
+    section: Mapping[str, Any], body: Mapping[str, Any]
+) -> dict[str, dict[str, Any]]:
+    """Execution evidence a portable ``analysis_result`` carries, per slot.
+
+    The one projection both a live result and its loaded export report, so the
+    identification method and adjustment set, the validation verdict (a failed
+    one included) and counterfactual unit effects read the same before and
+    after ``load(export())``.
+    """
+    names = _variable_names(section)
+    raw_identification = body.get("identification")
+    identification_wire = raw_identification if isinstance(raw_identification, Mapping) else {}
+    estimands = identification_wire.get("estimands")
+    first = (
+        estimands[0]
+        if isinstance(estimands, list) and estimands and isinstance(estimands[0], Mapping)
+        else {}
+    )
+    identification = {
+        "method": first.get("method"),
+        "adjustment_set": _resolve_variables(list(first.get("adjustment_set") or []), names),
+        "assumption_count": len(identification_wire.get("required_assumptions") or []),
+        "derivation_step_count": len(identification_wire.get("derivation") or []),
+    }
+    reports = [dict(r) for r in body.get("refutations") or [] if isinstance(r, Mapping)]
+
+    def field(diagnostic: Mapping[str, Any], name: str) -> str:
+        for pair in diagnostic.get("fields") or []:
+            if isinstance(pair, (list, tuple)) and len(pair) == 2 and pair[0] == name:
+                return str(pair[1])
+        return ""
+
+    failures = [
+        {"validator": field(d, "validator"), "reason": field(d, "reason")}
+        for d in body.get("diagnostics") or []
+        if isinstance(d, Mapping) and d.get("code") == "refute.validator.failed"
+    ]
+    count = len(reports) + len(failures)
+    ran = count > 0
+    validation = {
+        "passed": ran and not failures and all(r.get("passed") is True for r in reports),
+        "ran": ran,
+        "count": count,
+        "reports": reports,
+        "computation_failures": failures,
+    }
+    uncertainty: dict[str, Any] = {}
+    unit_effects = body.get("unit_effects")
+    if isinstance(unit_effects, Mapping):
+        uncertainty["unit_effects"] = dict(unit_effects)
+    return {
+        "identification": identification,
+        "support": {"validation": validation},
+        "uncertainty": uncertainty,
+    }
+
+
+def with_portable_evidence(slots: ReasoningSlots, evidence: Mapping[str, Any]) -> ReasoningSlots:
+    """``slots`` with :func:`portable_evidence` merged into each slot's payload."""
+    from dataclasses import replace
+
+    def merged(view: SlotView, extra: Mapping[str, Any]) -> SlotView:
+        return replace(view, payload={**view.payload, **extra})
+
+    return replace(
+        slots,
+        identification=merged(slots.identification, evidence.get("identification", {})),
+        support=merged(slots.support, evidence.get("support", {})),
+        uncertainty=merged(slots.uncertainty, evidence.get("uncertainty", {})),
+    )
+
+
 def json_value(value: Any) -> Any:
     """Portable report data; preserve nonfinite bounds explicitly, never emit NaN."""
     if isinstance(value, Enum):
@@ -290,7 +363,7 @@ class ReasoningSlots:
             assumptions.summary,
             {**assumptions.payload, "records": body.get("assumptions", [])},
         )
-        return cls(
+        slots = cls(
             identification=identification,
             support=support,
             uncertainty=uncertainty,
@@ -315,6 +388,7 @@ class ReasoningSlots:
                 if isinstance(d, Mapping)
             ),
         )
+        return with_portable_evidence(slots, portable_evidence(section, body))
 
     def rendering_limitation(self) -> str | None:
         if not self.identification.available:

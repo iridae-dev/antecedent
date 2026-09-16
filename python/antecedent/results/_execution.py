@@ -368,7 +368,7 @@ class ResultAPI:
         support_payload = dict(slots.support.payload)
         support_payload["execution"] = _payload(getattr(self, "support", None))
         support_payload["validation"] = _payload(getattr(self, "validation", None))
-        return replace(
+        report = replace(
             slots,
             identification=SlotView(
                 identification is not None or slots.identification.available,
@@ -410,6 +410,37 @@ class ResultAPI:
                 else CalibrationInfo(status="unavailable", reason="not_executed")
             ),
             diagnostics=tuple(getattr(self, "diagnostics", ())),
+        )
+        return self._with_portable_record(report)
+
+    def _with_portable_record(self, report: ReasoningSlots) -> ReasoningSlots:
+        """Report the execution through the record its export carries.
+
+        ``contract`` becomes the portable contract section and the portable
+        evidence (identification method and adjustment set, validation verdict,
+        unit effects) is read from the exported body, so this report and
+        ``load(export()).inspect()`` agree on them. An execution that exports no
+        record (none retained, or a cancelled click) has no portable contract.
+        """
+        from dataclasses import replace
+
+        from .. import artifacts
+        from ..errors import CausalError
+        from ._slots import portable_evidence, with_portable_evidence
+
+        execution = getattr(self, "_execution", None)
+        if execution is None:
+            return replace(report, contract=None)
+        try:
+            decoded = artifacts.loads(execution.export_contracted_artifact())
+        except (CausalError, ValueError):
+            return replace(report, contract=None)
+        if not isinstance(decoded.contract, Mapping):
+            return replace(report, contract=None)
+        section = dict(decoded.contract)
+        return replace(
+            with_portable_evidence(report, portable_evidence(section, decoded.payload)),
+            contract=section,
         )
 
     @describe_refusal

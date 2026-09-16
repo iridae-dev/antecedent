@@ -3586,6 +3586,7 @@ fn composite_result_wire(
         posterior_artifact: None,
         mediation_grid: None,
         structural_response: None,
+        unit_effects: None,
     };
     result.fill_analysis_result_payloads(&mut wire, artifact_id).map_err(py_err)?;
     Ok(wire)

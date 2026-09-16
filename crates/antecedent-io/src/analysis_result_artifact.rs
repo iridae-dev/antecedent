@@ -369,6 +369,40 @@ pub struct AnalysisResultWire {
     pub mediation_grid: Option<TemporalMediationGridWire>,
     /// Structural-mixture response axis.
     pub structural_response: Option<StructuralResponseMixtureWire>,
+    /// Per-unit counterfactual effects, when the execution computed them.
+    ///
+    /// Absent on every other result, so their bodies (and digests) are
+    /// unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit_effects: Option<UnitEffectsWire>,
+}
+
+/// Per-unit counterfactual effects an execution reported.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct UnitEffectsWire {
+    /// One effect per unit, in row order.
+    pub effects: Vec<f64>,
+    /// Every unit carries the same effect by construction of the fitted mechanism.
+    pub homogeneous: bool,
+    /// Per-unit interval bounds, when the execution formed them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intervals: Option<UnitEffectIntervalsWire>,
+    /// Per-unit extrapolation flags aligned with [`Self::effects`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extrapolative: Option<Vec<bool>>,
+}
+
+/// Level-tagged per-unit interval bounds aligned with [`UnitEffectsWire::effects`].
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct UnitEffectIntervalsWire {
+    /// Lower bound per unit.
+    pub lower: Vec<f64>,
+    /// Upper bound per unit.
+    pub upper: Vec<f64>,
+    /// Nominal level the bounds were read at.
+    pub level: f64,
+    /// Construction id.
+    pub method: String,
 }
 
 /// Composite artifact header.
