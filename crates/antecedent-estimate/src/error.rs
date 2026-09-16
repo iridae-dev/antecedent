@@ -58,6 +58,16 @@ pub enum EstimationError {
         /// Refusal, including the certificate's reason and message.
         message: String,
     },
+    /// A refusal carrying a registered runtime reason code
+    /// (`parity/reason_codes.toml`), rendered `reason=<code>: <message>` so every
+    /// boundary reads the code the same way.
+    #[error("{}{code}: {message}", antecedent_core::reason_code::PREFIX)]
+    Refused {
+        /// Registered reason code (checked with `antecedent_core::reason_code!`).
+        code: &'static str,
+        /// What was refused and what the caller can do instead.
+        message: String,
+    },
 }
 
 impl EstimationError {
@@ -75,6 +85,12 @@ impl EstimationError {
                 "{stage} refused: identification was not certified ({reason}): {message}"
             ),
         }
+    }
+
+    /// A refusal with a registered runtime reason code.
+    #[must_use]
+    pub fn refused(code: &'static str, message: impl Into<String>) -> Self {
+        Self::Refused { code, message: message.into() }
     }
 
     /// Ad-hoc data-layer message (maps to [`DataError::InvalidArgument`]).

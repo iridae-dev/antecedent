@@ -131,3 +131,9 @@ id = "attested_not_reverifiable"
 applies_to = ["runtime_refusal", "claim"]
 meaning = "Custom validator results are caller-attested and are not re-verified on load."
 max_uses = 0
+
+[[code]]
+id = "treatment_support_too_discrete"
+applies_to = ["runtime_refusal"]
+meaning = "A local-polynomial response in the treatment needs more distinct treatment values carrying kernel weight at an evaluation point than the treatment has there; a binary or few-level treatment is answered by AverageEffect or InterventionResponse instead."
+max_uses = 0
