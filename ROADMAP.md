@@ -28,8 +28,10 @@ Rules that carry forward from 0.5:
 - Never infer observation assumptions from the presence of columns.
 - Provenance records and frozen parity oracles remain merge requirements.
   Candidates are not claims.
-- Transport and interference stay stage APIs. They change what identifies the
-  estimand and are not folded into `analyze`.
+- Transport and interference change what identifies the estimand, so their
+  design facts (selection diagram, trial columns, network, assignment) are
+  explicit query fields rather than `analyze` flags. Their licensed cells run on
+  `analyze` and retain a study (1.10).
 
 ## After 0.5
 
@@ -621,7 +623,8 @@ bindings.
 - Competing with EconML on ML CATE. Handoff, do not absorb.
 - PAG-native full ID/IDC, visualization, a string query language, R or
   Julia bindings, unsupervised regime discovery.
-- Folding `antecedent.transport` / `antecedent.interference` into `analyze`.
+- Hiding transport or interference design facts behind an ordinary
+  `target_population` flag.
 
 The test for any later item: does it make a causal response more honest or
 computable under explicit differences between environments, structural
