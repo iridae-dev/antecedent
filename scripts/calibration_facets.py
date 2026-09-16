@@ -29,20 +29,33 @@ reference or a stale entry fails until someone reviews it. Name matching is
 deliberately over-inclusive: an item name the facet shares with other code
 counts as a reference, which can only ask for more review, never less.
 
+A drifted record can instead be `attested_by_replay` under a replay waiver in
+`parity/calibration_waivers.toml` (outside the surface): a reviewed claim that
+named paths changed without moving a number, backed by records re-run at the
+waiver's `to` that reproduced the stored records bit for bit. Its scope is
+mechanical (see `waiver_applies`); it is reported under its own status, and a
+waiver that fails validation attests nothing and fails `check`.
+
 Usage:
 
-    python3 scripts/calibration_facets.py check            # list + boundaries
+    python3 scripts/calibration_facets.py check            # list + boundaries + waivers
     python3 scripts/calibration_facets.py status           # drift per measured SHA
     python3 scripts/calibration_facets.py status --require # fail if any record owes a re-measurement
     python3 scripts/calibration_facets.py counts           # records carrying each facet
     python3 scripts/calibration_facets.py stale-tests      # tests whose records owe a re-measurement
+    python3 scripts/calibration_facets.py replay-candidates --from <ref> [--to <ref>] [path...]
+    python3 scripts/calibration_facets.py replay --waiver <id> [--dry-run]   # at the waiver's `to`
 """
 
 from __future__ import annotations
 
 import argparse
 import fnmatch
+import hashlib
 import json
+import os
+import shutil
+import struct
 import re
 import subprocess
 import sys
@@ -580,22 +593,31 @@ def _normalized_manifest(text: str, lock: bool) -> str:
     return json.dumps(data, sort_keys=True)
 
 
-def changed_paths(surface: Surface, sha: str) -> list[str]:
-    """Surface paths whose content differs between `sha` and the working tree."""
-    diff = _git("diff", "--name-only", sha, "--", *surface.paths)
+def changed_paths(surface: Surface, sha: str, head: str | None = None) -> list[str]:
+    """Surface paths whose content differs between `sha` and `head` (default: the
+    working tree), with workspace version numbers ignored in the manifests."""
+    between = [sha] if head is None else [sha, head]
+    diff = _git("diff", "--name-only", *between, "--", *surface.paths)
     if diff.returncode != 0:
-        raise SystemExit(f"git diff {sha} failed: {diff.stderr.strip()}")
-    untracked = _git("ls-files", "--others", "--exclude-standard", "--", *surface.paths)
-    changed = sorted(set(diff.stdout.split()) | set(untracked.stdout.split()))
+        raise SystemExit(f"git diff {' '.join(between)} failed: {diff.stderr.strip()}")
+    changed = set(diff.stdout.split())
+    if head is None:
+        untracked = _git("ls-files", "--others", "--exclude-standard", "--", *surface.paths)
+        changed |= set(untracked.stdout.split())
     kept = []
-    for rel in changed:
-        if NORMALIZED.search(rel) and (ROOT / rel).is_file():
+    for rel in sorted(changed):
+        if NORMALIZED.search(rel):
             old = _git("show", f"{sha}:{rel}")
-            if old.returncode == 0:
+            if head is None:
+                new_text = (ROOT / rel).read_text() if (ROOT / rel).is_file() else None
+            else:
+                new = _git("show", f"{head}:{rel}")
+                new_text = new.stdout if new.returncode == 0 else None
+            if old.returncode == 0 and new_text is not None:
                 lock = rel.endswith(".lock")
                 try:
                     same = _normalized_manifest(old.stdout, lock) == _normalized_manifest(
-                        (ROOT / rel).read_text(), lock
+                        new_text, lock
                     )
                 except tomllib.TOMLDecodeError:
                     same = False
@@ -605,6 +627,430 @@ def changed_paths(surface: Surface, sha: str) -> list[str]:
     return kept
 
 
+class Repo:
+    """Commits and surface drift, read from git."""
+
+    def __init__(self) -> None:
+        self._resolved: dict[str, str | None] = {}
+        self._changed: dict[tuple[str, str | None], list[str]] = {}
+
+    def resolve(self, ref: str) -> str | None:
+        if ref not in self._resolved:
+            self._resolved[ref] = resolve(ref) if ref else None
+        return self._resolved[ref]
+
+    def changed(self, surface: Surface, sha: str, head: str | None = None) -> list[str]:
+        """Surface paths differing between commit `sha` and `head` (None: the worktree)."""
+        if (sha, head) not in self._changed:
+            self._changed[(sha, head)] = changed_paths(surface, sha, head)
+        return list(self._changed[(sha, head)])
+
+
+class FakeRepo(Repo):
+    """A repository described by a table, for the self-test."""
+
+    def __init__(self, commits: dict[str, str], diffs: dict[tuple[str, str | None], list[str]]):
+        super().__init__()
+        self.commits = commits
+        self.diffs = diffs
+
+    def resolve(self, ref: str) -> str | None:
+        return self.commits.get(ref)
+
+    def changed(self, surface: Surface, sha: str, head: str | None = None) -> list[str]:
+        return list(self.diffs.get((sha, head), []))
+
+
+# --------------------------------------------------------------------------
+# Replay waivers: a reviewed, non-numeric change accepted with evidence.
+# --------------------------------------------------------------------------
+#
+# A waiver in parity/calibration_waivers.toml (outside the surface) names the
+# commit a set of records was measured at (`from`), the commit it attests
+# forward to (`to`), and the exact surface `paths` that changed between them.
+# It carries replay evidence: records measured at `from`, re-run at `to`
+# through the unchanged gate, whose emitted `calibration-record` payloads were
+# bit-identical to the stored ones. A record owing a re-measurement is
+# `attested_by_replay` under a valid waiver only when it was measured at
+# `from`, every path in its facets that changed since is one the waiver names,
+# and none of those facets changed between `to` and the tree. Anything else
+# still owes, and a waiver that fails validation attests nothing and fails
+# `check`.
+
+WAIVERS = ROOT / "parity" / "calibration_waivers.toml"
+WAIVER_ID = re.compile(r"[a-z0-9][a-z0-9._-]*")
+# Stored record fields that are bookkeeping, not measurement output.
+NOT_EMITTED = frozenset({"calibration_sha", "facets"})
+LOG_DIR = ROOT / "target" / "calibration-records"
+REPLAY_DIR = ROOT / "target" / "calibration-replay"
+WAIVERS_HEADER = """\
+# Replay waivers for coverage records (scripts/calibration_facets.py).
+#
+# A waiver lets a reviewed change that cannot move a measured number stand in
+# for a re-measurement, with evidence. It applies to a record only when the
+# record was measured at `from`, every attested path in the record's facets
+# that changed since is listed in `paths`, and none of them changed after
+# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
+# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
+# with the stored records. Each `exercises` list names the waived paths that
+# record's test runs; together they must cover every path.
+#
+# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
+# `replay` tables by hand, then fill `outcome` by running
+#   python3 scripts/calibration_facets.py replay --waiver <id>
+# on a clean checkout of `to`. That command rewrites this file; comments other
+# than this header are not kept (the justification is the prose).
+# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
+# the records it covers as `attested_by_replay (waiver <id>)`.
+"""
+
+
+@dataclass
+class ReplayRecord:
+    record: str
+    exercises: list[str]
+
+
+@dataclass
+class ReplayOutcome:
+    replayed_at: str
+    records: list[str]
+    identical: bool
+    differences: list[str]
+    fingerprints: dict[str, str]
+
+
+@dataclass
+class Waiver:
+    id: str
+    from_: str
+    to: str
+    reviewed_by: str
+    justification: str
+    paths: list[str]
+    replay: list[ReplayRecord]
+    outcome: ReplayOutcome | None = None
+
+
+def _strings(value: object) -> list[str] | None:
+    if isinstance(value, list) and all(isinstance(v, str) for v in value):
+        return list(value)
+    return None
+
+
+def parse_waivers(text: str) -> tuple[list[Waiver], list[str]]:
+    """Waivers and the problems that keep a row from being one."""
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as exc:
+        return [], [f"{WAIVERS.name}: not valid TOML: {exc}"]
+    waivers: list[Waiver] = []
+    problems: list[str] = []
+    for i, row in enumerate(data.get("waiver", []), 1):
+        label = f"waiver {row.get('id', f'#{i}')}"
+        bad = []
+        for key in ("id", "from", "to", "reviewed_by", "justification"):
+            if not isinstance(row.get(key), str) or not row[key].strip():
+                bad.append(f"{label}: `{key}` must be a non-empty string")
+        paths = _strings(row.get("paths"))
+        if not paths:
+            bad.append(f"{label}: `paths` must be a non-empty list of surface paths")
+        replay = []
+        rows = row.get("replay")
+        if not isinstance(rows, list) or not rows:
+            bad.append(f"{label}: needs at least one [[waiver.replay]] record")
+            rows = []
+        for j, item in enumerate(rows, 1):
+            exercises = _strings(item.get("exercises")) if isinstance(item, dict) else None
+            record = item.get("record") if isinstance(item, dict) else None
+            if not isinstance(record, str) or not record:
+                bad.append(f"{label}: replay #{j} needs a `record` id")
+                continue
+            if exercises is None:
+                bad.append(f"{label}: replay {record}: `exercises` must be a list of paths")
+                exercises = []
+            replay.append(ReplayRecord(record, exercises))
+        outcome = None
+        raw = row.get("outcome")
+        if raw is not None:
+            fingerprints = raw.get("fingerprints", {}) if isinstance(raw, dict) else None
+            records = _strings(raw.get("records")) if isinstance(raw, dict) else None
+            differences = _strings(raw.get("differences", [])) if isinstance(raw, dict) else None
+            if (
+                not isinstance(raw, dict)
+                or not isinstance(raw.get("replayed_at"), str)
+                or not isinstance(raw.get("identical"), bool)
+                or records is None
+                or differences is None
+                or not isinstance(fingerprints, dict)
+                or not all(isinstance(v, str) for v in fingerprints.values())
+            ):
+                bad.append(
+                    f"{label}: `outcome` needs replayed_at (string), identical (bool), "
+                    "records and differences (string lists) and fingerprints (table)"
+                )
+            else:
+                outcome = ReplayOutcome(
+                    raw["replayed_at"], records, raw["identical"], differences, dict(fingerprints)
+                )
+        problems += bad
+        if not bad:
+            waivers.append(
+                Waiver(
+                    row["id"],
+                    row["from"],
+                    row["to"],
+                    row["reviewed_by"],
+                    row["justification"],
+                    paths or [],
+                    replay,
+                    outcome,
+                )
+            )
+    return waivers, problems
+
+
+def load_waivers(path: Path = WAIVERS) -> tuple[list[Waiver], list[str]]:
+    if not path.is_file():
+        return [], []
+    return parse_waivers(path.read_text())
+
+
+def _toml_str(value: str) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _toml_list(values: list[str], indent: bool = False) -> str:
+    if not indent:
+        return "[" + ", ".join(_toml_str(v) for v in values) + "]"
+    return "[\n" + "".join(f"  {_toml_str(v)},\n" for v in values) + "]"
+
+
+def render_waivers(waivers: list[Waiver]) -> str:
+    out = [WAIVERS_HEADER]
+    for w in waivers:
+        prose = w.justification.strip("\n").replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
+        out += [
+            "[[waiver]]",
+            f"id = {_toml_str(w.id)}",
+            f"from = {_toml_str(w.from_)}",
+            f"to = {_toml_str(w.to)}",
+            f"reviewed_by = {_toml_str(w.reviewed_by)}",
+            f'justification = """\n{prose}\\\n"""',
+            f"paths = {_toml_list(w.paths, indent=True)}",
+            "",
+        ]
+        for r in w.replay:
+            out += [
+                "[[waiver.replay]]",
+                f"record = {_toml_str(r.record)}",
+                f"exercises = {_toml_list(r.exercises, indent=True)}",
+                "",
+            ]
+        if w.outcome is not None:
+            o = w.outcome
+            out += [
+                "[waiver.outcome]",
+                f"replayed_at = {_toml_str(o.replayed_at)}",
+                f"identical = {'true' if o.identical else 'false'}",
+                f"records = {_toml_list(o.records, indent=True)}",
+                f"differences = {_toml_list(o.differences, indent=True)}",
+                "",
+                "[waiver.outcome.fingerprints]",
+                *(f"{_toml_str(k)} = {_toml_str(v)}" for k, v in sorted(o.fingerprints.items())),
+                "",
+            ]
+    return "\n".join(out)
+
+
+def _canonical(value: object) -> object:
+    if isinstance(value, float):
+        return {"f64": value.hex()}
+    if isinstance(value, list):
+        return [_canonical(v) for v in value]
+    return value
+
+
+def fingerprint(rec: dict) -> str:
+    """Digest of a stored record's emitted fields, floats by their exact bits."""
+    body = {k: _canonical(v) for k, v in rec.items() if k not in NOT_EMITTED}
+    return hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
+
+
+def _bit_equal(a: object, b: object) -> bool:
+    if isinstance(a, bool) or isinstance(b, bool):
+        return type(a) is type(b) and a == b
+    if isinstance(a, float) or isinstance(b, float):
+        return (
+            isinstance(a, float)
+            and isinstance(b, float)
+            and struct.pack("<d", a) == struct.pack("<d", b)
+        )
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_bit_equal(x, y) for x, y in zip(a, b, strict=True))
+    return type(a) is type(b) and a == b
+
+
+def compare_replay(stored: dict, payload: dict) -> list[str]:
+    """Every emitted field of `stored` that the replayed payload does not reproduce
+    bit for bit, named. The covered count is derived from observed × replicates."""
+    rid = stored.get("id")
+    differences = []
+
+    def covered(rec: dict) -> object:
+        observed, replicates = rec.get("observed"), rec.get("replicates")
+        if isinstance(observed, float) and isinstance(replicates, int):
+            return round(observed * replicates)
+        return None
+
+    if covered(stored) != covered(payload):
+        differences.append(
+            f"{rid}: covered stored {covered(stored)!r} replayed {covered(payload)!r}"
+        )
+    for key in sorted(set(stored) - NOT_EMITTED):
+        if key not in payload:
+            differences.append(f"{rid}: {key} not emitted by the replay")
+        elif not _bit_equal(stored[key], payload[key]):
+            differences.append(f"{rid}: {key} stored {stored[key]!r} replayed {payload[key]!r}")
+    return differences
+
+
+@dataclass
+class WaiverCheck:
+    valid: list[Waiver]
+    problems: list[str]
+    inert: list[str]
+
+
+def validate_waivers(
+    surface: Surface,
+    waivers: list[Waiver],
+    records: list[dict],
+    repo: Repo,
+    refs: References | None = None,
+    require_outcome: bool = True,
+) -> WaiverCheck:
+    """Waivers whose scope and evidence hold; the problems of the others."""
+    if not waivers:
+        return WaiverCheck([], [], [])
+    refs = refs or references(surface)
+    deps = _crate_deps()
+    by_id = {str(rec.get("id")): rec for rec in records}
+    valid: list[Waiver] = []
+    problems: list[str] = []
+    inert: list[str] = []
+    seen: set[str] = set()
+    for w in waivers:
+        bad: list[str] = []
+        label = f"waiver {w.id}"
+        if not WAIVER_ID.fullmatch(w.id):
+            bad.append(f"{label}: id must match {WAIVER_ID.pattern}")
+        if w.id in seen:
+            bad.append(f"{label}: duplicate id")
+        seen.add(w.id)
+        if len(set(w.paths)) != len(w.paths):
+            bad.append(f"{label}: a path is listed twice")
+        for rel in w.paths:
+            if surface.facet_of(rel) is None:
+                bad.append(f"{label}: {rel} is not on the calibration surface")
+        start, end = repo.resolve(w.from_), repo.resolve(w.to)
+        if start is None:
+            bad.append(f"{label}: from {w.from_!r} does not resolve to a commit in this clone")
+        if end is None:
+            bad.append(f"{label}: to {w.to!r} does not resolve to a commit in this clone")
+        if start and end:
+            if start == end:
+                bad.append(f"{label}: from and to are the same commit")
+            else:
+                between = set(repo.changed(surface, start, end))
+                for rel in w.paths:
+                    if rel not in between:
+                        bad.append(f"{label}: {rel} does not change between from and to")
+        # Scope of the evidence.
+        exercised: set[str] = set()
+        replay_ids = [r.record for r in w.replay]
+        if len(set(replay_ids)) != len(replay_ids):
+            bad.append(f"{label}: a replay record is listed twice")
+        for r in w.replay:
+            if not r.exercises:
+                bad.append(f"{label}: replay {r.record} exercises nothing")
+            for rel in r.exercises:
+                if rel not in w.paths:
+                    bad.append(
+                        f"{label}: replay {r.record} exercises {rel}, which the waiver "
+                        "does not name"
+                    )
+            exercised |= set(r.exercises)
+        for rel in w.paths:
+            if rel not in exercised:
+                bad.append(f"{label}: no replay record exercises {rel}")
+        measured_at_from = [
+            rec
+            for rec in records
+            if start and repo.resolve(str(rec.get("calibration_sha", ""))) == start
+        ]
+        if start and not measured_at_from and not bad:
+            # Every record measured at `from` has been re-measured since: the
+            # waiver can attest nothing, and its evidence has nothing to bind to.
+            inert.append(w.id)
+            continue
+        for r in w.replay:
+            rec = by_id.get(r.record)
+            if rec is None:
+                bad.append(f"{label}: replay record {r.record} is not in the registry")
+                continue
+            if start and repo.resolve(str(rec.get("calibration_sha", ""))) != start:
+                bad.append(
+                    f"{label}: replay record {r.record} was not measured at from "
+                    f"({rec.get('calibration_sha')}), so its replay compares nothing"
+                )
+            carried = set(record_facets(rec, surface, refs)) | set(rec.get("facets", []))
+            test = str(rec.get("test", "")).rsplit("::", 1)[0]
+            for rel in r.exercises:
+                facet = surface.facet_of(rel) or CORE
+                if facet not in carried:
+                    bad.append(
+                        f"{label}: replay {r.record} exercises {rel} ({facet}), a facet "
+                        "the record does not depend on"
+                    )
+                elif not _reaches(test, rel, deps):
+                    bad.append(
+                        f"{label}: replay {r.record} exercises {rel}, which its test "
+                        f"{test} cannot reach (not in its crate dependency closure)"
+                    )
+        o = w.outcome
+        if o is None:
+            if require_outcome:
+                bad.append(
+                    f"{label}: no replay outcome; run "
+                    f"`python3 scripts/calibration_facets.py replay --waiver {w.id}` at to"
+                )
+        else:
+            if end and repo.resolve(o.replayed_at) != end:
+                bad.append(f"{label}: replayed at {o.replayed_at}, not at to ({w.to})")
+            if sorted(o.records) != sorted(replay_ids):
+                bad.append(
+                    f"{label}: the replay outcome covers {sorted(o.records)}, "
+                    f"not {sorted(replay_ids)}"
+                )
+            if not o.identical:
+                shown = "; ".join(o.differences[:MAX_PATHS_SHOWN]) or "no difference recorded"
+                bad.append(f"{label}: the replay was not bit-identical: {shown}")
+            elif o.differences:
+                bad.append(f"{label}: identical = true but differences are recorded")
+            for rid in replay_ids:
+                rec = by_id.get(rid)
+                if rec is not None and o.fingerprints.get(rid) != fingerprint(rec):
+                    bad.append(
+                        f"{label}: stored record {rid} differs from the one the replay "
+                        "was compared with"
+                    )
+        problems += bad
+        if not bad:
+            valid.append(w)
+    return WaiverCheck(valid, problems, inert)
+
+
 @dataclass
 class Assessment:
     sha: str
@@ -612,47 +1058,156 @@ class Assessment:
     records: list[dict]
     facets: dict[str, set[str]]  # record id -> derived facets (plus any stored ones)
     drifted: dict[str, list[str]]  # facet -> changed paths
-    stale: list[dict]
+    stale: list[dict]  # owe a re-measurement
+    waived: dict[str, str] = field(default_factory=dict)  # record id -> waiver id
+    waiver_problems: list[str] = field(default_factory=list)
+
+
+def waiver_applies(
+    waiver: Waiver,
+    resolved_sha: str,
+    record_facet_set: set[str],
+    drifted_paths: list[str],
+    surface: Surface,
+    repo: Repo,
+) -> bool:
+    """Whether a valid waiver attests a record measured at `resolved_sha` whose
+    surface drifted by `drifted_paths`. Mechanical scope, nothing else:
+
+    * the record was measured at the waiver's `from`;
+    * every drifted path in a facet the record depends on is one the waiver names;
+    * no path in those facets changed between the waiver's `to` and the tree, so
+      the replay at `to` ran exactly the surface the record depends on now.
+    """
+    if repo.resolve(waiver.from_) != resolved_sha:
+        return False
+    end = repo.resolve(waiver.to)
+    if end is None:
+        return False
+
+    def relevant(paths: list[str]) -> set[str]:
+        return {rel for rel in paths if (surface.facet_of(rel) or CORE) in record_facet_set}
+
+    if not relevant(drifted_paths) <= set(waiver.paths):
+        return False
+    return not relevant(repo.changed(surface, end))
 
 
 def assess(
-    surface: Surface, records: list[dict], changes: dict[str, list[str]] | None = None
+    surface: Surface,
+    records: list[dict],
+    changes: dict[str, list[str]] | None = None,
+    waivers: list[Waiver] | None = None,
+    repo: Repo | None = None,
+    registry: list[dict] | None = None,
+    refs: References | None = None,
 ) -> list[Assessment]:
-    """Drift per measured commit. `changes` (commit -> changed paths) replaces git."""
-    refs = references(surface)
+    """Drift per measured commit.
+
+    `changes` (commit -> changed paths) replaces git for the self-test; `repo`
+    replaces it entirely. Waivers default to the committed registry when git is
+    read, and to none under `changes`. `registry` (default: `records`) is what
+    the waivers' replay evidence is checked against.
+    """
+    refs = refs or references(surface)
+    if repo is None:
+        repo = (
+            Repo()
+            if changes is None
+            else FakeRepo(
+                {sha: sha for sha in changes}, {(sha, None): p for sha, p in changes.items()}
+            )
+        )
+    if waivers is None:
+        waivers, load_problems = load_waivers() if changes is None else ([], [])
+    else:
+        load_problems = []
+    checked = (
+        validate_waivers(
+            surface, waivers, registry if registry is not None else records, repo, refs
+        )
+        if waivers
+        else WaiverCheck([], [], [])
+    )
+    waiver_problems = load_problems + checked.problems
     by_sha: dict[str, list[dict]] = {}
     for rec in records:
         by_sha.setdefault(str(rec.get("calibration_sha", "")), []).append(rec)
     out = []
     for sha, recs in sorted(by_sha.items()):
-        if changes is None:
-            resolved = resolve(sha) if sha else None
-        else:
-            resolved = sha if sha in changes else None
+        resolved = repo.resolve(sha) if sha else None
         facets = {
             str(rec.get("id")): set(record_facets(rec, surface, refs)) | set(rec.get("facets", []))
             for rec in recs
         }
         drifted: dict[str, list[str]] = {}
         stale: list[dict] = []
+        waived: dict[str, str] = {}
         if resolved:
-            paths = changed_paths(surface, resolved) if changes is None else changes[sha]
+            paths = repo.changed(surface, resolved)
             for rel in paths:
                 drifted.setdefault(surface.facet_of(rel) or CORE, []).append(rel)
-            stale = [rec for rec in recs if facets[str(rec.get("id"))] & drifted.keys()]
-        out.append(Assessment(sha, resolved, recs, facets, drifted, stale))
+            for rec in recs:
+                rid = str(rec.get("id"))
+                if not facets[rid] & drifted.keys():
+                    continue
+                for waiver in checked.valid:
+                    if waiver_applies(waiver, resolved, facets[rid], paths, surface, repo):
+                        waived[rid] = waiver.id
+                        break
+                else:
+                    stale.append(rec)
+        out.append(
+            Assessment(sha, resolved, recs, facets, drifted, stale, waived, waiver_problems)
+        )
     return out
 
 
-def report(assessments: list[Assessment], surface: Surface) -> tuple[int, int, int]:
-    """Print the per-SHA, per-facet state; return (standing, owed, unverifiable)."""
-    standing = owed = unverifiable = 0
+@dataclass
+class Tally:
+    standing: int = 0
+    by_replay: dict[str, int] = field(default_factory=dict)  # waiver id -> records
+    owed: int = 0
+    unverifiable: int = 0
+
+    @property
+    def replayed(self) -> int:
+        return sum(self.by_replay.values())
+
+
+def replay_summary(tally: Tally) -> str:
+    ids = ", ".join(sorted(tally.by_replay))
+    return f"attested_by_replay: {tally.replayed} record(s) under waiver(s) {ids}"
+
+
+def release_verdict(tally: Tally, any_records: bool, invalid_waiver: bool) -> str:
+    """The release path's one-line verdict. Replay-attested records are accepted and
+    counted by waiver; anything owed, unverifiable or an invalid waiver is not."""
+    if tally.owed or tally.unverifiable or not any_records or invalid_waiver:
+        return (
+            f"NOT ATTESTED: {tally.owed} owed, {tally.unverifiable} unverifiable"
+            + ("; a replay waiver is invalid" if invalid_waiver else "")
+            + ("; the registry has no records" if not any_records else "")
+        )
+    return (
+        f"ATTESTED: {tally.standing} record(s) attested and matching their calibration_sha"
+        + (f"; {replay_summary(tally)}" if tally.by_replay else "")
+        + "; no re-measurement is owed."
+    )
+
+
+def report(assessments: list[Assessment], surface: Surface) -> Tally:
+    """Print the per-SHA, per-facet state and the counts of each status."""
+    tally = Tally()
     total = sum(len(a.records) for a in assessments)
+    problems = assessments[0].waiver_problems if assessments else []
+    for problem in problems:
+        print(f"INVALID WAIVER: {problem} (it attests nothing)")
     print(f"coverage records: {total}, measured at {len(assessments)} commit(s)")
     for a in assessments:
         print(f"  measured at {a.sha or '<no calibration_sha>'}: {len(a.records)} record(s)")
         if not a.resolved:
-            unverifiable += len(a.records)
+            tally.unverifiable += len(a.records)
             print(
                 "    UNVERIFIABLE: that commit is not in this clone (fetch full history); "
                 "whether these records still stand cannot be decided"
@@ -672,23 +1227,511 @@ def report(assessments: list[Assessment], surface: Surface) -> tuple[int, int, i
                     print(f"      ... and {len(paths) - MAX_PATHS_SHOWN} more")
             elif carrying:
                 print(f"    facet {facet}: matches; {carrying} record(s) depend on it")
-        owed += len(a.stale)
-        standing += len(a.records) - len(a.stale)
-    print(f"attested and matching: {standing} record(s)")
-    if owed:
+        by_waiver: dict[str, int] = {}
+        for waiver_id in a.waived.values():
+            by_waiver[waiver_id] = by_waiver.get(waiver_id, 0) + 1
+        for waiver_id, count in sorted(by_waiver.items()):
+            print(f"    attested_by_replay (waiver {waiver_id}): {count} record(s)")
+            tally.by_replay[waiver_id] = tally.by_replay.get(waiver_id, 0) + count
+        if a.stale:
+            print(f"    owes a re-measurement: {len(a.stale)} record(s)")
+        tally.owed += len(a.stale)
+        tally.standing += len(a.records) - len(a.stale) - len(a.waived)
+    print(f"attested and matching: {tally.standing} record(s)")
+    if tally.by_replay:
         print(
-            f"re-measurement owed: {owed} record(s), because a facet they depend on changed "
+            replay_summary(tally)
+            + " (their surface changed only in paths a reviewed waiver names, and its "
+            "replay reproduced the stored records bit for bit)"
+        )
+    if tally.owed:
+        print(
+            f"re-measurement owed: {tally.owed} record(s), because a facet they depend on changed "
             "since they were measured (`python3 scripts/calibration_facets.py stale-tests` "
             "lists their tests)"
         )
-    if unverifiable:
-        print(f"unverifiable: {unverifiable} record(s)")
-    return standing, owed, unverifiable
+    if tally.unverifiable:
+        print(f"unverifiable: {tally.unverifiable} record(s)")
+    return tally
+
+
+# --------------------------------------------------------------------------
+# Replay: re-run a waiver's evidence records through the unchanged gate.
+# --------------------------------------------------------------------------
+
+
+def _gate_groups_for(records: list[dict]) -> tuple[list, int, dict[str, list]]:
+    """Gate groups (scripts/calibration_shards.py owns the mapping) measuring each record."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import calibration_shards as shards
+
+    groups = shards.gate_groups()
+    matches: dict[str, list] = {}
+    for rec in records:
+        found = [
+            g
+            for g in groups
+            if shards._measures(*g.label.partition(": ")[::2], rec)  # noqa: SLF001
+        ]
+        # A cargo filter matches by substring; a group naming the test exactly is
+        # the one that measured it, and running the others would only cost time.
+        fn = str(rec["test"]).rpartition("::")[2]
+        exact = [g for g in found if g.label.partition(": ")[2] == fn]
+        matches[str(rec["id"])] = exact or found
+    return groups, len(groups), matches
+
+
+def _safe_label(label: str) -> str:
+    """The log name scripts/gate_calibration.sh derives (`tr ' /:' '___'`)."""
+    return label.translate(str.maketrans(" /:", "___"))
+
+
+def replay_payloads(label_logs: list[Path]) -> dict[str, dict]:
+    """`calibration-record` payloads of one group's logs; a recheck log wins, as in
+    scripts/collect_coverage_records.py."""
+    out: dict[str, dict] = {}
+    recheck = [p for p in label_logs if p.name.endswith(".recheck.log")]
+    for log in recheck or label_logs:
+        if not log.is_file():
+            continue
+        for line in log.read_text(errors="ignore").splitlines():
+            if line.startswith("calibration-record "):
+                payload = json.loads(line.split(" ", 1)[1])
+                out[str(payload["id"])] = payload
+    return out
+
+
+def replay(waiver_id: str, dry_run: bool) -> int:
+    surface = load_surface()
+    if surface.errors:
+        for problem in surface.errors:
+            print(f"FAIL: {problem}")
+        return 1
+    records = load_records()
+    waivers, problems = load_waivers()
+    if problems:
+        for problem in problems:
+            print(f"FAIL: {problem}")
+        return 1
+    matching = [w for w in waivers if w.id == waiver_id]
+    if not matching:
+        print(f"FAIL: no waiver {waiver_id} in {WAIVERS.relative_to(ROOT)}")
+        return 1
+    waiver = matching[0]
+    repo = Repo()
+    candidate = Waiver(**{**waiver.__dict__, "outcome": None})
+    checked = validate_waivers(surface, [candidate], records, repo, require_outcome=False)
+    if checked.problems or checked.inert:
+        for problem in checked.problems:
+            print(f"FAIL: {problem}")
+        if checked.inert:
+            print(f"FAIL: waiver {waiver_id}: no record measured at from remains to attest")
+        return 1
+    head, end = repo.resolve("HEAD"), repo.resolve(waiver.to)
+    if head != end:
+        print(f"FAIL: replay runs at to ({waiver.to} = {end}); HEAD is {head}. Check out to first.")
+        return 1
+    dirty = repo.changed(surface, head)
+    if dirty:
+        print("FAIL: the worktree's calibration surface differs from to; replay a clean checkout:")
+        for rel in dirty[:MAX_PATHS_SHOWN]:
+            print(f"  {rel}")
+        return 1
+    by_id = {str(rec["id"]): rec for rec in records}
+    stored = [by_id[r.record] for r in waiver.replay]
+    _, total, matches = _gate_groups_for(stored)
+    plan: dict[int, object] = {}
+    for rid, groups in matches.items():
+        if not groups:
+            print(f"FAIL: no gate group in scripts/gate_calibration.sh measures {rid}")
+            return 1
+        for g in groups:
+            plan[g.index] = g
+    print(
+        f"replay of waiver {waiver_id} at {head}: {len(stored)} record(s), "
+        f"{len(plan)} gate group(s)"
+    )
+    for g in plan.values():
+        print(f"  group {g.index}{' (long)' if g.long else ''}: {g.label}")
+    if dry_run:
+        return 0
+    out_dir = REPLAY_DIR / waiver_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    payloads: dict[str, dict] = {}
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k
+        not in (
+            "ANTECEDENT_CALIBRATION_NSIM",
+            "ANTECEDENT_CALIBRATION_RECHECK_NSIM",
+            "ANTECEDENT_CALIBRATION_DRY_RUN",
+        )
+    }
+    for g in plan.values():
+        safe = _safe_label(g.label)
+        names = [f"{safe}.log", f"{safe}.recheck.log"]
+        # The gate writes into the collector's log directory; keep what the
+        # measurement left there and put the replay's logs aside.
+        backup = out_dir / "measurement-logs"
+        backup.mkdir(exist_ok=True)
+        for name in names:
+            if (LOG_DIR / name).exists():
+                shutil.move(str(LOG_DIR / name), str(backup / name))
+            if (out_dir / name).exists():
+                (out_dir / name).unlink()
+        print(f"== replay group {g.index}: {g.label} ==", flush=True)
+        status = subprocess.run(
+            ["bash", str(ROOT / "scripts" / "gate_calibration.sh")],
+            cwd=ROOT,
+            env={**env, "ANTECEDENT_CALIBRATION_SHARD": f"{g.index - 1}/{total}"},
+        ).returncode
+        for name in names:
+            if (LOG_DIR / name).exists():
+                shutil.move(str(LOG_DIR / name), str(out_dir / name))
+            if (backup / name).exists():
+                shutil.move(str(backup / name), str(LOG_DIR / name))
+        if status != 0:
+            print(
+                f"note: group {g.label} failed its gate at to; its records are compared as emitted"
+            )
+        payloads.update(replay_payloads([out_dir / n for n in names]))
+    differences: list[str] = []
+    for rec in stored:
+        payload = payloads.get(str(rec["id"]))
+        if payload is None:
+            differences.append(f"{rec['id']}: the replay emitted no record with this id")
+        else:
+            differences += compare_replay(rec, payload)
+    identical = not differences
+    waiver.outcome = ReplayOutcome(
+        replayed_at=head,
+        records=[r.record for r in waiver.replay],
+        identical=identical,
+        differences=differences,
+        fingerprints={str(rec["id"]): fingerprint(rec) for rec in stored},
+    )
+    WAIVERS.write_text(render_waivers(waivers))
+    for difference in differences:
+        print(f"DIFFERS: {difference}")
+    verdict = "bit-identical" if identical else "NOT identical: the waiver is invalid"
+    print(
+        f"replay of waiver {waiver_id}: {verdict}; "
+        f"outcome written to {WAIVERS.relative_to(ROOT)}"
+    )
+    print(f"replay logs: {out_dir.relative_to(ROOT)}")
+    return 0 if identical else 1
+
+
+def replay_candidates(start_ref: str, end_ref: str, paths: list[str]) -> int:
+    """Records measured at `from` that could serve as replay evidence for each path,
+    cheapest first: short gate groups before long ones, fewer replicates first."""
+    surface = load_surface()
+    repo = Repo()
+    start, end = repo.resolve(start_ref), repo.resolve(end_ref)
+    if start is None or end is None:
+        print(f"FAIL: {start_ref if start is None else end_ref} does not resolve")
+        return 1
+    paths = paths or repo.changed(surface, start, end)
+    records = [
+        rec for rec in load_records() if repo.resolve(str(rec.get("calibration_sha", ""))) == start
+    ]
+    if not records:
+        print(f"no record in the registry was measured at {start}")
+        return 1
+    refs = references(surface)
+    deps = _crate_deps()
+    _, _, matches = _gate_groups_for(records)
+    for rel in paths:
+        facet = surface.facet_of(rel) or CORE
+        rows = []
+        for rec in records:
+            carried = set(record_facets(rec, surface, refs)) | set(rec.get("facets", []))
+            test = str(rec.get("test", "")).rsplit("::", 1)[0]
+            groups = matches[str(rec["id"])]
+            if facet in carried and _reaches(test, rel, deps) and groups:
+                longest = any(g.long for g in groups)
+                whole_file = any(": " not in g.label for g in groups)
+                rows.append((longest, whole_file, rec.get("replicates", 0), str(rec["id"]), groups))
+        rows.sort(key=lambda row: row[:4])
+        print(f"{rel} ({facet}): {len(rows)} candidate record(s); cheapest first")
+        for longest, whole_file, replicates, rid, groups in rows[:8]:
+            kind = "long" if longest else ("whole-file group" if whole_file else "short")
+            print(f"  {rid}  [{kind}, {replicates} replicates, group {groups[0].label}]")
+    print(
+        "A candidate reaches the file and carries its facet; confirm from the test that it "
+        "runs the changed code before naming the file in its `exercises`."
+    )
+    return 0
 
 
 # --------------------------------------------------------------------------
 # Self-test: the guard must fail on broken input, or its pass proves nothing.
 # --------------------------------------------------------------------------
+
+
+def _waiver_self_test(base: Surface, refs: References, expect) -> None:
+    """Replay waivers: scope, evidence and visibility, on broken inputs that must fail."""
+    import contextlib
+    import io
+    import math
+
+    start, end, other = "1" * 40, "2" * 40, "3" * 40
+    helpers = "crates/antecedent/src/analysis/helpers.rs"  # core
+    compile_rs = "crates/antecedent-model/src/compile.rs"  # mechanism
+    stats = "crates/antecedent-stats/src/lib.rs"  # core, not waived
+    measured = {
+        "nominal": 0.9,
+        "n_min": 400,
+        "n_max": 400,
+        "observed": 0.8975,
+        "mcse": math.sqrt(0.8975 * 0.1025 / 400),
+        "replicates": 400,
+        "boundary": False,
+        "role": "gated",
+    }
+    suite = "crates/antecedent/tests/v19_static_calibration.rs"
+    cf = {
+        "id": "cf",
+        "test": f"{suite}::counterfactual",
+        "dgp": f"{suite}::d",
+        "query": "Counterfactual",
+        "estimator": "gcm.fit",
+        "calibration_sha": start,
+        **measured,
+    }
+    temporal = "crates/antecedent/tests/v19_temporal_frequentist.rs"
+    tp = {
+        "id": "tp",
+        "test": f"{temporal}::pulse",
+        "dgp": f"{temporal}::d",
+        "query": "PulseEffect",
+        "estimator": "temporal.linear.adjustment",
+        "calibration_sha": start,
+        **measured,
+    }
+    library = "crates/antecedent-estimate/src/calibration_coverage.rs"
+    lib = {
+        "id": "lib",
+        "test": f"{library}::linear_adjustment_analytic_ci_coverage",
+        "dgp": f"{library}::d",
+        "query": "Ate",
+        "estimator": "linear.adjustment.ate",
+        "calibration_sha": start,
+        **measured,
+    }
+    elsewhere = tp | {"id": "tp_other", "calibration_sha": other}
+    records = [cf, tp, lib, elsewhere]
+    commits = {
+        start: start,
+        end: end,
+        other: other,
+        "calibration/sweep": start,
+        "calibration/replay": end,
+    }
+
+    def good(**changes) -> Waiver:
+        waiver = Waiver(
+            id="w-good",
+            from_="calibration/sweep",
+            to="calibration/replay",
+            reviewed_by="reviewer",
+            justification='Additive fields only.\nNo interval, SE or seed path; "quoted" \\ ok.',
+            paths=[helpers, compile_rs],
+            replay=[ReplayRecord("cf", [helpers, compile_rs])],
+            outcome=ReplayOutcome(end, ["cf"], True, [], {"cf": fingerprint(cf)}),
+        )
+        for key, value in changes.items():
+            setattr(waiver, key, value)
+        return waiver
+
+    def diffs(after_to: list[str] | None = None, between: list[str] | None = None) -> FakeRepo:
+        return FakeRepo(
+            commits,
+            {
+                (start, end): [helpers, compile_rs] if between is None else between,
+                (start, None): [helpers, compile_rs] + (after_to or []),
+                (end, None): after_to or [],
+                (other, None): [helpers],
+            },
+        )
+
+    def run(waiver: Waiver, repo: FakeRepo | None = None, registry: list[dict] | None = None):
+        repo = repo or diffs()
+        checked = validate_waivers(base, [waiver], registry or records, repo, refs)
+        assessed = assess(
+            base, records, waivers=[waiver], repo=repo, registry=registry, refs=refs
+        )
+        owed = {str(r["id"]) for a in assessed for r in a.stale}
+        waived = {rid: wid for a in assessed for rid, wid in a.waived.items()}
+        return checked.problems, owed, waived, assessed
+
+    problems, owed, waived, assessed = run(good())
+    expect(
+        problems == [] and waived == {"cf": "w-good", "tp": "w-good", "lib": "w-good"}
+        and owed == {"tp_other"},
+        "a valid waiver attests the records measured at from as attested_by_replay, and "
+        "only those",
+    )
+    printed = io.StringIO()
+    with contextlib.redirect_stdout(printed):
+        tally = report(assessed, base)
+    text = printed.getvalue()
+    expect(
+        "attested_by_replay (waiver w-good): 3 record(s)" in text
+        and "attested_by_replay: 3 record(s) under waiver(s) w-good" in text
+        and "attested and matching: 0 record(s)" in text
+        and tally.by_replay == {"w-good": 3}
+        and tally.owed == 1,
+        "the report shows replay-attested records under their own status, never as attested",
+    )
+    covered = Tally(standing=2, by_replay={"w-good": 3})
+    expect(
+        release_verdict(covered, True, False)
+        == "ATTESTED: 2 record(s) attested and matching their calibration_sha; "
+        "attested_by_replay: 3 record(s) under waiver(s) w-good; no re-measurement is owed."
+        and release_verdict(Tally(standing=2), True, False).startswith("ATTESTED: 2 record(s)")
+        and "attested_by_replay" not in release_verdict(Tally(standing=2), True, False)
+        and release_verdict(covered, True, True).startswith("NOT ATTESTED")
+        and release_verdict(Tally(by_replay={"w-good": 3}, owed=1), True, False).startswith(
+            "NOT ATTESTED"
+        ),
+        "the release path accepts attested_by_replay, printing its count and waiver ids; "
+        "an invalid waiver or an owed record still fails",
+    )
+    _, owed, waived, _ = run(
+        good(paths=[helpers], replay=[ReplayRecord("cf", [helpers])]),
+        diffs(between=[helpers, compile_rs]),
+    )
+    expect(
+        "cf" in owed and set(waived) == {"tp", "lib"},
+        "a changed path the waiver does not name leaves the records depending on it owing",
+    )
+    _, owed, waived, _ = run(good(), diffs(after_to=[stats]))
+    expect(
+        waived == {} and {"cf", "tp", "lib"} <= owed,
+        "a surface change outside the waiver (after to) owes every record depending on it",
+    )
+    _, owed, waived, _ = run(
+        good(),
+        FakeRepo(
+            commits,
+            {
+                (start, end): [helpers, compile_rs],
+                (start, None): [helpers],
+                (end, None): [helpers],
+            },
+        ),
+    )
+    expect(
+        waived == {} and {"cf", "tp", "lib"} <= owed,
+        "a waived path changed again after to: the waiver does not apply outside its range",
+    )
+    expect(
+        "tp_other" not in waived,
+        "a record measured at a commit other than from is never covered by the waiver",
+    )
+    broken = good()
+    broken.outcome = ReplayOutcome(
+        end, ["cf"], False, ["cf: mcse stored 0.0151 replayed 0.0152"], {"cf": fingerprint(cf)}
+    )
+    problems, owed, waived, _ = run(broken)
+    expect(
+        any("not bit-identical" in p and "mcse" in p for p in problems) and waived == {},
+        "a waiver whose replay recorded identical=false is invalid and names the field",
+    )
+    problems, _, waived, _ = run(good(replay=[ReplayRecord("cf", [])]))
+    expect(
+        any("exercises nothing" in p for p in problems)
+        and any("no replay record exercises" in p for p in problems)
+        and waived == {},
+        "a replay record whose exercises is empty is invalid",
+    )
+    problems, _, waived, _ = run(good(replay=[ReplayRecord("cf", [helpers, compile_rs, stats])]))
+    expect(
+        any(f"exercises {stats}, which the waiver does not name" in p for p in problems)
+        and waived == {},
+        "a replay record exercising a path the waiver does not name is invalid",
+    )
+    problems, _, waived, _ = run(good(from_="calibration/missing"))
+    expect(
+        any("from 'calibration/missing' does not resolve" in p for p in problems) and waived == {},
+        "a from that does not resolve is invalid",
+    )
+    problems, _, waived, _ = run(good(to="f" * 40))
+    expect(
+        any("does not resolve" in p and p.startswith("waiver w-good: to") for p in problems)
+        and waived == {},
+        "a to that does not resolve is invalid",
+    )
+    expect(Repo().resolve("0" * 40) is None, "an absent commit does not resolve in git")
+    problems, _, waived, _ = run(good(), diffs(between=[helpers]))
+    expect(
+        any(f"{compile_rs} does not change between from and to" in p for p in problems),
+        "a waived path that does not change within from..to is invalid",
+    )
+    problems, _, waived, _ = run(good(), registry=[cf | {"observed": 0.9}, tp, lib, elsewhere])
+    expect(
+        any("stored record cf differs" in p for p in problems) and waived == {},
+        "a stored record that changed after the replay invalidates the waiver",
+    )
+    problems, _, _, _ = run(
+        good(replay=[ReplayRecord("cf", [compile_rs]), ReplayRecord("lib", [helpers])])
+    )
+    expect(
+        any("replay lib exercises" in p and "cannot reach" in p for p in problems),
+        "a replay record whose test cannot reach the file it claims to exercise is invalid",
+    )
+    problems, _, _, _ = run(
+        good(replay=[ReplayRecord("cf", [helpers]), ReplayRecord("tp", [compile_rs])])
+    )
+    expect(
+        any("replay tp exercises" in p and "does not depend on" in p for p in problems),
+        "a replay record exercising a facet it does not carry is invalid",
+    )
+    moved = good()
+    moved.outcome = ReplayOutcome(other, ["cf"], True, [], {"cf": fingerprint(cf)})
+    problems, _, _, _ = run(moved)
+    expect(
+        any("not at to" in p for p in problems),
+        "a replay run at a commit other than to is invalid",
+    )
+    problems, _, _, _ = run(good(outcome=None))
+    expect(
+        any("no replay outcome" in p for p in problems),
+        "a waiver without a replay outcome is invalid",
+    )
+    parsed, parse_problems = parse_waivers(render_waivers([good()]))
+    expect(
+        parse_problems == [] and len(parsed) == 1 and parsed[0] == good(),
+        "the waiver registry round-trips through its writer",
+    )
+    _, parse_problems = parse_waivers('[[waiver]]\nid = "x"\nfrom = "a"\nto = "b"\n')
+    expect(
+        any("reviewed_by" in p for p in parse_problems)
+        and any("paths" in p for p in parse_problems),
+        "a waiver missing its review, justification or paths is rejected",
+    )
+    payload = {k: v for k, v in cf.items() if k not in NOT_EMITTED} | {"bound_replicates": 400}
+    nudged = payload | {"mcse": math.nextafter(payload["mcse"], 1.0)}
+    as_float = compare_replay(cf, payload | {"replicates": 400.0})
+    missing = compare_replay(cf, {k: v for k, v in payload.items() if k != "n_max"})
+    expect(
+        compare_replay(cf, payload) == []
+        and any(d.startswith("cf: mcse stored") for d in compare_replay(cf, nudged))
+        and any(d.startswith("cf: replicates") for d in as_float)
+        and any("covered" in d for d in compare_replay(cf, payload | {"observed": 0.9}))
+        and any("n_max not emitted" in d for d in missing),
+        "the replay comparison is bit for bit and names the differing field",
+    )
+    committed, committed_problems = load_waivers()
+    registry = load_records()
+    expect(
+        committed_problems == []
+        and validate_waivers(base, committed, registry, Repo(), refs).problems == [],
+        "the committed waiver registry is valid",
+    )
 
 
 def self_test() -> int:
@@ -832,6 +1875,7 @@ def self_test() -> int:
         and _normalized_manifest(manifest, False) != _normalized_manifest(profile, False),
         "a workspace version bump is not drift; a profile change is",
     )
+    _waiver_self_test(base, refs, expect)
     if failures:
         print(f"calibration_facets self-test: {len(failures)} failure(s)")
         return 1
@@ -850,19 +1894,42 @@ def main() -> int:
     sub.add_parser("counts", help="records carrying each facet")
     sub.add_parser("stale-tests", help="tests whose records owe a re-measurement")
     sub.add_parser("self-test", help="the guard must fail on broken input")
+    p_replay = sub.add_parser("replay", help="re-run a waiver's replay records at its `to`")
+    p_replay.add_argument("--waiver", required=True)
+    p_replay.add_argument("--dry-run", action="store_true", help="print the gate groups only")
+    p_cand = sub.add_parser(
+        "replay-candidates", help="records that could serve as a waiver's replay evidence"
+    )
+    p_cand.add_argument("--from", dest="start", required=True)
+    p_cand.add_argument("--to", dest="end", default="HEAD")
+    p_cand.add_argument("paths", nargs="*", help="default: every surface path changed from..to")
     args = parser.parse_args()
     if args.command == "self-test":
         return self_test()
+    if args.command == "replay":
+        return replay(args.waiver, args.dry_run)
+    if args.command == "replay-candidates":
+        return replay_candidates(args.start, args.end, args.paths)
     surface = load_surface()
     if args.command == "check":
         problems = check(surface)
-        for problem in problems:
+        waivers, waiver_problems = load_waivers()
+        if not problems:
+            checked = validate_waivers(surface, waivers, load_records(), Repo())
+            waiver_problems += checked.problems
+            for waiver_id in checked.inert:
+                print(
+                    f"note: waiver {waiver_id} is inert: every record measured at its from has "
+                    "been re-measured; delete it"
+                )
+        for problem in problems + waiver_problems:
             print(f"FAIL: {problem}")
-        if problems:
+        if problems or waiver_problems:
             return 1
         print(
             f"calibration surface: {len(surface.entries)} paths in "
-            f"{len(surface.facets)} facets; boundaries hold"
+            f"{len(surface.facets)} facets; boundaries hold; "
+            f"{len(waivers)} replay waiver(s) valid"
         )
         return 0
     if surface.errors:
@@ -881,9 +1948,12 @@ def main() -> int:
     if args.command == "stale-tests":
         print("\n".join(sorted({str(rec["test"]) for a in assessments for rec in a.stale})))
         return 0
-    _, owed, unverifiable = report(assessments, surface)
-    if args.require and (owed or unverifiable or not records):
-        return 1
+    tally = report(assessments, surface)
+    invalid = bool(assessments and assessments[0].waiver_problems)
+    if args.require:
+        verdict = release_verdict(tally, bool(records), invalid)
+        print(verdict)
+        return 0 if verdict.startswith("ATTESTED") else 1
     return 0
 
 

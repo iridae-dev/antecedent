@@ -24,7 +24,8 @@ is enough when only some facets drifted:
     python3 scripts/collect_coverage_records.py --keep-attested
 
 keeps every existing record the logs do not re-measure whose facets are
-unchanged since its own `calibration_sha`, and drops (and names) the ones
+unchanged since its own `calibration_sha` (or that a valid replay waiver in
+`parity/calibration_waivers.toml` attests), and drops (and names) the ones
 that still owe a re-measurement. Without it the registry is exactly the logs.
 
 `--retag` rewrites only the `facets` of the existing records (after a change
@@ -177,9 +178,12 @@ def tag_facets(records: dict[str, dict]) -> None:
 def keep_attested(measured: dict[str, dict]) -> dict[str, dict]:
     """Existing records the logs did not re-measure and that still stand."""
     surface = facets.load_surface()
-    existing = [rec for rec in facets.load_records(OUT) if rec["id"] not in measured]
+    registry = facets.load_records(OUT)
+    existing = [rec for rec in registry if rec["id"] not in measured]
     kept: dict[str, dict] = {}
-    for assessment in facets.assess(surface, existing):
+    # A record attested_by_replay under a valid waiver is not stale, so it is
+    # kept; the waiver's evidence is checked against the registry as it stood.
+    for assessment in facets.assess(surface, existing, registry=registry):
         stale = {rec["id"] for rec in assessment.stale}
         for rec in assessment.records:
             if assessment.resolved and rec["id"] not in stale:

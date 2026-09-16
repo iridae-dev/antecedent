@@ -6,7 +6,9 @@
 #   1. requires CI_RUN_ID: a GitHub Actions `ci` run on this exact HEAD in which
 #      every display-name expansion of every `required_jobs` id
 #      (parity/release.toml) concluded `success`
-#   2. requires a calibration SHA whose statistical surface matches HEAD
+#   2. requires every coverage record attested against HEAD: its facets unchanged
+#      since its own calibration_sha, or attested_by_replay under a valid replay
+#      waiver (the attestation gate prints that count and the waiver ids)
 #   3. runs gate_release.sh (inventory, composition, prior feature gates)
 #   4. runs Python lint/types and the full Python test suite
 #   5. builds one local wheel into a fresh directory, installs it into a fresh
