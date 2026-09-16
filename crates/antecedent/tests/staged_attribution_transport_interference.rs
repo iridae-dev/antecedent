@@ -328,7 +328,7 @@ fn refused_with(error: &antecedent::CausalError) -> Option<String> {
     antecedent_core::reason_code::split_prefix(rest).map(|(code, _)| code.to_string())
 }
 
-/// The licensed interference cell is NeighborCount under Bernoulli assignment;
+/// The licensed interference cell is `NeighborCount` under Bernoulli assignment;
 /// another design on the same coordinate is refused, not executed under the
 /// cell's license.
 #[test]
@@ -366,7 +366,7 @@ fn interference_outside_the_licensed_construction_is_refused() {
     }
 }
 
-/// The licensed transport cell transports a mean ResponseCurve; a derivative
+/// The licensed transport cell transports a mean `ResponseCurve`; a derivative
 /// would be labelled with a binary IPW contrast it is not, so it is refused.
 #[test]
 fn transport_outside_the_licensed_construction_is_refused() {
