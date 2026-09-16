@@ -18,13 +18,85 @@ max_uses = 0
 [[code]]
 id = "estimator_grid_not_measured"
 applies_to = ["calibration"]
-meaning = "This estimator × SE-kind coordinate has no coverage record."
-max_uses = 54
+meaning = "No coverage record measured this construction (query, graph class, structure, inference, estimator, interval method, SE kind, dependence, posterior, functional)."
+max_uses = 81
 
 [[code]]
-id = "callback_not_portable"
+id = "interval_level_not_measured"
+applies_to = ["calibration"]
+meaning = "Records measured this construction, but not at the level the execution reported its interval at."
+max_uses = 0
+
+[[code]]
+id = "identification_not_measured"
+applies_to = ["calibration"]
+meaning = "Records measured this construction under the other identification label; a partially identified answer is not covered by a point-identified measurement."
+max_uses = 0
+
+[[code]]
+id = "sample_size_outside_measured_range"
+applies_to = ["calibration"]
+meaning = "The execution's row count lies outside every measured row-count range for this construction."
+max_uses = 0
+
+[[code]]
+id = "resampling_replicates_below_measured"
+applies_to = ["calibration"]
+meaning = "Fewer resampling replicates succeeded than the record measured."
+max_uses = 0
+
+[[code]]
+id = "posterior_draws_below_measured"
+applies_to = ["calibration"]
+meaning = "Fewer posterior draws than the record measured."
+max_uses = 0
+
+[[code]]
+id = "unidentified_mass_above_measured"
+applies_to = ["calibration"]
+meaning = "More structural mass is not identified than the record measured."
+max_uses = 0
+
+[[code]]
+id = "calibration_basis_missing"
+applies_to = ["calibration"]
+meaning = "The claim carries no calibration match basis to re-derive its slot from."
+max_uses = 0
+
+[[code]]
+id = "data_modality_not_licensed"
 applies_to = ["python_product", "runtime_refusal"]
-meaning = "A caller callback is in-process only and is not a portable claim."
+meaning = "The query is not licensed on this data modality (tabular, series, event, panel, multi-environment)."
+max_uses = 8
+
+[[code]]
+id = "option_not_applicable"
+applies_to = ["python_product", "runtime_refusal"]
+meaning = "The option has no meaning for the selected route, so it is refused rather than ignored."
+max_uses = 2
+
+[[code]]
+id = "validators_not_applicable"
+applies_to = ["runtime_refusal"]
+meaning = "Custom validators refute one scalar average effect; this estimand has no such refutation problem."
+max_uses = 0
+
+[[code]]
+id = "population_not_estimable"
+applies_to = ["runtime_refusal"]
+meaning = "The query has no target population to redeclare, or this route estimates the all-observed population only."
+max_uses = 0
+
+[[code]]
+id = "prior_transfer_not_hydrated"
+applies_to = ["runtime_refusal"]
+meaning = "This route fits under the isotropic prior scale and does not hydrate a transferred prior."
+max_uses = 0
+
+[[code]]
+id = "stage_stream_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "The route fits its point and uncertainty together, or mixes identifications, so it has no progressive stages."
 max_uses = 0
 
 [[code]]
