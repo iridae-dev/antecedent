@@ -135,15 +135,7 @@ impl<G> IdentificationEnvelope<G> {
             invariant = None;
         }
         let critical_graph_features = collect_critical_features(&cases, status, unidentified);
-        let truncated_completions = cases
-            .iter()
-            .filter(|c| {
-                c.result.diagnostics.iter().any(|d| {
-                    d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
-                        || d.code.as_ref() == crate::temporal_mag::HISTORY_CAPPED
-                })
-            })
-            .count();
+        let truncated_completions = cases.iter().filter(|c| case_truncated(c)).count();
         Self {
             invariant,
             cases,
@@ -153,6 +145,15 @@ impl<G> IdentificationEnvelope<G> {
             status,
             truncated_completions,
         }
+    }
+
+    /// Weight of cases whose search was truncated before it could determine
+    /// identifiability. This mass is counted in [`Self::unidentified_weight`]
+    /// like any other unidentified case; a caller that must separate "could
+    /// not tell" from "proved impossible" subtracts it.
+    #[must_use]
+    pub fn truncated_weight(&self) -> f64 {
+        self.cases.iter().filter(|case| case_truncated(case)).map(|case| case.weight.0).sum()
     }
 
     /// Merge additional critical features (e.g. source-PAG circle marks) without duplicates.
@@ -167,6 +168,14 @@ impl<G> IdentificationEnvelope<G> {
             }
         }
     }
+}
+
+/// Whether this case's search was truncated before it could decide.
+fn case_truncated<G>(case: &GraphIdentificationCase<G>) -> bool {
+    case.result.diagnostics.iter().any(|d| {
+        d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+            || d.code.as_ref() == crate::temporal_mag::HISTORY_CAPPED
+    })
 }
 
 /// Class-wide invariant estimands must agree on the functional roles, not just the method tag.
@@ -281,6 +290,42 @@ mod tests {
             "features={:?}",
             env.critical_graph_features
         );
+    }
+
+    // An envelope with no capped case truncates exactly zero weight, not
+    // approximately zero: the sum runs over an empty set.
+    #[allow(clippy::float_cmp)]
+    #[test]
+    fn truncated_weight_separates_capped_search_from_proved_non_identification() {
+        let mut capped = dummy_result(IdentificationStatus::NotIdentified);
+        capped.diagnostics.push(antecedent_core::Diagnostic::new(
+            crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE,
+            antecedent_core::DiagnosticKind::Execution,
+            antecedent_core::DiagnosticSeverity::Warning,
+            "completion enumeration exceeded its budget",
+        ));
+        let env = IdentificationEnvelope::from_cases(vec![
+            GraphIdentificationCase {
+                graph: 0u32,
+                result: dummy_result(IdentificationStatus::NonparametricallyIdentified),
+                weight: ProbabilityMass(0.25),
+            },
+            GraphIdentificationCase {
+                graph: 1u32,
+                result: dummy_result(IdentificationStatus::NotIdentified),
+                weight: ProbabilityMass(0.5),
+            },
+            GraphIdentificationCase { graph: 2u32, result: capped, weight: ProbabilityMass(0.25) },
+        ]);
+        assert_eq!(env.truncated_completions, 1);
+        assert!((env.truncated_weight() - 0.25).abs() < 1e-12);
+        assert!((env.unidentified_weight.0 - 0.75).abs() < 1e-12, "capped mass is not dropped");
+        let complete = IdentificationEnvelope::from_cases(vec![GraphIdentificationCase {
+            graph: 0u32,
+            result: dummy_result(IdentificationStatus::NotIdentified),
+            weight: ProbabilityMass(1.0),
+        }]);
+        assert_eq!(complete.truncated_weight(), 0.0);
     }
 
     #[test]

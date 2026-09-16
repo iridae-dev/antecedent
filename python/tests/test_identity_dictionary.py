@@ -44,30 +44,50 @@ def test_naming_rows_exist():
         assert row["python"] in NAMING
 
 
+HEX64 = re.compile(r"[0-9a-f]{64}")
+
+
+def _contract_value(section: dict, key_path: str):
+    cur = section
+    for key in key_path.split("."):
+        assert isinstance(cur, dict) and key in cur, f"{key_path} missing from the contract"
+        cur = cur[key]
+    return cur
+
+
+def _hex(value) -> str:
+    return value if isinstance(value, str) else bytes(value).hex()
+
+
 def test_prepared_and_loaded_availability():
+    # An AIPW prepared study holds a score table, so every advertised domain,
+    # including score_reuse, has a value; a nonconstant retarget adds
+    # target_weights.
+    data = _data()
     prepared = ant.prepare(
-        _data(), graph=GRAPH, query=ant.AverageEffect("t", "y"), refute="none", bootstrap=0
+        data,
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=ant.AverageEffect("t", "y"),
+        estimator="aipw",
+        refute="none",
+        bootstrap=0,
     )
     slots = prepared.inspect()
     executed = prepared.estimate()
-    loaded = ant.load(executed.export())
-    loaded_slots = loaded.inspect()
+    retargeted = prepared.retarget(np.exp(data["z"] / 3), depends_on=["z"])
+    exported = retargeted.export()
+    loaded_slots = ant.load(exported).inspect()
+    section = ant.artifacts.loads(exported).contract
     for row in IDENTITY["identity"]:
         attr = row["python"].removeprefix("inspect().")
-        prepared_value = getattr(slots, attr, None)
-        loaded_value = getattr(loaded_slots, attr, None)
-        if row["availability"] == "loaded":
-            assert prepared_value in (None, "")
-            if attr != "target_weights_id":
-                assert loaded_value is None or isinstance(loaded_value, str)
-        elif "prepared" in row["availability"] and prepared_value:
-            assert isinstance(prepared_value, str)
-        keys = row["contract_key"].split(".")
-        payload = executed.inspect().to_dict()
-        cur = payload.get("contract") or payload
-        for key in keys:
-            if not isinstance(cur, dict) or key not in cur:
-                cur = None
-                break
-            cur = cur[key]
-        assert cur is not None or row["python"] in NAMING
+        prepared_value = getattr(slots, attr)
+        loaded_value = getattr(loaded_slots, attr)
+        if "prepared" in row["availability"]:
+            assert isinstance(prepared_value, str) and HEX64.fullmatch(prepared_value), attr
+        else:
+            assert prepared_value is None, attr
+        assert "loaded" in row["availability"], attr
+        assert isinstance(loaded_value, str) and HEX64.fullmatch(loaded_value), attr
+        assert _hex(_contract_value(section, row["contract_key"])) == loaded_value, attr
+    assert executed.inspect().target_weights_id is None
+    assert HEX64.fullmatch(executed.inspect().score_reuse_id)

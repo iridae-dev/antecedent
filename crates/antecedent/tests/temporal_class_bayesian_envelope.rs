@@ -1376,6 +1376,60 @@ fn temporal_class_bayesian_pulse_mixes_with_unidentified_mass() {
 }
 
 #[test]
+fn prepared_temporal_class_contract_binds_its_envelope() {
+    use antecedent_core::SlotAvailability;
+
+    let data = series_from_law(400, false);
+    let ctx = ExecutionContext::for_tests(7);
+    let prepare = |max: Option<usize>| {
+        let mut builder = Study::series(data.clone())
+            .graph(cpdag())
+            .query(pulse_query())
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0);
+        if let Some(max) = max {
+            builder = builder.max_completions(max);
+        }
+        builder.build().unwrap().prepare(&ctx).unwrap()
+    };
+    let prepared = prepare(None);
+    let contract = prepared.contract().unwrap();
+    let product = contract.identities.identification_product.expect("class product");
+    match &contract.reasoning.identification {
+        SlotAvailability::Available(slot) => {
+            assert_eq!(slot.weight_basis.as_deref(), Some("completion_enumeration"));
+            assert!(slot.identified_mass > 0.0, "{slot:?}");
+            assert!(
+                (slot.identified_mass + slot.unidentified_mass + slot.incomplete_search_mass - 1.0)
+                    .abs()
+                    < 1e-12
+            );
+        }
+        other => panic!("prepared class identification must be available: {other:?}"),
+    }
+    assert_eq!(
+        prepared.capability().unwrap().readiness,
+        Some(antecedent::OperationReadiness::Executable)
+    );
+
+    // A capped enumeration is a different envelope, so a different program.
+    let capped = prepare(Some(1));
+    let capped_contract = capped.contract().unwrap();
+    let capped_product =
+        capped_contract.identities.identification_product.expect("capped class product");
+    assert_ne!(capped_product, product, "distinct envelopes must be distinct products");
+    assert_ne!(capped_contract.identities.program, contract.identities.program);
+    assert_eq!(capped_contract.identities.identification, contract.identities.identification);
+    match &capped_contract.reasoning.identification {
+        SlotAvailability::Available(slot) => {
+            assert!(slot.search_capped);
+            assert!(!slot.full_mass_scope);
+        }
+        other => panic!("capped class identification must be available: {other:?}"),
+    }
+}
+
+#[test]
 fn capped_audit_cannot_claim_class_wide_identification() {
     let data = series_from_law(400, false);
     let uncapped = identify(&antecedent::AcceptedGraph::from(cpdag()), &pulse_query()).unwrap();

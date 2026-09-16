@@ -139,6 +139,14 @@ pub struct EffectEstimate {
     /// Circular-block geometry of a one-series block-bootstrap SE (the block
     /// length the estimator chose and the lag-aligned rows it resampled).
     pub block_resampling: Option<BlockResampling>,
+    /// Analytic SE formula behind [`Self::se_analytic`], recorded by the
+    /// estimator that computed it. `None` when the SE is not an
+    /// estimator-configured analytic kind (influence-function envelopes,
+    /// bootstrap-only paths, posterior summaries).
+    pub se_kind: Option<crate::se::AnalyticSeKind>,
+    /// Circular-block SE family behind a one-series [`Self::se_bootstrap`],
+    /// recorded by the path that ran the circular-block bootstrap.
+    pub block_family: Option<crate::temporal_block::CircularBlockFamily>,
 }
 
 /// Circular-block geometry an estimator used for its one-series bootstrap SE.
@@ -211,6 +219,8 @@ impl EffectEstimate {
             evalue: None,
             candidate_selection: None,
             block_resampling: None,
+            se_kind: None,
+            block_family: None,
         }
     }
 
@@ -259,6 +269,8 @@ impl EffectEstimate {
             evalue: None,
             candidate_selection: None,
             block_resampling: None,
+            se_kind: None,
+            block_family: None,
         }
     }
 
@@ -324,6 +336,20 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_influence(mut self, influence: Option<Arc<[f64]>>) -> Self {
         self.influence = influence;
+        self
+    }
+
+    /// Record the analytic SE formula behind [`Self::se_analytic`].
+    #[must_use]
+    pub fn with_se_kind(mut self, se_kind: crate::se::AnalyticSeKind) -> Self {
+        self.se_kind = Some(se_kind);
+        self
+    }
+
+    /// Record the circular-block SE family behind a one-series [`Self::se_bootstrap`].
+    #[must_use]
+    pub fn with_block_family(mut self, family: crate::temporal_block::CircularBlockFamily) -> Self {
+        self.block_family = Some(family);
         self
     }
 
@@ -671,6 +697,7 @@ impl LinearAdjustmentAte {
         );
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_se_kind(self.se_kind)
             .with_influence(Some(Arc::from(influence))))
     }
 

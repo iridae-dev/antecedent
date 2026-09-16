@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
 use crate::expr_wire::{ExprArenaWire, expr_arena_from_wire, expr_arena_to_wire};
-use crate::query_wire::{CausalQueryWire, causal_query_from_wire, causal_query_to_wire};
+use crate::query_wire::{CausalQueryWire, causal_query_from_wire};
 use crate::trace::{
     AssumptionRecordWire, DerivationStepWire, assumptions_from_wire, assumptions_to_wire,
 };
@@ -709,6 +709,18 @@ fn overlap_report_from_wire(wire: &OverlapReportWire) -> Result<OverlapReport, I
 pub fn identification_to_wire(
     r: &IdentificationResult,
 ) -> Result<IdentificationResultWire, IoError> {
+    identification_to_wire_with_registry(r, None)
+}
+
+/// Encode an identification result whose query names registry populations.
+///
+/// # Errors
+///
+/// Query encode failure, or a named population missing from `registry`.
+pub fn identification_to_wire_with_registry(
+    r: &IdentificationResult,
+    registry: Option<&antecedent_core::PopulationRegistry>,
+) -> Result<IdentificationResultWire, IoError> {
     Ok(IdentificationResultWire {
         status: match r.status {
             IdentificationStatus::NonparametricallyIdentified => {
@@ -724,7 +736,7 @@ pub fn identification_to_wire(
             IdentificationStatus::GraphDependent => "graph_dependent".into(),
             IdentificationStatus::NotIdentified => "not_identified".into(),
         },
-        query: causal_query_to_wire(&r.query)?,
+        query: crate::query_wire::causal_query_to_wire_with_registry(&r.query, registry)?,
         estimands: r
             .estimands
             .iter()

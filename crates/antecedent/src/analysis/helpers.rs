@@ -71,8 +71,8 @@ pub(crate) struct AssembleArgs<'a> {
     pub(crate) cancelled: bool,
     /// Adaptive early-stop (bootstrap SE and/or Bayesian draws).
     pub(crate) early_stopped: bool,
-    /// Interval recorded on the assembled result.
-    pub(crate) interval: crate::result::IntervalBinding,
+    /// Whether the program's inference family is Bayesian.
+    pub(crate) bayesian: bool,
 }
 
 pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
@@ -82,7 +82,7 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         .iter()
         .filter(|(_, m)| !matches!(m, BufferMaterialization::Borrowed))
         .count() as u64;
-    StudyResult {
+    let mut result = StudyResult {
         logical_plan: args.logical.clone(),
         physical_plan: args.physical.clone(),
         identification: args.identification,
@@ -125,10 +125,14 @@ pub(crate) fn assemble_result(args: AssembleArgs<'_>) -> StudyResult {
         },
         treatment: args.treatment,
         outcome: args.outcome,
-        interval: Some(args.interval),
-        retarget_population: None,
+        interval: None,
+        row_weights: None,
         custom_validator_names: Vec::new(),
-    }
+        executed_contract: None,
+        population_registry: None,
+    };
+    result.rebind_interval(args.bayesian);
+    result
 }
 
 pub(crate) type ProvStep<'a> = (&'a str, &'a str, &'a [&'a str], &'a AssumptionSet);

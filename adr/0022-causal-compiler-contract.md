@@ -61,35 +61,55 @@ recorded as incomplete search, not a proof of non-identification.
 Identities are versioned, domain-separated BLAKE3 digests of wire
 encodings (`antecedent-io` CBOR), never `Debug`, randomized hashes, arena
 offsets, or process-local atom keys. Data storage contributes a cached digest
-of its typed contents using the primitive encoding described below. Format tag `antecedent.identity.v1`.
+of its typed contents using the primitive encoding described below. Format tag `antecedent.identity.v2`.
 Variable bindings use schema names. Durable atom identity includes lagged
 and contemporaneous edges.
 
 | Layer | Digest covers | Does not cover |
 | --- | --- | --- |
 | Target | query, population, interventions, outcome functional, temporal policy/horizons, variable-name bindings | graph, prior, data rows |
-| Identification | target + accepted structural semantics, observation/evidence contract, relevant assumptions | identifier configuration, numeric knobs |
-| Identification product | status, estimands + expression arena, derivation, assumptions, hedge witness, capped-search flag | `candidates_examined`, diagnostics that are only execution |
-| Program | identification + products + licensed inferential commitments | acceptance/review provenance, seeds |
-| Inference binding | resolved prior/mapping, numeric configuration, validation, dependence/resampling | structural identification |
-| Observation | schema/observation contract | row contents, order, masks |
-| Data snapshot | observation + modality + ordered storage content digests, masks, weights, unit labels, row counts, and per-partition regularity | causal target |
-| Execution | seeds, backend, budgets, implementation versions | program identity |
+| Identification | population-free target question + accepted structural semantics (posterior atom graphs and weights, class prior, transport selection diagram and trial columns), observation/evidence contract, relevant assumptions | target population, identifier configuration, numeric knobs |
+| Identification product | status, estimands + expression arena, derivation rule ids, assumptions, hedge witness, capped-search flag | `candidates_examined`, derivation detail prose, diagnostics that are only execution |
+| Program | target (with its population) + identification + products + licensed inferential commitments + completion-search budget | acceptance/review provenance, seeds |
+| Inference binding | resolved prior contents and mapping, Bayesian backend and likelihood, numeric configuration (bootstrap replicates, draws, response options including bandwidth, observation-estimator options, discovery/estimation split), validation, dependence/resampling | structural identification |
+| Observation | schema/observation contract, including each assumption's variables | row contents, order, masks |
+| Data snapshot | observation + modality + ordered storage content digests, masks, weights, unit labels, row counts, per-partition regularity, and a fixed interference network with its realized assignment | causal target |
+| Execution | seeds, backend and kernel policy, determinism, adaptive Monte Carlo budgets, implementation versions | program identity |
 
 Identification digests use a projection of `IdentificationIdentityWire` that
-excludes source, accepted version, and discovery algorithm. These fields remain
-in the wire record and facade inspection for audit. The facade hashes the
+excludes source, accepted version, discovery algorithm, and the position-derived
+posterior-atom execution keys. These fields remain in the wire record and facade
+inspection for audit. Graph edge lists, posterior atoms, observation tags, prior
+parameter pairs, and selection targets are canonically ordered, so insertion or
+enumeration order is never identity. The facade hashes the
 resolved schema-name binding after the existing builder validation, so adding
 an explicit matching binding or reaccepting an unchanged graph preserves its
 scientific identity. Absence of a portable binding remains visible separately.
 
 Physical batching/layout changes preserve program identity. A different
-graph is a different program even if it produces the same scalar.
+graph is a different program even if it produces the same scalar, and so is a
+different target population: ATE and ATT share identification premises and
+differ in target and program.
+
+Configuration reaches a digest as a structured wire of scalar fields, never
+through `Debug` or `Display`; data-sized vectors enter as one `payload_digest`
+of their little-endian bytes, computed once when the study is built.
+
+A row-weight retarget defines its population by weights over the rows of one
+snapshot, so that population is snapshot-bound by construction. Its
+`RowWeights` target references a `target_weights` identity (domain
+`antecedent.identity.target_weights.v1`) over the exact weight bits, row count,
+data snapshot, `score_reuse` digest of the score table it reweights, and
+declared `depends_on`. It does not bind the program, which is population-free.
+The weights travel in the contract section; consume re-derives the identity
+and checks that the target, snapshot and score table all name it. Identification
+is unchanged: it hashes the population-free question.
 
 ### Storage content identity
 
 `OwnedColumnarStorage` computes its content digest once at construction, before
-it becomes immutable. The existing workspace BLAKE3 dependency is also used by
+it becomes immutable. Values are staged into a fixed buffer and handed to
+BLAKE3 in bulk; the hashed byte stream is the encoding below either way. The existing workspace BLAKE3 dependency is also used by
 `antecedent-data`; no dependency on IO is introduced. Construction adds a linear
 hashing pass, with no cell-buffer copies. Clones and contract inspection reuse
 the retained 32 bytes. New storage from selection/replacement is hashed anew.
@@ -138,6 +158,23 @@ semantics, verifying dependencies, and being able to execute remain
 separate states. Checksums establish integrity, not validity of
 assumptions.
 
+A contract section carries a seal over its advertised identities, the four
+slots, and its audit fields (graph class, structure source, identifier,
+estimator); a claim id binds that seal, every claim field, and a digest of the
+executed result body. Independent consume rehashes the stored payloads,
+re-derives the cross-layer references (the population-free question, the
+observation, graph class, schema, and inference family), and re-derives the
+claim kind, the claim domains, and the empirical support label from the body it
+carries. Nothing a verified consume reports sits outside a digest it checks.
+Empirical support is the outcome of the overlap checks that ran: a failed check
+contradicts support rather than establishing it, and evaluation alone never
+supports a coordinate.
+
+A result is exported under the contract that produced it. A prepared handle
+stamps each result with the contract it executed — including the executed data
+snapshot and validation suite — and export refuses a result from another
+program, another snapshot, or no prepared handle at all.
+
 ### Additive compatibility
 
 Inventory public structs before adding fields. Prefer accessors, companion
@@ -185,7 +222,7 @@ Additive companions only. No `CausalProgram` builder. No second taxonomy.
 | `RequestIdentity`, `ExecutionReceipt`, `ExecutionRequestState` | `antecedent-core` | Host request identity around `ExecutionContext` |
 | `CausalContract` | `antecedent` | Companion of `Study` / `PreparedStudy` |
 | Identity / contract wires, `verify_contract_against_body` | `antecedent-io` | Existing CBOR sections; consume rehashes stored payloads |
-| `DbnAtomIdentityWire` | `antecedent-io` | Projects `GraphPosterior` lag+contemporaneous masks onto `TemporalGraphWire` plus the local envelope key |
+| `PosteriorAtomIdentityWire` | `antecedent-io` | Projects each `GraphPosterior` atom (static adjacency, or lag+contemporaneous masks onto `TemporalGraphWire`) plus its weight; the local envelope key stays out of the hashed premises |
 | Storage content digest | `antecedent-data` | `OwnedColumnarStorage` construction |
 | Python `PreparedAnalysis.contract` / `preview_transform` / `artifacts.accept` | `antecedent-py` | String views of the same records; typed errors stay in `errors.py` |
 

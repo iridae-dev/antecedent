@@ -1026,15 +1026,21 @@ impl super::Study {
                 ),
             ));
         }
-        diagnostics.push(Diagnostic::new(
-            "estimate.graph_posterior.envelope",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "published effect is E[τ | identified]; identified_mass={total_w}, unidentified_mass={unidentified_mass}, subsampled_out_mass={subsampled_out_mass}, atoms={}",
-                refute_atoms.len()
-            ),
-        ));
+        diagnostics.push(
+            Diagnostic::new(
+                "estimate.graph_posterior.envelope",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "published effect is E[τ | identified]; identified_mass={total_w}, unidentified_mass={unidentified_mass}, subsampled_out_mass={subsampled_out_mass}, atoms={}",
+                    refute_atoms.len()
+                ),
+            )
+            .with_fields(super::mass_fields(
+                Some(total_w),
+                unidentified_mass,
+            )),
+        );
 
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, na_diagnostics) = run_envelope_effect_refuters(
@@ -1198,7 +1204,8 @@ impl super::Study {
             OverlapPolicy::ExplicitOverride,
             None,
             None,
-        );
+        )
+        .with_block_family(antecedent_estimate::CircularBlockFamily::Mixture);
         let refute_atoms = contexts
             .iter()
             .zip(&atom_estimates)
@@ -1261,20 +1268,26 @@ impl super::Study {
                     Some(data.time_index()),
                 )?
             };
-        diagnostics.push(Diagnostic::new(
-            "estimate.dbn_posterior.frequentist",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "{}; bands require two successes and at most half failed attempts",
-                shared_block_mixture_message(
-                    "fixed graph weights",
-                    point_mass,
-                    identified.graphs.unidentified_mass(),
-                    &block,
-                )
-            ),
-        ));
+        diagnostics.push(
+            Diagnostic::new(
+                "estimate.dbn_posterior.frequentist",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "{}; bands require two successes and at most half failed attempts",
+                    shared_block_mixture_message(
+                        "fixed graph weights",
+                        point_mass,
+                        identified.graphs.unidentified_mass(),
+                        &block,
+                    )
+                ),
+            )
+            .with_fields(super::mass_fields(
+                Some(point_mass),
+                identified.graphs.unidentified_mass(),
+            )),
+        );
         if se.is_finite() {
             diagnostics.extend(short_series_warning(
                 block.effective_rows,
@@ -1792,7 +1805,8 @@ impl super::Study {
                             DiagnosticKind::Scientific,
                             DiagnosticSeverity::Warning,
                             "unidentified_mass=1",
-                        ),
+                        )
+                        .with_fields(super::mass_fields(Some(0.0), 1.0)),
                         Diagnostic::new(
                             "estimate.dbn_posterior.atom_demotion",
                             DiagnosticKind::Scientific,

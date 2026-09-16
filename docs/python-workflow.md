@@ -135,6 +135,14 @@ execution (prepared-only, cancelled, or a body-only load) refuses `.study` /
 `.export()` with `not_executed` or `cancelled_no_claim`. It never silently
 reruns discovery.
 
-Retargeting remains available from frozen scores. A nonconstant-weight retarget
-exports with a `target_weights` identity bound to its data snapshot. Re-execution
-on a different snapshot raises `row_weights_bound_to_snapshot`.
+Retargeting remains available from frozen scores of the execution it follows:
+after `estimate(new_data)`, `retarget` reweights the scores fitted on `new_data`.
+A nonconstant-weight retarget exports under a `RowWeights` target whose
+`target_weights` identity binds the exact weight bits, their row count, the data
+snapshot, the score table (`score_reuse`) and `depends_on`. The weights travel in
+the artifact, so a consumer re-derives the identity and confirms the population
+the answer is about; `inspect().target_weights_id` shows it. Constant weights of
+any scale keep the original target. The binding belongs to the retargeted
+result, not to the plan: the plan is still an AllObserved study and re-estimates
+on new data, while `reexecute_retarget(artifact)` re-runs the carried weights and
+raises `row_weights_bound_to_snapshot` on a different snapshot.

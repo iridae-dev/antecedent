@@ -594,7 +594,7 @@ pub(crate) fn parse_outcome_functional(
 }
 
 /// Build a [`PopulationRegistry`] from optional predicate/distribution dicts.
-fn parse_population_registry(
+pub(crate) fn parse_population_registry(
     predicates: Option<&Bound<'_, PyDict>>,
     distributions: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<Option<PopulationRegistry>> {

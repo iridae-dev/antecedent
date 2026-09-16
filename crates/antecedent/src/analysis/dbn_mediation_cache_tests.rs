@@ -161,7 +161,7 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
         assert!((fresh.estimate.effect.ate - cached.estimate.effect.ate).abs() < 1e-12);
     }
     assert!((fresh_grid.slices[0].estimate.effect.ate - 0.44).abs() < 0.04);
-    prepared.analysis.dbn_posterior_identification_cache = Some(Arc::new(cache));
+    prepared.study_mut().dbn_posterior_identification_cache = Some(Arc::new(cache));
     let mixed = prepared.estimate_series(&series, &ctx).unwrap();
     let repeated = prepared.refresh_series(series.clone(), &ctx).unwrap();
     let grid = mixed.mediation_grid.as_ref().unwrap();
@@ -215,7 +215,7 @@ fn mixed_horizon_certificates_keep_mass_and_prepared_estimates_independent() {
         },
     )
     .unwrap();
-    prepared.analysis.dbn_posterior_identification_cache = Some(Arc::new(all_missing));
+    prepared.study_mut().dbn_posterior_identification_cache = Some(Arc::new(all_missing));
     let partial_grid = prepared.estimate_series(&series, &ctx).unwrap();
     let slices = &partial_grid.mediation_grid.as_ref().unwrap().slices;
     assert!(

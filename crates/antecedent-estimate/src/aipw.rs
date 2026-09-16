@@ -378,6 +378,7 @@ impl AipwAte {
             IpwTarget::from_population(&problem.target_population).ok(),
         ));
         let estimate = EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_se_kind(self.se_kind)
             .with_overlap_report(overlap_report)
             .with_bootstrap(boot)
             .with_influence(Some(Arc::from(workspace.psi.as_slice())));

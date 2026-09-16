@@ -549,15 +549,21 @@ impl super::Study {
         });
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.push(envelope_diagnostic);
-        diagnostics.push(Diagnostic::new(
-            format!("estimate.{class_tag}.nonidentified_prior"),
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Warning,
-            format!(
-                "{class_tag} not identified; returning prior-predictive draws (unidentified_mass={})",
-                posterior.unidentified_mass
-            ),
-        ));
+        diagnostics.push(
+            Diagnostic::new(
+                format!("estimate.{class_tag}.nonidentified_prior"),
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                format!(
+                    "{class_tag} not identified; returning prior-predictive draws (unidentified_mass={})",
+                    posterior.unidentified_mass
+                ),
+            )
+            .with_fields(super::mass_fields(
+                None,
+                posterior.unidentified_mass,
+            )),
+        );
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,

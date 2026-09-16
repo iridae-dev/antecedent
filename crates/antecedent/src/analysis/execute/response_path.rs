@@ -211,21 +211,27 @@ impl super::Study {
         } else {
             EstimatorId::default_for_response(&query.functional)
         };
-        let mut diagnostics = vec![Diagnostic::new(
-            "estimate.response.graph_posterior",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
+        let mut diagnostics = vec![
+            Diagnostic::new(
+                "estimate.response.graph_posterior",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
                  unevaluable_mass={}; subsampled_out_mass={}; failed estimation and \
                  atoms the Interactive tier did not evaluate are not mixed into \
                  unidentified mass",
-                identified_mass / total_mass,
+                    identified_mass / total_mass,
+                    unidentified_mass / total_mass,
+                    failed_mass / total_mass,
+                    subsampled_out_mass / total_mass
+                ),
+            )
+            .with_fields(super::mass_fields(
+                Some(identified_mass / total_mass),
                 unidentified_mass / total_mass,
-                failed_mass / total_mass,
-                subsampled_out_mass / total_mass
-            ),
-        )];
+            )),
+        ];
         if weighted.len() > 1 && mixed_if_se.is_none() {
             diagnostics.push(Diagnostic::new(
                 "estimate.response.graph_posterior.uncertainty_withheld",
@@ -842,8 +848,8 @@ impl super::Study {
             estimate: ResponseIdentification::PointIdentified(ResponseValue::Scalar(scalar)),
             uncertainty: ResponseUncertainty::Scalar {
                 standard_error: se,
-                lower: scalar - 1.96 * se,
-                upper: scalar + 1.96 * se,
+                lower: scalar - crate::result::reported_se_interval_z() * se,
+                upper: scalar + crate::result::reported_se_interval_z() * se,
                 level: 0.95,
             },
             support: antecedent_core::SupportReport {

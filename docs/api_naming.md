@@ -124,6 +124,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Named CPDAG | `Cpdag::from_named_edges` + `insert_undirected` | `Cpdag.from_directed_undirected(names, directed, undirected)` |
 | EconML handoff | — | `antecedent.handoff.econml(result, modifiers=…, target_weights=…, outcome_functional=…)` — point-identified backdoor / generalized adjustment; temporal specs carry offsets |
 | Outcome functional | `OutcomeFunctional::{Mean, Exceedance, ExceedanceGrid}` | `antecedent.query.Mean` / `Exceedance` / `ExceedanceGrid` on `AverageEffect`, `ConditionalEffect`, `InterventionResponse` |
+| Re-execute a carried retarget | `PreparedStudy::reexecute_retarget(section, ctx)` — the weights an exported contract carries; refuses `row_weights_bound_to_snapshot` on another snapshot or score table | `PreparedAnalysis.reexecute_retarget(artifact)` — same, from the exported bytes |
 | Retarget prepared plan | `PreparedStudy::retarget(weights, depends_on, ctx)` — requires a frozen AllObserved iid AIPW or cell-AIPW score table; nonempty `depends_on` needs a directed graph (DAG or ADMG); nonconstant weights require nonempty `depends_on` | `PreparedAnalysis.retarget(weights, depends_on)` — same; `analyze(...).study` retains the prepared handle on supported routes; scores require a licensed score-table estimator |
 | Tiered background | `StudyBuilder::tiered_background(TieredBackground)` | `antecedent.graph.TieredBackground` / `WithinTier` as `analyze(..., graph=…)` |
 | Cell-saturated joint AIPW | `EstimatorId::CellAipw` (`cell.aipw`) | `Estimator.CELL_AIPW` / `"cell.aipw"` |
@@ -154,14 +155,14 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Latent projection | `latent_project` | `Dag.latent_project(observed)` |
 | External prior bank | `antecedent-prob::conjugate_moment_match` / `compose_external_priors` | `antecedent.priors.beta_from_moments` / `compose_external_priors` / `PriorCatalog` (module renamed from `prior_bank` to `priors`) |
 | Target identity | target digest on the inspect/contract | `inspect().target_id` |
-| Identification premises identity | identification digest | `inspect().identification_id` |
+| Identification premises identity | identification digest over the population-free question, accepted structure (posterior atoms and weights), class prior, transport selection, and observation contract | `inspect().identification_id` |
 | Identification product identity | identification-product digest | `inspect().identification_product_id` |
-| Compiled program identity | program digest on the inspect/contract | `result.program_id` / `inspect().program_id` — compiled program, not the execution claim; loaded (executed) study only for `claim_id` |
-| Inference binding identity | inference-binding digest | `inspect().inference_binding_id` |
+| Compiled program identity | program digest on the inspect/contract; covers the target population, so ATE and ATT are different programs | `result.program_id` / `inspect().program_id` — compiled program, not the execution claim; loaded (executed) study only for `claim_id` |
+| Inference binding identity | inference-binding digest over prior contents, backend and likelihood, and numeric knobs (a response bandwidth moves this, not the program); independent of structure | `inspect().inference_binding_id` |
 | Observation identity | observation digest | `inspect().observation_id` |
 | Data snapshot identity | data-snapshot digest | `inspect().data_snapshot_id` |
 | Execution identity | execution digest | `inspect().execution_id` |
-| Execution claim identity | `StudyResult::claim` digest | `result.claim_id` / `inspect().claim_id` / `contract["claim"]["claim_id"]` |
+| Execution claim identity | `StudyResult::claim` digest over the contract seal (identities, four slots, audit fields), the claim fields, and the executed result body | `result.claim_id` / `inspect().claim_id` / `contract["claim"]["claim_id"]` |
 | Score reuse identity | score-reuse digest | `inspect().score_reuse_id` |
 | Target-weight identity | target-weights digest | `inspect().target_weights_id` |
 | Safe consumption shape | withheld leftover / partial ID | `result.answer` (`point` / `bounds` / `partial` / `unavailable`); historical `.effect` / `.posterior` / `.response` remain accessible and are not misuse-proof |

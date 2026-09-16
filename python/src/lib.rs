@@ -32,6 +32,7 @@ mod graphs;
 mod identification_details;
 mod observation_api;
 mod prepared_api;
+mod prepared_options;
 mod prior_bank;
 mod response_api;
 mod stability;

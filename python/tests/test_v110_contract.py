@@ -379,11 +379,17 @@ def test_retarget_export_reload_and_reexecute_on_snapshot() -> None:
     loaded = artifacts.loads(encoded)
     assert loaded.payload_kind == "analysis_result"
     assert artifacts.accept(encoded)["accepts_as_verified_program"] == "true"
+    section = loaded.contract
+    carried = section["target_weights"]
+    assert np.array_equal(np.asarray(carried["values"], dtype=float), weights)
+    assert (
+        bytes(section["identities"]["target_weights"]).hex()
+        == retargeted.inspect().target_weights_id
+    )
+    assert carried["identity"]["data_snapshot"] == section["identities"]["data_snapshot"]
 
 
-def test_retarget_refuses_new_data_with_code() -> None:
-    from antecedent.errors import CausalUnsupportedError
-
+def test_constant_retarget_keeps_the_prepared_target() -> None:
     data = _data()
     prepared = PreparedAnalysis.prepare(
         data,
@@ -393,10 +399,90 @@ def test_retarget_refuses_new_data_with_code() -> None:
         refute="none",
         bootstrap=0,
     )
+    estimated = prepared.estimate(data)
+    constant = prepared.retarget(np.full(len(data["t"]), 7.0), depends_on=[])
+    assert constant.inspect().target_weights_id is None
+    assert constant.inspect().target_id == estimated.inspect().target_id
+    from antecedent import artifacts
+
+    assert artifacts.accept(constant.export())["accepts_as_verified_program"] == "true"
+
+
+def test_retarget_uses_the_scores_of_the_execution_it_follows() -> None:
+    from antecedent import artifacts
+
+    def draw(seed: int, shift: float) -> dict[str, np.ndarray]:
+        rng = np.random.default_rng(seed)
+        z = rng.normal(size=300)
+        t = (rng.uniform(size=300) < 1 / (1 + np.exp(-0.8 * z))).astype(float)
+        y = (2.0 + shift * z) * t + z + rng.normal(scale=0.5, size=300)
+        return {"t": t, "y": y, "z": z}
+
+    d1, d2 = draw(1, 0.0), draw(2, 3.0)
+    kwargs = dict(
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=AverageEffect("t", "y"),
+        estimator="aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    weights = np.exp(d2["z"])
+    prepared = PreparedAnalysis.prepare(d1, **kwargs)
+    prepared.estimate(d2)
+    after_estimate = prepared.retarget(weights, depends_on=["z"])
+    fresh = PreparedAnalysis.prepare(d2, **kwargs)
+    fresh.estimate(d2)
+    on_d2 = fresh.retarget(weights, depends_on=["z"])
+    stale = PreparedAnalysis.prepare(d1, **kwargs)
+    stale.estimate(d1)
+    on_d1 = stale.retarget(weights, depends_on=["z"])
+    assert abs(on_d2.ate - on_d1.ate) > 0.5, "fixture must separate the two snapshots"
+    assert after_estimate.ate == on_d2.ate
+    exported = artifacts.loads(after_estimate.export()).contract
+    reference = artifacts.loads(on_d2.export()).contract
+    assert exported["identities"]["data_snapshot"] == reference["identities"]["data_snapshot"]
+    assert exported["identities"]["target_weights"] == reference["identities"]["target_weights"]
+
+
+def test_retarget_refuses_new_data_with_code() -> None:
+    """Row weights re-execute on their own snapshot, and refuse another one.
+
+    The binding is a property of the retargeted result, not of the plan: the
+    plan is still an AllObserved study and re-estimates on new data.
+    """
+    # A Rust refusal keeps its native class; describe_refusal attaches the code.
+    from antecedent._native import CausalUnsupportedError
+
+    data = _data()
+    kwargs = dict(
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=AverageEffect("t", "y"),
+        estimator="aipw",
+        refute="none",
+        bootstrap=0,
+    )
+    prepared = PreparedAnalysis.prepare(data, **kwargs)
     prepared.estimate(data)
-    prepared.retarget(np.exp(data["z"] / 3), depends_on=["z"])
+    weights = np.exp(data["z"] / 3)
+    retargeted = prepared.retarget(weights, depends_on=["z"])
+    carried = retargeted.export()
+
+    # The plan itself is not bound: a plain estimate on new data still works.
+    moved = {**data, "y": data["y"] + 1.0}
+    assert prepared.estimate(moved).ate == prepared.estimate(moved).ate
+
+    # Re-executing the carried weights on their own snapshot reproduces them.
+    same = PreparedAnalysis.prepare(data, **kwargs)
+    same.estimate(data)
+    again = same.reexecute_retarget(carried)
+    assert again.ate == retargeted.ate
+    assert again.inspect().target_weights_id == retargeted.inspect().target_weights_id
+
+    # On a different snapshot of the same shape it refuses with the code.
+    other = PreparedAnalysis.prepare(moved, **kwargs)
+    other.estimate(moved)
     try:
-        prepared.estimate({**data, "y": data["y"] + 1.0})
+        other.reexecute_retarget(carried)
     except CausalUnsupportedError as err:
         assert err.reason_code == "row_weights_bound_to_snapshot"
     else:

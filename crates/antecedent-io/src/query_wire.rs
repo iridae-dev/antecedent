@@ -12,19 +12,16 @@ use antecedent_core::{
     CounterfactualQuery, DistributionRef, DynamicRuleId, EnvironmentId, ExposureLevel,
     ExposureMapping, InterferenceFunctional, InterferenceQuery, Intervention, InterventionSequence,
     InterventionalDistributionQuery, MechanismChangeQuery, MechanismOverride, MediationContrast,
-    MediationQuery, OrderedFloatBits, OutcomeFunctional, PathSpecificEffectQuery, PopulationRegistry,
-    PopulationSelector, PredicateExpr, SequencedIntervention, ShapleyConfig, ShapleyMode,
-    StochasticPolicy, TargetPopulation, TemporalEffectQuery, TemporalPolicy, TransportQuery,
-    UnitChangeQuery, Value, VariableId,
+    MediationQuery, OrderedFloatBits, OutcomeFunctional, PathSpecificEffectQuery,
+    PopulationRegistry, PopulationSelector, PredicateExpr, SequencedIntervention, ShapleyConfig,
+    ShapleyMode, StochasticPolicy, TargetPopulation, TemporalEffectQuery, TemporalPolicy,
+    TransportQuery, UnitChangeQuery, Value, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
-use crate::response_wire::{
-    DerivativeScaleWire, ResponseFunctionalWire, ResponseQueryWire, response_query_from_wire,
-    response_query_to_wire,
-};
+use crate::response_wire::{ResponseQueryWire, response_query_from_wire, response_query_to_wire};
 
 /// Wire scalar value.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -195,14 +192,19 @@ impl TargetPopulationWire {
                 let registry = registry.ok_or_else(|| {
                     IoError::Convert("population registry required for named predicate".into())
                 })?;
-                let rows = registry.predicate(name).ok_or_else(|| {
-                    IoError::Convert(format!("unknown predicate {name}"))
-                })?;
+                let rows = registry
+                    .predicate(name)
+                    .ok_or_else(|| IoError::Convert(format!("unknown predicate {name}")))?;
                 let mut bytes = Vec::with_capacity(rows.len() * 8);
                 for &row in rows {
-                    bytes.extend_from_slice(&u64::try_from(row).map_err(|_| IoError::TooLarge)?.to_le_bytes());
+                    bytes.extend_from_slice(
+                        &u64::try_from(row).map_err(|_| IoError::TooLarge)?.to_le_bytes(),
+                    );
                 }
-                Self::PredicateNamed { name: name.to_string(), rows: crate::hash_payload(&bytes) }
+                Self::PredicateNamed {
+                    name: name.to_string(),
+                    rows: crate::payload_digest("population.predicate_rows", &bytes),
+                }
             }
             TargetPopulation::Predicate(PredicateExpr::Rows(rows)) => Self::PredicateRows(
                 rows.iter()
@@ -227,7 +229,7 @@ impl TargetPopulationWire {
                 }
                 Self::CustomDistribution {
                     handle: r.raw(),
-                    weights: crate::hash_payload(&bytes),
+                    weights: crate::payload_digest("population.distribution_weights", &bytes),
                     depends_on: registry
                         .distribution_dependencies(*r)
                         .unwrap_or(&[])
@@ -339,68 +341,6 @@ impl TemporalPolicyWire {
                 TemporalPolicy::dynamic(DynamicRuleId::from_raw(*rule), active_at.as_slice())
             }
         }
-    }
-}
-
-/// Matrix / coverage-record query name.
-///
-/// Same classification as `antecedent::support::query_axis_name`. Consume and
-/// claim must not invent a second mapping.
-#[must_use]
-pub fn query_axis_name(query: &CausalQueryWire, graph_class: &str) -> Option<&'static str> {
-    let temporal_graph = graph_class.starts_with("Temporal");
-    match query {
-        CausalQueryWire::AverageEffect { .. } => Some("AverageEffect"),
-        CausalQueryWire::ConditionalEffect { .. } => Some("ConditionalEffect"),
-        CausalQueryWire::Counterfactual { .. } => Some("Counterfactual"),
-        CausalQueryWire::Distribution(_) => Some("InterventionalDistribution"),
-        CausalQueryWire::PathSpecific(_) => Some("PathSpecificEffect"),
-        CausalQueryWire::Mediation { .. } => {
-            if temporal_graph {
-                Some("TemporalMediationEffect")
-            } else {
-                Some("MediationEffect")
-            }
-        }
-        CausalQueryWire::TemporalEffect { policy, .. } => match policy {
-            TemporalPolicyWire::Pulse { .. } => Some("PulseEffect"),
-            TemporalPolicyWire::Sustained { .. } => Some("SustainedEffect"),
-            TemporalPolicyWire::Dynamic { active_at, .. } => {
-                if active_at.len() == 1 {
-                    Some("PulseEffect")
-                } else {
-                    Some("SustainedEffect")
-                }
-            }
-        },
-        CausalQueryWire::Response(q) => {
-            if q.temporal.is_some() != temporal_graph {
-                return None;
-            }
-            match &q.functional {
-                ResponseFunctionalWire::MeanCurve { .. } => Some("ResponseCurve"),
-                ResponseFunctionalWire::AverageDerivative { .. } => Some("AverageDerivative"),
-                ResponseFunctionalWire::PointDerivative { scale, .. } => match scale {
-                    DerivativeScaleWire::Identity => Some("PointDerivative"),
-                    DerivativeScaleWire::LogTreatment | DerivativeScaleWire::LogOutcome => {
-                        Some("SemiElasticity")
-                    }
-                    DerivativeScaleWire::LogLog => Some("Elasticity"),
-                },
-                ResponseFunctionalWire::DirectionalDerivative { .. } => {
-                    Some("DirectionalDerivative")
-                }
-                ResponseFunctionalWire::Jacobian { .. } => Some("ResponseJacobian"),
-                ResponseFunctionalWire::InterventionResponse { .. } => {
-                    Some("InterventionResponse")
-                }
-            }
-        }
-        CausalQueryWire::Transport(_) => Some("TransportQuery"),
-        CausalQueryWire::Interference(_) => Some("InterferenceQuery"),
-        CausalQueryWire::AnomalyAttribution { .. } => Some("AnomalyAttribution"),
-        CausalQueryWire::ChangeAttribution { .. } => Some("ChangeAttribution"),
-        CausalQueryWire::MechanismChange { .. } | CausalQueryWire::UnitChange { .. } => None,
     }
 }
 
@@ -783,6 +723,64 @@ pub enum CausalQueryWire {
     Transport(TransportQueryWire),
     /// Randomized interference query.
     Interference(InterferenceQueryWire),
+}
+
+impl CausalQueryWire {
+    /// Mutable target population of a population-scoped query.
+    ///
+    /// Mirrors [`antecedent_core::CausalQuery::target_population_mut`] variant
+    /// for variant. The wire enum is a distinct type with distinct variant
+    /// shapes and a distinct population payload
+    /// ([`TargetPopulationWire`]), so the table cannot be shared with the core
+    /// owner; what keeps the two from drifting is that both matches here and
+    /// both matches there are exhaustive, so a new [`CausalQuery`] variant is
+    /// a compile error in all four. Which kinds are population-scoped is
+    /// decided by [`antecedent_core::CausalQuery::target_population`]; change
+    /// it there first.
+    pub fn target_population_mut(&mut self) -> Option<&mut TargetPopulationWire> {
+        match self {
+            Self::AverageEffect { target_population, .. }
+            | Self::TemporalEffect { target_population, .. }
+            | Self::Mediation { target_population, .. } => Some(target_population),
+            Self::Distribution(inner) => Some(&mut inner.target_population),
+            Self::PathSpecific(inner) => Some(&mut inner.target_population),
+            Self::Response(inner) => Some(&mut inner.target_population),
+            Self::ConditionalEffect { inner } => inner.target_population_mut(),
+            Self::Counterfactual { .. }
+            | Self::AnomalyAttribution { .. }
+            | Self::ChangeAttribution { .. }
+            | Self::MechanismChange { .. }
+            | Self::UnitChange { .. }
+            | Self::Transport(_)
+            | Self::Interference(_) => None,
+        }
+    }
+
+    /// Target population of a population-scoped query.
+    ///
+    /// The wire mirror of [`antecedent_core::CausalQuery::target_population`],
+    /// which owns the population-scoped / population-free split; see
+    /// [`Self::target_population_mut`] for why the table is mirrored rather
+    /// than shared.
+    #[must_use]
+    pub fn target_population(&self) -> Option<&TargetPopulationWire> {
+        match self {
+            Self::AverageEffect { target_population, .. }
+            | Self::TemporalEffect { target_population, .. }
+            | Self::Mediation { target_population, .. } => Some(target_population),
+            Self::Distribution(inner) => Some(&inner.target_population),
+            Self::PathSpecific(inner) => Some(&inner.target_population),
+            Self::Response(inner) => Some(&inner.target_population),
+            Self::ConditionalEffect { inner } => inner.target_population(),
+            Self::Counterfactual { .. }
+            | Self::AnomalyAttribution { .. }
+            | Self::ChangeAttribution { .. }
+            | Self::MechanismChange { .. }
+            | Self::UnitChange { .. }
+            | Self::Transport(_)
+            | Self::Interference(_) => None,
+        }
+    }
 }
 
 /// Structural transportability query wire form.

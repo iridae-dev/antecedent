@@ -570,23 +570,20 @@ fn validate_response_value(value: &crate::ResponseValueWire) -> Result<usize, Io
     }
 }
 
-pub(crate) fn validate_response_result(
+/// Length of the response value each identification payload carries, after
+/// checking that the payload's shape matches the declared estimand.
+fn validate_response_estimate(
     wire: &CausalResponseWire,
-    variable_count: usize,
-) -> Result<(), IoError> {
-    let temporal_horizons = validate_horizon_identification(
-        wire.horizon_identification.as_deref(),
-        wire.identification_status,
-        variable_count,
-    )?;
-    let value_len = match &wire.estimate {
+    temporal_horizons: Option<&[u32]>,
+) -> Result<Option<usize>, IoError> {
+    Ok(match &wire.estimate {
         crate::ResponseIdentificationWire::PointIdentified(value) => {
             let length = validate_response_value(value)?;
             validate_value_for_estimand(
                 value,
                 &wire.estimand,
                 ValueRole::Determinate,
-                temporal_horizons.as_deref(),
+                temporal_horizons,
             )?;
             Some(length)
         }
@@ -596,7 +593,7 @@ pub(crate) fn validate_response_result(
                 value,
                 &wire.estimand,
                 ValueRole::IdentifiedSet,
-                temporal_horizons.as_deref(),
+                temporal_horizons,
             )?;
             Some(length)
         }
@@ -619,7 +616,7 @@ pub(crate) fn validate_response_result(
                     value,
                     &wire.estimand,
                     ValueRole::Determinate,
-                    temporal_horizons.as_deref(),
+                    temporal_horizons,
                 )?;
                 if length.replace(current).is_some_and(|previous| previous != current) {
                     return Err(IoError::Convert(
@@ -637,7 +634,19 @@ pub(crate) fn validate_response_result(
             }
             None
         }
-    };
+    })
+}
+
+pub(crate) fn validate_response_result(
+    wire: &CausalResponseWire,
+    variable_count: usize,
+) -> Result<(), IoError> {
+    let temporal_horizons = validate_horizon_identification(
+        wire.horizon_identification.as_deref(),
+        wire.identification_status,
+        variable_count,
+    )?;
+    let value_len = validate_response_estimate(wire, temporal_horizons.as_deref())?;
     let status_matches = matches!(
         (&wire.identification_status, &wire.estimate),
         (

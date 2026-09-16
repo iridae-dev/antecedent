@@ -165,6 +165,21 @@ pub struct QueryRecord {
     pub query: CausalQuery,
     /// Version at which the cached result is valid (`None` = never computed).
     pub result_valid_at: Option<StateVersion>,
+    /// Lineage of the last published result. Retained when invalidation drops
+    /// the cached result, so publishing the same data snapshot again after a
+    /// data event is recognizable as a non-recomputation.
+    pub last_published: Option<PublishedLineage>,
+}
+
+/// Lineage recorded when a caller published a recomputed result.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PublishedLineage {
+    /// Complete lineage digest over every contract identity layer.
+    pub lineage: antecedent_core::SemanticDigest,
+    /// Data-snapshot identity the published result was computed on.
+    pub data_snapshot: antecedent_core::SemanticDigest,
+    /// Data-catalog version at publication.
+    pub data_version: DataVersion,
 }
 
 /// Query store.
@@ -180,7 +195,8 @@ impl QueryStore {
     pub fn register(&mut self, query: CausalQuery) -> QueryId {
         let id = QueryId::from_raw(self.next_id);
         self.next_id = self.next_id.wrapping_add(1);
-        self.queries.insert(id, QueryRecord { id, query, result_valid_at: None });
+        self.queries
+            .insert(id, QueryRecord { id, query, result_valid_at: None, last_published: None });
         id
     }
 }
@@ -190,7 +206,8 @@ impl QueryStore {
 pub struct CachedResult {
     /// Query id.
     pub query: QueryId,
-    /// Result fingerprint.
+    /// Result fingerprint. The facade publishes the leading bytes of the
+    /// complete lineage digest kept on [`QueryRecord::last_published`].
     pub fingerprint: u64,
     /// Bytes retained.
     pub bytes: u64,

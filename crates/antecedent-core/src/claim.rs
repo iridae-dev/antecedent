@@ -44,6 +44,14 @@ impl ClaimKind {
             Self::Incomplete => "incomplete",
         }
     }
+
+    /// Inverse of [`Self::as_str`].
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        [Self::Point, Self::Bounds, Self::Mixture, Self::Response, Self::Refusal, Self::Incomplete]
+            .into_iter()
+            .find(|kind| kind.as_str() == name)
+    }
 }
 
 /// Status of a requested coordinate relative to a claim.
@@ -58,6 +66,8 @@ pub enum DomainStatus {
     Evaluated,
     /// Outside the declared domain.
     OutsideScope,
+    /// An empirical check at this coordinate ran and failed.
+    Contradicted,
     /// Unknown; not a failed support and not an executable guarantee.
     Unknown,
 }
@@ -71,8 +81,30 @@ impl DomainStatus {
             Self::Supported => "supported",
             Self::Evaluated => "evaluated",
             Self::OutsideScope => "outside_scope",
+            Self::Contradicted => "contradicted",
             Self::Unknown => "unknown",
         }
+    }
+
+    /// Inverse of [`Self::as_str`].
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        [
+            Self::Identified,
+            Self::Supported,
+            Self::Evaluated,
+            Self::OutsideScope,
+            Self::Contradicted,
+            Self::Unknown,
+        ]
+        .into_iter()
+        .find(|status| status.as_str() == name)
+    }
+
+    /// Whether the status asserts something (identified, supported, evaluated).
+    #[must_use]
+    pub const fn is_positive(self) -> bool {
+        matches!(self, Self::Identified | Self::Supported | Self::Evaluated)
     }
 }
 
@@ -129,20 +161,30 @@ pub struct ClaimEnvelope {
 }
 
 /// Calibration slot projected onto a claim.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct CalibrationView {
     /// `calibrated` | `scope_not_assessed` | `unavailable`.
     pub status: Arc<str>,
-    /// Matching coverage record id.
+    /// Governing coverage record id.
     pub record_id: Option<Arc<str>>,
     /// Reason code when not calibrated.
     pub reason: Option<Arc<str>>,
-    /// Record `n`.
+    /// Smallest row count the governing record measured.
     pub scope_n: Option<u64>,
     /// Record dependence label.
     pub scope_dependence: Option<Arc<str>>,
-    /// Record SHA.
+    /// Commit the governing record was measured at.
     pub calibration_sha: Option<Arc<str>>,
+    /// Largest row count the governing record measured.
+    pub scope_n_max: Option<u64>,
+    /// Nominal level of the governing record.
+    pub nominal: Option<f64>,
+    /// Coverage the governing record observed.
+    pub observed: Option<f64>,
+    /// Match key and scope facts the slot was computed from.
+    pub basis: Option<CalibrationBasis>,
+    /// Slots of further intervals reported beside the primary one.
+    pub secondary: Arc<[CalibrationView]>,
 }
 
 impl Default for CalibrationView {
@@ -150,10 +192,105 @@ impl Default for CalibrationView {
         Self {
             status: Arc::from("unavailable"),
             record_id: None,
-            reason: Some(Arc::from("not_executed")),
+            reason: Some(Arc::from(crate::reason_code!("not_executed"))),
             scope_n: None,
             scope_dependence: None,
             calibration_sha: None,
+            scope_n_max: None,
+            nominal: None,
+            observed: None,
+            basis: None,
+            secondary: Arc::from([]),
+        }
+    }
+}
+
+/// Construction and scope facts of one reported interval: the calibration
+/// match key (`antecedent_io::calibration::CalibrationKeyWire`) and the
+/// execution facts its record's scope is checked against.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct CalibrationBasis {
+    /// Support-matrix query axis name.
+    pub query: Arc<str>,
+    /// Support-matrix graph axis.
+    pub graph_class: Arc<str>,
+    /// `fixed` or `graph_posterior`.
+    pub structure: Arc<str>,
+    /// Data modality the execution ran on.
+    pub modality: Arc<str>,
+    /// `Frequentist` or `Bayesian`.
+    pub inference: Arc<str>,
+    /// Resolved plan estimator; empty when none.
+    pub estimator: Arc<str>,
+    /// Interval method name.
+    pub interval_method: Arc<str>,
+    /// Analytic SE kind; empty when not analytic.
+    pub se_kind: Arc<str>,
+    /// Dependence rule.
+    pub dependence: Arc<str>,
+    /// Posterior construction; empty for Frequentist executions.
+    pub posterior: Arc<str>,
+    /// Population / functional / contrast / horizon label.
+    pub functional: Arc<str>,
+    /// Nominal level of the reported interval.
+    pub level: f64,
+    /// `point` or `partial`.
+    pub identification: Arc<str>,
+    /// Data-snapshot rows.
+    pub row_count: u64,
+    /// Resampling replicates that succeeded.
+    pub replicates_ok: Option<u32>,
+    /// Posterior draws.
+    pub posterior_draws: Option<u32>,
+    /// Structural mass that is not identified.
+    pub unidentified_mass: f64,
+}
+
+impl CalibrationBasis {
+    /// Construct from every field, in declaration order.
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        key: [Arc<str>; 11],
+        level: f64,
+        identification: Arc<str>,
+        row_count: u64,
+        replicates_ok: Option<u32>,
+        posterior_draws: Option<u32>,
+        unidentified_mass: f64,
+    ) -> Self {
+        let [
+            query,
+            graph_class,
+            structure,
+            modality,
+            inference,
+            estimator,
+            interval_method,
+            se_kind,
+            dependence,
+            posterior,
+            functional,
+        ] = key;
+        Self {
+            query,
+            graph_class,
+            structure,
+            modality,
+            inference,
+            estimator,
+            interval_method,
+            se_kind,
+            dependence,
+            posterior,
+            functional,
+            level,
+            identification,
+            row_count,
+            replicates_ok,
+            posterior_draws,
+            unidentified_mass,
         }
     }
 }
@@ -224,6 +361,9 @@ pub struct AcceptanceReport {
     pub supported_operations: Arc<[Arc<str>]>,
     /// Why acceptance is restricted or refused.
     pub restriction: Option<Arc<str>>,
+    /// Whether the verified artifact carries a claim over an execution.
+    /// A verified program without a claim is not an accepted claim.
+    pub claim_present: bool,
 }
 
 impl AcceptanceReport {
@@ -242,7 +382,15 @@ impl AcceptanceReport {
             unresolved: unresolved.into(),
             supported_operations: supported_operations.into(),
             restriction,
+            claim_present: false,
         }
+    }
+
+    /// Record whether the artifact carries a claim.
+    #[must_use]
+    pub const fn with_claim(mut self, present: bool) -> Self {
+        self.claim_present = present;
+        self
     }
 
     /// Opaque storage/forwarding without interpretation.
@@ -254,22 +402,25 @@ impl AcceptanceReport {
             unresolved: Arc::from([Arc::from("required_semantics")]),
             supported_operations: Arc::from([Arc::from("store"), Arc::from("forward")]),
             restriction: Some(Arc::from("opaque_envelope")),
+            claim_present: false,
         }
     }
 
     /// Whether this report accepts the claim as a usable causal claim.
+    ///
+    /// Requires a verified program that carries a claim.
     #[must_use]
     pub fn accepts_as_claim(&self) -> bool {
-        self.recognized && self.verified_references && self.unresolved.is_empty()
+        self.accepts_as_verified_program() && self.claim_present
     }
 
-    /// Whether the artifact is a fully verified program or claim.
+    /// Whether the artifact is a fully verified program, with or without a claim.
     ///
     /// Distinct from storage/forwarding. Old artifacts without a contract
     /// section remain readable but do not pass this check.
     #[must_use]
     pub fn accepts_as_verified_program(&self) -> bool {
-        self.accepts_as_claim()
+        self.recognized && self.verified_references && self.unresolved.is_empty()
     }
 }
 
@@ -277,7 +428,8 @@ impl AcceptanceReport {
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub struct HandoffReceipt {
-    /// Input claim id.
+    /// Input claim id. A derivation records its first parent here; the complete
+    /// parent set is [`DerivedClaim::parents`].
     pub input: SemanticDigest,
     /// Output claim id, when a claim was produced.
     pub output: Option<SemanticDigest>,
@@ -380,10 +532,12 @@ impl HandoffReceipt {
         )
     }
 
-    /// Whether omitted required meaning prevents equivalent-claim acceptance.
+    /// Whether the output is the same claim with no required meaning omitted.
+    ///
+    /// A derived claim has a new id and is never equivalent to its parent.
     #[must_use]
     pub fn equivalent_claim(&self) -> bool {
-        self.omitted.is_empty() && self.unresolved.is_empty() && self.output.is_some()
+        self.omitted.is_empty() && self.unresolved.is_empty() && self.output == Some(self.input)
     }
 
     /// Accumulate unresolved losses from `self` then `next`.
@@ -914,12 +1068,8 @@ pub fn compose_claims(
     let Some(derived) = derived else {
         return refuse_derived("missing_derived_envelope", parent_ids, Some(compatibility));
     };
-    if parents_strengthened(parents, &derived) {
-        return refuse_derived(
-            "parents_not_retroactively_strengthened",
-            parent_ids,
-            Some(compatibility),
-        );
+    if let Some(restriction) = derived_departs_from_parents(parents, &derived, operation) {
+        return refuse_derived(restriction, parent_ids, Some(compatibility));
     }
     let mut provenance = ProvenanceGraph::new();
     for parent in parents {
@@ -940,8 +1090,8 @@ pub fn compose_claims(
         receipt: HandoffReceipt::new(
             parents[0].claim_id,
             Some(derived.claim_id),
-            "derive",
             operation.as_str(),
+            "derive",
             [Arc::from("claim.envelope"), Arc::from("parents"), Arc::from("provenance")],
             [],
             provenance
@@ -964,13 +1114,47 @@ fn refuse_derived(
     DerivedClaimOutcome::Refused { restriction: restriction.into(), parents, compatibility }
 }
 
-fn parents_strengthened(parents: &[&ClaimEnvelope], derived: &ClaimEnvelope) -> bool {
-    let Some(derived_mass) = identified_mass(derived) else {
-        return false;
-    };
-    parents
-        .iter()
-        .any(|parent| identified_mass(parent).is_some_and(|mass| derived_mass > mass + 1e-12))
+/// Why `derived` is not a licensed derivation of `parents`, if it is not.
+///
+/// A retarget stays within its parents' certified derivation: identification
+/// premises and product are unchanged. No derivation may drop an
+/// identification slot a parent reported, raise identified mass, or claim a
+/// domain status a parent did not hold.
+fn derived_departs_from_parents(
+    parents: &[&ClaimEnvelope],
+    derived: &ClaimEnvelope,
+    operation: ClaimOperation,
+) -> Option<&'static str> {
+    if operation == ClaimOperation::Retarget
+        && parents.iter().any(|parent| {
+            parent.identities.identification != derived.identities.identification
+                || parent.identities.identification_product
+                    != derived.identities.identification_product
+        })
+    {
+        return Some("retarget_changes_identification");
+    }
+    match identified_mass(derived) {
+        None if parents.iter().any(|parent| identified_mass(parent).is_some()) => {
+            return Some("derived_drops_identification_slot");
+        }
+        Some(derived_mass)
+            if parents.iter().any(|parent| {
+                identified_mass(parent).is_some_and(|mass| derived_mass > mass + 1e-12)
+            }) =>
+        {
+            return Some("parents_not_retroactively_strengthened");
+        }
+        _ => {}
+    }
+    let upgrades =
+        [ClaimDomainAxis::Identification, ClaimDomainAxis::Support, ClaimDomainAxis::Evaluated]
+            .into_iter()
+            .any(|axis| {
+                let status = derived.domain(axis);
+                status.is_positive() && parents.iter().any(|parent| parent.domain(axis) != status)
+            });
+    upgrades.then_some("derived_upgrades_domain")
 }
 
 fn identified_mass(claim: &ClaimEnvelope) -> Option<f64> {
@@ -1102,7 +1286,9 @@ mod tests {
         {
             DerivedClaimOutcome::Derived(record) => {
                 assert_eq!(record.parents.as_ref(), [parent.claim_id]);
-                assert!(record.receipt.equivalent_claim());
+                assert!(!record.receipt.equivalent_claim());
+                assert_eq!(&*record.receipt.rule, "derive");
+                assert_eq!(&*record.receipt.consumer, "retarget");
                 assert!(record.provenance.validate().unwrap().is_empty());
             }
             other => panic!("expected derived retarget, got {other:?}"),
@@ -1115,6 +1301,50 @@ mod tests {
             }
             other => panic!("expected stronger-child refusal, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn retarget_refuses_a_child_outside_the_parent_derivation() {
+        use crate::reasoning::SlotAvailability;
+        let parent = sample_claim(1, 0.4);
+        let refused = |child: ClaimEnvelope| match compose_claims(
+            &[&parent],
+            ClaimOperation::Retarget,
+            Some(child),
+            None,
+        ) {
+            DerivedClaimOutcome::Refused { restriction, parents, .. } => {
+                assert_eq!(parents.as_ref(), [parent.claim_id]);
+                restriction.to_string()
+            }
+            other => panic!("expected refusal, got {other:?}"),
+        };
+        let mut other_product = sample_claim(3, 0.4);
+        other_product.identities.identification_product = Some(digest(99));
+        assert_eq!(refused(other_product), "retarget_changes_identification");
+        let mut other_premises = sample_claim(3, 0.4);
+        other_premises.identities.identification = digest(98);
+        assert_eq!(refused(other_premises), "retarget_changes_identification");
+        let mut dropped = sample_claim(3, 0.4);
+        dropped.reasoning.identification = SlotAvailability::unavailable("dropped");
+        assert_eq!(refused(dropped), "derived_drops_identification_slot");
+        let mut upgraded = sample_claim(3, 0.4);
+        upgraded.domains.support = DomainStatus::Supported;
+        assert_eq!(refused(upgraded), "derived_upgrades_domain");
+        let mut weaker = sample_claim(3, 0.4);
+        weaker.domains.evaluated = DomainStatus::Unknown;
+        assert!(matches!(
+            compose_claims(&[&parent], ClaimOperation::Retarget, Some(weaker), None),
+            DerivedClaimOutcome::Derived(_)
+        ));
+    }
+
+    #[test]
+    fn lossless_receipt_alone_is_equivalent() {
+        assert!(HandoffReceipt::lossless(digest(1), "host").equivalent_claim());
+        let derived =
+            HandoffReceipt::new(digest(1), Some(digest(2)), "host", "derive", [], [], [], []);
+        assert!(!derived.equivalent_claim());
     }
 
     fn sample_claim(byte: u8, identified_mass: f64) -> ClaimEnvelope {

@@ -10,10 +10,15 @@ use core::fmt;
 use std::sync::Arc;
 
 /// Identity encoding format. Bump only when the canonical payload changes.
-pub const IDENTITY_FORMAT: u16 = 1;
+///
+/// Version 2 canonicalizes graph edge order, replaces debug-rendered estimator
+/// configuration with structured wires, and widens each layer's coverage (target
+/// population in the program, posterior atom weights, prior contents, execution
+/// budgets). No version-1 digest is comparable with a version-2 digest.
+pub const IDENTITY_FORMAT: u16 = 2;
 
 /// Format tag recorded beside every digest.
-pub const IDENTITY_FORMAT_TAG: &str = "antecedent.identity.v1";
+pub const IDENTITY_FORMAT_TAG: &str = "antecedent.identity.v2";
 
 /// Scientific layer a digest identifies.
 ///
@@ -25,21 +30,26 @@ pub enum IdentityDomain {
     /// Query, population, interventions, outcome functional, temporal
     /// policy/horizons, and variable-name bindings.
     Target,
-    /// Target plus accepted structural semantics and observation/evidence
-    /// contract. Identifier configuration is not this layer.
+    /// Population-free target question plus accepted structural semantics
+    /// (including posterior atoms and weights, class priors, selection
+    /// diagrams) and the observation/evidence contract. Identifier
+    /// configuration is not this layer.
     Identification,
     /// Concrete identification products (status, estimands, arena, derivation).
     IdentificationProduct,
-    /// Target, premises, identification products, and licensed inferential
-    /// commitments. A different graph is a different program.
+    /// Target (including its population), premises, identification
+    /// products, and licensed inferential commitments. A different graph or a
+    /// different target population is a different program.
     Program,
-    /// Resolved prior, numeric configuration, validation, and dependence.
+    /// Resolved prior contents, backend and likelihood, numeric
+    /// configuration, validation, and dependence. Independent of structure.
     InferenceBinding,
     /// Schema and observation contract, not row contents.
     Observation,
     /// Observation plus typed contents, masks, weights, and ordered temporal/unit partitions.
     DataSnapshot,
-    /// Seeds, backend, budgets, and implementation versions.
+    /// Seeds, backend and kernel policy, determinism, adaptive budgets, and
+    /// implementation versions.
     Execution,
     /// Portable claim envelope over a program and one result.
     Claim,
@@ -174,7 +184,7 @@ pub struct ContractIdentities {
     pub identification: SemanticDigest,
     /// Cached identification products, when preparation produced them.
     pub identification_product: Option<SemanticDigest>,
-    /// Program: premises + products + licensed inferential commitments.
+    /// Program: target + premises + products + licensed inferential commitments.
     pub program: SemanticDigest,
     /// Inference binding (priors, numeric knobs, validation, dependence).
     pub inference_binding: SemanticDigest,

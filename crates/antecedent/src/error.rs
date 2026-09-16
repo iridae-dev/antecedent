@@ -299,6 +299,19 @@ pub(crate) const RANK_DESIGNS_INCOMPARABLE_TARGETS: &str =
     "width ranking refuses incomparable estimands; declare a common decision utility";
 pub(crate) const RANK_DESIGNS_RENORMALIZED_MASS: &str =
     "design ranking must not renormalize unidentified mass onto favorable atoms";
+pub(crate) const RETARGET_REQUIRES_LICENSE: &str = "retarget requires a licensed prepared contract";
+pub(crate) const EXPORT_REQUIRES_LICENSE: &str = "export requires a licensed prepared contract";
+pub(crate) const OPERATION_REQUIRES_LICENSE: &str =
+    "operation requires a licensed prepared contract";
+
+/// Refusals that block an operation for want of a license. Matched by
+/// constant identity: a reworded message never changes a blocker id.
+pub(crate) const OPERATION_UNLICENSED: [&str; 4] = [
+    RANK_DESIGNS_REQUIRES_LICENSE,
+    RETARGET_REQUIRES_LICENSE,
+    EXPORT_REQUIRES_LICENSE,
+    OPERATION_REQUIRES_LICENSE,
+];
 
 impl CausalError {
     /// Build a structured review-required error.
@@ -338,10 +351,7 @@ impl CausalError {
             Self::Support { id: crate::support::SupportRefusal::Refused, message } => {
                 Some(BlockedOperation::refused(*message))
             }
-            Self::Unsupported { message }
-                if *message == RANK_DESIGNS_REQUIRES_LICENSE
-                    || message.contains("licensed prepared contract") =>
-            {
+            Self::Unsupported { message } if OPERATION_UNLICENSED.contains(message) => {
                 Some(BlockedOperation::operation_unlicensed(*message))
             }
             Self::Unsupported { message } if *message == RANK_DESIGNS_REQUIRES_PRODUCT => {

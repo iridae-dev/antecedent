@@ -67,7 +67,7 @@ pub mod review;
 pub mod state;
 pub mod strategy_table;
 pub mod support;
-pub mod coverage_records_data;
+pub use antecedent_io::coverage_records_data;
 pub mod support_matrix_data;
 
 pub mod estimate;
@@ -97,7 +97,9 @@ pub use identify_api::{Identification, identify, identify_dag, identify_with};
 pub use inference::{BayesianConfig, InferenceMode};
 pub use options::FdrControl;
 pub use query::*;
-pub use result::{AnalysisIdentification, StructuralWeightBasis, StudyResult};
+pub use result::{
+    AnalysisIdentification, ExecutedContract, RowWeightsBinding, StructuralWeightBasis, StudyResult,
+};
 pub use support::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, cell_coordinate,
     classify, licensed_neighbors, licensed_support_cells, refused_message,

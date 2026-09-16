@@ -215,6 +215,24 @@ fn prepared_contract_uses_cached_identification() {
 }
 
 #[test]
+fn prepared_inspect_is_the_cheap_pre_prepare_record() {
+    let ctx = ExecutionContext::for_tests(1);
+    let (data, dag, query) = confounded_scm(64, 12);
+    let before = study(data.clone(), dag.clone(), query.clone()).inspect().unwrap();
+    let prepared = study(data, dag, query).prepare(&ctx).unwrap();
+    let cheap = prepared.inspect().unwrap();
+    assert!(cheap.identities.identification_product.is_none());
+    assert!(matches!(cheap.reasoning.identification, SlotAvailability::Unavailable { .. }));
+    assert_eq!(cheap.capability().operation, OperationKind::Inspect);
+    assert_eq!(cheap.identities, before.identities, "inspect must not read prepared caches");
+    let contract = prepared.contract().unwrap();
+    assert!(contract.identities.identification_product.is_some());
+    assert!(matches!(contract.reasoning.identification, SlotAvailability::Available(_)));
+    assert_eq!(contract.identities.target, cheap.identities.target);
+    assert_ne!(contract.identities.program, cheap.identities.program);
+}
+
+#[test]
 fn different_graph_is_a_different_program() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = confounded_scm(48, 13);
@@ -690,6 +708,38 @@ fn execution_identity_follows_the_estimate_context() {
     let b = result.claim(&contract, &ExecutionContext::for_tests(2)).unwrap();
     assert_ne!(a.execution, b.execution);
     assert_ne!(a.claim_id, b.claim_id);
+}
+
+#[test]
+fn execution_identity_is_advertised_and_bound() {
+    let ctx = ExecutionContext::for_tests(3);
+    let (data, dag, query) = confounded_scm(48, 63);
+    let prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&result, "execution", &ctx).unwrap();
+    let consumed = consume_analysis_result(&bytes).unwrap();
+    assert!(consumed.acceptance.accepts_as_verified_program());
+    let section = consumed.contract.expect("contract");
+    let advertised = section.identities.execution.expect("execution identity");
+    assert_eq!(Some(advertised), section.claim.as_ref().unwrap().execution);
+    assert_eq!(
+        antecedent_io::execution_digest(section.execution.as_ref().expect("execution payload"))
+            .unwrap()
+            .as_bytes(),
+        &advertised
+    );
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let mut tampered = section.clone();
+    tampered.identities.execution.as_mut().unwrap()[0] ^= 0xff;
+    let consumed = consume_analysis_result(&rewrite_contract_section(
+        &body,
+        header.variable_names.clone(),
+        "tampered",
+        &tampered,
+    ))
+    .unwrap();
+    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(consumed.acceptance.unresolved.iter().any(|item| &**item == "identities.execution"));
 }
 
 #[test]
@@ -1781,6 +1831,12 @@ fn composition_artifact_reload_in_separate_process() {
 
 #[test]
 fn composition_prior_transfer_keeps_identification_and_refuses_mismatch() {
+    use antecedent_prob::{
+        ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
+        compose_external_priors,
+    };
+    use antecedent_validate::ConflictPolicy;
+
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = confounded_scm(160, 19);
     let source = Study::tabular(data.clone())
@@ -1914,11 +1970,6 @@ fn composition_prior_transfer_keeps_identification_and_refuses_mismatch() {
         "mapping mismatch must refuse at hydrate, got {err}"
     );
 
-    use antecedent_prob::{
-        ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
-        compose_external_priors,
-    };
-    use antecedent_validate::ConflictPolicy;
     let mut source_prior = PriorSet::new();
     source_prior.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
         mean: Arc::from(vec![0.0, 8.0]),
@@ -2790,7 +2841,11 @@ fn licensed_family_response_observation_obligations_inspect() {
         .as_ref()
         .and_then(|section| section.observation.as_ref())
         .expect("consumed observation identity");
-    assert!(observation.observation.iter().any(|tag| tag == "outcome_independent_given"));
+    assert!(
+        observation.observation.iter().any(|tag| tag.starts_with("outcome_independent_given:")),
+        "observation tags keep their conditioning variables: {:?}",
+        observation.observation
+    );
     let prepared = built.prepare(&ctx).unwrap();
     match &prepared.contract().unwrap().reasoning.identification {
         SlotAvailability::Available(slot) => {
@@ -2868,7 +2923,13 @@ fn licensed_family_prior_bank_does_not_create_identification() {
         .as_ref()
         .and_then(|section| section.inference_binding.as_ref())
         .expect("consumed inference binding");
-    assert_eq!(binding.prior_mapping.as_deref(), Some("prior_artifact"));
+    assert!(
+        binding
+            .bayesian
+            .as_ref()
+            .is_some_and(|bayes| bayes.prior_artifact.is_some() && bayes.prior.is_none()),
+        "a transferred prior binds the artifact bytes it hydrates from"
+    );
     let slot = consumed
         .contract
         .as_ref()
@@ -3708,7 +3769,11 @@ fn licensed_family_temporal_response_observation_independent_given() {
         .as_ref()
         .and_then(|section| section.observation.as_ref())
         .expect("consumed temporal observation identity");
-    assert!(observation.observation.iter().any(|tag| tag == "outcome_independent_given"));
+    assert!(
+        observation.observation.iter().any(|tag| tag.starts_with("outcome_independent_given:")),
+        "observation tags keep their conditioning variables: {:?}",
+        observation.observation
+    );
 }
 
 fn pulse_prior_bytes(
@@ -3738,10 +3803,10 @@ fn consume_mapped_prior(
     series: &TimeSeriesData,
     graph: TemporalDag,
     mapping: PriorMapping,
-    expected_tag: &str,
     artifact_id: &str,
 ) {
     let ctx = ExecutionContext::for_tests(1);
+    let expected = mapping.clone();
     let bytes = pulse_prior_bytes(series, &graph, &ctx);
     let isotropic = Study::series(series.clone())
         .graph(graph.clone())
@@ -3774,7 +3839,11 @@ fn consume_mapped_prior(
         .as_ref()
         .and_then(|section| section.inference_binding.as_ref())
         .expect("consumed inference binding");
-    assert_eq!(binding.prior_mapping.as_deref(), Some(expected_tag));
+    assert_eq!(
+        binding.bayesian.as_ref().and_then(|bayes| bayes.prior_mapping.clone()),
+        Some(antecedent_io::PriorMappingIdentityWire::from_mapping(&expected)),
+        "the mapping is bound structurally, not as a joined string"
+    );
 }
 
 #[test]
@@ -3784,7 +3853,6 @@ fn licensed_family_prior_mapping_identical_subspace_does_not_create_identificati
         &series,
         graph,
         PriorMapping::IdenticalCoefficientSubspace,
-        "identical_coefficient_subspace",
         "pulse-map-ident",
     );
 }
@@ -3796,7 +3864,6 @@ fn licensed_family_prior_mapping_effect_functional_does_not_create_identificatio
         &series,
         graph,
         PriorMapping::EffectFunctional { source_quantity: "ate".into() },
-        "effect_functional:ate",
         "pulse-map-fn",
     );
 }
@@ -3808,7 +3875,6 @@ fn licensed_family_prior_mapping_named_parameters_does_not_create_identification
         &series,
         graph,
         PriorMapping::NamedParameters { pairs: vec![("coef_x@lag1".into(), "coef_x@lag1".into())] },
-        "named_parameters:coef_x@lag1->coef_x@lag1",
         "pulse-map-named",
     );
 }
@@ -3962,8 +4028,12 @@ fn licensed_family_response_right_censored_observation_consumes() {
         .as_ref()
         .and_then(|section| section.observation.as_ref())
         .expect("consumed right-censored observation identity");
-    assert!(observation.observation.iter().any(|tag| tag == "right_censored"));
-    assert!(observation.observation.iter().any(|tag| tag == "independent_given"));
+    assert!(
+        observation.observation.iter().any(|tag| tag.starts_with("right_censored:latent=")),
+        "censoring bindings stay in the observation identity: {:?}",
+        observation.observation
+    );
+    assert!(observation.observation.iter().any(|tag| tag.starts_with("independent_given:")));
 }
 
 #[test]
@@ -4076,7 +4146,13 @@ fn licensed_family_prior_catalog_does_not_create_identification() {
         .as_ref()
         .and_then(|section| section.inference_binding.as_ref())
         .expect("consumed catalog inference binding");
-    assert_eq!(binding.prior_mapping.as_deref(), Some("prior_artifact"));
+    assert!(
+        binding
+            .bayesian
+            .as_ref()
+            .is_some_and(|bayes| bayes.prior_artifact.is_some() && bayes.prior.is_none()),
+        "a transferred prior binds the artifact bytes it hydrates from"
+    );
     let slot = consumed
         .contract
         .as_ref()
@@ -4182,10 +4258,7 @@ fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     publish_recomputed_results(
         &mut state,
         v0,
-        &[
-            (pulse_q, result_lineage_fingerprint(&pulse_id), 32),
-            (curve_q, result_lineage_fingerprint(&curve_id), 32),
-        ],
+        &[(pulse_q, &pulse_id, 32), (curve_q, &curve_id, 32)],
     )
     .unwrap();
     assert!(!state.is_stale(pulse_q) && !state.is_stale(curve_q));
@@ -4200,12 +4273,8 @@ fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     )
     .unwrap();
     assert!(state.is_stale(pulse_q) && state.is_stale(curve_q));
-    let stale_publish = publish_recomputed_results(
-        &mut state,
-        v0,
-        &[(pulse_q, result_lineage_fingerprint(&pulse_id), 32)],
-    )
-    .unwrap_err();
+    let stale_publish =
+        publish_recomputed_results(&mut state, v0, &[(pulse_q, &pulse_id, 32)]).unwrap_err();
     assert!(stale_publish.to_string().contains("stale commit"));
     assert!(state.is_stale(pulse_q));
 
@@ -4230,28 +4299,53 @@ fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     publish_recomputed_results(
         &mut state,
         v1,
-        &[
-            (pulse_q, result_lineage_fingerprint(&pulse_after), 32),
-            (curve_q, result_lineage_fingerprint(&curve_after), 32),
-        ],
+        &[(pulse_q, &pulse_after, 32), (curve_q, &curve_after, 32)],
     )
     .unwrap();
     assert!(!state.is_stale(pulse_q));
     assert_ne!(result_lineage_fingerprint(&pulse_id), result_lineage_fingerprint(&pulse_after));
+    // The lineage digest covers every layer, not a 32-bit prefix of two.
+    let att = antecedent_core::ContractIdentities::new(
+        SemanticDigest::from_bytes([9; 32]),
+        pulse_after.identification,
+        pulse_after.identification_product,
+        pulse_after.program,
+        pulse_after.inference_binding,
+        pulse_after.observation,
+        pulse_after.data_snapshot,
+    );
+    assert_ne!(result_lineage_fingerprint(&pulse_after), result_lineage_fingerprint(&att));
+    let rebound = antecedent_core::ContractIdentities::new(
+        pulse_after.target,
+        pulse_after.identification,
+        pulse_after.identification_product,
+        pulse_after.program,
+        SemanticDigest::from_bytes([8; 32]),
+        pulse_after.observation,
+        pulse_after.data_snapshot,
+    );
+    assert_ne!(result_lineage_fingerprint(&pulse_after), result_lineage_fingerprint(&rebound));
 
     let next_data = state.data_catalog.version.next();
     apply_state_event(&mut state, antecedent::state::StateEvent::ReplaceData(next_data)).unwrap();
     assert!(state.is_stale(pulse_q) && state.is_stale(curve_q));
     let after_replace = state.version;
-    publish_recomputed_results(
+    // Republishing the snapshot recorded before the data event is not a
+    // recomputation, whatever the caller passes.
+    let not_recomputed = publish_recomputed_results(
         &mut state,
         after_replace,
-        &[
-            (pulse_q, result_lineage_fingerprint(&pulse_after), 32),
-            (curve_q, result_lineage_fingerprint(&curve_after), 32),
-        ],
+        &[(pulse_q, &pulse_after, 32), (curve_q, &curve_after, 32)],
     )
-    .unwrap();
+    .unwrap_err();
+    assert!(format!("{not_recomputed}").contains("before the latest data event"));
+    assert!(state.is_stale(pulse_q) && state.is_stale(curve_q));
+    let recomputed = pulse.refresh_series(xy_series_len(90), &ctx).unwrap();
+    assert!(recomputed.effect().is_finite());
+    let pulse_recomputed = pulse.contract().unwrap().identities;
+    publish_recomputed_results(&mut state, after_replace, &[(pulse_q, &pulse_recomputed, 32)])
+        .unwrap();
+    assert!(!state.is_stale(pulse_q));
 
     apply_state_event(
         &mut state,
@@ -4275,7 +4369,7 @@ fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     assert!(state.is_stale(pulse_q) && state.is_stale(curve_q));
     assert_eq!(
         pulse.contract().unwrap().identities.data_snapshot,
-        pulse_after.data_snapshot,
+        pulse_recomputed.data_snapshot,
         "historical prepared lineage stays on the last successful refresh"
     );
 }
@@ -4701,24 +4795,18 @@ fn composition_request_lifecycle_duplicate_conflict_cancel_and_order() {
         antecedent_io::execution_digest(&antecedent_io::execution_identity_from_context(&ctx))
             .unwrap();
     let key = SemanticDigest::from_bytes([11; 32]);
-    let request = RequestIdentity::new(
-        key,
+    let request = RequestIdentity::new(key, contract.identities, execution);
+    assert!(!request.conflicts_with(&RequestIdentity::new(key, contract.identities, execution)));
+    let other_data = antecedent_core::ContractIdentities::new(
+        contract.identities.target,
+        contract.identities.identification,
+        contract.identities.identification_product,
         contract.identities.program,
-        contract.identities.data_snapshot,
-        execution,
-    );
-    assert!(!request.conflicts_with(&RequestIdentity::new(
-        key,
-        contract.identities.program,
-        contract.identities.data_snapshot,
-        execution,
-    )));
-    assert!(request.conflicts_with(&RequestIdentity::new(
-        key,
-        contract.identities.program,
+        contract.identities.inference_binding,
+        contract.identities.observation,
         SemanticDigest::from_bytes([12; 32]),
-        execution,
-    )));
+    );
+    assert!(request.conflicts_with(&RequestIdentity::new(key, other_data, execution)));
 
     let pending = ExecutionReceipt::new(request.clone(), ExecutionRequestState::Pending);
     let running = ExecutionReceipt::new(request.clone(), ExecutionRequestState::Running);
@@ -4786,13 +4874,54 @@ fn composition_prepared_estimate_matches_fresh() {
     assert!((prepared_result.estimate.se_analytic - fresh.estimate.se_analytic).abs() < 1e-12);
 }
 
-fn bayesian_average_effect(n: usize, seed: u64) -> (antecedent::PreparedStudy, TabularData) {
+/// A record for the construction `basis` describes, or `None`.
+fn record_for(
+    basis: &antecedent_io::calibration::CalibrationBasisWire,
+) -> Option<&'static antecedent_io::coverage_records_data::CoverageRecord> {
+    let key = &basis.key;
+    antecedent::coverage_records_data::RECORDS.iter().find(|record| {
+        record.query == key.query
+            && record.graph_class == key.graph_class
+            && record.structure == key.structure
+            && record.inference == key.inference
+            && record.estimator == key.estimator
+            && record.interval_method == key.interval_method
+            && record.se_kind == key.se_kind
+            && record.dependence == key.dependence
+            && record.posterior == key.posterior
+            && record.functional == key.functional
+            && record.identification == key.identification
+            && (record.nominal - key.level).abs() < 1e-9
+    })
+}
+
+fn calibration_of(
+    prepared: &antecedent::PreparedStudy,
+    result: &StudyResult,
+    ctx: &ExecutionContext,
+) -> antecedent_core::CalibrationView {
+    let contract = prepared.contract().unwrap();
+    result.claim(&contract, ctx).unwrap().calibration
+}
+
+/// The Bayesian g-computation construction `bayesian_gcomp_misspecification_probe`
+/// measures on its correctly specified law: conjugate Gaussian, prior scale 10,
+/// 400 draws, 500 rows. Its record is what an execution of the same
+/// construction must be calibrated against.
+fn gcomp_measured_study(
+    n: usize,
+    draws: usize,
+    seed: u64,
+) -> (antecedent::PreparedStudy, TabularData) {
     let ctx = ExecutionContext::for_tests(seed);
     let (data, dag, query) = confounded_scm(n, seed);
     let prepared = Study::tabular(data.clone())
         .graph(dag)
         .query(query)
-        .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(32)))
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(draws).prior_scale(10.0),
+        ))
+        .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
         .unwrap()
@@ -4804,64 +4933,354 @@ fn bayesian_average_effect(n: usize, seed: u64) -> (antecedent::PreparedStudy, T
 #[test]
 fn calibration_slot_is_calibrated_inside_record_scope() {
     let ctx = ExecutionContext::for_tests(21);
-    let (prepared, data) = bayesian_average_effect(1200, 21);
+    let (prepared, data) = gcomp_measured_study(500, 400, 21);
     let result = prepared.estimate(&data, &ctx).unwrap();
     let contract = prepared.contract().unwrap();
-    let claim = result.claim(&contract, &ctx).unwrap();
-    assert_eq!(claim.calibration.status.as_ref(), "calibrated");
-    assert_eq!(
-        claim.calibration.record_id.as_deref(),
-        Some("cov.average_effect.dag.bayesian.none.none.iid")
-    );
+    let basis = &result.calibration_bases(&contract).unwrap()[0];
+    let record =
+        record_for(basis).unwrap_or_else(|| panic!("no coverage record measures {:#?}", basis.key));
+    assert!(!record.boundary, "{} is a boundary record", record.id);
+    let claim = calibration_of(&prepared, &result, &ctx);
+    assert_eq!(claim.status.as_ref(), "calibrated", "{claim:#?}");
+    assert_eq!(claim.record_id.as_deref(), Some(record.id));
+    assert_eq!(claim.calibration_sha.as_deref(), Some(record.calibration_sha));
+    assert_eq!(claim.observed, Some(record.observed));
 }
 
 #[test]
-fn calibration_slot_is_scope_not_assessed_below_record_n() {
+fn calibration_slot_is_scope_not_assessed_outside_the_measured_sample_size() {
     let ctx = ExecutionContext::for_tests(22);
-    let (prepared, data) = bayesian_average_effect(50, 22);
+    let (prepared, data) = gcomp_measured_study(50, 400, 22);
     let result = prepared.estimate(&data, &ctx).unwrap();
-    let contract = prepared.contract().unwrap();
-    let claim = result.claim(&contract, &ctx).unwrap();
-    assert_eq!(claim.calibration.status.as_ref(), "scope_not_assessed");
-    assert_eq!(
-        claim.calibration.record_id.as_deref(),
-        Some("cov.average_effect.dag.bayesian.none.none.iid")
+    let claim = calibration_of(&prepared, &result, &ctx);
+    assert_eq!(claim.status.as_ref(), "scope_not_assessed", "{claim:#?}");
+    assert_eq!(claim.reason.as_deref(), Some("sample_size_outside_measured_range"));
+    assert!(claim.record_id.is_some());
+}
+
+#[test]
+fn calibration_slot_is_not_calibrated_with_fewer_posterior_draws_than_measured() {
+    let ctx = ExecutionContext::for_tests(23);
+    let (measured, data) = gcomp_measured_study(500, 400, 23);
+    let calibrated = calibration_of(&measured, &measured.estimate(&data, &ctx).unwrap(), &ctx);
+    assert_eq!(calibrated.status.as_ref(), "calibrated", "{calibrated:#?}");
+
+    let (few, data) = gcomp_measured_study(500, 4, 23);
+    let claim = calibration_of(&few, &few.estimate(&data, &ctx).unwrap(), &ctx);
+    assert_ne!(claim.status.as_ref(), "calibrated", "4 draws is not the measured construction");
+    assert_eq!(claim.reason.as_deref(), Some("posterior_draws_below_measured"));
+}
+
+/// The static natural-mediation law `v19_static_calibration::mediation_data`
+/// measures: `t = 0.5x + e`, `m = 0.6t + 0.8e`, `y = 0.4t + 0.5m + 0.5x + e`,
+/// 400 rows, 200 bootstrap replicates.
+fn mediation_measured_study(
+    n: usize,
+    replicates: u32,
+    seed: u64,
+) -> (antecedent::PreparedStudy, TabularData) {
+    let ctx = ExecutionContext::for_tests(seed);
+    let mut rng = CausalRng::from_seed(seed);
+    let normal = |rng: &mut CausalRng| {
+        let u1 = rng.next_f64().max(1e-12);
+        let u2 = rng.next_f64();
+        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
+    };
+    let (mut t, mut m, mut y, mut x) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        x[i] = normal(&mut rng);
+        t[i] = 0.5 * x[i] + normal(&mut rng);
+        m[i] = 0.6 * t[i] + 0.8 * normal(&mut rng);
+        y[i] = 0.4 * t[i] + 0.5 * m[i] + 0.5 * x[i] + normal(&mut rng);
+    }
+    let data = TabularData::from_f64_columns([
+        ("t", t.as_slice()),
+        ("m", m.as_slice()),
+        ("y", y.as_slice()),
+        ("x", x.as_slice()),
+    ])
+    .unwrap();
+    let mut dag = Dag::with_variables(4);
+    for (a, b) in [(3, 0), (3, 2), (0, 1), (0, 2), (1, 2)] {
+        dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    let query = CausalQuery::Mediation(MediationQuery::binary(
+        VariableId::from_raw(0),
+        VariableId::from_raw(2),
+        Arc::from([VariableId::from_raw(1)]),
+        MediationContrast::NaturalDirect,
+    ));
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(replicates)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    (prepared, data)
+}
+
+#[test]
+fn calibration_slot_is_not_calibrated_with_fewer_bootstrap_replicates_than_measured() {
+    let ctx = ExecutionContext::for_tests(24);
+    let (measured, data) = mediation_measured_study(400, 200, 24);
+    let result = measured.estimate(&data, &ctx).unwrap();
+    let contract = measured.contract().unwrap();
+    let basis = &result.calibration_bases(&contract).unwrap()[0];
+    assert_eq!(basis.key.interval_method, "bootstrap_se");
+    let record =
+        record_for(basis).unwrap_or_else(|| panic!("no coverage record measures {:#?}", basis.key));
+    assert!(record.replicates_min >= 2, "{} measured no replicate floor", record.id);
+    let calibrated = calibration_of(&measured, &result, &ctx);
+    assert_eq!(calibrated.status.as_ref(), "calibrated", "{calibrated:#?}");
+
+    let (few, data) = mediation_measured_study(400, 2, 24);
+    let claim = calibration_of(&few, &few.estimate(&data, &ctx).unwrap(), &ctx);
+    assert_ne!(
+        claim.status.as_ref(),
+        "calibrated",
+        "a two-replicate bootstrap is not the {} construction",
+        record.id
     );
-    assert!(claim.calibration.reason.is_none());
+    assert_eq!(claim.reason.as_deref(), Some("resampling_replicates_below_measured"));
+}
+
+#[test]
+fn an_unmeasured_bootstrap_construction_is_unavailable() {
+    // The review's reproducer: AIPW with two bootstrap replicates reported
+    // `calibrated` against a record whose cited test never ran AIPW.
+    let ctx = ExecutionContext::for_tests(28);
+    let (data, dag, query) = confounded_scm(1200, 28);
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(2)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let claim = calibration_of(&prepared, &result, &ctx);
+    assert_ne!(claim.status.as_ref(), "calibrated", "{claim:#?}");
 }
 
 #[test]
 fn calibration_slot_is_unavailable_with_code_when_no_record() {
+    // A median contrast: the same estimator and interval, a functional no
+    // coverage test measures.
     let ctx = ExecutionContext::for_tests(7);
-    let (data, dag, query) = confounded_scm(40, 7);
-    let prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let (data, dag, query) = confounded_scm(600, 7);
+    let query = query.with_outcome_functional(antecedent_core::OutcomeFunctional::quantile(0.5));
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let claim = calibration_of(&prepared, &result, &ctx);
+    assert_eq!(claim.status.as_ref(), "unavailable");
+    assert!(claim.reason.is_some());
+    assert!(claim.record_id.is_none());
+}
+
+#[test]
+fn partially_identified_answers_are_not_calibrated_against_point_records() {
+    let ctx = ExecutionContext::for_tests(25);
+    let (data, dag, query) = confounded_scm(500, 25);
+    let point = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(query.clone())
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(400).prior_scale(10.0),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = point.estimate(&data, &ctx).unwrap();
+    let contract = point.contract().unwrap();
+    let mut basis = result.calibration_bases(&contract).unwrap()[0].clone();
+    assert_eq!(basis.key.identification, "point");
+    if record_for(&basis).is_none() {
+        return; // nothing measures this construction yet; the rule below is still checked in io
+    }
+    assert_eq!(
+        antecedent_io::calibration::calibration_slot(&basis).status,
+        "calibrated",
+        "the point-identified execution is the measured construction"
+    );
+    basis.key.identification = "partial".into();
+    basis.scope.unidentified_mass = 0.5;
+    let partial = antecedent_io::calibration::calibration_slot(&basis);
+    assert_ne!(partial.status, "calibrated", "{partial:#?}");
+    assert_eq!(partial.reason.as_deref(), Some("identification_not_measured"));
+}
+
+#[test]
+fn calibration_slot_only_matches_the_level_it_measured() {
+    let ctx = ExecutionContext::for_tests(26);
+    let (prepared, data) = gcomp_measured_study(500, 400, 26);
     let result = prepared.estimate(&data, &ctx).unwrap();
     let contract = prepared.contract().unwrap();
-    let claim = result.claim(&contract, &ctx).unwrap();
-    assert_eq!(claim.calibration.status.as_ref(), "unavailable");
-    assert!(claim.calibration.reason.is_some());
+    let mut basis = result.calibration_bases(&contract).unwrap()[0].clone();
+    if record_for(&basis).is_none() {
+        return;
+    }
+    assert_eq!(antecedent_io::calibration::calibration_slot(&basis).status, "calibrated");
+    basis.key.level = 0.99;
+    let other = antecedent_io::calibration::calibration_slot(&basis);
+    assert_ne!(other.status, "calibrated");
+    assert_eq!(other.reason.as_deref(), Some("interval_level_not_measured"));
 }
 
 #[test]
 fn calibration_slot_is_covered_by_claim_id() {
     let ctx = ExecutionContext::for_tests(8);
-    let (prepared, data) = bayesian_average_effect(80, 8);
+    let (prepared, data) = gcomp_measured_study(500, 400, 8);
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "cal-slot", &ctx).unwrap();
-    let mut flipped = bytes.clone();
-    if let Some(pos) = flipped.windows(11).position(|w| w == b"unavailable" || w == b"calibrated\0")
-    {
-        flipped[pos] ^= 0x01;
-    } else {
-        let mid = flipped.len() / 2;
-        flipped[mid] ^= 0x01;
-    }
-    let flipped_ok = consume_analysis_result(&flipped)
-        .ok()
-        .is_some_and(|consumed| consumed.acceptance.accepts_as_verified_program());
-    assert!(!flipped_ok);
     let consumed = consume_analysis_result(&bytes).unwrap();
     assert!(consumed.acceptance.accepts_as_verified_program());
+    let original = consumed.contract.as_ref().unwrap().claim.as_ref().unwrap().calibration.clone();
+
+    // Re-encode the same artifact with an edited calibration slot and the
+    // original claim_id: claim_id covers the slot, so consume must refuse.
+    let (artifact, _, _body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let mut contract = antecedent_io::decode_analysis_result_contract(&artifact).unwrap().unwrap();
+    let claim = contract.claim.as_mut().unwrap();
+    claim.calibration.status = if original.status == "calibrated" {
+        "scope_not_assessed".into()
+    } else {
+        "calibrated".into()
+    };
+    // Repack the section bytes directly: the producer's own encoder already
+    // refuses the edit, and this test is about the independent consumer.
+    let mut forged = artifact;
+    let (descriptor, section) = antecedent_io::pack_section_shared(
+        antecedent_io::CONTRACT_SECTION,
+        "application/cbor",
+        antecedent_io::to_cbor(&contract).unwrap().into(),
+        antecedent_io::CompressPolicy::Auto,
+    );
+    forged.manifest.sections.retain(|item| item.id != antecedent_io::CONTRACT_SECTION);
+    forged.sections.retain(|item| item.id != antecedent_io::CONTRACT_SECTION);
+    forged.manifest.sections.push(descriptor);
+    forged.sections.push(section);
+    let mut forged_bytes = Vec::new();
+    forged.write_to(&mut forged_bytes).unwrap();
+    match consume_analysis_result(&forged_bytes) {
+        // The claim digest covers the slot, so the edited artifact either fails
+        // to decode as a contract at all or is refused as a verified program.
+        Err(err) => assert!(format!("{err}").contains("claim"), "{err}"),
+        Ok(consumed) => {
+            assert!(
+                !consumed.acceptance.accepts_as_verified_program(),
+                "an edited calibration status must not verify: {:?}",
+                consumed.acceptance.unresolved
+            );
+            assert!(
+                consumed.acceptance.unresolved.iter().any(|item| item.starts_with("claim.")),
+                "{:?}",
+                consumed.acceptance.unresolved
+            );
+        }
+    }
+}
+
+#[test]
+fn producer_and_consumer_agree_on_the_calibration_slot() {
+    let ctx = ExecutionContext::for_tests(27);
+    let cases: Vec<(&str, Vec<u8>)> = vec![
+        ("tabular", {
+            let (prepared, data) = gcomp_measured_study(500, 400, 27);
+            let result = prepared.estimate(&data, &ctx).unwrap();
+            prepared.encode_contracted_result(&result, "cal-tabular", &ctx).unwrap()
+        }),
+        ("series", {
+            let (series, graph) = lag1_series();
+            let prepared = Study::series(series.clone())
+                .graph(graph)
+                .temporal_query(pulse_query())
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(24)
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap();
+            let result = prepared.estimate_series(&series, &ctx).unwrap();
+            prepared.encode_contracted_result(&result, "cal-series", &ctx).unwrap()
+        }),
+        ("panel", {
+            let (panel, graph) = lag1_panel();
+            let prepared = Study::panel(panel.clone())
+                .graph(graph)
+                .temporal_query(pulse_query().with_max_history_lag(Some(1)))
+                .refute(RefuteSuite::None)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .prepare(&ctx)
+                .unwrap();
+            let result = prepared.estimate_panel(&panel, &ctx).unwrap();
+            let contract = prepared.contract().unwrap();
+            let basis = &result.calibration_bases(&contract).unwrap()[0];
+            assert_eq!(basis.key.dependence, "panel_cluster", "a panel execution clusters by unit");
+            prepared.encode_contracted_result(&result, "cal-panel", &ctx).unwrap()
+        }),
+    ];
+    for (label, bytes) in cases {
+        let consumed = consume_analysis_result(&bytes).unwrap();
+        let claim = consumed.contract.as_ref().unwrap().claim.as_ref().unwrap();
+        assert_eq!(
+            antecedent_io::calibration::rederive_calibration(&claim.calibration),
+            claim.calibration,
+            "{label}: the consumer re-derives a different slot"
+        );
+        assert!(
+            consumed.acceptance.accepts_as_verified_program(),
+            "{label}: {:?}",
+            consumed.acceptance.unresolved
+        );
+    }
+}
+
+/// Three units of [`lag1_series`] with shifted phases.
+fn lag1_panel() -> (antecedent_data::PanelData, TemporalDag) {
+    let (_, graph) = lag1_series();
+    let unit = |unit_id: u32, phase: f64| {
+        let n = 80usize;
+        let mut x = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for t in 1..n {
+            x[t] = (t as f64 * 0.05 + phase).sin();
+            y[t] = 0.5 * x[t - 1] + 0.01 * phase;
+        }
+        let data =
+            TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        antecedent_data::PanelUnit {
+            unit_id,
+            series: TimeSeriesData::try_new(
+                data.storage().clone(),
+                TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+            )
+            .unwrap(),
+        }
+    };
+    let panel =
+        antecedent_data::PanelData::try_new(Arc::from([unit(0, 0.0), unit(1, 0.7), unit(2, 1.4)]))
+            .unwrap();
+    (panel, graph)
 }
 
 #[test]
@@ -4880,7 +5299,9 @@ fn every_licensed_cell_has_a_calibration_record_or_code() {
                 if let Some(rest) = line.strip_prefix("calibration =") {
                     for id in rest.split(['[', ']', ',', '"']).filter(|s| s.starts_with("cov.")) {
                         assert!(
-                            antecedent::coverage_records_data::RECORDS.iter().any(|row| row.id == id),
+                            antecedent::coverage_records_data::RECORDS
+                                .iter()
+                                .any(|row| row.id == id),
                             "missing coverage record {id}"
                         );
                     }
@@ -4892,6 +5313,17 @@ fn every_licensed_cell_has_a_calibration_record_or_code() {
         missing.is_empty(),
         "cells missing exactly one of calibration / calibration_reason: {missing:?}"
     );
+}
+
+#[test]
+fn every_calibration_reason_code_is_in_the_vocabulary() {
+    let vocabulary = include_str!("../../../parity/reason_codes.toml");
+    for code in antecedent_io::calibration::REASON_CODES {
+        assert!(
+            vocabulary.contains(&format!("id = \"{code}\"")),
+            "{code} is not in parity/reason_codes.toml"
+        );
+    }
 }
 
 #[test]
@@ -4909,9 +5341,11 @@ fn estimator_spec_changes_inference_binding_and_program_stays() {
     let b = Study::tabular(data)
         .graph(dag)
         .query(query)
-        .estimator(antecedent_estimate::LinearAdjustmentAte::new().with_bootstrap_replicates(0).with_se_kind(
-            antecedent_estimate::AnalyticSeKind::Hc1,
-        ))
+        .estimator(
+            antecedent_estimate::LinearAdjustmentAte::new()
+                .with_bootstrap_replicates(0)
+                .with_se_kind(antecedent_estimate::AnalyticSeKind::Hc1),
+        )
         .build()
         .unwrap()
         .prepare(&ctx)
@@ -4956,64 +5390,259 @@ fn constant_nonunit_weights_do_not_change_target() {
     assert!(antecedent_estimate::changes_target(&[f64::NAN, 1.0]));
 }
 
+fn aipw_prepared(
+    data: &TabularData,
+    dag: Dag,
+    query: AverageEffectQuery,
+) -> antecedent::PreparedStudy {
+    Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ExecutionContext::for_tests(12))
+        .unwrap()
+}
+
+fn contract_of(bytes: &[u8]) -> antecedent_io::AnalysisResultContractWire {
+    consume_analysis_result(bytes).unwrap().contract.expect("contract section")
+}
+
+fn z_weights(data: &TabularData, scale: f64) -> Vec<f64> {
+    let z = data.float64_slice(VariableId::from_raw(2)).unwrap();
+    z.iter().map(|zi| (zi / scale).exp()).collect()
+}
+
 #[test]
 fn encoder_refuses_result_population_mismatch() {
     let ctx = ExecutionContext::for_tests(11);
-    let (data, dag, query) = confounded_scm(64, 11);
+    let (data, dag, query) = confounded_scm(96, 11);
+    let average = aipw_prepared(&data, dag.clone(), query.clone());
+    let treated = aipw_prepared(
+        &data,
+        dag,
+        query.with_target_population(antecedent_core::TargetPopulation::Treated),
+    );
+    // A genuine treated-population execution is not the average handle's target.
+    let treated_result = treated.estimate(&data, &ctx).unwrap();
+    let err = average.encode_contracted_result(&treated_result, "mismatch", &ctx).unwrap_err();
+    assert!(format!("{err}").contains("program"), "{err}");
+    // A genuine retarget does not become the target of another handle.
+    let retargeted =
+        average.retarget(&z_weights(&data, 3.0), &[VariableId::from_raw(2)], &ctx).unwrap();
+    assert!(treated.encode_contracted_result(&retargeted, "mismatch", &ctx).is_err());
+    assert!(treated.encode_contracted_result(&treated_result, "ok", &ctx).is_ok());
+}
+
+#[test]
+fn encoder_refuses_a_result_from_another_program() {
+    let ctx = ExecutionContext::for_tests(3);
+    let (data, dag, query) = confounded_scm(400, 3);
+    let confounded = study(data.clone(), dag, query.clone()).prepare(&ctx).unwrap();
+    // Same query and data, a graph without the confounding edge: a different
+    // program that produces a different number.
+    let mut unconfounded_graph = Dag::with_variables(3);
+    unconfounded_graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    unconfounded_graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    let unconfounded = study(data.clone(), unconfounded_graph, query).prepare(&ctx).unwrap();
+    let foreign = unconfounded.estimate(&data, &ctx).unwrap();
+    let own = confounded.estimate(&data, &ctx).unwrap();
+    assert!((foreign.effect() - own.effect()).abs() > 0.1, "the programs disagree");
+    let err = confounded.encode_contracted_result(&foreign, "foreign", &ctx).unwrap_err();
+    assert!(format!("{err}").contains("program"), "{err}");
+    assert!(confounded.encode_contracted_result(&own, "own", &ctx).is_ok());
+    // A result no prepared handle executed cannot be certified either.
+    let mut detached = own.clone();
+    detached.executed_contract = None;
+    let err = confounded.encode_contracted_result(&detached, "detached", &ctx).unwrap_err();
+    assert!(format!("{err}").contains("prepared handle"), "{err}");
+}
+
+#[test]
+fn encoder_refuses_a_result_computed_on_another_snapshot() {
+    let ctx = ExecutionContext::for_tests(5);
+    let (data, dag, query) = confounded_scm(1200, 5);
     let prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
-    let mut result = prepared.estimate(&data, &ctx).unwrap();
-    result.retarget_population = Some(antecedent_core::TargetPopulation::Treated);
-    let err = prepared.encode_contracted_result(&result, "mismatch", &ctx).unwrap_err();
-    assert!(format!("{err}").contains("target_population"));
+    let (small, _, _) = confounded_scm(50, 99);
+    let other = prepared.estimate(&small, &ctx).unwrap();
+    let err = prepared.encode_contracted_result(&other, "other-data", &ctx).unwrap_err();
+    assert!(format!("{err}").contains("data snapshot"), "{err}");
+    let consumed = consume_analysis_result(
+        &prepared
+            .encode_contracted_result(&prepared.estimate(&data, &ctx).unwrap(), "own", &ctx)
+            .unwrap(),
+    )
+    .unwrap();
+    let snapshot = consumed
+        .contract
+        .as_ref()
+        .and_then(|section| section.data_snapshot.as_ref())
+        .expect("data snapshot");
+    assert_eq!(snapshot.row_count, 1200);
 }
 
 #[test]
 fn nonconstant_retarget_exports_with_target_weights_identity() {
     let ctx = ExecutionContext::for_tests(12);
     let (data, dag, query) = confounded_scm(128, 12);
-    let prepared = Study::tabular(data.clone())
-        .graph(dag)
-        .query(query)
-        .estimator(EstimatorId::Aipw)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .prepare(&ctx)
-        .unwrap();
-    let estimated = prepared.estimate(&data, &ctx).unwrap();
+    let prepared = aipw_prepared(&data, dag, query);
+    let z = [VariableId::from_raw(2)];
     let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
-    let mut weights = vec![1.0; data.row_count()];
-    weights[0] = 2.0;
-    let retargeted = prepared
-        .apply_retarget(&preview, &weights, &[VariableId::from_raw(2)], &ctx)
-        .unwrap();
+    let weights = z_weights(&data, 3.0);
+    let retargeted = prepared.apply_retarget(&preview, &weights, &z, &ctx).unwrap();
+    let binding = retargeted.row_weights.clone().expect("row-weight binding");
     let bytes = prepared.encode_contracted_result(&retargeted, "reweight", &ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
-    let _ = estimated;
+    assert!(consumed.acceptance.accepts_as_verified_program(), "{:?}", consumed.acceptance);
+    let section = consumed.contract.expect("contract");
+    let target_weights = section.identities.target_weights.expect("target_weights identity");
+    assert_eq!(target_weights, *binding.target_weights.as_bytes());
+    assert_eq!(
+        antecedent_io::target_weights_digest(&section.target_weights.as_ref().unwrap().identity)
+            .unwrap()
+            .as_bytes(),
+        &target_weights
+    );
+    let carried = section.target_weights.as_ref().unwrap();
+    assert_eq!(carried.values, weights);
+    assert_eq!(carried.identity.data_snapshot, section.identities.data_snapshot);
+    assert_eq!(Some(carried.identity.score_reuse), section.identities.score_reuse);
+    assert_eq!(
+        Some(carried.identity.score_reuse),
+        prepared.score_reuse_identity().unwrap().map(|digest| *digest.as_bytes())
+    );
+    assert_eq!(carried.identity.depends_on, vec![2]);
+    match &section.target.query {
+        CausalQueryWire::AverageEffect { target_population, .. } => assert_eq!(
+            target_population,
+            &TargetPopulationWire::RowWeights { weights: target_weights, depends_on: vec![2] }
+        ),
+        other => panic!("expected AverageEffect, got {other:?}"),
+    }
+
+    // Two different weight vectors give two target-weights identities.
+    let other = prepared.retarget(&z_weights(&data, 2.0), &z, &ctx).unwrap();
+    let other_bytes = prepared.encode_contracted_result(&other, "reweight-2", &ctx).unwrap();
+    let other_section = contract_of(&other_bytes);
+    assert_ne!(other_section.identities.target_weights, Some(target_weights));
+    assert_ne!(other_section.identities.target, section.identities.target);
+
+    // Constant weights of any scale keep the original target.
+    let estimated = prepared.estimate(&data, &ctx).unwrap();
+    let plain = contract_of(&prepared.encode_contracted_result(&estimated, "plain", &ctx).unwrap());
+    let constant = prepared.retarget(&vec![7.0; weights.len()], &[], &ctx).unwrap();
+    assert!(constant.row_weights.is_none());
+    let constant =
+        contract_of(&prepared.encode_contracted_result(&constant, "constant", &ctx).unwrap());
+    assert!(constant.identities.target_weights.is_none());
+    assert_eq!(constant.identities.target, plain.identities.target);
+    assert!(plain.identities.target_weights.is_none());
+    assert_eq!(plain.identities.score_reuse, section.identities.score_reuse);
+}
+
+#[test]
+fn consume_rederives_target_weights_and_refuses_substitutions() {
+    let ctx = ExecutionContext::for_tests(16);
+    let (data, dag, query) = confounded_scm(96, 16);
+    let prepared = aipw_prepared(&data, dag, query);
+    let z = [VariableId::from_raw(2)];
+    let retargeted = prepared.retarget(&z_weights(&data, 3.0), &z, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&retargeted, "reweight", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let names = header.variable_names.clone();
+    let section = contract_of(&bytes);
+    let refused = |contract: &antecedent_io::AnalysisResultContractWire, label: &str| {
+        let consumed =
+            consume_analysis_result(&rewrite_contract_section(&body, names.clone(), "t", contract))
+                .unwrap();
+        assert!(!consumed.acceptance.accepts_as_verified_program(), "{label}");
+        assert!(
+            consumed.acceptance.unresolved.iter().any(|item| &**item == label),
+            "{label}: {:?}",
+            consumed.acceptance.unresolved
+        );
+    };
+    let mut values = section.clone();
+    values.target_weights.as_mut().unwrap().values[0] *= 2.0;
+    refused(&values, "target_weights.values");
+
+    let mut dropped = section.clone();
+    dropped.target_weights = None;
+    refused(&dropped, "identities.target_weights");
+
+    let mut both_dropped = section.clone();
+    both_dropped.target_weights = None;
+    both_dropped.identities.target_weights = None;
+    refused(&both_dropped, "target.population");
+
+    let other = prepared.retarget(&z_weights(&data, 2.0), &z, &ctx).unwrap();
+    let other = contract_of(&prepared.encode_contracted_result(&other, "other", &ctx).unwrap());
+    let mut swapped = section.clone();
+    swapped.target_weights = other.target_weights.clone();
+    swapped.identities.target_weights = other.identities.target_weights;
+    refused(&swapped, "target.population");
+
+    let mut rebound = section.clone();
+    rebound.target_weights.as_mut().unwrap().identity.data_snapshot[0] ^= 0xff;
+    rebound.identities.target_weights = Some(
+        *antecedent_io::target_weights_digest(&rebound.target_weights.as_ref().unwrap().identity)
+            .unwrap()
+            .as_bytes(),
+    );
+    refused(&rebound, "target_weights.data_snapshot");
+
+    let mut score = section.clone();
+    score.score_reuse = None;
+    refused(&score, "identities.score_reuse");
+}
+
+#[test]
+fn row_weights_reexecute_only_on_their_own_snapshot() {
+    let ctx = ExecutionContext::for_tests(17);
+    let (data, dag, query) = confounded_scm(96, 17);
+    let (other_data, _, _) = confounded_scm(96, 71);
+    let prepared = aipw_prepared(&data, dag, query);
+    let z = [VariableId::from_raw(2)];
+    let weights = z_weights(&data, 3.0);
+    let retargeted = prepared.retarget(&weights, &z, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&retargeted, "reweight", &ctx).unwrap();
+    let carried = contract_of(&bytes).target_weights.expect("weights travel");
+
+    let again = prepared.reexecute_retarget(&carried, &ctx).unwrap();
+    assert_eq!(again.effect().to_bits(), retargeted.effect().to_bits());
+    assert_eq!(again.row_weights, retargeted.row_weights);
+
+    let mut refreshed = prepared.clone();
+    refreshed.refresh(other_data, &ctx).unwrap();
+    let err = refreshed.reexecute_retarget(&carried, &ctx).unwrap_err();
+    assert!(format!("{err}").contains("reason=row_weights_bound_to_snapshot"), "{err}");
+    // A retarget computed on one snapshot cannot be exported through a handle
+    // holding another snapshot of the same shape.
+    let err = refreshed.encode_contracted_result(&retargeted, "stale", &ctx).unwrap_err();
+    assert!(format!("{err}").contains("reason=row_weights_bound_to_snapshot"), "{err}");
 }
 
 #[test]
 fn retarget_preserves_identification_digest() {
     let ctx = ExecutionContext::for_tests(13);
     let (data, dag, query) = confounded_scm(128, 13);
-    let prepared = Study::tabular(data.clone())
-        .graph(dag)
-        .query(query)
-        .estimator(EstimatorId::Aipw)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .prepare(&ctx)
-        .unwrap();
-    let before = prepared.contract().unwrap().identities.identification;
+    let prepared = aipw_prepared(&data, dag, query);
+    let estimated = prepared.estimate(&data, &ctx).unwrap();
+    let before =
+        contract_of(&prepared.encode_contracted_result(&estimated, "before", &ctx).unwrap());
     let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
     let mut weights = vec![1.0; data.row_count()];
     weights[1] = 3.0;
-    let _ = prepared
-        .apply_retarget(&preview, &weights, &[VariableId::from_raw(2)], &ctx)
-        .unwrap();
-    assert_eq!(before, prepared.contract().unwrap().identities.identification);
+    let retargeted =
+        prepared.apply_retarget(&preview, &weights, &[VariableId::from_raw(2)], &ctx).unwrap();
+    let after =
+        contract_of(&prepared.encode_contracted_result(&retargeted, "after", &ctx).unwrap());
+    assert_ne!(before.identities.target, after.identities.target, "retarget changes the target");
+    assert_eq!(before.identities.identification, after.identities.identification);
+    assert_eq!(before.identification, after.identification);
+    assert_eq!(before.identities.identification_product, after.identities.identification_product);
 }
 
 #[test]
@@ -5031,7 +5660,8 @@ fn retarget_report_matches_identity_deltas() {
         .prepare(&ctx)
         .unwrap();
     let estimated = prepared.estimate(&data, &ctx).unwrap();
-    let before_bytes = prepared.encode_contracted_result(&estimated, "before-retarget", &ctx).unwrap();
+    let before_bytes =
+        prepared.encode_contracted_result(&estimated, "before-retarget", &ctx).unwrap();
     let before = consume_analysis_result(&before_bytes).unwrap().contract.unwrap();
     let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
     assert!(preview.layer(SemanticLayer::Identification).is_some_and(|layer| {
@@ -5045,9 +5675,8 @@ fn retarget_report_matches_identity_deltas() {
     }));
     let mut weights = vec![1.0; data.row_count()];
     weights[0] = 2.0;
-    let retargeted = prepared
-        .apply_retarget(&preview, &weights, &[VariableId::from_raw(2)], &ctx)
-        .unwrap();
+    let retargeted =
+        prepared.apply_retarget(&preview, &weights, &[VariableId::from_raw(2)], &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&retargeted, "retarget-report", &ctx).unwrap();
     let after = consume_analysis_result(&bytes).unwrap().contract.unwrap();
     match &after.target.query {
@@ -5081,9 +5710,9 @@ fn custom_distribution_weights_enter_target_identity() {
         weights,
         [VariableId::from_raw(2)],
     );
-    let query = query.with_target_population(antecedent_core::TargetPopulation::CustomDistribution(
-        DistributionRef::from_raw(1),
-    ));
+    let query = query.with_target_population(
+        antecedent_core::TargetPopulation::CustomDistribution(DistributionRef::from_raw(1)),
+    );
     let a = Study::tabular(data.clone())
         .graph(dag.clone())
         .query(query.clone())
@@ -5125,11 +5754,427 @@ fn multi_env_prepares_and_exports() {
         .prepare(&ctx)
         .unwrap();
     let (again, _) = lag1_series();
-    let again_multi =
-        antecedent_data::MultiEnvironmentData::try_new(std::sync::Arc::from([again.clone(), again]))
-            .unwrap();
+    let again_multi = antecedent_data::MultiEnvironmentData::try_new(std::sync::Arc::from([
+        again.clone(),
+        again,
+    ]))
+    .unwrap();
     let result = prepared.estimate_multi_env(&again_multi, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "multi-env", &ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
     assert!(consumed.acceptance.accepts_as_verified_program());
+}
+
+/// Weighted posterior over the same three graphs, for identity comparisons.
+fn weighted_posterior(weights: [f64; 3]) -> GraphPosterior {
+    let direct = set_edge(0, 3, 0, 1, true);
+    let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+    let unidentified = set_edge(0, 3, 1, 0, true);
+    let marginals = vec![0.0; 9];
+    GraphPosterior::new(
+        3,
+        weights.to_vec(),
+        vec![direct, adjusted, unidentified],
+        marginals.clone(),
+        marginals,
+        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
+        InferenceDiagnostics::analytic("identity_weights"),
+        0,
+    )
+    .unwrap()
+}
+
+fn posterior_study(
+    data: &TabularData,
+    posterior: GraphPosterior,
+    query: &AverageEffectQuery,
+) -> Study {
+    Study::tabular(data.clone())
+        .graph_posterior(posterior)
+        .query(query.clone())
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+}
+
+#[test]
+fn target_population_moves_target_and_program_not_identification() {
+    let ctx = ExecutionContext::for_tests(14);
+    let (data, dag, query) = confounded_scm(400, 14);
+    let prepared = |query: AverageEffectQuery| {
+        Study::tabular(data.clone())
+            .graph(dag.clone())
+            .query(query)
+            .estimator(EstimatorId::Aipw)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap()
+    };
+    let all_observed = prepared(query.clone());
+    let treated =
+        prepared(query.with_target_population(antecedent_core::TargetPopulation::Treated));
+    let (a, b) =
+        (all_observed.contract().unwrap().identities, treated.contract().unwrap().identities);
+    assert_ne!(a.target, b.target);
+    assert_ne!(a.program, b.program, "ATE and ATT are different programs");
+    assert_eq!(a.identification, b.identification, "the population-free question is shared");
+    assert_eq!(a.identification_product, b.identification_product);
+    assert_eq!(a.inference_binding, b.inference_binding, "no structure in the inference layer");
+    let execution =
+        antecedent_io::execution_digest(&antecedent_io::execution_identity_from_context(&ctx))
+            .unwrap();
+    let key = SemanticDigest::from_bytes([13; 32]);
+    assert!(
+        RequestIdentity::new(key, a, execution)
+            .conflicts_with(&RequestIdentity::new(key, b, execution)),
+        "an idempotency key reused for another estimand is a conflict"
+    );
+}
+
+#[test]
+fn graph_posterior_weights_and_atoms_enter_identification() {
+    let ctx = ExecutionContext::for_tests(21);
+    let (data, dag, query) = confounded_scm(400, 21);
+    let _ = dag;
+    let base =
+        posterior_study(&data, weighted_posterior([0.5, 0.3, 0.2]), &query).prepare(&ctx).unwrap();
+    let reweighted =
+        posterior_study(&data, weighted_posterior([0.2, 0.3, 0.5]), &query).prepare(&ctx).unwrap();
+    let a = base.contract().unwrap().identities;
+    let b = reweighted.contract().unwrap().identities;
+    assert_ne!(a.identification, b.identification, "posterior weights are premises");
+    assert_ne!(a.program, b.program);
+    let first = base.estimate(&data, &ctx).unwrap();
+    let second = reweighted.estimate(&data, &ctx).unwrap();
+    assert!(
+        (first.effect() - second.effect()).abs() > 1e-6,
+        "the reweighted mixture is a different number"
+    );
+    let claim_id = |prepared: &antecedent::PreparedStudy, result: &StudyResult| {
+        let consumed = consume_analysis_result(
+            &prepared.encode_contracted_result(result, "mix", &ctx).unwrap(),
+        )
+        .unwrap();
+        assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance.unresolved);
+        consumed.contract.unwrap().claim.unwrap().claim_id
+    };
+    assert_ne!(
+        claim_id(&base, &first),
+        claim_id(&reweighted, &second),
+        "two mixtures with different weights are two claims"
+    );
+}
+
+#[test]
+fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
+    let ctx = ExecutionContext::for_tests(41);
+    let (data, dag, query) = confounded_scm(200, 41);
+    let (other_data, _, _) = confounded_scm(200, 99);
+    let claim_id = |data: &TabularData| {
+        let prepared = posterior_study(data, weighted_posterior([0.5, 0.3, 0.2]), &query)
+            .prepare(&ctx)
+            .unwrap();
+        let result = prepared.estimate(data, &ctx).unwrap();
+        let bytes = prepared.encode_contracted_result(&result, "snapshot", &ctx).unwrap();
+        let consumed = consume_analysis_result(&bytes).unwrap();
+        assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance.unresolved);
+        let contract = consumed.contract.unwrap();
+        assert_ne!(contract.claim.as_ref().unwrap().kind, "point", "a mixture is not a point");
+        (contract.claim.unwrap().claim_id, bytes)
+    };
+    let _ = dag;
+    let (first, bytes) = claim_id(&data);
+    let (second, _) = claim_id(&other_data);
+    assert_ne!(first, second, "two data snapshots are two claims");
+    assert!(
+        !SharedEvidenceRef::forwarded_duplicate(
+            SemanticDigest::from_bytes(first),
+            SemanticDigest::from_bytes(second)
+        ),
+        "independent executions must not merge as forwarded duplicates"
+    );
+
+    // Every body field a verified consume reports is inside the claim id.
+    let (decoded, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let section = antecedent_io::decode_analysis_result_contract(&decoded).unwrap().unwrap();
+    let edits: [fn(&mut antecedent_io::AnalysisResultWire); 3] = [
+        |body| body.standard_error = Some(body.standard_error.unwrap_or(1.0) / 100.0),
+        |body| body.estimate = body.estimate.map(|value| value + 1.0),
+        // Search effort is execution detail the product excludes; only the
+        // result digest inside the claim id covers it.
+        |body| body.identification.candidates_examined += 1,
+    ];
+    for edit in edits {
+        let mut tampered = body.clone();
+        edit(&mut tampered);
+        let consumed = consume_analysis_result(&rewrite_contract_section(
+            &tampered,
+            header.variable_names.clone(),
+            "tampered",
+            &section,
+        ))
+        .unwrap();
+        assert!(
+            !consumed.acceptance.accepts_as_claim(),
+            "tampered body accepted: {:?}",
+            consumed.acceptance.unresolved
+        );
+    }
+}
+
+#[test]
+fn a_tampered_verified_artifact_is_refused() {
+    let ctx = ExecutionContext::for_tests(7);
+    let (data, dag, query) = confounded_scm(200, 7);
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::Full)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&result, "orig", &ctx).unwrap();
+    let original = consume_analysis_result(&bytes).unwrap();
+    assert!(original.acceptance.accepts_as_claim(), "{:?}", original.acceptance.unresolved);
+    let section = original.contract.clone().unwrap();
+    let names = original.header.variable_names.clone();
+
+    let edits: [fn(&mut antecedent_io::AnalysisResultContractWire); 6] = [
+        |section| {
+            let claim = section.claim.as_mut().unwrap();
+            claim.identification_domain = "identified".into();
+            claim.support_domain = "supported".into();
+            claim.evaluated_domain = "evaluated".into();
+        },
+        |section| section.graph_class = "Pag".into(),
+        |section| section.estimator = Some("propensity_weighting".into()),
+        |section| section.identifier = Some("frontdoor".into()),
+        |section| {
+            section.reasoning.support.value.as_mut().unwrap().empirical = "supported".into();
+        },
+        |section| {
+            section.reasoning.assumptions.value.as_mut().unwrap().obligations.clear();
+        },
+    ];
+    for edit in edits {
+        let mut tampered = section.clone();
+        edit(&mut tampered);
+        let consumed = consume_analysis_result(&rewrite_contract_section(
+            &original.body,
+            names.clone(),
+            "tampered",
+            &tampered,
+        ))
+        .unwrap();
+        assert!(
+            !consumed.acceptance.accepts_as_claim(),
+            "tampered contract accepted: {:?}",
+            consumed.acceptance.unresolved
+        );
+        let (_, receipt) = accept_claim(
+            &rewrite_contract_section(&original.body, names.clone(), "tampered", &tampered),
+            &ConsumerProfile::full(),
+        )
+        .unwrap();
+        assert!(!receipt.equivalent_claim(), "a tampered artifact is not a lossless exchange");
+    }
+
+    // Re-encoding a tampered section through the writer is refused too.
+    let mut tampered = section;
+    tampered.claim.as_mut().unwrap().support_domain = "supported".into();
+    assert!(
+        antecedent_io::encode_analysis_result_artifact_with_contract(
+            &original.body,
+            names,
+            "tampered",
+            Some(&tampered)
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn a_failed_overlap_check_does_not_support_the_claim() {
+    let ctx = ExecutionContext::for_tests(23);
+    let (data, dag, query) = confounded_scm(200, 23);
+    // A graph that drops the confounder edge into treatment: the overlap
+    // refuter runs and fails on this data.
+    let mut misspecified = Dag::with_variables(3);
+    misspecified.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    misspecified.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let mut seen_failure = false;
+    for graph in [dag, misspecified] {
+        let prepared = Study::tabular(data.clone())
+            .graph(graph)
+            .query(query.clone())
+            .estimator(EstimatorId::Aipw)
+            .bootstrap_replicates(0)
+            .refute(RefuteSuite::Full)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap();
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        let claim = result.claim(&prepared.contract().unwrap(), &ctx).unwrap();
+        let failed: Vec<&str> = result
+            .refutations
+            .iter()
+            .filter(|report| report.refuter.starts_with("overlap.") && !report.passed)
+            .map(|report| report.refuter.as_ref())
+            .collect();
+        if failed.is_empty() {
+            assert_ne!(
+                claim.domain(ClaimDomainAxis::Support),
+                DomainStatus::Contradicted,
+                "no failed support check means no contradiction"
+            );
+        } else {
+            seen_failure = true;
+            assert_eq!(
+                claim.domain(ClaimDomainAxis::Support),
+                DomainStatus::Contradicted,
+                "a failed overlap check is not support: {failed:?}"
+            );
+            assert_ne!(claim.domain(ClaimDomainAxis::Support), DomainStatus::Supported);
+        }
+    }
+    assert!(seen_failure, "the misspecified graph must fail an overlap check");
+}
+
+#[test]
+fn bayesian_backend_prior_and_budgets_move_the_layer_that_owns_them() {
+    let ctx = ExecutionContext::for_tests(31);
+    let (data, dag, query) = confounded_scm(300, 31);
+    let bayes = |config: BayesianConfig| {
+        Study::tabular(data.clone())
+            .graph(dag.clone())
+            .query(query.clone())
+            .inference(InferenceMode::Bayesian(config))
+            .bootstrap_replicates(0)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap()
+            .contract()
+            .unwrap()
+            .identities
+    };
+    let conjugate = bayes(BayesianConfig::conjugate().n_draws(64));
+    let laplace = bayes(BayesianConfig::laplace().n_draws(64));
+    assert_ne!(
+        conjugate.inference_binding, laplace.inference_binding,
+        "the posterior backend is an inference binding"
+    );
+    assert_eq!(conjugate.identification, laplace.identification);
+    assert_eq!(conjugate.program, laplace.program, "a backend is not a licensed commitment");
+    let scaled = bayes(BayesianConfig::conjugate().n_draws(64).prior_scale(0.01));
+    assert_ne!(conjugate.inference_binding, scaled.inference_binding);
+    let drawn = bayes(BayesianConfig::conjugate().n_draws(65));
+    assert_ne!(conjugate.inference_binding, drawn.inference_binding);
+    let explicit = bayes(
+        BayesianConfig::conjugate()
+            .n_draws(64)
+            .prior(antecedent_prob::PriorSet::weakly_informative(4)),
+    );
+    assert_ne!(conjugate.inference_binding, explicit.inference_binding, "prior contents bind");
+
+    // Execution budgets and determinism are execution lineage, not program.
+    let identity = antecedent_io::execution_identity_from_context(&ctx);
+    let mut adaptive = ExecutionContext::for_tests(31);
+    adaptive.adaptive_bootstrap = antecedent_core::AdaptiveBootstrapBudget::enabled_default();
+    let mut fast = ExecutionContext::for_tests(31);
+    fast.determinism = antecedent_core::Determinism::PreferFast;
+    let digest = |wire: &antecedent_io::ExecutionIdentityWire| {
+        antecedent_io::execution_digest(wire).unwrap()
+    };
+    assert_ne!(
+        digest(&identity),
+        digest(&antecedent_io::execution_identity_from_context(&adaptive)),
+        "an adaptive early-stop budget changes execution lineage"
+    );
+    assert_ne!(
+        digest(&identity),
+        digest(&antecedent_io::execution_identity_from_context(&fast)),
+        "determinism policy changes execution lineage"
+    );
+}
+
+#[test]
+fn response_bandwidth_moves_the_inference_binding_not_the_program() {
+    let (data, dag, _) = confounded_scm(200, 37);
+    let curve = |bandwidth: Option<f64>| {
+        let options = antecedent_estimate::ContinuousResponseOptions {
+            bandwidth,
+            ..antecedent_estimate::ContinuousResponseOptions::default()
+        };
+        Study::tabular(data.clone())
+            .graph(dag.clone())
+            .query(CausalQuery::Response(ResponseQuery::new(ResponseFunctional::PointDerivative {
+                treatment: VariableId::from_raw(0),
+                outcome: VariableId::from_raw(1),
+                at: 0.5,
+                order: 1,
+                scale: antecedent_core::DerivativeScale::Identity,
+            })))
+            .response_options(options)
+            .bootstrap_replicates(0)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .inspect()
+            .unwrap()
+            .identities
+    };
+    let default = curve(None);
+    let narrow = curve(Some(0.25));
+    let wide = curve(Some(0.75));
+    assert_ne!(narrow.inference_binding, wide.inference_binding, "bandwidth is a numeric knob");
+    assert_ne!(default.inference_binding, narrow.inference_binding);
+    assert_eq!(narrow.program, wide.program, "a bandwidth is not a licensed commitment");
+    assert_eq!(narrow.identification, wide.identification);
+    assert_eq!(narrow.target, wide.target);
+}
+
+#[test]
+fn unlicensed_operation_blocker_ids_come_from_constants_not_prose() {
+    let (data, _, query) = conditional_effect_fixture();
+    let mut admg = Admg::with_variables(3);
+    admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    admg.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    let inspected = Study::tabular(data)
+        .graph(admg)
+        .query(CausalQuery::ConditionalEffect(query))
+        .bootstrap_replicates(0)
+        .inspect()
+        .unwrap();
+    for operation in [OperationKind::Retarget, OperationKind::Export, OperationKind::RankDesigns] {
+        let report = inspected.capability_for(operation);
+        assert_eq!(
+            report.primary_blocker_id(),
+            Some("operation.unlicensed"),
+            "{operation:?} on a refused cell"
+        );
+        let message = report.blockers.first().map(|blocker| blocker.reason.to_string()).unwrap();
+        assert_eq!(
+            antecedent::CausalError::Unsupported { message: Box::leak(message.into_boxed_str()) }
+                .blocker_id()
+                .map(|blocker| blocker.id.to_string()),
+            Some("operation.unlicensed".into()),
+            "the refusal a capability report prints maps back to the same id"
+        );
+    }
+    // A message that merely mentions the same words is a different refusal.
+    let reworded = antecedent::CausalError::Unsupported {
+        message: "this retarget would need a licensed prepared contract first",
+    };
+    assert_eq!(reworded.blocker_id().map(|blocker| blocker.id.to_string()), None);
 }

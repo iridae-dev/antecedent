@@ -315,6 +315,7 @@ impl WaldIv {
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_first_stage_diagnostics(first_stage_diagnostics)
+            .with_se_kind(self.se_kind)
             .with_bootstrap(boot))
     }
 
@@ -682,6 +683,7 @@ impl TwoStageLeastSquares {
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
             .with_first_stage_diagnostics(Some(fit.first_stage_diagnostics))
+            .with_se_kind(self.se_kind)
             .with_bootstrap(boot))
     }
 

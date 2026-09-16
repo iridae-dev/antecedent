@@ -21,7 +21,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "support-matrix.md"
 RUST_OUT = ROOT / "crates" / "antecedent" / "src" / "support_matrix_data.rs"
-COVERAGE_OUT = ROOT / "crates" / "antecedent" / "src" / "coverage_records_data.rs"
+COVERAGE_OUT = ROOT / "crates" / "antecedent-io" / "src" / "coverage_records_data.rs"
+REASON_CODES_OUT = ROOT / "crates" / "antecedent-core" / "src" / "reason_codes_data.rs"
 NOTES_DIR = ROOT / "docs" / "release-notes"
 RN_BEGIN = "<!-- generated:support-matrix:licensed:begin -->"
 RN_END = "<!-- generated:support-matrix:licensed:end -->"
@@ -449,65 +450,114 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
     RELEASE_NOTES.write_text(head + block + tail)
 
 
+COVERAGE_STR_FIELDS = (
+    "id",
+    "query",
+    "graph_class",
+    "structure",
+    "modality",
+    "inference",
+    "estimator",
+    "interval_method",
+    "se_kind",
+    "dependence",
+    "posterior",
+    "functional",
+    "identification",
+)
+COVERAGE_TAIL_STR_FIELDS = ("dgp", "test", "calibration_sha")
+
+
+def rust_f64(value: float) -> str:
+    text = repr(float(value))
+    return text if ("." in text or "e" in text or "inf" in text or "nan" in text) else text + ".0"
+
+
 def render_coverage_records() -> str:
+    """`crates/antecedent-io/src/coverage_records_data.rs` from the TOML.
+
+    Lives in `antecedent-io` (outside `scripts/calibration_surface.list`), so
+    stamping `calibration_sha` never moves the statistical surface it attests.
+    """
     records = load("parity/coverage_records.toml").get("record") or []
     items = []
     for row in records:
-        items.append(
-            "    CoverageRecord {\n"
-            f"        id: \"{rust_escape(row['id'])}\",\n"
-            f"        query: \"{rust_escape(row['query'])}\",\n"
-            f"        graph_class: \"{rust_escape(row['graph_class'])}\",\n"
-            f"        inference: \"{rust_escape(row['inference'])}\",\n"
-            f"        estimator: \"{rust_escape(row.get('estimator') or '')}\",\n"
-            f"        interval_method: \"{rust_escape(row['interval_method'])}\",\n"
-            f"        se_kind: \"{rust_escape(row.get('se_kind') or '')}\",\n"
-            f"        dgp: \"{rust_escape(row['dgp'])}\",\n"
-            f"        n: {int(row['n'])},\n"
-            f"        dependence: \"{rust_escape(row['dependence'])}\",\n"
-            f"        nominal: {float(row['nominal'])},\n"
-            f"        observed: {float(row['observed'])},\n"
-            f"        mcse: {float(row['mcse'])},\n"
-            f"        replicates: {int(row['replicates'])},\n"
-            f"        boundary: {'true' if row.get('boundary') else 'false'},\n"
-            f"        test: \"{rust_escape(row['test'])}\",\n"
-            f"        calibration_sha: \"{rust_escape(row['calibration_sha'])}\",\n"
-            "    }"
-        )
+        lines = ["    CoverageRecord {"]
+        for key in COVERAGE_STR_FIELDS:
+            lines.append(f'        {key}: "{rust_escape(str(row.get(key) or ""))}",')
+        lines.append(f"        nominal: {rust_f64(row['nominal'])},")
+        lines.append(f"        n_min: {int(row['n_min'])},")
+        lines.append(f"        n_max: {int(row['n_max'])},")
+        lines.append(f"        replicates_min: {int(row['replicates_min'])},")
+        lines.append(f"        posterior_draws_min: {int(row['posterior_draws_min'])},")
+        lines.append(f"        unidentified_mass_max: {rust_f64(row['unidentified_mass_max'])},")
+        lines.append(f"        observed: {rust_f64(row['observed'])},")
+        lines.append(f"        mcse: {rust_f64(row['mcse'])},")
+        lines.append(f"        replicates: {int(row['replicates'])},")
+        lines.append(f"        boundary: {'true' if row.get('boundary') else 'false'},")
+        for key in COVERAGE_TAIL_STR_FIELDS:
+            lines.append(f'        {key}: "{rust_escape(str(row[key]))}",')
+        lines.append("    }")
+        items.append("\n".join(lines))
+    # An interval method with no measured record carries the reason code the
+    # runtime reports for it, so the closed enum stays accounted for.
+    measured = {str(row["interval_method"]) for row in records}
+    methods = [
+        ("AnalyticSe", "analytic_se"),
+        ("BootstrapSe", "bootstrap_se"),
+        ("PosteriorQuantile", "posterior_quantile"),
+        ("IdentifiedSet", "identified_set"),
+        ("CircularBlockSe", "circular_block_se"),
+        ("SimultaneousBand", "simultaneous_band"),
+        ("None", "none"),
+    ]
     reason_items = ",\n".join(
-        [
-            "    (antecedent_core::IntervalMethod::AnalyticSe, None)",
-            "    (antecedent_core::IntervalMethod::BootstrapSe, None)",
-            "    (antecedent_core::IntervalMethod::PosteriorQuantile, None)",
-            "    (antecedent_core::IntervalMethod::IdentifiedSet, None)",
-            "    (antecedent_core::IntervalMethod::CircularBlockSe, None)",
-            "    (antecedent_core::IntervalMethod::SimultaneousBand, None)",
-            '    (antecedent_core::IntervalMethod::None, Some("no_interval_reported"))',
-        ]
+        f"    (antecedent_core::IntervalMethod::{variant}, "
+        + (
+            "None)"
+            if name in measured
+            else f'Some("{"no_interval_reported" if name == "none" else "estimator_grid_not_measured"}"))'
+        )
+        for variant, name in methods
     )
     block = ",\n".join(items) if items else ""
-    return f"""//! Generated from `parity/coverage_records.toml`. Do not edit.
+    return f"""//! Generated from `parity/coverage_records.toml` by
+//! `scripts/generate_support_matrix_docs.py`. Do not edit.
+//!
+//! Every row was emitted by a coverage test through `CoverageTally::for_record`
+//! and collected by `scripts/collect_coverage_records.py`.
 
-#![allow(missing_docs, dead_code)]
+#![allow(missing_docs, dead_code, clippy::unreadable_literal)]
 #![cfg_attr(rustfmt, rustfmt::skip)]
 
-#[derive(Clone, Copy, Debug)]
+/// One measured coverage record. Key fields first, then the measured scope,
+/// then the measurement and its provenance.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CoverageRecord {{
     pub id: &'static str,
     pub query: &'static str,
     pub graph_class: &'static str,
+    pub structure: &'static str,
+    pub modality: &'static str,
     pub inference: &'static str,
     pub estimator: &'static str,
     pub interval_method: &'static str,
     pub se_kind: &'static str,
-    pub dgp: &'static str,
-    pub n: u64,
     pub dependence: &'static str,
+    pub posterior: &'static str,
+    pub functional: &'static str,
+    pub identification: &'static str,
     pub nominal: f64,
+    pub n_min: u64,
+    pub n_max: u64,
+    pub replicates_min: u32,
+    pub posterior_draws_min: u32,
+    pub unidentified_mass_max: f64,
     pub observed: f64,
     pub mcse: f64,
     pub replicates: u32,
     pub boundary: bool,
+    pub dgp: &'static str,
     pub test: &'static str,
     pub calibration_sha: &'static str,
 }}
