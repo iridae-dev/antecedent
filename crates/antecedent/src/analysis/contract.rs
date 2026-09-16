@@ -1234,6 +1234,10 @@ fn compile_with_payloads(
         .or_else(|| class_projected_temporal_identification(study));
     let body =
         body_frame(&study.query, lagged.as_ref(), cached, study.population_registry.as_ref())?;
+    let functional = match overlap_label(study, resolved_estimator.as_deref()) {
+        Some(overlap) => format!("{}+{overlap}", functional_label(&study.query)),
+        None => functional_label(&study.query),
+    };
     Ok((
         CausalContract {
             identities: payloads.identities,
@@ -1260,7 +1264,7 @@ fn compile_with_payloads(
             score_reuse: None,
             target_weights: None,
             posterior: Arc::from(posterior_label(&study.inference)),
-            functional: Arc::from(functional_label(&study.query)),
+            functional: Arc::from(functional),
             posterior_draws: match &study.inference {
                 InferenceMode::Bayesian(cfg) => u32::try_from(cfg.n_draws).ok(),
                 InferenceMode::Frequentist => None,
@@ -1860,6 +1864,49 @@ fn functional_label(query: &CausalQuery) -> String {
         CausalQuery::PathSpecific(q) => population(&q.target_population).into(),
         _ => String::new(),
     }
+}
+
+/// Calibration label of a non-default propensity overlap policy.
+///
+/// A propensity-score estimator (weighting, matching, stratification,
+/// distance matching, AIPW) clips propensities into `[0.01, 0.99]` and trims
+/// nothing by default, and every coverage record for those estimators was
+/// measured there. Any other clip or trim is a different construction (a trim
+/// also changes the population the interval covers), so it is appended to the
+/// functional label and binds only to records measured under it. `None` at the
+/// default policy and for estimators that fit no propensity model.
+fn overlap_label(study: &Study, resolved_estimator: Option<&str>) -> Option<String> {
+    use antecedent_estimate::OverlapPolicy;
+    let configured = study
+        .estimator_spec
+        .as_ref()
+        .and_then(crate::estimator_spec::EstimatorSpec::propensity_overlap);
+    let policy = if let Some(policy) = configured {
+        policy
+    } else {
+        let estimator = study.estimator.map(|id| id.as_str()).or(resolved_estimator)?;
+        if !matches!(
+            estimator,
+            "propensity.weighting"
+                | "propensity.matching"
+                | "propensity.stratification"
+                | "distance.matching"
+                | "aipw"
+        ) {
+            return None;
+        }
+        study.overlap_policy?
+    };
+    if policy == antecedent_estimate::default_propensity_overlap() {
+        return None;
+    }
+    Some(match policy {
+        OverlapPolicy::ExplicitOverride => "overlap=explicit_override".into(),
+        OverlapPolicy::RequireDiagnostics { clip, trim } => {
+            let bound = |value: Option<f64>| value.map_or_else(|| "none".into(), |v| v.to_string());
+            format!("overlap=clip:{},trim:{}", bound(clip), bound(trim))
+        }
+    })
 }
 
 /// Posterior construction label: backend, likelihood and prior.

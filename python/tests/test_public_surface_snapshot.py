@@ -28,6 +28,7 @@ import antecedent
 from antecedent import AnalysisResult
 from antecedent._workflow import LoadedResult
 from antecedent.estimation import PreparedAnalysis
+from antecedent import estimators
 
 def members(obj):
     names = {n for n in dir(obj) if not n.startswith("_")}
@@ -42,6 +43,9 @@ json.dump(
         "PreparedAnalysis": members(PreparedAnalysis),
         "LoadedResult": members(LoadedResult),
         "Bayesian": members(antecedent.Bayesian),
+        "estimators": sorted(estimators.__all__),
+        "estimators.Overlap": members(estimators.Overlap),
+        "estimators.Aipw": members(estimators.Aipw),
     },
     sys.stdout,
 )
@@ -222,7 +226,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "program_id",
         "study",
     },
-    # Estimator options are reviewed surface, like the verbs.
+    # Estimator options: the Bayesian likelihood, the temporal history cap and
+    # the propensity overlap policy are reviewed surface, like the verbs.
     "Bayesian": {
         "backend",
         "kind",
@@ -232,6 +237,38 @@ SNAPSHOT: dict[str, set[str]] = {
         "n_draws_explicit",
         "prior_from",
         "prior_scale",
+    },
+    "estimators": {
+        "Aipw",
+        "DistanceMatching",
+        "FitKind",
+        "FrontdoorTwoStage",
+        "GlmAdjustment",
+        "GlmFamilyName",
+        "GlmOptions",
+        "Iv2Sls",
+        "IvWald",
+        "LinearAdjustment",
+        "Overlap",
+        "PropensityMatching",
+        "PropensityStratification",
+        "PropensityWeighting",
+        "RdSeKind",
+        "SeKind",
+        "SharpRd",
+        "UNSET",
+    },
+    "estimators.Overlap": {"clip", "trim"},
+    "estimators.Aipw": {
+        "bootstrap",
+        "cluster_ids",
+        "estimator_id",
+        "glm_options",
+        "multiway_ids",
+        "overlap",
+        "panel_times",
+        "se",
+        "se_lag",
     },
 }
 

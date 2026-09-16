@@ -57,7 +57,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "fit_c",
         ],
     ),
-    ("propensity.weighting", &["bootstrap_replicates", "glm_options"]),
+    ("propensity.weighting", &["bootstrap_replicates", "glm_options", "overlap"]),
     (
         "propensity.matching",
         &[
@@ -70,9 +70,10 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "glm_options",
             "caliper",
             "caliper_scale",
+            "overlap",
         ],
     ),
-    ("propensity.stratification", &["bootstrap_replicates", "glm_options", "n_strata"]),
+    ("propensity.stratification", &["bootstrap_replicates", "glm_options", "n_strata", "overlap"]),
     (
         "distance.matching",
         &[
@@ -84,6 +85,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "panel_times",
             "glm_options",
             "caliper",
+            "overlap",
         ],
     ),
     (
@@ -96,6 +98,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "multiway_ids",
             "panel_times",
             "glm_options",
+            "overlap",
         ],
     ),
     (
@@ -570,6 +573,54 @@ fn build_glm_options(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmOptions>> {
 /// [`parse_estimator_config`]). By the time this runs, every key in `dict` has already been
 /// validated against `resolved_id`'s row in [`ESTIMATOR_KEYS`], so extracting a field this
 /// estimator doesn't support is impossible — the field simply won't be present.
+/// Propensity overlap policy from `{"clip": float | None, "trim": float | None}`.
+///
+/// An absent `overlap` key keeps the estimator's default (clip at 0.01, no
+/// trim). A present mapping sets both bounds: an omitted or `None` bound turns
+/// that operation off. Each bound must lie in `(0, 0.5)`.
+fn build_overlap(dict: &Bound<'_, PyDict>) -> PyResult<Option<antecedent_estimate::OverlapPolicy>> {
+    let Some(value) = dict.get_item("overlap")? else {
+        return Ok(None);
+    };
+    let mapping = value.cast::<PyDict>().map_err(|_| {
+        invalid(format!(
+            "estimator_config overlap must be a mapping with clip and trim, got {}",
+            type_name(&value)
+        ))
+    })?;
+    for (key, _) in mapping.iter() {
+        let key: String = key.extract()?;
+        if key != "clip" && key != "trim" {
+            return Err(invalid(format!(
+                "unknown estimator_config overlap key {key:?}; valid keys are \"clip\", \"trim\""
+            )));
+        }
+    }
+    let bound = |name: &str| -> PyResult<Option<f64>> {
+        let Some(value) = mapping.get_item(name)?.filter(|value| !value.is_none()) else {
+            return Ok(None);
+        };
+        let bound: f64 = value.extract().map_err(|_| {
+            invalid(format!("overlap {name} must be a float or None, got {}", type_name(&value)))
+        })?;
+        if !(bound.is_finite() && bound > 0.0 && bound < 0.5) {
+            return Err(invalid(format!("overlap {name} must lie in (0, 0.5), got {bound}")));
+        }
+        Ok(Some(bound))
+    };
+    Ok(Some(antecedent_estimate::OverlapPolicy::RequireDiagnostics {
+        clip: bound("clip")?,
+        trim: bound("trim")?,
+    }))
+}
+
+fn invalid(message: String) -> PyErr {
+    crate::with_reason_code(
+        PyValueError::new_err(message),
+        antecedent_core::reason_code!("invalid_argument"),
+    )
+}
+
 fn build_configured_spec(
     resolved_id: &str,
     dict: &Bound<'_, PyDict>,
@@ -581,6 +632,7 @@ fn build_configured_spec(
     let multiway_ids = get_u32_list_list(dict, "multiway_ids")?;
     let panel_times = get_i64_list(dict, "panel_times")?;
     let glm_options = build_glm_options(dict)?;
+    let overlap = build_overlap(dict)?;
 
     Ok(match resolved_id {
         "linear.adjustment.ate" => {
@@ -606,6 +658,9 @@ fn build_configured_spec(
             let mut est = PropensityWeighting::new().with_bootstrap_replicates(bootstrap);
             if let Some(opts) = glm_options {
                 est = est.with_glm_options(opts);
+            }
+            if let Some(policy) = overlap {
+                est = est.with_overlap(policy);
             }
             est.into()
         }
@@ -644,6 +699,9 @@ fn build_configured_spec(
                 };
                 est = est.with_caliper_scale(parsed);
             }
+            if let Some(policy) = overlap {
+                est = est.with_overlap(policy);
+            }
             est.into()
         }
         "propensity.stratification" => {
@@ -653,6 +711,9 @@ fn build_configured_spec(
             }
             if let Some(n) = get_u32(dict, "n_strata")? {
                 est = est.with_n_strata(n);
+            }
+            if let Some(policy) = overlap {
+                est = est.with_overlap(policy);
             }
             est.into()
         }
@@ -676,6 +737,9 @@ fn build_configured_spec(
             if let Some(cal) = get_f64(dict, "caliper")? {
                 est = est.with_caliper(cal);
             }
+            if let Some(policy) = overlap {
+                est = est.with_overlap(policy);
+            }
             est.into()
         }
         "aipw" => {
@@ -694,6 +758,9 @@ fn build_configured_spec(
             }
             if let Some(opts) = glm_options {
                 est = est.with_glm_options(opts);
+            }
+            if let Some(policy) = overlap {
+                est = est.with_overlap(policy);
             }
             est.into()
         }
