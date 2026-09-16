@@ -1992,6 +1992,14 @@ fn reasoning_view(
     let mut obligations = obligations_from_set(cached.map(|result| &result.required_assumptions));
     obligations.extend(observation_obligations(&study.query));
     let assumptions = AssumptionSlot::new(obligations);
+    if prepared.is_some() && cached.is_none() && identifies_per_execution(study) {
+        // Sharp RD identifies from the running-variable design on every
+        // estimate click (ADR 0020 / 0022), so a prepared program has no
+        // identification product to report; each executed claim carries it.
+        let mut view = ReasoningView::structural(support, assumptions);
+        view.identification = SlotAvailability::unavailable(IDENTIFIED_PER_EXECUTION);
+        return view;
+    }
     if prepared.is_none() || cached.is_none() {
         return ReasoningView::structural(support, assumptions);
     }
@@ -2003,6 +2011,16 @@ fn reasoning_view(
         SlotAvailability::unavailable("execution_specific"),
         SlotAvailability::Available(assumptions),
     )
+}
+
+/// Identification-slot reason on a prepared program that re-identifies on
+/// every execution instead of caching an identification product.
+pub const IDENTIFIED_PER_EXECUTION: &str = "identified_per_execution";
+
+/// Whether this study is the identify-per-click exception (sharp RD).
+fn identifies_per_execution(study: &Study) -> bool {
+    study.estimator == Some(crate::EstimatorId::RdSharp)
+        || study.identifier == Some(crate::IdentifierId::RdSharp)
 }
 
 fn matrix_coordinate(study: &Study) -> Option<String> {
