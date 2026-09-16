@@ -102,7 +102,24 @@ and the identification method and adjustment set, the validation verdict
 exported body.
 
 A query owns its target population:
-`ant.AverageEffect("t", "y", target_population=Treated())`.
+`ant.AverageEffect("t", "y", target_population=Treated())`. Every query whose
+Rust kind is population-scoped carries the same keyword-only field
+(`AverageEffect`, `ConditionalEffect`, `MediationEffect`,
+`TemporalMediationEffect`, `PathSpecificEffect`, `InterventionalDistribution`,
+`PulseEffect`, `SustainedEffect`, `InterventionResponse`, `ResponseCurve` and
+the six derivative queries) and accepts the `antecedent.population` types
+(`AllRows`, `Treated`, `Untreated`, `Named`, `Rows`, `CustomDistribution`, with
+named and custom targets bound by `population_registry=`). `None` means the
+all-observed population. The Rust study builder licenses the declaration: an
+`AverageEffect` estimates the targets its estimator supports (AIPW and the
+propensity estimators take treated, untreated, predicate and custom-distribution
+targets; `linear.adjustment.ate` and Bayesian g-computation take only the
+all-observed population on every graph class). Every other population-scoped
+query refuses a declared population with `reason_code="population_not_estimable"`
+instead of answering for the all-observed rows; for a reweighted response or
+average effect, prepare the all-observed AIPW or cell-AIPW study and `retarget`
+its frozen scores. `analyze_many` and `PreparedBatch.prepare` estimate each
+query's own population.
 
 `identify(...)` returns an `Identification` whose `statement`, `verdict`,
 `qualified_verdict`, `assumption_statements`, and `derivation_statements` are

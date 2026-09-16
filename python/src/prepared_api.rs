@@ -206,7 +206,9 @@ fn static_ate_query(
     })
 }
 
-/// Pulse / Sustained query from a policy name and optional sustained window.
+/// Pulse / Sustained query from a policy name, optional sustained window, and
+/// the declared target population.
+#[allow(clippy::too_many_arguments)]
 fn temporal_effect_query(
     policy: &str,
     window: Option<(i32, i32)>,
@@ -215,6 +217,7 @@ fn temporal_effect_query(
     treatment_lag: u32,
     horizon_steps: u32,
     active_level: f64,
+    opts: &PrepareOptions,
 ) -> PyResult<antecedent_core::TemporalEffectQuery> {
     let mut q = crate::temporal_api::temporal_query_from_policy(
         policy,
@@ -230,10 +233,14 @@ fn temporal_effect_query(
         }
         q = q.with_policy(antecedent_core::TemporalPolicy::sustained(from, until));
     }
+    if let Some(population) = opts.target_population.clone() {
+        q.target_population = population;
+    }
     Ok(q)
 }
 
-/// Temporal mediation query over treatment, one mediator, and outcome.
+/// Temporal mediation query over treatment, one mediator, and outcome, with
+/// the declared target population.
 #[allow(clippy::too_many_arguments)]
 fn temporal_mediation_query(
     schema: &CausalSchema,
@@ -244,6 +251,7 @@ fn temporal_mediation_query(
     control_level: f64,
     active_level: f64,
     horizons: Option<Vec<u32>>,
+    opts: &PrepareOptions,
 ) -> PyResult<MediationQuery> {
     let t_id = schema.id_of(treatment).map_err(py_err)?;
     let m_id = schema.id_of(mediator).map_err(py_err)?;
@@ -263,6 +271,9 @@ fn temporal_mediation_query(
     q.active = Intervention::set(t_id, Value::f64(active_level));
     if let Some(hs) = horizons {
         q = q.with_horizons(hs).map_err(py_msg)?;
+    }
+    if let Some(population) = opts.target_population.clone() {
+        q.target_population = population;
     }
     Ok(q)
 }
@@ -1893,6 +1904,7 @@ impl PyPreparedAnalysis {
                 treatment_lag,
                 horizon_steps,
                 active_level,
+                &opts,
             )?;
             let mut builder = data.builder()?;
             builder = if let Some(graph) = class_graph {
@@ -1986,6 +1998,7 @@ impl PyPreparedAnalysis {
                 control_level,
                 active_level,
                 horizons,
+                &opts,
             )?;
             let mut builder = data.builder()?;
             builder = if let Some(graph) = class_graph {
@@ -2295,6 +2308,7 @@ impl PyPreparedAnalysis {
                 treatment_lag,
                 horizon_steps,
                 active_level,
+                &opts,
             )?;
             let ctx = opts.ctx(seed, threads);
             let gp = dbn_posterior(
@@ -2389,6 +2403,7 @@ impl PyPreparedAnalysis {
                 control_level,
                 active_level,
                 horizons,
+                &opts,
             )?;
             let ctx = opts.ctx(seed, threads);
             let gp = dbn_posterior(
