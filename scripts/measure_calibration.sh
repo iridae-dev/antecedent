@@ -9,11 +9,14 @@
 #   1. find the records that owe a re-measurement (scripts/calibration_facets.py,
 #      through scripts/calibration_groups.py) and the gate groups that measure
 #      them;
-#   2. run exactly those groups through the unchanged scripts/gate_calibration.sh,
-#      in parallel, including its 2000-replicate rechecks; logs land in
-#      target/calibration-records/, where the collector reads them;
-#   3. collect them with scripts/collect_coverage_records.py, stamping each
-#      record with the commit it was measured at;
+#   2. run exactly those groups through scripts/gate_calibration.sh, in parallel,
+#      one job per sample-size grid point of a record-emitting group, including
+#      the 2000-replicate recheck of each point; logs land in
+#      target/calibration-records/ (`<group>.p<k>.log`), where the collector
+#      reads them;
+#   3. collect them with scripts/collect_coverage_records.py, which merges each
+#      record's grid points into its measured range and stamps it with the
+#      commit it was measured at;
 #   4. run the attestation gate to prove the result passes.
 #
 # Then commit the registry and the files the collector regenerates, and push.
@@ -27,7 +30,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 usage() {
-  sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 ALL=""

@@ -252,6 +252,51 @@ status = "pending"
 """
 
 
+def gridded_record(grid: list[tuple[int, float, bool]], boundary: bool) -> str:
+    """A coverage record measured on the sample-size grid, as the collector writes
+    one: `grid` holds `(n, observed, boundary)` per point, smallest first."""
+    suite = "crates/antecedent-estimate/src/calibration_coverage.rs"
+    points = "".join(
+        f"  {{ point = {k}, n_min = {n}, n_max = {n}, observed = {obs}, mcse = 0.011, "
+        f'replicates = 400, boundary = {str(b).lower()}, role = "gated" }},\n'
+        for k, (n, obs, b) in enumerate(grid)
+    )
+    governing = min([p for p in grid if p[2]] or grid, key=lambda p: p[1])
+    rid = "cov.average_effect.dag.frequentist.analytic_se.l95"
+    return f"""[[record]]
+id = "{rid}.linear_adjustment_analytic_ci_coverage.selftest"
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "linear.adjustment.ate"
+interval_method = "analytic_se"
+se_kind = "homoskedastic"
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean"
+identification = "point"
+nominal = 0.95
+n_min = {min(n for n, _, _ in grid)}
+n_max = {max(n for n, _, _ in grid)}
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = {governing[1]}
+mcse = 0.011
+replicates = 400
+boundary = {str(boundary).lower()}
+role = "gated"
+grid = [
+{points}]
+dgp = "{suite}::confounded_scm"
+test = "{suite}::linear_adjustment_analytic_ci_coverage"
+facets = ["core", "suite.calibration_coverage"]
+calibration_sha = "{"1" * 40}"
+"""
+
+
 def schema_cases() -> list[bool]:
     g = "gate_parity_schema.sh"
     return [
@@ -345,6 +390,40 @@ def schema_cases() -> list[bool]:
                 )
             },
             ["are not the derived", "collect_coverage_records.py --retag"],
+        ),
+        case(
+            g,
+            "record_grid_missing_a_point",
+            {
+                "parity/coverage_records.toml": append(
+                    gridded_record([(150, 0.95, False), (300, 0.9475, False)], False)
+                )
+            },
+            ["grid must hold one measurement per sample-size grid point"],
+        ),
+        case(
+            g,
+            "record_grid_failing_point_averaged_into_a_pass",
+            {
+                "parity/coverage_records.toml": append(
+                    gridded_record(
+                        [(150, 0.9, True), (300, 0.9475, False), (600, 0.95, False)], False
+                    )
+                )
+            },
+            ["boundary must be true exactly when a grid point is"],
+        ),
+        case(
+            g,
+            "record_grid_that_does_not_scale_its_sample_size",
+            {
+                "parity/coverage_records.toml": append(
+                    gridded_record(
+                        [(300, 0.95, False), (300, 0.9475, False), (600, 0.95, False)], False
+                    )
+                )
+            },
+            ["grid sample sizes must strictly increase point to point"],
         ),
         case(
             g,

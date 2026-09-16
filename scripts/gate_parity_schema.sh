@@ -601,39 +601,104 @@ if cr.is_file():
             problems.append(f"{label}: test {test} does not resolve")
         if not _resolves(str(rec["dgp"])):
             problems.append(f"{label}: dgp {rec['dgp']} does not resolve")
+        nominal = float(rec["nominal"])
         role = str(rec["role"])
         boundary = bool(rec["boundary"])
-        nominal = float(rec["nominal"])
-        lo, hi, floor = _band(nominal, int(rec["replicates"]))
-        observed = float(rec["observed"])
-        nominal_pass = lo <= observed <= hi and (floor is None or observed >= floor)
+
+        def nominal_pass(point: dict) -> bool:
+            lo, hi, floor = _band(nominal, int(point["replicates"]))
+            observed = float(point["observed"])
+            return lo <= observed <= hi and (floor is None or observed >= floor)
+
+        # The measured range is the sample-size grid: every point present, in
+        # order, strictly growing, and the row's summary exactly what
+        # scripts/collect_coverage_records.py::merge_grid derives from it.
+        grid = rec["grid"]
+        if (
+            not isinstance(grid, list)
+            or len(grid) != collector.GRID_POINTS
+            or not all(isinstance(p, dict) for p in grid)
+        ):
+            problems.append(
+                f"{label}: grid must hold one measurement per sample-size grid point "
+                f"({collector.GRID_POINTS}); re-measure with scripts/measure_calibration.sh"
+            )
+            continue
+        if any(sorted(p) != sorted(collector.GRID_ENTRY_FIELDS) for p in grid):
+            problems.append(
+                f"{label}: grid points must carry exactly {', '.join(collector.GRID_ENTRY_FIELDS)}"
+            )
+            continue
+        if [int(p["point"]) for p in grid] != list(range(collector.GRID_POINTS)):
+            problems.append(f"{label}: grid points must be 0..{collector.GRID_POINTS - 1} in order")
+        if any(int(lo["n_max"]) >= int(hi["n_min"]) for lo, hi in zip(grid, grid[1:])):
+            problems.append(f"{label}: grid sample sizes must strictly increase point to point")
+        if (int(rec["n_min"]), int(rec["n_max"])) != (
+            min(int(p["n_min"]) for p in grid),
+            max(int(p["n_max"]) for p in grid),
+        ):
+            problems.append(f"{label}: n_min..n_max must span the grid points")
+        failing = [p for p in grid if p["boundary"]]
+        if boundary != bool(failing):
+            problems.append(f"{label}: boundary must be true exactly when a grid point is")
+        governing = min(failing or grid, key=lambda p: (float(p["observed"]), int(p["point"])))
+        if (rec["observed"], rec["mcse"], rec["replicates"]) != (
+            governing["observed"],
+            governing["mcse"],
+            governing["replicates"],
+        ):
+            problems.append(
+                f"{label}: observed / mcse / replicates must be the governing grid point's "
+                f"(point {governing['point']})"
+            )
+        for point in grid:
+            where = f"{label} grid point {point['point']}"
+            for field in ("observed", "mcse"):
+                val = point[field]
+                if not isinstance(val, (int, float)) or not 0 <= float(val) <= 1:
+                    problems.append(f"{where}: {field} not in [0,1]")
+            if int(point["replicates"]) < 1:
+                problems.append(f"{where}: replicates must be positive")
+            if int(point["n_min"]) < 1 or int(point["n_max"]) < int(point["n_min"]):
+                problems.append(f"{where}: measured row-count range is empty")
+            point_role = str(point["role"])
+            passes = nominal_pass(point)
+            if point_role == "gated":
+                if point["boundary"]:
+                    problems.append(f"{where}: a gated point cannot be a boundary")
+                if not passes:
+                    problems.append(
+                        f"{where}: gated coverage {point['observed']} is outside the {nominal} band"
+                    )
+            elif point_role == "named_boundary":
+                if not point["boundary"]:
+                    problems.append(f"{where}: a named boundary point must be boundary = true")
+            elif point_role == "reported_level":
+                if bool(point["boundary"]) == passes:
+                    problems.append(
+                        f"{where}: boundary must be true exactly when the measured coverage "
+                        f"{point['observed']} misses the {nominal} band"
+                    )
+            else:
+                problems.append(f"{where}: unknown role {point_role}")
+        roles = {str(p["role"]) for p in grid}
+        if len(roles) > 1 and roles != {"gated", "named_boundary"}:
+            problems.append(f"{label}: grid points carry incompatible roles {sorted(roles)}")
+        else:
+            expected_role = "named_boundary" if len(roles) > 1 else next(iter(roles))
+            if role != expected_role:
+                problems.append(f"{label}: role {role} is not the grid points' {expected_role}")
         if role == "gated":
-            if boundary:
-                problems.append(f"{label}: a gated record cannot be a boundary")
-            if not nominal_pass:
-                problems.append(
-                    f"{label}: gated coverage {observed} is outside the {nominal} band"
-                )
             named = re.search(r"nominal_(\d+)_coverage", test_fn)
             if named and abs(int(named.group(1)) / 100 - nominal) > 1e-9:
                 problems.append(
                     f"{label}: nominal {nominal} contradicts the test name {test_fn}"
                 )
         elif role == "named_boundary":
-            if not boundary:
-                problems.append(f"{label}: a named boundary must be boundary = true")
             if "boundary" not in test_fn:
                 problems.append(
                     f"{label}: role named_boundary on {test_fn}, whose name claims no boundary"
                 )
-        elif role == "reported_level":
-            if boundary == nominal_pass:
-                problems.append(
-                    f"{label}: boundary must be true exactly when the measured coverage "
-                    f"{observed} misses the {nominal} band"
-                )
-        else:
-            problems.append(f"{label}: unknown role {role}")
 else:
     problems.append("parity/coverage_records.toml missing")
 
