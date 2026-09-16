@@ -31,7 +31,7 @@ reason = "Admg response has no functional plug-in; licensed general-ID ATE does 
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
 graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]
-reason = "Graph-posterior path and distribution mixtures are not staged."
+reason = "graph-posterior structures are refused: a path, distribution, or mediation mixture is not a single estimand across posterior atoms."
 
 [[closed]]
 queries = ["PathSpecificEffect"]

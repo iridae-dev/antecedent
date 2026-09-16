@@ -24,7 +24,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
 
-from ._verdict import verdict_for
+from ._verdict import describe_status, verdict_for
 from .errors import CausalUnsupportedError, CausalValueError
 from .estimation import IdentifyResult
 from .estimation import identify as _identify_native
@@ -49,6 +49,7 @@ from .query import (
     TemporalMediationEffect,
 )
 from .results import IdentificationView
+
 
 def _query_phrase(query: object) -> str:
     name = type(query).__name__
@@ -200,29 +201,24 @@ class Identification:
         ]
 
     def __bool__(self) -> bool:
-        """``True`` when the estimand is identified.
-
-        Delegates to :class:`antecedent.results.IdentificationView`'s status
-        heuristic — the one place in this codebase that already makes this
-        judgment call across the native status vocabulary
-        (``NonparametricallyIdentified`` / ``PartiallyIdentified`` /
-        ``NotIdentified`` / ``GraphDependent`` / the GCM path's
-        ``"gcm.parametric"``) — rather than re-deriving it here.
-        """
-        return bool(
-            IdentificationView(
-                status=self.status,
-                method=self.method,
-                adjustment_set=list(self.adjustment_set),
-                assumption_count=self.assumption_count or 0,
-                derivation_step_count=self.derivation_step_count or 0,
-            )
-        )
+        """``True`` when the single verdict table (:mod:`antecedent._verdict`) reports identified."""
+        return self.verdict == "identified"
 
     @property
     def verdict(self) -> str:
         """Stable human label: identified, not identified, partial, or graph-dependent."""
         return verdict_for(self.status)
+
+    @property
+    def qualified_verdict(self) -> str:
+        """:attr:`verdict` plus the restriction it holds under, when there is one.
+
+        ``IdentifiedUnderParametricRestrictions`` reads
+        ``"identified under parametric restrictions"``; priors never upgrade
+        identification, so ``IdentifiedUnderPriorRestrictions`` keeps its
+        qualifier too.
+        """
+        return describe_status(self.status)
 
     @property
     def assumption_statements(self) -> tuple[str, ...]:
@@ -244,7 +240,7 @@ class Identification:
         if verdict == "graph-dependent":
             phrase = f"{query} is graph-dependent, not a single identified effect"
         else:
-            phrase = f"{query} is {verdict}"
+            phrase = f"{query} is {self.qualified_verdict}"
         method = self.method.strip() if self.method else ""
         if method and method.lower() not in {"none", "unavailable"}:
             phrase = f"{phrase} by {method}"
@@ -258,6 +254,7 @@ class Identification:
         return {
             "status": self.status,
             "verdict": self.verdict,
+            "qualified_verdict": self.qualified_verdict,
             "statement": self.statement,
             "method": self.method,
             "adjustment_set": list(self.adjustment_set),

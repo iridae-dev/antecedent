@@ -10,8 +10,9 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from math import isfinite, isnan
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
+from .._verdict import describe_status
 from ..errors import CausalValueError
 from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct
@@ -361,6 +362,8 @@ class SimultaneousBand:
 class CausalResponseView(ResultAPI):
     """Top-level result projection shared by response-family estimands."""
 
+    _function_valued: ClassVar[bool] = True
+
     estimand: object
     response: ResponseView | None
     estimate: float | Sequence[float] | Sequence[Sequence[float]] | None
@@ -401,7 +404,10 @@ class CausalResponseView(ResultAPI):
     def __repr__(self) -> str:
         limitation = self.rendering_limitation()
         if limitation is not None:
-            return f"<CausalResponseView {self.answer.kind}: {limitation}>"
+            return (
+                f"<CausalResponseView {describe_status(self.identification.status)} "
+                f"answer={self.answer.kind} limitation={limitation}>"
+            )
         if isinstance(self.estimate, (float, int)):
             estimate = fmt_float(float(self.estimate))
         elif self.response is not None:

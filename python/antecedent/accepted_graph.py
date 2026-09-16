@@ -15,18 +15,18 @@ import json
 from collections.abc import Iterator, Mapping, Sequence
 from typing import Any
 
-from ._native import CausalUnsupportedError
 from .discovery import (
     LPCMCI,
     PCMCI,
     DiscoveryResult,
     PCMCIPlus,
+    ReviewedDiscovery,
     StaticDiscovery,
     TemporalDiscovery,
     run_static_discovery,
     run_temporal_discovery,
 )
-from .errors import CausalTypeError, CausalValueError, PendingEdge
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, PendingEdge
 from .graph import (
     Admg,
     Cpdag,
@@ -38,7 +38,11 @@ from .graph import (
     discovery_to_dag,
 )
 
-_AnyDiscovery = StaticDiscovery | TemporalDiscovery
+_AnyDiscovery = ReviewedDiscovery
+#: The configurations `rediscover` can rerun on one table or one series; the
+#: multi-dataset and regime-labelled algorithms are accepted through
+#: `accept_discovery`, which knows how to feed them.
+_SingleTableDiscovery = StaticDiscovery | TemporalDiscovery
 
 _GraphTypes = (
     Dag
@@ -306,7 +310,7 @@ class AcceptedGraph:
     def rediscover(
         self,
         data: Any,
-        discovery: _AnyDiscovery,
+        discovery: _SingleTableDiscovery,
         *,
         seed: int = 1,
         threads: int = 1,

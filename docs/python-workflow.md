@@ -25,12 +25,31 @@ The paid-search and continuous-response notebooks need no extra preparation
 steps. Their results can now be retained for repeated estimation. See the
 [executable workflow example](../examples/python/analysis_workflow.py).
 
-`result.answer` is the safe consumption interface: `point`, `bounds`, `partial`,
-or `unavailable`. A partial answer does not expose an unrestricted scalar there.
-Historical fields (`effect`, `ate`, `posterior`, `response`) remain accessible
-for existing callers. `.effect` / `.ate` emit a `UserWarning` when a point
-display would misrepresent the claim; `ANTECEDENT_STRICT_ANSWER=1` raises
-instead. That is a safe interface plus a warning, not misuse-proofing.
+`result.answer` is the safe consumption interface. `answer.kind` is one of six
+values, and a result loaded from `result.export()` gives the same kind as the
+live result of that execution:
+
+| `kind` | Meaning | Carries |
+|---|---|---|
+| `point` | A complete scalar claim | `value` |
+| `bounds` | A set-identified scalar | `bounds`, the identified set `(lower, upper)` over identified completions |
+| `partial` | Partial identification or leftover structural mass: no scalar, and for a function-valued claim no unrestricted curve (read `result.envelope`) | `detail` (the limitation id), and `bounds` whenever the execution computed a scalar identified set |
+| `response` | A function-valued claim (response curve, intervention response, derivative, Jacobian) | read `result.response` / `result.estimate` |
+| `structured` | An executed claim with no single scalar, such as a multi-horizon temporal mediation grid | read its structured fields (`result.mediation_grid`) |
+| `unavailable` | No claim: not identified, refused, not executed, non-finite, or not semantically accepted | `detail` (why) |
+
+`bounds` and `partial` answers never expose an unrestricted scalar. Historical
+fields (`effect`, `ate`, `posterior`, `response`) remain accessible for existing
+callers. `.effect` / `.ate` emit a `UserWarning` when a point display would
+misrepresent the claim; `ANTECEDENT_STRICT_ANSWER=1` raises instead. Displays
+follow the same rule: the notebook card, `repr(result)`, `repr(result.estimate)`
+and `repr(result.posterior)` of a partial result name the identification verdict
+and the limitation instead of a mean and interval.
+
+Every display of identification uses one verdict table: identified (with its
+restriction, for example "identified under parametric restrictions"), partially
+identified, graph-dependent, or not identified. The calibration row shows the
+status, the reason code and the coverage record id, omitting any that are absent.
 
 ## Prepare explicitly when useful
 

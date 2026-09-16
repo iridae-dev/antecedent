@@ -1006,6 +1006,10 @@ DiscoveryResult = PcmciDiscoveryResult
 
 StaticDiscovery = PC | GES | LiNGAM | NOTEARS | FCI | RFCI
 TemporalDiscovery = PCMCI | PCMCIPlus | LPCMCI
+#: Every configuration `accepted_graph.accept_discovery` runs through a review
+#: gate: the single-table and single-series algorithms plus the two that read a
+#: set of datasets (J-PCMCI+) or labelled regimes (RPCMCI).
+ReviewedDiscovery = StaticDiscovery | TemporalDiscovery | JPCMCIPlus | RPCMCI
 
 _STATIC_DISCOVERY_TYPES = (PC, GES, LiNGAM, NOTEARS, FCI, RFCI)
 _TEMPORAL_DISCOVERY_TYPES = (PCMCI, PCMCIPlus, LPCMCI)

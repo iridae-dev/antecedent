@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import antecedent as ant
 import numpy as np
 from antecedent.estimation import PreparedAnalysis
 from antecedent.query import AverageEffect
@@ -310,7 +311,9 @@ def test_four_slots_refuse_identified_atom_mean_for_partial_claim() -> None:
     else:
         raise AssertionError("partial claim must not display a point mean")
     html = result._repr_html_()
-    assert "partial; cannot display a point mean" in html
+    assert "no point mean" in html and "(unidentified_mass)" in html
+    assert "2.290" not in html
+    assert "2.290" not in repr(result.estimate) and "2.290" not in repr(result.posterior)
 
 
 def test_calibration_reads_from_contract() -> None:
@@ -344,20 +347,24 @@ def test_custom_validator_is_attested_and_covered_by_claim_id() -> None:
     def always_pass(*, ate, **_kwargs):
         return {"passed": True, "refuted_ate": ate, "comparison": 0.0}
 
-    prepared = PreparedAnalysis.prepare(
-        _data(),
-        graph=[("z", "t"), ("z", "y"), ("t", "y")],
-        query=AverageEffect("t", "y"),
-        refute="none",
-        bootstrap=0,
-        validators=[always_pass],
-    )
-    result = prepared.estimate()
-    assert result.claim_id is not None
-    attested = result.inspect().to_dict().get("claim", {}).get("attested") or []
-    assert result.claim_id
-    prepared.rebind_validators({})
-    _ = attested
+    def always_fail(*, ate, **_kwargs):
+        return {"passed": False, "refuted_ate": ate, "comparison": 1.0}
+
+    def run(validators):
+        return PreparedAnalysis.prepare(
+            _data(),
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=AverageEffect("t", "y"),
+            refute="none",
+            bootstrap=0,
+            validators=validators,
+        ).estimate()
+
+    passing, failing, unchecked = run([always_pass]), run([always_fail]), run(None)
+    attested = ant.load(passing.export()).artifact.contract["claim"]["attested"]
+    assert attested, "a custom validator result must be attested in the claim"
+    assert ant.load(failing.export()).artifact.contract["claim"]["attested"] != attested
+    assert len({passing.claim_id, failing.claim_id, unchecked.claim_id}) == 3
 
 
 def test_retarget_export_reload_and_reexecute_on_snapshot() -> None:

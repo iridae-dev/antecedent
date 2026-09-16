@@ -125,7 +125,7 @@ row here yet.
 - queries ∈ {Counterfactual} ∧ graph_classes ∈ {Admg, Cpdag, Pag} — Counterfactual requires a supplied static Dag.
 - queries ∈ {AverageDerivative, DirectionalDerivative, Elasticity, PointDerivative, ResponseJacobian, SemiElasticity} ∧ graph_classes ∈ {Admg, Cpdag, Pag} — Derivatives require a supplied static Dag.
 - queries ∈ {ResponseCurve, InterventionResponse} ∧ graph_classes ∈ {Admg} — Admg response has no functional plug-in; licensed general-ID ATE does not estimate a curve.
-- queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag} ∧ structures ∈ {graph_posterior} — Graph-posterior path and distribution mixtures are not staged.
+- queries ∈ {PathSpecificEffect, InterventionalDistribution} ∧ graph_classes ∈ {Dag, Admg, Cpdag, Pag} ∧ structures ∈ {graph_posterior} — graph-posterior structures are refused: a path, distribution, or mediation mixture is not a single estimand across posterior atoms.
 - queries ∈ {PathSpecificEffect} ∧ graph_classes ∈ {Admg, Cpdag, Pag} ∧ structures ∈ {accepted} — Accepted path queries require a Dag.
 - queries ∈ {InterventionalDistribution} ∧ graph_classes ∈ {Cpdag, Pag} ∧ structures ∈ {accepted} — Accepted InterventionalDistribution is licensed on Dag and Admg; Cpdag/Pag remain refused.
 - queries ∈ {MediationEffect} ∧ graph_classes ∈ {Admg, Cpdag, Pag} — MediationEffect requires a supplied static Dag.
