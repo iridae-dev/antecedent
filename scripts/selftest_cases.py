@@ -131,6 +131,19 @@ def replace(old: str, new: str) -> Mutation:
     return apply
 
 
+def drop_calibration_pair() -> Mutation:
+    """Remove a row's `calibration` / `calibration_reason` line, whichever the
+    collector last wrote: the row's state follows the coverage registry."""
+
+    def apply(text: str) -> str:
+        kept = re.sub(r"(?m)^calibration(?:_reason)? = .*\n", "", text)
+        if kept == text:
+            raise SystemExit("self-test fixture drift: no calibration pair in the block")
+        return kept
+
+    return apply
+
+
 def drop_block(header: str, row_id: str) -> Mutation:
     """Remove the `[[header]]` block whose first key is `id = row_id`."""
 
@@ -256,7 +269,7 @@ def schema_cases() -> list[bool]:
                 "parity/estimate.toml": in_block(
                     "capabilities",
                     "estimate.linear_regression",
-                    replace('calibration_reason = "estimator_grid_not_measured"\n', ""),
+                    drop_calibration_pair(),
                 )
             },
             ["estimate.linear_regression: exactly one of calibration / calibration_reason"],
