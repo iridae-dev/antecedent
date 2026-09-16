@@ -8,6 +8,7 @@ from typing import Any, Literal, Protocol
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
+from .interference import InterferenceQuery
 from .query import (
     AverageDerivative,
     AverageEffect,
@@ -28,6 +29,7 @@ from .query import (
     TemporalMediationEffect,
 )
 from .results import AnalysisResult, CausalResponseView
+from .transport import TransportQuery
 
 
 class EstimatorConfigLike(Protocol):
@@ -60,6 +62,8 @@ def analyze(
         | DirectionalDerivative
         | ResponseJacobian
         | InterventionResponse
+        | TransportQuery
+        | InterferenceQuery
     ),
     graph: (
         Dag
@@ -111,8 +115,11 @@ def analyze(
     query:
         ``AverageEffect``, ``PulseEffect`` / ``SustainedEffect``,
         ``InterventionalDistribution``, ``PathSpecificEffect``,
-        ``MediationEffect``, ``Counterfactual``, ``TemporalMediationEffect``, or a
-        response-family query. Response-family queries return
+        ``MediationEffect``, ``Counterfactual``, ``TemporalMediationEffect``,
+        ``TransportQuery`` (on an ``Admg`` selection diagram, with its trial
+        columns), ``InterferenceQuery`` (on a ``Dag`` or edge list, with its
+        network and realized assignment), or a response-family query.
+        Response-family queries return
         :class:`antecedent.results.CausalResponseView`; other queries return
         :class:`antecedent.AnalysisResult`.
     graph:

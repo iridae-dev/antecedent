@@ -70,6 +70,31 @@ def _moderated(seed: int, n: int = 800) -> dict[str, np.ndarray]:
     return {"treatment": t, "outcome": y, "w": w}
 
 
+def _transport(seed: int, n: int = 600) -> dict[str, np.ndarray]:
+    """Trial membership ``S | x ~ Bern(σ(x/2))`` with known probabilities, ``a`` randomized."""
+    rng = np.random.default_rng(seed)
+    x = rng.normal(size=n)
+    s = 1 / (1 + np.exp(-0.5 * x))
+    trial = rng.uniform(size=n) < s
+    a = np.where(trial, (rng.uniform(size=n) < 0.5).astype(float), 0.0)
+    y = np.where(trial, 1.0 + a * (1.0 + x) + x + rng.normal(size=n), 0.0)
+    return {"a": a, "y": y, "trial": trial.astype(float), "s": s, "e": np.full(n, 0.5), "x": x}
+
+
+UNITS = 60
+#: A fixed ring network and one realized Bernoulli(1/2) assignment: the design.
+RING = [((i + 1) % UNITS, i) for i in range(UNITS)] + [((i - 1) % UNITS, i) for i in range(UNITS)]
+ASSIGNMENT = [bool(v) for v in np.random.default_rng(0).uniform(size=UNITS) < 0.5]
+
+
+def _network_outcomes(seed: int) -> dict[str, np.ndarray]:
+    """Outcomes of the fixed design; the data a refresh replaces."""
+    rng = np.random.default_rng(seed)
+    treated = np.array(ASSIGNMENT, dtype=float)
+    neighbors = np.array([treated[(i + 1) % UNITS] + treated[i - 1] for i in range(UNITS)])
+    return {"y": 1.0 + 2.0 * treated + 0.5 * neighbors + rng.normal(size=UNITS)}
+
+
 STATIC_DAG = [("z", "treatment"), ("z", "outcome"), ("treatment", "outcome")]
 
 
@@ -140,6 +165,35 @@ CASES = [
         _moderated,
         [("treatment", "outcome"), ("w", "outcome")],
         ant.ConditionalEffect("treatment", "outcome", "w"),
+        "point",
+    ),
+    Case(
+        "transport-trial-ipw",
+        _transport,
+        ant.Admg.from_edges(["a", "y", "trial", "s", "e", "x"], [("a", "y"), ("x", "y")]),
+        ant.TransportQuery(
+            ant.ResponseCurve("a", "y", grid=[0.0, 1.0]),
+            ant.transport.SelectionDiagram("trial", "target", ["x"]),
+            source_experiments=["a"],
+            trial="trial",
+            selection_probability="s",
+            treatment_probability="e",
+        ),
+        "point",
+    ),
+    Case(
+        "interference-neighbor-count",
+        _network_outcomes,
+        [],
+        ant.InterferenceQuery(
+            ant.interference.BernoulliAssignment(0.5),
+            ant.interference.NeighborCount(),
+            ant.interference.ExposureContrast(
+                "y", ant.interference.ExposureLevel(0.0), ant.interference.ExposureLevel(1.0)
+            ),
+            network=RING,
+            realized_assignment=ASSIGNMENT,
+        ),
         "point",
     ),
     Case(

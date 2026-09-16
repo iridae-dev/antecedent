@@ -768,6 +768,24 @@ retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_temporal_mediation_series_graph_posterior"
 
+[[route]]
+kind = "transport"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_transport_interference_lifecycle.py::test_route_transport_tabular_explicit"
+
+[[route]]
+kind = "interference"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_transport_interference_lifecycle.py::test_route_interference_tabular_explicit"
+
 # Permanent refusals: combinations the study builder does not license. Each names its
 # reason code and the test that pins it.
 

@@ -454,6 +454,8 @@ QUERY_KIND = {
     "SemiElasticity": "semi_elasticity",
     "DirectionalDerivative": "directional_derivative",
     "ResponseJacobian": "response_jacobian",
+    "TransportQuery": "transport",
+    "InterferenceQuery": "interference",
 }
 
 
@@ -562,7 +564,10 @@ def test_refusal_rows_are_reason_coded(kind, data, structure, reason):
 
 def _install_route_tests() -> None:
     for row in PRODUCTS.get("route", []):
-        name = row["test"].rsplit("::", 1)[-1]
+        path, name = row["test"].rsplit("::", 1)
+        if Path(path).name != Path(__file__).name:
+            # The row's own test file runs it (the design cells' lifecycle file).
+            continue
         kind, data, structure = row["kind"], row["data"], row["structure"]
         options = row.get("options", "")
 

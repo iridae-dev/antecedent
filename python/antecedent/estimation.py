@@ -59,6 +59,7 @@ from .inference import (
     _class_prior_kwargs,
     _max_completions_kwargs,
 )
+from .interference import InterferenceEstimate, InterferenceQuery, RandomizationContrast
 from .query import (
     AverageDerivative,
     AverageEffect,
@@ -108,6 +109,7 @@ from .results import (
     ValidationView,
 )
 from .results.response import SupportStatus, UncertaintyKind
+from .transport import OverlapDiagnostic, TransportOverlapReport, TransportQuery
 
 # Preferred name for the native temporal DTO.
 NativeAnalysisResult = TemporalAnalysisResult
@@ -300,6 +302,40 @@ def _distribution_atoms_from_raw(sec_estimate: Any) -> tuple[DistributionAtomVie
             interval=_probability_interval_from_raw(atom.interval),
         )
         for atom in atoms
+    )
+
+
+def _transport_overlap_from_raw(raw: Any) -> TransportOverlapReport | None:
+    section = getattr(raw, "transport", None)
+    if section is None:
+        return None
+    return TransportOverlapReport(
+        OverlapDiagnostic(
+            section.selection_probability_min,
+            section.selection_probability_max,
+            section.selection_effective_sample_size,
+            section.selection_extreme_weight_count,
+        ),
+        OverlapDiagnostic(
+            section.treatment_probability_min,
+            section.treatment_probability_max,
+            section.treatment_effective_sample_size,
+            section.treatment_extreme_weight_count,
+        ),
+    )
+
+
+def _interference_from_raw(raw: Any) -> InterferenceEstimate | None:
+    section = getattr(raw, "interference", None)
+    if section is None:
+        return None
+    return InterferenceEstimate(
+        RandomizationContrast(
+            section.horvitz_thompson, section.hajek, section.conservative_variance
+        ),
+        section.from_probability_method,
+        section.to_probability_method,
+        section.minimum_exposure_probability,
     )
 
 
@@ -596,6 +632,8 @@ def _wrap_ate(
         structural_identified_set_interval_truncated=getattr(
             raw, "structural_identified_set_interval_truncated", None
         ),
+        transport_overlap=_transport_overlap_from_raw(raw),
+        interference=_interference_from_raw(raw),
         _raw=raw,
         _prepared=prepared,
         _execution=execution,
@@ -1380,6 +1418,8 @@ _PreparedQuery = (
     | DirectionalDerivative
     | ResponseJacobian
     | TemporalMediationEffect
+    | TransportQuery
+    | InterferenceQuery
 )
 
 
@@ -1650,6 +1690,10 @@ class _PrepareRoute:
             )
         if temporal:
             return self._temporal()
+        if isinstance(query, TransportQuery):
+            return self._transport()
+        if isinstance(query, InterferenceQuery):
+            return self._interference()
         if not isinstance(query, AverageEffect):
             self._refuse_rd(f"{type(query).__name__}")
         if isinstance(query, _RESPONSE_FAMILY):
@@ -2093,6 +2137,98 @@ class _PrepareRoute:
             contrast=query.contrast if isinstance(query, MediationEffect) else "mediated",
             control_level=query.control_level,
             active_level=query.active_level,
+            accepted=self.accepted,
+            **self._common(),
+        )
+        return native, "average"
+
+    # -- design-based cells -----------------------------------------------------
+    def _refuse_design_options(self, route: str, identifier: str, estimator: str) -> None:
+        """The design cells fix their identifier, estimator and interval construction."""
+        self._refuse_rd(route)
+        self._refuse_estimator_config(route)
+        if self.identifier not in (None, identifier) or self.estimator not in (None, estimator):
+            raise CausalUnsupportedError(
+                f"{route} is identified by {identifier} and estimated by {estimator}; "
+                "another identifier= / estimator= does not apply",
+                reason_code="option_not_applicable",
+            )
+        if self.bootstrap:
+            raise _not_applicable(
+                "bootstrap", f"{route} (its interval is the {estimator} analytic construction)"
+            )
+
+    def _transport(self) -> tuple[Any, Any]:
+        from .transport import _response_args
+
+        query = cast(TransportQuery, self.query)
+        self._refuse_design_options("TransportQuery", "transport.sid", "transport.trial_ipw")
+        if not isinstance(self.graph, Admg):
+            raise CausalTypeError(
+                "TransportQuery reads a selection diagram, which is an Admg; pass graph=Admg(...)"
+            )
+        columns = query.trial_columns
+        if columns is None:
+            raise CausalValueError(
+                "TransportQuery on analyze reads its trial columns: pass trial=, "
+                "selection_probability= and treatment_probability="
+            )
+        response = _response_args(query.query)
+        native = _NativePreparedAnalysis.prepare_transport(
+            self.names,
+            self.columns,
+            self.graph,
+            list(query.diagram.selections),
+            query.diagram.source,
+            query.diagram.target,
+            list(query.source_experiments),
+            response["kind"],
+            response["treatments"],
+            response["outcomes"],
+            columns[0],
+            columns[1],
+            columns[2],
+            grid=response["grid"],
+            at=response["at"],
+            direction=response["direction"],
+            order=response["order"],
+            scale=response["scale"],
+            weighting=response["weighting"],
+            accepted=self.accepted,
+            **self._common(),
+        )
+        return native, "average"
+
+    def _interference(self) -> tuple[Any, Any]:
+        from .interference import _assignment_args, _edge_values, _exposure_name
+
+        query = cast(InterferenceQuery, self.query)
+        self._refuse_design_options(
+            "InterferenceQuery", "interference.design", "interference.ht_hajek"
+        )
+        if query.network is None or query.realized_assignment is None:
+            raise CausalValueError(
+                "InterferenceQuery on analyze reads its design: pass network= (the fixed "
+                "exposure edges) and realized_assignment="
+            )
+        design = _assignment_args(query.assignment)
+        contrast = query.functional
+        native = _NativePreparedAnalysis.prepare_interference(
+            self.names,
+            self.columns,
+            _static_edges(self.graph),
+            contrast.outcome,
+            _edge_values(query.network),
+            [bool(value) for value in query.realized_assignment],
+            design["assignment_kind"],
+            design["assignment_probabilities"],
+            design["treated"],
+            design["clusters"],
+            design["treated_clusters"],
+            _exposure_name(query.exposure),
+            (contrast.from_.own, contrast.from_.neighbors),
+            (contrast.to.own, contrast.to.neighbors),
+            probability_draws=query.probability_draws,
             accepted=self.accepted,
             **self._common(),
         )
@@ -3078,6 +3214,13 @@ class PreparedAnalysis:
             raise CausalUnsupportedError(
                 "not_applicable: PreparedAnalysis.refute is AverageEffect and scalar "
                 "Dag InterventionResponse; ResponseCurve cheap/full/placebo do not denote."
+            )
+        if isinstance(self._query, (TransportQuery, InterferenceQuery)):
+            raise CausalUnsupportedError(
+                f"{type(self._query).__name__} has no refuter suite: its estimand is "
+                "defined by the design (selection diagram and trial probabilities, or the "
+                "randomization and network), and the average-effect refuters do not apply",
+                reason_code="option_not_applicable",
             )
         if isinstance(suite, Refute):
             suite = str(suite)

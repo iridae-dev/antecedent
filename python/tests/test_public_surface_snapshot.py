@@ -96,6 +96,9 @@ SNAPSHOT: dict[str, set[str]] = {
         "SemiElasticity",
         "SustainedEffect",
         "TemporalMediationEffect",
+        # Design queries: their licensed cells run on analyze and retain a study
+        "InterferenceQuery",
+        "TransportQuery",
         # Stage modules
         "accepted_graph",
         "artifacts",
@@ -178,6 +181,9 @@ SNAPSHOT: dict[str, set[str]] = {
         "unit_effect_intervals_method",
         "unit_effects",
         "unit_extrapolative",
+        # Design-cell sections beside the scalar estimate
+        "interference",
+        "transport_overlap",
     },
     "PreparedAnalysis": {
         # Compile, execute, and the two views
@@ -238,8 +244,9 @@ def test_public_members_match_the_snapshot(surface: str, live: dict[str, set[str
 
 def test_duplicate_spellings_stay_retired(live: dict[str, set[str]]) -> None:
     """The five lines have one spelling each; their retired duplicates do not return."""
-    assert not {"export_contracted_artifact", "contract", "reasoning", "calibration"} & (
-        live["PreparedAnalysis"]
+    assert (
+        not {"export_contracted_artifact", "contract", "reasoning", "calibration"}
+        & (live["PreparedAnalysis"])
     )
     assert "preview_intent" not in live["PreparedAnalysis"]
     assert not {"display_effect", "display_mass", "data_version"} & live["AnalysisResult"]

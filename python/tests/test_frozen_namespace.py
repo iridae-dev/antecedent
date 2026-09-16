@@ -49,6 +49,7 @@ _EXPECTED_ALL = {
     "Counterfactual",
     "DirectionalDerivative",
     "Elasticity",
+    "InterferenceQuery",
     "InterventionalDistribution",
     "InterventionResponse",
     "MediationEffect",
@@ -60,6 +61,7 @@ _EXPECTED_ALL = {
     "SemiElasticity",
     "SustainedEffect",
     "TemporalMediationEffect",
+    "TransportQuery",
     # Graphs (five graph classes)
     "Dag",
     "Cpdag",

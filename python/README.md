@@ -178,11 +178,15 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace contains 54 names on this branch: the 1.9 contract plus
-`prepare` and `load`. `AnomalyAttribution` and `ChangeAttribution`
-types exist for the query axis; `analyze()` refuses them — the licensed
-cells are Rust `Study` only. `TransportQuery` / `InterferenceQuery` stay
-stage modules (`antecedent.transport`, `antecedent.interference`).
+The root namespace contains 56 names on this branch: the 1.9 contract plus
+`prepare`, `load`, `TransportQuery` and `InterferenceQuery`. `AnomalyAttribution`
+and `ChangeAttribution` types exist for the query axis; `analyze()` refuses them —
+the licensed cells are Rust `Study` only. `TransportQuery` and `InterferenceQuery`
+run their licensed cells on `analyze()` and retain a study like every other
+licensed route; `antecedent.transport` / `antecedent.interference` hold the
+selection diagram, designs, exposure mappings, the transport identification stage,
+and the unlicensed `estimate_trial_effect` / `estimate` utilities, which keep their
+1.9 behaviour (bare numbers, no study or license).
 Everything else is reached through a stage module (`antecedent.discovery`, `antecedent.priors`, `antecedent.errors`, …).
 
 Also exposed:
