@@ -864,6 +864,21 @@ if listed.returncode != 0:
 else:
     problems.extend(json.loads(listed.stdout)["problems"])
 
+# ---- [gates] publishing requires calibration attestation ----
+# A tag must not ship calibration labels from a registry that no longer
+# matches the code: both publish workflows attest before any build or upload.
+gating = subprocess.run(
+    ["uv", "run", "--quiet", "--project", ".", "--only-group", "dev", "python",
+     str((root / "scripts/ci_workflow.py").resolve()), "publish-gating",
+     str((root / ".github/workflows/publish-release.yml").resolve()),
+     str((root / ".github/workflows/publish-crates.yml").resolve())],
+    cwd=root / "python", capture_output=True, text=True,
+)
+if gating.returncode != 0:
+    problems.append(f"scripts/ci_workflow.py publish-gating failed: {gating.stdout}{gating.stderr}")
+else:
+    problems.extend(json.loads(gating.stdout)["problems"])
+
 # --- identity / claims files exist ---
 for rel_path in ("parity/identity.toml", "parity/claims.toml"):
     if not (root / rel_path).is_file():

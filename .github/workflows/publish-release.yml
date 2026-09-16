@@ -35,6 +35,15 @@ jobs:
       tag: ${{ steps.ver.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The attestation diffs against each record's calibration_sha.
+          fetch-depth: 0
+
+      # Every later job needs this one: no wheel is built and nothing is
+      # published while a committed coverage record does not match the code it
+      # would ship with (calibration labels would come from a stale registry).
+      - name: Calibration attestation (coverage records match the code)
+        run: bash scripts/gate_calibration_attestation.sh
 
       - name: Resolve version from tag or input
         id: ver

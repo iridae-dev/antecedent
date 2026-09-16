@@ -391,6 +391,33 @@ def schema_cases() -> list[bool]:
         ),
         case(
             g,
+            "publish_without_attestation",
+            {
+                ".github/workflows/publish-crates.yml": replace(
+                    "        run: bash scripts/gate_calibration_attestation.sh\n",
+                    "        run: echo skipped\n",
+                )
+            },
+            ["publish-crates.yml: no step runs gate_calibration_attestation.sh"],
+        ),
+        case(
+            g,
+            "wheels_built_before_attestation",
+            {".github/workflows/publish-release.yml": replace("    needs: prepare\n", "")},
+            ["publish-release.yml: job 'wheels' does not depend on the attestation job 'prepare'"],
+        ),
+        case(
+            g,
+            "attestation_on_shallow_clone",
+            {
+                ".github/workflows/publish-release.yml": replace(
+                    "          fetch-depth: 0\n", "          fetch-depth: 1\n"
+                )
+            },
+            ["publish-release.yml: job 'prepare' checks out without fetch-depth: 0"],
+        ),
+        case(
+            g,
             "reason_code_list_stale",
             {
                 "parity/reason_codes.toml": append(
