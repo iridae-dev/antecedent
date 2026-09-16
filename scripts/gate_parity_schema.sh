@@ -543,6 +543,13 @@ record_ids = set()
 records = []
 if cr.is_file():
     records = tomllib.loads(cr.read_text()).get("record", [])
+    # A record's facets decide which surface changes invalidate it, so they
+    # must be exactly what scripts/calibration_facets.py derives from the
+    # record, never a hand-narrowed list.
+    surface = collector.facets.load_surface(root / "scripts/calibration_surface.list")
+    if surface.errors:
+        problems.extend(f"calibration_surface.list: {e}" for e in surface.errors)
+    surface_refs = collector.facets.references(surface)
     for rec in records:
         rid = rec.get("id", "")
         record_ids.add(rid)
@@ -552,6 +559,21 @@ if cr.is_file():
         if missing:
             problems.append(f"{label}: missing {', '.join(missing)}")
             continue
+        tagged = rec["facets"]
+        if not isinstance(tagged, list) or not tagged or not all(isinstance(f, str) for f in tagged):
+            problems.append(f"{label}: facets must be a non-empty list of facet names")
+        else:
+            if collector.facets.CORE not in tagged:
+                problems.append(f"{label}: facets must include {collector.facets.CORE}")
+            unknown = sorted(set(tagged) - surface.facets)
+            if unknown:
+                problems.append(f"{label}: unknown facets {', '.join(unknown)}")
+            derived = collector.facets.record_facets(rec, surface, surface_refs)
+            if sorted(tagged) != derived:
+                problems.append(
+                    f"{label}: facets {sorted(tagged)} are not the derived {derived}; "
+                    "run python3 scripts/collect_coverage_records.py --retag"
+                )
         test_fn = test.rsplit("::", 1)[-1]
         expected = (
             f"cov.{_snake(rec['query'])}.{_snake(rec['graph_class'])}."

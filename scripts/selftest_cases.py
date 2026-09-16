@@ -324,6 +324,27 @@ def schema_cases() -> list[bool]:
         ),
         case(
             g,
+            "record_facets_narrowed_by_hand",
+            {
+                "parity/coverage_records.toml": replace(
+                    'facets = ["core", "mechanism", "suite.v19_static_calibration"]',
+                    'facets = ["core", "suite.v19_static_calibration"]',
+                )
+            },
+            ["are not the derived", "collect_coverage_records.py --retag"],
+        ),
+        case(
+            g,
+            "record_without_facets",
+            {
+                "parity/coverage_records.toml": replace(
+                    'facets = ["core", "suite.v19_temporal_frequentist"]\n', ""
+                )
+            },
+            ["missing facets"],
+        ),
+        case(
+            g,
             "raw_reason_literal",
             {
                 # Before any `#[cfg(test)]`: production code, not a test fixture.

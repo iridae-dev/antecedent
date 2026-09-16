@@ -78,8 +78,9 @@ jobs:
   # schema check, the provenance schema check, and the ten feature gates
   # (estimate_ci, bayesian, gcm, pag, context, attribution, design_state,
   # upstream_names, response_calibration, causal_artifacts). Previously none of
-  # these ran on a PR, so numerical parity and the public-repo name check were
-  # unenforced between weekly runs.
+  # these ran on a PR, so numerical parity and the public-repo name check went
+  # unenforced on PRs. It also reports which coverage records a change leaves
+  # owing a re-measurement (gate_calibration_attestation.sh).
   gates:
     name: Domain gates
     runs-on: ubuntu-latest
@@ -87,6 +88,10 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The calibration drift report diffs against each record's
+          # calibration_sha, which a shallow clone does not contain.
+          fetch-depth: 0
 
       - name: Install Rust 1.85
         uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
