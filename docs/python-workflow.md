@@ -80,10 +80,26 @@ A study has two views. `study.inspect()` reports everything already known
 (cached identification, the `contract` identities and reasoning slots, and a
 `calibration` that is `unavailable` / `not_executed` until an estimate runs).
 `study.preflight()` is the cheap structural-only view taken before
-identification. `study.preview_transform(intent)` previews a transformation
-(`compatible_data_replace`, `retarget`, `filter_population`,
-`new_conditional_query`, `change_graph`, `display_precision`, …) without
-executing anything.
+identification; it has no `program_id`, because the program covers
+identification products preflight does not compute. `study.preview_transform(intent)`
+previews a transformation (`compatible_data_replace`, `retarget`,
+`filter_population`, `new_conditional_query`, `change_graph`,
+`display_precision`, …) without executing anything. When the study cannot
+perform it at all, the preview is `refused` and carries the `refusal` and
+`refusal_code` the operation raises (a retarget on a study with no prepared
+score table: `score_table_unavailable`).
+
+A refusal carries a registered `reason_code` (and `error.report.code`). An
+estimator that does not implement the requested inference is refused with
+`estimator_inference_mismatch`; a question with no identified estimand raises
+`antecedent.errors.EffectNotIdentified` with `identification_status` and
+`search_complete`.
+
+`result.inspect().to_dict()` and `ant.load(result.export()).inspect().to_dict()`
+report the same portable record: `contract` is the exported contract section,
+and the identification method and adjustment set, the validation verdict
+(including a failed one) and counterfactual `unit_effects` are read from the
+exported body.
 
 A query owns its target population:
 `ant.AverageEffect("t", "y", target_population=Treated())`.
