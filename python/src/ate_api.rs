@@ -2397,6 +2397,14 @@ pub(crate) fn ate_result_from_analysis(
             .map(|slice| slice.identified_set.map(|set| set.upper))
             .collect(),
         mediation_joint_posterior: result.mediation_grid.as_ref().map(|grid| grid.joint_posterior),
+        transport: result
+            .transport
+            .as_ref()
+            .map(crate::transport_interference_api::TransportSection::from_estimate),
+        interference: result
+            .interference
+            .as_ref()
+            .map(crate::transport_interference_api::InterferenceSection::from_estimate),
         evidence_status,
         allowlist_reason,
         allowlist_parent,

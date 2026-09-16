@@ -291,8 +291,14 @@ pub(crate) fn refusal(code: &str, message: impl AsRef<str>) -> PyErr {
 
 /// Build the Python exception for a refusal, carrying its `reason=<code>:` prefix.
 fn unsupported_py_err(message: String) -> PyErr {
-    let reason =
-        antecedent_core::reason_code::split_prefix(&message).map(|(code, _)| code.to_string());
+    // A support-matrix refusal renders its verdict first: `refused: reason=<code>: …`.
+    let reason = antecedent_core::reason_code::split_prefix(&message)
+        .or_else(|| {
+            message
+                .split_once(": ")
+                .and_then(|(_, rest)| antecedent_core::reason_code::split_prefix(rest))
+        })
+        .map(|(code, _)| code.to_string());
     Python::attach(|py| {
         let err: PyErr = UNSUPPORTED_ERROR_CLASS
             .get(py)
@@ -959,6 +965,12 @@ pub(crate) struct AteAnalysisResult {
     mediation_identified_upper: Vec<Option<f64>>,
     #[pyo3(get)]
     mediation_joint_posterior: Option<bool>,
+    /// Trial-to-target transport estimate and its overlap diagnostics (TransportQuery).
+    #[pyo3(get)]
+    transport: Option<transport_interference_api::TransportSection>,
+    /// Randomized exposure contrast (InterferenceQuery).
+    #[pyo3(get)]
+    interference: Option<transport_interference_api::InterferenceSection>,
     /// Support-matrix evidence contract (`licensed` or `allowed_unlicensed`).
     #[pyo3(get)]
     evidence_status: Option<String>,

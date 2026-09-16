@@ -1,0 +1,80 @@
+{
+ "provenance": "Outputs of transport.estimate_trial_effect and interference.estimate recorded from a v1.9.0 build (git archive v1.9.0; maturin develop --release) on the closed-form inputs of tests/test_design_utilities_v19_parity.py.",
+ "version": "1.9.0",
+ "cases": {
+  "transport_ipw": {
+   "rule": "transport.sid.direct",
+   "ipw": 1.5149894006515228,
+   "aipw": null,
+   "selection": [
+    0.3775671739317931,
+    0.6224370738071269,
+    15.086460511430378,
+    0
+   ],
+   "treatment": [
+    0.4013084441879351,
+    0.5969889810845087,
+    16.641322960133174,
+    0
+   ]
+  },
+  "transport_aipw": {
+   "rule": "transport.sid.direct",
+   "ipw": 1.5149894006515228,
+   "aipw": 0.9659335619801872,
+   "selection": [
+    0.3775671739317931,
+    0.6224370738071269,
+    15.086460511430378,
+    0
+   ],
+   "treatment": [
+    0.4013084441879351,
+    0.5969889810845087,
+    16.641322960133174,
+    0
+   ]
+  },
+  "bernoulli_neighbor_count_exact": {
+   "horvitz_thompson": 1.95439023967239,
+   "hajek": 1.4657926797542922,
+   "conservative_variance": 106.84886390083412,
+   "from_probability_method": "exact",
+   "to_probability_method": "exact",
+   "minimum_exposure_probability": 0.25
+  },
+  "bernoulli_neighbor_count_monte_carlo": {
+   "horvitz_thompson": 1.6766055619048728,
+   "hajek": 1.6091591991507435,
+   "conservative_variance": 209.1060863189627,
+   "from_probability_method": "monte_carlo(draws=4000,seed=7)",
+   "to_probability_method": "monte_carlo(draws=4000,seed=8)",
+   "minimum_exposure_probability": 0.23825
+  },
+  "complete_neighbor_fraction": {
+   "horvitz_thompson": 1.5318227096603545,
+   "hajek": 1.7506545253261192,
+   "conservative_variance": 54.43051665743985,
+   "from_probability_method": "exact",
+   "to_probability_method": "exact",
+   "minimum_exposure_probability": 0.2857142857142857
+  },
+  "cluster_own_treatment": {
+   "horvitz_thompson": 1.5133339655595566,
+   "hajek": 1.5133339655595566,
+   "conservative_variance": 24.76762182101902,
+   "from_probability_method": "exact",
+   "to_probability_method": "exact",
+   "minimum_exposure_probability": 0.5
+  },
+  "bernoulli_weighted_exposure_monte_carlo": {
+   "horvitz_thompson": 2.1875797469862386,
+   "hajek": 1.4890227860845782,
+   "conservative_variance": 479.00649356280917,
+   "from_probability_method": "monte_carlo(draws=3000,seed=11)",
+   "to_probability_method": "monte_carlo(draws=3000,seed=12)",
+   "minimum_exposure_probability": 0.11333333333333333
+  }
+ }
+}

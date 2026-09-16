@@ -467,25 +467,32 @@ composition remains refused. See the [1.2 evidence ledger](v1.2-evidence.md).
 
 ## Observation, transport, and interference
 
-These are stage modules. They change what identifies the estimand and are not
-hidden behind an ordinary `target_population` flag. 1.9 licenses three
-staged cells at validation `none` (Rust `Study` only): `TransportQuery` ×
-`Admg` × explicit × Frequentist (Direct / S-admissible sID plus binary
-trial-to-target IPW), `InterferenceQuery` × `Dag` × explicit × Frequentist
-(NeighborCount HT/Hájek, Young variance), and — on the GCM path —
-`AnomalyAttribution` / `ChangeAttribution` × `Dag` × explicit × Frequentist.
+They change what identifies the estimand and are not hidden behind an
+ordinary `target_population` flag: their design facts are explicit fields of
+their queries. `TransportQuery` × `Admg` × explicit × Frequentist (Direct /
+S-admissible sID plus binary trial-to-target IPW) and `InterferenceQuery` ×
+`Dag` × explicit × Frequentist (NeighborCount under Bernoulli assignment,
+HT/Hájek, Young variance) run on `analyze` and the Rust `Study` API at
+validation `none`, and retain a study like every other licensed cell. On the
+GCM path, `AnomalyAttribution` / `ChangeAttribution` × `Dag` × explicit ×
+Frequentist are Rust `Study` only.
 
 * **Observation** (`antecedent.observation`): complete, right/left/interval-
   censored, truncated, and selected mechanisms. Assumptions are declared
   separately from the recorded columns; MAR / independent censoring is never
   inferred from column presence.
 * **Structural transport** (`antecedent.transport`): single-source selection
-  diagrams and trial-to-target IPW/AIPW with separate selection and treatment
-  overlap diagnostics. Distinct from Bayesian prior/evidence transfer in
+  diagrams, the `identify` stage, and `TransportQuery`, whose trial-to-target
+  IPW reports separate selection and treatment overlap diagnostics
+  (`result.transport_overlap`). `transport.estimate_trial_effect` remains an
+  unlicensed IPW/AIPW utility with its 1.9 behaviour. Distinct from Bayesian prior/evidence transfer in
   `antecedent.priors`.
 * **Randomized interference** (`antecedent.interference`): assignment design,
   exposure mapping, and exposure-contrast estimands with Horvitz–Thompson and
-  Hájek estimates. The network is fixed and supplied by the caller.
+  Hájek estimates (`result.interference`). The network and realized assignment
+  are fixed and supplied by the caller on `InterferenceQuery`.
+  `interference.estimate` remains an unlicensed utility over every design and
+  exposure mapping, with its 1.9 behaviour.
 
 Multi-source meta-transport, cyclic/equilibrium models, and observational
 network interference remain outside the current contract.

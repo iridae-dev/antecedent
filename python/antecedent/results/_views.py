@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from .._native import ScoreInferenceSection, ScoreTableSection, ValidationFailureSection
+    from ..interference import InterferenceEstimate
+    from ..transport import TransportOverlapReport
 
 from .._verdict import describe_status, verdict_for
 from ..ids import Refute
@@ -651,6 +653,12 @@ class AnalysisResult(ResultAPI):
     claim_id: str | None = None
     #: Identity of the data snapshot this execution ran on.
     data_snapshot_id: str | None = None
+    #: TransportQuery: trial-selection and within-trial treatment overlap,
+    #: reported separately (the transported IPW is ``estimate.ate``).
+    transport_overlap: TransportOverlapReport | None = None
+    #: InterferenceQuery: Horvitz–Thompson / Hájek contrast, conservative
+    #: variance and exposure-probability methods (HT is ``estimate.ate``).
+    interference: InterferenceEstimate | None = None
 
     def __post_init__(self) -> None:
         # Nested views carry the claim's rendering limitation so that

@@ -198,6 +198,8 @@ class AteAnalysisResult:
     mediation_identified_lower: list[float | None]
     mediation_identified_upper: list[float | None]
     mediation_joint_posterior: bool | None
+    transport: TransportSection | None
+    interference: InterferenceSection | None
     evidence_status: str | None
     allowlist_reason: str | None
     allowlist_parent: str | None
@@ -276,6 +278,25 @@ class TrialTransportResult:
     treatment_extreme_weight_count: int
 
 class InterferenceAnalysisResult:
+    horvitz_thompson: float
+    hajek: float
+    conservative_variance: float
+    from_probability_method: str
+    to_probability_method: str
+    minimum_exposure_probability: float
+
+class TransportSection:
+    ipw: float
+    selection_probability_min: float
+    selection_probability_max: float
+    selection_effective_sample_size: float
+    selection_extreme_weight_count: int
+    treatment_probability_min: float
+    treatment_probability_max: float
+    treatment_effective_sample_size: float
+    treatment_extreme_weight_count: int
+
+class InterferenceSection:
     horvitz_thompson: float
     hajek: float
     conservative_variance: float
@@ -936,6 +957,56 @@ class PreparedAnalysis:
         interventions: dict[str, float],
         *,
         conditioning: list[str] | None = None,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_transport(
+        names: list[str],
+        columns: Sequence[Any],
+        graph: Admg,
+        selections: list[str],
+        source_population: str,
+        target_population: str,
+        source_experiments: list[str],
+        kind: str,
+        treatments: list[str],
+        outcomes: list[str],
+        trial: str,
+        selection_probability: str,
+        treatment_probability: str,
+        *,
+        grid: list[float] | None = None,
+        at: list[float] | None = None,
+        direction: list[float] | None = None,
+        order: int = 1,
+        scale: str = "identity",
+        weighting: str = "observed",
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_interference(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, str]],
+        outcome: str,
+        network: list[tuple[int, int, float]],
+        realized_assignment: list[bool],
+        assignment_kind: str,
+        assignment_probabilities: list[float],
+        treated: int,
+        clusters: list[int],
+        treated_clusters: int,
+        exposure: str,
+        from_level: tuple[float, float],
+        to_level: tuple[float, float],
+        *,
+        probability_draws: int = 10_000,
         accepted: bool = False,
         seed: int = 1,
         threads: int = 1,

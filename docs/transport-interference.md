@@ -1,13 +1,87 @@
 # Structural transport and randomized interference
 
 Antecedent 0.5 adds two causal settings that should not be hidden behind an
-ordinary target-population flag. Both use specialized stage APIs because they
-change what information identifies the estimand. 1.9 licenses one cell of
-each on the staged `Study` path at validation `none` (not `analyze()`):
-`TransportQuery` × `Admg` × explicit × Frequentist (Direct / S-admissible
-sID plus binary trial-to-target IPW), and `InterferenceQuery` × `Dag` ×
-explicit × Frequentist (NeighborCount HT/Hájek, Young variance). The
+ordinary target-population flag: both change what information identifies the
+estimand, so their design facts are explicit fields of their queries. One cell
+of each is licensed at validation `none`: `TransportQuery` × `Admg` ×
+explicit × Frequentist (Direct / S-admissible sID plus binary trial-to-target
+IPW), and `InterferenceQuery` × `Dag` × explicit × Frequentist (NeighborCount
+under Bernoulli assignment, HT/Hájek, Young variance). The
 [support matrix](support-matrix.md) is the license.
+
+Both run on the ordinary lifecycle and retain a study like every other
+licensed cell:
+
+```python
+import antecedent as ant
+from antecedent import interference, transport
+
+query = ant.TransportQuery(
+    ant.ResponseCurve("a", "y", grid=[0.0, 1.0]),
+    transport.SelectionDiagram("trial", "target", ["x"]),
+    source_experiments=["a"],
+    trial="trial",                    # source-trial membership column
+    selection_probability="s",        # P(S=1 | X) on every row
+    treatment_probability="e",        # P(A=1 | X, S=1) on trial rows
+)
+result = ant.analyze(data, graph=admg, query=query)   # admg: an Admg over data's columns
+study = result.study
+updated = study.refresh(new_data)
+report = result.inspect().to_dict()
+loaded = ant.load(result.export())
+
+query = ant.InterferenceQuery(
+    interference.BernoulliAssignment(0.5),
+    interference.NeighborCount(),
+    interference.ExposureContrast(
+        "y", interference.ExposureLevel(0.0), interference.ExposureLevel(1.0)
+    ),
+    network=edges,                    # fixed (from, to[, weight]) unit-row edges
+    realized_assignment=assignment,   # binary assignment in unit-row order
+)
+result = ant.analyze(units, graph=[], query=query)
+```
+
+The selection diagram and trial column bindings, and the network and realized
+assignment, freeze at prepare. The data is what a refresh replaces: a
+transport refresh reads the trial columns from the new rows, and an
+interference refresh executes on new outcomes under the frozen design. The
+transported IPW is `result.estimate.ate` with its selection and treatment
+overlap on `result.transport_overlap`; the Horvitz–Thompson contrast is
+`result.estimate.ate` with the Hájek estimate, conservative variance and
+exposure-probability methods on `result.interference`.
+
+A design-defined estimand has no score table to reweight, so
+`study.retarget(...)` refuses (`reason_code="population_not_estimable"`); there
+is no refuter suite for it, so a second-click `study.refute(...)` and a positive
+`bootstrap=` refuse (`option_not_applicable`). On `analyze` a construction
+outside the licensed cell — a transported derivative or other inner functional,
+RecursiveFactorization, complete or cluster randomization, or another exposure
+mapping — refuses with `construction_not_licensed`, because a licensed claim
+fails closed.
+
+## Unlicensed utilities
+
+`transport.estimate_trial_effect` and `interference.estimate` are unlicensed
+utilities with their 1.9 behaviour and numbers: augmented IPW via `mu0` /
+`mu1`, Bernoulli, complete and cluster randomization, every built-in exposure
+mapping, and `seed` as the exposure-probability Monte Carlo seed. They call the
+same Rust estimators as `analyze` (`trial_to_target_effect`,
+`estimate_interference`) and return bare numbers, with no study, contract,
+export or calibration slot, and they never claim a license.
+`analyze(query=TransportQuery(...))` / `analyze(query=InterferenceQuery(...))`
+is the licensed, study-retaining path. On a licensed construction the two agree
+on the point numbers; the `analyze` path derives its Monte Carlo stream from the
+analysis seed.
+
+The calibration slot of both cells is keyed by the construction the coverage
+harness measures (`crates/antecedent/tests/v110_calibration_design.rs`):
+query, graph class, `fixed` structure, `tabular` modality, `Frequentist`,
+estimator (`transport.trial_ipw` / `interference.ht_hajek`), `analytic_se`,
+`iid` dependence, `point` identification, at the reported 0.95 level. A
+record measured under that key binds to the claims of an `analyze` result; the
+interference record is a named conservative boundary, reported as
+`scope_not_assessed` with its observed coverage.
 
 ## Structural transport is not prior transfer
 
@@ -37,21 +111,19 @@ When a general multi-node c-component requires recursion outside that subset,
 the result is `NotCertified`. That means “this implementation has not certified
 a formula,” not “the effect is proven non-transportable.”
 
-Trial-to-target statistical estimation is a separate, complementary operation:
-identification decides *whether* a formula is sound, estimation computes a
-number *from* it, and the two remain independently callable. Separate does
-not mean unguarded, though. Both `trial_to_target_effect` and
-`transport_augmented_response_grid` (and the Python
-`estimate_trial_effect`/`estimate_trial_transport` wrappers) take the
-identification result as a required argument and refuse to run when it is
+`antecedent.transport.identify` stages identification alone: it decides
+*whether* a formula is sound and returns the formula and certificate. The Rust
+`trial_to_target_effect` and `transport_augmented_response_grid` primitives take
+the identification result as a required argument and refuse to run when it is
 `NotCertified`, returning an error that carries the certificate's reason and
 message rather than an estimate. They also refuse a `RecursiveFactorization`
 certificate: the Dahabreh-style IPW/AIPW algebra evaluates direct transport and
 standardization, not the truncated product of population-labelled factors.
 
-The binary randomized-trial estimator reports IPW and optional augmented IPW,
-plus separate diagnostics for trial-selection overlap and within-trial treatment
-overlap. A single combined overlap number would conceal which assumption is
+The binary randomized-trial estimator reports IPW and optional augmented IPW
+(the licensed `TransportQuery` cell publishes IPW; augmented IPW is available
+from the unlicensed `estimate_trial_effect` utility), plus separate
+diagnostics for trial-selection overlap and within-trial treatment overlap. A single combined overlap number would conceal which assumption is
 failing.
 
 `transport_augmented_response_grid` evaluates a caller-specified augmented
@@ -76,7 +148,10 @@ Under interference, an outcome may depend on more than its own treatment.
 
 Supported designs are Bernoulli, complete, and cluster randomization. Built-in
 exposures include own treatment, treated-neighbor count/fraction, and weighted
-neighbor exposure on a fixed validated network.
+neighbor exposure on a fixed validated network; the unlicensed
+`interference.estimate` utility accepts all of them. The licensed
+`InterferenceQuery` cell on `analyze` is NeighborCount under Bernoulli
+assignment.
 
 Exposure probabilities are enumerated exactly through the configured small-
 design limit and estimated with deterministic seeded Monte Carlo above it. The
@@ -90,13 +165,13 @@ provenance record preserve that distinction; no coverage theorem is claimed.
 
 ## Scope boundaries
 
-- The licensed 1.9 cells are the implemented sID subset plus Dahabreh IPW
+- The licensed cells are the implemented sID subset plus Dahabreh IPW
   (transport) and NeighborCount under Bernoulli assignment (interference).
   RecursiveFactorization, NotCertified, Aronow–Samii variance, cheap/full,
-  Bayesian, accepted, and graph-posterior stay refused.
+  Bayesian, accepted, and graph-posterior are refused.
 - Multi-source meta-transport is not part of 0.5.
 - `NotCertified` is not a non-transportability theorem.
 - The network is treated as fixed and supplied by the caller.
 - Observational network treatment and graph semantics for contagion or
-  allocational interference remain future work.
+  allocational interference are outside this contract.
 - Cyclic/equilibrium causal systems remain outside this release.

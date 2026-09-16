@@ -143,6 +143,7 @@ def coerce_query(value: Any) -> Any:
     Every query dataclass in :mod:`antecedent.query` carries a ``kind``
     discriminator; anything without one is not a supported query type.
     """
+    from .interference import InterferenceQuery
     from .query import (
         AnomalyAttribution,
         AverageDerivative,
@@ -164,6 +165,7 @@ def coerce_query(value: Any) -> Any:
         SustainedEffect,
         TemporalMediationEffect,
     )
+    from .transport import TransportQuery
 
     if isinstance(value, (AnomalyAttribution, ChangeAttribution)):
         raise CausalUnsupportedError(
@@ -189,6 +191,8 @@ def coerce_query(value: Any) -> Any:
         DirectionalDerivative,
         ResponseJacobian,
         InterventionResponse,
+        TransportQuery,
+        InterferenceQuery,
     )
     if isinstance(value, valid):
         return value

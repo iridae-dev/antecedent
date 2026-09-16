@@ -110,6 +110,7 @@ from .errors import CausalError, ReviewRequired
 from .identify import Identification, estimate, identify
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
+from .interference import InterferenceQuery
 from .query import (
     AnomalyAttribution,
     AverageDerivative,
@@ -132,6 +133,7 @@ from .query import (
     TemporalMediationEffect,
 )
 from .results import AnalysisResult
+from .transport import TransportQuery
 
 __all__ = [
     # Verbs
@@ -153,6 +155,7 @@ __all__ = [
     "Counterfactual",
     "DirectionalDerivative",
     "Elasticity",
+    "InterferenceQuery",
     "InterventionalDistribution",
     "InterventionResponse",
     "MediationEffect",
@@ -164,6 +167,7 @@ __all__ = [
     "SemiElasticity",
     "SustainedEffect",
     "TemporalMediationEffect",
+    "TransportQuery",
     # Graphs
     "Dag",
     "Cpdag",

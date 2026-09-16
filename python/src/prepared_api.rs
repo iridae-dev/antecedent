@@ -858,6 +858,27 @@ impl PyPreparedAnalysis {
         Ok(mapped)
     }
 
+    /// A design-defined population cannot be reweighted.
+    ///
+    /// A transport study's target population is the selection diagram's
+    /// target rows under known selection probabilities, and an interference
+    /// contrast is a finite-population design estimand; neither has a score
+    /// table whose rows a weight vector could redeclare.
+    fn refuse_design_retarget(&self) -> PyResult<()> {
+        let route = match self.inner.query() {
+            CausalQuery::Transport(_) => "a TransportQuery study",
+            CausalQuery::Interference(_) => "an InterferenceQuery study",
+            _ => return Ok(()),
+        };
+        Err(crate::refusal(
+            antecedent_core::reason_code!("population_not_estimable"),
+            format!(
+                "{route} estimates the population its design defines; a row-weight retarget has \
+                 no score table to reweight and would redeclare the design's own target"
+            ),
+        ))
+    }
+
     fn finish_ate_refute(
         &mut self,
         py: Python<'_>,
@@ -2721,6 +2742,166 @@ impl PyPreparedAnalysis {
         })
     }
 
+    /// Freeze a single-source transport study on a selection-diagram `Admg`.
+    ///
+    /// The selection diagram (the graph plus `selections`) and the trial,
+    /// selection-probability and treatment-probability columns freeze at
+    /// prepare; every click reads those columns from the clicked data.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, graph, selections, source_population, target_population,
+        source_experiments, kind, treatments, outcomes, trial, selection_probability,
+        treatment_probability, *, grid=None, at=None, direction=None, order=1, scale="identity",
+        weighting="observed", accepted=false, seed=1, threads=1, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_transport(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        graph: Bound<'_, PyAny>,
+        selections: Vec<String>,
+        source_population: String,
+        target_population: String,
+        source_experiments: Vec<String>,
+        kind: String,
+        treatments: Vec<String>,
+        outcomes: Vec<String>,
+        trial: String,
+        selection_probability: String,
+        treatment_probability: String,
+        grid: Option<Vec<f64>>,
+        at: Option<Vec<f64>>,
+        direction: Option<Vec<f64>>,
+        order: u8,
+        scale: &str,
+        weighting: &str,
+        accepted: bool,
+        seed: u64,
+        threads: u32,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("a transport query")?;
+        let admg = graph
+            .extract::<graphs::Admg>()
+            .map_err(|_| PyValueError::new_err("TransportQuery requires graph=Admg(...)"))?;
+        require_named_graph_order(&admg.names, &names, "Admg")?;
+        let admg = admg.aligned_to_names(&names)?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        let (scale, weighting) = (scale.to_owned(), weighting.to_owned());
+        detach_catch(py, move || {
+            use crate::transport_interference_api::{ResponseArgs, schema_ids, transport_query};
+            let schema = data.schema().clone();
+            let query = transport_query(
+                ResponseArgs {
+                    kind,
+                    treatments,
+                    outcomes,
+                    grid,
+                    at,
+                    direction,
+                    order,
+                    scale,
+                    weighting,
+                },
+                source_population,
+                target_population,
+                &source_experiments,
+                |names| schema_ids(&schema, names),
+            )?;
+            let column = |name: &str| crate::graph_build::schema_var_id(&schema, name);
+            let trial_spec = antecedent::TransportTrialSpec {
+                trial: column(&trial)?,
+                selection_probability: column(&selection_probability)?,
+                treatment_probability: column(&treatment_probability)?,
+            };
+            let builder =
+                with_graph(Study::tabular(data), admg, accepted, opts.discovery_algorithm())
+                    .query(CausalQuery::Transport(query))
+                    .selection_targets(schema_ids(&schema, &selections)?)
+                    .transport_trial(trial_spec);
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
+    /// Freeze a randomized-interference study: the fixed unit network and the
+    /// realized assignment are the design; the unit table is the data.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, edges, outcome, network, realized_assignment,
+        assignment_kind, assignment_probabilities, treated, clusters, treated_clusters, exposure,
+        from_level, to_level, *, probability_draws=10_000, accepted=false, seed=1, threads=1,
+        options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_interference(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        edges: Vec<(String, String)>,
+        outcome: String,
+        network: Vec<(u32, u32, f64)>,
+        realized_assignment: Vec<bool>,
+        assignment_kind: String,
+        assignment_probabilities: Vec<f64>,
+        treated: usize,
+        clusters: Vec<u32>,
+        treated_clusters: usize,
+        exposure: String,
+        from_level: (f64, f64),
+        to_level: (f64, f64),
+        probability_draws: u32,
+        accepted: bool,
+        seed: u64,
+        threads: u32,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("an interference query")?;
+        opts.refuse_population("an interference exposure contrast")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            use crate::transport_interference_api::{InterferenceArgs, interference_query};
+            let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            let query = interference_query(
+                InterferenceArgs {
+                    assignment_kind,
+                    assignment_probabilities,
+                    treated,
+                    clusters,
+                    treated_clusters,
+                    exposure,
+                    from_level,
+                    to_level,
+                    probability_draws,
+                },
+                outcome_id,
+            )?;
+            let dag = dag_from_named_edges(data.schema(), &edges)?;
+            let network = antecedent::estimate::NetworkData::try_new(
+                data.clone(),
+                network
+                    .into_iter()
+                    .map(|(from, to, weight)| antecedent::estimate::NetworkEdge {
+                        from,
+                        to,
+                        weight,
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .map_err(py_err)?;
+            let builder =
+                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
+                    .query(CausalQuery::Interference(query))
+                    .interference(antecedent::InterferenceSpec {
+                        network,
+                        assignment: Arc::from(realized_assignment),
+                    });
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
     /// Weighted-mean retarget from the frozen score table. Does not refit.
     #[pyo3(signature = (weights, depends_on, *, seed=1, threads=1))]
     fn retarget(
@@ -2731,6 +2912,7 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
     ) -> PyResult<AteAnalysisResult> {
+        self.refuse_design_retarget()?;
         // Retarget the scores of the execution this call follows: after
         // `estimate(data)` that is the handle refreshed on `data`, not the one
         // frozen at prepare.
@@ -2778,6 +2960,7 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: u32,
     ) -> PyResult<AteAnalysisResult> {
+        self.refuse_design_retarget()?;
         let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
         let inner = Arc::clone(&bound);
         let out_names = self.names.clone();
