@@ -121,6 +121,12 @@ meaning = "A RowWeights population may re-execute only on its own data snapshot.
 max_uses = 0
 
 [[code]]
+id = "mechanism_fit_not_converged"
+applies_to = ["runtime_refusal"]
+meaning = "A parent-conditional categorical mechanism did not converge even on standardized parent columns; the remaining causes are near-separation or collinear parents, which the caller resolves by dropping or coarsening them."
+max_uses = 0
+
+[[code]]
 id = "attested_not_reverifiable"
 applies_to = ["runtime_refusal", "claim"]
 meaning = "Custom validator results are caller-attested and are not re-verified on load."

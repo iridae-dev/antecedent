@@ -41,6 +41,17 @@ pub enum ModelError {
         /// Context.
         message: String,
     },
+    /// An iterative mechanism fit ran out of iterations short of its tolerance.
+    ///
+    /// Kept apart from [`Self::Numerical`] because it is the one fit failure a
+    /// caller can act on: the remedy is a named one (rescale the parent columns,
+    /// or drop the offending mechanism family), and the facade turns this into a
+    /// reason-coded refusal rather than surfacing a raw deviance.
+    #[error("mechanism fit did not converge: {message}")]
+    NotConverged {
+        /// Context.
+        message: String,
+    },
     /// Graph error passthrough.
     #[error(transparent)]
     Graph(#[from] GraphError),

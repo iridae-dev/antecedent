@@ -28,6 +28,7 @@ use antecedent_stats::{
 #[cfg(feature = "gaussian-process")]
 use antecedent_stats::{chol_log_det, chol_solve, cholesky_spd};
 
+use crate::basis::{ParentBasis, column_moments, spline_knots};
 use crate::batch::ParentBatch;
 use crate::compile::{
     CompiledCausalModel, CompiledMechanismStore, MechanismSlot, ParentGatherPlan,
@@ -44,6 +45,20 @@ pub enum MechanismFamily {
     Constant,
     /// Discrete categorical (unconditional root or parent-conditional softmax).
     Discrete,
+    /// Linear Gaussian plus every cross-parent product (invertible).
+    ///
+    /// The minimum family whose per-unit treatment effects vary: with the
+    /// treatment among the parents, the `treatment × parent` columns make the
+    /// contrast depend on the unit's covariates.
+    LinearInteractions,
+    /// Linear Gaussian in an additive cubic-spline expansion with cross-parent
+    /// products of every smooth column (invertible).
+    LinearSpline,
+    /// Parent-conditional softmax whose logits carry every cross-parent product.
+    DiscreteInteractions,
+    /// Parent-conditional softmax whose logits carry an additive cubic-spline
+    /// expansion with cross-parent products.
+    DiscreteSpline,
     /// Hierarchical linear Gaussian (EB / group partial pooling).
     HierarchicalLinear,
     /// Hierarchical Bernoulli-logit GLM (EB / group shrinkage) → [`MechanismSlot::Discrete`].
@@ -61,6 +76,60 @@ impl MechanismFamily {
     #[must_use]
     pub const fn id(self) -> &'static str {
         mechanism_family_id(self)
+    }
+
+    /// Whether a fit of this family on a node with at least two parents can
+    /// represent effect modification — a contrast that depends on the unit's
+    /// other parent values.
+    ///
+    /// This is a property of the *family*, asked before any fit, so a selection
+    /// that scored such a family and rejected it can be told apart from one
+    /// that never had the option. [`MechanismSlot::admits_no_effect_modification`]
+    /// answers the same question of a fitted slot.
+    #[must_use]
+    pub const fn can_modify_effects(self) -> bool {
+        match self {
+            Self::Discrete
+            | Self::HierarchicalGlm
+            | Self::GaussianProcess
+            | Self::LinearInteractions
+            | Self::LinearSpline
+            | Self::DiscreteInteractions
+            | Self::DiscreteSpline => true,
+            Self::LinearGaussian
+            | Self::Constant
+            | Self::HierarchicalLinear
+            | Self::Bvar
+            | Self::LinearGaussianStateSpace => false,
+        }
+    }
+
+    /// Whether this family's fitted mechanism keeps an additive disturbance, so
+    /// counterfactual abduction inverts it exactly
+    /// (`NoiseInferenceMode::Invertible`).
+    ///
+    /// The heterogeneity-capable continuous families answer `true`: their
+    /// expansion moves the conditional mean only. The categorical families
+    /// answer `false` and are recorded as such — their abduction was already a
+    /// posterior draw from the observed category's CDF bin before this family
+    /// existed, so selecting one is not a downgrade, but it is not exact
+    /// inversion either.
+    #[must_use]
+    pub const fn has_additive_disturbance(self) -> bool {
+        match self {
+            Self::LinearGaussian
+            | Self::Constant
+            | Self::HierarchicalLinear
+            | Self::Bvar
+            | Self::GaussianProcess
+            | Self::LinearInteractions
+            | Self::LinearSpline => true,
+            Self::Discrete
+            | Self::HierarchicalGlm
+            | Self::DiscreteInteractions
+            | Self::DiscreteSpline
+            | Self::LinearGaussianStateSpace => false,
+        }
     }
 }
 
@@ -120,6 +189,10 @@ const fn mechanism_family_id(family: MechanismFamily) -> &'static str {
         MechanismFamily::LinearGaussian => "linear_gaussian",
         MechanismFamily::Constant => "constant",
         MechanismFamily::Discrete => "discrete",
+        MechanismFamily::LinearInteractions => "linear_interactions",
+        MechanismFamily::LinearSpline => "linear_spline",
+        MechanismFamily::DiscreteInteractions => "discrete_interactions",
+        MechanismFamily::DiscreteSpline => "discrete_spline",
         MechanismFamily::HierarchicalLinear => "hierarchical_linear",
         MechanismFamily::HierarchicalGlm => "hierarchical_glm",
         MechanismFamily::Bvar => "bvar",
@@ -135,6 +208,31 @@ impl MechanismRegistry {
         Self {
             continuous: Arc::from(vec![MechanismFamily::LinearGaussian, MechanismFamily::Constant]),
             discrete: Arc::from(vec![MechanismFamily::Discrete, MechanismFamily::Constant]),
+        }
+    }
+
+    /// Standard registry plus the heterogeneity-capable families.
+    ///
+    /// Used by the counterfactual path, where a per-unit effect that cannot
+    /// vary is a property of the candidate set and not of the data. The extra
+    /// families are additive-disturbance (continuous) or already-categorical
+    /// (discrete), so abduction keeps the mode it had; they are scored on
+    /// cross-validated error and win only where they earn it.
+    #[must_use]
+    pub fn with_heterogeneity_families() -> Self {
+        Self {
+            continuous: Arc::from(vec![
+                MechanismFamily::LinearGaussian,
+                MechanismFamily::LinearInteractions,
+                MechanismFamily::LinearSpline,
+                MechanismFamily::Constant,
+            ]),
+            discrete: Arc::from(vec![
+                MechanismFamily::Discrete,
+                MechanismFamily::DiscreteInteractions,
+                MechanismFamily::DiscreteSpline,
+                MechanismFamily::Constant,
+            ]),
         }
     }
 
@@ -207,6 +305,10 @@ impl MechanismRegistry {
                 MechanismFamily::Constant
                     | MechanismFamily::LinearGaussian
                     | MechanismFamily::Discrete
+                    | MechanismFamily::LinearInteractions
+                    | MechanismFamily::LinearSpline
+                    | MechanismFamily::DiscreteInteractions
+                    | MechanismFamily::DiscreteSpline
             ) {
                 return Err(ModelError::Unsupported {
                     message: "weighted refit requires standard mechanisms".into(),
@@ -400,6 +502,42 @@ fn score_family(
             }
             Some(logits) => discrete_mean_loglik(gather, model, data, y, support, logits)?,
         },
+        // The basis families are scored **out of fold** while every incumbent
+        // family above is scored in sample. That asymmetry is deliberate and it
+        // is one-directional: an expansion with more columns always fits the
+        // training rows at least as well, so an in-sample comparison would hand
+        // it every node. Requiring its cross-validated error to beat the simpler
+        // family's in-sample error is a strictly harder bar than a like-for-like
+        // comparison, so a basis family never wins by being richer — only by
+        // predicting rows it did not see better than the incumbent predicts rows
+        // it did. On data with no effect modification it loses, and the selected
+        // mechanism (and every number downstream of it) is unchanged.
+        //
+        // The `|ln σ|` tie-break term is not invariant to the outcome's units, so a
+        // basis family borrows the *linear-Gaussian* fit's term instead of its own.
+        // Against `LinearGaussian` the penalties then cancel and the verdict is
+        // `cv_mse < in-sample mse`; between the two basis families it is the
+        // smaller cv_mse. Both are ratios of squared errors, so rescaling the
+        // outcome can never change which family is selected.
+        MechanismSlot::LinearBasis { basis, .. } => {
+            let parent_cols = gather_parent_cols(gather, model, data)?;
+            let x = basis_design_matrix(basis, &parent_cols, y.len())?;
+            let mse = basis_cv_mse(basis, &x, y.len(), y, basis_ridge_rel(basis), backend, ls_ws)?;
+            let MechanismSlot::LinearGaussian { sigma: linear_sigma, .. } =
+                fit_linear_gaussian(gather, model, data, y, backend, ls_ws, 0.0)?
+            else {
+                return Err(ModelError::Unsupported {
+                    message: "linear reference fit for basis scoring failed".into(),
+                });
+            };
+            -mse - linear_sigma.ln().abs() * 0.01
+        }
+        MechanismSlot::DiscreteBasis { support, basis, .. } => {
+            let parent_cols = gather_parent_cols(gather, model, data)?;
+            let x = basis_design_matrix(basis, &parent_cols, y.len())?;
+            let y_cat = discrete_categories(y, support)?;
+            basis_cv_loglik(basis, &x, y.len(), &y_cat, support.len(), backend, ls_ws)?
+        }
         MechanismSlot::LinearGaussianStateSpace { a, process_std, obs_std, initial_mean }
         | MechanismSlot::ConditionalLinearGaussianStateSpace {
             a,
@@ -511,28 +649,7 @@ fn fit_family_weighted(
             Ok(MechanismSlot::Constant { value: mean })
         }
         MechanismFamily::Discrete => {
-            let mut pairs: Vec<(i64, f64, f64)> = Vec::new();
-            for (r, &yi) in y.iter().enumerate() {
-                if !yi.is_finite() {
-                    continue;
-                }
-                let key = (yi * 1e6).round() as i64;
-                if let Some(e) = pairs.iter_mut().find(|(k, _, _)| *k == key) {
-                    e.2 += weights.map_or(1.0, |w| w[r]);
-                } else {
-                    pairs.push((key, yi, weights.map_or(1.0, |w| w[r])));
-                }
-            }
-            if pairs.is_empty() {
-                return Err(ModelError::Shape {
-                    message: "no finite values for discrete fit".into(),
-                });
-            }
-            // Stable support order → stable baseline-category reference (index 0).
-            pairs.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-            let total = pairs.iter().map(|(_, _, c)| *c).sum::<f64>();
-            let support: Vec<f64> = pairs.iter().map(|(_, v, _)| *v).collect();
-            let probs: Vec<f64> = pairs.iter().map(|(_, _, c)| *c / total).collect();
+            let (support, probs) = discrete_support(y, weights)?;
             let k = support.len();
             let p = gather.n_parents();
             if p == 0 {
@@ -544,28 +661,31 @@ fn fit_family_weighted(
             }
             // Parent-conditional: baseline-category multinomial logit MLE (Fisher / IRLS).
             // Coefficients are true softmax logits; category 0 is the reference (zeros).
+            //
+            // The IRLS is run on **standardized** parent columns and the fitted
+            // logits are transformed back to the raw scale afterwards. A
+            // multinomial logit is equivariant under an affine change of the
+            // design, so the fitted conditional law is identical either way —
+            // but its *numerics* are not: on columns that differ in scale by
+            // orders of magnitude (a raw year column beside a 0–1 axis) the
+            // Fisher step is ill-conditioned and the iteration stalls short of
+            // the tolerance. Standardizing removes a numerical property of the
+            // optimizer from the list of things that decide whether a licensed
+            // cell can run at all. The stored coefficients are on the original
+            // parent scale, so nothing downstream changes shape.
+            let parent_cols = gather_parent_cols(gather, model, data)?;
+            let refs: Vec<&[f64]> = parent_cols.iter().map(|c| &c[..n]).collect();
+            let (centers, scales) = column_moments(&refs, n);
             let ncols = 1 + p;
             let mut x = vec![0.0; n * ncols];
-            for r in 0..n {
-                x[r] = 1.0;
-            }
-            for (pi, &parent) in gather.parents.iter().enumerate() {
-                let var = model.output_layout.variables[parent.as_usize()];
-                let col = data.float64_cow(var).map_err(ModelError::from)?;
+            x[..n].fill(1.0);
+            for (pi, col) in refs.iter().enumerate() {
                 let base = (1 + pi) * n;
-                x[base..base + n].copy_from_slice(&col[..n]);
+                for r in 0..n {
+                    x[base + r] = (col[r] - centers[pi]) / scales[pi];
+                }
             }
-            let mut y_cat = vec![0u32; n];
-            for (r, &yi) in y.iter().enumerate() {
-                let Some(idx) = support.iter().position(|&s| (s - yi).abs() < 1e-12) else {
-                    return Err(ModelError::Shape {
-                        message: "discrete outcome not in fitted support".into(),
-                    });
-                };
-                y_cat[r] = u32::try_from(idx).map_err(|_| ModelError::Shape {
-                    message: "too many discrete categories".into(),
-                })?;
-            }
+            let y_cat = discrete_categories(y, &support)?;
             let fit = antecedent_stats::fit_multinomial_logit_weighted(
                 MultinomialDesignRef {
                     x_colmajor: &x,
@@ -582,21 +702,43 @@ fn fit_family_weighted(
             // Refuse non-converged fits; separation is allowed (near-deterministic
             // conditionals → large logits; softmax evaluation remains well-defined).
             if !fit.converged {
-                return Err(ModelError::Numerical {
+                return Err(ModelError::NotConverged {
                     message: format!(
-                        "multinomial logit did not converge (iters={}, deviance={})",
+                        "multinomial logit did not converge on standardized parents \
+                         (iters={}, deviance={})",
                         fit.iterations, fit.deviance
                     ),
                 });
             }
+            // Back-transform: η = b₀ + Σ bⱼ (xⱼ − cⱼ)/sⱼ
+            //                   = (b₀ − Σ bⱼ cⱼ/sⱼ) + Σ (bⱼ/sⱼ) xⱼ.
+            let mut coefficients = fit.coefficients;
+            for cat in 0..k {
+                let base = cat * ncols;
+                let mut shift = 0.0;
+                for pi in 0..p {
+                    let raw = coefficients[base + 1 + pi] / scales[pi];
+                    shift += raw * centers[pi];
+                    coefficients[base + 1 + pi] = raw;
+                }
+                coefficients[base] -= shift;
+            }
             Ok(MechanismSlot::Discrete {
                 support: Arc::from(support),
                 probs: Arc::from(probs),
-                logit_coeffs: Some(Arc::from(fit.coefficients)),
+                logit_coeffs: Some(Arc::from(coefficients)),
             })
         }
         MechanismFamily::LinearGaussian => {
             fit_linear_gaussian_weighted(gather, model, data, y, backend, ls_ws, 0.0, weights)
+        }
+        MechanismFamily::LinearInteractions | MechanismFamily::LinearSpline => {
+            let basis = build_basis(family, gather, model, data, n)?;
+            fit_linear_basis(&basis, gather, model, data, y, backend, ls_ws, weights)
+        }
+        MechanismFamily::DiscreteInteractions | MechanismFamily::DiscreteSpline => {
+            let basis = build_basis(family, gather, model, data, n)?;
+            fit_discrete_basis(&basis, gather, model, data, y, backend, ls_ws, weights)
         }
         MechanismFamily::HierarchicalLinear => {
             fit_hierarchical_linear(gather, model, data, y, backend, ls_ws)
@@ -1067,6 +1209,440 @@ fn fit_linear_gaussian_weighted(
     let coeffs: Arc<[f64]> = Arc::from(fit.coefficients[1..].to_vec());
     let sigma = (fit.rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(1e-8);
     Ok(MechanismSlot::LinearGaussian { intercept, coeffs, sigma })
+}
+
+// ---------------------------------------------------------------- basis families
+
+/// Rows required per fitted column before a basis family is admissible.
+///
+/// A two-way interaction or spline expansion adds columns quadratically in the
+/// parent count. Below this ratio the expansion is fitting noise, and the
+/// cross-validated score would say so only after paying for an unstable solve;
+/// refusing is cheaper and the refusal is recorded in
+/// [`MechanismAssignment::failed_families`].
+pub const BASIS_MIN_ROWS_PER_COLUMN: usize = 10;
+
+/// Folds of the deterministic cross-validation that scores a basis family.
+pub const BASIS_CV_FOLDS: usize = 5;
+
+/// Relative rank-deficiency floor for the spline solve, on column-scaled design
+/// columns. Not a smoothing penalty: smoothing comes from the fixed three-knot
+/// cubic *regression* spline, and this only keeps a near-collinear truncated
+/// power basis from producing an exploding solve.
+const SPLINE_CONDITIONING_RIDGE: f64 = 1e-6;
+
+/// Build the expansion a basis family fits on.
+fn build_basis(
+    family: MechanismFamily,
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    n: usize,
+) -> Result<ParentBasis, ModelError> {
+    let p = gather.n_parents();
+    if p < 2 {
+        return Err(ModelError::Unsupported {
+            message: format!(
+                "{} needs at least two parents to form a cross-parent product (got {p}); with one \
+                 parent the contrast is the same for every unit under any additive-noise \
+                 mechanism",
+                family.id()
+            ),
+        });
+    }
+    let parent_cols = gather_parent_cols(gather, model, data)?;
+    let refs: Vec<&[f64]> = parent_cols.iter().map(|c| &c[..n]).collect();
+    let (centers, scales) = column_moments(&refs, n);
+    let centers: Arc<[f64]> = Arc::from(centers);
+    let scales: Arc<[f64]> = Arc::from(scales);
+    let basis = match family {
+        MechanismFamily::LinearInteractions | MechanismFamily::DiscreteInteractions => {
+            ParentBasis::interactions(p, centers, scales)?
+        }
+        MechanismFamily::LinearSpline | MechanismFamily::DiscreteSpline => {
+            let knots = spline_knots(&refs, n, &centers, &scales);
+            if knots.iter().all(|k| k.is_empty()) {
+                return Err(ModelError::Unsupported {
+                    message: format!(
+                        "{} found no parent with enough distinct values for a spline; the \
+                         expansion would duplicate the interaction family",
+                        family.id()
+                    ),
+                });
+            }
+            ParentBasis::spline_interactions(p, centers, scales, Arc::from(knots))?
+        }
+        other => {
+            return Err(ModelError::Unsupported {
+                message: format!("{} is not a basis family", other.id()),
+            });
+        }
+    };
+    if !basis.has_cross_parent_product() {
+        return Err(ModelError::Unsupported {
+            message: format!("{} produced no cross-parent product", family.id()),
+        });
+    }
+    let ncols = 1 + basis.n_terms();
+    if n < ncols.saturating_mul(BASIS_MIN_ROWS_PER_COLUMN) {
+        return Err(ModelError::Unsupported {
+            message: format!(
+                "{} expands {p} parents to {ncols} columns and needs at least \
+                 {BASIS_MIN_ROWS_PER_COLUMN} rows per column (got {n})",
+                family.id()
+            ),
+        });
+    }
+    Ok(basis)
+}
+
+/// Column-major design `[1 | φ(pa)]` for a basis.
+fn basis_design_matrix(
+    basis: &ParentBasis,
+    parent_cols: &[std::borrow::Cow<'_, [f64]>],
+    n: usize,
+) -> Result<Vec<f64>, ModelError> {
+    let t = basis.n_terms();
+    let mut x = vec![0.0; n * (1 + t)];
+    x[..n].fill(1.0);
+    let mut row = vec![0.0; basis.n_parents()];
+    let mut expanded = vec![0.0; t];
+    for r in 0..n {
+        for (p, slot) in row.iter_mut().enumerate() {
+            *slot = basis.standardize(p, parent_cols[p][r]);
+        }
+        basis.expand_standardized(&row, &mut expanded)?;
+        for (c, value) in expanded.iter().enumerate() {
+            x[(1 + c) * n + r] = *value;
+        }
+    }
+    Ok(x)
+}
+
+/// Weighted ridge least squares on a column-major design, solved on
+/// RMS-normalized columns and un-normalized afterwards.
+///
+/// Column normalization is an exact change of variables — the fitted surface is
+/// identical — and it is what makes a truncated power basis solvable at all: the
+/// raw columns of `z³` and `z·z³` differ in scale by orders of magnitude.
+/// Returns the coefficients on the original column scale and the weighted RSS.
+#[allow(clippy::too_many_arguments)]
+fn solve_scaled_ridge(
+    x: &[f64],
+    n: usize,
+    ncols: usize,
+    y: &[f64],
+    weights: Option<&[f64]>,
+    ridge: f64,
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+) -> Result<(Vec<f64>, f64), ModelError> {
+    let mut scale = vec![1.0_f64; ncols];
+    for (c, s) in scale.iter_mut().enumerate().skip(1) {
+        let rms = (x[c * n..c * n + n].iter().map(|v| v * v).sum::<f64>() / n.max(1) as f64).sqrt();
+        *s = if rms.is_finite() && rms > 1e-12 { rms } else { 1.0 };
+    }
+    let extra = if ridge > 0.0 { ncols - 1 } else { 0 };
+    let rows = n + extra;
+    let mut design = vec![0.0; rows * ncols];
+    let mut target = vec![0.0; rows];
+    for c in 0..ncols {
+        for r in 0..n {
+            let w = weights.map_or(1.0, |w| w[r].sqrt());
+            design[c * rows + r] = x[c * n + r] / scale[c] * w;
+        }
+    }
+    for r in 0..n {
+        target[r] = y[r] * weights.map_or(1.0, |w| w[r].sqrt());
+    }
+    if ridge > 0.0 {
+        let sqrt_r = ridge.sqrt();
+        for j in 1..ncols {
+            design[j * rows + (n + j - 1)] = sqrt_r;
+        }
+    }
+    let fit =
+        backend.least_squares(&design, rows, ncols, &target, ls_ws).map_err(ModelError::from)?;
+    let coeffs: Vec<f64> = fit.coefficients.iter().zip(&scale).map(|(b, s)| b / s).collect();
+    if coeffs.iter().any(|b| !b.is_finite()) {
+        return Err(ModelError::Numerical {
+            message: "basis mechanism solve produced a non-finite coefficient".into(),
+        });
+    }
+    Ok((coeffs, fit.rss))
+}
+
+/// Per-row ridge weight for a basis solve: the conditioning floor for a spline
+/// expansion, and nothing at all for a pure interaction expansion (which is
+/// ordinary least squares on the same columns `LinearGaussian` fits, plus the
+/// products).
+fn basis_ridge_rel(basis: &ParentBasis) -> f64 {
+    if basis.knots().iter().any(|k| !k.is_empty()) { SPLINE_CONDITIONING_RIDGE } else { 0.0 }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn fit_linear_basis(
+    basis: &ParentBasis,
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    y: &[f64],
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+    weights: Option<&[f64]>,
+) -> Result<MechanismSlot, ModelError> {
+    let n = y.len();
+    let parent_cols = gather_parent_cols(gather, model, data)?;
+    let x = basis_design_matrix(basis, &parent_cols, n)?;
+    let ncols = 1 + basis.n_terms();
+    let ridge = basis_ridge_rel(basis) * n as f64;
+    let (coeffs, rss) = solve_scaled_ridge(&x, n, ncols, y, weights, ridge, backend, ls_ws)?;
+    let sigma = (rss / (n.saturating_sub(ncols)).max(1) as f64).sqrt().max(1e-8);
+    Ok(MechanismSlot::LinearBasis {
+        intercept: coeffs[0],
+        basis: basis.clone(),
+        coeffs: Arc::from(coeffs[1..].to_vec()),
+        sigma,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn fit_discrete_basis(
+    basis: &ParentBasis,
+    gather: &ParentGatherPlan,
+    model: &CompiledCausalModel,
+    data: &TabularData,
+    y: &[f64],
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+    weights: Option<&[f64]>,
+) -> Result<MechanismSlot, ModelError> {
+    let n = y.len();
+    let (support, probs) = discrete_support(y, weights)?;
+    let k = support.len();
+    if k < 2 {
+        return Err(ModelError::Unsupported {
+            message: "discrete basis families need at least two categories".into(),
+        });
+    }
+    let parent_cols = gather_parent_cols(gather, model, data)?;
+    let x = basis_design_matrix(basis, &parent_cols, n)?;
+    let ncols = 1 + basis.n_terms();
+    let y_cat = discrete_categories(y, &support)?;
+    let fit = antecedent_stats::fit_multinomial_logit_weighted(
+        MultinomialDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols,
+            y_category: &y_cat,
+            n_categories: k,
+        },
+        weights,
+        &backend,
+        ls_ws,
+        &GlmOptions::default(),
+    )?;
+    if !fit.converged {
+        return Err(ModelError::NotConverged {
+            message: format!(
+                "multinomial logit on a parent basis did not converge (iters={}, deviance={})",
+                fit.iterations, fit.deviance
+            ),
+        });
+    }
+    Ok(MechanismSlot::DiscreteBasis {
+        support: Arc::from(support),
+        probs: Arc::from(probs),
+        basis: basis.clone(),
+        logit_coeffs: Arc::from(fit.coefficients),
+    })
+}
+
+/// Weighted support and marginal probabilities of a discrete column.
+fn discrete_support(
+    y: &[f64],
+    weights: Option<&[f64]>,
+) -> Result<(Vec<f64>, Vec<f64>), ModelError> {
+    let mut pairs: Vec<(i64, f64, f64)> = Vec::new();
+    for (r, &yi) in y.iter().enumerate() {
+        if !yi.is_finite() {
+            continue;
+        }
+        let key = (yi * 1e6).round() as i64;
+        if let Some(e) = pairs.iter_mut().find(|(k, _, _)| *k == key) {
+            e.2 += weights.map_or(1.0, |w| w[r]);
+        } else {
+            pairs.push((key, yi, weights.map_or(1.0, |w| w[r])));
+        }
+    }
+    if pairs.is_empty() {
+        return Err(ModelError::Shape { message: "no finite values for discrete fit".into() });
+    }
+    pairs.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    let total = pairs.iter().map(|(_, _, c)| *c).sum::<f64>();
+    Ok((
+        pairs.iter().map(|(_, v, _)| *v).collect(),
+        pairs.iter().map(|(_, _, c)| *c / total).collect(),
+    ))
+}
+
+/// Category index per row against a fitted support.
+fn discrete_categories(y: &[f64], support: &[f64]) -> Result<Vec<u32>, ModelError> {
+    let mut out = vec![0u32; y.len()];
+    for (r, &yi) in y.iter().enumerate() {
+        let Some(idx) = support.iter().position(|&s| (s - yi).abs() < 1e-12) else {
+            return Err(ModelError::Shape {
+                message: "discrete outcome not in fitted support".into(),
+            });
+        };
+        out[r] = u32::try_from(idx)
+            .map_err(|_| ModelError::Shape { message: "too many discrete categories".into() })?;
+    }
+    Ok(out)
+}
+
+/// Deterministic `row % BASIS_CV_FOLDS` fold assignment.
+///
+/// No RNG and no permutation: the folds are a function of row position alone,
+/// so the score of a family is reproducible from the table without a seed.
+const fn basis_fold(row: usize) -> usize {
+    row % BASIS_CV_FOLDS
+}
+
+/// Out-of-fold mean squared error of a [`MechanismSlot::LinearBasis`] fit.
+fn basis_cv_mse(
+    basis: &ParentBasis,
+    x: &[f64],
+    n: usize,
+    y: &[f64],
+    ridge_rel: f64,
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+) -> Result<f64, ModelError> {
+    let ncols = 1 + basis.n_terms();
+    let mut sse = 0.0;
+    let mut scored = 0usize;
+    for fold in 0..BASIS_CV_FOLDS {
+        let train: Vec<usize> = (0..n).filter(|&r| basis_fold(r) != fold).collect();
+        let test: Vec<usize> = (0..n).filter(|&r| basis_fold(r) == fold).collect();
+        if train.len() < ncols + 1 || test.is_empty() {
+            continue;
+        }
+        let m = train.len();
+        let mut xt = vec![0.0; m * ncols];
+        let mut yt = vec![0.0; m];
+        for (i, &r) in train.iter().enumerate() {
+            yt[i] = y[r];
+            for c in 0..ncols {
+                xt[c * m + i] = x[c * n + r];
+            }
+        }
+        let (coeffs, _) =
+            solve_scaled_ridge(&xt, m, ncols, &yt, None, ridge_rel * m as f64, backend, ls_ws)?;
+        for &r in &test {
+            let mut pred = 0.0;
+            for c in 0..ncols {
+                pred += coeffs[c] * x[c * n + r];
+            }
+            let e = y[r] - pred;
+            sse += e * e;
+            scored += 1;
+        }
+    }
+    if scored == 0 {
+        return Err(ModelError::Unsupported {
+            message: "not enough rows to cross-validate a basis family".into(),
+        });
+    }
+    Ok(sse / scored as f64)
+}
+
+/// Out-of-fold mean log-likelihood of a [`MechanismSlot::DiscreteBasis`] fit.
+fn basis_cv_loglik(
+    basis: &ParentBasis,
+    x: &[f64],
+    n: usize,
+    y_cat: &[u32],
+    k: usize,
+    backend: FaerBackend,
+    ls_ws: &mut LeastSquaresWorkspace,
+) -> Result<f64, ModelError> {
+    let ncols = 1 + basis.n_terms();
+    let width = ncols;
+    let mut total = 0.0;
+    let mut scored = 0usize;
+    for fold in 0..BASIS_CV_FOLDS {
+        let train: Vec<usize> = (0..n).filter(|&r| basis_fold(r) != fold).collect();
+        let test: Vec<usize> = (0..n).filter(|&r| basis_fold(r) == fold).collect();
+        if train.len() < ncols + 1 || test.is_empty() {
+            continue;
+        }
+        let m = train.len();
+        let mut xt = vec![0.0; m * ncols];
+        let mut yt = vec![0u32; m];
+        for (i, &r) in train.iter().enumerate() {
+            yt[i] = y_cat[r];
+            for c in 0..ncols {
+                xt[c * m + i] = x[c * n + r];
+            }
+        }
+        // A fold that drops a category entirely cannot be scored against the
+        // full support; skip it rather than score a degenerate fit.
+        let mut present = vec![false; k];
+        for &c in &yt {
+            present[c as usize] = true;
+        }
+        if present.iter().any(|p| !p) {
+            continue;
+        }
+        let fit = antecedent_stats::fit_multinomial_logit_weighted(
+            MultinomialDesignRef {
+                x_colmajor: &xt,
+                nrows: m,
+                ncols,
+                y_category: &yt,
+                n_categories: k,
+            },
+            None,
+            &backend,
+            ls_ws,
+            &GlmOptions::default(),
+        )?;
+        if !fit.converged {
+            return Err(ModelError::NotConverged {
+                message: format!(
+                    "multinomial logit did not converge on a cross-validation fold (iters={}, \
+                     deviance={})",
+                    fit.iterations, fit.deviance
+                ),
+            });
+        }
+        for &r in &test {
+            let mut max_eta = f64::NEG_INFINITY;
+            let mut etas = vec![0.0; k];
+            for cat in 0..k {
+                let base = cat * width;
+                let mut pred = fit.coefficients[base];
+                for c in 1..ncols {
+                    pred += fit.coefficients[base + c] * x[c * n + r];
+                }
+                etas[cat] = pred;
+                if pred > max_eta {
+                    max_eta = pred;
+                }
+            }
+            let sum: f64 = etas.iter().map(|e| (e - max_eta).exp()).sum();
+            let p = (etas[y_cat[r] as usize] - max_eta).exp() / sum.max(f64::EPSILON);
+            total += p.max(f64::EPSILON).ln();
+            scored += 1;
+        }
+    }
+    if scored == 0 {
+        return Err(ModelError::Unsupported {
+            message: "not enough rows to cross-validate a basis family".into(),
+        });
+    }
+    Ok(total / scored as f64)
 }
 
 /// Row cap for the [`MechanismFamily::GaussianProcess`] grid search.
@@ -1822,5 +2398,247 @@ mod tests {
             lg_candidate.score
         );
         assert_eq!(assignment.selected, MechanismFamily::LinearGaussianStateSpace);
+    }
+
+    // ------------------------------------------------------------ basis families
+
+    /// `z ~ N(0,1)`, `a ~ Bern(σ(0.5 z))`, `b ~ Bern(0.5)`, and
+    /// `y = 0.8a + 0.5b + gain·ab + z + ε`. Graph `z → a`, `{z, a, b} → y`.
+    fn interaction_table(n: usize, gain: f64, seed: u64) -> (TabularData, Dag) {
+        let mut rng = antecedent_core::CausalRng::from_seed(seed);
+        let (mut z, mut a, mut b, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+        for i in 0..n {
+            z[i] = antecedent_kernels::standard_normal(&mut rng);
+            a[i] = f64::from(u8::from(rng.next_f64() < 1.0 / (1.0 + (-0.5 * z[i]).exp())));
+            b[i] = f64::from(u8::from(rng.next_f64() < 0.5));
+            y[i] = 0.8 * a[i]
+                + 0.5 * b[i]
+                + gain * a[i] * b[i]
+                + z[i]
+                + antecedent_kernels::standard_normal(&mut rng);
+        }
+        let data = TabularData::from_f64_columns([
+            ("z", z.as_slice()),
+            ("a", a.as_slice()),
+            ("b", b.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap();
+        let mut g = Dag::with_variables(4);
+        for (from, to) in [(0, 1), (0, 3), (1, 3), (2, 3)] {
+            g.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        (data, g)
+    }
+
+    fn outcome_assignment(data: &TabularData, graph: Dag) -> MechanismAssignment {
+        let compiled = CompiledCausalModel::compile(graph).unwrap();
+        let (_, assignments) = MechanismRegistry::with_heterogeneity_families()
+            .assign_and_fit(&compiled, data, SelectionPolicy::BestScore)
+            .unwrap();
+        assignments.into_iter().find(|a| a.node == DenseNodeId::from_raw(3)).unwrap()
+    }
+
+    #[test]
+    fn heterogeneity_family_wins_only_where_the_data_has_an_interaction() {
+        let (data, graph) = interaction_table(2500, 0.6, 7);
+        let with = outcome_assignment(&data, graph);
+        assert!(
+            matches!(
+                with.selected,
+                MechanismFamily::LinearInteractions | MechanismFamily::LinearSpline
+            ),
+            "interaction data selected {:?}: {:?}",
+            with.selected,
+            with.candidates
+        );
+        assert!(!with.fitted.admits_no_effect_modification());
+
+        let (data, graph) = interaction_table(2500, 0.0, 7);
+        let without = outcome_assignment(&data, graph);
+        assert_eq!(
+            without.selected,
+            MechanismFamily::LinearGaussian,
+            "additive data must keep the linear family: {:?}",
+            without.candidates
+        );
+        // The richer families were scored — the data, not the registry, rejected them.
+        for family in [MechanismFamily::LinearInteractions, MechanismFamily::LinearSpline] {
+            assert!(
+                without.candidates.iter().any(|c| c.family == family),
+                "{family:?} must have been scored: {:?}",
+                without.failed_families
+            );
+        }
+    }
+
+    /// Rescaling the outcome must not change which family is selected, so the
+    /// counterfactual contrast scales exactly with the outcome.
+    #[test]
+    fn family_selection_is_invariant_to_outcome_units() {
+        for gain in [0.0, 0.05, 0.6] {
+            let (data, graph) = interaction_table(900, gain, 13);
+            let names = ["z", "a", "b", "y"];
+            let cols: Vec<Vec<f64>> = (0..4)
+                .map(|v| data.float64_cow(VariableId::from_raw(v)).unwrap().to_vec())
+                .collect();
+            for scale in [1e-3, 2.0, 1e4] {
+                let y: Vec<f64> = cols[3].iter().map(|v| v * scale).collect();
+                let scaled = TabularData::from_f64_columns([
+                    (names[0], cols[0].as_slice()),
+                    (names[1], cols[1].as_slice()),
+                    (names[2], cols[2].as_slice()),
+                    (names[3], y.as_slice()),
+                ])
+                .unwrap();
+                let base = outcome_assignment(&data, graph.clone()).selected;
+                let rescaled = outcome_assignment(&scaled, graph.clone()).selected;
+                assert_eq!(base, rescaled, "gain={gain} scale={scale}");
+            }
+        }
+    }
+
+    #[test]
+    fn basis_family_abduction_is_exact_inversion() {
+        use crate::batch::{MechanismWorkspace, ParentBatch};
+        use crate::mechanism::{NoiseInferenceMode, evaluate_column, infer_noise_column_rng};
+        let (data, graph) = interaction_table(600, 0.6, 3);
+        let compiled = CompiledCausalModel::compile(graph).unwrap();
+        let gather = compiled.gather_for(DenseNodeId::from_raw(3)).unwrap().clone();
+        let n = data.row_count();
+        let y_col = data.float64_cow(VariableId::from_raw(3)).unwrap();
+        let fitted = fit_family(
+            MechanismFamily::LinearSpline,
+            &gather,
+            &compiled,
+            &data,
+            &y_col,
+            FaerBackend,
+            &mut LeastSquaresWorkspace::default(),
+        )
+        .unwrap();
+        let slot = &fitted;
+        let MechanismSlot::LinearBasis { basis, .. } = slot else {
+            panic!("spline family must fit a basis slot");
+        };
+        assert!(basis.knots()[0].len() == 3, "continuous z earns knots");
+        assert!(
+            basis.knots()[1].is_empty() && basis.knots()[2].is_empty(),
+            "binary parents do not"
+        );
+        let mut parents = Vec::new();
+        for v in 0..3 {
+            parents.extend_from_slice(&data.float64_cow(VariableId::from_raw(v)).unwrap());
+        }
+        let batch = ParentBatch { n_rows: n, n_parents: 3, values: &parents };
+        let y = data.float64_cow(VariableId::from_raw(3)).unwrap();
+        let mut noise = vec![0.0; n];
+        let mode = infer_noise_column_rng(
+            slot,
+            &y,
+            batch,
+            &mut noise,
+            &mut antecedent_core::CausalRng::from_seed(0),
+        )
+        .unwrap();
+        assert_eq!(mode, NoiseInferenceMode::Invertible);
+        let mut rebuilt = vec![0.0; n];
+        evaluate_column(slot, batch, &noise, &mut rebuilt, &mut MechanismWorkspace::default())
+            .unwrap();
+        for (r, (got, want)) in rebuilt.iter().zip(y.iter()).enumerate() {
+            assert!((got - want).abs() < 1e-9, "row {r}: {got} vs {want}");
+        }
+    }
+
+    #[test]
+    fn basis_families_refuse_a_single_parent_node() {
+        let n = 400;
+        let x: Vec<f64> = (0..n).map(|i| (f64::from(i) * 0.37).sin()).collect();
+        let y: Vec<f64> = x.iter().map(|v| 2.0 * v + 0.1).collect();
+        let data =
+            TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        let mut g = Dag::with_variables(2);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let (_, assignments) = MechanismRegistry::with_heterogeneity_families()
+            .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        let y_assignment = assignments.iter().find(|a| a.node == DenseNodeId::from_raw(1)).unwrap();
+        for family in [MechanismFamily::LinearInteractions, MechanismFamily::LinearSpline] {
+            assert!(y_assignment.candidates.iter().all(|c| c.family != family));
+            let reason =
+                y_assignment.failed_families.iter().find(|(f, _)| *f == family).map_or_else(
+                    || panic!("{family:?} must be recorded as failed"),
+                    |(_, e)| e.as_str(),
+                );
+            assert!(reason.contains("at least two parents"), "{reason}");
+        }
+    }
+
+    /// A parent-conditional categorical fit must be the same conditional law
+    /// whether a parent is a raw year column or its z-score: the IRLS runs on
+    /// standardized columns and back-transforms. Before, the raw fit could stop
+    /// short of tolerance under row weights and refuse the whole analysis.
+    #[test]
+    fn discrete_fit_is_invariant_to_affine_parent_rescaling() {
+        use crate::batch::ParentBatch;
+        let n = 3000;
+        let mut rng = antecedent_core::CausalRng::from_seed(11);
+        let mut year = vec![0.0; n];
+        let mut axis = vec![0.0; n];
+        let mut lever = vec![0.0; n];
+        for i in 0..n {
+            year[i] = 2015.0 + (rng.next_f64() * 11.0).floor();
+            axis[i] = rng.next_f64();
+            let eta = 0.4 * (year[i] - 2020.0) / 3.16 + axis[i] - 0.5;
+            lever[i] = f64::from(u8::from(rng.next_f64() < 1.0 / (1.0 + (-eta).exp())));
+        }
+        let mean = year.iter().sum::<f64>() / n as f64;
+        let sd = (year.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n as f64).sqrt();
+        let year_std: Vec<f64> = year.iter().map(|v| (v - mean) / sd).collect();
+        let fit = |year_col: &[f64], weights: Option<&[f64]>| {
+            let data = TabularData::from_f64_columns([
+                ("year", year_col),
+                ("axis", axis.as_slice()),
+                ("lever", lever.as_slice()),
+            ])
+            .unwrap();
+            let mut g = Dag::with_variables(3);
+            g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+            g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+            let compiled = CompiledCausalModel::compile(g).unwrap();
+            let gather = compiled.gather_for(DenseNodeId::from_raw(2)).unwrap().clone();
+            let slot = fit_family_weighted(
+                MechanismFamily::Discrete,
+                &gather,
+                &compiled,
+                &data,
+                &lever,
+                FaerBackend,
+                &mut LeastSquaresWorkspace::default(),
+                weights,
+            )
+            .unwrap();
+            let mut values = year_col.to_vec();
+            values.extend_from_slice(&axis);
+            let mut lp = vec![0.0; n];
+            log_prob_column(
+                &slot,
+                &lever,
+                ParentBatch { n_rows: n, n_parents: 2, values: &values },
+                &mut lp,
+            )
+            .unwrap();
+            lp
+        };
+        let weights: Vec<f64> =
+            (0..n).map(|i| 0.2 + 1.6 * ((i * 7919) % 101) as f64 / 100.0).collect();
+        for w in [None, Some(weights.as_slice())] {
+            let raw = fit(&year, w);
+            let std = fit(&year_std, w);
+            for (r, (a, b)) in raw.iter().zip(&std).enumerate() {
+                assert!((a - b).abs() < 1e-8, "row {r} weighted={}: {a} vs {b}", w.is_some());
+            }
+        }
     }
 }

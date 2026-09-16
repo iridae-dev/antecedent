@@ -9,6 +9,7 @@ use std::sync::Arc;
 use antecedent_core::VariableId;
 use antecedent_graph::{Dag, DenseNodeId, NodeRef};
 
+use crate::basis::ParentBasis;
 use crate::error::ModelError;
 
 /// Plan for gathering parent values into an aligned buffer for one child node.
@@ -176,6 +177,37 @@ pub enum MechanismSlot {
         /// Fixed value.
         value: f64,
     },
+    /// Linear Gaussian in a [`ParentBasis`] expansion of the parents.
+    ///
+    /// `y = intercept + Σ coeffs[t] · φ_t(pa) + ε`, with additive Gaussian `ε`.
+    /// The expansion touches the conditional mean only, so abduction is exact:
+    /// `ε = y − f(pa)` exactly as for [`Self::LinearGaussian`].
+    LinearBasis {
+        /// Intercept.
+        intercept: f64,
+        /// Deterministic expansion of the parent row.
+        basis: ParentBasis,
+        /// One coefficient per expanded column, aligned with
+        /// [`ParentBasis::terms`].
+        coeffs: Arc<[f64]>,
+        /// Residual standard deviation.
+        sigma: f64,
+    },
+    /// Discrete categorical whose logits are linear in a [`ParentBasis`]
+    /// expansion of the parents.
+    ///
+    /// The baseline-category convention matches [`Self::Discrete`]: `logit_coeffs`
+    /// is row-major `[k * (1 + basis.n_terms())]` and category 0 is pinned to zero.
+    DiscreteBasis {
+        /// Support values, ascending.
+        support: Arc<[f64]>,
+        /// Marginal probabilities (same length as support), for reporting.
+        probs: Arc<[f64]>,
+        /// Deterministic expansion of the parent row.
+        basis: ParentBasis,
+        /// Softmax logit coefficients, row-major `[k * (1 + n_terms)]`.
+        logit_coeffs: Arc<[f64]>,
+    },
     /// Hierarchical linear Gaussian (partial-pooling / ridge toward prior mean 0).
     HierarchicalLinear {
         /// Intercept.
@@ -278,8 +310,17 @@ impl MechanismSlot {
             // Parent-conditional softmax bends with the parent configuration;
             // an unconditional categorical ignores the parents entirely.
             Self::Discrete { logit_coeffs, .. } => logit_coeffs.is_none(),
-            // Nonlinear, or unknown.
-            Self::GaussianProcess { .. }
+            // A basis expansion modifies the effect exactly when some column
+            // multiplies two different parents: without one the conditional
+            // mean is additively separable, so intervening on a parent shifts
+            // this node by an amount independent of the unit's other parents.
+            Self::LinearBasis { basis, .. } => !basis.has_cross_parent_product(),
+            // Nonlinear, or unknown. `DiscreteBasis`: the logits are additively
+            // separable, but the softmax is not — a category's probability moves
+            // with the whole linear predictor, so the contrast depends on the
+            // unit's other parents regardless.
+            Self::DiscreteBasis { .. }
+            | Self::GaussianProcess { .. }
             | Self::Dynamic { .. }
             | Self::Pending { .. }
             | Self::Vacant => false,
@@ -307,6 +348,20 @@ impl std::fmt::Debug for MechanismSlot {
                 .field("logit_coeffs", logit_coeffs)
                 .finish(),
             Self::Constant { value } => f.debug_struct("Constant").field("value", value).finish(),
+            Self::LinearBasis { intercept, basis, coeffs, sigma } => f
+                .debug_struct("LinearBasis")
+                .field("intercept", intercept)
+                .field("terms", &basis.terms())
+                .field("coeffs", coeffs)
+                .field("sigma", sigma)
+                .finish(),
+            Self::DiscreteBasis { support, probs, basis, logit_coeffs } => f
+                .debug_struct("DiscreteBasis")
+                .field("support", support)
+                .field("probs", probs)
+                .field("terms", &basis.terms())
+                .field("logit_coeffs", logit_coeffs)
+                .finish(),
             Self::HierarchicalLinear { intercept, coeffs, sigma, shrinkage } => f
                 .debug_struct("HierarchicalLinear")
                 .field("intercept", intercept)
