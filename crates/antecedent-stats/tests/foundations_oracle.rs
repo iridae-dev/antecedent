@@ -340,7 +340,7 @@ fn rng_stream_and_gaussian_sampler_match_frozen_scipy_battery() {
     );
 }
 
-/// The B-spline basis matrices are compared with the frozen SciPy `BSpline` oracle.
+/// The B-spline basis matrices are compared with the frozen `SciPy` `BSpline` oracle.
 /// The penalized fit (intercept, coefficients, fitted values, EDF, predictions) is
 /// compared with values this crate wrote itself (`update_gam_oracle_fixture`): a
 /// regression pin that catches drift, not independent evidence the fit is right.
