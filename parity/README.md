@@ -158,7 +158,10 @@ every-PR unit CI. Its coverage records stand until the statistical surface they
 measured changes (`scripts/calibration_surface.list`, checked by
 `scripts/gate_calibration_attestation.sh` on every PR), so it runs on demand,
 locally or through [`.github/workflows/calibration.yml`](../.github/workflows/calibration.yml)
-(`workflow_dispatch`), when records owe a re-measurement.
+(`workflow_dispatch`), when records owe a re-measurement. A reviewed change that
+cannot move a number may instead be covered by a replay waiver in
+`calibration_waivers.toml`, whose records are reported as `attested_by_replay`
+(see `docs/development.md`).
 
 PAG: inventory (`pag.toml`), LPCMCI / latent-projection / envelope /
 DAG-only-reject conformance; static FCI/RFCI `done`. Permanent: PAG-native
