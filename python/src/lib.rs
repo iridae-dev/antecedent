@@ -531,10 +531,8 @@ impl IntoCausalPyErr for RustCausalError {
                 message,
                 hint,
             ),
-            Self::Unsupported { message } => CausalUnsupportedError::new_err(message),
-            Self::Support { id, message } => {
-                CausalUnsupportedError::new_err(format!("{id}: {message}"))
-            }
+            Self::Unsupported { message } => unsupported_py_err(message.to_string()),
+            Self::Support { id, message } => unsupported_py_err(format!("{id}: {message}")),
             Self::Missing { field } => {
                 CausalCompileError::new_err(format!("missing required field: {field}"))
             }
@@ -2254,13 +2252,28 @@ fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+/// The study builder's omitted-default table, read from the builder itself.
+///
+/// `bootstrap` applies on resampling routes (the builder omits it on static and
+/// Bayesian response surfaces and counterfactuals); `refute` is downgraded to
+/// `none` on a cell that does not license it; `latency` is never injected.
 #[pyfunction]
 fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
     let dict = PyDict::new(py);
-    dict.set_item("bootstrap", 199)?;
-    dict.set_item("refute", "placebo")?;
+    dict.set_item("bootstrap", antecedent::StudyBuilder::OMITTED_BOOTSTRAP)?;
+    dict.set_item(
+        "refute",
+        match antecedent::StudyBuilder::OMITTED_REFUTE {
+            RefuteSuite::None => "none",
+            RefuteSuite::Cheap => "cheap",
+            RefuteSuite::PlaceboAndRcc => "placebo",
+            RefuteSuite::Full => "full",
+        },
+    )?;
     dict.set_item("latency", py.None())?;
-    dict.set_item("n_draws", 1000)?;
+    // Draw budgets belong to the Bayesian backend constructors.
+    dict.set_item("n_draws", BayesianConfig::laplace().n_draws)?;
+    dict.set_item("n_draws_hmc", BayesianConfig::hmc().n_draws)?;
     Ok(dict.into())
 }
 

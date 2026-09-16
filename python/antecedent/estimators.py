@@ -74,8 +74,9 @@ GlmFamilyName = Literal[
 _SE_KINDS_NEEDING_LAG = ("newey_west", "panel_cluster_hac")
 
 
-def _omit_empty(out: dict[str, Any]) -> dict[str, Any] | None:
-    return out or None
+def _omit_empty(out: dict[str, Any]) -> dict[str, Any]:
+    """All-defaults configuration is a strict no-op wire, not a missing one."""
+    return out
 
 
 class _Unset:
@@ -566,12 +567,14 @@ class FrontdoorTwoStage:
         return str(Estimator.FRONTDOOR_TWO_STAGE)
 
     def _wire(self) -> dict[str, Any]:
-        return _omit_empty(_wire_se_common(
-            bootstrap=self.bootstrap,
-            se=self.se,
-            se_lag=self.se_lag,
-            cluster_ids=self.cluster_ids,
-        ))
+        return _omit_empty(
+            _wire_se_common(
+                bootstrap=self.bootstrap,
+                se=self.se,
+                se_lag=self.se_lag,
+                cluster_ids=self.cluster_ids,
+            )
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -599,14 +602,16 @@ class IvWald:
         return str(Estimator.IV_WALD)
 
     def _wire(self) -> dict[str, Any]:
-        return _omit_empty(_wire_se_common(
-            bootstrap=self.bootstrap,
-            se=self.se,
-            se_lag=self.se_lag,
-            cluster_ids=self.cluster_ids,
-            multiway_ids=self.multiway_ids,
-            panel_times=self.panel_times,
-        ))
+        return _omit_empty(
+            _wire_se_common(
+                bootstrap=self.bootstrap,
+                se=self.se,
+                se_lag=self.se_lag,
+                cluster_ids=self.cluster_ids,
+                multiway_ids=self.multiway_ids,
+                panel_times=self.panel_times,
+            )
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -634,14 +639,16 @@ class Iv2Sls:
         return str(Estimator.IV_2SLS)
 
     def _wire(self) -> dict[str, Any]:
-        return _omit_empty(_wire_se_common(
-            bootstrap=self.bootstrap,
-            se=self.se,
-            se_lag=self.se_lag,
-            cluster_ids=self.cluster_ids,
-            multiway_ids=self.multiway_ids,
-            panel_times=self.panel_times,
-        ))
+        return _omit_empty(
+            _wire_se_common(
+                bootstrap=self.bootstrap,
+                se=self.se,
+                se_lag=self.se_lag,
+                cluster_ids=self.cluster_ids,
+                multiway_ids=self.multiway_ids,
+                panel_times=self.panel_times,
+            )
+        )
 
 
 @dataclass(frozen=True, slots=True)

@@ -9,7 +9,10 @@ pytest.importorskip("antecedent")
 import antecedent
 from antecedent.errors import CausalUnsupportedError
 
-_REASON_PATH_DIST = "refused: Graph-posterior path and distribution mixtures are not staged."
+_REASON_PATH_DIST = (
+    "reason=option_not_applicable: graph-posterior structures are refused: a path, "
+    "distribution, or mediation mixture is not a single estimand across posterior atoms"
+)
 _REASON_ADMG_RESPONSE = (
     "refused: Admg response has no functional plug-in; licensed general-ID ATE does "
     "not estimate a curve."
@@ -85,7 +88,9 @@ def test_closed_cells_raise_refused(query, kwargs, prefix):
             **kwargs,
         )
     msg = str(ei.value)
-    assert msg.startswith("refused:"), msg
+    # Every closed cell names itself: a matrix refusal as `refused:`, a Python
+    # routing-gate refusal as its closed reason code.
+    assert msg.startswith(("refused:", "reason=")), msg
     assert msg.startswith(prefix), msg
 
 

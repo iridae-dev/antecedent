@@ -175,6 +175,7 @@ def encode_temporal_steps(spec: object) -> list[tuple[str, str, list[float]]]:
         return [encode_temporal_step(step) for step in spec.steps]
     return [encode_temporal_step(spec)]
 
+
 __all__ = [
     "Bernoulli",
     "Categorical",

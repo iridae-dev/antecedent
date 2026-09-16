@@ -64,9 +64,6 @@ def describe_refusal(fn: Callable[P, R]) -> Callable[P, R]:
             if args and hasattr(args[0], "_native"):
                 cast(Any, error).study = args[0]
             raise
-        if fn.__name__ == "prepare":
-            cast(Any, result)._seed = kwargs.get("seed", 1)
-            cast(Any, result)._threads = kwargs.get("threads", 1)
         return result
 
     return call

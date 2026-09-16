@@ -201,6 +201,8 @@ impl super::Study {
                 posterior: Some(posterior),
                 n_draws,
                 predictive_checks,
+                // Posterior draws carry the uncertainty; no replicate budget ran.
+                bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             },
         }))

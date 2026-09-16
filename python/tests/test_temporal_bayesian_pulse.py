@@ -88,39 +88,87 @@ def _pulse_query_and_data(n: int = 200):
     return data, graph, query
 
 
-def test_temporal_pulse_bayesian_composed_prior_raises_unsupported():
-    """Regression: `Bayesian(prior_from=ComposedPrior(...))` on a temporal query used to
-    reach the native temporal entry points unguarded and blow up as a raw
-    ``TypeError: analyze_temporal_discover() got an unexpected keyword argument
-    'composed_prior'`` — the native temporal signatures (`python/src/temporal_api.rs`,
-    `apply_temporal_inference`) never accepted `composed_prior`; only the static ATE path
-    (`analyze_ate` / `analyze_ate_discover`) does. `_reject_unsupported_temporal` now catches
-    this in Python before any native call is made, raising `CausalUnsupportedError` instead.
+def test_temporal_pulse_bayesian_composed_prior_is_hydrated():
+    """A composed external prior reaches the temporal Bayesian executor.
+
+    `Bayesian(prior_from=ComposedPrior(...))` used to be refused on temporal
+    queries because the native temporal entry points took no prior transfer.
+    They now do: a tight external prior centred away from the data pulls the
+    posterior mean toward it and changes the bound inference identity, so the
+    declared prior is part of the claim rather than silently dropped.
     """
     data, graph, query = _pulse_query_and_data()
-    composed = antecedent.priors.compose_external_priors(
-        [antecedent.priors.ExternalPriorSourceSpec(id="s1", mean=(0.0, 0.0), variance=(1.0, 1.0))],
+    tight = antecedent.priors.compose_external_priors(
+        [
+            antecedent.priors.ExternalPriorSourceSpec(
+                id="s1", mean=(5.0, 5.0), variance=(0.001, 0.001)
+            )
+        ],
         weights=[1.0],
     )
 
-    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="composed_prior"):
-        antecedent.analyze(
+    def run(inference):
+        return antecedent.analyze(
             data,
             graph=graph,
             query=query,
-            inference=antecedent.Bayesian(n_draws=64, prior_from=composed),
+            inference=inference,
             refute=False,
             bootstrap=0,
             seed=42,
         )
 
+    flat = run(antecedent.Bayesian(n_draws=64))
+    informed = run(antecedent.Bayesian(n_draws=64, prior_from=tight))
+    assert flat.posterior is not None and informed.posterior is not None
+    assert abs(flat.posterior.effect_mean - 0.9) < 0.05
+    assert informed.posterior.effect_mean > 1.5, informed.posterior.effect_mean
+    contract = antecedent.artifacts.loads(informed.export()).contract
+    flat_contract = antecedent.artifacts.loads(flat.export()).contract
+    assert (
+        contract["identities"]["inference_binding"]
+        != flat_contract["identities"]["inference_binding"]
+    )
 
-def test_temporal_pulse_bayesian_prior_mapping_raises_unsupported():
-    """Same regression as above, for `Bayesian(mapping=PriorMapping(...))` — also only
-    accepted on the static ATE path, also used to reach a raw `TypeError` from the native
-    temporal call instead of a clear, typed rejection.
+
+def test_temporal_pulse_bayesian_prior_artifact_and_mapping_are_hydrated():
+    """A posterior artifact plus its mapping transfers into a temporal pulse.
+
+    A mapping with no artifact to read is a permanent refusal: it names which
+    estimand of an artifact to use and has nothing to map on its own.
     """
     data, graph, query = _pulse_query_and_data()
+    source = antecedent.analyze(
+        data,
+        graph=graph,
+        query=query,
+        inference=antecedent.Bayesian(n_draws=64),
+        refute=False,
+        bootstrap=0,
+        seed=42,
+        return_posterior_artifact=True,
+    )
+    assert source.posterior is not None and source.posterior.artifact is not None
+    artifact = bytes(source.posterior.artifact)
+
+    transferred = antecedent.analyze(
+        data,
+        graph=graph,
+        query=query,
+        inference=antecedent.Bayesian(
+            n_draws=64,
+            prior_from=artifact,
+            mapping=antecedent.priors.PriorMapping.effect_functional("ate"),
+        ),
+        refute=False,
+        bootstrap=0,
+        seed=42,
+    )
+    assert transferred.posterior is not None
+    assert math.isfinite(transferred.posterior.effect_mean)
+    flat = antecedent.artifacts.loads(source.export()).contract
+    bound = antecedent.artifacts.loads(transferred.export()).contract
+    assert bound["identities"]["inference_binding"] != flat["identities"]["inference_binding"]
 
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="prior_mapping"):
         antecedent.analyze(

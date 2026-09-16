@@ -127,6 +127,9 @@ class ReviewRequired(CausalReviewError):
 # raised from Rust instantiates it (see `review_required_py_err` in
 # `python/src/lib.rs`) instead of falling back to a bare `CausalReviewError`.
 _set_review_error_class(ReviewRequired)
+# The same registration for refusals: a Rust refusal is this class, with its
+# reason code already attached.
+_set_unsupported_error_class(CausalUnsupportedError)
 
 
 def build_review_error(

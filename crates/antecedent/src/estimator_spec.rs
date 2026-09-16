@@ -80,6 +80,27 @@ impl EstimatorSpec {
     pub fn is_configured(&self) -> bool {
         !matches!(self, Self::Default(_))
     }
+
+    /// Replicate count a configured estimator carries; `None` for an id-only spec.
+    ///
+    /// The study reports and executes one replicate budget, so it reads this
+    /// rather than keeping a second count beside a configured estimator.
+    #[must_use]
+    pub fn bootstrap_replicates(&self) -> Option<u32> {
+        match self {
+            Self::Default(_) => None,
+            Self::LinearAdjustmentAte(cfg) => Some(cfg.bootstrap_replicates),
+            Self::PropensityWeighting(cfg) => Some(cfg.bootstrap_replicates),
+            Self::PropensityMatching(cfg) => Some(cfg.bootstrap_replicates),
+            Self::PropensityStratification(cfg) => Some(cfg.bootstrap_replicates),
+            Self::DistanceMatching(cfg) => Some(cfg.bootstrap_replicates),
+            Self::Aipw(cfg) => Some(cfg.bootstrap_replicates),
+            Self::GlmAdjustment(cfg) => Some(cfg.bootstrap_replicates),
+            Self::FrontDoorTwoStage(cfg) => Some(cfg.bootstrap_replicates),
+            Self::IvWald(cfg) => Some(cfg.bootstrap_replicates),
+            Self::Iv2Sls(cfg) => Some(cfg.bootstrap_replicates),
+        }
+    }
 }
 
 impl From<EstimatorId> for EstimatorSpec {

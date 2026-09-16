@@ -40,19 +40,22 @@ report = study.inspect()        # includes cached identification; does not estim
 result = study.estimate()      # uses retained data and preparation's seed/threads
 ```
 
-**Two `prepare` default regimes.** `ant.prepare(...)` uses one-call `analyze`
-defaults (standard bootstrap and placebo refutation for scalar effects).
-`antecedent.estimation.PreparedAnalysis.prepare(...)` keeps historical
-interactive defaults (`refute=False`, `latency="interactive"`). Pass `refute`,
-`bootstrap`, and `latency` explicitly if the two entry points must agree.
+`ant.analyze(...)`, `ant.prepare(...)` and
+`antecedent.estimation.PreparedAnalysis.prepare(...)` share one table of omitted
+defaults, owned by the Rust study builder and readable as
+`antecedent._native.omitted_defaults()`. A budget you omit (`bootstrap`,
+`refute`, `n_draws`) is resolved there, and `latency=` selects the tier for the
+omitted budgets only; an explicit value is never changed by a tier.
 
 `study.preflight()` is the explicit structural-only view; `study.inspect()`
 reports everything already known.
 
 `identify(...)` returns an `Identification` whose `statement`, `verdict`,
-`assumption_statements`, and `derivation_statements` are human-readable
-state on the object (`identification.to_dict()` includes them). That is
-readable identification data, not a notebook renderer.
+`qualified_verdict`, `assumption_statements`, and `derivation_statements` are
+human-readable state on the object (`identification.to_dict()` includes them).
+`qualified_verdict` keeps the restriction an identified verdict holds under;
+`statement` uses it. That is readable identification data, not a notebook
+renderer.
 
 | Operation | Data used | Changes the study's retained data? |
 |---|---|---|

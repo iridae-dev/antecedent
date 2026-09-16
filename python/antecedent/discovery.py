@@ -72,7 +72,7 @@ from ._native import (
 from ._native import (
     discover_structure_mcmc as _discover_structure_mcmc,
 )
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError
 
 # Re-exported. The definitions live in `graph`, a leaf importing only `_native` and
 # `errors`, so `_coerce` can reach `cpdag_oriented_edges` without importing this module.
@@ -130,10 +130,26 @@ class PC:
             max_cond_size=self.max_cond_size,
         )
 
-    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+    def accept(
+        self,
+        data: Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        accept_discovered: bool = True,
+        regimes: Sequence[int] | None = None,
+    ) -> AcceptedGraph:
+        """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
 
-        return accept_discovery(self, data, seed=seed, threads=threads)
+        return accept_discovery(
+            self,
+            data,
+            seed=seed,
+            threads=threads,
+            accept_discovered=accept_discovered,
+            regimes=regimes,
+        )
 
 
 @dataclass(frozen=True)
@@ -179,10 +195,26 @@ class PCMCI:
             max_cond_size=self.max_cond_size,
         )
 
-    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+    def accept(
+        self,
+        data: Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        accept_discovered: bool = True,
+        regimes: Sequence[int] | None = None,
+    ) -> AcceptedGraph:
+        """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
 
-        return accept_discovery(self, data, seed=seed, threads=threads)
+        return accept_discovery(
+            self,
+            data,
+            seed=seed,
+            threads=threads,
+            accept_discovered=accept_discovered,
+            regimes=regimes,
+        )
 
 
 @dataclass(frozen=True)
@@ -232,10 +264,26 @@ class PCMCIPlus:
             max_cond_size=self.max_cond_size,
         )
 
-    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+    def accept(
+        self,
+        data: Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        accept_discovered: bool = True,
+        regimes: Sequence[int] | None = None,
+    ) -> AcceptedGraph:
+        """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
 
-        return accept_discovery(self, data, seed=seed, threads=threads)
+        return accept_discovery(
+            self,
+            data,
+            seed=seed,
+            threads=threads,
+            accept_discovered=accept_discovered,
+            regimes=regimes,
+        )
 
 
 @dataclass(frozen=True)
@@ -281,10 +329,26 @@ class LPCMCI:
             max_cond_size=self.max_cond_size,
         )
 
-    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+    def accept(
+        self,
+        data: Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        accept_discovered: bool = True,
+        regimes: Sequence[int] | None = None,
+    ) -> AcceptedGraph:
+        """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
 
-        return accept_discovery(self, data, seed=seed, threads=threads)
+        return accept_discovery(
+            self,
+            data,
+            seed=seed,
+            threads=threads,
+            accept_discovered=accept_discovered,
+            regimes=regimes,
+        )
 
 
 @dataclass(frozen=True)
@@ -358,31 +422,23 @@ class JPCMCIPlus:
 
     def accept(
         self,
-        names: list[str],
-        env_columns: Sequence[Sequence[Any]],
+        data: Any,
         *,
         seed: int = 1,
         threads: int = 1,
+        accept_discovered: bool = True,
+        regimes: Sequence[int] | None = None,
     ) -> AcceptedGraph:
-        """Not supported yet — raises rather than silently building a wrong graph.
+        """Run this configuration once and accept it through its review gate."""
+        from .accepted_graph import accept_discovery
 
-        Every sibling ``accept()`` runs discovery then calls
-        ``AcceptedGraph.from_discovery(result, algorithm_id=self.algorithm_id)``.
-        That dispatch only recognizes the short algorithm ids ``"pcmci"`` /
-        ``"pcmci+"`` / ``"lpcmci"`` as temporal (lagged) results; this config's
-        id (``"jpcmci_plus"``) would fall through to the *static* graph path,
-        which would silently misinterpret a lagged, multi-environment result
-        as an unlagged one — worse than an ``AttributeError``. Teaching
-        ``AcceptedGraph.from_discovery`` about J-PCMCI+'s result shape is the
-        right long-term fix; it is out of scope here. Call :meth:`run`
-        directly and hold the result yourself in the meantime.
-        """
-        raise CausalUnsupportedError(
-            "JPCMCIPlus.accept() is not supported yet: AcceptedGraph.from_discovery's "
-            "dispatch only recognizes 'pcmci'/'pcmci+'/'lpcmci' as temporal (lagged) "
-            "algorithm ids; this config's 'jpcmci_plus' id would fall through to the "
-            "static graph path and silently misinterpret the lagged, multi-environment "
-            "result. Call .run(...) directly and hold the result yourself."
+        return accept_discovery(
+            self,
+            data,
+            seed=seed,
+            threads=threads,
+            accept_discovered=accept_discovered,
+            regimes=regimes,
         )
 
 
@@ -444,28 +500,21 @@ class RPCMCI:
         self,
         data: Any,
         *,
-        regimes: Sequence[int],
         seed: int = 1,
         threads: int = 1,
+        accept_discovered: bool = True,
+        regimes: Sequence[int] | None = None,
     ) -> AcceptedGraph:
-        """Not supported — ``RpcmciDiscoverySummary`` carries no edge-level detail.
+        """Run this configuration once and accept it through its review gate."""
+        from .accepted_graph import accept_discovery
 
-        Unlike every other discovery config's result, :meth:`run`'s
-        ``RpcmciDiscoverySummary`` exposes only regime-level edge *counts*
-        (``directed_edges`` / ``undirected_edges``: ``list[int]``, one count
-        per regime) — no node names and no individual edge endpoints. There
-        is nothing here from which :class:`antecedent.AcceptedGraph` could
-        build a graph artifact, so this raises rather than silently returning
-        something wrong (or a bare ``AttributeError``). Call :meth:`run`
-        directly and consume the summary, or use ``PCMCI`` / ``PCMCIPlus`` /
-        ``LPCMCI`` per-regime if a holdable structure is needed.
-        """
-        raise CausalUnsupportedError(
-            "RPCMCI.accept() is not supported: RpcmciDiscoverySummary carries only "
-            "regime-level edge counts (directed_edges/undirected_edges: list[int]), "
-            "not node names or edge endpoints, so there is no edge detail to build "
-            "an AcceptedGraph from. Call .run(...) directly and consume the summary, "
-            "or use PCMCI/PCMCIPlus/LPCMCI for a holdable structure."
+        return accept_discovery(
+            self,
+            data,
+            seed=seed,
+            threads=threads,
+            accept_discovered=accept_discovered,
+            regimes=regimes,
         )
 
 
@@ -505,10 +554,26 @@ class GES:
             max_subset=self.max_subset,
         )
 
-    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+    def accept(
+        self,
+        data: Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        accept_discovered: bool = True,
+        regimes: Sequence[int] | None = None,
+    ) -> AcceptedGraph:
+        """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
 
-        return accept_discovery(self, data, seed=seed, threads=threads)
+        return accept_discovery(
+            self,
+            data,
+            seed=seed,
+            threads=threads,
+            accept_discovered=accept_discovered,
+            regimes=regimes,
+        )
 
 
 @dataclass(frozen=True)
@@ -540,10 +605,26 @@ class LiNGAM:
             threads=threads,
         )
 
-    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+    def accept(
+        self,
+        data: Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        accept_discovered: bool = True,
+        regimes: Sequence[int] | None = None,
+    ) -> AcceptedGraph:
+        """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
 
-        return accept_discovery(self, data, seed=seed, threads=threads)
+        return accept_discovery(
+            self,
+            data,
+            seed=seed,
+            threads=threads,
+            accept_discovered=accept_discovered,
+            regimes=regimes,
+        )
 
 
 @dataclass(frozen=True)
@@ -581,10 +662,26 @@ class NOTEARS:
             threads=threads,
         )
 
-    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+    def accept(
+        self,
+        data: Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        accept_discovered: bool = True,
+        regimes: Sequence[int] | None = None,
+    ) -> AcceptedGraph:
+        """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
 
-        return accept_discovery(self, data, seed=seed, threads=threads)
+        return accept_discovery(
+            self,
+            data,
+            seed=seed,
+            threads=threads,
+            accept_discovered=accept_discovered,
+            regimes=regimes,
+        )
 
 
 @dataclass(frozen=True)
@@ -619,10 +716,26 @@ class FCI:
             max_cond_size=self.max_cond_size,
         )
 
-    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+    def accept(
+        self,
+        data: Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        accept_discovered: bool = True,
+        regimes: Sequence[int] | None = None,
+    ) -> AcceptedGraph:
+        """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
 
-        return accept_discovery(self, data, seed=seed, threads=threads)
+        return accept_discovery(
+            self,
+            data,
+            seed=seed,
+            threads=threads,
+            accept_discovered=accept_discovered,
+            regimes=regimes,
+        )
 
 
 @dataclass(frozen=True)
@@ -657,10 +770,26 @@ class RFCI:
             max_cond_size=self.max_cond_size,
         )
 
-    def accept(self, data: Any, *, seed: int = 1, threads: int = 1) -> AcceptedGraph:
+    def accept(
+        self,
+        data: Any,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        accept_discovered: bool = True,
+        regimes: Sequence[int] | None = None,
+    ) -> AcceptedGraph:
+        """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
 
-        return accept_discovery(self, data, seed=seed, threads=threads)
+        return accept_discovery(
+            self,
+            data,
+            seed=seed,
+            threads=threads,
+            accept_discovered=accept_discovered,
+            regimes=regimes,
+        )
 
 
 @dataclass(frozen=True)

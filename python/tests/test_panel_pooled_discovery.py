@@ -52,7 +52,9 @@ def test_panel_pooled_pcmci_smoke():
 
 def test_panel_pooled_rejects_rpcmci():
     panel = antecedent.data.panel([_lag1_unit(seed=3), _lag1_unit(seed=4)])
-    with pytest.raises(TypeError, match="PanelFrame discovery supports"):
+    with pytest.raises(
+        antecedent.errors.CausalUnsupportedError, match="single observation sequence"
+    ):
         antecedent.analyze(
             panel,
             discovery=antecedent.discovery.RPCMCI(max_lag=1, alpha=0.2, fdr=False),

@@ -699,16 +699,11 @@ class AnalysisResult(ResultAPI):
             suite = str(suite)
         # A result's second-click validation belongs to this execution, even
         # when the reusable study has since estimated or refreshed other data.
-        from ..estimation import PreparedAnalysis
-
-        frozen = PreparedAnalysis(self._execution.snapshot(), query=self.query)
-        return frozen.refute(
-            data,
-            suite,
-            seed=1 if seed is None else seed,
-            threads=1 if threads is None else threads,
-            cancel=cancel,
-        )
+        # The frozen handle keeps the originating study's seed, threads, kind
+        # and controls, so an omitted seed refutes the execution that ran.
+        frozen = self._prepared._frozen(self._execution.snapshot())
+        token = {} if cancel is None else {"cancel": cancel}
+        return frozen.refute(data, suite, seed=seed, threads=threads, **token)
 
     def rendering_limitation(self) -> str | None:
         """Stable id when a point-mean display would misrepresent the claim."""

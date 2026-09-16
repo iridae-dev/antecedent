@@ -158,7 +158,7 @@ def test_prepared_temporal_mediation_cheap_refute_runs():
 
 
 def test_prepared_temporal_mediation_bootstrap_follows_latency_tier():
-    """An omitted bootstrap maps through the latency tier like Pulse / Sustained."""
+    """An omitted bootstrap follows the latency tier like Pulse / Sustained."""
     n = 160
     t = np.asarray([math.sin(0.071 * i) + 0.35 * math.cos(0.137 * i) for i in range(n)])
     m = np.zeros(n)
@@ -176,8 +176,10 @@ def test_prepared_temporal_mediation_bootstrap_follows_latency_tier():
         )
         return prepared.estimate(data, seed=3)
 
-    interactive = click()
+    interactive = click(latency="interactive")
     assert interactive.estimate.se_bootstrap is None
+    # An omitted tier keeps the omitted replicate budget, as everywhere else.
+    assert click().estimate.se_bootstrap is not None
     for latency in ("standard", "report"):
         tiered = click(latency=latency)
         assert tiered.ate == pytest.approx(interactive.ate, abs=1e-12)

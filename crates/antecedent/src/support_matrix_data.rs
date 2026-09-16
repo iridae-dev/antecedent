@@ -171,7 +171,7 @@ pub static CLOSED_RULES: &[NaRule] = &[
         structures: Some(&["graph_posterior"]),
         inferences: None,
         validations: None,
-        reason: "Graph-posterior path and distribution mixtures are not staged.",
+        reason: "graph-posterior structures are refused: a path, distribution, or mediation mixture is not a single estimand across posterior atoms.",
     },
     NaRule {
         queries: Some(&["PathSpecificEffect"]),

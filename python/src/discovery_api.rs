@@ -220,6 +220,53 @@ pub(crate) struct PcmciDiscoveryResult {
     /// Oriented graph body (CPDAG/PAG marks); empty for lagged-only PCMCI.
     #[pyo3(get)]
     pub(crate) graph_edges: Vec<GraphEdge>,
+    /// The Rust review artifact and variable names this discovery produced.
+    pub(crate) review: Option<Arc<(ReviewSlot, Vec<String>)>>,
+}
+
+/// Discovery review artifact retained so acceptance runs the Rust review gate.
+pub(crate) enum ReviewSlot {
+    Dag(DagReview),
+    Cpdag(CpdagReview),
+    Pag(Pag, PagReview),
+    TemporalGraph(TemporalGraphReview),
+    TemporalCpdag(TemporalCpdagReview),
+    TemporalPag(TemporalPag, TemporalPagReview),
+}
+
+impl PcmciDiscoveryResult {
+    fn with_review(mut self, slot: ReviewSlot, names: &[String]) -> Self {
+        self.review = Some(Arc::new((slot, names.to_vec())));
+        self
+    }
+}
+
+/// Graph object for an accepted structure, with the schema's variable names.
+pub(crate) fn accepted_graph_object(
+    py: Python<'_>,
+    accepted: &AcceptedGraph,
+    names: &[String],
+) -> PyResult<Py<PyAny>> {
+    let names = names.to_vec();
+    if let Some(g) = accepted.as_dag() {
+        return Ok(Py::new(py, graphs::Dag { dag: g.clone(), names })?.into_any());
+    }
+    if let Some(g) = accepted.as_cpdag() {
+        return Ok(Py::new(py, graphs::Cpdag { cpdag: g.clone(), names })?.into_any());
+    }
+    if let Some(g) = accepted.as_pag() {
+        return Ok(Py::new(py, graphs::Pag { pag: g.clone(), names })?.into_any());
+    }
+    if let Some(g) = accepted.as_temporal_dag() {
+        return Ok(Py::new(py, graphs::TemporalDag { dag: g.clone(), names })?.into_any());
+    }
+    if let Some(g) = accepted.as_temporal_cpdag() {
+        return Ok(Py::new(py, graphs::TemporalCpdag { cpdag: g.clone(), names })?.into_any());
+    }
+    if let Some(g) = accepted.as_temporal_pag() {
+        return Ok(Py::new(py, graphs::TemporalPag { pag: g.clone(), names })?.into_any());
+    }
+    Err(PyValueError::new_err("accepted structure has no holdable graph object"))
 }
 
 #[pymethods]
@@ -231,6 +278,37 @@ impl PcmciDiscoveryResult {
             self.links.len(),
             self.ci_tests
         )
+    }
+
+    /// Accept this discovery through the Rust review gate and return the structure.
+    ///
+    /// `accept_discovered=True` auto-accepts what the review allows (pending
+    /// directed edges; class marks stay class information). `False` raises
+    /// `ReviewRequired` while anything is pending.
+    #[pyo3(signature = (*, accept_discovered=true))]
+    fn accepted_graph(&self, py: Python<'_>, accept_discovered: bool) -> PyResult<Py<PyAny>> {
+        let (slot, names) = self
+            .review
+            .as_deref()
+            .ok_or_else(|| PyValueError::new_err("this discovery result retained no review"))?;
+        let accepted = match slot {
+            ReviewSlot::Dag(r) => crate::accept_dag_review(r.clone(), accept_discovered),
+            ReviewSlot::Cpdag(r) => crate::accept_cpdag_review(r.clone(), accept_discovered),
+            ReviewSlot::Pag(g, r) => {
+                crate::accept_pag_review(g.clone(), r.clone(), accept_discovered)
+            }
+            ReviewSlot::TemporalGraph(r) => {
+                crate::accept_temporal_graph_review(r.clone(), accept_discovered)
+            }
+            ReviewSlot::TemporalCpdag(r) => {
+                crate::accept_temporal_cpdag_review(r.clone(), accept_discovered)
+            }
+            ReviewSlot::TemporalPag(g, r) => {
+                crate::accept_temporal_pag_review(g.clone(), r.clone(), accept_discovered)
+            }
+        }
+        .map_err(py_err)?;
+        accepted_graph_object(py, &accepted, names)
     }
 }
 
@@ -359,6 +437,7 @@ fn discovery_result_fields(
         cpdag_directed_edges,
         cpdag_undirected_edges,
         graph_edges,
+        review: None,
     }
 }
 
@@ -433,6 +512,7 @@ fn discover_pcmci(
                 max_cond_size,
             };
             let result = facade_discover_pcmci(series, variables, &params, ctx).map_err(py_err)?;
+            let slot = ReviewSlot::TemporalGraph(result.review.clone());
             Ok(discovery_result_fields(
                 names,
                 &result.evidence.links,
@@ -446,7 +526,8 @@ fn discover_pcmci(
                 0,
                 0,
                 Vec::new(),
-            ))
+            )
+            .with_review(slot, names))
         },
     )
 }
@@ -482,6 +563,7 @@ fn discover_pc(
         };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_pc(&data, &variables, &params, &ctx).map_err(py_err)?;
+        let slot = ReviewSlot::Cpdag(result.review.clone());
         Ok(pcmci_result_from_static_cpdag(
             &names,
             &result.evidence.links,
@@ -493,7 +575,8 @@ fn discover_pc(
             result.review.pending_undirected.len(),
             &result.evidence.graph,
             ci_name,
-        ))
+        )
+        .with_review(slot, &names))
     })
 }
 
@@ -530,6 +613,7 @@ fn discover_ges(
         };
         let ctx = py_execution_context(seed, threads);
         let result = facade_discover_ges(&data, &variables, &params, &ctx).map_err(py_err)?;
+        let slot = ReviewSlot::Cpdag(result.review.clone());
         Ok(pcmci_result_from_static_cpdag(
             &names,
             &result.evidence.links,
@@ -541,7 +625,8 @@ fn discover_ges(
             result.review.pending_undirected.len(),
             &result.evidence.graph,
             ci_name,
-        ))
+        )
+        .with_review(slot, &names))
     })
 }
 
@@ -579,6 +664,7 @@ fn discover_lingam(
         let pending = result.review.pending_edges.len() as u64;
         let graph_edges = static_dag_graph_edges(&names, dag);
 
+        let slot = ReviewSlot::Dag(result.review.clone());
         Ok(discovery_result_fields(
             &names,
             &result.evidence.links,
@@ -592,7 +678,8 @@ fn discover_lingam(
             directed,
             0,
             graph_edges,
-        ))
+        )
+        .with_review(slot, &names))
     })
 }
 
@@ -646,7 +733,8 @@ fn discover_notears(
             directed,
             0,
             graph_edges,
-        ))
+        )
+        .with_review(ReviewSlot::Dag(result.discovery.review.clone()), &names))
     })
 }
 
@@ -687,6 +775,7 @@ fn discover_fci(
         let directed = static_pag_definite_directed_count(pag);
         let graph_edges = static_pag_graph_edges(&names, pag);
 
+        let slot = ReviewSlot::Pag(result.evidence.graph.clone(), result.review.clone());
         Ok(discovery_result_fields(
             &names,
             &result.evidence.links,
@@ -700,7 +789,8 @@ fn discover_fci(
             directed,
             pending,
             graph_edges,
-        ))
+        )
+        .with_review(slot, &names))
     })
 }
 
@@ -741,6 +831,7 @@ fn discover_rfci(
         let directed = static_pag_definite_directed_count(pag);
         let graph_edges = static_pag_graph_edges(&names, pag);
 
+        let slot = ReviewSlot::Pag(result.evidence.graph.clone(), result.review.clone());
         Ok(discovery_result_fields(
             &names,
             &result.evidence.links,
@@ -754,7 +845,8 @@ fn discover_rfci(
             directed,
             pending,
             graph_edges,
-        ))
+        )
+        .with_review(slot, &names))
     })
 }
 
@@ -812,7 +904,8 @@ fn discover_pcmci_plus(
                 directed,
                 undirected,
                 graph_edges,
-            ))
+            )
+            .with_review(ReviewSlot::TemporalCpdag(result.review.clone()), names))
         },
     )
 }
@@ -855,6 +948,8 @@ fn discover_lpcmci(
             let pending = result.review.pending_circles.len() as u64;
             let directed = pag_definite_directed_edge_count(pag);
             let graph_edges = pag_graph_edges(names, pag);
+            let slot =
+                ReviewSlot::TemporalPag(result.evidence.graph.clone(), result.review.clone());
             Ok(discovery_result_fields(
                 names,
                 &result.evidence.links,
@@ -868,7 +963,8 @@ fn discover_lpcmci(
                 directed,
                 pending, // undirected field reused as circle-pending count
                 graph_edges,
-            ))
+            )
+            .with_review(slot, names))
         },
     )
 }
@@ -980,6 +1076,7 @@ fn discover_jpcmci_plus(
         let result = facade_discover_jpcmci_plus(&multi, &system, &params, &ctx).map_err(py_err)?;
         let cpdag = &result.evidence.graph;
         let graph_edges = cpdag_graph_edges(&names, cpdag);
+        let slot = ReviewSlot::TemporalCpdag(result.review.clone());
         Ok(discovery_result_fields(
             &names,
             &result.evidence.links,
@@ -993,7 +1090,8 @@ fn discover_jpcmci_plus(
             cpdag.directed_edge_count() as u64,
             cpdag.undirected_edge_count() as u64,
             graph_edges,
-        ))
+        )
+        .with_review(slot, &names))
     })
 }
 
@@ -1066,7 +1164,74 @@ fn discover_rpcmci(
     })
 }
 
+/// RPCMCI discovery accepted through the Rust review gate.
+///
+/// Returns the accepted structure as a `TemporalDag` or `TemporalCpdag`. A
+/// single accepted graph exists only when discovery found one regime; more
+/// regimes raise `ReviewRequired` (each regime's CPDAG is reviewed separately).
+/// `accept_discovered=False` leaves pending undirected edges under review.
+#[pyfunction]
+#[pyo3(signature = (names, columns, *, regimes, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=1, max_cond_size=2, accept_discovered=true))]
+fn accept_rpcmci(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
+    regimes: Vec<u32>,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    seed: u64,
+    ci: Option<Bound<'_, PyAny>>,
+    weights: Option<Vec<f64>>,
+    threads: u32,
+    max_cond_size: usize,
+    accept_discovered: bool,
+) -> PyResult<Py<PyAny>> {
+    let batch = columns_to_batch(&names, &columns)?;
+    let (ci_impl, _ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
+    drop(columns);
+    let threads = if is_callback { 1 } else { threads };
+    let out_names = names.clone();
+    let accepted = detach_catch(py, move || {
+        let (series, variables) = series_from_batch(&batch)?;
+        if regimes.len() != series.row_count() {
+            return Err(PyValueError::new_err(format!(
+                "regimes length {} != series length {}",
+                regimes.len(),
+                series.row_count()
+            )));
+        }
+        let assign = RegimeAssignment::try_new(
+            regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
+        )
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let params = DiscoverParams {
+            max_lag,
+            alpha,
+            fdr: fdr.then(FdrAdjustment::bh),
+            ci: ci_impl,
+            multi_dataset: MultiDatasetConstraints::default(),
+            max_cond_size,
+        };
+        let ctx = py_execution_context(seed, threads);
+        let result = facade_discover_rpcmci(&series, &variables, &assign, &params, None, &ctx)
+            .map_err(py_err)?;
+        crate::accept_rpcmci_review(&result, accept_discovered).map_err(py_err)
+    })?;
+    if let Some(dag) = accepted.as_temporal_dag() {
+        return Ok(
+            Py::new(py, graphs::TemporalDag { dag: dag.clone(), names: out_names })?.into_any()
+        );
+    }
+    if let Some(cpdag) = accepted.as_temporal_cpdag() {
+        return Ok(Py::new(py, graphs::TemporalCpdag { cpdag: cpdag.clone(), names: out_names })?
+            .into_any());
+    }
+    Err(PyValueError::new_err("RPCMCI acceptance produced no temporal graph"))
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(accept_rpcmci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pcmci_plus, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pc, m)?)?;

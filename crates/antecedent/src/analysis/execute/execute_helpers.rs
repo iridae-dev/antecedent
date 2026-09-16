@@ -2096,8 +2096,12 @@ impl super::Study {
         result.predictive_checks = extras.predictive_checks;
         result.response = extras.response;
         result.structural_response = extras.structural_response;
+        result.rebind_interval(matches!(self.inference, InferenceMode::Bayesian(_)));
         result.support_status = self.support_status;
         result.structure_source = self.structure_source;
+        // A named predicate or custom distribution is a handle; encoding the
+        // executed query (certificates, artifacts) needs its bindings.
+        result.population_registry.clone_from(&self.population_registry);
         if !is_quantile
             && self
                 .tiered

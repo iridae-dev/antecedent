@@ -470,26 +470,126 @@ class AcceptedGraph:
     # for two is worse than no __eq__ at all.
 
 
+def _discovery_table(data: Any) -> Any:
+    """One table for a single-table discovery config.
+
+    Panel units and environments are pooled by row-concatenation — the same
+    preprocessing the native panel discovery entry points apply — and an event
+    frame discovers on its recorded columns.
+    """
+    from .data import EventFrame, MultiEnvFrame, PanelFrame
+
+    if isinstance(data, EventFrame):
+        return dict(zip(data.names, data.columns, strict=True))
+    partitions: list[list[Any]] | None = None
+    if isinstance(data, PanelFrame):
+        partitions = [list(cols) for cols in data.unit_columns]
+        names = list(data.names)
+    elif isinstance(data, MultiEnvFrame):
+        partitions = [list(cols) for cols in data.env_columns]
+        names = list(data.names)
+    elif isinstance(data, Sequence) and not isinstance(data, (str, bytes, Mapping)):
+        from ._data import as_multi_env_columns
+
+        names, partitions = as_multi_env_columns(list(data))
+    if partitions is None:
+        return data
+    import numpy as np
+
+    pooled = [np.concatenate([part[i] for part in partitions]) for i in range(len(names))]
+    return dict(zip(names, pooled, strict=True))
+
+
 def accept_discovery(
     config: _AnyDiscovery,
     data: Any,
     *,
     seed: int = 1,
     threads: int = 1,
+    accept_discovered: bool = True,
+    regimes: Sequence[int] | None = None,
 ) -> AcceptedGraph:
-    """Run a discovery config and accept its result as a session artifact.
+    """Run a discovery config once and accept it through the Rust review gate.
 
-    Shared body for the nine discovery configs (PC, PCMCI, PCMCIPlus, LPCMCI,
-    GES, LiNGAM, NOTEARS, FCI, RFCI) whose ``accept()`` methods all run
-    ``config.run(data, seed=seed, threads=threads)`` then pass the result to
-    :meth:`AcceptedGraph.from_discovery`. Lives here (rather than duplicated on
-    each ``discovery.Config`` class) because this module already owns
-    ``from_discovery``; ``discovery.py`` reaches this via a function-local
-    import in each ``accept()`` to avoid the module-level import cycle (this
-    module already imports from ``.discovery`` at module scope).
+    The shared body behind every ``discovery.Config.accept()``. The structure
+    comes from the review artifact the algorithm produced, so what
+    ``accept_discovered`` may auto-accept (pending directed edges; class marks
+    stay class information) and what still needs review (``ReviewRequired``) is
+    the same decision the one-shot Rust entry points make.
+
+    J-PCMCI+ takes its environments from a ``MultiEnvFrame`` or a sequence of
+    tables; RPCMCI requires ``regimes`` and accepts only when discovery found a
+    single regime. Lives here (rather than on each config) because this module
+    owns the accepted-graph artifact; ``discovery.py`` imports it inside
+    ``accept()`` to avoid the module-level cycle.
     """
-    result = config.run(data, seed=seed, threads=threads)
-    return AcceptedGraph.from_discovery(result, algorithm_id=config.algorithm_id)
+    from .data import EventFrame, MultiEnvFrame, PanelFrame
+    from .discovery import RPCMCI, JPCMCIPlus
+
+    if isinstance(config, RPCMCI) and isinstance(data, (PanelFrame, MultiEnvFrame)):
+        raise CausalUnsupportedError(
+            "RPCMCI labels regimes over one series' observations; a panel or "
+            "multi-environment frame has no single observation sequence to label",
+            reason_code="data_modality_not_licensed",
+        )
+    if isinstance(config, JPCMCIPlus) and isinstance(data, EventFrame):
+        raise CausalUnsupportedError(
+            "J-PCMCI+ discovers across environments; pass a MultiEnvFrame, a PanelFrame, or "
+            "a sequence of environment tables",
+            reason_code="data_modality_not_licensed",
+        )
+    if regimes is not None and not isinstance(config, RPCMCI):
+        raise CausalUnsupportedError(
+            f"regimes does not apply to {type(config).__name__}; it labels the regimes RPCMCI "
+            "discovers over",
+            reason_code="option_not_applicable",
+        )
+    if isinstance(config, RPCMCI):
+        if regimes is None:
+            raise CausalValueError(
+                "RPCMCI requires regimes=[…] (one label per observation); "
+                "two_regime_half_split(n) builds an explicit half split"
+            )
+        from ._data import as_columns
+        from ._native import accept_rpcmci
+
+        names, columns = as_columns(data)
+        graph = accept_rpcmci(
+            names,
+            columns,
+            regimes=[int(r) for r in regimes],
+            max_lag=config.max_lag,
+            alpha=config.alpha,
+            fdr=config.fdr,
+            ci=config.ci if isinstance(config.ci, str) else None,
+            seed=seed,
+            threads=threads,
+            max_cond_size=config.max_cond_size,
+            accept_discovered=accept_discovered,
+        )
+        return AcceptedGraph(graph, algorithm_id=config.algorithm_id)
+    if isinstance(config, JPCMCIPlus):
+        from ._data import as_multi_env_columns
+        from .data import MultiEnvFrame
+
+        if isinstance(data, MultiEnvFrame):
+            names, env_columns = list(data.names), [list(cols) for cols in data.env_columns]
+        elif isinstance(data, PanelFrame):
+            # Panel units are the datasets J-PCMCI+ pools across.
+            names, env_columns = list(data.names), [list(cols) for cols in data.unit_columns]
+        else:
+            names, env_columns = as_multi_env_columns(list(data))
+        result = config.run(names, env_columns, seed=seed, threads=threads)
+    else:
+        result = config.run(_discovery_table(data), seed=seed, threads=threads)
+    accept = getattr(result, "accepted_graph", None)
+    if accept is None:
+        # A result that retained no review artifact (one rebuilt by a caller, or a
+        # test stand-in) is held through the structural conversion instead.
+        return AcceptedGraph.from_discovery(result, algorithm_id=config.algorithm_id)
+    return AcceptedGraph(
+        accept(accept_discovered=accept_discovered), algorithm_id=config.algorithm_id
+    )
 
 
 def _encode_graph(graph: _GraphTypes) -> tuple[str, Any]:

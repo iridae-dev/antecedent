@@ -1095,6 +1095,32 @@ impl StudyBuilder {
         }
 
         let query = self.query.ok_or(CausalError::Missing { field: "query" })?;
+        if let Some(configured) =
+            self.estimator_spec.as_ref().and_then(EstimatorSpec::bootstrap_replicates)
+        {
+            // A configured estimator owns its replicate count (an explicit
+            // builder count beside it is refused above). The study reports and
+            // executes that same count instead of its own omitted default.
+            bootstrap_replicates = configured;
+        }
+        if !self.bootstrap_explicit && !omitted_bootstrap_resamples(&query, &inference) {
+            bootstrap_replicates = 0;
+        }
+        if !self.custom_validators.is_empty()
+            && !custom_validators_apply(
+                &query,
+                &data,
+                graph.class(),
+                graph_posterior.is_some(),
+                &inference,
+            )
+        {
+            return Err(crate::unsupported_reason!(
+                "validators_not_applicable",
+                "custom validators refute one scalar average effect; this query and data route \
+                 has no scalar refutation problem for them to run on"
+            ));
+        }
         let structure = if graph_posterior.is_some() {
             crate::support::StructureSource::GraphPosterior
         } else {
