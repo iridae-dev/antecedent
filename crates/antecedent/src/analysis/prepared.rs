@@ -1238,6 +1238,8 @@ impl PreparedStudy {
         self.ensure_schema_compatible(data)?;
         let mut click_analysis = self.analysis.clone();
         click_analysis.data = DataInput::Tabular(data.clone());
+        click_analysis.interference =
+            click_analysis.interference.as_ref().map(|spec| spec.bound_to(data)).transpose()?;
         click_analysis.shared_batch_design = shared;
         let mut result = click_analysis.execute_tabular(data, &self.plan, ctx)?;
         // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
@@ -1275,6 +1277,8 @@ impl PreparedStudy {
             .as_ref()
             .map(|s| s.rebind(&data).map(Arc::new))
             .transpose()?;
+        refreshed.interference =
+            refreshed.interference.as_ref().map(|spec| spec.bound_to(&data)).transpose()?;
         refreshed.data = DataInput::Tabular(data);
         let mut result = refreshed.execute(&self.plan, ctx)?;
         let scores = refreshed.prepare_score_table(ctx)?;

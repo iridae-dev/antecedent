@@ -124,15 +124,21 @@ impl super::Study {
 
     pub(super) fn execute_interference(
         &self,
+        data: &TabularData,
         query: &antecedent_core::InterferenceQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-        let spec = self.interference.as_ref().ok_or(CausalError::Unsupported {
-            message: "InterferenceQuery execute requires StudyBuilder::interference",
-        })?;
+        // The executed outcomes are `data`, under the frozen network and assignment.
+        let spec = self
+            .interference
+            .as_ref()
+            .ok_or(CausalError::Unsupported {
+                message: "InterferenceQuery execute requires StudyBuilder::interference",
+            })?
+            .bound_to(data)?;
         let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
             query.functional;
         let seed = ctx.rng.stream(0x1F7E).next_u64();
