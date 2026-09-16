@@ -100,8 +100,9 @@ notes = "antecedent-model MechanismRegistry + CompiledCausalModel"
 [[capabilities]]
 id = "bayes.discovery.dag_posterior"
 status = "done"
-evidence_kind = "implementation_exists"
-limitations = "Unit tests exercise enumeration counts, diagnostics, and sampler mechanics, but no independent fixture is consumed for this umbrella capability and no claim of posterior calibration or upstream-package parity is made."
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/dag_posterior"
+limitations = "crates/antecedent-discovery/tests/dag_posterior_conformance.rs runs every engine on known chain, collider and lag-1 SEMs and requires the fixture's minimum posterior mass on the true structure; the collider check runs the CI-screened engine with its MCMC publication gate off, because its screened space leaves one graph and the gate refuses a trace in which no chain moved. No claim of posterior calibration or upstream-package parity is made."
 notes = "ExactDagPosterior + StructureMcmc/OrderMcmc + CiScreenedPosterior + DbnPosterior in antecedent-discovery (§13.7); GraphPosterior → WeightedGraphSamples; facade compose via analyze + Bayesian mixture (python_facade=full)"
 
 [[capabilities]]

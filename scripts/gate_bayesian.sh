@@ -49,7 +49,7 @@ EVIDENCE = {
     "bayes.io.posterior_artifact_summary_only": "crates/antecedent-io/src/posterior.rs",
     "bayes.facade.inference_mode": "crates/antecedent/src/inference.rs",
     "bayes.model.pcm_scm_registry": "crates/antecedent-model/src/lib.rs",
-    "bayes.discovery.dag_posterior": "crates/antecedent-discovery/src/exact_enumeration.rs",
+    "bayes.discovery.dag_posterior": "crates/antecedent-discovery/tests/dag_posterior_conformance.rs",
     "bayes.backend.hierarchical_bvar_gp": "crates/antecedent-model/src/registry.rs",
     "bayes.validate.mcmc_diagnostics": "crates/antecedent-validate/src/bayesian_checks.rs",
     "bayes.ci.tests": "crates/antecedent-stats/src/ci/bayes.rs",
