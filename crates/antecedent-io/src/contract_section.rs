@@ -321,14 +321,15 @@ impl CalibrationSlotWire {
         record: &crate::coverage_records_data::CoverageRecord,
         status: &str,
     ) -> Self {
+        let (n_min, n_max) = crate::calibration::measured_range(record);
         Self {
             status: status.into(),
             record_id: Some(record.id.into()),
             reason: None,
-            scope_n: Some(record.n_min),
+            scope_n: Some(n_min),
             scope_dependence: Some(record.dependence.into()),
             calibration_sha: Some(record.calibration_sha.into()),
-            scope_n_max: Some(record.n_max),
+            scope_n_max: Some(n_max),
             nominal: Some(record.nominal),
             observed: Some(record.observed),
             basis: None,

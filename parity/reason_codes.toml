@@ -15,7 +15,7 @@ queries = ["Counterfactual", "AnomalyAttribution", "ChangeAttribution"]
 [[code]]
 id = "boundary_record"
 applies_to = ["calibration"]
-meaning = "The matching coverage record is a named boundary, not a nominal pass."
+meaning = "The matching coverage record is a named boundary, or missed its nominal band at one of its sample-size grid points; it is not a nominal pass anywhere in its measured range."
 max_uses = 0
 
 [[code]]
@@ -39,7 +39,7 @@ max_uses = 0
 [[code]]
 id = "sample_size_outside_measured_range"
 applies_to = ["calibration"]
-meaning = "The execution's row count lies outside every measured row-count range for this construction."
+meaning = "The execution's row count lies outside every measured row-count range (the span of a record's sample-size grid points) for this construction; a range is never extrapolated."
 max_uses = 0
 
 [[code]]
