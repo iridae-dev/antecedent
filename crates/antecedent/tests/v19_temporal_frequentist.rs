@@ -37,7 +37,8 @@ use antecedent_data::TimeSeriesData;
 use antecedent_estimate::CircularBlockFamily;
 use antecedent_graph::TemporalDag;
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, n_sim, normal_interval,
+    BASE_GRID_POINT, CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n, grid_point, n_sim,
+    normal_interval, smoke,
 };
 use common::calibration_bind::bind_all;
 use common::driven_dgp::{
@@ -126,7 +127,7 @@ fn effect_coverage(
     truth: f64,
     seed_offset: u64,
 ) -> Coverage {
-    let s = Scenario { seed: s.seed + seed_offset, ..s };
+    let s = Scenario { seed: s.seed + seed_offset, n: grid_n(s.n), ..s };
     let (mut boot, mut reported) =
         headline_tallies(test, "crates/antecedent/tests/common/driven_dgp.rs::pulse_series");
     let two_step = query.horizon_steps >= 2;
@@ -184,7 +185,9 @@ fn boundary_gate(coverage: Coverage, measured: f64) {
 /// short for its serial dependence. The runtime must say so — the short-series
 /// warning fires on at least 95% of replicates (the statistic is estimated per
 /// series, so a few draws land above the family threshold) — and coverage is
-/// measured and reported, not gated.
+/// measured and reported, not gated. The warning is a property of the base
+/// sample size the design names; at the other grid points its rate is
+/// reported, and coverage is recorded as the same named boundary.
 fn boundary(coverage: Coverage) {
     let warned = coverage.warned;
     for tally in &coverage.tallies {
@@ -205,11 +208,13 @@ fn boundary(coverage: Coverage) {
     for tally in &coverage.reported {
         tally.emit();
     }
-    assert!(
-        warned * 20 >= n_sim() * 19,
-        "boundary design must carry the short-series warning: {warned}/{}",
-        n_sim()
-    );
+    if grid_point() == BASE_GRID_POINT && !smoke() {
+        assert!(
+            warned * 20 >= n_sim() * 19,
+            "boundary design must carry the short-series warning: {warned}/{}",
+            n_sim()
+        );
+    }
 }
 
 /// Coverage of the headline interval of a design given by its data and graph
@@ -297,6 +302,7 @@ impl Spread {
 
 /// Coverage of all three contrasts from the shared block replicate of one run.
 fn mediation_coverage(test: &'static str, s: Scenario) -> Coverage {
+    let s = Scenario { n: grid_n(s.n), ..s };
     mediation_coverage_on(
         test,
         "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
@@ -403,7 +409,7 @@ fn confounded_mediation_coverage(test: &'static str) -> Coverage {
     for rep in 0..n_sim() {
         let seed = SEED + u64::from(rep);
         let (study, result) = run_study(
-            fixtures::mediation_series(160, fixtures::MED_KAPPA, seed),
+            fixtures::mediation_series(grid_n(160), fixtures::MED_KAPPA, seed),
             fixtures::mediation_dag(),
             mediation_query(MediationContrast::Mediated),
             BOOT,
@@ -648,7 +654,7 @@ fn sequential_coverage(test: &'static str, label: &str, rho: f64, n: usize, seed
         "TemporalDag multi-step Sustained",
         label,
         seed,
-        |s| fixtures::confounded_series(n, fixtures::B2, rho, s),
+        |s| fixtures::confounded_series(grid_n(n), fixtures::B2, rho, s),
         fixtures::confounded_dag,
         &persistent_dgp::multi_sustained(),
         fixtures::B1 + fixtures::B2,
@@ -696,7 +702,7 @@ fn temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary() {
         "TemporalDag Pulse h=1, AR(1) treatment",
         "AR(1) rho=0.9 n=60 (boundary)",
         800_000,
-        |s| fixtures::chain_pag_series(60, 0.9, s),
+        |s| fixtures::chain_pag_series(grid_n(60), 0.9, s),
         persistent_dgp::chain_pulse_dag,
         &persistent_dgp::pulse(),
         fixtures::B1,
@@ -712,7 +718,7 @@ fn temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary() {
         "crates/antecedent/tests/common/persistent_dgp.rs::mediation_series",
         "AR(1) treatment, AR(1) rho=0.9 n=60 (boundary)",
         SEED,
-        |rep| persistent_dgp::mediation_series(60, 0.9, SEED + u64::from(rep)),
+        |rep| persistent_dgp::mediation_series(grid_n(60), 0.9, SEED + u64::from(rep)),
         persistent_dgp::mediation_dag,
     ));
 }
@@ -726,7 +732,7 @@ fn temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_bounda
         "TemporalDag multi-step Sustained, AR(1) treatment",
         "AR(1) rho=0.95 n=60 (boundary)",
         820_000,
-        |s| persistent_dgp::sequential_series(60, 0.95, s),
+        |s| persistent_dgp::sequential_series(grid_n(60), 0.95, s),
         fixtures::two_lag_dag,
         &persistent_dgp::multi_sustained(),
         fixtures::B1 + fixtures::B2,

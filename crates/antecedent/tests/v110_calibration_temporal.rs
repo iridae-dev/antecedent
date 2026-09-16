@@ -29,7 +29,7 @@ use antecedent_core::{
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_estimate::{CircularBlockFamily, TemporalMediationUncertainty};
-use common::calibration::{CoverageTally, RecordKey, n_sim};
+use common::calibration::{CoverageTally, RecordKey, grid_n, n_sim};
 use common::calibration_bind::{bind_all, constructions};
 use common::fixtures::{self, mediation_cpdag_two, mediation_series};
 use common::reported::{GATE_LEVEL, REPORTED_LEVEL, gate, normal_at, record_pair, skip_pair};
@@ -102,7 +102,7 @@ fn mediation_coverage(test: &'static str, label: &str, kappa: f64, seed_base: u6
     let mut tallies = [keyed(test, label, REPORTED_LEVEL), keyed(test, label, GATE_LEVEL)];
     for rep in 0..u64::from(n_sim()) {
         let seed = seed_base + rep;
-        let data = mediation_series(N, kappa, seed);
+        let data = mediation_series(grid_n(N), kappa, seed);
         let Some((study, result)) = run(data.clone(), false, RefuteSuite::None, rep) else {
             skip_pair(&mut tallies);
             continue;

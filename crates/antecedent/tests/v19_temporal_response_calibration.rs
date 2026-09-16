@@ -65,7 +65,8 @@ use antecedent_core::{
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
 use common::calibration::{
-    CoverageTally, RecordKey, ar1_noise, gaussian, mix_seed, n_sim, stream_seed,
+    BASE_GRID_POINT, CoverageTally, RecordKey, ar1_noise, gaussian, grid_n, grid_point, mix_seed,
+    n_sim, smoke, stream_seed,
 };
 use common::calibration_bind::bind_all;
 
@@ -305,7 +306,7 @@ fn simultaneous_slack(
 /// Dose × horizon DGP: `T_s ~ N(0, 0.8²)` iid, `Y_s = 1 + 2 T_{s-1} + 1.5 T_{s-2} + e_s`,
 /// `e` AR(1) with marginal SD 0.5. Truth: `E[Y_h | do(T_{-1} = a)] = 1 + BETA[h-1]·a`.
 fn dose_horizon_series(rho: f64, seed: u64) -> TimeSeriesData {
-    dose_horizon_series_n(N, rho, seed)
+    dose_horizon_series_n(grid_n(N), rho, seed)
 }
 
 /// [`dose_horizon_series`] with `rows` retained rows.
@@ -327,7 +328,7 @@ fn dose_horizon_dag() -> TemporalDag {
 /// `Y_s = 1 + 2 A_{s-1} + A_{s-2} + 5 Z_{s-1} + e_s`. `I(1) = {Z@-1}`, `I(2) = {}`;
 /// truth `1 + 2a` at h=1 and `1 + a` at h=2.
 fn horizon_dependent_series(rho: f64, seed: u64) -> TimeSeriesData {
-    let n = N + BURN;
+    let n = grid_n(N) + BURN;
     let z = gaussian_vec(n, 1.0, seed);
     let u = gaussian_vec(n, 1.0, mix_seed(stream_seed(seed, 0xA)));
     let a: Vec<f64> = z.iter().zip(&u).map(|(z, u)| z + u).collect();
@@ -346,7 +347,7 @@ fn horizon_dependent_dag() -> TemporalDag {
 /// `P(R_s = 1) = logistic(0.4 + 0.8 T_{s-1})`; unselected outcomes are recorded as 0.
 /// The declared `OutcomeIndependentGiven([T])` holds by construction. Truth `1 + 2a`.
 fn selected_series(rho: f64, seed: u64) -> TimeSeriesData {
-    let n = N + BURN;
+    let n = grid_n(N) + BURN;
     let t = gaussian_vec(n, 0.8, seed);
     let e = ar1_noise(n, rho, 0.5, mix_seed(stream_seed(seed, 0xE)));
     let mut coin = uniform(stream_seed(seed, 0x5E1));
@@ -367,7 +368,7 @@ fn selected_series(rho: f64, seed: u64) -> TimeSeriesData {
 /// `Y_s = 1 + 2 T_{s-1} + 1.5 Z_{s-1} + e_s`. `with_r = false` drops `R` (CPDAG
 /// fixture, where `T = 0.6 Z + U` has no `R` term).
 fn class_series(rho: f64, seed: u64, with_r: bool) -> TimeSeriesData {
-    let n = N + BURN;
+    let n = grid_n(N) + BURN;
     let r =
         if with_r { gaussian_vec(n, 1.0, mix_seed(stream_seed(seed, 0x77))) } else { vec![0.0; n] };
     let v = gaussian_vec(n, 1.0, seed);
@@ -489,7 +490,18 @@ fn boundary(tallies: &[CoverageTally], disclosed: &Disclosures) {
         n_sim(),
         disclosed.rows_quantiles()
     );
-    assert_eq!(disclosed.boundary, n_sim(), "every boundary band must carry the disclosure");
+    // The disclosure and warning rates are properties of the sample size a
+    // design names (the base grid point); at the other points they are reported.
+    if disclosure_rates_gated() {
+        assert_eq!(disclosed.boundary, n_sim(), "every boundary band must carry the disclosure");
+    }
+}
+
+/// Whether this run holds a design's disclosure / short-series warning rates to
+/// the design's claim: only at the base sample-size grid point, and never in a
+/// wiring smoke run.
+fn disclosure_rates_gated() -> bool {
+    grid_point() == BASE_GRID_POINT && !smoke()
 }
 
 /// Gated design whose short-series warning must stay quiet: at most `quiet_frac` of the
@@ -503,12 +515,14 @@ fn assert_quiet(disclosed: &Disclosures, quiet_frac: f64) {
         n_sim(),
         disclosed.rows_quantiles()
     );
-    assert!(
-        f64::from(disclosed.short_series) <= quiet_frac * f64::from(n_sim()),
-        "a gated design warned short-series on {}/{} replicates",
-        disclosed.short_series,
-        n_sim()
-    );
+    if disclosure_rates_gated() {
+        assert!(
+            f64::from(disclosed.short_series) <= quiet_frac * f64::from(n_sim()),
+            "a gated design warned short-series on {}/{} replicates",
+            disclosed.short_series,
+            n_sim()
+        );
+    }
 }
 
 /// Pointwise and simultaneous tallies of the dose × horizon curve on `rows` rows, plus
@@ -531,7 +545,7 @@ fn frequentist_curve_tallies(
     let mut disclosed = Disclosures::default();
     for s in 0..n_sim() {
         let seed = seed_base + u64::from(s);
-        let data = dose_horizon_series_n(rows, rho, seed);
+        let data = dose_horizon_series_n(grid_n(rows), rho, seed);
         let (study, result) = run_study(
             data.clone(),
             dose_horizon_dag(),
@@ -748,7 +762,7 @@ fn frequentist_temporal_shift_response_reads_short_under_a_persistent_treatment(
 /// `Y`, so the declared `T@-1 -> Y` graph identifies horizon 1 without adjustment.
 /// Truth: `E[Y_1 | do(T_{-1} = a)] = 1 + 2a` and `E[Y_1 | do(T := T + δ)] = 1 + 2δ`.
 fn persistent_treatment_series(phi: f64, rho: f64, seed: u64) -> TimeSeriesData {
-    persistent_treatment_series_n(N, phi, rho, seed)
+    persistent_treatment_series_n(grid_n(N), phi, rho, seed)
 }
 
 /// [`persistent_treatment_series`] with `rows` retained rows.
@@ -797,7 +811,7 @@ fn persistent_treatment_tallies(
     let mut shift_disclosed = Disclosures::default();
     for s in 0..n_sim() {
         let seed = seed_base + u64::from(s);
-        let data = persistent_treatment_series_n(rows, phi, rho, seed);
+        let data = persistent_treatment_series_n(grid_n(rows), phi, rho, seed);
         let (study, result) = run_study(
             data.clone(),
             dag(&[(0, 1, 1, 0)]),
@@ -904,12 +918,14 @@ fn frequentist_temporal_dag_response_ar1_treatment_n100_boundary() {
     );
     boundary(&shift, &shift_disclosed);
     boundary(&curve, &curve_disclosed);
-    assert!(
-        f64::from(shift_disclosed.short_series) >= 0.9 * f64::from(n_sim()),
-        "the n=100 shift response must warn short-series on at least 90% of replicates: {}/{}",
-        shift_disclosed.short_series,
-        n_sim()
-    );
+    if disclosure_rates_gated() {
+        assert!(
+            f64::from(shift_disclosed.short_series) >= 0.9 * f64::from(n_sim()),
+            "the n=100 shift response must warn short-series on at least 90% of replicates: {}/{}",
+            shift_disclosed.short_series,
+            n_sim()
+        );
+    }
 }
 
 fn frequentist_intervention_coverage(
@@ -1188,7 +1204,7 @@ fn frequentist_temporal_observation_selected_ar1_nominal_95_coverage() {
 /// the pseudo-outcome regression was not orthogonal to the estimated selection
 /// probability, and the iid band over-covered at the top of the acceptance band (0.983).
 fn selected_two_lag_series(rho: f64, seed: u64) -> TimeSeriesData {
-    let n = N + BURN;
+    let n = grid_n(N) + BURN;
     let t = gaussian_vec(n, 0.8, seed);
     let e = ar1_noise(n, rho, 0.5, mix_seed(stream_seed(seed, 0xE)));
     let mut coin = uniform(stream_seed(seed, 0x5E2));

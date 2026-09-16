@@ -48,7 +48,7 @@ use antecedent_graph::{
     Cpdag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TieredBackground, WithinTier,
 };
 use common::calibration::{
-    CoverageTally, PRECISION_N_SIM, RecordKey, gaussian, n_sim, stream_seed, unit_uniform,
+    CoverageTally, PRECISION_N_SIM, RecordKey, gaussian, grid_n, n_sim, stream_seed, unit_uniform,
 };
 use common::calibration_bind::{bind, bind_all};
 use common::reported::{
@@ -268,7 +268,7 @@ fn intervention_response_dag_graph_posterior_frequentist_nominal_coverage() {
     );
     for rep in 0..u64::from(n_sim()) {
         let seed = stream_seed(0x110_0001, rep);
-        let data = response_data(500, seed);
+        let data = response_data(grid_n(500), seed);
         let Some((study, result)) = run_graph_posterior(data.clone(), RefuteSuite::None, seed)
         else {
             skip_pair(&mut tallies);
@@ -408,7 +408,7 @@ fn class_level_coverage(test: &'static str, case: &ClassCase) {
     let graph = (case.graph)();
     for rep in 0..u64::from(n_sim()) {
         let seed = stream_seed(case.family, rep);
-        let data = (case.data)(case.cell.n as usize, seed);
+        let data = (case.data)(grid_n(case.cell.n as usize), seed);
         let truth = (case.truth)(1.0, mean_z(&data));
         let reported = run_class(&data, &graph, level_query(1.0), bayes(), DEFAULT_RUN, seed);
         let gate_run = run_class(
@@ -475,7 +475,7 @@ fn class_curve_coverage(test: &'static str, case: &ClassCase) {
     let graph = (case.graph)();
     for rep in 0..u64::from(n_sim_at_least(PRECISION_N_SIM)) {
         let seed = stream_seed(case.family ^ 0x0C, rep);
-        let data = (case.data)(case.cell.n as usize, seed);
+        let data = (case.data)(grid_n(case.cell.n as usize), seed);
         let z_bar = mean_z(&data);
         let reported = run_class(&data, &graph, curve_query(), bayes(), DEFAULT_RUN, seed);
         let gate_run = run_class(
@@ -632,7 +632,8 @@ fn intervention_response_codetermined_frequentist_nominal_coverage() {
     );
     for rep in 0..u64::from(n_sim()) {
         let seed = stream_seed(0x110_0030, rep);
-        let Some((study, result)) = run_codetermined(codetermined_data(1200, seed), seed) else {
+        let Some((study, result)) = run_codetermined(codetermined_data(grid_n(1200), seed), seed)
+        else {
             skip_pair(&mut tallies);
             continue;
         };

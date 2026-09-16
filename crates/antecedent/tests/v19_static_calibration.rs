@@ -45,7 +45,7 @@ use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId};
 
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, n_sim, normal_interval,
+    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, n_sim, normal_interval,
     quantile_interval,
 };
 use common::calibration_bind::{bind, bind_all};
@@ -249,7 +249,7 @@ fn response_curve_dag_frequentist_pointwise_nominal_90_coverage() {
     });
     for rep in 0..u64::from(n_sim()) {
         let seed = 21_000 + rep;
-        let (data, _) = response_data(500, seed);
+        let (data, _) = response_data(grid_n(500), seed);
         let run = run_response_study(
             data,
             response_dag(),
@@ -331,7 +331,7 @@ fn response_curve_dag_frequentist_simultaneous_nominal_90_coverage() {
     let mut half_widths = Vec::new();
     for rep in 0..u64::from(n_sim()) {
         let seed = 22_000 + rep;
-        let (data, _) = response_data(500, seed);
+        let (data, _) = response_data(grid_n(500), seed);
         let result = run_response_study(
             data,
             response_dag(),
@@ -389,7 +389,7 @@ fn response_curve_dag_bayesian_pointwise_nominal_90_coverage() {
     let mut scored = 0u32;
     for rep in 0..u64::from(n_sim()) {
         let seed = 23_000 + rep;
-        let (data, z_bar) = response_data(500, seed);
+        let (data, z_bar) = response_data(grid_n(500), seed);
         let run = run_response_study(
             data,
             response_dag(),
@@ -444,7 +444,7 @@ fn intervention_response_dag_frequentist_nominal_90_coverage() {
     );
     for rep in 0..u64::from(n_sim()) {
         let seed = 24_000 + rep;
-        let (data, _) = response_data(500, seed);
+        let (data, _) = response_data(grid_n(500), seed);
         let result = run_response_study(
             data,
             response_dag(),
@@ -482,7 +482,7 @@ fn intervention_response_dag_bayesian_nominal_90_coverage() {
     let (mut population, mut scored) = (0u32, 0u32);
     for rep in 0..u64::from(n_sim()) {
         let seed = 25_000 + rep;
-        let (data, z_bar) = response_data(500, seed);
+        let (data, z_bar) = response_data(grid_n(500), seed);
         let result = run_response_study(
             data,
             response_dag(),
@@ -572,7 +572,7 @@ fn intervention_response_cell_aipw_nominal_95_coverage() {
     for rep in 0..u64::from(n_sim()) {
         let seed = 26_000 + rep;
         let result = run_response_study(
-            cell_data(800, seed),
+            cell_data(grid_n(800), seed),
             graph.clone(),
             query.clone(),
             InferenceMode::Frequentist,
@@ -643,7 +643,7 @@ fn agreeing_cpdag() -> Cpdag {
 fn class_response_cpdag_disagreeing_completions_publish_unbanded_identified_set() {
     for query in [level_query(1.0), curve_query()] {
         let result = run_response(
-            class_response_data(500, 7),
+            class_response_data(grid_n(500), 7),
             disagreeing_cpdag(),
             query,
             InferenceMode::Frequentist,
@@ -697,7 +697,7 @@ fn class_response_cpdag_intervention_joint_if_nominal_90_coverage() {
     for rep in 0..u64::from(n_sim()) {
         let seed = 27_000 + rep;
         let result = run_response_study(
-            class_response_data(500, seed),
+            class_response_data(grid_n(500), seed),
             agreeing_cpdag(),
             level_query(1.0),
             InferenceMode::Frequentist,
@@ -737,7 +737,7 @@ fn class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage() {
     for rep in 0..u64::from(n_sim()) {
         let seed = 28_000 + rep;
         let run = run_response_study(
-            class_response_data(500, seed),
+            class_response_data(grid_n(500), seed),
             agreeing_cpdag(),
             curve_query(),
             InferenceMode::Frequentist,
@@ -801,7 +801,7 @@ fn run_mediation_study(
     seed: u64,
 ) -> Option<(Study, StudyResult)> {
     let bayesian = matches!(inference, InferenceMode::Bayesian(_));
-    let study = Study::tabular(mediation_data(400, gamma, seed))
+    let study = Study::tabular(mediation_data(grid_n(400), gamma, seed))
         .graph(mediation_graph(gamma != 0.0))
         .query(mediation_query(contrast))
         .inference(inference)
@@ -1038,11 +1038,11 @@ fn path_coverage(
 }
 
 fn chain_sample(seed: u64) -> (TabularData, Dag) {
-    (path_data(500, seed), dag(3, &[(0, 1), (1, 2)]))
+    (path_data(grid_n(500), seed), dag(3, &[(0, 1), (1, 2)]))
 }
 
 fn two_path_sample(seed: u64) -> (TabularData, Dag) {
-    (two_path_data(1_000, seed), two_path_graph())
+    (two_path_data(grid_n(1_000), seed), two_path_graph())
 }
 
 #[test]
@@ -1137,7 +1137,7 @@ fn distribution_bayesian(test: &'static str, base: f64, seed: u64, measured: Opt
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     for rep in 0..u64::from(n_sim()) {
         let Some((study, result)) =
-            run_distribution(distribution_data(600, base, seed + rep), bayes(), seed + rep)
+            run_distribution(distribution_data(grid_n(600), base, seed + rep), bayes(), seed + rep)
         else {
             tally.skip();
             reported.skip();
@@ -1209,7 +1209,7 @@ fn distribution_frequentist(test: &'static str, base: f64, seed: u64) {
     );
     for rep in 0..u64::from(n_sim()) {
         let Some((study, result)) = run_distribution(
-            distribution_data(600, base, seed + rep),
+            distribution_data(grid_n(600), base, seed + rep),
             InferenceMode::Frequentist,
             seed + rep,
         ) else {
@@ -1305,7 +1305,7 @@ fn counterfactual_bayesian_mean_ite_boundary_within_band() {
         let query =
             CounterfactualQuery::new(v(2), Arc::from([Intervention::set(v(0), Value::f64(1.0))]))
                 .with_control_level(0.0);
-        let run = Study::tabular(counterfactual_data(300, seed))
+        let run = Study::tabular(counterfactual_data(grid_n(300), seed))
             .graph(graph.clone())
             .query(CausalQuery::Counterfactual(query))
             .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(200)))
@@ -1374,7 +1374,7 @@ fn bayesian_gcomp_misspecification_probe() {
         let mut points = Vec::new();
         for rep in 0..u64::from(n_sim()) {
             let seed = 36_000 + rep;
-            let study = Study::tabular(misspecified_data(500, q, h, seed))
+            let study = Study::tabular(misspecified_data(grid_n(500), q, h, seed))
                 .graph(graph.clone())
                 .query(query.clone())
                 .inference(bayes())

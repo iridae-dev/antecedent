@@ -59,7 +59,7 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
-use common::calibration::{CoverageTally, RecordKey, gaussian, n_sim, stream_seed};
+use common::calibration::{CoverageTally, RecordKey, SampleGrid, gaussian, n_sim, stream_seed};
 use common::calibration_bind::bind;
 use common::reported::{GATE_LEVEL, REPORTED_LEVEL, gate, posterior_pair};
 use common::static_dgp::{bernoulli, sigmoid, table, uniform};
@@ -302,7 +302,7 @@ fn counterfactual_interaction_bayesian_unit_and_mean_ite_coverage() {
         "counterfactual_interaction_bayesian_unit_and_mean_ite_coverage",
         "interaction_data",
         ["unit_b0", "unit_b1"],
-        |seed| interaction_data(2500, seed),
+        |seed| interaction_data(SampleGrid::HEAVY.n(2500), seed),
         &graph,
         1,
         3,
@@ -335,7 +335,7 @@ fn counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage() {
         "counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage",
         "exp_modifier_data",
         ["unit_0", "unit_1"],
-        |seed| exp_modifier_data(2500, seed),
+        |seed| exp_modifier_data(SampleGrid::HEAVY.n(2500), seed),
         &graph,
         1,
         2,

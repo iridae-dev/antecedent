@@ -43,7 +43,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, DenseNodeId};
-use common::calibration::{CoverageTally, RecordKey, n_sim, stream_seed};
+use common::calibration::{CoverageTally, RecordKey, SampleGrid, n_sim, stream_seed};
 use common::calibration_bind::bind_all;
 use common::reported::{
     GATE_LEVEL, REPORTED_LEVEL, gate, posterior_pair, record_pair, scalar_normal_pair,
@@ -167,7 +167,7 @@ fn coverage(
     let mut tallies = keyed_pair(test, cell);
     for rep in 0..u64::from(n_sim()) {
         let seed = stream_seed(family, rep);
-        let data = frontdoor_data(N, seed);
+        let data = frontdoor_data(SampleGrid::HEAVY.n(N), seed);
         let Some((study, result)) =
             run(&data, query(), inference(), false, RefuteSuite::None, seed)
         else {
