@@ -217,7 +217,6 @@ _EXPECTED_STAGE_ALL = {
         "CausalUnsupportedError",
         "CausalValidateError",
         "CausalValueError",
-        "RenderingLimitation",
         "PendingEdge",
         "ReviewRequired",
         "build_review_error",

@@ -390,7 +390,7 @@ def test_html_and_repr_show_the_same_mass_when_a_result_carries_both():
 
     `repr()` read the structural one and the HTML callout read the posterior
     one, so the same result quoted two different numbers depending on where it
-    was displayed. Both now go through `AnalysisResult.display_mass`, which is
+    was displayed. Both now go through `AnalysisResult._display_mass`, which is
     the only precedence rule: structural first, because it is the mass of the
     claim rather than of the sampled structures behind it.
     """
@@ -407,7 +407,7 @@ def test_html_and_repr_show_the_same_mass_when_a_result_carries_both():
     result = _result(posterior=posterior)
     object.__setattr__(result, "structural_unidentified_mass", 0.40)
 
-    assert result.display_mass() == 0.40
+    assert result._display_mass() == 0.40
     html = result._repr_html_()
     assert "40.0%" in html, "the callout must quote the structural mass"
     assert "10.0%" not in html, "the posterior mass must not reach the callout"

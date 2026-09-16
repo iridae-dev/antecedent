@@ -303,7 +303,7 @@ def _kwargs(kind: str, data: str, structure: str, options: str) -> dict[str, obj
     if options == "target_population":
         from antecedent.population import Treated
 
-        kwargs["target_population"] = Treated()
+        kwargs["query"] = AverageEffect("t", "y", target_population=Treated())
         kwargs["estimator"] = "aipw"
     if options == "population_registry":
         from antecedent.population import CustomDistribution, PopulationRegistry
@@ -361,7 +361,7 @@ def _run_route(kind: str, data: str, structure: str, options: str = "") -> None:
     )
     assert again.program_id == result.program_id
     assert again.claim_id == result.claim_id
-    assert again.data_version == result.data_version
+    assert again.data_snapshot_id == result.data_snapshot_id
     if options == "callbacks":
         assert seen, "on_progress never fired"
     if options == "validators":
@@ -523,9 +523,9 @@ def test_multi_env_prepare_binds_every_environment():
         bootstrap=0,
         refute="none",
     )
-    assert one.contract()["data_snapshot"] != both.contract()["data_snapshot"]
+    assert one.inspect().data_snapshot_id != both.inspect().data_snapshot_id
     # Environment order is part of the snapshot, so nothing collapses them.
-    assert both.contract()["data_snapshot"] != reordered.contract()["data_snapshot"]
+    assert both.inspect().data_snapshot_id != reordered.inspect().data_snapshot_id
 
 
 # --- refusals ---------------------------------------------------------------------

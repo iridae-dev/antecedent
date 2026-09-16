@@ -203,7 +203,7 @@ def _analysis_result_body(result: AnalysisResult) -> str:
     # One precedence rule for the displayed mass, shared with `repr()`: a
     # result carrying both a structural and a posterior mass must not quote a
     # different number here than `AnalysisResult.rendering_limitation` read.
-    callout = _unidentified_callout_html(result.display_mass())
+    callout = _unidentified_callout_html(result._display_mass())
     refute_table = _refutation_table_html(result.validation)
     chips = _adjustment_chips_html(ident.adjustment_set)
     slots = _reasoning_slots_html(result)

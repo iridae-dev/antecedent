@@ -72,7 +72,7 @@ def main() -> None:
     study = first.study
     second = study.estimate()
     third = study.refresh(_confounded_scm(seed=8))
-    assert first.data_version != third.data_version
+    assert first.data_snapshot_id != third.data_snapshot_id
     print("Calibration:", first.calibration.status)
 
     assert discovery_calls["n"] == 1, (
