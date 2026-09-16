@@ -178,6 +178,11 @@ class EstimateView:
     exceedance_cdf: tuple[float, ...] | None = None
     monotone_rearranged: bool = False
     interaction_structurally_zero: bool | None = None
+    #: Counterfactual disclosure: the mechanisms selected on every treatment to
+    #: outcome path admit no effect modification, so ``unit_effects`` is the same
+    #: number for every unit by construction of the mechanism family — not a
+    #: measured finding of a homogeneous treatment effect.
+    unit_effects_homogeneous: bool | None = None
     score_table: ScoreTableSection | None = None
     joint_covariance: list[list[float]] | None = None
     score_inference: ScoreInferenceSection | None = None
@@ -215,14 +220,17 @@ class EstimateView:
         se = self.se_bootstrap if self.se_bootstrap is not None else self.se_analytic
         se_text = fmt_se(se)
         label = "mean_ite" if self.estimator_id == "gcm.fit" else "ate"
+        point = f"{label}={fmt_float(self.ate)}"
+        if label == "mean_ite" and self.unit_effects_homogeneous:
+            point = f"{point} (homogeneous mechanism)"
         if se_text is None:
             return (
-                f"<EstimateView {label}={fmt_float(self.ate)} se=unavailable "
+                f"<EstimateView {point} se=unavailable "
                 f"estimator={self.estimator_id!r} method={self.method!r}>"
             )
         se_kind = "bootstrap" if self.se_bootstrap is not None else "analytic"
         return (
-            f"<EstimateView {label}={fmt_float(self.ate)} se={se_text} ({se_kind}) "
+            f"<EstimateView {point} se={se_text} ({se_kind}) "
             f"estimator={self.estimator_id!r} method={self.method!r}>"
         )
 
@@ -687,6 +695,8 @@ class AnalysisResult(ResultAPI):
         effect = self._scalar_effect()
         if self.unit_effects is not None:
             parts = [verdict, f"mean_ite={fmt_float(effect)}"]
+            if self.estimate.unit_effects_homogeneous:
+                parts.append("(homogeneous mechanism)")
         elif self.estimate.mean_interval is not None:
             interval_text = fmt_probability_interval(self.estimate.mean_interval)
             parts = [verdict, f"effect={fmt_float(effect)} {interval_text}"]

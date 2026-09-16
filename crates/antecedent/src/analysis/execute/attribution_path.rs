@@ -105,10 +105,14 @@ impl super::Study {
                 ite,
             )
         };
+        let homogeneous =
+            homogeneous_unit_effects(graph, &mechanism_assignments, treatment, outcome);
+        let mut estimate = estimate;
+        estimate.unit_effects_homogeneous = homogeneous.is_some();
         let observed = data.float64_values(treatment)?;
         let min = observed.iter().copied().fold(f64::INFINITY, f64::min);
         let max = observed.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-        let diagnostics = vec![
+        let mut diagnostics = vec![
             Diagnostic::new(
                 "gcm.counterfactual.mechanisms",
                 DiagnosticKind::Scientific,
@@ -149,6 +153,28 @@ impl super::Study {
                 )
             },
         ];
+        if let Some(family) = homogeneous {
+            let outcome_name = data
+                .schema()
+                .get(outcome)
+                .map_or_else(|_| format!("v{}", outcome.raw()), |v| v.name.to_string());
+            diagnostics.push(
+                Diagnostic::new(
+                    "gcm.counterfactual.unit_effects_homogeneous",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    format!(
+                        "mechanism family {family:?} for {outcome_name} admits no effect \
+                         modification; unit_effects equal the mechanism slope for every unit"
+                    ),
+                )
+                .with_fields([
+                    ("outcome", outcome_name),
+                    ("family", family.id().to_string()),
+                    ("unit_effect", ite.mean_ite.to_string()),
+                ]),
+            );
+        }
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -367,6 +393,46 @@ impl super::Study {
             },
         })
     }
+}
+
+/// The selected outcome-mechanism family when *no* mechanism between `treatment`
+/// and `outcome` can modify the treatment effect, so abduction–action–prediction
+/// returns the same contrast for every unit by construction.
+///
+/// A unit effect can only vary across units when some mechanism on a directed
+/// `treatment → outcome` path bends with that unit's other parent values or its
+/// abducted disturbance. When every such mechanism is additive and linear in its
+/// parents, the two worlds differ by a fixed composition of slopes: the disturbances
+/// cancel and `Y(a) − Y(a0)` is a constant. Returns `None` when any mechanism on
+/// those paths could modify the effect (or when the outcome has no fitted slot).
+fn homogeneous_unit_effects(
+    graph: &Dag,
+    assignments: &[crate::gcm::MechanismAssignment],
+    treatment: VariableId,
+    outcome: VariableId,
+) -> Option<crate::gcm::MechanismFamily> {
+    let node_of =
+        |variable: VariableId| assignments.iter().find(|a| a.variable == variable).map(|a| a.node);
+    let treatment_node = node_of(treatment)?;
+    let outcome_node = node_of(outcome)?;
+    let mut outcome_family = None;
+    for assignment in assignments {
+        // Only mechanisms strictly downstream of the treatment and upstream of (or
+        // at) the outcome are re-evaluated in the acted world.
+        if assignment.node == treatment_node
+            || !graph.reaches(treatment_node, assignment.node)
+            || !graph.reaches(assignment.node, outcome_node)
+        {
+            continue;
+        }
+        if !assignment.fitted.admits_no_effect_modification() {
+            return None;
+        }
+        if assignment.node == outcome_node {
+            outcome_family = Some(assignment.selected);
+        }
+    }
+    outcome_family
 }
 
 fn counterfactual_posterior(

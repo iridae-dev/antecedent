@@ -1082,6 +1082,10 @@ pub(crate) struct EstimateSection {
     /// Additive joint-response disclosure.
     #[pyo3(get)]
     interaction_structurally_zero: Option<bool>,
+    /// Counterfactual disclosure: the selected mechanisms admit no effect
+    /// modification, so every per-unit effect is the same number by construction.
+    #[pyo3(get)]
+    unit_effects_homogeneous: Option<bool>,
     /// Score-table metadata (n, folds, provenance). Full scores stay on the artifact.
     #[pyo3(get)]
     score_table: Option<ScoreTableSection>,
@@ -1317,6 +1321,7 @@ pub(crate) fn shared_study_sections(
             .as_ref()
             .map(|r| r.interaction_structurally_zero)
             .or(Some(result.estimate.interaction_structurally_zero)),
+        unit_effects_homogeneous: Some(result.estimate.unit_effects_homogeneous),
         score_table: result.estimate.score_table.as_ref().map(|t| ScoreTableSection {
             n_rows: t.n_rows,
             n_folds: t.n_folds,

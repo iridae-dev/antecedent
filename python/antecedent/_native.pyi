@@ -375,6 +375,7 @@ class EstimateSection:
     exceedance_cdf: list[float] | None
     monotone_rearranged: bool
     interaction_structurally_zero: bool | None
+    unit_effects_homogeneous: bool | None
     score_table: ScoreTableSection | None
     joint_covariance: list[list[float]] | None
     score_inference: ScoreInferenceSection | None

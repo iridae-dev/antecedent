@@ -130,6 +130,10 @@ pub struct EffectEstimate {
     pub monotone_rearranged: bool,
     /// Whether an additive joint path makes the interaction contrast structurally zero.
     pub interaction_structurally_zero: bool,
+    /// Whether the fitted mechanisms on every treatment → outcome path admit no
+    /// effect modification, so the reported per-unit effects are equal by
+    /// construction of the selected mechanism families, not by measurement.
+    pub unit_effects_homogeneous: bool,
     /// Per-row influence for the reported scalar (shared-row joint IF / envelopes).
     pub influence: Option<Arc<[f64]>>,
     /// Point E-value for the reported effect when a named no-latent premise is in force.
@@ -215,6 +219,7 @@ impl EffectEstimate {
             exceedance_cdf: None,
             monotone_rearranged: false,
             interaction_structurally_zero: false,
+            unit_effects_homogeneous: false,
             influence: None,
             evalue: None,
             candidate_selection: None,
@@ -265,6 +270,7 @@ impl EffectEstimate {
             exceedance_cdf: None,
             monotone_rearranged: false,
             interaction_structurally_zero: false,
+            unit_effects_homogeneous: false,
             influence: None,
             evalue: None,
             candidate_selection: None,
@@ -329,6 +335,14 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_interaction_structurally_zero(mut self, zero: bool) -> Self {
         self.interaction_structurally_zero = zero;
+        self
+    }
+
+    /// Mark that the reported per-unit effects are homogeneous by construction of
+    /// the selected mechanism families (no effect modification is representable).
+    #[must_use]
+    pub fn with_unit_effects_homogeneous(mut self, homogeneous: bool) -> Self {
+        self.unit_effects_homogeneous = homogeneous;
         self
     }
 
