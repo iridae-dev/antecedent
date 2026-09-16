@@ -236,7 +236,7 @@ def _assert_pinned_block_bands(result: Any) -> None:
     """The seeded run pinned in ``block_band``: every band value to ``band_rtol``.
 
     A determinism pin of the circular-block bootstrap, not a coverage claim
-    (coverage is the weekly ``v19_temporal_response_calibration`` gate).
+    (coverage is the ``v19_temporal_response_calibration`` calibration gate).
     """
     pin = _FIXTURE["contract"]["block_band"]
     rtol = float(_FIXTURE["tolerance"]["band_rtol"])

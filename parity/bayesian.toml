@@ -114,7 +114,7 @@ notes = "EB hierarchical linear + HierarchicalGlm (Bernoulli logit); Minnesota B
 id = "bayes.validate.mcmc_diagnostics"
 status = "done"
 evidence_kind = "implementation_exists"
-limitations = "Per-PR evidence is ESS/R-hat/divergence unit tests only. SBC/coverage tests are #[ignore]d and run weekly via gate_calibration.sh; the ArviZ pin in conformance/validate/bayesian_checks is loaded by no test."
+limitations = "Per-PR evidence is ESS/R-hat/divergence unit tests only. SBC/coverage tests are #[ignore]d and run on demand via gate_calibration.sh; the ArviZ pin in conformance/validate/bayesian_checks is loaded by no test."
 notes = "Chain ESS / R-hat / divergences via HMC + McmcDiagnosticsCheck; SBC separate"
 
 [[capabilities]]

@@ -373,7 +373,8 @@ closed in 1.10: graph-posterior composition and calibration binding.
 
 Version 1.9.0. Every licensed cell was reviewed
 ([review](docs/v1.9-cell-review.md)) and its intervals checked by a
-two-sided, 400-replicate coverage gate that runs weekly and on dispatch.
+two-sided, 400-replicate coverage gate whose records stand until the code they
+measured changes, re-run on dispatch when they owe it.
 Intervals that missed were fixed, or published as disclosed boundary records
 where no fix was available. Eleven cells were licensed on existing
 implementations (ADMG interventional distributions, accepted-Dag
