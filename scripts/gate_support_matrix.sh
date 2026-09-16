@@ -415,8 +415,8 @@ def check_evidence_test(label: str, test_rel: str, assertion: str) -> None:
             f"executing test function in {test_rel}"
         )
     elif re.search(r"#\[\s*ignore\b", match.group(1)):
-        # `cargo test` and gate_release.sh skip `#[ignore]` tests; only the
-        # scheduled scripts/gate_calibration.sh runs them. A row's evidence must
+        # `cargo test` and gate_release.sh skip `#[ignore]` tests; only
+        # scripts/gate_calibration.sh, run locally, runs them. A row's evidence must
         # execute on every test run, so a calibration test may be cited in the
         # limitations prose but not as evidence_test/evidence_assertion.
         fail.append(

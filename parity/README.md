@@ -153,13 +153,14 @@ bash scripts/gate_release.sh
 ```
 
 `gate_calibration.sh` is the statistical calibration suite (SE coverage, CI
-Type I / permutation uniformity, discovery null FPR). It is not part of
-every-PR unit CI. Its coverage records stand until the statistical surface they
-measured changes (`scripts/calibration_surface.list`, checked by
-`scripts/gate_calibration_attestation.sh` on every PR), so it runs on demand,
-locally or through [`.github/workflows/calibration.yml`](../.github/workflows/calibration.yml)
-(`workflow_dispatch`), when records owe a re-measurement. A reviewed change that
-cannot move a number may instead be covered by a replay waiver in
+Type I / permutation uniformity, discovery null FPR). It never runs in CI: a
+change to statistical code is measured on a development machine before upload
+with `bash scripts/measure_calibration.sh`, which runs only the groups behind
+records that owe a re-measurement and collects them. Its coverage records stand
+until the statistical surface they measured changes
+(`scripts/calibration_surface.list`), and CI fails any PR or push whose records
+do not match the code (`scripts/gate_calibration_attestation.sh`). A reviewed
+change that cannot move a number may instead be covered by a replay waiver in
 `calibration_waivers.toml`, whose records are reported as `attested_by_replay`
 (see `docs/development.md`).
 
