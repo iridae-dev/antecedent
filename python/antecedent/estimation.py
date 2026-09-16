@@ -196,6 +196,7 @@ def _section_estimate(raw: Any) -> Any:
         exceedance_cdf=getattr(raw, "exceedance_cdf", None),
         monotone_rearranged=bool(getattr(raw, "monotone_rearranged", False)),
         interaction_structurally_zero=getattr(raw, "interaction_structurally_zero", None),
+        unit_effects_homogeneous=getattr(raw, "unit_effects_homogeneous", None),
         score_table=getattr(raw, "score_table", None),
         simultaneous_interval=getattr(raw, "simultaneous_interval", None),
         adjusted_p_values=getattr(raw, "adjusted_p_values", None),
@@ -509,6 +510,7 @@ def _wrap_ate(
             interaction_structurally_zero=getattr(
                 sec_estimate, "interaction_structurally_zero", None
             ),
+            unit_effects_homogeneous=getattr(sec_estimate, "unit_effects_homogeneous", None),
             score_table=getattr(sec_estimate, "score_table", None),
             joint_covariance=getattr(sec_estimate, "joint_covariance", None),
             score_inference=getattr(sec_estimate, "score_inference", None),

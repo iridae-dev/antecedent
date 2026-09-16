@@ -15,7 +15,9 @@
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
     clippy::too_many_lines,
-    clippy::float_cmp
+    clippy::float_cmp,
+    // SCM fixtures name their variables the way the graph does (z, a, b, y).
+    clippy::many_single_char_names
 )]
 
 use std::sync::Arc;
@@ -23,11 +25,11 @@ use std::sync::Arc;
 use antecedent::validate::PredictiveCheckKind;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, CounterfactualQuery, ExecutionContext,
     IdentificationStatus, Intervention, InterventionalDistributionQuery, MediationContrast,
     MediationQuery, Value, VariableId,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
 
 mod common;
@@ -582,4 +584,153 @@ fn distribution_bayesian_known_truth_all_structures_and_suites() {
             );
         }
     }
+}
+
+// --------------------------------------------------------------- Counterfactual
+
+/// Treatment `a` with a genuine `a × b` interaction: the true unit effect is
+/// `0.8` when `b = 0` and `1.4` when `b = 1`. `z` confounds `a` and `y`.
+///
+/// Variables: `0 = z`, `1 = a`, `2 = b`, `3 = y`.
+fn interaction_scm(binary_outcome: bool) -> (TabularData, Dag) {
+    let n = 800usize;
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 * 0.71).sin()).collect();
+    let a: Vec<f64> =
+        (0..n).map(|i| f64::from(u8::from((i as f64 * 1.37).sin() + 0.8 * z[i] > 0.0))).collect();
+    let b: Vec<f64> = (0..n).map(|i| f64::from(u8::from((i as f64 * 2.11).cos() > 0.0))).collect();
+    let latent: Vec<f64> = (0..n)
+        .map(|i| 0.8 * a[i] + 0.5 * b[i] + 0.6 * a[i] * b[i] + z[i] + 0.2 * (i as f64 * 0.29).sin())
+        .collect();
+    let y: Vec<f64> = if binary_outcome {
+        latent.iter().map(|v| f64::from(u8::from(*v > 0.9))).collect()
+    } else {
+        latent
+    };
+    let data = TabularData::from_f64_columns([
+        ("z", z.as_slice()),
+        ("a", a.as_slice()),
+        ("b", b.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    (data, dag(4, &[(0, 1), (0, 3), (1, 3), (2, 3)]))
+}
+
+fn counterfactual_query() -> CausalQuery {
+    CausalQuery::Counterfactual(
+        CounterfactualQuery::new(
+            VariableId::from_raw(3),
+            Arc::from([Intervention::set(VariableId::from_raw(1), Value::f64(1.0))]),
+        )
+        .with_control_level(0.0),
+    )
+}
+
+fn homogeneity_diagnostic(result: &StudyResult) -> Option<&antecedent_core::Diagnostic> {
+    result
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "gcm.counterfactual.unit_effects_homogeneous")
+}
+
+fn unit_effect_spread(effects: &[f64]) -> f64 {
+    effects.iter().copied().fold(f64::NEG_INFINITY, f64::max)
+        - effects.iter().copied().fold(f64::INFINITY, f64::min)
+}
+
+/// `Counterfactual × Dag × explicit|accepted × Frequentist|Bayesian × none`:
+/// the standard registry fits `y` as linear-Gaussian, which cannot represent the
+/// `a × b` interaction in this SCM. Abduction–action–prediction then returns the
+/// same contrast for every unit, so the result must say the per-unit vector is
+/// homogeneous by construction of the selected mechanism — a bare per-unit vector
+/// reads as measured heterogeneity. The Bayesian cell is no different: the
+/// posterior describes mechanism-parameter uncertainty around one slope.
+#[test]
+fn counterfactual_dag_linear_outcome_discloses_homogeneous_unit_effects() {
+    let (data, graph) = interaction_scm(false);
+    for accepted in [false, true] {
+        for inference in [InferenceMode::Frequentist, bayes(64, 1_000.0)] {
+            let label = format!("accepted={accepted} inference={inference:?}");
+            let result = staged(
+                &data,
+                &graph,
+                accepted,
+                counterfactual_query(),
+                inference,
+                RefuteSuite::None,
+                21,
+            );
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some("gcm.fit"), "{label}");
+            let cf = result.counterfactual.as_ref().unwrap();
+            assert_eq!(cf.unit_effects.len(), 800, "{label}");
+
+            // The truth this mechanism cannot see: 0.8 for b = 0, 1.4 for b = 1.
+            let b = data.float64_values(VariableId::from_raw(2)).unwrap();
+            let spread = unit_effect_spread(&cf.unit_effects);
+            assert!(spread < 1e-9, "{label}: unit effects span {spread}");
+            let group = |want: f64| {
+                let picked: Vec<f64> = cf
+                    .unit_effects
+                    .iter()
+                    .zip(b.iter())
+                    .filter(|(_, bi)| **bi == want)
+                    .map(|(e, _)| *e)
+                    .collect();
+                picked.iter().sum::<f64>() / picked.len() as f64
+            };
+            assert!(
+                (group(0.0) - group(1.0)).abs() < 1e-9,
+                "{label}: the two subgroups must be indistinguishable, which is the overclaim"
+            );
+
+            assert!(result.estimate.unit_effects_homogeneous, "{label}");
+            let diagnostic = homogeneity_diagnostic(&result)
+                .unwrap_or_else(|| panic!("{label}: homogeneity disclosure missing"));
+            assert_eq!(
+                diagnostic.severity,
+                antecedent_core::DiagnosticSeverity::Warning,
+                "{label}"
+            );
+            assert!(
+                diagnostic.message.contains("LinearGaussian")
+                    && diagnostic.message.contains("for y")
+                    && diagnostic.message.contains("admits no effect modification"),
+                "{label}: {}",
+                diagnostic.message
+            );
+            let field = |key: &str| {
+                diagnostic
+                    .fields
+                    .iter()
+                    .find(|(k, _)| k.as_ref() == key)
+                    .map(|(_, v)| v.to_string())
+            };
+            assert_eq!(field("outcome").as_deref(), Some("y"), "{label}");
+            assert_eq!(field("family").as_deref(), Some("linear_gaussian"), "{label}");
+        }
+    }
+}
+
+/// The same SCM with a binary outcome selects a parent-conditional discrete
+/// mechanism, which *can* modify the effect. Nothing is disclosed and the unit
+/// effects really do differ, so the disclosure is not vacuous.
+#[test]
+fn counterfactual_dag_discrete_outcome_makes_no_homogeneity_claim() {
+    let (data, graph) = interaction_scm(true);
+    let result = staged(
+        &data,
+        &graph,
+        false,
+        counterfactual_query(),
+        InferenceMode::Frequentist,
+        RefuteSuite::None,
+        21,
+    );
+    let cf = result.counterfactual.as_ref().unwrap();
+    assert!(
+        unit_effect_spread(&cf.unit_effects) > 1e-9,
+        "a discrete outcome must not produce one constant contrast"
+    );
+    assert!(!result.estimate.unit_effects_homogeneous);
+    assert!(homogeneity_diagnostic(&result).is_none());
 }

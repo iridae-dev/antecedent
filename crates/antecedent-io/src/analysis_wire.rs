@@ -95,6 +95,9 @@ pub struct EffectEstimateWire {
     /// Additive joint-response disclosure: interaction is structurally zero.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interaction_structurally_zero: Option<bool>,
+    /// Per-unit effects are homogeneous by construction of the selected mechanisms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit_effects_homogeneous: Option<bool>,
     /// Point E-value for a named no-latent premise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evalue: Option<f64>,
@@ -363,6 +366,7 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
         adjusted_p_values: e.adjusted_p_values,
         family_contrast: e.family_contrast,
         family_contrast_interval: e.family_contrast_interval,
+        unit_effects_homogeneous: e.unit_effects_homogeneous.then_some(true),
         evalue: e.evalue,
         candidate_selection: e.candidate_selection.as_ref().map(|s| CandidateSelectionWire {
             screen_id: s.screen_id.to_string(),
@@ -547,6 +551,7 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     estimate.scenario_effects = w.scenario_effects.clone().map(Into::into);
     estimate.scenario_intervals = w.scenario_intervals.clone().map(Into::into);
     estimate.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
+    estimate.unit_effects_homogeneous = w.unit_effects_homogeneous.unwrap_or(false);
     Ok(estimate)
 }
 
@@ -1026,6 +1031,7 @@ mod tests {
             exceedance_cdf: None,
             monotone_rearranged: false,
             interaction_structurally_zero: None,
+            unit_effects_homogeneous: None,
             evalue: None,
             candidate_selection: None,
         };

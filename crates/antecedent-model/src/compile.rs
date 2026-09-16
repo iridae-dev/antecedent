@@ -254,6 +254,39 @@ pub enum MechanismSlot {
     },
 }
 
+impl MechanismSlot {
+    /// Whether the fitted conditional mean is additive and linear in every parent,
+    /// so a hard intervention on one parent shifts this node's value by a constant
+    /// that does not depend on the unit's other parent values or disturbance.
+    ///
+    /// `true` admits *no* effect modification: there is no parent × parent product
+    /// and no nonlinearity in any parent. `false` means the family can (not must)
+    /// modify the effect — a parent-conditional softmax, a GP surface, or a
+    /// user-supplied dynamic mechanism. Unfitted slots answer `false`: nothing has
+    /// been selected yet, so nothing is known.
+    #[must_use]
+    pub fn admits_no_effect_modification(&self) -> bool {
+        match self {
+            // `Constant` / `LinearGaussianStateSpace` do not read the parents at
+            // all; the rest are `intercept + coeffs' parents` (+ additive noise).
+            Self::Constant { .. }
+            | Self::LinearGaussianStateSpace { .. }
+            | Self::LinearGaussian { .. }
+            | Self::HierarchicalLinear { .. }
+            | Self::Bvar { .. }
+            | Self::ConditionalLinearGaussianStateSpace { .. } => true,
+            // Parent-conditional softmax bends with the parent configuration;
+            // an unconditional categorical ignores the parents entirely.
+            Self::Discrete { logit_coeffs, .. } => logit_coeffs.is_none(),
+            // Nonlinear, or unknown.
+            Self::GaussianProcess { .. }
+            | Self::Dynamic { .. }
+            | Self::Pending { .. }
+            | Self::Vacant => false,
+        }
+    }
+}
+
 impl std::fmt::Debug for MechanismSlot {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
