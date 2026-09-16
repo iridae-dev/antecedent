@@ -311,6 +311,56 @@ fn unsupported_py_err(message: String) -> PyErr {
     })
 }
 
+/// Attach a registered runtime-refusal reason code to a raised exception.
+///
+/// Callers pass a code checked by `antecedent_core::reason_code!`, or one read
+/// back from a reason-coded Rust message, so an unregistered code is never
+/// attached.
+pub(crate) fn with_reason_code(err: PyErr, code: &str) -> PyErr {
+    Python::attach(|py| {
+        let _ = err.value(py).setattr("reason_code", code);
+        err
+    })
+}
+
+/// [`with_reason_code`] unless the exception already carries a finer code.
+fn with_default_reason_code(err: PyErr, code: &str) -> PyErr {
+    Python::attach(|py| {
+        let value = err.value(py);
+        let present = value.getattr("reason_code").ok().is_some_and(|existing| !existing.is_none());
+        if !present {
+            let _ = value.setattr("reason_code", code);
+        }
+        err
+    })
+}
+
+/// The Python `EffectNotIdentified` class, registered by `antecedent.errors`.
+static NOT_IDENTIFIED_ERROR_CLASS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+/// Register the Python class a not-identified refusal is raised as.
+#[pyfunction]
+fn set_not_identified_error_class(py: Python<'_>, cls: Py<PyAny>) {
+    let _ = NOT_IDENTIFIED_ERROR_CLASS.get_or_init(py, || cls);
+}
+
+/// A not-identified refusal carrying its identification outcome.
+fn not_identified_py_err(status: &str, search_capped: bool, message: String) -> PyErr {
+    Python::attach(|py| {
+        let err: PyErr = NOT_IDENTIFIED_ERROR_CLASS
+            .get(py)
+            .and_then(|cls| cls.bind(py).call1((message.as_str(),)).ok())
+            .map_or_else(|| CausalCompileError::new_err(message.clone()), PyErr::from_value);
+        let value = err.value(py);
+        let _ =
+            value.setattr("reason_code", antecedent_core::reason_code!("effect_not_identified"));
+        let _ = value.setattr("identification_status", status);
+        let _ = value.setattr("search_capped", search_capped);
+        let _ = value.setattr("search_complete", !search_capped);
+        err
+    })
+}
+
 /// Parse Python `refute=` — bool or suite name (`"full"` / `"placebo"` / `"none"`).
 /// `None` (omitted kwarg) defaults to PlaceboAndRcc.
 pub(crate) fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<RefuteSuite> {
@@ -510,7 +560,14 @@ impl IntoCausalPyErr for RustCausalError {
             Self::Attribution(e) => CausalAttributionError::new_err(e.to_string()),
             Self::Serialization(e) => CausalSerializationError::new_err(e.to_string()),
             Self::Data(e) => CausalDataError::new_err(e.to_string()),
-            Self::Graph(e) => CausalGraphError::new_err(e.to_string()),
+            Self::Graph(e) => {
+                let code = if matches!(e, GraphError::UnknownVariableName { .. }) {
+                    antecedent_core::reason_code!("unknown_variable")
+                } else {
+                    antecedent_core::reason_code!("graph_invalid")
+                };
+                with_reason_code(CausalGraphError::new_err(e.to_string()), code)
+            }
             Self::Design(e) => CausalDesignError::new_err(e.to_string()),
             Self::Callback { name, message } => {
                 CausalDesignError::new_err(format!("callback {name}: {message}"))
@@ -521,11 +578,34 @@ impl IntoCausalPyErr for RustCausalError {
                 }
                 _ => CausalStateError::new_err(e.to_string()),
             },
-            Self::Schema(e) => CausalDataError::new_err(e.to_string()),
+            Self::Schema(e) => {
+                let err = CausalDataError::new_err(e.to_string());
+                match e {
+                    SchemaError::UnknownVariableName { .. }
+                    | SchemaError::UnknownVariableId { .. } => {
+                        with_reason_code(err, antecedent_core::reason_code!("unknown_variable"))
+                    }
+                    _ => err,
+                }
+            }
             // A structure that does not describe the table is a data problem, and
             // callers should be able to catch it as one rather than the root class.
-            Self::SchemaMismatch { detail } => CausalDataError::new_err(detail),
-            Self::Compile { message } => CausalCompileError::new_err(message),
+            Self::SchemaMismatch { detail } => with_reason_code(
+                CausalDataError::new_err(detail),
+                antecedent_core::reason_code!("schema_mismatch"),
+            ),
+            Self::Compile { message } => {
+                let code = antecedent_core::reason_code::split_prefix(&message)
+                    .map(|(code, _)| code.to_string());
+                let err = CausalCompileError::new_err(message);
+                match code {
+                    Some(code) => with_reason_code(err, &code),
+                    None => err,
+                }
+            }
+            Self::NotIdentified { status, search_capped, message } => {
+                not_identified_py_err(status.as_str(), search_capped, message)
+            }
             Self::Resource { message } => CausalResourceError::new_err(message),
             Self::ReviewRequired {
                 kind,
@@ -542,8 +622,22 @@ impl IntoCausalPyErr for RustCausalError {
                 message,
                 hint,
             ),
-            Self::Unsupported { message } => unsupported_py_err(message.to_string()),
-            Self::Support { id, message } => unsupported_py_err(format!("{id}: {message}")),
+            Self::Unsupported { message } => with_default_reason_code(
+                unsupported_py_err(message.to_string()),
+                antecedent_core::reason_code!("route_not_supported"),
+            ),
+            Self::Support { id, message } => {
+                // A matrix refusal without a finer registered code carries the
+                // code of its cell verdict.
+                let code = match antecedent_core::reason_code::split_prefix(message) {
+                    Some((code, _)) => code,
+                    None if id.as_str() == "not_applicable" => {
+                        antecedent_core::reason_code!("cell_not_applicable")
+                    }
+                    None => antecedent_core::reason_code!("cell_not_licensed"),
+                };
+                with_default_reason_code(unsupported_py_err(format!("{id}: {message}")), code)
+            }
             Self::Missing { field } => {
                 CausalCompileError::new_err(format!("missing required field: {field}"))
             }
@@ -2353,6 +2447,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
     m.add_function(wrap_pyfunction!(set_review_error_class, m)?)?;
     m.add_function(wrap_pyfunction!(set_unsupported_error_class, m)?)?;
+    m.add_function(wrap_pyfunction!(set_not_identified_error_class, m)?)?;
     m.add_function(wrap_pyfunction!(omitted_defaults, m)?)?;
     m.add_function(wrap_pyfunction!(identification_status_names, m)?)?;
     m.add_function(wrap_pyfunction!(runtime_refusal_codes, m)?)?;

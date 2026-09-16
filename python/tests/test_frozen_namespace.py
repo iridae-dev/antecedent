@@ -219,6 +219,7 @@ _EXPECTED_STAGE_ALL = {
         "CausalUnsupportedError",
         "CausalValidateError",
         "CausalValueError",
+        "EffectNotIdentified",
         "PendingEdge",
         "ReviewRequired",
         "build_review_error",

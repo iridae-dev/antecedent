@@ -143,3 +143,87 @@ id = "treatment_support_too_discrete"
 applies_to = ["runtime_refusal"]
 meaning = "A local-polynomial response in the treatment needs more distinct treatment values carrying kernel weight at an evaluation point than the treatment has there; a binary or few-level treatment is answered by AverageEffect or InterventionResponse instead."
 max_uses = 0
+
+[[code]]
+id = "estimator_inference_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "The selected estimator does not implement the requested inference mode on this query, so it is refused rather than run under the other mode."
+max_uses = 0
+
+[[code]]
+id = "effect_not_identified"
+applies_to = ["runtime_refusal"]
+meaning = "The question has no identified estimand under the declared structure; the refusal carries the identification status and whether the search was complete or capped."
+max_uses = 0
+
+[[code]]
+id = "score_table_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "Retargeting reweights a prepared score table, and this study prepared none."
+max_uses = 0
+
+[[code]]
+id = "refutation_not_applicable"
+applies_to = ["runtime_refusal"]
+meaning = "The requested refutation suite has no state to refute for this estimand."
+max_uses = 0
+
+[[code]]
+id = "cell_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "The support-matrix cell is refused: it is neither licensed nor not-applicable."
+max_uses = 0
+
+[[code]]
+id = "cell_not_applicable"
+applies_to = ["runtime_refusal"]
+meaning = "The support-matrix cell does not denote for this query, structure, inference and validation."
+max_uses = 0
+
+[[code]]
+id = "route_not_supported"
+applies_to = ["runtime_refusal"]
+meaning = "No execution route implements this combination of query, structure, data and options."
+max_uses = 0
+
+[[code]]
+id = "unknown_strategy"
+applies_to = ["runtime_refusal"]
+meaning = "The estimator or identifier id is not in the closed strategy table."
+max_uses = 0
+
+[[code]]
+id = "strategy_incompatible"
+applies_to = ["runtime_refusal"]
+meaning = "The identifier and estimator (or query and estimator) do not form a compatible pair."
+max_uses = 0
+
+[[code]]
+id = "required_option_missing"
+applies_to = ["runtime_refusal"]
+meaning = "The selected route needs a companion option the call did not supply."
+max_uses = 0
+
+[[code]]
+id = "unknown_variable"
+applies_to = ["runtime_refusal"]
+meaning = "A named variable is not in the data schema."
+max_uses = 0
+
+[[code]]
+id = "graph_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "The supplied structure is not a valid graph of its class (for example a directed cycle)."
+max_uses = 0
+
+[[code]]
+id = "schema_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "The data do not have the schema the structure or prepared study was built on."
+max_uses = 0
+
+[[code]]
+id = "invalid_argument"
+applies_to = ["runtime_refusal"]
+meaning = "An argument has the wrong type, shape or value for this entry point."
+max_uses = 0

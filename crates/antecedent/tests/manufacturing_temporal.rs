@@ -1202,7 +1202,8 @@ fn supplied_complete_temporal_pag_does_not_bypass_visibility() {
         .build()
         .unwrap();
     let error = analysis.run(&ExecutionContext::for_tests(7)).unwrap_err();
-    assert!(matches!(error, antecedent::CausalError::Compile { .. }));
+    assert!(matches!(error, antecedent::CausalError::NotIdentified { search_capped: false, .. }));
+    assert_eq!(error.reason_code(), Some("effect_not_identified"));
     assert!(error.to_string().contains("no identified mass"));
 }
 
@@ -1221,7 +1222,8 @@ fn incomplete_temporal_pag_does_not_certify_invisible_effect() {
         .build()
         .unwrap();
     let error = analysis.run(&ExecutionContext::for_tests(7)).unwrap_err();
-    assert!(matches!(error, antecedent::CausalError::Compile { .. }));
+    assert!(matches!(error, antecedent::CausalError::NotIdentified { search_capped: false, .. }));
+    assert_eq!(error.reason_code(), Some("effect_not_identified"));
     assert!(error.to_string().contains("no identified mass"));
 }
 

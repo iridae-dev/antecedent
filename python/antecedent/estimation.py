@@ -793,7 +793,15 @@ def _lagged_edges(
         raise CausalValueError("graph= lagged edges are required")
     if isinstance(graph, TemporalDag):
         return [(str(a), int(la), str(b), int(lb)) for a, la, b, lb in graph.edges()]
-    return [(str(a), int(la), str(b), int(lb)) for a, la, b, lb in graph]
+    edges = list(graph)
+    for edge in edges:
+        if not isinstance(edge, Sequence) or isinstance(edge, str) or len(edge) != 4:
+            raise CausalValueError(
+                "a temporal query needs lagged edges (source, source_lag, target, target_lag) "
+                f"or a TemporalDag; got {edge!r}",
+                reason_code="invalid_argument",
+            )
+    return [(str(a), int(la), str(b), int(lb)) for a, la, b, lb in edges]
 
 
 def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
@@ -2122,7 +2130,8 @@ class _PrepareRoute:
         if isinstance(query, Counterfactual) and self._explicit_refute():
             raise CausalUnsupportedError(
                 "refused: Counterfactual cheap/full are not licensed; there is no "
-                "native ITE refuter suite and ATE refuters do not apply."
+                "native ITE refuter suite and ATE refuters do not apply.",
+                reason_code="cell_not_licensed",
             )
         if isinstance(query, Counterfactual) and self.bootstrap:
             raise CausalUnsupportedError("counterfactual sampling uncertainty is unavailable")
@@ -2260,7 +2269,8 @@ class _PrepareRoute:
         if self._explicit_refute() and not scalar_dag_response:
             raise CausalUnsupportedError(
                 "not_applicable: a function-valued response has no ATE-shaped state for the "
-                "cheap/full/placebo refuter suite; prepare it with refute='none'"
+                "cheap/full/placebo refuter suite; prepare it with refute='none'",
+                reason_code="refutation_not_applicable",
             )
         if isinstance(query, (ResponseCurve, InterventionResponse)):
             _check_quantile_functional(query, self.inference, self.estimator, graph)

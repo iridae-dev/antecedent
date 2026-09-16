@@ -220,7 +220,8 @@ def coerce_refute(value: Any) -> str | bool:
         raise CausalTypeError(
             "refute=True is ambiguous: it does not say which refutation suite "
             'to run. Pass refute="placebo", "cheap", "full", or a Refute enum '
-            "member instead (or refute=False for no refutation)."
+            "member instead (or refute=False for no refutation).",
+            reason_code="invalid_argument",
         )
     if value is False:
         return False

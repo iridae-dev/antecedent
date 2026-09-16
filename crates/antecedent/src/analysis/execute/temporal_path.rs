@@ -2698,11 +2698,11 @@ impl super::Study {
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
-            return Err(CausalError::Compile {
-                message:
-                    "temporal class-aware effect not identified (no identified mass in envelope)"
-                        .into(),
-            });
+            return Err(CausalError::not_identified(
+                envelope.status,
+                envelope.truncated_completions > 0,
+                "temporal class-aware effect not identified (no identified mass in envelope)",
+            ));
         }
         let mut diagnostics =
             vec![temporal_class_envelope_diagnostic(envelope, self.graph.class())];
@@ -2902,11 +2902,11 @@ impl super::Study {
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
-            return Err(CausalError::Compile {
-                message:
-                    "temporal class-aware effect not identified (no identified mass in envelope)"
-                        .into(),
-            });
+            return Err(CausalError::not_identified(
+                envelope.status,
+                envelope.truncated_completions > 0,
+                "temporal class-aware effect not identified (no identified mass in envelope)",
+            ));
         }
         let class_masses = self
             .class_prior
@@ -3311,11 +3311,11 @@ impl super::Study {
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
-            return Err(CausalError::Compile {
-                message:
-                    "temporal class-aware effect not identified (no identified mass in envelope)"
-                        .into(),
-            });
+            return Err(CausalError::not_identified(
+                envelope.status,
+                envelope.truncated_completions > 0,
+                "temporal class-aware effect not identified (no identified mass in envelope)",
+            ));
         }
         let class_masses = self
             .class_prior

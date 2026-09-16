@@ -190,7 +190,16 @@ impl<G> IdentificationEnvelope<G> {
 
 /// Whether this case's search was truncated before it could decide.
 fn case_truncated<G>(case: &GraphIdentificationCase<G>) -> bool {
-    case.result.diagnostics.iter().any(|d| {
+    search_truncated(&case.result)
+}
+
+/// Whether an identification search stopped at a budget (a completion or
+/// history cap) before it could decide, rather than completing.
+///
+/// A truncated `NotIdentified` is not a proof of non-identification.
+#[must_use]
+pub fn search_truncated(result: &crate::IdentificationResult) -> bool {
+    result.diagnostics.iter().any(|d| {
         d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
             || d.code.as_ref() == crate::temporal_mag::HISTORY_CAPPED
     })

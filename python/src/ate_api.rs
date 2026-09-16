@@ -40,8 +40,11 @@ where
         return Ok(None);
     }
     let (Some(rv), Some(cut), Some(bw)) = (running_variable, cutoff, bandwidth) else {
-        return Err(PyValueError::new_err(
-            "rd.sharp (or any RD kwargs) requires running_variable, cutoff, and bandwidth",
+        return Err(crate::with_reason_code(
+            PyValueError::new_err(
+                "rd.sharp (or any RD kwargs) requires running_variable, cutoff, and bandwidth",
+            ),
+            antecedent_core::reason_code!("required_option_missing"),
         ));
     };
     Ok(Some((resolve_var(rv)?, cut, bw)))

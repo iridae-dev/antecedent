@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal, Protocol
 
+from ._api import describe_refusal
 from .graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag, TieredBackground
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
@@ -41,6 +42,7 @@ class EstimatorConfigLike(Protocol):
     def _wire(self) -> dict[str, Any] | None: ...
 
 
+@describe_refusal
 def analyze(
     data: Mapping[str, Any] | Any | Sequence[Mapping[str, Any] | Any],
     *,

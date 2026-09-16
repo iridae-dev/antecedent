@@ -1173,10 +1173,11 @@ impl super::Study {
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
-            return Err(CausalError::Compile {
-                message: "class-aware response not identified (no identified mass in envelope)"
-                    .into(),
-            });
+            return Err(CausalError::not_identified(
+                envelope.status,
+                envelope.truncated_completions > 0,
+                "class-aware response not identified (no identified mass in envelope)",
+            ));
         }
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let data_est = super::super::helpers::apply_scalar_outcome_functional(

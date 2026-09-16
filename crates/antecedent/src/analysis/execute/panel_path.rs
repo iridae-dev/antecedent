@@ -258,10 +258,11 @@ impl super::Study {
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
-            return Err(CausalError::Compile {
-                message: "panel class-aware effect not identified (no identified mass in envelope)"
-                    .into(),
-            });
+            return Err(CausalError::not_identified(
+                envelope.status,
+                envelope.truncated_completions > 0,
+                "panel class-aware effect not identified (no identified mass in envelope)",
+            ));
         }
         Ok((identifier_id, bundle, identify_cached))
     }
@@ -977,11 +978,11 @@ impl super::Study {
             if matches!(envelope.status, IdentificationStatus::NotIdentified)
                 || envelope.identified_weight.0 <= 0.0
             {
-                return Err(CausalError::Compile {
-                    message:
-                        "panel class-aware response not identified (no identified mass in envelope)"
-                            .into(),
-                });
+                return Err(CausalError::not_identified(
+                    envelope.status,
+                    envelope.truncated_completions > 0,
+                    "panel class-aware response not identified (no identified mass in envelope)",
+                ));
             }
             let weights = class_weights.for_envelope(&bundle.envelope)?;
             assembly.begin_horizon(envelope);

@@ -1425,13 +1425,12 @@ impl StudyBuilder {
                                 )
                     );
                 if spec.id() != expected && !cell_aipw_ok {
-                    return Err(CausalError::Compile {
-                        message: format!(
-                            "query and inference require estimator {}; got {}",
-                            expected.as_str(),
-                            spec.id().as_str()
-                        ),
-                    });
+                    return Err(crate::compile_reason!(
+                        "strategy_incompatible",
+                        "query and inference require estimator {}; got {}",
+                        expected.as_str(),
+                        spec.id().as_str()
+                    ));
                 }
             }
         }

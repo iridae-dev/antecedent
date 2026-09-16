@@ -900,11 +900,13 @@ impl super::Study {
                     class_tag,
                 );
             }
-            return Err(CausalError::Compile {
-                message: format!(
+            return Err(CausalError::not_identified(
+                envelope.status,
+                envelope.truncated_completions > 0,
+                &format!(
                     "{class_tag} ConditionalEffect not identified (no identified mass in envelope)"
                 ),
-            });
+            ));
         }
         if matches!(self.inference, InferenceMode::Bayesian(_))
             || matches!(estimator_id, EstimatorId::BayesianConditional)
