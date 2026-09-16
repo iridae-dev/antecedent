@@ -8,6 +8,7 @@ pub const REASON_CODES: &[&str] = &[
     "boundary_record",
     "calibration_basis_missing",
     "cancelled_no_claim",
+    "construction_not_licensed",
     "data_modality_not_licensed",
     "estimator_grid_not_measured",
     "identification_not_measured",
@@ -32,6 +33,7 @@ pub const REASON_CODES: &[&str] = &[
 pub const RUNTIME_REFUSAL_CODES: &[&str] = &[
     "attested_not_reverifiable",
     "cancelled_no_claim",
+    "construction_not_licensed",
     "data_modality_not_licensed",
     "mechanism_fit_not_converged",
     "not_executed",
