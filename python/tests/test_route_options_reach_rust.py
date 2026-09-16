@@ -111,3 +111,34 @@ def test_derivatives_take_the_nuisance_options() -> None:
             refute=False,
             estimator_config={"export_row_diagnostics": True},
         )
+
+
+def test_intervention_response_identifier_reaches_the_plan() -> None:
+    rng = np.random.default_rng(9)
+    n = 600
+    z = rng.normal(size=n)
+    a = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-z))).astype(float)
+    b = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-0.5 * z))).astype(float)
+    y = a + b + 0.5 * z + 0.3 * rng.normal(size=n)
+    data = {"z": z, "a": a, "b": b, "y": y}
+    graph = [("z", "a"), ("z", "b"), ("z", "y"), ("a", "y"), ("b", "y")]
+    query = ant.InterventionResponse(
+        "y", intervention=[ant.intervention.Set("a", 1.0), ant.intervention.Set("b", 1.0)]
+    )
+
+    def run(identifier: str | None) -> Any:
+        return ant.analyze(
+            data,
+            graph=graph,
+            query=query,
+            estimator="cell.aipw",
+            identifier=identifier,
+            refute=False,
+        )
+
+    omitted, named = run(None), run("response.backdoor")
+    # The named identifier is recorded in the compiled program; the strategy is the same.
+    assert named.program_id != omitted.program_id
+    assert named.answer == omitted.answer
+    with pytest.raises(ValueError, match="requires identifier='response.backdoor'"):
+        run("generalized.adjustment")

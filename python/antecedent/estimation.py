@@ -739,9 +739,11 @@ def _check_response_strategy(
         and estimator == "cell.aipw"
         and not isinstance(inference, Bayesian)
     ):
-        if identifier not in (None, "generalized.adjustment"):
+        # A Dag cell-AIPW response identifies by response backdoor adjustment
+        # (the Rust response strategy table); a tiered background routes earlier.
+        if identifier not in (None, "response.backdoor"):
             raise ValueError(
-                f"{query.kind} requires identifier='generalized.adjustment'; got {identifier!r}"
+                f"{query.kind} requires identifier='response.backdoor'; got {identifier!r}"
             )
         return
     expected_identifier = (
@@ -2520,6 +2522,7 @@ class _PrepareRoute:
             treatments,
             kinds,
             parameters,
+            identifier=self.identifier,
             estimator=self.estimator,
             outcome_functional=coerce_outcome_functional(query.outcome_functional),
             accepted=self.accepted,
