@@ -121,6 +121,9 @@ average effect, prepare the all-observed AIPW or cell-AIPW study and `retarget`
 its frozen scores. `analyze_many` and `PreparedBatch.prepare` estimate each
 query's own population.
 
+`PulseEffect` and `SustainedEffect` take `control_level` as well as
+`active_level`; the effect is the contrast between the two.
+
 `identify(...)` returns an `Identification` whose `statement`, `verdict`,
 `qualified_verdict`, `assumption_statements`, and `derivation_statements` are
 human-readable state on the object (`identification.to_dict()` includes them).

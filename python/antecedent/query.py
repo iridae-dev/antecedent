@@ -228,6 +228,7 @@ class PulseEffect:
     treatment: str
     outcome: str
     _: KW_ONLY
+    control_level: float = 0.0
     active_level: float = 1.0
     treatment_lag: int = temporal_response_spec.default_treatment_lag
     horizon_steps: int = 1
@@ -249,6 +250,7 @@ class SustainedEffect:
     treatment: str
     outcome: str
     _: KW_ONLY
+    control_level: float = 0.0
     active_level: float = 1.0
     treatment_lag: int = temporal_response_spec.default_treatment_lag
     horizon_steps: int = 1
