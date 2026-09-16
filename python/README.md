@@ -1,14 +1,27 @@
 # Antecedent
 
-Antecedent is an identification-first causal inference engine for Python (with
-a native Rust core). It takes an analysis from causal structure through
-estimation, diagnostics, interventions, and counterfactuals — without silently
-treating discovered graphs as ground truth.
+```python
+import antecedent as ant
 
-Use it when you need a causal effect you can defend: identification is checked
-before anything is estimated, refuters run against the estimate by default, and
-uncertainty about the causal graph — a CPDAG, a PAG, a posterior over graphs —
-is carried through to the effect instead of being resolved by fiat.
+result = ant.analyze(data, graph=graph, query=ant.AverageEffect("treatment", "outcome"))
+study = result.study
+updated = study.refresh(new_data)
+report = result.inspect().to_dict()
+loaded = ant.load(result.export())
+```
+
+Antecedent is an identification-first causal inference engine for Python (with
+a native Rust core). `analyze` checks that the effect is identified before
+anything is estimated and runs refuters against the estimate. `result.study`
+keeps the compiled study, so `study.refresh(new_data)` re-executes the same
+program on new data. `result.inspect().to_dict()` is the whole report as
+JSON-safe data: answer, identification, support, uncertainty, assumptions,
+identities and calibration. `ant.load(result.export())` round-trips the
+contracted execution through the Rust semantic consumer.
+
+Uncertainty about the causal graph (a CPDAG, a PAG, a posterior over graphs) is
+carried through to the effect instead of being resolved by fiat, and discovered
+graphs are never silently treated as ground truth.
 
 Requires CPython 3.11–3.14. Install from PyPI:
 
@@ -16,53 +29,47 @@ Requires CPython 3.11–3.14. Install from PyPI:
 pip install antecedent
 ```
 
-Paste this block and run it. It simulates a confounded dataset, checks that the
-effect is identified, estimates it, and runs refuters against the estimate:
+Paste this block and run it. It simulates two confounded datasets and runs the
+five lines on them:
 
 ```python
 import numpy as np
-from antecedent import AverageEffect, analyze
+import antecedent as ant
 
-rng = np.random.default_rng(0)
-n = 2000
-season = rng.normal(size=n)  # confounder
-price = 0.7 * season + rng.normal(size=n)  # treatment
-sales = 1.5 * price + 2.0 * season + rng.normal(size=n)  # outcome, true effect = 1.5
 
-result = analyze(
-    data={"season": season, "price": price, "sales": sales},
-    graph=[("season", "price"), ("season", "sales"), ("price", "sales")],
-    query=AverageEffect(treatment="price", outcome="sales"),
-)
+def simulate(seed, n=2000):
+    rng = np.random.default_rng(seed)
+    season = rng.normal(size=n)  # confounder
+    price = 0.7 * season + rng.normal(size=n)  # treatment
+    sales = 1.5 * price + 2.0 * season + rng.normal(size=n)  # outcome, true effect = 1.5
+    return {"season": season, "treatment": price, "outcome": sales}
 
-print(result)
-print(result.inspect().to_dict())  # answer, identification, support, uncertainty, assumptions, calibration
-study = result.study              # reuse the preparation from this one call
-repeated = study.estimate()       # retained data; no repeated graph preparation
+
+data, new_data = simulate(0), simulate(1)
+graph = [("season", "treatment"), ("season", "outcome"), ("treatment", "outcome")]
+
+result = ant.analyze(data, graph=graph, query=ant.AverageEffect("treatment", "outcome"))
+study = result.study
+updated = study.refresh(new_data)
+report = result.inspect().to_dict()
+loaded = ant.load(result.export())
+
+print(result.answer)  # Answer(kind='point', value=1.48..., ...)
+print(updated.answer)  # the same program on new_data
+assert loaded.acceptance.verified and loaded.answer == result.answer
 ```
 
-The same `analyze()` call scales from this to temporal dose × horizon
+`result.answer` is the safe way to read the number: a set-identified or
+partially identified analysis answers with `bounds` or `partial`, never an
+unrestricted scalar. The same `analyze()` call scales to temporal dose × horizon
 ``ResponseCurve`` surfaces, pulse and sustained contrasts, Bayesian
-graph-posterior mixtures that report unidentified structure mass,
-mediation, counterfactuals, and root-cause attribution — see the
+graph-posterior mixtures that report unidentified structure mass, mediation,
+counterfactuals, and root-cause attribution — see the
 [project README](https://github.com/iridae-dev/antecedent#readme) for worked
-examples and the [documentation](https://antecedent.readthedocs.io/) for the
-full API.
-
-## 1.10 development workflow
-
-The examples on this branch require its source build; older published wheels
-do not provide the new workflow. `analyze(...)` retains a study on supported
-prepared routes. `prepare(...)` creates the same study without estimating;
-`study.estimate()` uses retained data and `study.refresh(new_data)` rebinds
-after success. Earlier results and their exports remain fixed.
-
-`result.inspect().to_dict()` provides a structured report, including explicit
-calibration availability. Failures preserve exception types and attach a
-descriptive `error.report`. `result.export()` and `antecedent.load(...)`
-save and semantically inspect an execution without reconstructing a live study.
-See the [workflow guide](../docs/python-workflow.md) and
-[example setup](../examples/README.md#python-environment-110-branch).
+examples, the
+[Python workflow guide](https://github.com/iridae-dev/antecedent/blob/main/docs/python-workflow.md)
+for studies, reports and portable executions, and the
+[documentation](https://antecedent.readthedocs.io/) for the full API.
 
 ## 1.10.0
 
@@ -145,10 +152,10 @@ result = antecedent.analyze(
     query=antecedent.AverageEffect(treatment="t", outcome="y"),
     inference=antecedent.Frequentist(),  # or antecedent.Bayesian(...)
 )
-print(result.inspect().to_dict())
 study = result.study
-encoded = result.export()
-loaded = antecedent.load(encoded)
+updated = study.refresh(new_data)
+report = result.inspect().to_dict()
+loaded = antecedent.load(result.export())
 assert loaded.acceptance.verified
 
 # Or stop before estimation with the same ordinary defaults:
