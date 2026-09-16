@@ -145,17 +145,40 @@ effects, and single-horizon Frequentist or Bayesian temporal mediation with
 posterior mixing, and ADMG/CPDAG/PAG posterior ATE atoms are refused.
 
 Panel Pulse/Sustained on an explicit or accepted `TemporalDag` can prepare and
-refresh. Frequentist panel `ResponseCurve` / `InterventionResponse` on a
-supplied `TemporalDag` averages per-unit temporal-response surfaces and
-publishes between-unit pointwise bands; the series simultaneous band is
-withheld. Frequentist panel Pulse / single-step Sustained on a supplied
-`TemporalCpdag` / `TemporalPag` fits each identified completion with panel
-cluster SEs and mixes by completion mass. Bayesian panel response averages
-per-unit Bayesian surfaces with between-unit pointwise bands. Bayesian panel
-class Pulse and multi-step panel Sustained fit each completion on panel units
-and mix by mass. Panel class response averages unit surfaces per completion
-and mixes by mass. Units are not stacked; a temporal class is not completed
-onto the DAG executor.
+refresh. Every panel route requires one time-index regularity across units, so
+a horizon step means one duration everywhere, and refuses a unit with fewer
+lag-aligned rows than a per-unit fit needs.
+
+Panel Pulse / single-step Sustained fits one pooled common-coefficient
+regression over the stacked unit rows: its analytic SE is the Arellano
+cluster-by-unit variance with `G − 1` degrees of freedom (the SE is scaled by
+`t_{G−1}/z` so `estimate ± 1.96·SE` is the t interval), and its bootstrap SE
+resamples whole units, each draw its own cluster, refitting the pooled
+regression. The same pooled fit answers a multi-environment Pulse /
+single-step Sustained, clustered by environment. On a supplied
+`TemporalCpdag` / `TemporalPag` each identified completion is fit that way and
+mixed by completion mass.
+
+Panel `ResponseCurve` / `InterventionResponse` and panel multi-step Sustained
+instead average per-unit fits with equal weight: the response publishes the
+between-unit pointwise band `mean ± t_{N−1}·sd/√N` over the unit surfaces (the
+series simultaneous band is withheld, requested bootstrap replicates are
+unused), and multi-step Sustained reports the between-unit SE on the same `t`
+scale. Which estimand a result reports — pooled common coefficient or
+equal-weight unit average — is named in its diagnostics and in an assumption
+record. The panel support report, its per-cell status and its assumptions are
+merged over every unit.
+
+Bayesian panel response uses per-unit posterior means under the caller's
+resolved prior. Bayesian panel class Pulse and multi-step panel Sustained
+follow the class-prior contract: with a caller `class_prior` over an uncapped
+class the completion posteriors' draws are mixed, and without one the effect
+is NaN with the completion posteriors kept as atoms. Panel class response
+publishes the pointwise envelope over the completions' unit-average surfaces
+at every requested horizon, as the series class response does. A class-aware
+multi-step Sustained refuses a discovery/estimation split and a transferred
+prior. Units are not stacked onto the series class owner; a temporal class is
+not completed onto the DAG executor.
 
 Unconditional finite-discrete `InterventionalDistribution` on an explicit or
 accepted ADMG is licensed at validation `none` via general ID (bidirected

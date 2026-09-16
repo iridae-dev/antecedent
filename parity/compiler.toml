@@ -139,8 +139,8 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "panel_response_curve_uses_unit_cluster_bands"
-composition_filter = "panel_response_curve_uses_unit_cluster_bands|bayesian_panel_response_uses_unit_cluster_bands|panel_class_response_uses_completion_surfaces"
-notes = "Per-unit TemporalResponseEstimator surfaces, equal-weight average, between-unit pointwise bands. Simultaneous band withheld."
+composition_filter = "panel_response_curve_uses_unit_cluster_bands|bayesian_panel_response_uses_unit_cluster_bands|panel_class_response_uses_completion_surfaces|panel_response_band_is_the_between_unit_t_interval|panel_response_support_and_assumptions_describe_every_unit"
+notes = "Per-unit TemporalResponseEstimator surfaces, equal-weight average, between-unit t_(N-1) pointwise bands, support and assumptions merged over units. Simultaneous band withheld; requested bootstrap replicates unused."
 
 [[capabilities]]
 id = "compiler.panel_class_pulse_completion_masses"
@@ -151,8 +151,8 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "panel_class_pulse_uses_completion_masses"
-composition_filter = "panel_class_pulse_uses_completion_masses|bayesian_panel_class_pulse_uses_completion_masses|panel_class_multi_step_sustained_uses_completion_masses"
-notes = "Per-completion panel cluster fit, mix by class mass. Does not complete the class onto the DAG executor."
+composition_filter = "panel_class_pulse_uses_completion_masses|bayesian_panel_class_pulse_uses_completion_masses|panel_class_multi_step_sustained_uses_completion_masses|panel_class_pulse_unit_bootstrap_resamples_fresh_clusters"
+notes = "Per-completion pooled panel fit with the Arellano cluster-by-unit SE at G-1 df and a unit cluster bootstrap, mixed by class mass. Does not complete the class onto the DAG executor."
 
 [[capabilities]]
 id = "compiler.panel_response_bayesian_unit_surfaces"
@@ -163,7 +163,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "bayesian_panel_response_uses_unit_cluster_bands"
-notes = "Per-unit Bayesian temporal response, equal-weight average. Not the stacked series likelihood."
+notes = "Per-unit Bayesian temporal response under the caller-resolved prior, equal-weight average. Not the stacked series likelihood."
 
 [[capabilities]]
 id = "compiler.panel_class_pulse_bayesian"
@@ -174,7 +174,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "bayesian_panel_class_pulse_uses_completion_masses"
-notes = "Per-completion hierarchical GLS with unit ids, mix by class mass."
+notes = "Per-completion panel hierarchical GLS with unit ids; draws mixed only under a caller class prior, NaN plus atoms otherwise."
 
 [[capabilities]]
 id = "compiler.panel_class_response_surfaces"
@@ -185,7 +185,18 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "panel_class_response_uses_completion_surfaces"
-notes = "Per-completion unit-average surfaces, mix by class mass. Does not reuse the series class-response owner by stacking units."
+notes = "Per-completion unit-average surfaces published as the pointwise completion envelope through the shared class-response assembly, at every requested horizon. Does not stack units."
+
+[[capabilities]]
+id = "compiler.multi_env_pooled_pulse"
+group = "panel"
+description = "Multi-environment Pulse pools every environment as a cluster"
+status = "done"
+evidence_kind = "implementation_exists"
+owner = "compiler"
+evidence_test = "crates/antecedent/tests/data_modalities.rs"
+evidence_assertion = "multi_env_pulse_pools_every_environment"
+notes = "Pooled common-coefficient fit clustered by environment, order-independent. Reading environment 0 alone is gone."
 
 [[capabilities]]
 id = "compiler.panel_class_multi_step_sustained"
@@ -196,7 +207,7 @@ evidence_kind = "implementation_exists"
 owner = "compiler"
 evidence_test = "crates/antecedent/tests/data_modalities.rs"
 evidence_assertion = "panel_class_multi_step_sustained_uses_completion_masses"
-notes = "Per-unit sequential g-comp on each directed completion, equal-weight units, mix by class mass."
+notes = "Per-unit sequential g-comp on each directed completion, equal-weight units, mixed by class mass; bidirected completions reported as unevaluable mass."
 [[capabilities]]
 id = "compiler.contract_section"
 group = "artifacts"

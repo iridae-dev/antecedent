@@ -25,10 +25,11 @@ position-derived keys are not durable semantic identity.
 
 Frequentist panel `ResponseCurve` / `InterventionResponse` on a supplied
 `TemporalDag` is a licensed data route: per-unit surfaces, equal-weight
-average, between-unit pointwise bands. Bayesian panel response, panel class
-Pulse / multi-step Sustained, and panel class response use their own panel
-contracts. Panel multi-step Sequence overlays stay on the series sequential
-owner.
+average, between-unit pointwise bands at `t_{N-1}`. Bayesian panel response,
+panel class Pulse / multi-step Sustained, and panel class response use their
+own panel contracts, under the class-prior and identified-set contracts of
+the series owners. Panel multi-step Sequence overlays stay on the series
+sequential owner.
 
 ## Decision
 
@@ -183,29 +184,35 @@ IDs, and estimator selection. Composition metadata cannot grant a license.
 `ProvenanceGraph::push` stays append-only; validated claim ancestry uses
 `try_push` / `validate`.
 
-### Panel workstream (independent)
+### Panel promotions
 
 Frequentist panel `ResponseCurve` / `InterventionResponse` on a supplied
 `TemporalDag` is licensed via per-unit surfaces and between-unit pointwise
-bands. Frequentist panel Pulse / single-step Sustained on `TemporalCpdag` /
-`TemporalPag` fits each identified completion with panel cluster SEs and
-mixes by completion mass. Bayesian panel response uses per-unit Bayesian
-surfaces. Bayesian panel class Pulse and multi-step panel Sustained fit each
-completion on panel units and mix by mass. Panel class response averages
-unit surfaces per completion and mixes by mass. Panel multi-step Sequence
-overlays stay on the series sequential owner.
+bands at `t_{N-1}`. Frequentist panel Pulse / single-step Sustained on
+`TemporalCpdag` / `TemporalPag` fits each identified completion as a pooled
+panel regression with the Arellano cluster-by-unit SE at `G-1` degrees of
+freedom and a unit cluster bootstrap, and mixes by completion mass. Bayesian
+panel response uses per-unit Bayesian surfaces under the caller's prior.
+Bayesian panel class Pulse and multi-step panel Sustained fit each completion
+on panel units and mix their draws only under a caller class prior. Panel
+class response publishes the pointwise envelope over the completions'
+unit-average surfaces at every requested horizon. A multi-environment Pulse /
+single-step Sustained is the same pooled fit clustered by environment. Panel
+multi-step Sequence overlays stay on the series sequential owner.
 
 Shipped panel Pulse / single-step Sustained on explicit or accepted
-`TemporalDag` already use `PanelClusterHac`; they are not an iid-SE defect.
+`TemporalDag` use `PanelClusterHac` at lag 0, the Arellano cluster-by-unit
+meat; they are not an iid-SE defect.
 Compiler completion is judged against the actually licensed surface.
 
 ## Consequences
 
 1.10 is an additive composition release. New public names are companion
 records and inspection methods. Existing prepare / estimate / refresh /
-retarget / refute entry points keep their contracts. Evidence and
-consuming gates for composition are follow-on work on this decision, not a
-parallel assurance registry.
+retarget / refute entry points keep their contracts. Evidence for
+composition is recorded on this decision in `parity/compiler.toml` and
+executed row by row by `scripts/gate_composition.sh`; it is not a parallel
+assurance registry.
 
 ## Appendix: 1.10 public inventory and owner binding
 
