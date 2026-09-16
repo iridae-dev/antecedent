@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import antecedent
 import numpy as np
 import pytest
@@ -296,6 +298,120 @@ def test_rank_designs_full_surface():
     kinds = {r.kind for r in ranking.ranked}
     assert "measure" in kinds
     assert "observe_environment" in kinds
+
+
+def test_rank_designs_decision_regret_is_conjugate_normal_evsi():
+    ranking = antecedent.design.rank_designs(
+        [1.0],
+        [1],
+        [1],
+        [
+            {"kind": "increase_sampling_rate", "additional_samples": 4},
+            {"kind": "increase_sampling_rate", "additional_samples": 64},
+            {"kind": "measure", "variables": [0]},
+        ],
+        objective="reduce_decision_regret",
+        decision_id=0,
+        decision={
+            "utility": {"intercepts": [1.0, -0.5], "slopes": [0.2, 1.1]},
+            "prior": {"kind": "normal", "mean": 1.0, "variance": 2.0},
+            "signal": {"kind": "gaussian_mean", "noise_variance": 3.0},
+        },
+        min_batches=1,
+        max_batches=1,
+        batch_size=1,
+        seed=1,
+    )
+    assert [r.candidate_index for r in ranking.ranked] == [1, 0]
+    assert [(v.candidate_index, v.constraint) for v in ranking.violations] == [
+        (2, "unlicensed_candidate")
+    ]
+
+    # EVSI(n) = |Δβ| s_n G(|μ_b − μ₀| / s_n), s_n² = τ⁴n / (nτ² + σ²),
+    # G(u) = φ(u) − u (1 − Φ(u)); here Δβ = 0.9, μ_b = 1.5 / 0.9, μ₀ = 1.
+    def evsi(n: float) -> float:
+        s = math.sqrt(4.0 * n / (2.0 * n + 3.0))
+        u = abs(1.5 / 0.9 - 1.0) / s
+        g = math.exp(-0.5 * u * u) / math.sqrt(2.0 * math.pi) - u * 0.5 * math.erfc(
+            u / math.sqrt(2.0)
+        )
+        return 0.9 * s * g
+
+    for ranked in ranking.ranked:
+        n = [4.0, 64.0][ranked.candidate_index]
+        assert ranked.score == pytest.approx(evsi(n), abs=1e-13)
+        assert ranked.evaluation == "exact"
+        assert ranked.stderr == 0.0
+        assert ranked.implemented_functional == "preposterior_expected_value_of_sample_information"
+
+
+def test_rank_designs_decision_regret_callable_utility_on_draws():
+    def bet(actions, outcomes):
+        a = np.asarray(actions, dtype=np.float64)
+        o = np.asarray(outcomes, dtype=np.float64)
+        return np.outer(a, o - 0.45).ravel()
+
+    draws = [0.2, 0.5, 0.8, 0.35]
+    common = {
+        "objective": "reduce_decision_regret",
+        "decision_id": 0,
+        "min_batches": 2,
+        "max_batches": 2,
+        "batch_size": 4,
+        "seed": 5,
+    }
+    exact = antecedent.design.rank_designs(
+        [1.0],
+        [1],
+        [1],
+        [{"kind": "increase_sampling_rate", "additional_samples": 1}],
+        decision={
+            "actions": [0.0, 1.0],
+            "utility": bet,
+            "prior": {"kind": "draws", "draws": draws},
+            "signal": {"kind": "binomial"},
+        },
+        **common,
+    )
+    # One coin flip, enumerated: E_y[max(0, E[θ − 0.45 | y])] − max(0, E[θ − 0.45]).
+    heads = sum(draws) / 4.0
+    after_heads = sum(t * (t - 0.45) for t in draws) / 4.0 / heads
+    after_tails = sum((1.0 - t) * (t - 0.45) for t in draws) / 4.0 / (1.0 - heads)
+    expected = (
+        heads * max(after_heads, 0.0)
+        + (1.0 - heads) * max(after_tails, 0.0)
+        - max(heads - 0.45, 0.0)
+    )
+    assert exact.ranked[0].evaluation == "exact"
+    assert exact.ranked[0].score == pytest.approx(expected, abs=1e-15)
+
+    mc = antecedent.design.rank_designs(
+        [1.0],
+        [1],
+        [1],
+        [{"kind": "increase_sampling_rate", "additional_samples": 3}],
+        decision={
+            "actions": [0.0, 1.0],
+            "utility": bet,
+            "prior": {"kind": "draws", "draws": draws},
+            "signal": {"kind": "gaussian_mean", "noise_variance": 0.2},
+        },
+        **common,
+    )
+    assert mc.ranked[0].evaluation == "monte_carlo"
+    assert mc.ranked[0].stderr > 0.0
+
+
+def test_rank_designs_decision_regret_requires_a_decision_model():
+    with pytest.raises(antecedent.errors.CausalDesignError, match="decisions context"):
+        antecedent.design.rank_designs(
+            [1.0],
+            [1],
+            [1],
+            [{"kind": "increase_sampling_rate", "additional_samples": 1}],
+            objective="reduce_decision_regret",
+            decision_id=0,
+        )
 
 
 def test_exact_dag_posterior_tiny():

@@ -14,11 +14,13 @@ use crate::error::CausalError;
 use crate::support::CellStatus;
 
 pub use antecedent_design::{
-    CandidateDesign, ConstraintViolation, DecisionConstraint, DecisionEvaluation, DecisionProblem,
-    DecisionProblemId, DesignConstraints, DesignCost, DesignError, DesignEvaluationContext,
+    AffineUtility, BinomialSignal, CandidateDesign, ConstraintViolation, DecisionConstraint,
+    DecisionEvaluation, DecisionPrior, DecisionProblem, DecisionProblemId, DecisionRegistry,
+    DecisionSignal, DesignConstraints, DesignCost, DesignError, DesignEvaluationContext,
     DesignObjective, DesignRankConfig, DesignRanker, DesignRanking, EffectWidthContext,
-    EnvironmentGramSpec, EnvironmentPlan, ExperimentPlan, InterventionDesignEffect,
-    MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws, RankedCandidate, SamplingPlan, Utility,
+    EnvironmentGramSpec, EnvironmentPlan, ExperimentPlan, GaussianMeanSignal,
+    InterventionDesignEffect, MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws,
+    PreposteriorAnalysis, RankedCandidate, SamplingPlan, ScoreEvaluation, Utility,
     evaluate_decision,
 };
 
@@ -240,16 +242,11 @@ fn inspect_rank_binding<A, O>(
                 "missing_model_loglik",
             );
         }
-        DesignObjective::ReduceDecisionRegret { .. } if eval.decisions.is_none() => {
-            unresolved = true;
-            push_all_unresolved(
-                candidates,
-                &mut violations,
-                "unresolved_utility",
-                "missing_decision_registry",
-            );
+        DesignObjective::ReduceDecisionRegret { .. } => {
+            let signal = eval.decisions.map(|registry| registry.signal.as_ref());
+            unresolved = collect_decision_violations(candidates, signal, &mut violations);
         }
-        _ => {}
+        DesignObjective::DistinguishModels { .. } => {}
     }
     DesignRankPreview {
         obligations: obligations.into(),
@@ -352,6 +349,35 @@ fn collect_id_violations<A, O>(
             violations.push(violation(index, "unlicensed_candidate", detail));
         }
     }
+}
+
+/// Without a decision registry the ranking is unresolved (returns `true`). With one,
+/// a candidate the signal assigns no sample size has no data model for the
+/// value-of-information update and is unlicensed; the ranker would not score it.
+fn collect_decision_violations<O>(
+    candidates: &[CandidateDesign],
+    signal: Option<&dyn DecisionSignal<O>>,
+    violations: &mut Vec<ConstraintViolation>,
+) -> bool {
+    let Some(signal) = signal else {
+        push_all_unresolved(
+            candidates,
+            violations,
+            "unresolved_utility",
+            "missing_decision_registry",
+        );
+        return true;
+    };
+    for (index, candidate) in candidates.iter().enumerate() {
+        if signal.sample_size(candidate).is_none() {
+            violations.push(violation(
+                index,
+                "unlicensed_candidate",
+                "decision signal declares no sample size for this candidate",
+            ));
+        }
+    }
+    false
 }
 
 fn push_all_unresolved(

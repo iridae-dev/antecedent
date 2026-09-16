@@ -4626,6 +4626,91 @@ fn design_rank_pulse_bayesian_pins_synthetic_width_order() {
     assert_eq!(ranking.violations[0].candidate_index, 2);
 }
 
+/// `ReduceDecisionRegret` through a prepared study scores the conjugate-normal
+/// expected value of sample information of each candidate's sample size, and
+/// records a candidate without a sample size as unlicensed instead of scoring it.
+#[test]
+fn design_rank_decision_regret_scores_value_of_sample_information() {
+    use antecedent::design::{
+        AffineUtility, CandidateDesign, DecisionPrior, DecisionProblem, DecisionProblemId,
+        DecisionRegistry, DesignCost, DesignObjective, GaussianMeanSignal, SamplingPlan,
+        ScoreEvaluation,
+    };
+
+    let ctx = ExecutionContext::for_tests(1);
+    let (series, graph) = lag1_series();
+    let prepared = Study::series(series)
+        .graph(graph)
+        .temporal_query(pulse_query())
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    // Keep (U = 1 + 0.2θ) or switch (U = −0.5 + 1.1θ); θ ~ N(1, 2), noise variance 3.
+    let utility = AffineUtility::new(vec![1.0, -0.5], vec![0.2, 1.1]).unwrap();
+    let registry = DecisionRegistry {
+        problems: vec![Some(DecisionProblem::new(vec![0_usize, 1], Arc::new(utility), vec![]))],
+        prior: DecisionPrior::Normal { mean: 1.0, variance: 2.0 },
+        signal: Arc::new(GaussianMeanSignal::new(3.0).unwrap()),
+    };
+    let graphs = antecedent_prob::WeightedGraphSamples::new(
+        vec![1.0],
+        vec![antecedent_prob::GraphIdentFlag::Identified],
+        vec![1],
+    )
+    .unwrap();
+    let eval = antecedent::design::DesignEvaluationContext {
+        graphs: &graphs,
+        effect_width: None,
+        model_loglik: None,
+        decisions: Some(&registry),
+        query_id_unlock: None,
+        env_id_unlock: None,
+        identified_under_intervention: None,
+        graph_features: None,
+    };
+    let sampling = |n: u64| {
+        CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+            additional_samples: n,
+            cost: DesignCost::zero(),
+            tag: n,
+        })
+    };
+    let candidates = vec![
+        sampling(4),
+        sampling(64),
+        CandidateDesign::Measure(antecedent::design::MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(0)]),
+            cost: DesignCost::zero(),
+            tag: 3,
+        }),
+    ];
+    let objective =
+        DesignObjective::ReduceDecisionRegret { decision: DecisionProblemId::from_raw(0) };
+    let preview = prepared.preview_rank_designs(&objective, &candidates, &eval, None).unwrap();
+    assert!(!preview.unresolved);
+    assert_eq!(preview.violations.len(), 1);
+    assert_eq!(preview.violations[0].candidate_index, 2);
+    assert_eq!(preview.violations[0].constraint.as_ref(), "unlicensed_candidate");
+
+    let ranking =
+        prepared.rank_designs(&tiny_ranker(), &objective, &candidates, &eval, &ctx).unwrap();
+    assert_eq!(ranking.ranked.len(), 2);
+    assert_eq!(ranking.ranked[0].candidate_index, 1);
+    assert_eq!(ranking.violations.len(), 1);
+    // EVSI(n) = |Δβ| s_n G(|μ_b − μ₀|/s_n), s_n² = τ⁴n/(nτ² + σ²), G(u) = φ(u) − u(1 − Φ(u)).
+    for ranked in ranking.ranked.iter() {
+        let n = [4.0, 64.0][ranked.candidate_index];
+        let s = (4.0 * n / (2.0 * n + 3.0_f64)).sqrt();
+        let u = (1.5_f64 / 0.9 - 1.0).abs() / s;
+        let g = antecedent_kernels::norm_pdf(u) - u * antecedent_kernels::norm_sf(u);
+        assert!((ranked.score - 0.9 * s * g).abs() < 1e-14, "{ranked:?}");
+        assert_eq!(ranked.evaluation, ScoreEvaluation::Exact);
+    }
+}
+
 #[test]
 fn design_rank_pulse_window_refuses_incomparable_width() {
     use antecedent::design::{CandidateDesign, DesignCost, DesignObjective, SamplingPlan};

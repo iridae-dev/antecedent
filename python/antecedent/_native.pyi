@@ -1480,6 +1480,7 @@ class RankedDesign:
     rank: int
     rank_uncertain: bool
     implemented_functional: str
+    evaluation: str
 
 class DesignConstraintViolation:
     candidate_index: int
@@ -1497,7 +1498,7 @@ class DesignRanking:
 class DecisionEvaluation:
     expected_utility: float
     posterior_regret: float
-    chosen_action: int | None
+    chosen_action: int
 
 class FittedGcm:
     names: list[str]
@@ -2829,6 +2830,7 @@ def rank_designs(
     graph_features: list[int] | None = None,
     effect_width: dict[str, Any] | None = None,
     model_loglik: dict[str, Any] | None = None,
+    decision: dict[str, Any] | None = None,
     max_cost: float | None = None,
     max_sample_budget: int | None = None,
     min_batches: int = 2,
