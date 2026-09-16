@@ -49,6 +49,7 @@ pub mod obligation;
 pub mod plan;
 pub mod provenance;
 pub mod query;
+pub mod reason_code;
 pub mod reasoning;
 pub mod response;
 pub mod schema;

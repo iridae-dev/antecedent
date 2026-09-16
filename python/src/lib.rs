@@ -267,6 +267,43 @@ fn review_required_py_err(
     })
 }
 
+/// The Python `CausalUnsupportedError` subclass, registered by `antecedent.errors`.
+static UNSUPPORTED_ERROR_CLASS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+/// Register the Python `CausalUnsupportedError` the error mapper instantiates.
+///
+/// Keeps one refusal class across the boundary: a refusal raised in Rust is the
+/// same class, with the same `reason_code`, as one raised in Python.
+#[pyfunction]
+fn set_unsupported_error_class(py: Python<'_>, cls: Py<PyAny>) {
+    let _ = UNSUPPORTED_ERROR_CLASS.get_or_init(py, || cls);
+}
+
+/// A refusal, as the registered Python class, carrying its `reason=<code>:` prefix.
+///
+/// Every refusal raised in this crate goes through here, so a caller catches one
+/// class and reads one `reason_code` whether Rust or Python refused.
+pub(crate) fn refusal(code: &str, message: impl AsRef<str>) -> PyErr {
+    let prefix = antecedent_core::reason_code::PREFIX;
+    unsupported_py_err(format!("{prefix}{code}: {}", message.as_ref()))
+}
+
+/// Build the Python exception for a refusal, carrying its `reason=<code>:` prefix.
+fn unsupported_py_err(message: String) -> PyErr {
+    let reason =
+        antecedent_core::reason_code::split_prefix(&message).map(|(code, _)| code.to_string());
+    Python::attach(|py| {
+        let err: PyErr = UNSUPPORTED_ERROR_CLASS
+            .get(py)
+            .and_then(|cls| cls.bind(py).call1((message.as_str(),)).ok())
+            .map_or_else(|| CausalUnsupportedError::new_err(message.clone()), PyErr::from_value);
+        if let Some(code) = reason {
+            let _ = err.value(py).setattr("reason_code", code.as_str());
+        }
+        err
+    })
+}
+
 /// Parse Python `refute=` — bool or suite name (`"full"` / `"placebo"` / `"none"`).
 /// `None` (omitted kwarg) defaults to PlaceboAndRcc.
 pub(crate) fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<RefuteSuite> {
