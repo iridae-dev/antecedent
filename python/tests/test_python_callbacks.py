@@ -83,6 +83,20 @@ def test_evaluate_decision_utility_callback():
     assert eu.posterior_regret == pytest.approx(0.0)
 
 
+def test_evaluate_decision_regret_is_expected_value_of_perfect_information():
+    def util(actions, outcomes):
+        return np.outer(np.asarray(actions), np.asarray(outcomes)).ravel()
+
+    # Bayes action a=2 (EU 2); perfect information earns ((−1) + 6) / 2 = 2.5.
+    ev = antecedent.design.evaluate_decision([1.0, 2.0], [-1.0, 3.0], util)
+    assert ev.chosen_action == 1
+    assert ev.expected_utility == pytest.approx(2.0)
+    assert ev.posterior_regret == pytest.approx(0.5, abs=1e-15)
+
+    with pytest.raises(antecedent.errors.CausalDesignError, match="draw"):
+        antecedent.design.evaluate_decision([1.0, 2.0], [], util)
+
+
 def test_evaluate_decision_utility_failure_is_typed():
     def boom(_actions, _outcomes):
         raise RuntimeError("utility exploded")

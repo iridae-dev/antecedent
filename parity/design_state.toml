@@ -31,7 +31,7 @@ notes = "ReduceEffectPosteriorWidth via OLS Gram / n scaling"
 id = "design_state.decision_utility"
 status = "done"
 evidence_kind = "implementation_exists"
-notes = "Batch Utility + DecisionConstraint; EU / regret / chance probs"
+notes = "Batch Utility + DecisionConstraint; Bayes action, EVPI regret, chance probs; preposterior EVSI"
 
 [[capabilities]]
 id = "design_state.design_ranker"

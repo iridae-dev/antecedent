@@ -26,6 +26,10 @@ pub enum DesignError {
     /// Probability / stats layer failure.
     #[error("probability error: {0}")]
     Prob(String),
+    /// No action of a decision problem meets its chance threshold, so there is no
+    /// decision to value.
+    #[error("no admissible action: {0}")]
+    NoAdmissibleAction(String),
     /// In-process utility / constraint callback failed.
     #[error("callback {name}: {message}")]
     Callback {
