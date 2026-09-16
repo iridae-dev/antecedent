@@ -59,12 +59,7 @@ impl super::Study {
                         && matches!(
                             (&self.data, class),
                             (
-                                DataInput::Temporal(_) | DataInput::Event(_),
-                                GraphClass::TemporalDag
-                                    | GraphClass::TemporalCpdag
-                                    | GraphClass::TemporalPag
-                            ) | (
-                                DataInput::Panel(_),
+                                DataInput::Temporal(_) | DataInput::Event(_) | DataInput::Panel(_),
                                 GraphClass::TemporalDag
                                     | GraphClass::TemporalCpdag
                                     | GraphClass::TemporalPag

@@ -377,12 +377,10 @@ impl CustomEffectValidator for PyCustomValidator {
                 .adjustment_set
                 .iter()
                 .map(|v| {
-                    problem
-                        .data
-                        .schema()
-                        .get(*v)
-                        .map(|variable| variable.name.to_string())
-                        .unwrap_or_else(|_| format!("V{}", v.raw()))
+                    problem.data.schema().get(*v).map_or_else(
+                        |_| format!("V{}", v.raw()),
+                        |variable| variable.name.to_string(),
+                    )
                 })
                 .collect();
             kwargs.set_item("adjustment_set", adj).map_err(py_err)?;
