@@ -63,6 +63,32 @@ identification once per unique requested horizon — `I(h)`, not a single
 adjustment sets is not treated as one shared `Z`; each cell is estimated
 under the estimand identified for that horizon.
 
+Unfolding certifies a window only when no ancestor of the treatment or
+outcome still has cut template parents at its deepest slice. When an
+ancestor lies on a lagged cycle — typically an autoregressive treatment edge
+`T[t-1] -> T[t]`, which PCMCI finds on most real series — no finite window
+certifies, and unfolding refuses by naming the cycle. For a single-step
+`PulseEffect` on one accepted `TemporalDag` (explicit or accepted
+structure, series, panel and multi-environment data alike), the same
+identifier then falls back to parent adjustment: `Z = pa(T[t])`, the
+treatment's lagged and contemporaneous parents. In a temporal DAG with no
+latent structure every back-door path into `T[t]` enters through a parent,
+which is a non-collider on that path, and no parent descends from `T[t]`;
+the set is valid in the infinite unrolled graph and is checked against the
+back-door criterion on a window that contains every parent. The result
+records derivation rule `temporal.parent_adjustment` and its premises as
+identification assumptions (causal sufficiency; every parent an oriented
+edge observed at its lag), so its identification-product identity differs
+from an unfolding-derived adjustment. A parent beyond `max_history_lag`, or
+an outcome node that is itself a parent of the treatment, refuses. The
+estimand method stays `temporal.backdoor.unfolded` and the one temporal
+linear (or Bayesian) estimator fits the declared set; there is no second
+estimator. The fallback does not apply to multi-step `SustainedEffect` or
+`Sequence` (time-varying confounding makes parent adjustment insufficient),
+to response queries, to `TemporalCpdag` / `TemporalPag` completions (their
+parents are not determined by the class), or to graph-posterior atoms, which
+are identified by unfolding alone.
+
 ### Estimation
 
 A temporal response estimator evaluates a dose × horizon surface (row-major
