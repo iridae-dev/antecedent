@@ -493,6 +493,23 @@ def render_coverage_records() -> str:
         lines.append(f"        mcse: {rust_f64(row['mcse'])},")
         lines.append(f"        replicates: {int(row['replicates'])},")
         lines.append(f"        boundary: {'true' if row.get('boundary') else 'false'},")
+        points = row.get("grid") or []
+        if points:
+            lines.append("        grid: &[")
+            for point in points:
+                lines.append(
+                    "            CoverageGridPoint { "
+                    f"point: {int(point['point'])}, "
+                    f"n_min: {int(point['n_min'])}, "
+                    f"n_max: {int(point['n_max'])}, "
+                    f"observed: {rust_f64(point['observed'])}, "
+                    f"mcse: {rust_f64(point['mcse'])}, "
+                    f"replicates: {int(point['replicates'])}, "
+                    f"boundary: {'true' if point['boundary'] else 'false'} }},"
+                )
+            lines.append("        ],")
+        else:
+            lines.append("        grid: &[],")
         for key in COVERAGE_TAIL_STR_FIELDS:
             lines.append(f'        {key}: "{rust_escape(str(row[key]))}",')
         lines.append("    }")
@@ -556,9 +573,26 @@ pub struct CoverageRecord {{
     pub mcse: f64,
     pub replicates: u32,
     pub boundary: bool,
+    /// The measurement at each sample-size grid point, smallest `n` first.
+    /// `n_min..n_max` spans these points; the record is a boundary when any
+    /// point is.
+    pub grid: &'static [CoverageGridPoint],
     pub dgp: &'static str,
     pub test: &'static str,
     pub calibration_sha: &'static str,
+}}
+
+/// One sample-size grid point of a coverage record: the rows it measured and
+/// the coverage it measured there.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CoverageGridPoint {{
+    pub point: u8,
+    pub n_min: u64,
+    pub n_max: u64,
+    pub observed: f64,
+    pub mcse: f64,
+    pub replicates: u32,
+    pub boundary: bool,
 }}
 
 pub static RECORDS: &[CoverageRecord] = &[

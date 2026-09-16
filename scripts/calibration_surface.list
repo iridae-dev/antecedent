@@ -112,7 +112,7 @@ allow design crates/antecedent/src/lib.rs design
 registry_mirror crates/antecedent-io/src/coverage_records_data.rs
 registry_mirror crates/antecedent-core/src/reason_codes_data.rs
 allow registry_mirror crates/antecedent-core/src/reason_code.rs REASON_CODES RUNTIME_REFUSAL_CODES
-allow registry_mirror crates/antecedent-io/src/calibration.rs CoverageRecord REASON_CODES RECORDS coverage_records_data
+allow registry_mirror crates/antecedent-io/src/calibration.rs CoverageGridPoint CoverageRecord REASON_CODES RECORDS coverage_records_data
 allow registry_mirror crates/antecedent-io/src/contract_section.rs CoverageRecord coverage_records_data
 allow registry_mirror crates/antecedent-io/src/lib.rs coverage_records_data
 allow registry_mirror crates/antecedent/src/lib.rs INTERVAL_METHOD_REASONS RECORDS coverage_records_data

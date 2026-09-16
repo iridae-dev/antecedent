@@ -15,8 +15,11 @@
 //! - `calibrated`: a non-boundary record measured this construction (every key
 //!   field equal, including the nominal level and the identification label)
 //!   and the execution lies inside what it measured: its row count inside the
-//!   record's measured row-count range, at least as many successful resampling
-//!   replicates and posterior draws, and no more non-identified mass.
+//!   record's measured row-count range (the span of its sample-size grid points,
+//!   never extrapolated beyond them), at least as many successful resampling
+//!   replicates and posterior draws, and no more non-identified mass. A record
+//!   is a boundary when any of its grid points is: a construction that failed
+//!   at one measured sample size is not calibrated anywhere in the range.
 //! - `scope_not_assessed`: a record measured the construction but the
 //!   execution is outside its scope (the reason names which bound), or the
 //!   covering record is a named boundary / under-coverage measurement
@@ -29,7 +32,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::contract_section::CalibrationSlotWire;
-use crate::coverage_records_data::{CoverageRecord, RECORDS};
+use crate::coverage_records_data::{CoverageGridPoint, CoverageRecord, RECORDS};
 
 /// No interval was reported.
 pub const NO_INTERVAL_REPORTED: &str = "no_interval_reported";
@@ -196,15 +199,18 @@ pub fn calibration_slot_in(
     let covering: Vec<&CoverageRecord> = measured
         .iter()
         .copied()
-        .filter(|record| record.n_min <= scope.row_count && scope.row_count <= record.n_max)
+        .filter(|record| {
+            let (lo, hi) = measured_range(record);
+            lo <= scope.row_count && scope.row_count <= hi
+        })
         .collect();
     let Some(governing) = worst(&covering) else {
         let nearest = measured
             .iter()
             .copied()
             .min_by_key(|record| {
-                (record.n_min.saturating_sub(scope.row_count))
-                    .max(scope.row_count.saturating_sub(record.n_max))
+                let (lo, hi) = measured_range(record);
+                (lo.saturating_sub(scope.row_count)).max(scope.row_count.saturating_sub(hi))
             })
             .expect("measured is non-empty");
         return CalibrationSlotWire::from_record(nearest, "scope_not_assessed")
@@ -212,11 +218,21 @@ pub fn calibration_slot_in(
             .with_basis(basis);
     };
     let boundaries: Vec<&CoverageRecord> =
-        covering.iter().copied().filter(|record| record.boundary).collect();
+        covering.iter().copied().filter(|record| is_boundary(record)).collect();
     if let Some(boundary) = worst(&boundaries) {
-        return CalibrationSlotWire::from_record(boundary, "scope_not_assessed")
+        let mut slot = CalibrationSlotWire::from_record(boundary, "scope_not_assessed")
             .with_reason(BOUNDARY_RECORD)
             .with_basis(basis);
+        // The coverage that makes it a boundary: the worst failing grid point.
+        if let Some(point) = boundary
+            .grid
+            .iter()
+            .filter(|point| point.boundary)
+            .min_by(|a, b| a.observed.total_cmp(&b.observed))
+        {
+            slot.observed = Some(point.observed);
+        }
+        return slot;
     }
     let outside = if covering.iter().any(|record| {
         record.replicates_min > 0 && scope.replicates_ok.unwrap_or(0) < record.replicates_min
@@ -241,6 +257,26 @@ pub fn calibration_slot_in(
             .with_basis(basis),
         None => CalibrationSlotWire::from_record(governing, "calibrated").with_basis(basis),
     }
+}
+
+/// Row-count range a record measured: the span of its sample-size grid points
+/// (`n_min` of the smallest point to `n_max` of the largest), or its own
+/// `n_min..n_max` for a record measured at a single sample size.
+#[must_use]
+pub fn measured_range(record: &CoverageRecord) -> (u64, u64) {
+    let points: &[CoverageGridPoint] = record.grid;
+    match (points.iter().map(|p| p.n_min).min(), points.iter().map(|p| p.n_max).max()) {
+        (Some(lo), Some(hi)) => (lo, hi),
+        _ => (record.n_min, record.n_max),
+    }
+}
+
+/// Whether a record is a boundary measurement: flagged itself, or under-covering
+/// (outside its nominal band, or a named boundary) at any grid point. A failing
+/// point is never averaged into a pass over the range.
+#[must_use]
+pub fn is_boundary(record: &CoverageRecord) -> bool {
+    record.boundary || record.grid.iter().any(|point| point.boundary)
 }
 
 /// Lowest observed coverage among `records` (ties broken by id): the record
@@ -298,6 +334,7 @@ mod tests {
             mcse: 0.011,
             replicates: 400,
             boundary: false,
+            grid: &[],
             dgp: "crates/antecedent/tests/x.rs::dgp",
             test: "crates/antecedent/tests/x.rs::test",
             calibration_sha: "0123456789abcdef0123456789abcdef01234567",
@@ -373,6 +410,92 @@ mod tests {
         assert_eq!(slot.status, "scope_not_assessed");
         assert_eq!(slot.reason.as_deref(), Some(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE));
         assert_eq!(slot.scope_n, Some(500));
+    }
+
+    const GRID: [CoverageGridPoint; 3] = [
+        CoverageGridPoint {
+            point: 0,
+            n_min: 250,
+            n_max: 250,
+            observed: 0.945,
+            mcse: 0.011,
+            replicates: 400,
+            boundary: false,
+        },
+        CoverageGridPoint {
+            point: 1,
+            n_min: 500,
+            n_max: 500,
+            observed: 0.948,
+            mcse: 0.011,
+            replicates: 400,
+            boundary: false,
+        },
+        CoverageGridPoint {
+            point: 2,
+            n_min: 1000,
+            n_max: 1000,
+            observed: 0.951,
+            mcse: 0.011,
+            replicates: 400,
+            boundary: false,
+        },
+    ];
+    static FAILING_SMALL: [CoverageGridPoint; 3] = {
+        let mut grid = GRID;
+        grid[0].observed = 0.90;
+        grid[0].boundary = true;
+        grid
+    };
+
+    fn gridded(id: &'static str, grid: &'static [CoverageGridPoint]) -> CoverageRecord {
+        let mut out = record(id);
+        out.n_min = 250;
+        out.n_max = 1000;
+        out.grid = grid;
+        out
+    }
+
+    #[test]
+    fn a_passing_grid_is_calibrated_across_its_whole_measured_range() {
+        for n in [250, 251, 500, 777, 1000] {
+            let mut b = basis();
+            b.scope.row_count = n;
+            let slot = calibration_slot_in(&b, &[gridded("cov.grid", &GRID)]);
+            assert_eq!(slot.status, "calibrated", "n = {n}: {slot:?}");
+            assert_eq!((slot.scope_n, slot.scope_n_max), (Some(250), Some(1000)));
+        }
+        for n in [249, 1001, 5000] {
+            let mut b = basis();
+            b.scope.row_count = n;
+            let slot = calibration_slot_in(&b, &[gridded("cov.grid", &GRID)]);
+            assert_eq!(slot.status, "scope_not_assessed", "n = {n}: {slot:?}");
+            assert_eq!(slot.reason.as_deref(), Some(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE));
+        }
+    }
+
+    #[test]
+    fn the_range_is_the_grid_span_not_a_contradicting_summary() {
+        let mut stale = gridded("cov.grid", &GRID);
+        stale.n_min = 500;
+        stale.n_max = 500;
+        let mut b = basis();
+        b.scope.row_count = 300;
+        assert_eq!(calibration_slot_in(&b, &[stale]).status, "calibrated");
+    }
+
+    #[test]
+    fn a_grid_that_fails_at_any_point_is_a_boundary_over_the_whole_range() {
+        // Even at the passing base point: a failure at 250 rows is not averaged
+        // into a pass at 500.
+        for n in [250, 500, 1000] {
+            let mut b = basis();
+            b.scope.row_count = n;
+            let slot = calibration_slot_in(&b, &[gridded("cov.grid", &FAILING_SMALL)]);
+            assert_eq!(slot.status, "scope_not_assessed", "n = {n}: {slot:?}");
+            assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
+            assert_eq!(slot.observed, Some(0.90), "the failing point's coverage is reported");
+        }
     }
 
     #[test]
