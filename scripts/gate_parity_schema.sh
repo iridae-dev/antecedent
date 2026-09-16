@@ -736,9 +736,9 @@ for cell in lic:
     for rid in cell.get("calibration") or []:
         if rid not in record_ids:
             problems.append(f"support_licensed.toml {label}: unknown record {rid}")
-    lim = str(cell.get("limitations", ""))
-    if re.search(r"0\.\d{3}", lim):
-        problems.append(f"support_licensed.toml {label}: limitations still contain a coverage figure")
+    # Coverage figures in `limitations` must cite a matching record or say they are
+    # not a registry value: scripts/gate_coverage_citations.sh owns that check, so
+    # known-truth values, SEs and disclosed probe figures stay in the license text.
     # ---- [gates] reason-code eligibility comes from the registry row ----
     cited = cell.get("calibration_reason")
     scope = codes.get(cited, {}).get("queries") if isinstance(cited, str) else None

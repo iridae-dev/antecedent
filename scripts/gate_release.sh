@@ -36,6 +36,7 @@ bash scripts/gate_docs_support_matrix.sh --self-test
 bash scripts/gate_composition.sh --self-test
 bash scripts/gate_release_candidate.sh --self-test
 bash scripts/gate_calibration_attestation.sh --self-test
+bash scripts/gate_coverage_citations.sh --self-test
 # ---- end gate self-tests ---------------------------------------------------
 
 echo "== algorithm provenance schema and paths =="
@@ -58,7 +59,7 @@ bash scripts/gate_docs_support_matrix.sh
 echo "== evidence reachability (cited fixtures execute; deviations ratchet) =="
 bash scripts/gate_evidence_reachability.sh
 
-echo "== coverage citations name existing test fns =="
+echo "== coverage citations name existing test fns; coverage figures cite records =="
 bash scripts/gate_coverage_citations.sh
 
 echo "== calibration attestation (every coverage record matches the code) =="
