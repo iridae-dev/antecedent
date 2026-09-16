@@ -868,6 +868,8 @@ def _canonical(value: object) -> object:
         return {"f64": value.hex()}
     if isinstance(value, list):
         return [_canonical(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _canonical(v) for k, v in value.items()}
     return value
 
 
@@ -888,6 +890,8 @@ def _bit_equal(a: object, b: object) -> bool:
         )
     if isinstance(a, list) and isinstance(b, list):
         return len(a) == len(b) and all(_bit_equal(x, y) for x, y in zip(a, b, strict=True))
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_bit_equal(a[k], b[k]) for k in a)
     return type(a) is type(b) and a == b
 
 
@@ -1341,19 +1345,26 @@ def _safe_label(label: str) -> str:
     return label.translate(str.maketrans(" /:", "___"))
 
 
+def group_log_names(safe: str) -> list[str]:
+    """The logs scripts/gate_calibration.sh writes for one group: one per
+    sample-size grid point, and that point's recheck."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import collect_coverage_records
+
+    return [
+        name
+        for point in range(collect_coverage_records.GRID_POINTS)
+        for name in (f"{safe}.p{point}.log", f"{safe}.p{point}.recheck.log")
+    ]
+
+
 def replay_payloads(label_logs: list[Path]) -> dict[str, dict]:
-    """`calibration-record` payloads of one group's logs; a recheck log wins, as in
-    scripts/collect_coverage_records.py."""
-    out: dict[str, dict] = {}
-    recheck = [p for p in label_logs if p.name.endswith(".recheck.log")]
-    for log in recheck or label_logs:
-        if not log.is_file():
-            continue
-        for line in log.read_text(errors="ignore").splitlines():
-            if line.startswith("calibration-record "):
-                payload = json.loads(line.split(" ", 1)[1])
-                out[str(payload["id"])] = payload
-    return out
+    """Records of one group's logs, merged over their grid points exactly as
+    scripts/collect_coverage_records.py merges them (a point's recheck wins)."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import collect_coverage_records
+
+    return collect_coverage_records.merged_records([p for p in label_logs if p.is_file()])
 
 
 def replay(waiver_id: str, dry_run: bool) -> int:
@@ -1422,11 +1433,13 @@ def replay(waiver_id: str, dry_run: bool) -> int:
             "ANTECEDENT_CALIBRATION_NSIM",
             "ANTECEDENT_CALIBRATION_RECHECK_NSIM",
             "ANTECEDENT_CALIBRATION_DRY_RUN",
+            "ANTECEDENT_CALIBRATION_GRID_POINT",
+            "ANTECEDENT_CALIBRATION_GRID_POINTS",
         )
     }
     for g in plan.values():
         safe = _safe_label(g.label)
-        names = [f"{safe}.log", f"{safe}.recheck.log"]
+        names = group_log_names(safe)
         # The gate writes into the collector's log directory; keep what the
         # measurement left there and put the replay's logs aside.
         backup = out_dir / "measurement-logs"
@@ -1451,7 +1464,12 @@ def replay(waiver_id: str, dry_run: bool) -> int:
             print(
                 f"note: group {g.label} failed its gate at to; its records are compared as emitted"
             )
-        payloads.update(replay_payloads([out_dir / n for n in names]))
+        try:
+            payloads.update(replay_payloads([out_dir / n for n in names]))
+        except SystemExit as refused:
+            # A grid point that emitted no line (or another construction) leaves
+            # its records unmerged; every stored record of the group then differs.
+            print(f"note: group {g.label}: {refused}")
     differences: list[str] = []
     for rec in stored:
         payload = payloads.get(str(rec["id"]))
@@ -1780,12 +1798,100 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         and any("n_max not emitted" in d for d in missing),
         "the replay comparison is bit for bit and names the differing field",
     )
+    grid = [
+        {"point": k, "n_min": n, "n_max": n, "observed": 0.9, "mcse": 0.015,
+         "replicates": 400, "boundary": False, "role": "gated"}
+        for k, n in enumerate((200, 400, 800))
+    ]
+    gridded = cf | {"grid": grid}
+    one_point_moved = [dict(p) for p in grid]
+    one_point_moved[2]["observed"] = math.nextafter(0.9, 1.0)
+    expect(
+        compare_replay(gridded, payload | {"grid": [dict(p) for p in grid]}) == []
+        and any(
+            d.startswith("cf: grid stored")
+            for d in compare_replay(gridded, payload | {"grid": one_point_moved})
+        )
+        and fingerprint(gridded) != fingerprint(cf | {"grid": one_point_moved}),
+        "a replay compares every sample-size grid point bit for bit",
+    )
     committed, committed_problems = load_waivers()
     registry = load_records()
     expect(
         committed_problems == []
         and validate_waivers(base, committed, registry, Repo(), refs).problems == [],
         "the committed waiver registry is valid",
+    )
+
+
+def _grid_merge_self_test(expect) -> None:
+    """scripts/collect_coverage_records.py merges one record's grid points, and
+    refuses what would claim an unmeasured range or average a failing point."""
+    import contextlib
+    import io
+    import tempfile
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import collect_coverage_records as collector
+
+    def line(point: int, n: int, observed: float, boundary: bool = False, **extra) -> str:
+        payload = {
+            "id": "cov.x", "query": "AverageEffect", "estimator": "aipw", "nominal": 0.95,
+            "n_min": n, "n_max": n, "replicates_min": 199, "posterior_draws_min": 0,
+            "unidentified_mass_max": 0.0, "observed": observed, "mcse": 0.011,
+            "replicates": 400, "bound_replicates": 400, "grid_point": point,
+            "boundary": boundary, "role": "gated", "test": "t", "dgp": "d",
+        } | extra
+        return "calibration-record " + json.dumps(payload)
+
+    def merged(lines: dict[str, list[str]]) -> tuple[dict | None, str]:
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = []
+            for name, body in lines.items():
+                path = Path(tmp) / name
+                path.write_text("\n".join(body) + "\n")
+                logs.append(path)
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    return collector.merged_records(logs)["cov.x"], ""
+            except SystemExit as refused:
+                return None, str(refused)
+
+    full = {f"g.p{k}.log": [line(k, n, obs)] for k, (n, obs) in enumerate(
+        [(250, 0.945), (500, 0.948), (1000, 0.951)])}
+    rec, _ = merged(full)
+    expect(
+        rec is not None
+        and (rec["n_min"], rec["n_max"], rec["observed"]) == (250, 1000, 0.945)
+        and not rec["boundary"]
+        and [p["n_min"] for p in rec["grid"]] == [250, 500, 1000],
+        "the collector merges a record's grid points into its measured range",
+    )
+    failing = dict(full) | {"g.p0.log": [line(0, 250, 0.90, True)]}
+    rec, _ = merged(failing)
+    expect(
+        rec is not None and rec["boundary"] and rec["observed"] == 0.90,
+        "a failing grid point makes the record a boundary with that point's coverage",
+    )
+    rechecked = dict(full) | {"g.p1.recheck.log": [line(1, 500, 0.9405, replicates=2000)]}
+    rec, _ = merged(rechecked)
+    expect(
+        rec is not None and rec["grid"][1]["replicates"] == 2000,
+        "a grid point's recheck replaces that point's first run",
+    )
+    _, missing = merged({k: v for k, v in full.items() if k != "g.p2.log"})
+    _, flat = merged(dict(full) | {"g.p2.log": [line(2, 500, 0.95)]})
+    _, other = merged(dict(full) | {"g.p2.log": [line(2, 1000, 0.95, estimator="ipw")]})
+    _, smoke = merged(dict(full) | {"g.p2.log": [line(2, 1000, 0.95, smoke=True)]})
+    _, pre_grid = merged({"g.log": [line(1, 500, 0.95).replace(', "grid_point": 1', "")]})
+    expect(
+        "not measured at grid point(s) [2]" in missing
+        and "does not scale its sample size" in flat
+        and "measured another construction (estimator" in other
+        and "wiring smoke line" in smoke
+        and "carries no grid_point" in pre_grid,
+        "the collector refuses a missing point, an unscaled design, a changed "
+        "construction, a smoke line and a pre-grid line",
     )
 
 
@@ -1990,6 +2096,7 @@ def self_test() -> int:
         "a workspace version bump is not drift; a profile change is",
     )
     _waiver_self_test(base, refs, expect)
+    _grid_merge_self_test(expect)
     if failures:
         print(f"calibration_facets self-test: {len(failures)} failure(s)")
         return 1

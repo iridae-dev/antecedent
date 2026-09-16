@@ -12,9 +12,20 @@ with the SHA of the commit the logs were measured at, rewrites the
 estimator row from those records, and regenerates
 `crates/antecedent-io/src/coverage_records_data.rs`.
 
-A group that was rechecked at more replicates writes
-`<group>.recheck.log`; its records replace the first run's, because the
-recheck's verdict is the one the gate takes.
+Every record is measured at each point of its sample-size grid
+(`ANTECEDENT_CALIBRATION_GRID_POINT`, `SampleGrid` in
+crates/antecedent/tests/common/calibration.rs): the gate runs each group once
+per point and writes `<group>.p<k>.log`. The lines of one record id, one per
+point, are merged into one registry row by `merge_grid`: `grid` holds the
+coverage measured at every point, `n_min..n_max` spans the points, and the row
+is a boundary when any point is (a failing point is never averaged into a
+pass). A record is refused unless every grid point is present and the points'
+sample sizes strictly increase, so a design that does not scale its `n` with
+the grid cannot claim a range.
+
+A grid point that was rechecked at more replicates writes
+`<group>.p<k>.recheck.log`; its lines replace that point's first run, because
+the recheck's verdict is the one the gate takes.
 
 Every record is written with `facets`: the parts of the statistical surface it
 depends on, derived by `scripts/calibration_facets.py` from the record itself.
@@ -30,6 +41,11 @@ that still owe a re-measurement. Without it the registry is exactly the logs.
 
 `--retag` rewrites only the `facets` of the existing records (after a change
 to `scripts/calibration_surface.list`); nothing is measured or re-stamped.
+
+`--smoke --log-dir <dir> --out <file>` collects the lines of a wiring smoke run
+(`ANTECEDENT_CALIBRATION_SMOKE=1` at a reduced replicate count) into a scratch
+registry. Smoke lines measure nothing: every other invocation refuses them, and
+`--smoke` refuses to write `parity/coverage_records.toml` or touch any registry.
 
 `--sha <sha>` overrides the stamped SHA (for collecting logs measured at
 another commit); `--no-cells` leaves the registries alone. Without `--sha` the
@@ -91,6 +107,7 @@ FIELDS = (
     "replicates",
     "boundary",
     "role",
+    "grid",
     "dgp",
     "test",
     "facets",
@@ -116,42 +133,176 @@ ESTIMATOR_ROW_IDS = {
 NO_INTERVAL_QUERIES = {"Counterfactual", "AnomalyAttribution", "ChangeAttribution"}
 
 
-def load_records(sha: str) -> dict[str, dict]:
-    if not LOG_DIR.is_dir():
-        raise SystemExit(f"missing {LOG_DIR}: run scripts/gate_calibration.sh first")
-    records: dict[str, dict] = {}
-    # A rechecked group's records come only from the recheck run: that run's
-    # verdict is the one the gate takes, and a group that failed it emitted no
-    # record at all, so the first run's rows must not survive.
-    logs = []
-    for log in sorted(LOG_DIR.glob("*.log")):
-        if log.name.endswith(".recheck.log"):
-            logs.append(log)
-        elif not log.with_suffix(".recheck.log").exists():
-            logs.append(log)
-    for log in logs:
+# Sample-size grid points every record is measured at
+# (`GRID_POINTS` in crates/antecedent/tests/common/calibration.rs).
+GRID_POINTS = 3
+# Fields measured per grid point; every other emitted field is the construction
+# and provenance, which must be the same at every point.
+POINT_FIELDS = (
+    "n_min",
+    "n_max",
+    "replicates_min",
+    "posterior_draws_min",
+    "unidentified_mass_max",
+    "observed",
+    "mcse",
+    "replicates",
+    "bound_replicates",
+    "boundary",
+    "role",
+    "grid_point",
+)
+GRID_ENTRY_FIELDS = (
+    "point",
+    "n_min",
+    "n_max",
+    "observed",
+    "mcse",
+    "replicates",
+    "boundary",
+    "role",
+)
+
+
+def record_lines(logs: list[Path], smoke: bool = False) -> dict[str, dict[int, dict]]:
+    """`calibration-record` payloads by record id and grid point.
+
+    A point's recheck log (`<group>.p<k>.recheck.log`) replaces that point's
+    first run (`<group>.p<k>.log`): the recheck's verdict is the one the gate
+    takes, and a point that failed it emitted no line at all, so the first
+    run's line must not survive."""
+    names = {log.name for log in logs}
+    chosen = [
+        log
+        for log in sorted(logs)
+        if log.name.endswith(".recheck.log")
+        or log.name.removesuffix(".log") + ".recheck.log" not in names
+    ]
+    out: dict[str, dict[int, dict]] = {}
+    for log in chosen:
         recheck = log.name.endswith(".recheck.log")
         for line in log.read_text(errors="ignore").splitlines():
             if not line.startswith("calibration-record "):
                 continue
             payload = json.loads(line.split(" ", 1)[1])
-            rid = payload["id"]
-            seen = records.get(rid)
+            rid = str(payload["id"])
+            if bool(payload.pop("smoke", False)) != smoke:
+                raise SystemExit(
+                    f"{log.name}: record {rid} is a wiring smoke line; it measured nothing and "
+                    "only `--smoke` collects it, into a scratch registry"
+                    if not smoke
+                    else f"{log.name}: record {rid} is not a smoke line; --smoke collects only a "
+                    "smoke run's logs"
+                )
+            if "grid_point" not in payload:
+                raise SystemExit(
+                    f"{log.name}: record {rid} carries no grid_point; it was measured before "
+                    "the sample-size grid, so re-measure it with scripts/gate_calibration.sh"
+                )
+            point = int(payload["grid_point"])
+            if not 0 <= point < GRID_POINTS:
+                raise SystemExit(f"{log.name}: record {rid} at grid point {point}")
+            seen = out.setdefault(rid, {}).get(point)
             if seen is not None and not recheck:
                 if seen["replicates"] == payload["replicates"]:
                     raise SystemExit(
-                        f"duplicate record id {rid} in {log.name}: two tallies emit the same id"
+                        f"duplicate record id {rid} at grid point {point} in {log.name}: "
+                        "two tallies emit the same id"
                     )
                 # The same measurement re-run at more replicates: keep the
                 # more precise one (a precision recheck, however it was run).
                 if seen["replicates"] > payload["replicates"]:
                     continue
-            payload["calibration_sha"] = sha
-            records[rid] = payload
+            out[rid][point] = payload
+    return out
+
+
+def merge_grid(rid: str, points: dict[int, dict]) -> dict:
+    """One registry row from a record's per-point payloads.
+
+    The row's scope spans the points; it is a boundary when any point is, and
+    its `observed` / `mcse` / `replicates` are the governing point's: the
+    lowest-coverage failing point when one failed, otherwise the lowest-coverage
+    point."""
+    missing = [k for k in range(GRID_POINTS) if k not in points]
+    if missing:
+        raise SystemExit(
+            f"record {rid} was not measured at grid point(s) {missing}: a record's range must "
+            "span every point of its sample-size grid; run its group at every point"
+        )
+    ordered = [points[k] for k in range(GRID_POINTS)]
+    first = ordered[0]
+    for payload in ordered[1:]:
+        differs = sorted(
+            key
+            for key in set(first) | set(payload)
+            if key not in POINT_FIELDS and first.get(key) != payload.get(key)
+        )
+        if differs:
+            raise SystemExit(
+                f"record {rid}: grid point {payload['grid_point']} measured another construction "
+                f"({', '.join(differs)} differ from point 0)"
+            )
+    for low, high in zip(ordered, ordered[1:], strict=False):
+        if not int(low["n_max"]) < int(high["n_min"]):
+            raise SystemExit(
+                f"record {rid}: grid point {high['grid_point']} measured {high['n_min']} rows, not "
+                f"more than point {low['grid_point']}'s {low['n_max']}; the design does not scale "
+                "its sample size with the grid (SampleGrid in tests/common/calibration.rs)"
+            )
+    roles = {str(p["role"]) for p in ordered}
+    if len(roles) == 1:
+        role = roles.pop()
+    elif roles == {"gated", "named_boundary"}:
+        role = "named_boundary"
+    else:
+        raise SystemExit(f"record {rid}: grid points carry incompatible roles {sorted(roles)}")
+    failing = [p for p in ordered if p["boundary"]]
+    governing = min(failing or ordered, key=lambda p: (float(p["observed"]), int(p["grid_point"])))
+    record = {key: value for key, value in first.items() if key not in POINT_FIELDS}
+    record.update(
+        n_min=min(int(p["n_min"]) for p in ordered),
+        n_max=max(int(p["n_max"]) for p in ordered),
+        replicates_min=min(int(p["replicates_min"]) for p in ordered),
+        posterior_draws_min=min(int(p["posterior_draws_min"]) for p in ordered),
+        unidentified_mass_max=max(float(p["unidentified_mass_max"]) for p in ordered),
+        observed=governing["observed"],
+        mcse=governing["mcse"],
+        replicates=governing["replicates"],
+        boundary=bool(failing),
+        role=role,
+        grid=[
+            {
+                "point": int(p["grid_point"]),
+                "n_min": int(p["n_min"]),
+                "n_max": int(p["n_max"]),
+                "observed": p["observed"],
+                "mcse": p["mcse"],
+                "replicates": int(p["replicates"]),
+                "boundary": bool(p["boundary"]),
+                "role": str(p["role"]),
+            }
+            for p in ordered
+        ],
+    )
+    return record
+
+
+def merged_records(logs: list[Path], smoke: bool = False) -> dict[str, dict]:
+    """Every record the logs measured, merged over its grid points."""
+    return {rid: merge_grid(rid, points) for rid, points in record_lines(logs, smoke).items()}
+
+
+def load_records(sha: str, log_dir: Path = LOG_DIR, smoke: bool = False) -> dict[str, dict]:
+    if not log_dir.is_dir():
+        raise SystemExit(f"missing {log_dir}: run scripts/gate_calibration.sh first")
+    records = merged_records(sorted(log_dir.glob("*.log")), smoke)
     if not records:
         raise SystemExit(
-            f"no calibration-record lines in {LOG_DIR}: nothing measured, so nothing to commit"
+            f"no calibration-record lines in {log_dir}: nothing measured, so nothing to commit"
         )
+    for record in records.values():
+        record["calibration_sha"] = sha
     return records
 
 
@@ -160,6 +311,10 @@ def toml_value(key: str, value) -> str:
         return "true" if value else "false"
     if isinstance(value, (int, float)) and key != "id":
         return repr(value)
+    if isinstance(value, dict):
+        return "{ " + ", ".join(f"{k} = {toml_value(k, v)}" for k, v in value.items()) + " }"
+    if isinstance(value, list) and value and isinstance(value[0], dict):
+        return "[\n" + "".join(f"  {toml_value(key, item)},\n" for item in value) + "]"
     if isinstance(value, list):
         return "[" + ", ".join(toml_value(key, item) for item in value) + "]"
     return '"' + str(value).replace('"', '\\"') + '"'
@@ -193,7 +348,7 @@ def keep_attested(measured: dict[str, dict]) -> dict[str, dict]:
     return kept
 
 
-def write_registry(records: dict[str, dict]) -> None:
+def write_registry(records: dict[str, dict], out: Path = OUT) -> None:
     tag_facets(records)
     lines = [HEADER]
     for rid in sorted(records):
@@ -204,7 +359,7 @@ def write_registry(records: dict[str, dict]) -> None:
                 raise SystemExit(f"record {rid} is missing {key}; re-run the coverage tests")
             lines.append(f"{key} = {toml_value(key, rec[key])}")
         lines.append("")
-    OUT.write_text("\n".join(lines))
+    out.write_text("\n".join(lines))
 
 
 def replace_pair(block: str, calibration: list[str] | None, reason: str | None) -> str:
@@ -292,7 +447,26 @@ def main() -> int:
         action="store_true",
         help="only recompute the facets of the existing records",
     )
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="collect a wiring smoke run's lines into the scratch registry --out",
+    )
+    parser.add_argument("--log-dir", type=Path, default=LOG_DIR, help="logs to collect")
+    parser.add_argument("--out", type=Path, help="scratch registry path (with --smoke only)")
     args = parser.parse_args()
+    if args.smoke or args.out:
+        if not (args.smoke and args.out):
+            raise SystemExit("--smoke and --out go together: a smoke run writes a scratch registry")
+        if args.out.resolve() == OUT.resolve():
+            raise SystemExit(f"--smoke never writes {OUT.relative_to(ROOT)}")
+        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+        records = load_records(sha, args.log_dir, smoke=True)
+        write_registry(records, args.out)
+        print(
+            f"wrote {len(records)} smoke records to {args.out} (not a registry; measures nothing)"
+        )
+        return 0
     if args.retag:
         existing = {rec["id"]: rec for rec in facets.load_records(OUT)}
         write_registry(existing)
@@ -303,7 +477,7 @@ def main() -> int:
     ).strip()
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise SystemExit(f"calibration SHA must be 40 hex, got {sha!r}")
-    records = load_records(sha)
+    records = load_records(sha, args.log_dir)
     if not args.sha:
         tag_facets(records)
         surface = facets.load_surface()

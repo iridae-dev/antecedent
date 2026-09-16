@@ -16,6 +16,12 @@ Which records owe a re-measurement is decided by `scripts/calibration_facets.py`
     python3 scripts/calibration_groups.py plan [--all]          # what would run, with estimates
     python3 scripts/calibration_groups.py run [--all] [--jobs N]
 
+A coverage group that emits records is measured at every point of the
+sample-size grid (`ANTECEDENT_CALIBRATION_GRID_POINT`); each (group, grid point)
+pair is its own parallel job, selected in the gate with
+`ANTECEDENT_CALIBRATION_GRID_POINTS=<k>`, so the three points of a long group
+run side by side instead of one after another.
+
 `scripts/measure_calibration.sh` is the one command a developer runs: it
 refuses a dirty tree, runs `run`, collects the records and re-runs the
 attestation gate.
@@ -100,6 +106,22 @@ SUITE_SECONDS = {
 # Suites the gate runs as one whole-file group.
 WHOLE_FILE = {"v19_temporal_response_calibration", "v110_panel_calibration"}
 
+# Sample-size grid points of a record-emitting group (`GRID_POINTS` in
+# crates/antecedent/tests/common/calibration.rs; `grid_group` in the gate).
+GRID_POINTS = (0, 1, 2)
+# Cost of the three points relative to the base point for a design whose run
+# time is linear in n: `SampleGrid::STANDARD` is n/2 + n + 2n. The heavy grid
+# (n/2, n, 3n/2) costs 3.0 and the short-series grid (3n/4, n, 2n) 3.75; this
+# is the estimate for all three, since the plan cannot see a design's grid.
+GRID_COST = 3.5
+
+
+def is_grid(label: str) -> bool:
+    """Is `label` measured over the sample-size grid (the gate's `grid_group`)?"""
+    if label.startswith("antecedent-estimate: bayesian_"):
+        return False
+    return label.startswith(("antecedent-estimate:", "v19_", "v110_"))
+
 
 @dataclass
 class Group:
@@ -114,6 +136,11 @@ class Group:
     @property
     def test_filter(self) -> str:
         return self.label.partition(": ")[2]
+
+    @property
+    def points(self) -> tuple[int | None, ...]:
+        """The grid points the gate measures this group at (`None`: run once)."""
+        return GRID_POINTS if is_grid(self.label) else (None,)
 
     @property
     def safe(self) -> str:
@@ -221,17 +248,25 @@ def local_timings() -> dict[str, float]:
     return out
 
 
+def task_label(group: Group, point: int | None) -> str:
+    return group.label if point is None else f"{group.label} [grid point {point}]"
+
+
 def estimate(group: Group, timings: dict[str, float]) -> tuple[float | None, str]:
-    """Seconds and where the number comes from (None when there is no data)."""
-    if group.label in timings:
-        return timings[group.label], "local run"
+    """Seconds over every grid point and where the number comes from (None when
+    there is no data)."""
+    labels = [task_label(group, point) for point in group.points]
+    if all(label in timings for label in labels):
+        return sum(timings[label] for label in labels), "local run"
     measured = SUITE_SECONDS.get(group.head)
     if measured is None:
         return None, "no data"
     seconds, tests, threads = measured
+    # The 1.10.0 sweep measured one sample size per design.
+    grid = GRID_COST if len(group.points) > 1 else 1.0
     if group.head in WHOLE_FILE:
-        return seconds, "1.10.0 sweep"
-    return seconds * min(threads, tests) / tests, "1.10.0 sweep, suite average"
+        return seconds * grid, "1.10.0 sweep x grid"
+    return seconds * min(threads, tests) / tests * grid, "1.10.0 sweep, suite average x grid"
 
 
 def _clock(seconds: float) -> str:
@@ -260,9 +295,10 @@ def print_plan(selection: Selection, total: int, jobs: int) -> None:
         print(f"  group {g.index}: {g.label}  [{selection.reasons[g.index]}; {shown}{long_note}]")
     if not selection.groups:
         return
-    # A rough wall-clock bound: the jobs share the known work, and no run ends
-    # before its longest group. Rechecks are not included.
-    wall = max(max(known, default=0.0), sum(known) / max(jobs, 1))
+    # A rough wall-clock bound: the jobs share the known work (each grid point
+    # of a group is its own job), and no run ends before its longest grid point.
+    # Rechecks are not included.
+    wall = max(max(known, default=0.0) / GRID_COST, sum(known) / max(jobs, 1))
     print(
         f"rough estimate: {_clock(sum(known))} of group time, about {_clock(wall)} wall-clock "
         f"with {jobs} jobs, for the {len(known)} group(s) with timing data"
@@ -271,9 +307,10 @@ def print_plan(selection: Selection, total: int, jobs: int) -> None:
     )
     if any(g.long for g in selection.groups):
         print(
-            "long groups are selected: suite averages understate them. In the 1.10.0 sweep the "
-            "Bayesian static suite ran 4h01m, and one Bayesian derivative recheck at 2000 "
-            "replicates ran for more than 2h50m on its own."
+            "long groups are selected: suite averages understate them. In the 1.10.0 sweep (one "
+            "sample size per design) the Bayesian static suite ran 4h01m, and one Bayesian "
+            "derivative recheck at 2000 replicates ran for more than 2h50m on its own; the "
+            "grid measures each such design at three sample sizes."
         )
 
 
@@ -326,6 +363,8 @@ def run(selection: Selection, total: int, jobs: int) -> int:
             "ANTECEDENT_CALIBRATION_NSIM",
             "ANTECEDENT_CALIBRATION_RECHECK_NSIM",
             "ANTECEDENT_CALIBRATION_DRY_RUN",
+            "ANTECEDENT_CALIBRATION_GRID_POINT",
+            "ANTECEDENT_CALIBRATION_GRID_POINTS",
         )
     }
     started = time.monotonic()
@@ -333,45 +372,56 @@ def run(selection: Selection, total: int, jobs: int) -> int:
     done: list[int] = []
     failed: list[Group] = []
 
-    def one(group: Group) -> None:
-        console = CONSOLE_DIR / f"{group.safe}.txt"
+    tasks = [(group, point) for group in groups for point in group.points]
+
+    def one(task: tuple[Group, int | None]) -> None:
+        group, point = task
+        label = task_label(group, point)
+        suffix = "" if point is None else f".p{point}"
+        console = CONSOLE_DIR / f"{group.safe}{suffix}.txt"
+        task_env = {**env, "ANTECEDENT_CALIBRATION_SHARD": f"{group.index - 1}/{total}"}
+        if point is not None:
+            task_env["ANTECEDENT_CALIBRATION_GRID_POINTS"] = str(point)
         begin = time.monotonic()
         with lock:
-            print(f"[{_clock(begin - started)}] start group {group.index}: {group.label}")
+            print(f"[{_clock(begin - started)}] start group {group.index}: {label}")
         with console.open("w") as out:
             status = subprocess.run(
                 ["bash", str(GATE)],
                 cwd=ROOT,
-                env={**env, "ANTECEDENT_CALIBRATION_SHARD": f"{group.index - 1}/{total}"},
+                env=task_env,
                 stdout=out,
                 stderr=subprocess.STDOUT,
             ).returncode
         elapsed = time.monotonic() - begin
-        rechecked = (LOG_DIR / f"{group.safe}.recheck.log").exists()
+        rechecked = (LOG_DIR / f"{group.safe}{suffix}.recheck.log").exists()
         with lock:
             done.append(group.index)
             if status != 0:
-                failed.append(group)
+                failed.append(label)
             with TIMINGS.open("a") as timings:
-                timings.write(f"{group.label}\t{elapsed:.1f}\t{status}\t{sha}\n")
+                timings.write(f"{label}\t{elapsed:.1f}\t{status}\t{sha}\n")
             verdict = "ok" if status == 0 else f"FAILED (see {console.relative_to(ROOT)})"
             print(
-                f"[{_clock(time.monotonic() - started)}] {len(done)}/{len(groups)} "
+                f"[{_clock(time.monotonic() - started)}] {len(done)}/{len(tasks)} "
                 f"group {group.index}: {verdict} in {_clock(elapsed)}"
                 + (" (rechecked at 2000 replicates)" if rechecked else "")
-                + f": {group.label}",
+                + f": {label}",
                 flush=True,
             )
 
     # Long groups first, so the ones that set the wall clock start at once.
-    ordered = sorted(groups, key=lambda g: (not g.long, g.index))
+    ordered = sorted(tasks, key=lambda t: (not t[0].long, t[0].index, t[1] or 0))
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         list(pool.map(one, ordered))
-    print(f"measured {len(groups)} group(s) in {_clock(time.monotonic() - started)}")
+    print(
+        f"measured {len(groups)} group(s) as {len(tasks)} grid job(s) in "
+        f"{_clock(time.monotonic() - started)}"
+    )
     if failed:
-        print(f"FAIL: {len(failed)} group(s) failed the calibration gate:")
-        for group in sorted(failed, key=lambda g: g.index):
-            print(f"  group {group.index}: {group.label}")
+        print(f"FAIL: {len(failed)} grid job(s) failed the calibration gate:")
+        for label in sorted(failed):
+            print(f"  {label}")
         return 1
     return 0
 

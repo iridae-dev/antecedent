@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Scheduled statistical calibration gate.
-# Not part of every-PR unit CI — run locally / before release / weekly GHA.
+# Statistical calibration gate, measured on a development machine before upload.
+# Never run in CI: scripts/measure_calibration.sh drives it; CI checks attestation only.
 #
 # Every group runs even when an earlier one fails; the failed groups are listed
 # at the end and the script exits nonzero.
@@ -13,9 +13,9 @@ FAILED_COUNT=0
 RECHECKED=""
 GROUP_INDEX=0
 
-# Sharding for the scheduled workflow: `ANTECEDENT_CALIBRATION_SHARD=k/N` runs
-# only the groups whose index (in script order) is congruent to k modulo N, so
-# N runners split the gate and each stays under its timeout. Unset runs all.
+# Group selection: `ANTECEDENT_CALIBRATION_SHARD=k/N` runs only the groups whose
+# index (in script order) is congruent to k modulo N; scripts/calibration_groups.py
+# runs one group at a time with N = the group count. Unset runs all.
 # `ANTECEDENT_CALIBRATION_DRY_RUN=1` lists the groups this shard would run.
 SHARD_K=""
 SHARD_N=""
@@ -31,12 +31,38 @@ fi
 # Replicate count of the precision recheck (crates/antecedent/tests/common/calibration.rs).
 RECHECK_NSIM="${ANTECEDENT_CALIBRATION_RECHECK_NSIM:-2000}"
 
+# Sample-size grid. Every coverage group that emits records (the
+# antecedent-estimate SE suite and the v19_* / v110_* suites) is measured once
+# per grid point with ANTECEDENT_CALIBRATION_GRID_POINT=<k>: each design draws
+# its row count through `SampleGrid` (crates/antecedent/tests/common/calibration.rs),
+# and scripts/collect_coverage_records.py merges the points of a record into
+# the measured range n_min..n_max. `ANTECEDENT_CALIBRATION_GRID_POINTS` limits
+# the points a run measures (default all three); the collector refuses a
+# record that misses one, so a partial run is for replay and smoke tests only.
+GRID_POINTS="${ANTECEDENT_CALIBRATION_GRID_POINTS:-0 1 2}"
+for point in $GRID_POINTS; do
+  case "$point" in 0|1|2) ;; *) echo "bad ANTECEDENT_CALIBRATION_GRID_POINTS=$GRID_POINTS (want points from 0 1 2)" >&2; exit 2;; esac
+done
+
+# Groups measured over the sample-size grid (every other group is a pass/fail
+# gate that emits no record and runs once).
+grid_group() {
+  case "$1" in
+    "antecedent-estimate: bayesian_"*) return 1 ;;
+    antecedent-estimate:*|v19_*|v110_*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # Run one gate group; record it as failed instead of aborting the gate.
 #
 # A coverage cell that passes its 400-replicate band but lands more than 2
 # points under its level prints a `calibration-recheck` line. The group is then
 # re-run at RECHECK_NSIM replicates, where the harness also enforces the
 # one-sided precision floor (level − 2·MCSE), and that run's verdict stands.
+# A grid group runs, logs and rechecks each grid point on its own
+# (`<group>.p<k>.log`, `<group>.p<k>.recheck.log`): a point that lands low is
+# rechecked at that point, and its verdict never borrows another point's.
 check() {
   local label="$1"
   shift
@@ -48,18 +74,41 @@ check() {
     echo "group ${GROUP_INDEX}: ${label}"
     return 0
   fi
-  local log status
+  local log status safe point stem shown
   mkdir -p "$ROOT/target/calibration-records"
   safe="$(echo "${label}" | tr ' /:' '___')"
+  if grid_group "$label"; then
+    for point in $GRID_POINTS; do
+      stem="$ROOT/target/calibration-records/${safe}.p${point}"
+      shown="${label} [grid point ${point}]"
+      echo "== grid point ${point}: ${label} =="
+      log="${stem}.log"
+      ANTECEDENT_CALIBRATION_GRID_POINT="$point" "$@" 2>&1 | tee "$log"
+      status="${PIPESTATUS[0]}"
+      if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
+        echo "== recheck at ${RECHECK_NSIM} replicates: ${shown} =="
+        RECHECKED="${RECHECKED}  ${shown}"$'\n'
+        # The recheck's verdict stands, so its `calibration-record` lines are the
+        # ones scripts/collect_coverage_records.py keeps for this grid point.
+        ANTECEDENT_CALIBRATION_GRID_POINT="$point" ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
+          "$@" 2>&1 | tee "${stem}.recheck.log"
+        status="${PIPESTATUS[0]}"
+      fi
+      if [ "$status" -ne 0 ]; then
+        FAILED="${FAILED}  ${shown}"$'\n'
+        FAILED_COUNT=$((FAILED_COUNT + 1))
+      fi
+    done
+    return 0
+  fi
   log="$ROOT/target/calibration-records/${safe}.log"
-  "$@" 2>&1 | tee "$log"
+  env -u ANTECEDENT_CALIBRATION_GRID_POINT "$@" 2>&1 | tee "$log"
   status="${PIPESTATUS[0]}"
   if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
     echo "== recheck at ${RECHECK_NSIM} replicates: ${label} =="
     RECHECKED="${RECHECKED}  ${label}"$'\n'
-    # The recheck's verdict stands, so its `calibration-record` lines are the
-    # ones scripts/collect_coverage_records.py keeps for this group.
-    ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" "$@" 2>&1 | tee "$ROOT/target/calibration-records/${safe}.recheck.log"
+    env -u ANTECEDENT_CALIBRATION_GRID_POINT ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
+      "$@" 2>&1 | tee "$ROOT/target/calibration-records/${safe}.recheck.log"
     status="${PIPESTATUS[0]}"
   fi
   if [ "$status" -ne 0 ]; then
