@@ -1349,6 +1349,18 @@ impl super::Study {
         if envelope.cases.len() > 1 {
             mixed.uncertainty = ResponseUncertainty::None;
         }
+        // Bayesian completions carry no influence scores to mix. When every
+        // completion is identified and each returns the same response (they
+        // share the adjustment set, so their posteriors are one posterior),
+        // any mixture of them is that posterior: its band is the class band.
+        if matches!(self.inference, InferenceMode::Bayesian(_))
+            && envelope.unidentified_weight.0 <= 1e-12
+            && unestimated_id_mass <= 1e-12
+        {
+            if let Some(shared) = shared_completion_uncertainty(&weighted) {
+                mixed.uncertainty = shared;
+            }
+        }
         let mixed_scores = if atom_scores.len() == weighted.len()
             && envelope.unidentified_weight.0 <= 1e-12
             && unestimated_id_mass <= 1e-12
@@ -1547,6 +1559,21 @@ impl super::Study {
     }
 }
 
+/// The uncertainty every contributing completion shares, when they all
+/// return the same estimate and the same published band; `None` when any two
+/// differ or none publishes a band.
+fn shared_completion_uncertainty(
+    weighted: &[(u64, f64, antecedent_core::CausalResponse)],
+) -> Option<ResponseUncertainty> {
+    let ((_, _, first), rest) = weighted.split_first()?;
+    if matches!(first.uncertainty, ResponseUncertainty::None) {
+        return None;
+    }
+    rest.iter()
+        .all(|(_, _, r)| r.estimate == first.estimate && r.uncertainty == first.uncertainty)
+        .then(|| first.uncertainty.clone())
+}
+
 fn response_identified_value(response: &antecedent_core::CausalResponse) -> Option<ResponseValue> {
     match &response.estimate {
         ResponseIdentification::PointIdentified(value)
@@ -1576,12 +1603,7 @@ fn response_envelope_from_weighted(
                 lower = lower.min(*candidate);
                 upper = upper.max(*candidate);
             }
-            Some(antecedent_core::ResponseEnvelope {
-                grid: Arc::from([0.0]),
-                dimension: 1,
-                lower: Arc::from([lower]),
-                upper: Arc::from([upper]),
-            })
+            Some(scalar_identified_set(lower, upper))
         }
         ResponseValue::Surface { grid, dimension, mean } => {
             let mut lower = mean.to_vec();

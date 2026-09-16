@@ -1400,20 +1400,201 @@ pub(super) fn binary_cf_interventions(
     Ok((*variable, active, control))
 }
 
+/// The identified set of a scalar functional, in the coordinate-free shape the
+/// portable format requires: no grid, one bound. The estimand already says what
+/// the bound means, so no coordinate is invented for it.
+///
+/// Every route that publishes a scalar identified set builds it here: the
+/// portable format accepts `dimension = 0` precisely so a scalar bound is not
+/// dressed up with a `0.0` coordinate that nothing reads.
+pub(super) fn scalar_identified_set(lower: f64, upper: f64) -> antecedent_core::ResponseEnvelope {
+    antecedent_core::ResponseEnvelope {
+        grid: Arc::from([]),
+        dimension: 0,
+        lower: Arc::from([lower]),
+        upper: Arc::from([upper]),
+    }
+}
+
+/// Completion-mass summary of a graph-class envelope: the one body behind every
+/// `identify.*.envelope` diagnostic.
+///
+/// `prefix` names the class in the message (`generalized.adjustment envelope`,
+/// `cpdag.mec envelope`), and each `extra` pair is appended as `, key=value`.
+/// The structured half is [`mass_fields`], which the reasoning slot reads.
+pub(super) fn class_envelope_diagnostic<G>(
+    code: impl Into<Arc<str>>,
+    prefix: &str,
+    envelope: &IdentificationEnvelope<G>,
+    extra: &[(&str, String)],
+) -> Diagnostic {
+    let mut message = format!(
+        "{prefix}: identified_mass={}, unidentified_mass={}, cases={}",
+        envelope.identified_weight.0,
+        envelope.unidentified_weight.0,
+        envelope.cases.len()
+    );
+    for (key, value) in extra {
+        use std::fmt::Write as _;
+        let _ = write!(message, ", {key}={value}");
+    }
+    Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message)
+        .with_fields(mass_fields(
+            Some(envelope.identified_weight.0),
+            envelope.unidentified_weight.0,
+        ))
+}
+
+/// Per-completion outcome of a graph-class (CPDAG/PAG, static or temporal)
+/// envelope arm, in `envelope.cases` order.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) enum ClassAtomOutcome {
+    /// Identified and evaluated: the completion's own point value.
+    Evaluated(f64),
+    /// Identified but left unevaluated by the Interactive latency tier's graph
+    /// budget. Neither unidentified nor a failed estimate.
+    SubsampledOut,
+    /// Not evaluated for any other reason (unidentified completions land here
+    /// too; their status decides which mass they join).
+    #[default]
+    NotEvaluated,
+}
+
+/// What a class mixture says about itself, beside the mixture: facts a caller
+/// needs to decide whether publishing it is right.
+pub(super) struct ClassMixtureFacts {
+    /// Total weight the masses were divided by. Not positive means the
+    /// envelope carried no mass at all and the masses are all zero.
+    pub total_weight: f64,
+    /// All mass identified, a degenerate identified set, and an identified
+    /// envelope status: the mixture restates a point, and publishing it would
+    /// dress a point up as bounds.
+    pub point_identified: bool,
+}
+
+/// Structural uncertainty of a graph-class envelope: every completion with its
+/// weight and status, the evaluated completions' point values, and the
+/// identified set `[min, max]` over them.
+///
+/// The one class-mixture body. `outcomes` is indexed by `envelope.cases`;
+/// `key_fn` supplies each atom's `graph_key` (the case index for a static
+/// class, the completion fingerprint for a temporal one); `weights` overrides
+/// the enumeration weights when the caller carries its own class mass.
+///
+/// Mass is a fraction of the total weight and is kept apart by kind:
+/// identified-and-evaluated, unidentified, identified-but-unevaluable, and
+/// identified-but-subsampled-out. Which cases are identified is
+/// [`identification_status_carries_identified_mass`] — the envelope's own
+/// split — so `identified_mass + unidentified_mass` here agrees with
+/// `envelope.identified_weight` / `unidentified_weight` in the diagnostic
+/// published beside it. `unevaluable_mass` is taken as the remainder, so the
+/// four masses conserve exactly under division.
+pub(super) fn class_structural_mixture<G>(
+    envelope: &IdentificationEnvelope<G>,
+    weight_basis: crate::result::StructuralWeightBasis,
+    key_fn: impl Fn(usize, &antecedent_identify::GraphIdentificationCase<G>) -> u64,
+    weights: Option<&[f64]>,
+    outcomes: &[ClassAtomOutcome],
+) -> (crate::result::StructuralResponseMixture, ClassMixtureFacts) {
+    let mut atoms = Vec::with_capacity(envelope.cases.len());
+    let (mut identified_weight, mut unidentified_weight) = (0.0, 0.0);
+    let (mut unevaluable_weight, mut subsampled_weight) = (0.0, 0.0);
+    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for (index, case) in envelope.cases.iter().enumerate() {
+        let weight = weights.and_then(|w| w.get(index).copied()).unwrap_or(case.weight.0);
+        let outcome = outcomes.get(index).copied().unwrap_or_default();
+        let value = match outcome {
+            ClassAtomOutcome::Evaluated(value) if value.is_finite() => Some(value),
+            _ => None,
+        };
+        if !identification_status_carries_identified_mass(case.result.status) {
+            unidentified_weight += weight;
+        } else if let Some(value) = value {
+            identified_weight += weight;
+            lo = lo.min(value);
+            hi = hi.max(value);
+        } else if matches!(outcome, ClassAtomOutcome::SubsampledOut) {
+            subsampled_weight += weight;
+        } else {
+            unevaluable_weight += weight;
+        }
+        atoms.push(crate::result::StructuralResponseAtom {
+            graph_key: key_fn(index, case),
+            weight,
+            status: case.result.status,
+            value: value.map(antecedent_core::ResponseValue::Scalar),
+            posterior: None,
+            response: None,
+        });
+    }
+    let total = identified_weight + unidentified_weight + unevaluable_weight + subsampled_weight;
+    let positive = total > 0.0;
+    let (identified_mass, unidentified_mass, subsampled_out_mass) = if positive {
+        (identified_weight / total, unidentified_weight / total, subsampled_weight / total)
+    } else {
+        (0.0, 0.0, 0.0)
+    };
+    // The remainder, so the four masses conserve exactly under division.
+    let unevaluable_mass = if positive {
+        (1.0 - identified_mass - unidentified_mass - subsampled_out_mass).max(0.0)
+    } else {
+        0.0
+    };
+    let identified_set = (lo.is_finite() && hi.is_finite()).then(|| scalar_identified_set(lo, hi));
+    // Exact comparisons on purpose: "every completion is identified" and "they
+    // all agree" are exact facts about the mass that was summed and the values
+    // that were compared, not measurements with a tolerance.
+    #[allow(clippy::float_cmp)]
+    let facts = ClassMixtureFacts {
+        total_weight: total,
+        point_identified: identified_mass == 1.0
+            && lo == hi
+            && matches!(
+                envelope.status,
+                IdentificationStatus::NonparametricallyIdentified
+                    | IdentificationStatus::IdentifiedUnderParametricRestrictions
+                    | IdentificationStatus::IdentifiedUnderPriorRestrictions
+            ),
+    };
+    let mixture = crate::result::StructuralResponseMixture {
+        weight_basis,
+        atoms,
+        identified_mass,
+        unidentified_mass,
+        unevaluable_mass,
+        subsampled_out_mass,
+        identified_set,
+        identified_set_interval: None,
+        conditional_on_identified: None,
+        full_mass_scope: envelope.truncated_completions == 0,
+        truncated_atoms: envelope.truncated_completions,
+    };
+    (mixture, facts)
+}
+
+/// Statuses the envelope itself counts as identified mass.
+///
+/// A re-export, not a second list: `antecedent-identify` owns the split —
+/// [`antecedent_identify::carries_identified_mass`] is the same predicate
+/// `IdentificationEnvelope::from_cases` uses to divide `identified_weight`
+/// from `unidentified_weight`, so a mass this crate publishes cannot
+/// contradict the envelope diagnostic beside it.
+///
+/// Wider than [`identification_status_ok_for_case`], which licenses
+/// *estimating* a case: a completion identified only under prior restrictions
+/// carries identified mass and its assumptions, but no frequentist arm
+/// estimates it.
+pub(crate) use antecedent_identify::carries_identified_mass as identification_status_carries_identified_mass;
+
+/// Statuses a frequentist arm may estimate. Narrower than
+/// [`identification_status_carries_identified_mass`]: a completion identified
+/// only under prior restrictions is *not* estimable, but its mass is still
+/// identified mass.
 pub(crate) fn identification_status_ok_for_case(status: IdentificationStatus) -> bool {
     matches!(
         status,
         IdentificationStatus::NonparametricallyIdentified
             | IdentificationStatus::PartiallyIdentified
-            | IdentificationStatus::IdentifiedUnderParametricRestrictions
-    )
-}
-
-/// Statuses that license a unique point estimand in a class mixture.
-pub(crate) fn identification_status_ok_for_point_mix(status: IdentificationStatus) -> bool {
-    matches!(
-        status,
-        IdentificationStatus::NonparametricallyIdentified
             | IdentificationStatus::IdentifiedUnderParametricRestrictions
     )
 }
@@ -1435,6 +1616,11 @@ pub(super) fn envelope_to_identification_result_for<G>(
     for case in &envelope.cases {
         if identification_status_ok_for_case(case.result.status) {
             estimands.extend(case.result.estimands.iter().cloned());
+        }
+        // Every case the envelope counts as identified mass carries its
+        // assumptions, including one identified only under prior restrictions:
+        // its mass is reported, so the conditions behind it must be too.
+        if identification_status_carries_identified_mass(case.result.status) {
             for record in &case.result.required_assumptions.entries {
                 if !assumptions.entries.contains(record) {
                     assumptions.push(record.clone());

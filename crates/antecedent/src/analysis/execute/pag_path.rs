@@ -180,6 +180,7 @@ impl super::Study {
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut assumptions = antecedent_core::AssumptionSet::default();
         let mut refute_atoms = Vec::new();
+        let mut outcomes = vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()];
         for (i, case) in envelope.cases.iter().enumerate() {
             if !identification_status_ok_for_case(case.result.status)
                 || case.result.estimands.is_empty()
@@ -207,6 +208,7 @@ impl super::Study {
                 &mut case_ws,
             )?;
             let w = case.weight.0;
+            outcomes[i] = ClassAtomOutcome::Evaluated(estimate.ate);
             weighted_ate += w * estimate.ate;
             se_items.push((w, estimate.se_analytic));
             if let Some(inf) = estimate
@@ -274,6 +276,12 @@ impl super::Study {
 
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
+        // A partially identified envelope carries its identified set and the
+        // per-completion values it spans; a point-identified one stays a point.
+        let structural_response = static_class_structural_mixture(&envelope, &outcomes);
+        if let Some(mixture) = structural_response.as_ref() {
+            diagnostics.extend(static_class_identified_set_diagnostic(mixture, "pag"));
+        }
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -294,6 +302,7 @@ impl super::Study {
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
                 diagnostics: Some(diagnostics),
+                structural_response,
                 ..Default::default()
             },
         }))
@@ -390,6 +399,7 @@ impl super::Study {
         let mut primary_estimand: Option<IdentifiedEstimand> = None;
         let mut assumptions = antecedent_core::AssumptionSet::default();
         let mut refute_atoms = Vec::new();
+        let mut outcomes = vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()];
         for (i, case) in envelope.cases.iter().enumerate() {
             if !identification_status_ok_for_case(case.result.status)
                 || case.result.estimands.is_empty()
@@ -415,6 +425,7 @@ impl super::Study {
                 &mut case_ws,
             )?;
             let w = case.weight.0;
+            outcomes[i] = ClassAtomOutcome::Evaluated(estimate.ate);
             weighted_ate += w * estimate.ate;
             se_items.push((w, estimate.se_analytic));
             if let Some(inf) = estimate
@@ -482,6 +493,12 @@ impl super::Study {
 
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
+        // A partially identified envelope carries its identified set and the
+        // per-completion values it spans; a point-identified one stays a point.
+        let structural_response = static_class_structural_mixture(&envelope, &outcomes);
+        if let Some(mixture) = structural_response.as_ref() {
+            diagnostics.extend(static_class_identified_set_diagnostic(mixture, "cpdag"));
+        }
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -502,6 +519,7 @@ impl super::Study {
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
                 diagnostics: Some(diagnostics),
+                structural_response,
                 ..Default::default()
             },
         }))
@@ -595,33 +613,79 @@ impl super::Study {
     }
 }
 
+/// Structural uncertainty of a static class (CPDAG/PAG) envelope, keyed by
+/// case index.
+///
+/// The mixture itself is [`super::class_structural_mixture`],
+/// shared with the temporal class routes. This arm adds only the static
+/// class's publishing rule: nothing to publish when the envelope carried no
+/// mass or no completion produced a finite value, and `None` for a
+/// point-identified envelope — one identified completion, or several that
+/// agree, with no unidentified, unevaluable or subsampled-out mass. Such a
+/// result is a point, not an identified set, and attaching a mixture would
+/// restate it as bounds.
+///
+/// Static class envelopes publish the frozen-weight mixture's sampling
+/// interval (the construction `v19_static_envelope_calibration` scores); no
+/// interval for the identified set is constructed on this path.
+pub(super) fn static_class_structural_mixture<G>(
+    envelope: &IdentificationEnvelope<G>,
+    outcomes: &[ClassAtomOutcome],
+) -> Option<crate::result::StructuralResponseMixture> {
+    let (mixture, facts) = super::class_structural_mixture(
+        envelope,
+        crate::result::StructuralWeightBasis::CompletionEnumeration,
+        |index, _| u64::try_from(index).unwrap_or(u64::MAX),
+        None,
+        outcomes,
+    );
+    if facts.total_weight <= 0.0 || mixture.identified_set.is_none() || facts.point_identified {
+        return None;
+    }
+    Some(mixture)
+}
+
+/// The identified-set diagnostic a partially identified static class effect
+/// reports next to its mixture summary.
+pub(super) fn static_class_identified_set_diagnostic(
+    mixture: &crate::result::StructuralResponseMixture,
+    class_tag: &str,
+) -> Option<Diagnostic> {
+    let set = mixture.identified_set.as_ref()?;
+    Some(
+        Diagnostic::new(
+            format!("estimate.{class_tag}.identified_set"),
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "identified set over identified completions: [{}, {}]; identified_mass={}; \
+             unidentified_mass={}; unevaluable_mass={}; incomplete_search_mass={}; the \
+             reported scalar is the frozen-weight mixture over identified completions, \
+             and completion weights are enumeration weights, not posterior probabilities",
+                set.lower[0],
+                set.upper[0],
+                mixture.identified_mass,
+                mixture.unidentified_mass,
+                mixture.unevaluable_mass,
+                mixture.subsampled_out_mass,
+            ),
+        )
+        .with_fields(super::mass_fields(Some(mixture.identified_mass), mixture.unidentified_mass)),
+    )
+}
+
 /// Completion-mass summary every PAG arm (Frequentist, Bayesian, non-identified
 /// prior) reports, so the envelope a fixture pins is observable on each.
 pub(super) fn pag_envelope_diagnostic<G>(envelope: &IdentificationEnvelope<G>) -> Diagnostic {
-    Diagnostic::new(
+    super::class_envelope_diagnostic(
         "identify.pag.envelope",
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
-        format!(
-            "generalized.adjustment envelope: identified_mass={}, unidentified_mass={}, cases={}",
-            envelope.identified_weight.0,
-            envelope.unidentified_weight.0,
-            envelope.cases.len()
-        ),
+        "generalized.adjustment envelope",
+        envelope,
+        &[],
     )
 }
 
 /// Completion-mass summary for the CPDAG MEC envelope.
 pub(super) fn cpdag_envelope_diagnostic<G>(envelope: &IdentificationEnvelope<G>) -> Diagnostic {
-    Diagnostic::new(
-        "identify.cpdag.envelope",
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
-        format!(
-            "cpdag.mec envelope: identified_mass={}, unidentified_mass={}, cases={}",
-            envelope.identified_weight.0,
-            envelope.unidentified_weight.0,
-            envelope.cases.len()
-        ),
-    )
+    super::class_envelope_diagnostic("identify.cpdag.envelope", "cpdag.mec envelope", envelope, &[])
 }

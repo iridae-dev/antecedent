@@ -1176,8 +1176,10 @@ impl PreparedStudy {
                 ),
                 uncertainty: antecedent_core::ResponseUncertainty::Scalar {
                     standard_error: result.estimate.se_analytic,
-                    lower: result.estimate.ate - 1.96 * result.estimate.se_analytic,
-                    upper: result.estimate.ate + 1.96 * result.estimate.se_analytic,
+                    lower: result.estimate.ate
+                        - crate::result::reported_se_interval_z() * result.estimate.se_analytic,
+                    upper: result.estimate.ate
+                        + crate::result::reported_se_interval_z() * result.estimate.se_analytic,
                     level: 0.95,
                 },
                 support: antecedent_core::SupportReport {

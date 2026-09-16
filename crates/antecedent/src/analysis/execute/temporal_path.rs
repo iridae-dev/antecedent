@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+// The identification crate owns the observation-assumption id and text table;
+// the temporal path records the same assumptions from the same body.
+use antecedent_identify::response::append_observation_assumptions as append_temporal_observation_assumptions;
 
 impl super::Study {
     pub(super) fn execute_temporal_cpdag_mediation(
@@ -3974,17 +3977,11 @@ pub(crate) fn temporal_class_envelope_diagnostic<G>(
     } else {
         "identify.temporal_pag.envelope"
     };
-    Diagnostic::new(
+    super::class_envelope_diagnostic(
         code,
-        DiagnosticKind::Scientific,
-        DiagnosticSeverity::Info,
-        format!(
-            "generalized.adjustment envelope: identified_mass={}, unidentified_mass={}, cases={}, limitations={:?}",
-            envelope.identified_weight.0,
-            envelope.unidentified_weight.0,
-            envelope.cases.len(),
-            envelope.critical_graph_features,
-        ),
+        "generalized.adjustment envelope",
+        envelope,
+        &[("limitations", format!("{:?}", envelope.critical_graph_features))],
     )
 }
 
@@ -4171,36 +4168,6 @@ fn named_adjustment_keys(
     keys
 }
 
-fn append_temporal_observation_assumptions(
-    query: &ResponseQuery,
-    assumptions: &mut antecedent_core::AssumptionSet,
-) {
-    for claim in query.observation_assumptions.iter() {
-        let (id, description) = match claim {
-            ObservationAssumption::IndependentGiven(vars) => (
-                "observation.independent_given",
-                format!("observation/censoring independent given {vars:?}"),
-            ),
-            ObservationAssumption::OutcomeIndependentGiven(vars) => (
-                "observation.outcome_independent_given",
-                format!("observation independent of latent outcome given {vars:?}"),
-            ),
-            ObservationAssumption::Structural(model) => {
-                ("observation.structural", format!("structural observation model {model}"))
-            }
-        };
-        assumptions.push(antecedent_core::AssumptionRecord {
-            assumption: antecedent_core::Assumption::Custom {
-                id: id.into(),
-                description: description.into(),
-            },
-            source: antecedent_core::AssumptionSource::UserDeclared,
-            scope: antecedent_core::AssumptionScope::Identification,
-            status: antecedent_core::AssumptionStatus::Untestable,
-        });
-    }
-}
-
 fn apply_temporal_observation_result(
     response: &mut CausalResponse,
     adjusted: &antecedent_estimate::ObservationAdjustedOutcome,
@@ -4333,7 +4300,7 @@ fn summarize_observation_bootstrap(
     {
         return band;
     }
-    let z = antecedent_stats::normal_ppf(0.975);
+    let z = crate::result::reported_se_interval_z();
     let mut values = Vec::with_capacity(draws.len());
     for (cell, &mid) in center.iter().enumerate() {
         values.clear();
@@ -5077,7 +5044,7 @@ mod observation_bootstrap_tests {
         assert!(band.cancelled);
         assert_eq!(band.completed, 2);
         // center ± z·SD with SD = sqrt(2) around the full-sample point, not the draw mean.
-        let half = antecedent_stats::normal_ppf(0.975) * 2f64.sqrt();
+        let half = crate::result::reported_se_interval_z() * 2f64.sqrt();
         assert!((band.lower[0] - (2.5 - half)).abs() < 1e-12);
         assert!((band.upper[0] - (2.5 + half)).abs() < 1e-12);
         let empty = summarize_observation_bootstrap(&[], &[], 0, true);

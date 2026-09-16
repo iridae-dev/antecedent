@@ -292,8 +292,14 @@ impl super::Study {
         let mut ws = BayesianGCompWorkspace::default();
         let mut per_graph = Vec::new();
         let mut atoms = Vec::new();
+        // Per-completion outcomes in `envelope.cases` order (keys are `index + 1`),
+        // so the structural mixture can publish the identified set they span.
+        let mut outcomes = vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()];
         for (key, estimand, status) in fit_atoms {
+            // Keys are `case index + 1`, so the outcome slot is `key - 1`.
+            let outcome_slot = usize::try_from(key).unwrap_or(usize::MAX).saturating_sub(1);
             if !keep.contains(&key) {
+                outcomes[outcome_slot] = ClassAtomOutcome::SubsampledOut;
                 continue;
             }
             // Graph-posterior keys may collide (shared adjacency masks). Aggregation
@@ -303,6 +309,8 @@ impl super::Study {
             };
             est.prior = atom_priors.remove(&key).flatten();
             let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
+            outcomes[outcome_slot] =
+                ClassAtomOutcome::Evaluated(effect_from_posterior(&posterior)?.ate);
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
             let weight = identified_weight_for_key(&graphs, key);
             atoms.push(EnvelopeAtomFit {
@@ -414,6 +422,16 @@ impl super::Study {
             &mut refutations,
             &mut diagnostics,
         )?;
+        // Completions that disagree publish the identified set over their
+        // per-completion posterior means; a point-identified envelope stays a
+        // point. The posterior remains the frozen-weight mixture functional's.
+        let structural_response =
+            super::pag_path::static_class_structural_mixture(envelope, &outcomes);
+        if let Some(mixture) = structural_response.as_ref() {
+            diagnostics.extend(super::pag_path::static_class_identified_set_diagnostic(
+                mixture, class_tag,
+            ));
+        }
 
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
@@ -441,6 +459,7 @@ impl super::Study {
                 posterior: Some(posterior),
                 diagnostics: Some(diagnostics),
                 predictive_checks,
+                structural_response,
                 ..Default::default()
             },
         }))

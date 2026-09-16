@@ -962,6 +962,12 @@ fn consume_setup(setup: CellSetup) -> Result<(), String> {
     if claim.claim_id == contract.identities.program {
         return Err(format!("{expected}: claim identity collapsed onto program identity"));
     }
+    // A partially identified answer must carry its bounds. `mixture` is the
+    // kind a claim takes when it withholds the scalar and publishes no
+    // identified set, which leaves a consumer with neither.
+    if claim.kind == antecedent_core::ClaimKind::Mixture {
+        return Err(format!("{expected}: partial claim carries no identified set"));
+    }
     let bytes = prepared
         .encode_contracted_result(&result, &expected, &ctx)
         .map_err(|e| format!("{expected}: encode {e}"))?;

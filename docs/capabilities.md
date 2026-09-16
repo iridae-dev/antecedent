@@ -46,6 +46,12 @@ influence-function standard errors on static Cpdag / Pag effect and response
 aggregates. Unknown tiers retain distinct canonical scenario effects.
 Completions stay envelope atoms; the runtime class is not collapsed.
 Static Cpdag / Pag Frequentist aggregates publish joint-IF standard errors.
+A static class effect whose completions disagree — Cpdag / Pag average and
+conditional effects, Frequentist and Bayesian, and an Unknown tier's canonical
+scenarios — publishes the identified set over its identified completions
+alongside that aggregate, with every completion's value and enumeration weight
+and with unidentified, unevaluable and incomplete-search mass kept apart. A
+point-identified class effect still publishes a point.
 Frequentist DBN Pulse/Sustained mixtures publish shared outer-block
 bootstrap uncertainty. TemporalCpdag/TemporalPag class envelopes publish a
 shared circular-block mixture SE (frozen-weight aggregate over identified
