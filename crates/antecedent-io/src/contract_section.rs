@@ -1533,6 +1533,7 @@ mod tests {
             posterior_artifact: None,
             mediation_grid: None,
             structural_response: None,
+            unit_effects: None,
         };
         let target = TargetIdentityWire {
             format: IDENTITY_FORMAT,

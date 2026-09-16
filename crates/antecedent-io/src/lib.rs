@@ -49,9 +49,9 @@ pub use analysis_result_artifact::{
     IdentifiedSetIntervalWire, MediationPosteriorSummaryWire, StructuralResponseAtomWire,
     StructuralResponseMixtureWire, StructuralWeightBasisWire, TemporalIdentificationWire,
     TemporalMediationGridWire, TemporalMediationSliceWire, TemporalMediationUncertaintyWire,
-    decode_analysis_result_artifact, encode_analysis_result_artifact,
-    encode_analysis_result_artifact_with_contract, identified_set_interval_from_wire,
-    identified_set_interval_to_wire,
+    UnitEffectIntervalsWire, UnitEffectsWire, decode_analysis_result_artifact,
+    encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
+    identified_set_interval_from_wire, identified_set_interval_to_wire,
 };
 pub use analysis_wire::{
     DiagnosticWire, EffectEstimateWire, IdentificationResultWire, IdentifiedEstimandWire,
