@@ -20,7 +20,8 @@
 //! configuration (Laplace backend, 1000 draws, prior scale 10 — Python
 //! `Bayesian()`), whose posterior-quantile interval is scored at 0.95 and 0.90
 //! on the driven-treatment Pulse law `common::driven_dgp::pulse_series` (iid
-//! residuals, truth `BETA`).
+//! residuals, truth `BETA`), and the Frequentist `PulseEffect` on a `TemporalDag`
+//! whose autoregressive treatment is identified by parent adjustment.
 //!
 //! Ignored tests run via `scripts/gate_calibration.sh` (release build).
 //!
@@ -40,6 +41,7 @@ use common::calibration::{CoverageTally, RecordKey, grid_n, n_sim};
 use common::calibration_bind::{bind_all, constructions};
 use common::driven_dgp::{BETA, Scenario, pulse, pulse_dag, pulse_series};
 use common::fixtures::{self, mediation_cpdag_two, mediation_series};
+use common::persistent_dgp;
 use common::reported::{
     GATE_LEVEL, REPORTED_LEVEL, gate, normal_at, posterior_pair, record_pair, skip_pair,
 };
@@ -198,6 +200,84 @@ fn pulse_effect_temporal_dag_bayesian_default_nominal_coverage() {
         let [first, second] = &mut tallies;
         bind_all(&mut [first, second], &study, &result);
         record_pair(&mut tallies, intervals, BETA);
+    }
+    gate(&tallies, &[None, None]);
+}
+
+/// Base series length of the autoregressive-treatment Pulse (grid 120, 240, 480).
+const AR_PULSE_N: usize = 240;
+
+/// Frequentist `PulseEffect` on an explicit `TemporalDag` whose treatment is
+/// autoregressive (`t[t-1] -> t[t]`) and confounded by `z[t-2]`
+/// (`common::persistent_dgp::autoregressive_pulse_series`, truth `AR_BETA`).
+/// Unfolding cannot certify the treatment's unbounded ancestry, so the pulse is
+/// identified by adjusting for the treatment's parents `{t[t-2], z[t-2]}`
+/// (`temporal.parent_adjustment`) and fitted by the temporal linear adjustment
+/// under its circular-block SE at the Study's default replicates. The accepted
+/// structure is checked to report the same interval on the first replicate.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage() {
+    let key = RecordKey {
+        test: "pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage",
+        dgp: "crates/antecedent/tests/common/persistent_dgp.rs::autoregressive_pulse_series",
+        interval: "circular_block_se",
+    };
+    let mut tallies = [keyed_record(key, REPORTED_LEVEL), keyed_record(key, GATE_LEVEL)];
+    let n = grid_n(AR_PULSE_N);
+    let graph = || persistent_dgp::autoregressive_pulse_dag(true, false);
+    let run_pulse = |data: TimeSeriesData, accepted: bool, seed: u64| {
+        let builder = Study::series(data);
+        let builder = if accepted {
+            builder.graph(AcceptedGraph::temporal_dag(graph()))
+        } else {
+            builder.graph(graph())
+        };
+        let study = builder
+            .query(CausalQuery::TemporalEffect(persistent_dgp::pulse()))
+            .refute(RefuteSuite::None)
+            .build()
+            .ok()?;
+        let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+        Some((study, result))
+    };
+    let interval_pair = |result: &StudyResult| {
+        result.estimate.se_bootstrap.map_or([None, None], |se| {
+            [
+                normal_at(result.estimate.ate, se, REPORTED_LEVEL),
+                normal_at(result.estimate.ate, se, GATE_LEVEL),
+            ]
+        })
+    };
+    for rep in 0..u64::from(n_sim()) {
+        let data = persistent_dgp::autoregressive_pulse_series(
+            n,
+            persistent_dgp::AR_PHI,
+            false,
+            0x110_0501 + rep,
+        );
+        let Some((study, result)) = run_pulse(data.clone(), false, rep) else {
+            skip_pair(&mut tallies);
+            continue;
+        };
+        let intervals = interval_pair(&result);
+        if rep == 0 {
+            assert!(
+                result
+                    .identification
+                    .derivation
+                    .steps
+                    .iter()
+                    .any(|step| step.rule.as_ref() == antecedent_identify::PARENT_ADJUSTMENT_RULE),
+                "the construction under test is parent adjustment"
+            );
+            assert!(intervals[0].is_some(), "the circular-block interval must be published");
+            let (_, accepted) = run_pulse(data, true, rep).expect("licensed coordinate");
+            assert_eq!(interval_pair(&accepted), intervals, "accepted structure");
+        }
+        let [first, second] = &mut tallies;
+        bind_all(&mut [first, second], &study, &result);
+        record_pair(&mut tallies, intervals, persistent_dgp::AR_BETA);
     }
     gate(&tallies, &[None, None]);
 }
