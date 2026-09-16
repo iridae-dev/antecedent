@@ -237,6 +237,8 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
                     Some("SustainedEffect")
                 }
             }
+            // `TemporalPolicy` is `#[non_exhaustive]`; every variant that
+            // exists is classified above, so this covers only later additions.
             _ => None,
         },
         CausalQuery::Response(q) => {
@@ -268,7 +270,18 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
         CausalQuery::Interference(_) => Some("InterferenceQuery"),
         CausalQuery::AnomalyAttribution(_) => Some("AnomalyAttribution"),
         CausalQuery::ChangeAttribution(_) => Some("ChangeAttribution"),
-        // Mechanism/unit-change and any later CausalQuery variant stay off the axis.
+        // Off the public axis: the mechanism-change and unit-change queries
+        // that exist today, and any variant added after this release.
+        //
+        // This cannot be made exhaustive. `CausalQuery` is `#[non_exhaustive]`
+        // for the 1.0 API freeze, so a downstream crate is required by the
+        // compiler to keep a wildcard here, and clippy refuses a named arm
+        // beside it with the same body. The wire-side classifier that used to
+        // shadow this table is gone — a consumer reads the `query_kind` the
+        // producer stamped from here — so there is no second table to drift
+        // from; what is left is that a new query kind lands off-axis silently.
+        // `parity/support_axes.toml` is the list that says which names the
+        // matrix expects, and `gate_parity_schema.sh` checks it.
         _ => None,
     }
 }
@@ -532,7 +545,6 @@ pub fn licensed_neighbors(cell: SupportCell) -> Vec<LicensedNeighbor> {
 }
 
 /// Every licensed support-matrix coordinate.
-#[must_use]
 pub fn licensed_support_cells() -> impl Iterator<Item = SupportCell> {
     LICENSED.iter().map(support_cell_from_licensed)
 }
