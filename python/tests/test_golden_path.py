@@ -1,0 +1,241 @@
+"""The five lines that are the Antecedent Python API, pinned on every major route.
+
+```python
+result = ant.analyze(data, graph=graph, query=ant.AverageEffect("treatment", "outcome"))
+study = result.study
+updated = study.refresh(new_data)
+report = result.inspect().to_dict()
+loaded = ant.load(result.export())
+```
+
+Each case runs exactly those five statements with every warning turned into an
+error, then checks that the report is JSON, the loaded execution is verified,
+and the live and loaded answers agree (kind, value or bounds, and identities).
+A route that needs one more argument (``inference=``, ``discovery=``) passes it
+through ``options``; the five statements themselves never change.
+"""
+
+from __future__ import annotations
+
+import json
+import warnings
+from collections.abc import Callable
+from dataclasses import dataclass, field, fields
+from typing import Any
+
+import antecedent as ant
+import numpy as np
+import pytest
+
+
+def _static(seed: int, n: int = 1200) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=n)
+    t = (rng.uniform(size=n) < 1 / (1 + np.exp(-z))).astype(float)
+    y = 1.5 * t + z + rng.normal(size=n)
+    return {"z": z, "treatment": t, "outcome": y}
+
+
+def _continuous(seed: int, n: int = 1500) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    a = rng.normal(size=n)
+    b = rng.normal(size=n)
+    t = a + b + rng.normal(size=n)
+    y = 1.5 * t + rng.normal(size=n)
+    return {"a": a, "b": b, "treatment": t, "outcome": y}
+
+
+def _temporal(seed: int, n: int = 400) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    pressure = rng.normal(size=n)
+    defect = np.zeros(n)
+    for i in range(1, n):
+        defect[i] = 0.9 * pressure[i - 1] + 0.3 * rng.normal()
+    return {"pressure": pressure, "defect": defect}
+
+
+def _mediated(seed: int, n: int = 800) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    treatment = rng.normal(size=n)
+    mediator = 0.8 * treatment + rng.normal(size=n)
+    outcome = 0.5 * treatment + 1.2 * mediator + rng.normal(size=n)
+    return {"treatment": treatment, "mediator": mediator, "outcome": outcome}
+
+
+def _moderated(seed: int, n: int = 800) -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    w = rng.integers(0, 3, size=n).astype(float)
+    t = rng.binomial(1, 0.5, size=n).astype(float)
+    y = 1.0 + 2.0 * t + 0.5 * t * w + rng.normal(scale=0.5, size=n)
+    return {"treatment": t, "outcome": y, "w": w}
+
+
+STATIC_DAG = [("z", "treatment"), ("z", "outcome"), ("treatment", "outcome")]
+
+
+@dataclass(frozen=True)
+class Case:
+    name: str
+    make: Callable[[int], dict[str, np.ndarray]]
+    graph: Any
+    query: Any
+    kind: str
+    options: dict[str, Any] = field(default_factory=dict)
+
+
+CASES = [
+    Case(
+        "dag-average-frequentist",
+        _static,
+        STATIC_DAG,
+        ant.AverageEffect("treatment", "outcome"),
+        "point",
+    ),
+    Case(
+        "dag-average-bayesian",
+        _static,
+        STATIC_DAG,
+        ant.AverageEffect("treatment", "outcome"),
+        "point",
+        {"inference": ant.Bayesian(n_draws=200)},
+    ),
+    Case(
+        "cpdag-average-bounds",
+        _static,
+        ant.Cpdag.from_directed_undirected(
+            ["z", "treatment", "outcome"],
+            [("z", "outcome"), ("treatment", "outcome")],
+            [("z", "treatment")],
+        ),
+        ant.AverageEffect("treatment", "outcome"),
+        "bounds",
+    ),
+    Case(
+        "discovery-pc-average",
+        _continuous,
+        None,
+        ant.AverageEffect("treatment", "outcome"),
+        "point",
+        {"discovery": ant.discovery.PC(alpha=0.05)},
+    ),
+    Case(
+        "temporal-pulse",
+        _temporal,
+        [("pressure", 1, "defect", 0)],
+        ant.PulseEffect("pressure", "defect", treatment_lag=1, horizon_steps=1),
+        "point",
+    ),
+    Case(
+        "counterfactual", _static, STATIC_DAG, ant.Counterfactual("treatment", "outcome"), "point"
+    ),
+    Case(
+        "mediation",
+        _mediated,
+        [("treatment", "mediator"), ("treatment", "outcome"), ("mediator", "outcome")],
+        ant.MediationEffect("treatment", "outcome", mediators=["mediator"]),
+        "point",
+    ),
+    Case(
+        "conditional",
+        _moderated,
+        [("treatment", "outcome"), ("w", "outcome")],
+        ant.ConditionalEffect("treatment", "outcome", "w"),
+        "point",
+    ),
+    Case(
+        "response-curve",
+        _continuous,
+        [("a", "treatment"), ("b", "treatment"), ("treatment", "outcome")],
+        ant.ResponseCurve("treatment", "outcome", grid=[-1.0, 0.0, 1.0]),
+        "response",
+    ),
+]
+
+
+@pytest.mark.parametrize("case", CASES, ids=[case.name for case in CASES])
+def test_golden_path(case: Case) -> None:
+    data, new_data = case.make(1), case.make(2)
+    graph, query, options = case.graph, case.query, case.options
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = ant.analyze(data, graph=graph, query=query, **options)
+        study = result.study
+        updated = study.refresh(new_data)
+        report = result.inspect().to_dict()
+        loaded = ant.load(result.export())
+
+        # Refresh re-executed the same program on new data, of the same result type,
+        # and the earlier result still exports its own execution (checked below
+        # through the loaded snapshot identity).
+        assert type(updated) is type(result)
+        assert updated.program_id == result.program_id
+        assert updated.data_snapshot_id != result.data_snapshot_id
+
+        # The report is JSON and carries the same top-level fields as the loaded report.
+        json.dumps(report, allow_nan=False)
+        loaded_report = loaded.inspect().to_dict()
+        json.dumps(loaded_report, allow_nan=False)
+        assert set(report) == set(loaded_report)
+
+        # Live and loaded answers agree.
+        assert loaded.acceptance.verified
+        assert result.answer.kind == case.kind
+        assert loaded.answer == result.answer
+        assert report["answer"] == loaded_report["answer"]
+        assert loaded.program_id == result.program_id
+        assert loaded.claim_id == result.claim_id
+        assert loaded_report["data_snapshot_id"] == result.data_snapshot_id
+
+
+# --- refusals on the same verbs ------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "graph",
+    [
+        STATIC_DAG,
+        ant.Cpdag.from_directed_undirected(
+            ["z", "treatment", "outcome"],
+            [("z", "outcome"), ("treatment", "outcome")],
+            [("z", "treatment")],
+        ),
+    ],
+    ids=["dag", "cpdag"],
+)
+def test_response_curve_on_a_binary_treatment_is_a_coded_refusal(graph: Any) -> None:
+    """A local-quadratic dose response has three coefficients and a binary
+    treatment has two support points, so the design is singular everywhere.
+    That is refused by name, with the queries that do answer a binary treatment,
+    rather than surfacing the backend's singular-matrix message."""
+    with pytest.raises(ant.errors.CausalUnsupportedError) as caught:
+        ant.analyze(
+            _static(1),
+            graph=graph,
+            query=ant.ResponseCurve("treatment", "outcome", grid=[0.0, 1.0]),
+        )
+    assert caught.value.reason_code == "treatment_support_too_discrete"
+    message = str(caught.value)
+    assert "takes 2 distinct values" in message
+    assert "AverageEffect" in message and "InterventionResponse" in message
+    assert "backend error" not in message
+
+
+def test_discovered_autoregressive_treatment_refusal_gives_actionable_advice() -> None:
+    """PCMCI keeps a lag-1 self edge on the treatment of this series; the
+    treatment's ancestry is then unbounded. The refusal names the lagged cycle
+    and does not advise ``max_history_lag``, which ``PulseEffect`` does not take
+    and which cannot certify an unbounded chain."""
+    config = ant.discovery.PCMCI(max_lag=1, alpha=0.05)
+    accepted = config.accept(_temporal(1))
+    assert ("pressure", 1, "pressure", 0) in accepted.graph.edges()
+    assert "max_history_lag" not in {f.name for f in fields(ant.PulseEffect)}
+    with pytest.raises(ant.errors.CausalIdentifyError) as caught:
+        ant.analyze(
+            _temporal(1),
+            discovery=config,
+            query=ant.PulseEffect("pressure", "defect", treatment_lag=1, horizon_steps=1),
+        )
+    message = str(caught.value)
+    assert "lagged cycle" in message
+    assert "max_history_lag" not in message
