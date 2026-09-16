@@ -101,6 +101,22 @@ impl EstimatorSpec {
             Self::Iv2Sls(cfg) => Some(cfg.bootstrap_replicates),
         }
     }
+
+    /// Overlap policy a configured propensity-score estimator (weighting,
+    /// matching, stratification, distance matching, AIPW) clips and trims
+    /// with; `None` for an id-only spec and for estimators without a
+    /// propensity model.
+    #[must_use]
+    pub fn propensity_overlap(&self) -> Option<antecedent_estimate::OverlapPolicy> {
+        match self {
+            Self::PropensityWeighting(cfg) => Some(cfg.overlap),
+            Self::PropensityMatching(cfg) => Some(cfg.overlap),
+            Self::PropensityStratification(cfg) => Some(cfg.overlap),
+            Self::DistanceMatching(cfg) => Some(cfg.overlap),
+            Self::Aipw(cfg) => Some(cfg.overlap),
+            _ => None,
+        }
+    }
 }
 
 impl From<EstimatorId> for EstimatorSpec {

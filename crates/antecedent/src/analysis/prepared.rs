@@ -2432,9 +2432,21 @@ impl Study {
                 if matches!(est.overlap, OverlapPolicy::RequireDiagnostics { trim: Some(_), .. })
                     || est.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
                 {
-                    return Err(CausalError::Unsupported {
-                        message: "prepared AIPW scores require iid inference without propensity trimming",
-                    });
+                    // Frozen cross-fitted scores are untrimmed iid influence
+                    // values. A mean estimate under trimming or a non-iid SE is
+                    // still estimated by the configured AIPW; it keeps no score
+                    // table, so a retarget refuses with `score_table_unavailable`
+                    // instead of reweighting scores of a different construction.
+                    // A quantile or exceedance functional is estimated from the
+                    // scores and has no such fallback.
+                    if query.outcome_functional.is_mean() {
+                        return Ok(None);
+                    }
+                    return Err(crate::unsupported_reason!(
+                        "option_not_applicable",
+                        "prepared AIPW functional scores require iid inference without \
+                         propensity trimming"
+                    ));
                 }
                 let estimand = cache.estimand.clone();
                 let mut problem = est.prepare(data, &estimand, query)?;

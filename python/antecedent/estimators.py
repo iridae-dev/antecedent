@@ -219,6 +219,53 @@ class GlmOptions:
         return out
 
 
+@dataclass(frozen=True, slots=True)
+class Overlap:
+    """Propensity clipping and trimming for a propensity-score estimator.
+
+    Every propensity-score estimator (``PropensityWeighting``,
+    ``PropensityMatching``, ``PropensityStratification``, ``DistanceMatching``,
+    ``Aipw``) clips fitted propensities into ``[0.01, 0.99]`` and trims no unit
+    unless it is given an ``overlap``. ``clip`` bounds the propensities used in
+    the weights to ``[clip, 1 - clip]``; ``trim`` drops units whose propensity
+    lies outside ``[trim, 1 - trim]``, which also narrows the population the
+    effect describes. ``None`` turns that operation off. Each bound lies in
+    ``(0, 0.5)``.
+
+    ``Overlap()`` is the default policy, so passing it changes nothing. Any other
+    policy is a different interval construction: its calibration binds only to
+    coverage records measured under that policy, and otherwise reports
+    ``scope_not_assessed``.
+    """
+
+    clip: float | None = 0.01
+    trim: float | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("clip", "trim"):
+            value = getattr(self, name)
+            if value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise CausalValueError(f"Overlap.{name} must be a float or None, got {value!r}")
+            if not 0.0 < float(value) < 0.5:
+                raise CausalValueError(f"Overlap.{name} must lie in (0, 0.5), got {value!r}")
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "clip": None if self.clip is None else float(self.clip),
+            "trim": None if self.trim is None else float(self.trim),
+        }
+
+
+def _wire_overlap(overlap: Overlap | None) -> dict[str, Any]:
+    if overlap is None:
+        return {}
+    if not isinstance(overlap, Overlap):
+        raise CausalValueError(f"overlap must be an Overlap, got {overlap!r}")
+    return {"overlap": overlap._wire()}
+
+
 def _wire_glm_options(glm_options: GlmOptions | None) -> dict[str, Any]:
     if glm_options is None:
         return {}
@@ -317,11 +364,12 @@ class PropensityWeighting:
     No ``se``/``cluster_ids``/... fields: the Rust struct carries no
     ``AnalyticSeKind`` at all for this estimator (the Hajek SE isn't
     parameterized that way) — only ``bootstrap_replicates`` and ``glm_options``
-    are configurable.
+    are configurable, plus the propensity ``overlap`` policy.
     """
 
     bootstrap: int | None = None
     glm_options: GlmOptions | None = None
+    overlap: Overlap | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -335,6 +383,7 @@ class PropensityWeighting:
         if self.bootstrap is not None:
             out["bootstrap_replicates"] = self.bootstrap
         out.update(_wire_glm_options(self.glm_options))
+        out.update(_wire_overlap(self.overlap))
         return _omit_empty(out)
 
 
@@ -360,6 +409,7 @@ class PropensityMatching:
     glm_options: GlmOptions | None = None
     caliper: float | None = None
     caliper_scale: Literal["logit", "raw"] | None = None
+    overlap: Overlap | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -393,6 +443,7 @@ class PropensityMatching:
             out["caliper"] = self.caliper
         if self.caliper_scale is not None:
             out["caliper_scale"] = self.caliper_scale
+        out.update(_wire_overlap(self.overlap))
         return _omit_empty(out)
 
 
@@ -403,6 +454,7 @@ class PropensityStratification:
     bootstrap: int | None = None
     glm_options: GlmOptions | None = None
     n_strata: int | None = None
+    overlap: Overlap | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -419,6 +471,7 @@ class PropensityStratification:
         out.update(_wire_glm_options(self.glm_options))
         if self.n_strata is not None:
             out["n_strata"] = self.n_strata
+        out.update(_wire_overlap(self.overlap))
         return _omit_empty(out)
 
 
@@ -434,6 +487,7 @@ class DistanceMatching:
     panel_times: Sequence[int] | None = None
     glm_options: GlmOptions | None = None
     caliper: float | None = None
+    overlap: Overlap | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -461,6 +515,7 @@ class DistanceMatching:
         out.update(_wire_glm_options(self.glm_options))
         if self.caliper is not None:
             out["caliper"] = self.caliper
+        out.update(_wire_overlap(self.overlap))
         return _omit_empty(out)
 
 
@@ -475,6 +530,7 @@ class Aipw:
     multiway_ids: Sequence[Sequence[int]] | None = None
     panel_times: Sequence[int] | None = None
     glm_options: GlmOptions | None = None
+    overlap: Overlap | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -499,6 +555,7 @@ class Aipw:
             panel_times=self.panel_times,
         )
         out.update(_wire_glm_options(self.glm_options))
+        out.update(_wire_overlap(self.overlap))
         return _omit_empty(out)
 
 
@@ -721,6 +778,7 @@ __all__ = [
     "Iv2Sls",
     "IvWald",
     "LinearAdjustment",
+    "Overlap",
     "PropensityMatching",
     "PropensityStratification",
     "PropensityWeighting",

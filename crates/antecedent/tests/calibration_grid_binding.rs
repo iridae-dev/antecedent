@@ -304,6 +304,61 @@ fn record_for(id: &'static str, basis: &CalibrationBasisWire) -> CoverageRecord 
     }
 }
 
+fn aipw_basis(estimator: antecedent_estimate::AipwAte) -> CalibrationBasisWire {
+    let study = Study::tabular(linear_ate_data(500, 17))
+        .graph(dag())
+        .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+        .estimator(estimator)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let result = study.run(&ExecutionContext::for_tests(17)).unwrap();
+    primary_basis((study, result))
+}
+
+#[test]
+fn a_non_default_overlap_policy_does_not_bind_to_records_measured_at_the_default() {
+    use antecedent_estimate::{AipwAte, OverlapPolicy};
+    let default = aipw_basis(AipwAte::new().with_bootstrap_replicates(0));
+    assert_eq!(default.key.functional, "all_observed.mean");
+    let records = vec![record_for("cov.fixture.aipw_default_overlap", &default)];
+    assert_eq!(slot(&default, &records).status, "calibrated");
+
+    // Spelling the default policy out is the same construction.
+    let spelled = aipw_basis(
+        AipwAte::new()
+            .with_bootstrap_replicates(0)
+            .with_overlap(OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: None }),
+    );
+    assert_eq!(spelled.key, default.key);
+
+    for (policy, label) in [
+        (
+            OverlapPolicy::RequireDiagnostics { clip: Some(0.05), trim: None },
+            "all_observed.mean+overlap=clip:0.05,trim:none",
+        ),
+        (
+            OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.1) },
+            "all_observed.mean+overlap=clip:0.01,trim:0.1",
+        ),
+    ] {
+        let basis = aipw_basis(AipwAte::new().with_bootstrap_replicates(0).with_overlap(policy));
+        assert_eq!(basis.key.functional, label);
+        let slot = slot(&basis, &records);
+        // No record measured this construction: unavailable, never borrowed
+        // from the default-policy record.
+        assert_eq!(slot.status, "unavailable", "{label}: {slot:#?}");
+        assert_eq!(
+            slot.reason.as_deref(),
+            Some(antecedent_io::calibration::CONSTRUCTION_NOT_MEASURED),
+            "{label}"
+        );
+        // A record measured under that policy binds it.
+        let measured = vec![record_for("cov.fixture.aipw_overlap", &basis)];
+        assert_eq!(calibration_slot_in(&basis, &measured).status, "calibrated", "{label}");
+    }
+}
+
 #[test]
 fn a_non_gaussian_likelihood_binds_only_to_records_of_that_likelihood() {
     use antecedent_prob::BayesLikelihood;
