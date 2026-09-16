@@ -182,7 +182,9 @@ fn incomplete_joint_envelope_preserves_distinct_adjustments_and_caps() {
     let expected_lo = pin()["mean"].as_f64().unwrap();
     let expected_hi = pin()["unadjusted_mean"].as_f64().unwrap();
     let tol = pin()["tolerance"].as_f64().unwrap();
-    assert_eq!(envelope.dimension, 1);
+    // A scalar functional's identified set is coordinate-free: no grid, one bound.
+    assert_eq!(envelope.dimension, 0);
+    assert!(envelope.grid.is_empty());
     assert_eq!(envelope.lower.len(), 1);
     assert!((envelope.lower[0] - expected_lo).abs() < tol, "lower={}", envelope.lower[0]);
     assert!((envelope.upper[0] - expected_hi).abs() < tol, "upper={}", envelope.upper[0]);

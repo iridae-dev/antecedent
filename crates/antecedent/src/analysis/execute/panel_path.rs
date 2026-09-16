@@ -658,7 +658,7 @@ impl super::Study {
             for (i, (case, indexer)) in
                 envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
             {
-                if !identification_status_ok_for_point_mix(case.result.status)
+                if !identification_status_ok_for_case(case.result.status)
                     || case.result.estimands.is_empty()
                 {
                     leftover_mass |= case.weight.0 > 0.0;

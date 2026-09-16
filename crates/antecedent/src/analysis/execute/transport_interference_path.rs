@@ -8,6 +8,7 @@ use antecedent_core::{
 use antecedent_data::TableView;
 use antecedent_estimate::{
     EffectEstimate, OverlapPolicy, estimate_interference, trial_to_target_effect,
+    trial_to_target_ipw_se,
 };
 use antecedent_identify::{TransportIdentification, TransportIdentifier};
 
@@ -75,9 +76,20 @@ impl super::Study {
             None,
         )
         .map_err(CausalError::from)?;
+        // Known selection and treatment probabilities: the delta-method SE of
+        // the ratio-of-means IPW contrast over iid rows.
+        let se = trial_to_target_ipw_se(
+            &outcomes,
+            &treatment_bool,
+            &trial_bool,
+            &selection,
+            &propensity,
+            transported.ipw,
+        )
+        .map_err(CausalError::from)?;
         let estimate = EffectEstimate::new(
             transported.ipw,
-            f64::NAN,
+            se,
             identification.required_assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
         );

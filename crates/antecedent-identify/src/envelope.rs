@@ -6,6 +6,30 @@ use std::sync::Arc;
 
 use crate::result::{IdentificationResult, IdentificationStatus, IdentifiedEstimand};
 
+/// Whether a case with this status contributes to an envelope's identified
+/// mass.
+///
+/// The single owner of that list. [`IdentificationEnvelope::from_cases`] splits
+/// `identified_weight` from `unidentified_weight` by exactly this predicate, so
+/// any other reading of "which completion mass is identified" — a class
+/// mixture, a diagnostic, a published mass — must ask here rather than restate
+/// the arms, or it contradicts the envelope it was built from.
+///
+/// It is deliberately wider than "which cases may be estimated": a completion
+/// identified only under prior restrictions carries identified mass and its
+/// assumptions, but no frequentist arm estimates it, so its mass lands in the
+/// unevaluable bucket rather than the unidentified one.
+#[must_use]
+pub const fn carries_identified_mass(status: IdentificationStatus) -> bool {
+    matches!(
+        status,
+        IdentificationStatus::NonparametricallyIdentified
+            | IdentificationStatus::PartiallyIdentified
+            | IdentificationStatus::IdentifiedUnderParametricRestrictions
+            | IdentificationStatus::IdentifiedUnderPriorRestrictions
+    )
+}
+
 /// Probability mass on `[0, 1]` (not necessarily normalized across fields alone).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ProbabilityMass(pub f64);
@@ -79,37 +103,31 @@ impl<G> IdentificationEnvelope<G> {
         let mut invariant: Option<IdentifiedEstimand> = None;
         let mut invariant_conflict = false;
         for c in &cases {
-            match c.result.status {
-                IdentificationStatus::NonparametricallyIdentified
-                | IdentificationStatus::IdentifiedUnderParametricRestrictions
-                | IdentificationStatus::IdentifiedUnderPriorRestrictions
-                | IdentificationStatus::PartiallyIdentified => {
-                    any_id = true;
-                    any_parametric |= matches!(
-                        c.result.status,
-                        IdentificationStatus::IdentifiedUnderParametricRestrictions
-                    );
-                    any_prior_restricted |= matches!(
-                        c.result.status,
-                        IdentificationStatus::IdentifiedUnderPriorRestrictions
-                    );
-                    any_partial |=
-                        matches!(c.result.status, IdentificationStatus::PartiallyIdentified);
-                    identified += c.weight.0;
-                    if let Some(est) = c.result.estimands.first() {
-                        match &invariant {
-                            None => invariant = Some(est.clone()),
-                            Some(prev) if !estimands_agree(prev, est) => {
-                                invariant_conflict = true;
-                            }
-                            _ => {}
+            // `carries_identified_mass` is the list; this is the split it owns.
+            if carries_identified_mass(c.result.status) {
+                any_id = true;
+                any_parametric |= matches!(
+                    c.result.status,
+                    IdentificationStatus::IdentifiedUnderParametricRestrictions
+                );
+                any_prior_restricted |= matches!(
+                    c.result.status,
+                    IdentificationStatus::IdentifiedUnderPriorRestrictions
+                );
+                any_partial |= matches!(c.result.status, IdentificationStatus::PartiallyIdentified);
+                identified += c.weight.0;
+                if let Some(est) = c.result.estimands.first() {
+                    match &invariant {
+                        None => invariant = Some(est.clone()),
+                        Some(prev) if !estimands_agree(prev, est) => {
+                            invariant_conflict = true;
                         }
+                        _ => {}
                     }
                 }
-                IdentificationStatus::NotIdentified | IdentificationStatus::GraphDependent => {
-                    all_id = false;
-                    unidentified += c.weight.0;
-                }
+            } else {
+                all_id = false;
+                unidentified += c.weight.0;
             }
         }
         let status = if cases.is_empty() {

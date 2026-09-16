@@ -938,6 +938,7 @@ impl super::Study {
         let mut assumptions = antecedent_core::AssumptionSet::default();
         let mut refute_atoms = Vec::new();
         let mut grid_atoms = Vec::new();
+        let mut outcomes = vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()];
         let est = ConditionalLinearAdjustment::new();
         for (i, case) in envelope.cases.iter().enumerate() {
             if !identification_status_ok_for_case(case.result.status)
@@ -951,6 +952,7 @@ impl super::Study {
             let estimate =
                 est.estimate(&data_est, &estimand, &mean_query, ctx).map_err(CausalError::from)?;
             let w = case.weight.0;
+            outcomes[i] = ClassAtomOutcome::Evaluated(estimate.ate);
             weighted_ate += w * estimate.ate;
             se_items.push((w, estimate.se_analytic));
             if let Some(inf) = estimate
@@ -1036,6 +1038,15 @@ impl super::Study {
         diagnostics.extend(na_diagnostics);
         diagnostics.push(overlap_diagnostic(estimate.overlap));
         diagnostics.extend(envelope_se_omission_diagnostic(n_contributing, estimate.se_analytic));
+        // Completions that disagree publish their identified set, exactly as the
+        // class ATE arm does; a point-identified envelope stays a point.
+        let structural_response =
+            super::pag_path::static_class_structural_mixture(envelope, &outcomes);
+        if let Some(mixture) = structural_response.as_ref() {
+            diagnostics.extend(super::pag_path::static_class_identified_set_diagnostic(
+                mixture, class_tag,
+            ));
+        }
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
             identification,
@@ -1056,6 +1067,7 @@ impl super::Study {
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
                 diagnostics: Some(diagnostics),
+                structural_response,
                 ..Default::default()
             },
         }))
@@ -1379,6 +1391,16 @@ impl super::Study {
                     .into(),
             );
         }
+        // The within-tier order is unknown, so no canonical scenario is *the*
+        // effect: the answer is the identified set over the scenarios, and each
+        // keeps its own value. The reported scalar stays withheld (NaN).
+        let structural_response = scenario_structural_mixture(&values, identification.status);
+        if let Some(mixture) = structural_response.as_ref() {
+            extra_diagnostics.extend(super::pag_path::static_class_identified_set_diagnostic(
+                mixture,
+                "tiered_unknown",
+            ));
+        }
         estimate.scenario_effects = Some(values.into());
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
@@ -1398,9 +1420,48 @@ impl super::Study {
             bootstrap_replicates_ok: None,
             cancelled: false,
             early_stopped: false,
-            extras: IdentifiedExecuteExtras::default(),
+            extras: IdentifiedExecuteExtras { structural_response, ..Default::default() },
         }))
     }
+}
+
+/// Structural uncertainty of a tiered `Unknown` within-tier closure: every
+/// canonical scenario with equal enumeration weight, its own value, and the
+/// identified set over them. `None` when no scenario produced a finite value.
+fn scenario_structural_mixture(
+    values: &[f64],
+    status: IdentificationStatus,
+) -> Option<crate::result::StructuralResponseMixture> {
+    if values.is_empty() || values.iter().any(|value| !value.is_finite()) {
+        return None;
+    }
+    let (lo, hi) = values
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| (lo.min(*v), hi.max(*v)));
+    Some(crate::result::StructuralResponseMixture {
+        weight_basis: crate::result::StructuralWeightBasis::CompletionEnumeration,
+        atoms: values
+            .iter()
+            .enumerate()
+            .map(|(index, value)| crate::result::StructuralResponseAtom {
+                graph_key: u64::try_from(index).unwrap_or(u64::MAX),
+                weight: 1.0,
+                status,
+                value: Some(antecedent_core::ResponseValue::Scalar(*value)),
+                posterior: None,
+                response: None,
+            })
+            .collect(),
+        identified_mass: 1.0,
+        unidentified_mass: 0.0,
+        unevaluable_mass: 0.0,
+        subsampled_out_mass: 0.0,
+        identified_set: Some(scalar_identified_set(lo, hi)),
+        identified_set_interval: None,
+        conditional_on_identified: None,
+        full_mass_scope: true,
+        truncated_atoms: 0,
+    })
 }
 
 /// Name every interventional probability whose bounded interval could not be

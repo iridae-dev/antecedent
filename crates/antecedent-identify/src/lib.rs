@@ -59,6 +59,7 @@ pub use bounds::{BinaryIvLaw, binary_iv_ate_bounds};
 pub use efficient::EfficientBackdoorIdentifier;
 pub use envelope::{
     GraphFeature, GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass,
+    carries_identified_mass,
 };
 pub use error::IdentificationError;
 pub use frontdoor::{FrontDoorIdentifier, FrontDoorSearchConfig};

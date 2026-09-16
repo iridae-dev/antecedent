@@ -308,7 +308,7 @@ def test_response_envelope_does_not_render_as_an_unrestricted_curve():
     assert result.answer.value is None
 
 
-def test_cpdag_partial_identification_with_full_mass_stays_partial(monkeypatch):
+def test_cpdag_partial_identification_with_full_mass_reports_its_identified_set(monkeypatch):
     z = np.linspace(0.0, 1.0, 200)
     t = (z > 0.5).astype(float)
     graph = ant.Cpdag.from_directed_undirected(
@@ -322,8 +322,12 @@ def test_cpdag_partial_identification_with_full_mass_stays_partial(monkeypatch):
         bootstrap=0,
     )
     assert result.inspect().identification.payload["identified_mass"] == 1.0
-    assert result.answer.kind == "partial"
+    # Completions disagree, so the answer is the set they span, never a scalar.
+    assert result.answer.kind == "bounds"
     assert result.answer.value is None
+    lower, upper = result.answer.bounds
+    assert lower < upper, "the two completions disagree, so the set is non-degenerate"
+    assert result.answer.bounds == result.structural_identified_set
     with pytest.raises(ant.errors.RenderingLimitation, match="identified_set"):
         result.display_effect()
     with pytest.warns(UserWarning, match="result.answer is the safe"):

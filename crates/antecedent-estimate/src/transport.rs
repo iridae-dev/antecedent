@@ -318,6 +318,58 @@ pub fn trial_to_target_effect(
     })
 }
 
+/// Standard error of the trial-to-target IPW contrast of [`trial_to_target_effect`].
+///
+/// The IPW contrast is a ratio of two sample means over all `n` rows,
+/// `ipw = mean(ψ) / mean(1 − S)` with `ψ_i = S_i·(±1)·(1 − s_i)/(s_i·e_i^±)·Y_i`.
+/// With the selection and treatment probabilities known (the licensed
+/// contract) the rows are iid and the only estimated denominator is the
+/// target share, so the influence of row `i` is `(ψ_i − ipw·(1 − S_i)) /
+/// mean(1 − S)` and the delta-method SE is
+/// `sqrt(Σ_i (ψ_i − ipw·(1 − S_i))²) / n_target`.
+///
+/// Inputs are those passed to [`trial_to_target_effect`]; `ipw` is its
+/// [`TransportEffectEstimate::ipw`].
+///
+/// # Errors
+///
+/// Returns [`EstimationError`] for mismatched lengths or when no target row exists.
+pub fn trial_to_target_ipw_se(
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+    ipw: f64,
+) -> Result<f64, EstimationError> {
+    let n = outcome.len();
+    if treatment.len() != n
+        || trial.len() != n
+        || selection_probability.len() != n
+        || treatment_probability.len() != n
+    {
+        return Err(EstimationError::data_msg("transport input length mismatch"));
+    }
+    let target_n = trial.iter().filter(|&&source| !source).count();
+    if target_n == 0 {
+        return Err(EstimationError::data_msg("transport requires target-population rows"));
+    }
+    let mut sum_sq = 0.0;
+    for i in 0..n {
+        let influence = if trial[i] {
+            let s = selection_probability[i];
+            let e = treatment_probability[i];
+            let arm = if treatment[i] { e } else { 1.0 - e };
+            let sign = if treatment[i] { 1.0 } else { -1.0 };
+            sign * (1.0 - s) / s / arm * outcome[i]
+        } else {
+            -ipw
+        };
+        sum_sq += influence * influence;
+    }
+    Ok(sum_sq.sqrt() / target_n as f64)
+}
+
 /// Weight magnitude above which [`TransportOverlapDiagnostic::extreme_weight_count`] flags a
 /// row. This is a diagnostic threshold meant to draw a reviewer's eye to poor overlap; it is not
 /// an inferential cutoff and does not itself clip, trim, or otherwise change any estimate.
@@ -404,6 +456,33 @@ mod tests {
         assert!((result.aipw.unwrap() - 2.0).abs() < 1e-12);
         assert!((result.overlap.selection.probability_min - 0.5).abs() < f64::EPSILON);
         assert!((result.overlap.treatment.probability_min - 0.5).abs() < f64::EPSILON);
+    }
+
+    /// Hand-computed ratio-of-means SE: weights `(1−s)/(s·e) = 2`, so
+    /// `ψ = (6, −2)` on the trial rows, `ipw = (6 − 2)/2 = 2`, target-row
+    /// influences `−2`, `se = sqrt(36 + 4 + 4 + 4)/2 = √48/2`.
+    #[test]
+    fn trial_to_target_ipw_se_is_the_ratio_of_means_delta_method() {
+        let (outcome, treatment, trial) =
+            ([3.0, 1.0, 0.0, 0.0], [true, false, false, false], [true, true, false, false]);
+        let effect = trial_to_target_effect(
+            &certified_identification(),
+            &outcome,
+            &treatment,
+            &trial,
+            &[0.5; 4],
+            &[0.5; 4],
+            None,
+        )
+        .unwrap();
+        assert!((effect.ipw - 2.0).abs() < 1e-12);
+        let se = trial_to_target_ipw_se(&outcome, &treatment, &trial, &[0.5; 4], &[0.5; 4], 2.0)
+            .unwrap();
+        assert!((se - 48.0_f64.sqrt() / 2.0).abs() < 1e-12, "se={se}");
+        assert!(
+            trial_to_target_ipw_se(&outcome, &treatment, &[true; 4], &[0.5; 4], &[0.5; 4], 2.0)
+                .is_err()
+        );
     }
 
     #[test]

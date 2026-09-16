@@ -2317,7 +2317,30 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
         .unwrap()
         .run(&ExecutionContext::for_tests(213))
         .unwrap();
-    assert!(mixed.estimate.ate.is_finite(), "identified-mass response level is still published");
+    // Unresolved completion mass keeps the class answer set-valued: the payload
+    // is the identified set over the completions that did evaluate, the scalar
+    // level is withheld, and the identified atom's SE is never republished as
+    // the envelope's.
+    assert!(!mixed.estimate.ate.is_finite(), "a set-valued class answer publishes no scalar level");
+    let response = mixed.response.as_ref().expect("class response payload");
+    let set = match &response.estimate {
+        ResponseIdentification::PartiallyIdentified(antecedent_core::ResponseValue::Envelope(
+            envelope,
+        )) => envelope.clone(),
+        other => panic!("expected the completion identified set, got {other:?}"),
+    };
+    assert_eq!(set.dimension, 0, "a scalar functional's identified set is coordinate-free");
+    assert!(set.lower[0].is_finite() && set.upper[0] >= set.lower[0]);
+    let structural = mixed.structural_response.as_ref().expect("completion mass accounting");
+    assert!(
+        structural.identified_mass < 1.0,
+        "the completion that could not be evaluated must keep its own mass"
+    );
+    assert_eq!(
+        structural.identified_set.as_ref().map(|s| (s.lower[0], s.upper[0])),
+        Some((set.lower[0], set.upper[0])),
+        "the published payload and the structural identified set are the same bounds"
+    );
     assert!(
         !mixed.estimate.se_analytic.is_finite(),
         "unidentified completions must not publish an identified-atom SE as the envelope; mixed se={} primary se={}",
@@ -2328,13 +2351,15 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
         primary.estimate.se_analytic.is_finite(),
         "the identified MAG still has its own SE; the envelope must not reuse it"
     );
-    assert!(
-        mixed
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "estimate.envelope.se_omits_between_atom_variance"),
-        "omitted envelope SE must be disclosed"
-    );
+    for code in [
+        "estimate.envelope.response_identified_set_unbanded",
+        "estimate.response.no_scalar_summary",
+    ] {
+        assert!(
+            mixed.diagnostics.iter().any(|d| d.code.as_ref() == code),
+            "a withheld envelope scalar must be disclosed ({code})"
+        );
+    }
 }
 
 #[test]
