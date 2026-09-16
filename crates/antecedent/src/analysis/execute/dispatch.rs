@@ -742,7 +742,7 @@ impl super::Study {
             }
             AnalysisRoute::Interference => {
                 let CausalQuery::Interference(q) = &self.query else { unreachable!() };
-                self.execute_interference(q, physical, ctx)
+                self.execute_interference(data, q, physical, ctx)
             }
             AnalysisRoute::TemporalMediation
             | AnalysisRoute::TemporalEffect

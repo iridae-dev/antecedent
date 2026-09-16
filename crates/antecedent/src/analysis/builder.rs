@@ -91,6 +91,34 @@ pub struct InterferenceSpec {
     pub assignment: Arc<[bool]>,
 }
 
+impl InterferenceSpec {
+    /// The same fixed network and realized assignment over `units`.
+    ///
+    /// The network's edges and the assignment are the design; the unit table is
+    /// the data. A study binds its network to the unit table it executes, so a
+    /// refresh or an estimate click on new outcomes executes on those outcomes
+    /// and its data snapshot names them.
+    ///
+    /// # Errors
+    ///
+    /// The edges or the assignment do not fit `units`.
+    pub(crate) fn bound_to(&self, units: &TabularData) -> Result<Self, CausalError> {
+        if self.network.units().storage().content_digest() == units.storage().content_digest() {
+            return Ok(self.clone());
+        }
+        if self.assignment.len() != units.row_count() {
+            return Err(CausalError::Compile {
+                message: "interference network, assignment, and unit table row counts must match"
+                    .into(),
+            });
+        }
+        Ok(Self {
+            network: NetworkData::try_new(units.clone(), self.network.edges().to_vec())?,
+            assignment: Arc::clone(&self.assignment),
+        })
+    }
+}
+
 /// Refusal for panel response on a non-temporal or static graph.
 pub(crate) const PANEL_RESPONSE_CLASS_REFUSAL: &str = concat!(
     "panel ResponseCurve / InterventionResponse is licensed on a supplied ",
@@ -1493,7 +1521,7 @@ impl StudyBuilder {
                             .into(),
                     });
                 }
-                (None, None, Some(spec))
+                (None, None, Some(spec.bound_to(units)?))
             }
             _ if self.transport_trial.is_some()
                 || self.selection_targets.is_some()

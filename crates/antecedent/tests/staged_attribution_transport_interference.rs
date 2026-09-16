@@ -211,3 +211,58 @@ fn interference_bernoulli_neighbor_count_known_truth() {
             <= atol
     );
 }
+
+/// Prepare an interference study on two units with the conformance network.
+fn two_unit_interference(y: &[f64]) -> (TabularData, antecedent::PreparedStudy) {
+    let units = TabularData::from_f64_columns([("y", y)]).unwrap();
+    let network = NetworkData::try_new(
+        units.clone(),
+        [NetworkEdge { from: 0, to: 1, weight: 1.0 }, NetworkEdge { from: 1, to: 0, weight: 1.0 }],
+    )
+    .unwrap();
+    let query = InterferenceQuery::new(
+        AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5]) },
+        ExposureMapping::NeighborCount,
+        InterferenceFunctional::ExposureContrast {
+            outcome: VariableId::from_raw(0),
+            from: ExposureLevel { own: 0.0, neighbors: 1.0 },
+            to: ExposureLevel { own: 1.0, neighbors: 0.0 },
+        },
+    );
+    let study = Study::tabular(units.clone())
+        .graph(Dag::with_variables(1))
+        .query(CausalQuery::Interference(query))
+        .interference(InterferenceSpec { network, assignment: Arc::from([true, false]) })
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    (units, study.prepare(&ctx()).unwrap())
+}
+
+/// The fixed network and realized assignment freeze at prepare; the outcomes
+/// are the data. An estimate or refresh click on new outcomes executes on
+/// those outcomes, and the refreshed data snapshot names what it executed.
+#[test]
+fn interference_click_executes_on_the_clicked_outcomes() {
+    let (_, prepared) = two_unit_interference(&[1.0, 4.0]);
+    let (moved, fresh) = two_unit_interference(&[2.0, 4.0]);
+    let expected = fresh.estimate_retained(&ctx()).unwrap();
+    let expected = expected.interference.expect("interference estimate").contrast;
+    // Unit 0 is exposed to (1, 0) and unit 1 to (0, 1), each with probability 1/4:
+    // HT = 2/(2·0.25) − 4/(2·0.25) = −4.
+    assert!((expected.horvitz_thompson + 4.0).abs() < 1e-12);
+
+    let clicked = prepared.estimate(&moved, &ctx()).unwrap();
+    assert_eq!(clicked.interference.expect("interference estimate").contrast, expected);
+
+    let mut refreshed = prepared.clone();
+    let result = refreshed.refresh(moved, &ctx()).unwrap();
+    assert_eq!(result.interference.expect("interference estimate").contrast, expected);
+    let again = refreshed.estimate_retained(&ctx()).unwrap();
+    assert_eq!(again.interference.expect("interference estimate").contrast, expected);
+    assert_eq!(
+        refreshed.contract().unwrap().identities.data_snapshot,
+        fresh.contract().unwrap().identities.data_snapshot,
+        "the refreshed snapshot names the refreshed outcomes under the frozen network"
+    );
+}
