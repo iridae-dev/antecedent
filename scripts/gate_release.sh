@@ -262,9 +262,11 @@ python3 scripts/generate_support_matrix_docs.py
 VERSION="$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml','rb'))['workspace']['package']['version'])")"
 if ! git diff --exit-code -- docs/support-matrix.md \
     crates/antecedent/src/support_matrix_data.rs \
+    crates/antecedent-io/src/coverage_records_data.rs \
     "docs/release-notes/v${VERSION}.md" >/dev/null; then
   echo "support-matrix generated files are stale; commit regenerated output"
   git diff --stat -- docs/support-matrix.md crates/antecedent/src/support_matrix_data.rs \
+    crates/antecedent-io/src/coverage_records_data.rs \
     "docs/release-notes/v${VERSION}.md"
   exit 1
 fi

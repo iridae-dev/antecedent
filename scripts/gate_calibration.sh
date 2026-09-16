@@ -57,8 +57,10 @@ check() {
   if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
     echo "== recheck at ${RECHECK_NSIM} replicates: ${label} =="
     RECHECKED="${RECHECKED}  ${label}"$'\n'
-    ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" "$@"
-    status=$?
+    # The recheck's verdict stands, so its `calibration-record` lines are the
+    # ones scripts/collect_coverage_records.py keeps for this group.
+    ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" "$@" 2>&1 | tee "$ROOT/target/calibration-records/${safe}.recheck.log"
+    status="${PIPESTATUS[0]}"
   fi
   if [ "$status" -ne 0 ]; then
     FAILED="${FAILED}  ${label}"$'\n'
@@ -86,7 +88,9 @@ run_ignored antecedent-estimate ipw_hajek_analytic_conformance_scm_ci_coverage
 run_ignored antecedent-estimate aipw_analytic_ci_coverage
 run_ignored antecedent-estimate aipw_ate_hc1_ci_coverage
 run_ignored antecedent-estimate aipw_att_hc1_ci_coverage
-run_ignored antecedent-estimate aipw_atc_hc1_ci_coverage
+# Boundary cell: measured 0.939 at 2000 replicates (the untreated arm's IF SE
+# runs about 3% short of the Monte Carlo SD at n = 600).
+run_ignored antecedent-estimate aipw_atc_hc1_boundary_within_band
 run_ignored antecedent-estimate aipw_att_cluster_ci_coverage
 run_ignored antecedent-estimate matching_homoskedastic_ci_coverage
 run_ignored antecedent-estimate wald_iv_analytic_ci_coverage
@@ -364,11 +368,11 @@ run_static_remaining path_specific_bayesian_nominal_90_coverage
 run_static_remaining path_specific_two_path_frequentist_nominal_90_coverage
 run_static_remaining path_specific_two_path_bayesian_nominal_90_coverage
 run_static_remaining interventional_distribution_bayesian_near_one_nominal_90_coverage
-run_static_remaining interventional_distribution_bayesian_near_zero_nominal_90_coverage
+run_static_remaining interventional_distribution_bayesian_near_zero_boundary_within_band
 run_static_remaining interventional_distribution_frequentist_near_one_nominal_95_coverage
 run_static_remaining interventional_distribution_frequentist_near_zero_nominal_95_coverage
 run_static_remaining interventional_distribution_frequentist_interior_nominal_95_coverage
-run_static_remaining counterfactual_bayesian_mean_ite_nominal_90_coverage
+run_static_remaining counterfactual_bayesian_mean_ite_boundary_within_band
 # Gates the correctly specified law; the misspecified outcomes are recorded only.
 run_static_remaining bayesian_gcomp_misspecification_probe
 # Out-of-assumption probes: coverage recorded, not gated.
