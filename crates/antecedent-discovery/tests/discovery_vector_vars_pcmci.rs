@@ -2,7 +2,7 @@
 //!
 //! The recovered logical parents must equal both the fixture's true parents and
 //! the frozen upstream reference run's (the pinned baseline) `reference.outputs.recovered_parents` (scalar
-//! logical parents at the same alpha, max_lag and BH-FDR). The recorded
+//! logical parents at the same alpha, `max_lag` and BH-FDR). The recorded
 //! `vector_vars_probe` dump is informational and not compared.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

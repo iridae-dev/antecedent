@@ -187,7 +187,7 @@ fn endpoint_symbol(mark: Endpoint) -> char {
         Endpoint::Tail => '-',
         Endpoint::Arrow => '>',
         Endpoint::Circle => 'o',
-        _ => 'x',
+        Endpoint::Conflict => 'x',
     }
 }
 

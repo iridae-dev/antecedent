@@ -2,7 +2,7 @@
 //!
 //! The recovered parents must equal both the fixture's true parents and the
 //! frozen upstream reference run's (the pinned baseline) `reference.outputs.recovered_parents` at the same
-//! alpha and max_lag.
+//! alpha and `max_lag`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
