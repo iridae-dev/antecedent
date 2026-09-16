@@ -1086,6 +1086,7 @@ class PreparedAnalysis:
         intervention_kinds: list[str] | None,
         intervention_parameters: list[list[float]] | None,
         *,
+        identifier: str | None = None,
         estimator: str | None = None,
         outcome_functional: dict[str, Any] | None = None,
         accepted: bool = False,

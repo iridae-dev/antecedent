@@ -2522,6 +2522,7 @@ impl PyPreparedAnalysis {
         intervention_kinds,
         intervention_parameters,
         *,
+        identifier=None,
         estimator=None,
         outcome_functional=None,
         accepted=false,
@@ -2539,6 +2540,7 @@ impl PyPreparedAnalysis {
         treatments: Vec<String>,
         intervention_kinds: Vec<String>,
         intervention_parameters: Vec<Vec<f64>>,
+        identifier: Option<String>,
         estimator: Option<String>,
         outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
         accepted: bool,
@@ -2566,6 +2568,9 @@ impl PyPreparedAnalysis {
                 with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
                     .query(query),
             );
+            if let Some(id) = parse_identifier(identifier)? {
+                builder = builder.identifier(id);
+            }
             if let Some(est) = parse_estimator(estimator)? {
                 builder = builder.estimator(est);
             }
