@@ -298,3 +298,96 @@ def test_stub_signatures_match_the_extension():
         f"unavailable={unavailable}"
     )
     assert not mismatches, "stub/extension parameter-list drift:\n" + "\n".join(mismatches)
+
+
+# ---------------------------------------------------------------------------
+# Class members. The sweeps above cover top-level names and functions only, which is
+# how `PreparedAnalysis.prepare` came to omit six parameters the wrapper passes and
+# `prepare_panel` / `prepare_events` / `prepare_multi_env` went undeclared.
+# ---------------------------------------------------------------------------
+
+
+def _stub_classes() -> dict[str, ast.ClassDef]:
+    tree = ast.parse(read_text(_STUB))
+    return {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
+
+
+def _declared_members(node: ast.ClassDef) -> set[str]:
+    names: set[str] = set()
+    for item in node.body:
+        if isinstance(item, ast.FunctionDef):
+            names.add(item.name)
+        elif isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name):
+            names.add(item.target.id)
+    return names
+
+
+def test_every_extension_class_member_is_declared_in_the_stub():
+    missing: list[str] = []
+    for name, node in sorted(_stub_classes().items()):
+        cls = getattr(_native, name, None)
+        if cls is None:
+            continue
+        declared = _declared_members(node)
+        missing.extend(
+            f"{name}.{attr}"
+            for attr in vars(cls)
+            if not attr.startswith("_") and attr not in declared
+        )
+    assert not missing, f"class members the stub does not declare: {missing}"
+
+
+def test_stub_declares_no_method_the_extension_lacks():
+    extra: list[str] = []
+    for name, node in sorted(_stub_classes().items()):
+        cls = getattr(_native, name, None)
+        if cls is None:
+            continue
+        extra.extend(
+            f"{name}.{item.name}"
+            for item in node.body
+            if isinstance(item, ast.FunctionDef)
+            and not item.name.startswith("__")
+            and not hasattr(cls, item.name)
+        )
+    assert not extra, f"stub methods the extension does not define: {extra}"
+
+
+def test_stub_method_signatures_match_the_extension():
+    """Name, keyword-only position and default of every introspectable method parameter.
+
+    A native default PyO3 renders as ``...`` (a named Rust constant such as
+    ``DEFAULT_TREATMENT_LAG``) is compared by name and kind only; every other default
+    is compared by value.
+    """
+    mismatches: list[str] = []
+    checked = 0
+    for name, node in sorted(_stub_classes().items()):
+        cls = getattr(_native, name, None)
+        if cls is None:
+            continue
+        for item in node.body:
+            if not isinstance(item, ast.FunctionDef) or item.name.startswith("__"):
+                continue
+            if any(isinstance(d, ast.Name) and d.id == "property" for d in item.decorator_list):
+                continue
+            member = getattr(cls, item.name, None)
+            sig = None if member is None else _native_signature(member)
+            if sig is None:
+                continue
+            checked += 1
+            stub_params = [p for p in _stub_param_specs(item) if p[0] not in {"self", "cls"}]
+            native_params = [
+                p for p in _native_param_specs(sig) if p[0] not in {"self", "cls", "$self", "$cls"}
+            ]
+            stub_by_name = {p[0]: p[2] for p in stub_params}
+            native_params = [
+                (pname, kw, stub_by_name.get(pname, default) if default is Ellipsis else default)
+                for pname, kw, default in native_params
+            ]
+            if stub_params != native_params:
+                mismatches.append(
+                    f"{name}.{item.name}:\n  stub:   {stub_params!r}\n  native: {native_params!r}"
+                )
+    assert checked, "no class method signature was introspectable; the sweep is not running"
+    assert not mismatches, "stub/extension method drift:\n" + "\n".join(mismatches)

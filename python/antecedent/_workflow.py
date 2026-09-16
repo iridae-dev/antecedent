@@ -11,11 +11,10 @@ from .errors import CausalSerializationError
 from .estimation import PreparedAnalysis, _PreparedQuery
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
-from .results._execution import Answer, CalibrationInfo, ResultAPI
+from .results._execution import Answer, CalibrationInfo, ResultAPI, answer_from_artifact
 from .results._slots import ReasoningSlots
 
 
-@describe_refusal
 def prepare(
     data: Any,
     *,
@@ -116,23 +115,7 @@ class LoadedResult(ResultAPI):
     def answer(self) -> Answer:
         if not self.acceptance.verified:
             return Answer("unavailable", detail="semantic_acceptance_unavailable")
-        claim = self.artifact.contract.get("claim") or {}
-        kind = claim.get("kind", "unavailable")
-        bits = claim.get("value_bits")
-        value = (
-            struct.unpack("<d", struct.pack("<Q", bits))[0]
-            if bits is not None and kind == "point"
-            else None
-        )
-        structural = self.artifact.payload.get("structural_response") or {}
-        envelope = structural.get("identified_set") or {}
-        bounds = None
-        if (
-            kind == "bounds"
-            and len(envelope.get("lower", [])) == len(envelope.get("upper", [])) == 1
-        ):
-            bounds = (envelope["lower"][0], envelope["upper"][0])
-        return Answer(kind, value=value, bounds=bounds)
+        return answer_from_artifact(self.artifact.contract, self.artifact.payload)
 
     def inspect(self) -> ReasoningSlots:
         if not self.acceptance.verified:

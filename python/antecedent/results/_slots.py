@@ -32,11 +32,69 @@ def _nested(mapping: Mapping[str, Any], *keys: str) -> Any:
     return current
 
 
+def _variable_names(contract: Mapping[str, Any]) -> list[str]:
+    """Schema-ordered variable names from a live (flat) or portable (decoded) contract."""
+    flat = contract.get("variable_names")
+    if isinstance(flat, str):
+        return flat.split(",") if flat else []
+    for section in ("target", "observation"):
+        schema = _nested(contract, section, "schema", "variables")
+        if isinstance(schema, list):
+            ordered = sorted(
+                (v for v in schema if isinstance(v, Mapping)), key=lambda v: v.get("id", 0)
+            )
+            return [str(v.get("name")) for v in ordered]
+    names = _nested(contract, "identification", "schema_names")
+    return [str(n) for n in names] if isinstance(names, list) else []
+
+
+def _resolve_variables(value: Any, names: list[str]) -> Any:
+    """Schema ids → variable names; ``None`` stays ``None``, unknown ids stay ids."""
+    if isinstance(value, list):
+        return [_resolve_variables(v, names) for v in value]
+    if isinstance(value, str) and value.lstrip("-").isdigit():
+        value = int(value)
+    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value < len(names):
+        return names[value]
+    return value
+
+
+def _target_query(contract: Mapping[str, Any]) -> dict[str, Any]:
+    """Query kind, treatment/outcome names (and schema ids), and target population."""
+    names = _variable_names(contract)
+    query = _nested(contract, "target", "query")
+    if isinstance(query, Mapping) and len(query) == 1:
+        kind, body = next(iter(query.items()))
+        body = body if isinstance(body, Mapping) else {}
+        treatment_id = body.get("treatment", body.get("treatments"))
+        outcome_id = body.get("outcome", body.get("outcomes"))
+        population: Any = body.get("target_population")
+    else:
+        kind = contract.get("query_kind")
+        treatment_id = contract.get("treatment")
+        outcome_id = contract.get("outcome")
+        population = contract.get("population") or contract.get("target_population")
+    if isinstance(treatment_id, str) and treatment_id.lstrip("-").isdigit():
+        treatment_id = int(treatment_id)
+    if isinstance(outcome_id, str) and outcome_id.lstrip("-").isdigit():
+        outcome_id = int(outcome_id)
+    return {
+        "target_population": population,
+        "kind": kind,
+        "treatment": _resolve_variables(treatment_id, names),
+        "outcome": _resolve_variables(outcome_id, names),
+        "treatment_id": treatment_id,
+        "outcome_id": outcome_id,
+    }
+
+
 __all__ = [
     "ConsumerIntent",
     "ReasoningSlots",
     "RenderingLimitation",
     "SlotView",
+    "describe_limitation",
+    "display_mass",
     "mass_limitation",
     "require_scalar_display",
     "slots_from_prepared",
@@ -120,15 +178,7 @@ class ReasoningSlots:
         """Structured report using native booleans, numbers, and explicit unavailable slots."""
         payload = json_value(self)
         contract = self.contract if isinstance(self.contract, Mapping) else {}
-        population = contract.get("population") or contract.get("target_population")
-        payload["target"] = {
-            "query": {
-                "target_population": population,
-                "kind": contract.get("query_kind"),
-                "treatment": contract.get("treatment"),
-                "outcome": contract.get("outcome"),
-            }
-        }
+        payload["target"] = {"query": _target_query(contract)}
         payload["inference_binding"] = (
             contract.get("inference_binding") or self.inference_binding_id
         )
@@ -208,11 +258,14 @@ class ReasoningSlots:
         calibration: Any = None,
     ) -> ReasoningSlots:
         """Inspect a portable execution contract. One owner for loaded identities."""
-        reasoning = section.get("reasoning") if isinstance(section.get("reasoning"), Mapping) else {}
-        identities = (
-            section.get("identities") if isinstance(section.get("identities"), Mapping) else {}
-        )
-        claim = section.get("claim") if isinstance(section.get("claim"), Mapping) else {}
+
+        def section_map(key: str) -> Mapping[str, Any]:
+            value = section.get(key)
+            return value if isinstance(value, Mapping) else {}
+
+        reasoning = section_map("reasoning")
+        identities = section_map("identities")
+        claim = section_map("claim")
         body = body if isinstance(body, Mapping) else {}
 
         def slot(name: str) -> SlotView:
@@ -247,7 +300,10 @@ class ReasoningSlots:
                 uncertainty.available, uncertainty.reason, uncertainty.summary, details
             )
         structural = body.get("structural_response") or {}
-        if isinstance(structural, Mapping) and structural.get("identified_set_interval") is not None:
+        if (
+            isinstance(structural, Mapping)
+            and structural.get("identified_set_interval") is not None
+        ):
             details = dict(uncertainty.payload)
             details["identified_set_interval"] = structural["identified_set_interval"]
             uncertainty = SlotView(
@@ -312,12 +368,50 @@ class ReasoningSlots:
         return require_scalar_display(self.rendering_limitation(), effect)
 
 
+#: Readable caveat per rendering-limitation id. Every renderer (reprs, HTML)
+#: that withholds a point display names the id and this phrase.
+LIMITATION_PHRASES: dict[str, str] = {
+    "identified_set": "set-identified: a single number is a mixture over identified "
+    "completions, not a point of the identified set",
+    "unidentified_mass": "part of the structure gives no identified estimand; a single "
+    "number averages only the structures where it is identified",
+    "unevaluable_mass": "part of the identified structure could not be evaluated; a single "
+    "number averages only the evaluated structures",
+    "incomplete_search_mass": "the identification search did not finish for part of the structure",
+    "incomplete_search": "the identification search was capped",
+    "identification_unavailable": "not identified; there is no causal point",
+    "absent_interval": "no scalar effect",
+}
+
+
+def describe_limitation(limitation: str) -> str:
+    """``"<phrase> (<id>)"``; an id without a phrase renders as itself."""
+    phrase = LIMITATION_PHRASES.get(limitation)
+    return f"{phrase} ({limitation})" if phrase else limitation
+
+
 def mass_limitation(mass: object, *, identified_set: bool = False) -> str | None:
     """Stable limitation id for unresolved structural mass or a set-valued claim."""
     if isinstance(mass, (int, float)) and mass > 0:
         return "unidentified_mass"
     if identified_set:
         return "identified_set"
+    return None
+
+
+def display_mass(structural: object, posterior: object) -> float | None:
+    """The one unidentified mass a renderer shows, from the two a result can carry.
+
+    Structural mass wins: it is the mass of the *claim* — the share of the
+    completion enumeration that gives no identified estimand — while a graph
+    posterior's unidentified mass describes the sampled structures behind it.
+    A result carrying both must show the same number in every renderer, so
+    this is the only precedence rule; :func:`mass_limitation` reads it, and so
+    does the notebook callout.
+    """
+    for mass in (structural, posterior):
+        if isinstance(mass, (int, float)) and not isinstance(mass, bool):
+            return float(mass)
     return None
 
 

@@ -1,34 +1,13 @@
-# Python product matrix. Routes retain. Parameters bind into the contract
-# or an execution control. The code signatures are the source; this file must match.
-
-[[route]]
-kind = "average"
-data = "multi_env"
-structure = "accepted"
-retains = true
-reason = ""
-test = "python/tests/test_python_products.py::test_route_average_multi_env_accepted"
-
-[[route]]
-kind = "average"
-data = "multi_env"
-structure = "explicit"
-retains = true
-reason = ""
-test = "python/tests/test_python_products.py::test_route_average_multi_env_explicit"
-
-[[route]]
-kind = "average"
-data = "multi_env"
-structure = "graph_posterior"
-retains = true
-reason = ""
-test = "python/tests/test_python_products.py::test_route_average_multi_env_graph_posterior"
+# Python product matrix. Routes retain a reusable study that re-executes the same
+# program on the same data; refusals are permanent and reason-coded. Parameters bind
+# into the contract or are an execution control. The code signatures are the source;
+# this file must match.
 
 [[route]]
 kind = "average"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_average_tabular_accepted"
@@ -36,7 +15,44 @@ test = "python/tests/test_python_products.py::test_route_average_tabular_accepte
 [[route]]
 kind = "average"
 data = "tabular"
+structure = "discovered.ges"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_discovered_ges"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "discovered.lingam"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_discovered_lingam"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "discovered.pc"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_discovered_pc"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "discovered.pc"
+options = "callbacks"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_discovered_pc_callbacks"
+
+[[route]]
+kind = "average"
+data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_average_tabular_explicit"
@@ -44,7 +60,53 @@ test = "python/tests/test_python_products.py::test_route_average_tabular_explici
 [[route]]
 kind = "average"
 data = "tabular"
+structure = "explicit"
+options = "callbacks"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_explicit_callbacks"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "explicit"
+options = "population_registry"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_explicit_population_registry"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "explicit"
+options = "rd"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_explicit_rd"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "explicit"
+options = "target_population"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_explicit_target_population"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "explicit"
+options = "validators"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_explicit_validators"
+
+[[route]]
+kind = "average"
+data = "tabular"
 structure = "graph_posterior"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_average_tabular_graph_posterior"
@@ -53,6 +115,7 @@ test = "python/tests/test_python_products.py::test_route_average_tabular_graph_p
 kind = "average_derivative"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_average_derivative_tabular_accepted"
@@ -61,6 +124,7 @@ test = "python/tests/test_python_products.py::test_route_average_derivative_tabu
 kind = "average_derivative"
 data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_average_derivative_tabular_explicit"
@@ -69,6 +133,7 @@ test = "python/tests/test_python_products.py::test_route_average_derivative_tabu
 kind = "conditional"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_conditional_tabular_accepted"
@@ -77,6 +142,7 @@ test = "python/tests/test_python_products.py::test_route_conditional_tabular_acc
 kind = "conditional"
 data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_conditional_tabular_explicit"
@@ -84,7 +150,17 @@ test = "python/tests/test_python_products.py::test_route_conditional_tabular_exp
 [[route]]
 kind = "conditional"
 data = "tabular"
+structure = "explicit"
+options = "validators"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_conditional_tabular_explicit_validators"
+
+[[route]]
+kind = "conditional"
+data = "tabular"
 structure = "graph_posterior"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_conditional_tabular_graph_posterior"
@@ -93,6 +169,7 @@ test = "python/tests/test_python_products.py::test_route_conditional_tabular_gra
 kind = "counterfactual"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_counterfactual_tabular_accepted"
@@ -101,6 +178,7 @@ test = "python/tests/test_python_products.py::test_route_counterfactual_tabular_
 kind = "counterfactual"
 data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_counterfactual_tabular_explicit"
@@ -109,6 +187,7 @@ test = "python/tests/test_python_products.py::test_route_counterfactual_tabular_
 kind = "directional_derivative"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_directional_derivative_tabular_accepted"
@@ -117,6 +196,7 @@ test = "python/tests/test_python_products.py::test_route_directional_derivative_
 kind = "directional_derivative"
 data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_directional_derivative_tabular_explicit"
@@ -125,6 +205,7 @@ test = "python/tests/test_python_products.py::test_route_directional_derivative_
 kind = "distribution"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_distribution_tabular_accepted"
@@ -133,6 +214,7 @@ test = "python/tests/test_python_products.py::test_route_distribution_tabular_ac
 kind = "distribution"
 data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_distribution_tabular_explicit"
@@ -141,6 +223,7 @@ test = "python/tests/test_python_products.py::test_route_distribution_tabular_ex
 kind = "elasticity"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_elasticity_tabular_accepted"
@@ -149,6 +232,7 @@ test = "python/tests/test_python_products.py::test_route_elasticity_tabular_acce
 kind = "elasticity"
 data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_elasticity_tabular_explicit"
@@ -157,6 +241,7 @@ test = "python/tests/test_python_products.py::test_route_elasticity_tabular_expl
 kind = "intervention_response"
 data = "event"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_intervention_response_event_accepted"
@@ -165,6 +250,7 @@ test = "python/tests/test_python_products.py::test_route_intervention_response_e
 kind = "intervention_response"
 data = "event"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_intervention_response_event_explicit"
@@ -173,6 +259,7 @@ test = "python/tests/test_python_products.py::test_route_intervention_response_e
 kind = "intervention_response"
 data = "panel"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_intervention_response_panel_accepted"
@@ -181,6 +268,7 @@ test = "python/tests/test_python_products.py::test_route_intervention_response_p
 kind = "intervention_response"
 data = "panel"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_intervention_response_panel_explicit"
@@ -189,6 +277,7 @@ test = "python/tests/test_python_products.py::test_route_intervention_response_p
 kind = "intervention_response"
 data = "series"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_intervention_response_series_accepted"
@@ -197,6 +286,7 @@ test = "python/tests/test_python_products.py::test_route_intervention_response_s
 kind = "intervention_response"
 data = "series"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_intervention_response_series_explicit"
@@ -205,6 +295,7 @@ test = "python/tests/test_python_products.py::test_route_intervention_response_s
 kind = "intervention_response"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_intervention_response_tabular_accepted"
@@ -213,6 +304,7 @@ test = "python/tests/test_python_products.py::test_route_intervention_response_t
 kind = "intervention_response"
 data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_intervention_response_tabular_explicit"
@@ -221,6 +313,7 @@ test = "python/tests/test_python_products.py::test_route_intervention_response_t
 kind = "intervention_response"
 data = "tabular"
 structure = "graph_posterior"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_intervention_response_tabular_graph_posterior"
@@ -229,6 +322,7 @@ test = "python/tests/test_python_products.py::test_route_intervention_response_t
 kind = "mediation"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_mediation_tabular_accepted"
@@ -237,6 +331,7 @@ test = "python/tests/test_python_products.py::test_route_mediation_tabular_accep
 kind = "mediation"
 data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_mediation_tabular_explicit"
@@ -245,6 +340,7 @@ test = "python/tests/test_python_products.py::test_route_mediation_tabular_expli
 kind = "path_specific"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_path_specific_tabular_accepted"
@@ -253,6 +349,7 @@ test = "python/tests/test_python_products.py::test_route_path_specific_tabular_a
 kind = "path_specific"
 data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_path_specific_tabular_explicit"
@@ -261,6 +358,7 @@ test = "python/tests/test_python_products.py::test_route_path_specific_tabular_e
 kind = "point_derivative"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_point_derivative_tabular_accepted"
@@ -269,6 +367,7 @@ test = "python/tests/test_python_products.py::test_route_point_derivative_tabula
 kind = "point_derivative"
 data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_point_derivative_tabular_explicit"
@@ -277,6 +376,7 @@ test = "python/tests/test_python_products.py::test_route_point_derivative_tabula
 kind = "pulse"
 data = "event"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_pulse_event_accepted"
@@ -285,6 +385,7 @@ test = "python/tests/test_python_products.py::test_route_pulse_event_accepted"
 kind = "pulse"
 data = "event"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_pulse_event_explicit"
@@ -293,6 +394,7 @@ test = "python/tests/test_python_products.py::test_route_pulse_event_explicit"
 kind = "pulse"
 data = "event"
 structure = "graph_posterior"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_pulse_event_graph_posterior"
@@ -301,6 +403,7 @@ test = "python/tests/test_python_products.py::test_route_pulse_event_graph_poste
 kind = "pulse"
 data = "multi_env"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_pulse_multi_env_accepted"
@@ -309,22 +412,16 @@ test = "python/tests/test_python_products.py::test_route_pulse_multi_env_accepte
 kind = "pulse"
 data = "multi_env"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_pulse_multi_env_explicit"
 
 [[route]]
 kind = "pulse"
-data = "multi_env"
-structure = "graph_posterior"
-retains = true
-reason = ""
-test = "python/tests/test_python_products.py::test_route_pulse_multi_env_graph_posterior"
-
-[[route]]
-kind = "pulse"
 data = "panel"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_pulse_panel_accepted"
@@ -333,6 +430,7 @@ test = "python/tests/test_python_products.py::test_route_pulse_panel_accepted"
 kind = "pulse"
 data = "panel"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_pulse_panel_explicit"
@@ -340,15 +438,17 @@ test = "python/tests/test_python_products.py::test_route_pulse_panel_explicit"
 [[route]]
 kind = "pulse"
 data = "panel"
-structure = "graph_posterior"
+structure = "explicit"
+options = "validators"
 retains = true
 reason = ""
-test = "python/tests/test_python_products.py::test_route_pulse_panel_graph_posterior"
+test = "python/tests/test_python_products.py::test_route_pulse_panel_explicit_validators"
 
 [[route]]
 kind = "pulse"
 data = "series"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_pulse_series_accepted"
@@ -356,7 +456,35 @@ test = "python/tests/test_python_products.py::test_route_pulse_series_accepted"
 [[route]]
 kind = "pulse"
 data = "series"
+structure = "discovered.pcmci"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_series_discovered_pcmci"
+
+[[route]]
+kind = "pulse"
+data = "series"
+structure = "discovered.pcmci_plus"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_series_discovered_pcmci_plus"
+
+[[route]]
+kind = "pulse"
+data = "series"
+structure = "discovered.rpcmci"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_series_discovered_rpcmci"
+
+[[route]]
+kind = "pulse"
+data = "series"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_pulse_series_explicit"
@@ -365,6 +493,7 @@ test = "python/tests/test_python_products.py::test_route_pulse_series_explicit"
 kind = "pulse"
 data = "series"
 structure = "graph_posterior"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_pulse_series_graph_posterior"
@@ -373,6 +502,7 @@ test = "python/tests/test_python_products.py::test_route_pulse_series_graph_post
 kind = "response_curve"
 data = "event"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_response_curve_event_accepted"
@@ -381,6 +511,7 @@ test = "python/tests/test_python_products.py::test_route_response_curve_event_ac
 kind = "response_curve"
 data = "event"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_response_curve_event_explicit"
@@ -389,6 +520,7 @@ test = "python/tests/test_python_products.py::test_route_response_curve_event_ex
 kind = "response_curve"
 data = "panel"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_response_curve_panel_accepted"
@@ -397,6 +529,7 @@ test = "python/tests/test_python_products.py::test_route_response_curve_panel_ac
 kind = "response_curve"
 data = "panel"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_response_curve_panel_explicit"
@@ -405,6 +538,7 @@ test = "python/tests/test_python_products.py::test_route_response_curve_panel_ex
 kind = "response_curve"
 data = "series"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_response_curve_series_accepted"
@@ -413,6 +547,7 @@ test = "python/tests/test_python_products.py::test_route_response_curve_series_a
 kind = "response_curve"
 data = "series"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_response_curve_series_explicit"
@@ -421,6 +556,7 @@ test = "python/tests/test_python_products.py::test_route_response_curve_series_e
 kind = "response_curve"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_response_curve_tabular_accepted"
@@ -428,7 +564,17 @@ test = "python/tests/test_python_products.py::test_route_response_curve_tabular_
 [[route]]
 kind = "response_curve"
 data = "tabular"
+structure = "discovered.lingam"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_curve_tabular_discovered_lingam"
+
+[[route]]
+kind = "response_curve"
+data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_response_curve_tabular_explicit"
@@ -437,6 +583,7 @@ test = "python/tests/test_python_products.py::test_route_response_curve_tabular_
 kind = "response_curve"
 data = "tabular"
 structure = "graph_posterior"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_response_curve_tabular_graph_posterior"
@@ -445,6 +592,7 @@ test = "python/tests/test_python_products.py::test_route_response_curve_tabular_
 kind = "response_jacobian"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_response_jacobian_tabular_accepted"
@@ -453,6 +601,7 @@ test = "python/tests/test_python_products.py::test_route_response_jacobian_tabul
 kind = "response_jacobian"
 data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_response_jacobian_tabular_explicit"
@@ -461,6 +610,7 @@ test = "python/tests/test_python_products.py::test_route_response_jacobian_tabul
 kind = "semi_elasticity"
 data = "tabular"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_semi_elasticity_tabular_accepted"
@@ -469,6 +619,7 @@ test = "python/tests/test_python_products.py::test_route_semi_elasticity_tabular
 kind = "semi_elasticity"
 data = "tabular"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_semi_elasticity_tabular_explicit"
@@ -477,6 +628,7 @@ test = "python/tests/test_python_products.py::test_route_semi_elasticity_tabular
 kind = "sustained"
 data = "event"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_sustained_event_accepted"
@@ -485,6 +637,7 @@ test = "python/tests/test_python_products.py::test_route_sustained_event_accepte
 kind = "sustained"
 data = "event"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_sustained_event_explicit"
@@ -493,6 +646,7 @@ test = "python/tests/test_python_products.py::test_route_sustained_event_explici
 kind = "sustained"
 data = "event"
 structure = "graph_posterior"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_sustained_event_graph_posterior"
@@ -501,6 +655,7 @@ test = "python/tests/test_python_products.py::test_route_sustained_event_graph_p
 kind = "sustained"
 data = "multi_env"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_sustained_multi_env_accepted"
@@ -509,22 +664,16 @@ test = "python/tests/test_python_products.py::test_route_sustained_multi_env_acc
 kind = "sustained"
 data = "multi_env"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_sustained_multi_env_explicit"
 
 [[route]]
 kind = "sustained"
-data = "multi_env"
-structure = "graph_posterior"
-retains = true
-reason = ""
-test = "python/tests/test_python_products.py::test_route_sustained_multi_env_graph_posterior"
-
-[[route]]
-kind = "sustained"
 data = "panel"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_sustained_panel_accepted"
@@ -533,22 +682,16 @@ test = "python/tests/test_python_products.py::test_route_sustained_panel_accepte
 kind = "sustained"
 data = "panel"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_sustained_panel_explicit"
 
 [[route]]
 kind = "sustained"
-data = "panel"
-structure = "graph_posterior"
-retains = true
-reason = ""
-test = "python/tests/test_python_products.py::test_route_sustained_panel_graph_posterior"
-
-[[route]]
-kind = "sustained"
 data = "series"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_sustained_series_accepted"
@@ -557,6 +700,7 @@ test = "python/tests/test_python_products.py::test_route_sustained_series_accept
 kind = "sustained"
 data = "series"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_sustained_series_explicit"
@@ -565,6 +709,7 @@ test = "python/tests/test_python_products.py::test_route_sustained_series_explic
 kind = "sustained"
 data = "series"
 structure = "graph_posterior"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_sustained_series_graph_posterior"
@@ -573,6 +718,7 @@ test = "python/tests/test_python_products.py::test_route_sustained_series_graph_
 kind = "temporal_mediation"
 data = "event"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_temporal_mediation_event_accepted"
@@ -581,6 +727,7 @@ test = "python/tests/test_python_products.py::test_route_temporal_mediation_even
 kind = "temporal_mediation"
 data = "event"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_temporal_mediation_event_explicit"
@@ -589,38 +736,16 @@ test = "python/tests/test_python_products.py::test_route_temporal_mediation_even
 kind = "temporal_mediation"
 data = "event"
 structure = "graph_posterior"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_temporal_mediation_event_graph_posterior"
 
 [[route]]
 kind = "temporal_mediation"
-data = "panel"
-structure = "accepted"
-retains = true
-reason = ""
-test = "python/tests/test_python_products.py::test_route_temporal_mediation_panel_accepted"
-
-[[route]]
-kind = "temporal_mediation"
-data = "panel"
-structure = "explicit"
-retains = true
-reason = ""
-test = "python/tests/test_python_products.py::test_route_temporal_mediation_panel_explicit"
-
-[[route]]
-kind = "temporal_mediation"
-data = "panel"
-structure = "graph_posterior"
-retains = true
-reason = ""
-test = "python/tests/test_python_products.py::test_route_temporal_mediation_panel_graph_posterior"
-
-[[route]]
-kind = "temporal_mediation"
 data = "series"
 structure = "accepted"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_temporal_mediation_series_accepted"
@@ -629,6 +754,7 @@ test = "python/tests/test_python_products.py::test_route_temporal_mediation_seri
 kind = "temporal_mediation"
 data = "series"
 structure = "explicit"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_temporal_mediation_series_explicit"
@@ -637,10 +763,69 @@ test = "python/tests/test_python_products.py::test_route_temporal_mediation_seri
 kind = "temporal_mediation"
 data = "series"
 structure = "graph_posterior"
+options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_temporal_mediation_series_graph_posterior"
 
+# Permanent refusals: combinations the study builder does not license. Each names its
+# reason code and the test that pins it.
+
+[[refusal]]
+kind = "average"
+data = "multi_env"
+structure = "explicit"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_average_multi_env_explicit"
+
+[[refusal]]
+kind = "average"
+data = "panel"
+structure = "explicit"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_average_panel_explicit"
+
+[[refusal]]
+kind = "conditional"
+data = "panel"
+structure = "explicit"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_conditional_panel_explicit"
+
+[[refusal]]
+kind = "response_curve"
+data = "multi_env"
+structure = "explicit"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_response_curve_multi_env_explicit"
+
+[[refusal]]
+kind = "temporal_mediation"
+data = "panel"
+structure = "explicit"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_temporal_mediation_panel_explicit"
+
+[[refusal]]
+kind = "pulse"
+data = "panel"
+structure = "graph_posterior"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_pulse_panel_graph_posterior"
+
+[[refusal]]
+kind = "pulse"
+data = "multi_env"
+structure = "graph_posterior"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_pulse_multi_env_graph_posterior"
+
+[[refusal]]
+kind = "path_specific"
+data = "tabular"
+structure = "graph_posterior"
+reason = "option_not_applicable"
+test = "python/tests/test_python_products.py::test_refusal_path_specific_tabular_graph_posterior"
 [[parameter]]
 name = "data"
 entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
@@ -669,7 +854,7 @@ test = "python/tests/test_parameter_bindings.py::test_graph_reaches_plan"
 name = "discovery"
 entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
 binding = "contract"
-contract_key = "identification.structure_source"
+contract_key = "identification.algorithm_id"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_discovery_reaches_plan"
 
@@ -741,7 +926,7 @@ test = "python/tests/test_parameter_bindings.py::test_validators_reaches_plan"
 name = "class_prior"
 entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
 binding = "contract"
-contract_key = "identification.structure_source"
+contract_key = "identities.identification"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_class_prior_reaches_plan"
 
@@ -749,7 +934,7 @@ test = "python/tests/test_parameter_bindings.py::test_class_prior_reaches_plan"
 name = "max_completions"
 entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
 binding = "contract"
-contract_key = "identification.structure_source"
+contract_key = "identities.identification"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_max_completions_reaches_plan"
 
@@ -765,7 +950,7 @@ test = "python/tests/test_parameter_bindings.py::test_latency_reaches_plan"
 name = "regimes"
 entry_points = ["analyze", "PreparedAnalysis.prepare"]
 binding = "contract"
-contract_key = "identification.structure_source"
+contract_key = "identification.algorithm_id"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_regimes_reaches_plan"
 
@@ -780,8 +965,7 @@ test = "python/tests/test_parameter_bindings.py::test_population_registry_reache
 [[parameter]]
 name = "return_posterior_artifact"
 entry_points = ["analyze"]
-binding = "contract"
-contract_key = "claim"
+binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_return_posterior_artifact_reaches_plan"
 
@@ -789,7 +973,7 @@ test = "python/tests/test_parameter_bindings.py::test_return_posterior_artifact_
 name = "running_variable"
 entry_points = ["analyze", "PreparedAnalysis.prepare"]
 binding = "contract"
-contract_key = "identification.rd_config"
+contract_key = "identification.rd_config.running_variable"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_running_variable_reaches_plan"
 
@@ -797,7 +981,7 @@ test = "python/tests/test_parameter_bindings.py::test_running_variable_reaches_p
 name = "cutoff"
 entry_points = ["analyze", "PreparedAnalysis.prepare"]
 binding = "contract"
-contract_key = "identification.rd_config"
+contract_key = "identification.rd_config.cutoff_bits"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_cutoff_reaches_plan"
 
@@ -805,21 +989,23 @@ test = "python/tests/test_parameter_bindings.py::test_cutoff_reaches_plan"
 name = "bandwidth"
 entry_points = ["analyze", "PreparedAnalysis.prepare"]
 binding = "contract"
-contract_key = "identification.rd_config"
+contract_key = "identification.rd_config.bandwidth_bits"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_bandwidth_reaches_plan"
 
 [[parameter]]
 name = "seed"
 entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
-binding = "execution_control"
+binding = "contract"
+contract_key = "execution.seed"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_seed_reaches_plan"
 
 [[parameter]]
 name = "threads"
 entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
-binding = "execution_control"
+binding = "contract"
+contract_key = "execution.threads"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_threads_reaches_plan"
 

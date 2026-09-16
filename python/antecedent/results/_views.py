@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from .._native import ScoreInferenceSection, ScoreTableSection, ValidationFailureSection
 
-from .._verdict import verdict_for
+from .._verdict import describe_status, verdict_for
 from ..ids import Refute
 from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct, fmt_se
-from ._slots import ReasoningSlots, mass_limitation, require_scalar_display
+from ._slots import (
+    ReasoningSlots,
+    describe_limitation,
+    display_mass,
+    mass_limitation,
+    require_scalar_display,
+)
 
 __all__ = [
     "IdentificationView",
@@ -36,6 +42,7 @@ __all__ = [
     "AnalysisResult",
 ]
 
+
 @dataclass(frozen=True)
 class IdentificationView:
     status: str
@@ -50,7 +57,7 @@ class IdentificationView:
         return verdict_for(self.status) == "identified"
 
     def __repr__(self) -> str:
-        verdict = verdict_for(self.status)
+        verdict = describe_status(self.status)
         adjustment = f" adjustment_set={self.adjustment_set!r}" if self.adjustment_set else ""
         return f"<IdentificationView {verdict} method={self.method!r}{adjustment}>"
 
@@ -188,8 +195,17 @@ class EstimateView:
     #: Bounded interval for ``ate`` when it is the probability ``P(Y = 1 | do(x))``
     #: of a binary ``{0, 1}`` outcome; ``None`` otherwise.
     mean_interval: ProbabilityIntervalView | None = None
+    #: Rendering-limitation id of the enclosing result (``identified_set``,
+    #: ``unidentified_mass``, ...). When set, ``ate`` is not a point for the
+    #: claim and displays withhold it behind the caveat.
+    limitation: str | None = None
 
     def __repr__(self) -> str:
+        if self.limitation is not None:
+            return (
+                f"<EstimateView {describe_limitation(self.limitation)} "
+                f"estimator={self.estimator_id!r} method={self.method!r}>"
+            )
         if self.mean_interval is not None:
             return (
                 f"<EstimateView ate={fmt_float(self.ate)} "
@@ -241,8 +257,20 @@ class PosteriorView:
     #: envelope subsample. Those atoms were not evaluated, so this is neither
     #: unidentified mass nor part of the published mixture.
     subsampled_out_mass: float = 0.0
+    #: Rendering-limitation id of the enclosing result. When set, the moments
+    #: and quantiles describe a mixture, not an interval for the claim, and
+    #: displays withhold them behind the caveat.
+    limitation: str | None = None
 
     def __repr__(self) -> str:
+        if self.limitation is not None:
+            parts = [describe_limitation(self.limitation), f"n_draws={self.n_draws}"]
+            parts.append(f"backend={self.backend!r}")
+            if self.unidentified_mass is not None and self.unidentified_mass > 0:
+                parts.append(f"unidentified_mass={fmt_pct(self.unidentified_mass)}")
+            if self.subsampled_out_mass > 0:
+                parts.append(f"subsampled_out_mass={fmt_pct(self.subsampled_out_mass)}")
+            return f"<PosteriorView {' '.join(parts)}>"
         if self.effect_mean is None:
             if self.n_draws is not None:
                 return (
@@ -593,6 +621,16 @@ class AnalysisResult(ResultAPI):
     claim_id: str | None = None
     data_version: str | None = None
 
+    def __post_init__(self) -> None:
+        # Nested views carry the claim's rendering limitation so that
+        # ``result.estimate`` / ``result.posterior`` never display a lone
+        # point and interval for a claim that has none.
+        limitation = self.rendering_limitation()
+        if isinstance(self.estimate, EstimateView) and self.estimate.limitation != limitation:
+            object.__setattr__(self, "estimate", replace(self.estimate, limitation=limitation))
+        if isinstance(self.posterior, PosteriorView) and self.posterior.limitation != limitation:
+            object.__setattr__(self, "posterior", replace(self.posterior, limitation=limitation))
+
     @property
     def effect(self) -> float | None:
         """Primary requested contrast, including mediation and mean ITE.
@@ -626,14 +664,20 @@ class AnalysisResult(ResultAPI):
         return value
 
     def __repr__(self) -> str:
+        verdict = describe_status(self.identification.status)
         limitation = self.rendering_limitation()
         if limitation is not None:
-            mass = self.structural_unidentified_mass
-            if mass is None and self.posterior is not None:
-                mass = self.posterior.unidentified_mass
-            detail = f" unidentified_mass={fmt_pct(mass)}" if mass is not None and mass > 0 else ""
-            return f"<AnalysisResult {self.answer.kind}: {limitation}{detail}>"
-        verdict = "identified" if self.identification else "not identified"
+            answer = self.answer
+            parts = [verdict, f"answer={answer.kind}"]
+            if answer.bounds is not None:
+                parts.append(
+                    f"bounds=[{fmt_float(answer.bounds[0])}, {fmt_float(answer.bounds[1])}]"
+                )
+            parts.append(f"limitation={limitation}")
+            mass = self.display_mass()
+            if mass is not None and mass > 0:
+                parts.append(f"unidentified_mass={fmt_pct(mass)}")
+            return f"<AnalysisResult {' '.join(parts)}>"
         se = (
             self.estimate.se_bootstrap
             if self.estimate.se_bootstrap is not None
@@ -711,10 +755,19 @@ class AnalysisResult(ResultAPI):
             limit = self.reasoning.rendering_limitation()
             if limit is not None:
                 return limit
-        mass = self.structural_unidentified_mass
-        if mass is None and self.posterior is not None:
-            mass = self.posterior.unidentified_mass
+        mass = self.display_mass()
         return mass_limitation(mass, identified_set=self.structural_identified_set is not None)
+
+    def display_mass(self) -> float | None:
+        """The unidentified mass every renderer of this result shows.
+
+        One precedence rule, in :func:`._slots.display_mass`, so ``repr()`` and
+        the notebook callout never quote different numbers for the same result.
+        """
+        return display_mass(
+            self.structural_unidentified_mass,
+            self.posterior.unidentified_mass if self.posterior is not None else None,
+        )
 
     def display_effect(self) -> float:
         """Point effect only when the four-slot claim is a complete scalar."""

@@ -692,7 +692,7 @@ def _check_response_strategy(
             f"{query.kind} requires identifier={expected_identifier!r}; got {identifier!r}"
         )
     expected = _RESPONSE_ESTIMATORS[query.kind]
-    allowed = (None, expected)
+    allowed: tuple[str | None, ...] = (None, expected)
     if isinstance(query, InterventionResponse) and isinstance(inference, Bayesian):
         allowed = (None, expected, "response.bayesian")
     if estimator not in allowed:

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import os
+import struct
 import warnings
+from collections.abc import Mapping
 from dataclasses import dataclass, fields, is_dataclass, replace
 from math import isfinite
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, get_args
 
 if TYPE_CHECKING:
     from ..estimation import PreparedAnalysis
@@ -23,9 +24,38 @@ def _as_optional_int(value: Any) -> int | None:
     return int(value)
 
 
+def _as_optional_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    return float(value)
+
+
+#: Calibration fields with a typed attribute. Any other field the claim's
+#: calibration slot carries is kept, in order, on :attr:`CalibrationInfo.extra`.
+_CALIBRATION_FIELDS = (
+    "status",
+    "record_id",
+    "reason",
+    "scope_n",
+    "scope_dependence",
+    "calibration_sha",
+    "level",
+    "observed_coverage",
+    "replicates",
+)
+
+
 @dataclass(frozen=True, slots=True)
 class CalibrationInfo:
-    """Calibration slot projected from ``contract["claim"]["calibration"]``."""
+    """Calibration slot projected from ``contract["claim"]["calibration"]``.
+
+    ``status`` is the native string (``calibrated``, ``boundary``,
+    ``scope_not_assessed``, ``unavailable``, or any status a newer claim
+    carries); it is never normalized. ``reason`` is the reason code when the
+    interval is not calibrated. ``level`` / ``observed_coverage`` /
+    ``replicates`` are the record's measured coverage fields when the claim
+    carries them, and ``extra`` keeps every other slot field.
+    """
 
     status: str = "unavailable"
     record_id: str | None = None
@@ -33,28 +63,109 @@ class CalibrationInfo:
     scope_n: int | None = None
     scope_dependence: str | None = None
     calibration_sha: str | None = None
+    level: float | None = None
+    observed_coverage: float | None = None
+    replicates: int | None = None
+    extra: tuple[tuple[str, Any], ...] = ()
 
     @classmethod
     def from_contract(cls, contract: Mapping[str, Any] | None) -> CalibrationInfo:
         if not isinstance(contract, Mapping):
             return cls(status="unavailable", reason="not_executed")
         claim = contract.get("claim")
-        slot = claim.get("calibration") or {} if isinstance(claim, Mapping) else {}
+        raw_slot = claim.get("calibration") if isinstance(claim, Mapping) else None
+        slot: Mapping[str, Any] = raw_slot if isinstance(raw_slot, Mapping) else {}
         if not slot and "calibration_status" not in contract:
             return cls(status="unavailable", reason="not_executed")
+
+        def pick(name: str) -> Any:
+            value = slot.get(name)
+            if value is None:
+                flat = "calibration_sha" if name == "calibration_sha" else f"calibration_{name}"
+                value = contract.get(flat)
+            return None if value == "" else value
+
+        extra = tuple((str(k), v) for k, v in slot.items() if k not in _CALIBRATION_FIELDS)
+        if not slot:
+            extra = tuple(
+                (k.removeprefix("calibration_"), v)
+                for k, v in contract.items()
+                if isinstance(k, str)
+                and k.startswith("calibration_")
+                and k.removeprefix("calibration_") not in _CALIBRATION_FIELDS
+                and k != "calibration_sha"
+            )
         return cls(
-            status=str(slot.get("status") or contract.get("calibration_status") or "unavailable"),
-            record_id=slot.get("record_id") or contract.get("calibration_record_id"),
-            reason=slot.get("reason") or contract.get("calibration_reason"),
-            scope_n=slot.get("scope_n") or _as_optional_int(contract.get("calibration_scope_n")),
-            scope_dependence=slot.get("scope_dependence") or contract.get("calibration_scope_dependence"),
-            calibration_sha=slot.get("calibration_sha") or contract.get("calibration_sha"),
+            status=str(pick("status") or "unavailable"),
+            record_id=pick("record_id"),
+            reason=pick("reason"),
+            scope_n=_as_optional_int(pick("scope_n")),
+            scope_dependence=pick("scope_dependence"),
+            calibration_sha=pick("calibration_sha"),
+            level=_as_optional_float(pick("level")),
+            observed_coverage=_as_optional_float(pick("observed_coverage")),
+            replicates=_as_optional_int(pick("replicates")),
+            extra=extra,
         )
+
+    def describe(self) -> str:
+        """One line: status, then reason code, record id, and measured fields when present.
+
+        Absent fields are omitted, never printed as ``None``; an unrecognized
+        status renders as itself.
+        """
+        bits = [self.status]
+        if self.reason:
+            bits.append(f"reason {self.reason}")
+        if self.record_id:
+            bits.append(f"record {self.record_id}")
+        if self.level is not None:
+            bits.append(f"level {self.level:g}")
+        if self.observed_coverage is not None:
+            bits.append(f"observed coverage {self.observed_coverage:g}")
+        if self.replicates is not None:
+            bits.append(f"{self.replicates} replicates")
+        bits.extend(f"{key} {value}" for key, value in self.extra if value not in (None, ""))
+        return " · ".join(bits)
+
+
+AnswerKind = Literal["point", "bounds", "partial", "response", "structured", "unavailable"]
+
+#: The closed :attr:`Answer.kind` vocabulary, shared by live and loaded results.
+ANSWER_KINDS: tuple[AnswerKind, ...] = get_args(AnswerKind)
+
+#: Portable claim kind (``contract["claim"]["kind"]``) → :attr:`Answer.kind`.
+#: A loaded result and the live result of the same execution give one kind.
+CLAIM_KIND_ANSWERS: dict[str, AnswerKind] = {
+    "point": "point",
+    "bounds": "bounds",
+    "mixture": "partial",
+    "response": "response",
+    "incomplete": "unavailable",
+    "refusal": "unavailable",
+}
 
 
 @dataclass(frozen=True, slots=True)
 class Answer:
-    """Safe consumption shape: ``point``, ``bounds``, ``partial``, or ``unavailable``.
+    """Safe consumption shape. ``kind`` is one of :data:`ANSWER_KINDS`:
+
+    - ``point``: a complete scalar claim; ``value`` holds it.
+    - ``bounds``: a set-identified scalar; ``bounds`` is the identified set
+      ``(lower, upper)`` over identified completions.
+    - ``partial``: identification is partial or leftover structural mass
+      remains, so there is no scalar (or, for a function-valued claim, no
+      unrestricted curve: read ``result.envelope``); ``bounds`` carries the
+      identified set whenever the execution computed one, and ``detail`` names
+      the limitation.
+    - ``response``: a function-valued claim (response curve, intervention
+      response, derivative or Jacobian); read ``result.response`` /
+      ``result.estimate``.
+    - ``structured``: an executed claim with no single scalar, such as a
+      multi-horizon temporal mediation grid; read its structured fields
+      (``result.mediation_grid``).
+    - ``unavailable``: no claim (not identified, refused, not executed,
+      non-finite, or not semantically accepted); ``detail`` names why.
 
     This is the interface that withholds an unrestricted scalar when
     identification is partial or leftover mass remains. Historical fields
@@ -63,10 +174,54 @@ class Answer:
     display would misrepresent; ``ANTECEDENT_STRICT_ANSWER=1`` raises.
     """
 
-    kind: str
+    kind: AnswerKind
     value: float | None = None
     bounds: tuple[float, float] | None = None
     detail: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind not in ANSWER_KINDS:
+            raise ValueError(f"Answer.kind must be one of {ANSWER_KINDS}; got {self.kind!r}")
+
+
+def _scalar_bounds(value: Any) -> tuple[float, float] | None:
+    if value is None:
+        return None
+    lower, upper = value
+    return (float(lower), float(upper))
+
+
+def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]) -> Answer:
+    """The :class:`Answer` of a verified portable execution, from its claim kind."""
+    claim = contract.get("claim")
+    claim = claim if isinstance(claim, Mapping) else {}
+    claim_kind = claim.get("kind")
+    kind = CLAIM_KIND_ANSWERS.get(str(claim_kind)) if claim_kind is not None else None
+    if kind is None:
+        return Answer("unavailable", detail=f"unrecognized_claim_kind:{claim_kind}")
+    limitation = ReasoningSlots.from_result_section(contract, payload).rendering_limitation()
+    structural = payload.get("structural_response")
+    envelope = structural.get("identified_set") if isinstance(structural, Mapping) else None
+    bounds = None
+    if (
+        isinstance(envelope, Mapping)
+        and len(envelope.get("lower", [])) == len(envelope.get("upper", [])) == 1
+    ):
+        bounds = (float(envelope["lower"][0]), float(envelope["upper"][0]))
+    if kind == "point":
+        bits = claim.get("value_bits")
+        if bits is None:
+            return Answer("structured")
+        value = struct.unpack("<d", struct.pack("<Q", bits))[0]
+        if not isfinite(value):
+            return Answer("unavailable", detail="non_finite_effect")
+        return Answer("point", value=value)
+    if kind == "unavailable":
+        return Answer("unavailable", detail=limitation or str(claim_kind))
+    if kind == "response":
+        # A limited function-valued claim is partial: its envelope, not a curve.
+        return Answer("partial" if limitation else "response", detail=limitation)
+    return Answer(kind, bounds=bounds, detail=limitation)
 
 
 def _payload(value: Any) -> dict[str, Any]:
@@ -81,6 +236,9 @@ def _payload(value: Any) -> dict[str, Any]:
 
 class ResultAPI:
     """Common API; implementing dataclasses retain their historical public fields."""
+
+    #: ``True`` on function-valued result families, whose claim kind is ``response``.
+    _function_valued: ClassVar[bool] = False
 
     @property
     @describe_refusal
@@ -119,17 +277,18 @@ class ResultAPI:
 
     @property
     def answer(self) -> Answer:
+        """Claim kind of this execution; :data:`CLAIM_KIND_ANSWERS` gives the loaded twin."""
         limitation = getattr(self, "rendering_limitation", lambda: None)()
-        bounds = getattr(self, "structural_identified_set", None)
+        bounds = _scalar_bounds(getattr(self, "structural_identified_set", None))
+        if self._function_valued:
+            # A limited function-valued claim is partial: its envelope, not a curve.
+            return Answer("partial" if limitation else "response", detail=limitation)
+        if limitation == "identification_unavailable":
+            return Answer("unavailable", detail=limitation)
         if bounds is not None:
-            return Answer("bounds", bounds=tuple(bounds), detail=limitation)
+            return Answer("bounds", bounds=bounds, detail=limitation)
         if limitation is not None:
             return Answer("partial", detail=limitation)
-        if (
-            getattr(self, "response", None) is not None
-            or getattr(self, "mediation_grid", None) is not None
-        ):
-            return Answer("response")
         value = self._scalar_effect()
         if value is None:
             return Answer("structured")
@@ -241,7 +400,13 @@ class ResultAPI:
             answer=self.answer,
             calibration=(
                 CalibrationInfo.from_contract(contract)
-                if isinstance((contract := getattr(self, "_contract", None) or getattr(slots, "contract", None)), Mapping)
+                if isinstance(
+                    (
+                        contract := getattr(self, "_contract", None)
+                        or getattr(slots, "contract", None)
+                    ),
+                    Mapping,
+                )
                 else CalibrationInfo(status="unavailable", reason="not_executed")
             ),
             diagnostics=tuple(getattr(self, "diagnostics", ())),
