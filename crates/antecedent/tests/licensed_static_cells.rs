@@ -102,6 +102,27 @@ fn report<'a>(result: &'a StudyResult, name: &str) -> &'a antecedent_validate::R
         .unwrap_or_else(|| panic!("{name} must run; got {:?}", refuter_names(result)))
 }
 
+/// The typed E-value pair must reproduce the `sensitivity.evalue` verdict without
+/// reading report prose: `evalue` mirrors the report's own number and
+/// `evalue_threshold` is the value that report judged it against. Both stay `None`
+/// when the refuter did not run.
+fn assert_evalue_fields(result: &StudyResult, ran: bool, label: &str) {
+    if !ran {
+        assert_eq!(result.estimate.evalue, None, "{label}");
+        assert_eq!(result.estimate.evalue_threshold, None, "{label}");
+        return;
+    }
+    let report = report(result, "sensitivity.evalue");
+    assert_eq!(result.estimate.evalue, Some(report.comparison), "{label}");
+    let threshold = result.estimate.evalue_threshold.expect("threshold must accompany the evalue");
+    assert_eq!(threshold, antecedent_validate::DEFAULT_EVALUE_THRESHOLD, "{label}");
+    assert_eq!(
+        report.passed,
+        report.comparison >= threshold,
+        "{label}: the typed pair must reproduce the report verdict"
+    );
+}
+
 /// Bayesian cheap/full attach prior and posterior predictive checks; full also
 /// runs prior sensitivity. `none` runs no report of any kind.
 fn assert_bayesian_validation(result: &StudyResult, suite: RefuteSuite, label: &str) {
@@ -175,6 +196,7 @@ fn average_effect_dag_frequentist_known_truth_all_structures_and_suites() {
             );
             assert!(result.posterior.is_none(), "{label}: Frequentist publishes no posterior");
             assert!((result.estimate.ate - truth).abs() < 1e-8, "{label}: {}", result.estimate.ate);
+            assert_evalue_fields(&result, suite != RefuteSuite::None, &label);
             match suite {
                 RefuteSuite::None => assert!(result.refutations.is_empty(), "{label}"),
                 RefuteSuite::Cheap => {

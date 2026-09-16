@@ -1109,6 +1109,9 @@ pub(crate) struct EstimateSection {
     candidate_selection: Option<CandidateSelectionSection>,
     #[pyo3(get)]
     evalue: Option<f64>,
+    /// Threshold the E-value refuter judged `evalue` against.
+    #[pyo3(get)]
+    evalue_threshold: Option<f64>,
     /// Interventional-distribution atoms with their probability intervals.
     /// `None` for non-distribution queries.
     #[pyo3(get)]
@@ -1366,6 +1369,7 @@ pub(crate) fn shared_study_sections(
                 })
             }),
         evalue: result.estimate.evalue,
+        evalue_threshold: result.estimate.evalue_threshold,
         distribution_atoms,
         mean_interval,
     };

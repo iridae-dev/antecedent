@@ -138,6 +138,10 @@ pub struct EffectEstimate {
     pub influence: Option<Arc<[f64]>>,
     /// Point E-value for the reported effect when a named no-latent premise is in force.
     pub evalue: Option<f64>,
+    /// Threshold [`Self::evalue`] was judged against, when it came from an
+    /// E-value refuter that reported a pass/fail verdict. `None` when no refuter
+    /// ran, or when the E-value is an attached premise diagnostic with no gate.
+    pub evalue_threshold: Option<f64>,
     /// Candidate-selection screen recorded on a batch family (artifact payload).
     pub candidate_selection: Option<CandidateSelectionRecord>,
     /// Circular-block geometry of a one-series block-bootstrap SE (the block
@@ -222,6 +226,7 @@ impl EffectEstimate {
             unit_effects_homogeneous: false,
             influence: None,
             evalue: None,
+            evalue_threshold: None,
             candidate_selection: None,
             block_resampling: None,
             se_kind: None,
@@ -273,6 +278,7 @@ impl EffectEstimate {
             unit_effects_homogeneous: false,
             influence: None,
             evalue: None,
+            evalue_threshold: None,
             candidate_selection: None,
             block_resampling: None,
             se_kind: None,
@@ -371,6 +377,13 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_evalue(mut self, evalue: Option<f64>) -> Self {
         self.evalue = evalue;
+        self
+    }
+
+    /// Attach the pass threshold the E-value refuter judged [`Self::evalue`] against.
+    #[must_use]
+    pub fn with_evalue_threshold(mut self, threshold: Option<f64>) -> Self {
+        self.evalue_threshold = threshold;
         self
     }
 

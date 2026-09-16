@@ -387,6 +387,7 @@ class EstimateSection:
     family_contrast_interval: tuple[float, float, float] | None
     candidate_selection: CandidateSelectionSection | None
     evalue: float | None
+    evalue_threshold: float | None
     distribution_atoms: list[DistributionAtomSection] | None
     mean_interval: ProbabilityIntervalSection | None
 
