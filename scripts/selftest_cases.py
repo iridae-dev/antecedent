@@ -3,6 +3,7 @@
 
     python3 scripts/selftest_cases.py docs     # gate_docs_support_matrix.sh --self-test
     python3 scripts/selftest_cases.py schema   # gate_parity_schema.sh --self-test
+    python3 scripts/selftest_cases.py citations  # gate_coverage_citations.sh --self-test
 
 Each case builds a disposable overlay of the repo (every tracked file hard
 linked, `python/` linked so the built extension is reused), copies the files it
@@ -449,8 +450,65 @@ def schema_cases() -> list[bool]:
     ]
 
 
+COND_DAG_BAYES = (
+    "0.892 (record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90."
+    "conditional_effect_dag_bayesian_nominal_90_coverage`)"
+)
+
+
+def citation_cases() -> list[bool]:
+    g = "gate_coverage_citations.sh"
+    lic = "parity/support_licensed.toml"
+    return [
+        case(g, "control", {}, [], must_fail=False),
+        case(
+            g,
+            "coverage_figure_unattributed",
+            {lic: replace(COND_DAG_BAYES, "0.892")},
+            ["coverage figure 0.892 has no record citation"],
+        ),
+        case(
+            g,
+            "coverage_figure_disagrees_with_record",
+            {lic: replace(COND_DAG_BAYES, COND_DAG_BAYES.replace("0.892", "0.931"))},
+            ["coverage figure 0.931 does not match its cited record(s) (0.8925)"],
+        ),
+        case(
+            g,
+            "unknown_record_cited",
+            {lic: replace(COND_DAG_BAYES, COND_DAG_BAYES.replace("l90.", "l80."))},
+            ["cites unknown coverage record"],
+        ),
+        case(
+            g,
+            "attribution_for_a_later_clause_does_not_cover",
+            {
+                lic: replace(
+                    COND_DAG_BAYES, "0.892; the probe measured 0.180 (not a registry value)"
+                )
+            },
+            ["coverage figure 0.892 has no record citation"],
+        ),
+        # Known-truth values, SEs, locations and disclosed probe figures are never rejected.
+        case(
+            g,
+            "known_truth_and_disclosures_allowed",
+            {
+                lic: replace(
+                    COND_DAG_BAYES,
+                    COND_DAG_BAYES
+                    + "; P(Y=1|do(T=1)) = 0.625, mean SE 0.0416 vs Monte Carlo SD 0.0410, "
+                    "total 0.356; a skewed-treatment probe covered 0.180 (not a registry value)",
+                )
+            },
+            [],
+            must_fail=False,
+        ),
+    ]
+
+
 def main(argv: list[str]) -> int:
-    suites = {"docs": docs_cases, "schema": schema_cases}
+    suites = {"docs": docs_cases, "schema": schema_cases, "citations": citation_cases}
     if len(argv) != 1 or argv[0] not in suites:
         print(f"usage: {sys.argv[0]} {{{'|'.join(suites)}}}")
         return 2
