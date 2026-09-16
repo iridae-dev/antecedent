@@ -1240,13 +1240,22 @@ impl PreparedStudy {
         click_analysis.data = DataInput::Tabular(data.clone());
         click_analysis.shared_batch_design = shared;
         let mut result = click_analysis.execute_tabular(data, &self.plan, ctx)?;
+        // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
+        // record which refutation reports are caller-attested. Without the names,
+        // the claim would drop custom-validator evidence from `attested` and from
+        // the claim identity.
+        result.custom_validator_names = click_analysis
+            .custom_validators
+            .iter()
+            .map(|validator| Arc::from(validator.name()))
+            .collect();
         let click_scores = click_analysis.prepare_score_table(ctx)?;
         overlay_prepared_score_functional(
             &self.analysis.query,
             click_scores.as_ref(),
             &mut result,
         )?;
-        Ok(result)
+        self.stamp(&click_analysis.data, result)
     }
 
     /// Replace retained data and re-estimate (same semantics as [`Self::estimate`]).
@@ -2693,12 +2702,12 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 DataInput::Temporal(_) | DataInput::Event(_),
                 CausalQuery::TemporalEffect(_) | CausalQuery::Mediation(_),
             ) => Ok(()),
-            _ => Err(CausalError::Support {
-                id: crate::support::SupportRefusal::Refused,
-                message: "graph_posterior on the prepared handle is licensed only for \
-                    tabular AverageEffect/Response/ConditionalEffect and series \
-                    TemporalEffect or TemporalMediationEffect",
-            }),
+            _ => Err(crate::support_reason!(
+                "data_modality_not_licensed",
+                "graph_posterior on the prepared handle is licensed only for tabular \
+                 AverageEffect/Response/ConditionalEffect and series TemporalEffect or \
+                 TemporalMediationEffect"
+            )),
         };
     }
     match (&analysis.data, &analysis.query) {

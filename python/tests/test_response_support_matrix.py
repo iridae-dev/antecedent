@@ -105,12 +105,11 @@ def test_path_distribution_literals_match_support_closed_toml():
     assert len(matches) == 1, matches
     reason = matches[0]["reason"]
     source = inspect.getsource(estimation)
-    # The literal is wrapped across two adjacent string fragments; normalize.
+    # The literal is wrapped across adjacent string fragments; normalize.
     collapsed = source.replace('"\n            "', "")
-    count = collapsed.count(f"refused: {reason}")
+    count = collapsed.count(reason.rstrip("."))
     assert count >= 1, (
-        f"expected the TOML reason at the prepare routing gate; "
-        f"found {count}: {reason!r}"
+        f"expected the TOML reason at the prepare routing gate; found {count}: {reason!r}"
     )
 
 

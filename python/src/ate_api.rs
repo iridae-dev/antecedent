@@ -510,7 +510,9 @@ pub(crate) fn panel_discovery_builder(
 /// Run static ATE: identify → estimate → optional refute .
 ///
 /// Parse optional `target_population` dict from Python (`kind` + fields).
-pub(crate) fn parse_target_population(spec: Option<&Bound<'_, PyDict>>) -> PyResult<Option<TargetPopulation>> {
+pub(crate) fn parse_target_population(
+    spec: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Option<TargetPopulation>> {
     let Some(d) = spec else {
         return Ok(None);
     };
@@ -917,8 +919,8 @@ fn compile_batch_study(
     edges: Vec<(String, String)>,
     identifier: Option<String>,
     estimator: Option<String>,
-    suite: antecedent::RefuteSuite,
-    bootstrap: u32,
+    suite: Option<antecedent::RefuteSuite>,
+    bootstrap: Option<u32>,
     latency_mode: Option<antecedent::LatencyMode>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
@@ -938,9 +940,13 @@ fn compile_batch_study(
     } else {
         let dag = dag_from_named_edges(data.schema(), &edges)?;
         antecedent::BatchStudy::new(data, dag)
+    };
+    if let Some(replicates) = bootstrap {
+        batch = batch.bootstrap_replicates(replicates);
     }
-    .bootstrap_replicates(bootstrap)
-    .refute(suite);
+    if let Some(suite) = suite {
+        batch = batch.refute(suite);
+    }
     if let Some(mode) = latency_mode {
         batch = batch.latency_mode(mode);
     }
@@ -970,8 +976,8 @@ fn compile_ate_batch(
     parsed_queries: Vec<AteBatchQuerySpec>,
     identifier: Option<String>,
     estimator: Option<String>,
-    suite: antecedent::RefuteSuite,
-    bootstrap: u32,
+    suite: Option<antecedent::RefuteSuite>,
+    bootstrap: Option<u32>,
     latency_mode: Option<antecedent::LatencyMode>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
@@ -1035,8 +1041,8 @@ fn compile_cell_batch(
     parsed_queries: Vec<CellBatchQuerySpec>,
     identifier: Option<String>,
     estimator: Option<String>,
-    suite: antecedent::RefuteSuite,
-    bootstrap: u32,
+    suite: Option<antecedent::RefuteSuite>,
+    bootstrap: Option<u32>,
     latency_mode: Option<antecedent::LatencyMode>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
@@ -1103,7 +1109,7 @@ fn compile_cell_batch(
     estimator=None,
     refute=None,
     seed=1,
-    bootstrap=199,
+    bootstrap=None,
     threads=1,
     latency=None,
     screen_id=None,
@@ -1123,7 +1129,7 @@ fn analyze_ate_many(
     estimator: Option<String>,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
-    bootstrap: u32,
+    bootstrap: Option<u32>,
     threads: u32,
     latency: Option<String>,
     screen_id: Option<String>,
@@ -1134,7 +1140,7 @@ fn analyze_ate_many(
     within_tier: Option<String>,
 ) -> PyResult<Vec<AteAnalysisResult>> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-    let suite = suite_from_refute(refute.as_ref())?;
+    let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_ate_batch_query_specs(queries)?;
     detach_catch(py, move || {
@@ -2919,6 +2925,7 @@ fn identify_structure(
                 &query,
                 &names,
                 structure.class().as_str(),
+                None,
             )?)
         } else {
             None
@@ -3221,7 +3228,7 @@ impl PyPreparedBatch {
     estimator=None,
     refute=None,
     seed=1,
-    bootstrap=199,
+    bootstrap=None,
     threads=1,
     latency=None,
     screen_id=None,
@@ -3241,7 +3248,7 @@ fn prepare_ate_batch(
     estimator: Option<String>,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
-    bootstrap: u32,
+    bootstrap: Option<u32>,
     threads: u32,
     latency: Option<String>,
     screen_id: Option<String>,
@@ -3252,7 +3259,7 @@ fn prepare_ate_batch(
     within_tier: Option<String>,
 ) -> PyResult<PyPreparedBatch> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-    let suite = suite_from_refute(refute.as_ref())?;
+    let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_ate_batch_query_specs(queries)?;
     detach_catch(py, move || {
@@ -3289,7 +3296,7 @@ fn prepare_ate_batch(
     estimator=None,
     refute=None,
     seed=1,
-    bootstrap=199,
+    bootstrap=None,
     threads=1,
     latency=None,
     screen_id=None,
@@ -3310,7 +3317,7 @@ fn prepare_cells_batch(
     estimator: Option<String>,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
-    bootstrap: u32,
+    bootstrap: Option<u32>,
     threads: u32,
     latency: Option<String>,
     screen_id: Option<String>,
@@ -3322,7 +3329,7 @@ fn prepare_cells_batch(
     family_contrast: Option<&str>,
 ) -> PyResult<PyPreparedBatch> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-    let suite = suite_from_refute(refute.as_ref())?;
+    let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_cell_batch_query_specs(queries)?;
     let family_contrast = family_contrast.map(str::to_owned);

@@ -1,12 +1,12 @@
 """Regression test: a failing temporal refuter must report validation.passed is False.
 
-`estimation._wrap_temporal` used to set `passed=ran` — True whenever *any*
+`estimation._wrap_ate` (which the temporal DTO also wraps) used to set `passed=ran` — True whenever *any*
 refuter ran, regardless of whether it actually passed — instead of reading
 each refuter's real outcome. Unlike the static `AteAnalysisResult` DTO, the
 temporal `AnalysisResult` DTO has no scalar `refutation_passed` field; the
 only source of truth is the per-refuter `refutations` list (each entry has
 its own `passed: bool`, confirmed against `python/antecedent/_native.pyi`).
-This test exercises `_wrap_temporal` directly against a minimal stand-in for
+This test exercises the wrapper directly against a minimal stand-in for
 that native DTO, rather than depending on a real refuter actually failing
 end-to-end (which would be slower and less precisely targeted at the bug).
 """
@@ -18,11 +18,11 @@ from types import SimpleNamespace
 import pytest
 
 pytest.importorskip("antecedent")
-from antecedent.estimation import _wrap_temporal
+from antecedent.estimation import _wrap_ate as _wrap_temporal
 
 
 def _raw_temporal_result(*, refutations):
-    """Minimal stand-in covering every attribute `_wrap_temporal` reads directly."""
+    """Minimal stand-in covering every attribute the wrapper reads directly."""
     return SimpleNamespace(
         ate=1.0,
         se_analytic=0.1,

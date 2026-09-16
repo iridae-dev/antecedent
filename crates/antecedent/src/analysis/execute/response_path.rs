@@ -268,7 +268,7 @@ impl super::Study {
         let scalar_intervention = plugin_scalar.is_finite()
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         let (refutations, refute_diags) = if scalar_intervention
-            && !matches!(self.refute, RefuteSuite::None)
+            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
             && matches!(self.inference, InferenceMode::Frequentist)
         {
             let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
@@ -555,7 +555,7 @@ impl super::Study {
         let scalar_intervention = scalar.is_finite()
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         let (refutations, refute_diags) = if scalar_intervention
-            && !matches!(self.refute, RefuteSuite::None)
+            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
         {
             let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
             let mut refute_ws = EstimationWorkspace::default();

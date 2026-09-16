@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import struct
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
@@ -25,7 +24,7 @@ def prepare(
     discovery: Any = None,
     inference: Frequentist | Bayesian | None = None,
     identifier: str | Identifier | None = None,
-    estimator: str | Estimator | None = None,
+    estimator: str | Estimator | Any | None = None,
     estimator_config: Mapping[str, Any] | None = None,
     refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
     seed: int = 1,
@@ -39,9 +38,18 @@ def prepare(
     cancel: Any | None = None,
     on_progress: Any | None = None,
     on_stage: Any | None = None,
+    validators: Sequence[Any] | Mapping[str, Any] | None = None,
+    accept_discovered: bool = True,
+    regimes: Sequence[int] | None = None,
+    running_variable: str | None = None,
+    cutoff: float | None = None,
+    bandwidth: float | None = None,
 ) -> PreparedAnalysis:
     """Prepare the same ordinary request as :func:`analyze`, stopping before estimation.
 
+    Every argument :func:`analyze` accepts is accepted here, with the same
+    meaning and the same refusals; ``analyze(...)`` is this call followed by
+    ``.estimate()`` (plus ``return_posterior_artifact``).
     """
     return PreparedAnalysis.prepare(
         data,
@@ -64,6 +72,12 @@ def prepare(
         cancel=cancel,
         on_progress=on_progress,
         on_stage=on_stage,
+        validators=validators,
+        accept_discovered=accept_discovered,
+        regimes=regimes,
+        running_variable=running_variable,
+        cutoff=cutoff,
+        bandwidth=bandwidth,
     )
 
 

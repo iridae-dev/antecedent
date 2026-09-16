@@ -88,7 +88,8 @@ def test_complete_observation_with_assumptions_raises_same_error_as_no_mechanism
     data = _curve_data(seed=1)
 
     with pytest.raises(
-        ValueError, match="observation_assumptions require an explicit observation mechanism"
+        antecedent.errors.CausalUnsupportedError,
+        match="observation_assumptions require an explicit observation mechanism",
     ):
         antecedent.analyze(
             {"a": data["a"], "y": data["y"]},
@@ -103,7 +104,8 @@ def test_complete_observation_with_assumptions_raises_same_error_as_no_mechanism
         )
 
     with pytest.raises(
-        ValueError, match="observation_assumptions require an explicit observation mechanism"
+        antecedent.errors.CausalUnsupportedError,
+        match="observation_assumptions require an explicit observation mechanism",
     ):
         antecedent.analyze(
             {"a": data["a"], "y": data["y"]},

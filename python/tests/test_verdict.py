@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-import numpy as np
-
 import antecedent as ant
+import numpy as np
 from antecedent._native import identification_status_names
 from antecedent._verdict import VERDICTS, verdict_for
 
-SCHEMA = json.loads(
-    (Path(__file__).resolve().parent / "fixtures" / "certificate_schema.json").read_text()
-)
+from _repo_text import load_json
+
+SCHEMA = load_json(Path(__file__).resolve().parent / "fixtures" / "certificate_schema.json")
 
 
 def _assert_schema(instance: dict) -> None:
@@ -75,14 +73,12 @@ def test_certificate_matches_schema():
         bootstrap=0,
         refute="none",
     )
-    pin = json.loads(
-        (
-            Path(__file__).resolve().parents[2]
-            / "conformance"
-            / "estimate"
-            / "temporal_class_envelope"
-            / "identified_pag.json"
-        ).read_text()
+    pin = load_json(
+        Path(__file__).resolve().parents[2]
+        / "conformance"
+        / "estimate"
+        / "temporal_class_envelope"
+        / "identified_pag.json"
     )
     n = int(pin["n"])
     i = np.arange(n, dtype=float)

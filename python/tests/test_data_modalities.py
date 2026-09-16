@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import numpy as np
-
 import antecedent as ant
+import numpy as np
 from antecedent import PulseEffect
 from antecedent.data import event, multi_env, panel
 from antecedent.estimation import PreparedAnalysis

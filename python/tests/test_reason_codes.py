@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import tomllib
-
 from antecedent.errors import CausalUnsupportedError
 
+from _repo_text import load_toml, read_text
+
 ROOT = Path(__file__).resolve().parents[2]
-CODES = tomllib.loads((ROOT / "parity" / "reason_codes.toml").read_text())
+CODES = load_toml(ROOT / "parity" / "reason_codes.toml")
 
 
 def test_reason_codes_are_closed():

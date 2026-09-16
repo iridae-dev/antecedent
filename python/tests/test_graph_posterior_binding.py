@@ -126,13 +126,13 @@ def test_supplied_dbn_posterior_refuses_a_static_query():
     [
         ("identifier", "backdoor.adjustment"),
         ("estimator", "linear.adjustment.ate"),
-        ("validators", []),
         ("return_posterior_artifact", True),
     ],
 )
 def test_supplied_posterior_refuses_options_it_cannot_honour(option, value):
+    """Per-atom identification and per-atom draws are not caller-selectable."""
     data = static_data(int(STATIC["n"]))
-    with pytest.raises(CausalUnsupportedError, match=option):
+    with pytest.raises(CausalUnsupportedError, match=option.split("_")[0]):
         antecedent.analyze(
             data,
             discovery=static_posterior(),
@@ -143,30 +143,84 @@ def test_supplied_posterior_refuses_options_it_cannot_honour(option, value):
         )
 
 
+def test_supplied_posterior_attests_custom_validators():
+    """A custom validator runs per mixture and its result is attested on the claim."""
+    calls: list[float] = []
+
+    def records(*, ate, **_kwargs):
+        calls.append(ate)
+        return {"passed": True, "refuted_ate": ate, "comparison": 0.0}
+
+    result = antecedent.analyze(
+        static_data(int(STATIC["n"])),
+        discovery=static_posterior(),
+        query=_ATE,
+        inference=antecedent.Frequentist(),
+        refute=False,
+        validators={"posterior.finite": records},
+    )
+    attested = antecedent.load(result.export()).artifact.contract["claim"]["attested"]
+    assert [item["name"] for item in attested] == ["posterior.finite"]
+    assert calls
+
+
 @pytest.mark.parametrize("route", ["static", "temporal"])
-@pytest.mark.parametrize("option", ["cancel", "on_progress", "on_stage"])
-def test_discovery_routes_refuse_execution_controls(route, option):
-    if route == "static":
-        data = static_data(int(STATIC["n"]))
-        discovery = antecedent.discovery.PC()
-        query = _ATE
-        inference = antecedent.Frequentist()
-    else:
-        assert route == "temporal"
-        data = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
-        discovery = antecedent.discovery.PCMCI(max_lag=1)
-        query = _PULSE
-        inference = antecedent.Frequentist()
-    value = antecedent.state.CancellationToken() if option == "cancel" else (lambda *_args: None)
-    with pytest.raises(CausalUnsupportedError, match=option):
+def test_live_discovery_honours_cancellation(route):
+    """A cancelled token stops a live-discovery request at the discovery boundary."""
+    data, discovery, query = _live_route(route)
+    token = antecedent.state.CancellationToken()
+    token.cancel()
+    with pytest.raises(antecedent.errors.CausalCancelledError):
         antecedent.analyze(
             data,
             discovery=discovery,
             query=query,
-            inference=inference,
+            inference=antecedent.Frequentist(),
             refute=False,
-            **{option: value},
+            cancel=token,
         )
+
+
+@pytest.mark.parametrize("route", ["static", "temporal"])
+def test_live_discovery_forwards_progress(route):
+    """Progress reports through discovery and on into identification."""
+    data, discovery, query = _live_route(route)
+    seen: list[tuple[float, str]] = []
+    antecedent.analyze(
+        data,
+        discovery=discovery,
+        query=query,
+        inference=antecedent.Frequentist(),
+        refute=False,
+        on_progress=lambda fraction, stage: seen.append((fraction, stage)),
+    )
+    assert any(stage == "discovery" for _, stage in seen)
+
+
+def test_live_discovery_refuses_stage_streaming_where_there_are_no_stages():
+    """A temporal route fits point and uncertainty together, so it has no stages."""
+    data, discovery, query = _live_route("temporal")
+    with pytest.raises(CausalUnsupportedError, match="stage") as raised:
+        antecedent.analyze(
+            data,
+            discovery=discovery,
+            query=query,
+            inference=antecedent.Frequentist(),
+            refute=False,
+            on_stage=lambda *_args: None,
+        )
+    assert raised.value.reason_code == "stage_stream_unavailable"
+
+
+def _live_route(route: str):
+    if route == "static":
+        return static_data(int(STATIC["n"])), antecedent.discovery.PC(), _ATE
+    assert route == "temporal"
+    return (
+        white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"])),
+        antecedent.discovery.PCMCI(max_lag=1),
+        _PULSE,
+    )
 
 
 def test_supplied_posterior_refuses_stage_callback():

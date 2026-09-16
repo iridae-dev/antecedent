@@ -51,7 +51,9 @@ def test_eventframe_rejects_jpcmci_plus():
     data = _lag1_series(n=60, seed=2)
     n = len(data["x"])
     frame = antecedent.data.event(data, np.arange(n, dtype=np.int64), align_interval_ns=1)
-    with pytest.raises(TypeError, match="EventFrame does not support discovery=JPCMCIPlus"):
+    with pytest.raises(
+        antecedent.errors.CausalUnsupportedError, match="discovers across environments"
+    ):
         antecedent.analyze(
             frame,
             discovery=antecedent.discovery.JPCMCIPlus(max_lag=1, alpha=0.2, fdr=False),

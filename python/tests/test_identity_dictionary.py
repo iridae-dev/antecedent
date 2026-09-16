@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
-import numpy as np
-import tomllib
-
 import antecedent as ant
+import numpy as np
+
+from _repo_text import load_toml, read_text
 
 ROOT = Path(__file__).resolve().parents[2]
-IDENTITY = tomllib.loads((ROOT / "parity" / "identity.toml").read_text())
-NAMING = (ROOT / "docs" / "api_naming.md").read_text()
+IDENTITY = load_toml(ROOT / "parity" / "identity.toml")
+NAMING = read_text(ROOT / "docs" / "api_naming.md")
 GRAPH = [("t", "y"), ("z", "y")]
 
 
