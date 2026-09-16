@@ -550,6 +550,98 @@ impl std::fmt::Debug for StudyBuilder {
 /// effects have no sampling uncertainty. Reporting [`StudyBuilder::OMITTED_BOOTSTRAP`]
 /// replicates there would describe a budget that never runs, so the omitted
 /// count is zero. An explicit count is never rewritten here.
+/// Refuse an estimator that does not implement the requested inference mode.
+///
+/// Bayesian-only estimators never run under Frequentist inference, and the
+/// Frequentist-only estimators below never run under Bayesian inference. The
+/// remaining identifier-native estimators (`functional.*`, `mediation.linear`,
+/// `gcm.fit`, the temporal and derivative estimators) apply the requested
+/// mode at execution, and the query-specific pairings are checked where the
+/// query's expected estimator is resolved. Without this refusal a Frequentist
+/// estimator would run under a Bayesian request and be bound to the Bayesian
+/// license coordinate and inference binding.
+fn refuse_estimator_inference_mismatch(
+    query: &CausalQuery,
+    estimator: EstimatorId,
+    inference: &InferenceMode,
+) -> Result<(), CausalError> {
+    const _: () = assert!(
+        crate::error::is_runtime_refusal_code("estimator_inference_mismatch"),
+        "`estimator_inference_mismatch` is not a runtime_refusal code"
+    );
+    // The refusal removes a wrong label, not a capability: the estimator stays
+    // available under the inference mode it implements, and the message names
+    // both ways forward.
+    macro_rules! frequentist {
+        ($name:literal) => {
+            Err(CausalError::Unsupported {
+                message: concat!(
+                    "reason",
+                    "=estimator_inference_mismatch: estimator ",
+                    $name,
+                    " is Frequentist, so it does not run under inference=Bayesian (it would \
+                     report a sampling interval under a Bayesian label). Omit estimator= to use \
+                     the Bayesian estimator, or use inference=Frequentist to run ",
+                    $name
+                ),
+            })
+        };
+    }
+    macro_rules! bayesian {
+        ($name:literal) => {
+            Err(CausalError::Unsupported {
+                message: concat!(
+                    "reason",
+                    "=estimator_inference_mismatch: estimator ",
+                    $name,
+                    " is Bayesian, so it does not run under inference=Frequentist. Omit \
+                     estimator= to use the Frequentist estimator, or use inference=Bayesian to \
+                     run ",
+                    $name
+                ),
+            })
+        };
+    }
+    match inference {
+        InferenceMode::Frequentist => match estimator {
+            EstimatorId::BayesianGcomp => bayesian!("bayesian.gcomp"),
+            EstimatorId::BayesianConditional => bayesian!("conditional.bayesian"),
+            EstimatorId::BayesianTemporalGcomp => bayesian!("bayesian.temporal.gcomp"),
+            EstimatorId::TemporalResponseBayesian => bayesian!("response.temporal.bayesian"),
+            EstimatorId::ResponseBayesian => bayesian!("response.bayesian"),
+            EstimatorId::BayesianTemporalMediation => bayesian!("temporal.mediation.bayesian"),
+            _ => Ok(()),
+        },
+        InferenceMode::Bayesian(_) => {
+            let average = matches!(query, CausalQuery::AverageEffect(_));
+            match estimator {
+                EstimatorId::LinearAdjustmentAte if average => {
+                    frequentist!("linear.adjustment.ate")
+                }
+                EstimatorId::PropensityWeighting if average => frequentist!("propensity.weighting"),
+                EstimatorId::PropensityMatching if average => frequentist!("propensity.matching"),
+                EstimatorId::PropensityStratification if average => {
+                    frequentist!("propensity.stratification")
+                }
+                EstimatorId::DistanceMatching if average => frequentist!("distance.matching"),
+                EstimatorId::Aipw if average => frequentist!("aipw"),
+                EstimatorId::GlmAdjustment if average => frequentist!("glm.adjustment"),
+                EstimatorId::FrontDoorTwoStage if average => frequentist!("frontdoor.two_stage"),
+                EstimatorId::IvWald if average => frequentist!("iv.wald"),
+                EstimatorId::Iv2Sls if average => frequentist!("iv.2sls"),
+                EstimatorId::RdSharp if average => frequentist!("rd.sharp"),
+                EstimatorId::ConditionalLinearAdjustment => {
+                    frequentist!("conditional.linear.adjustment")
+                }
+                EstimatorId::CellAipw => frequentist!("cell.aipw"),
+                EstimatorId::TransportTrialIpw => frequentist!("transport.trial_ipw"),
+                EstimatorId::InterferenceHtHajek => frequentist!("interference.ht_hajek"),
+                _ => Ok(()),
+            }
+        }
+    }
+}
+
 fn omitted_bootstrap_resamples(query: &CausalQuery, inference: &InferenceMode) -> bool {
     match query {
         CausalQuery::Response(q) => {
@@ -1376,6 +1468,9 @@ impl StudyBuilder {
                     message: "full exceedance grids require explicit iid AIPW, cell-AIPW joint response, or Frequentist ConditionalEffect on Dag/Cpdag/Pag",
                 });
             }
+        }
+        if let Some(estimator) = self.estimator {
+            refuse_estimator_inference_mismatch(&query, estimator, &inference)?;
         }
         if let Some(spec) = &self.estimator_spec {
             let bayesian = matches!(inference, InferenceMode::Bayesian(_));
