@@ -352,6 +352,15 @@ def test_autoregressive_treatment_pulse_is_identified_by_parent_adjustment(
     assert len(product["estimands"][0]["adjustment_set"]) == 2
     loaded_report = loaded.inspect().to_dict()
     assert loaded_report["identification_product_id"] == report["identification_product_id"]
+    # The unfolded adjustment nodes are reported by variable name (with their
+    # offsets), never as unfolded node ids, live and loaded.
+    for view in (report, loaded_report):
+        payload = view["identification"]["payload"]
+        assert payload["adjustment_set"] == ["t", "z"]
+        assert [(c["name"], c["offset"]) for c in payload["adjustment_coordinates"]] == [
+            ("t", -2),
+            ("z", -2),
+        ]
 
 
 def test_sustained_effect_on_an_autoregressive_treatment_still_refuses() -> None:

@@ -114,9 +114,36 @@ def portable_evidence(
         if isinstance(estimands, list) and estimands and isinstance(estimands[0], Mapping)
         else {}
     )
+    raw_adjustment = list(first.get("adjustment_set") or [])
+    unfolded = body.get("identification_variables")
+    coordinates: list[dict[str, Any]] | None = None
+    if isinstance(unfolded, list) and unfolded:
+        # A temporal estimand adjusts on nodes of the unfolded window: each id
+        # indexes `identification_variables` (schema variable, signed offset),
+        # never the schema directly.
+        coordinates = []
+        for node in raw_adjustment:
+            index = int(node) if str(node).lstrip("-").isdigit() else -1
+            key = unfolded[index] if 0 <= index < len(unfolded) else None
+            if not isinstance(key, Mapping):
+                coordinates = None
+                break
+            coordinates.append(
+                {
+                    "name": _resolve_variables(key.get("variable"), names),
+                    "offset": key.get("offset"),
+                    "node": index,
+                }
+            )
+    adjustment_set = (
+        list(dict.fromkeys(item["name"] for item in coordinates))
+        if coordinates is not None
+        else _resolve_variables(raw_adjustment, names)
+    )
     identification = {
         "method": first.get("method"),
-        "adjustment_set": _resolve_variables(list(first.get("adjustment_set") or []), names),
+        "adjustment_set": adjustment_set,
+        **({"adjustment_coordinates": coordinates} if coordinates is not None else {}),
         "assumption_count": len(identification_wire.get("required_assumptions") or []),
         "derivation_step_count": len(identification_wire.get("derivation") or []),
     }
