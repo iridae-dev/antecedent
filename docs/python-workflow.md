@@ -129,6 +129,39 @@ derivatives, plus `simultaneous_replicates`, `multiplier_seed` and
 `export_row_diagnostics` on a `ResponseCurve`, on a `Dag`, a `Cpdag` / `Pag`
 envelope and a graph-posterior mixture alike; an unknown key is refused.
 
+`PulseEffect` and `SustainedEffect` take `max_history_lag` (default `None`):
+the number of steps back the temporal unfolding may look for an adjustment
+set. When identification needs an older covariate, including a treatment
+parent under the pulse parent-adjustment fallback, the refusal names
+`max_history_lag`, and raising it on the query is the remedy. With the
+default, the unfolding grows to the graph's own chain bound, and a refusal
+there (a lagged cycle) is not helped by a cap.
+
+`Bayesian(likelihood=...)` chooses the g-computation outcome model:
+`"gaussian"` (identity link, the default), `"logit"` or `"probit"` (Bernoulli)
+and `"poisson"` (log link). A non-Gaussian likelihood is fitted for a tabular
+`AverageEffect` mean on a `Dag` with the `laplace` or `hmc` backend under the
+isotropic `prior_scale`. The effect is the average over rows of the inverse-link
+contrast, a mean difference on the outcome scale. Every other route, the
+`conjugate` backend and `prior_from=` refuse a non-Gaussian likelihood with
+`reason_code="likelihood_not_supported"` rather than fit a Gaussian model. The
+likelihood is part of the inference-binding identity and of the calibration
+key's posterior construction. A Bayesian fit under the Gaussian likelihood to
+an outcome that is 0/1 or nonnegative-integer valued reports the warning
+diagnostic `estimate.bayesian.gaussian_likelihood_discrete_outcome`.
+
+The propensity-score estimators (`PropensityWeighting`, `PropensityMatching`,
+`PropensityStratification`, `DistanceMatching` and `Aipw` in
+`antecedent.estimators`) take `overlap=Overlap(clip=..., trim=...)`, or the
+`estimator_config` key `overlap={"clip": ..., "trim": ...}`. By default
+propensities are clipped into `[0.01, 0.99]` and no unit is trimmed, and
+`Overlap()` spells out that default. `clip` bounds the propensities used in
+the weights, and `trim` drops units whose propensity lies outside
+`[trim, 1 - trim]`. Trimming narrows the population the effect describes.
+`None` turns either one off. A non-default policy changes the inference-binding
+identity and is part of the calibration key, so it reports
+`scope_not_assessed` unless a coverage record measured that policy.
+
 `identify(...)` returns an `Identification` whose `statement`, `verdict`,
 `qualified_verdict`, `assumption_statements`, and `derivation_statements` are
 human-readable state on the object (`identification.to_dict()` includes them).
