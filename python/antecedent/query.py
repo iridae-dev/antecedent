@@ -166,6 +166,16 @@ def _validate_horizons(horizons: Sequence[int]) -> None:
         prev_h = h
 
 
+def _validate_max_history_lag(max_history_lag: int | None) -> None:
+    """``max_history_lag`` is ``None`` or a nonnegative integer step count."""
+    if max_history_lag is None:
+        return
+    if isinstance(max_history_lag, bool) or not isinstance(max_history_lag, int):
+        raise CausalValueError(f"max_history_lag must be an int or None, got {max_history_lag!r}")
+    if max_history_lag < 0:
+        raise CausalValueError("max_history_lag must be non-negative")
+
+
 def _validate_temporal(
     horizons: Sequence[int] | None,
     policy: str,
@@ -223,7 +233,15 @@ class AverageEffect:
 
 @dataclass(frozen=True, slots=True)
 class PulseEffect:
-    """Temporal pulse intervention effect."""
+    """Temporal pulse intervention effect.
+
+    ``max_history_lag`` bounds how many steps back the temporal unfolding
+    looks for an adjustment set: covariates older than that many steps before
+    the treatment or outcome are not adjusted for, and identification that
+    needs them refuses and names this field. ``None`` (default) lets the
+    unfolding grow until the adjustment set is certified or the graph's own
+    chain bound is reached.
+    """
 
     treatment: str
     outcome: str
@@ -232,8 +250,12 @@ class PulseEffect:
     active_level: float = 1.0
     treatment_lag: int = temporal_response_spec.default_treatment_lag
     horizon_steps: int = 1
+    max_history_lag: int | None = None
     target_population: object | None = None
     kind: Literal["pulse"] = field(default="pulse", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        _validate_max_history_lag(self.max_history_lag)
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,6 +267,7 @@ class SustainedEffect:
     use sequential Gaussian g-computation on an explicit or accepted TemporalDag,
     or a Bayesian DBN graph-posterior mixture, with ``refute="none"``; the
     outcome is at ``horizon_steps - 1``. Cheap/full stay single-step.
+    ``max_history_lag`` bounds the unfolding's history as on :class:`PulseEffect`.
     """
 
     treatment: str
@@ -255,10 +278,12 @@ class SustainedEffect:
     treatment_lag: int = temporal_response_spec.default_treatment_lag
     horizon_steps: int = 1
     window: tuple[int, int] | None = None
+    max_history_lag: int | None = None
     target_population: object | None = None
     kind: Literal["sustained"] = field(default="sustained", init=False, repr=False)
 
     def __post_init__(self) -> None:
+        _validate_max_history_lag(self.max_history_lag)
         if self.window is not None:
             if len(self.window) != 2 or any(type(x) is not int for x in self.window):
                 raise ValueError("window must be a pair of integer offsets")

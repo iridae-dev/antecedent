@@ -2904,6 +2904,9 @@ fn identify_structure(
             treatments,
         )?;
         match &mut query {
+            CausalQuery::TemporalEffect(temporal) => {
+                temporal.max_history_lag = max_history_lag;
+            }
             CausalQuery::Response(response) if response.temporal.is_some() => {
                 let temporal = response.temporal.as_mut().expect("temporal response");
                 if let Some(horizons) = horizons {

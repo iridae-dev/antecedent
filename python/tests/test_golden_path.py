@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 import warnings
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any
 
 import antecedent as ant
@@ -375,4 +375,9 @@ def test_sustained_effect_on_an_autoregressive_treatment_still_refuses() -> None
         )
     message = str(caught.value)
     assert "lagged cycle" in message
+    # SustainedEffect takes max_history_lag, but no finite history certifies a
+    # lagged cycle: the refusal must not advise raising a cap that cannot help.
+    # (A caller-set cap below the chain bound is advised; see
+    # test_estimator_options_parity.py.)
+    assert "max_history_lag" in {f.name for f in fields(ant.SustainedEffect)}
     assert "max_history_lag" not in message
