@@ -97,26 +97,64 @@ pub(crate) const PANEL_RESPONSE_CLASS_REFUSAL: &str = concat!(
     "TemporalDag, TemporalCpdag, or TemporalPag",
 );
 
+/// Refusal for a panel class multi-step Sustained run under a discovery split.
+pub(crate) const PANEL_CLASS_SEQUENTIAL_SPLIT_REFUSAL: &str =
+    "class-aware multi-step sustained requires no discovery-estimation split";
+
+/// Refusal for a transferred or informative prior on panel class multi-step Sustained.
+pub(crate) const PANEL_CLASS_SEQUENTIAL_PRIOR_REFUSAL: &str =
+    "multi-step Sequence transfer stays refused on incomplete classes";
+
 /// Single owner for panel data-route licenses. Build, prepare, compile, and
 /// execute consult this; they do not restate the same refusals.
+///
+/// Every panel route requires one sampling regularity across units: a horizon of
+/// `h` steps must mean the same duration in every unit.
 pub(crate) fn refuse_unlicensed_panel_route(
     query: &CausalQuery,
     class: GraphClass,
     inference: &InferenceMode,
+    panel: &PanelData,
+    split: Option<&DiscoveryEstimationSplit>,
 ) -> Result<(), CausalError> {
+    panel_shared_regularity(panel)?;
     match query {
-        CausalQuery::Response(query) => refuse_unlicensed_panel_response(query, class, inference),
+        CausalQuery::Response(query) => refuse_unlicensed_panel_response(query, class),
         CausalQuery::TemporalEffect(query) => {
-            refuse_unlicensed_panel_effect(query, class, inference)
+            refuse_unlicensed_panel_effect(query, class, inference, split)
         }
         _ => Ok(()),
     }
 }
 
-pub(crate) fn refuse_unlicensed_panel_response(
+/// The one time-index regularity every panel unit shares.
+///
+/// # Errors
+///
+/// When the panel is empty or its units disagree on regularity.
+pub(crate) fn panel_shared_regularity(
+    panel: &PanelData,
+) -> Result<antecedent_data::SamplingRegularity, CausalError> {
+    let first = &panel
+        .unit(0)
+        .map_err(|e| CausalError::Compile { message: e.to_string() })?
+        .series
+        .time_index()
+        .regularity;
+    if panel.units().iter().any(|unit| &unit.series.time_index().regularity != first) {
+        return Err(CausalError::Compile {
+            message: "panel analysis requires every panel unit to share one time-index \
+                      regularity: a horizon step would otherwise mean a different duration in \
+                      different units; align the units first"
+                .into(),
+        });
+    }
+    Ok(first.clone())
+}
+
+fn refuse_unlicensed_panel_response(
     query: &ResponseQuery,
     class: GraphClass,
-    inference: &InferenceMode,
 ) -> Result<(), CausalError> {
     if !query.is_temporal()
         || !matches!(
@@ -126,18 +164,28 @@ pub(crate) fn refuse_unlicensed_panel_response(
     {
         return Err(CausalError::Unsupported { message: PANEL_RESPONSE_CLASS_REFUSAL });
     }
-    let _ = inference;
     Ok(())
 }
 
-pub(crate) fn refuse_unlicensed_panel_effect(
+fn refuse_unlicensed_panel_effect(
     query: &TemporalEffectQuery,
     class: GraphClass,
     inference: &InferenceMode,
+    split: Option<&DiscoveryEstimationSplit>,
 ) -> Result<(), CausalError> {
-    let _ = (query, inference);
-    if !class.is_incomplete_temporal() {
+    if !class.is_incomplete_temporal() || !query.is_multi_step_sustained() {
         return Ok(());
+    }
+    // Panel class multi-step Sustained fits every unit's full series; a split's
+    // discovery rows would be reused for estimation, and the per-unit sequential
+    // g-computation has no mapping for a transferred coefficient prior.
+    if split.is_some() {
+        return Err(CausalError::Unsupported { message: PANEL_CLASS_SEQUENTIAL_SPLIT_REFUSAL });
+    }
+    if let InferenceMode::Bayesian(cfg) = inference {
+        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+            return Err(CausalError::Unsupported { message: PANEL_CLASS_SEQUENTIAL_PRIOR_REFUSAL });
+        }
     }
     Ok(())
 }
@@ -1344,8 +1392,14 @@ impl StudyBuilder {
                 _ => {}
             }
         }
-        if matches!(data, DataInput::Panel(_)) {
-            refuse_unlicensed_panel_route(&query, graph.class(), &inference)?;
+        if let DataInput::Panel(panel) = &data {
+            refuse_unlicensed_panel_route(
+                &query,
+                graph.class(),
+                &inference,
+                panel,
+                self.split.as_ref(),
+            )?;
         }
         if self.class_prior.is_some() && matches!(inference, crate::InferenceMode::Frequentist) {
             return Err(CausalError::Unsupported {

@@ -1836,14 +1836,45 @@ pub(super) fn mix_support_reports(
         if support_rank(report.status) > support_rank(status) {
             status = report.status;
         }
-        warnings.extend(report.warnings.iter().cloned());
+        for warning in &report.warnings {
+            if !warnings
+                .iter()
+                .any(|seen| seen.code == warning.code && seen.message == warning.message)
+            {
+                warnings.push(warning.clone());
+            }
+        }
     }
+    // Per-cell status is the most conservative over the mixed reports whenever
+    // they share one cell layout; a cell outside any report's support is outside
+    // the mixture's.
+    let point_status = match first.point_status.as_deref() {
+        Some(cells)
+            if reports
+                .iter()
+                .all(|r| r.point_status.as_deref().is_some_and(|p| p.len() == cells.len())) =>
+        {
+            Some(
+                (0..cells.len())
+                    .map(|cell| {
+                        reports
+                            .iter()
+                            .filter_map(|r| r.point_status.as_deref().map(|p| p[cell]))
+                            .max_by_key(|status| support_rank(*status))
+                            .unwrap_or(cells[cell])
+                    })
+                    .collect::<Vec<_>>()
+                    .into(),
+            )
+        }
+        _ => first.point_status.clone(),
+    };
     let mut mixed = antecedent_core::SupportReport {
         status,
         query_region: first.query_region.clone(),
         diagnostics: first.diagnostics.clone(),
         warnings,
-        point_status: first.point_status.clone(),
+        point_status,
     };
     // A simultaneous band belongs to one atom's surface; it stays on that atom and
     // never describes the mixed class report.

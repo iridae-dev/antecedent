@@ -1834,34 +1834,15 @@ impl super::Study {
         }
         enforce_temporal_response_memory_budget(query, temporal, self.bootstrap_replicates, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let cells_per_horizon = match &query.functional {
-            ResponseFunctional::MeanCurve { treatment, .. } => treatment
-                .grid
-                .values()
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?
-                .len(),
-            ResponseFunctional::InterventionResponse { .. } => 1,
-            _ => {
-                return Err(CausalError::Unsupported {
-                    message: "class-aware temporal response supports curves and intervention responses",
-                });
-            }
-        };
+        let mut assembly = ClassResponseAssembly::new(query, temporal)?;
+        let cells_per_horizon = assembly.cells_per_horizon();
         let n_horizons = temporal.horizons.len();
-        let mut lower = vec![f64::NAN; cells_per_horizon * n_horizons];
-        let mut upper = vec![f64::NAN; cells_per_horizon * n_horizons];
-        let mut structural_atoms = Vec::new();
-        let mut supports = Vec::new();
-        let mut horizon_supports = Vec::new();
         let mut primary_estimand = None;
         let mut primary_identification = None;
         let mut primary_envelope = None;
         let mut assumptions = antecedent_core::AssumptionSet::new();
-        let mut full_mass_scope = true;
-        let mut truncated_atoms = 0usize;
         let mut diagnostics = Vec::new();
         let mut class_weights = TemporalClassWeights::new(self.class_prior.as_ref());
-        let mut horizon_fingerprints: Vec<Vec<u64>> = Vec::new();
         let mut observation_atoms = Vec::new();
         let mut class_observation_band_applied = false;
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
@@ -1880,26 +1861,19 @@ impl super::Study {
             let envelope = &bundle.envelope.envelope;
             diagnostics.push(temporal_class_envelope_diagnostic(envelope, self.graph.class()));
             let weights = class_weights.for_envelope(&bundle.envelope)?;
-            horizon_fingerprints
-                .push(envelope.cases.iter().map(|case| case.graph.fingerprint()).collect());
-            full_mass_scope &= envelope.truncated_completions == 0;
-            truncated_atoms += envelope.truncated_completions;
-            let mut horizon_values = Vec::new();
-            let support_start = supports.len();
+            assembly.begin_horizon(envelope);
             for (case_index, (case, indexer)) in
                 envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
             {
                 if !identification_status_ok_for_case(case.result.status)
                     || case.result.estimands.is_empty()
                 {
-                    structural_atoms.push(crate::result::StructuralResponseAtom {
-                        posterior: None,
-                        response: None,
-                        graph_key: ((horizon_index as u64) << 32) | case_index as u64,
-                        weight: weights[case_index],
-                        status: case.result.status,
-                        value: None,
-                    });
+                    assembly.push_unevaluated(
+                        horizon_index,
+                        case_index,
+                        weights[case_index],
+                        case.result.status,
+                    );
                     continue;
                 }
                 let estimand =
@@ -1934,19 +1908,17 @@ impl super::Study {
                     Some(series)
                 };
                 let series = series_owned.as_ref().unwrap_or(data);
-                let mut response = match &self.inference {
+                let response = match &self.inference {
                     InferenceMode::Bayesian(cfg)
                         if query.observation != ObservationSpec::Complete =>
                     {
                         let Some(dag) = case.graph.sequential_dag() else {
-                            structural_atoms.push(crate::result::StructuralResponseAtom {
-                                posterior: None,
-                                response: None,
-                                graph_key: ((horizon_index as u64) << 32) | case_index as u64,
-                                weight: weights[case_index],
-                                status: case.result.status,
-                                value: None,
-                            });
+                            assembly.push_unevaluated(
+                                horizon_index,
+                                case_index,
+                                weights[case_index],
+                                case.result.status,
+                            );
                             continue;
                         };
                         if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
@@ -2022,52 +1994,18 @@ impl super::Study {
                             .map_err(CausalError::from)?
                     }
                 };
-                if let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
-                    response.estimate
-                {
-                    response.estimate =
-                        ResponseIdentification::PointIdentified(ResponseValue::Surface {
-                            grid: Arc::from([f64::from(horizon)]),
-                            dimension: 1,
-                            mean: Arc::from([value]),
-                        });
-                }
-                let values = match &response.estimate {
-                    ResponseIdentification::PointIdentified(ResponseValue::Surface {
-                        mean,
-                        ..
-                    }) => mean.to_vec(),
-                    _ => {
-                        return Err(CausalError::Compile {
-                            message: "temporal class response atom did not produce a surface"
-                                .into(),
-                        });
-                    }
-                };
-                if values.len() != cells_per_horizon {
-                    return Err(CausalError::Compile {
-                        message: "temporal class response atom shape mismatch".into(),
-                    });
-                }
-                horizon_values.push(values.clone());
-                structural_atoms.push(crate::result::StructuralResponseAtom {
-                    posterior: None,
-                    response: None,
-                    graph_key: ((horizon_index as u64) << 32) | case_index as u64,
-                    weight: weights[case_index],
-                    status: case.result.status,
-                    value: match &response.estimate {
-                        ResponseIdentification::PointIdentified(value)
-                        | ResponseIdentification::PartiallyIdentified(value) => Some(value.clone()),
-                        _ => None,
-                    },
-                });
-                structural_atoms.last_mut().expect("response atom").response =
-                    Some(response.clone());
-                supports.push(response.support);
+                let atom_assumptions = response.assumptions.clone();
+                let atom_index = assembly.push_atom(
+                    horizon_index,
+                    case_index,
+                    weights[case_index],
+                    case.result.status,
+                    horizon,
+                    response,
+                )?;
                 if series_owned.is_some() && matches!(self.inference, InferenceMode::Frequentist) {
                     observation_atoms.push(ClassObservationAtom {
-                        atom_index: structural_atoms.len() - 1,
+                        atom_index,
                         horizon_index,
                         estimand: estimand.clone(),
                         indexer: indexer.clone(),
@@ -2083,112 +2021,29 @@ impl super::Study {
                     primary_estimand = Some(estimand);
                     primary_identification = Some(case.result.clone());
                     primary_envelope = Some(bundle.envelope.clone());
-                    assumptions = response.assumptions;
+                    assumptions = atom_assumptions;
                 }
             }
-            if horizon_values.is_empty() {
-                return Err(CausalError::Compile {
-                    message: format!(
-                        "temporal class response has no evaluable atom at horizon {horizon}"
-                    ),
-                });
-            }
-            horizon_supports.push(super::response_path::mix_support_reports(
-                &supports[support_start..].iter().collect::<Vec<_>>(),
-            ));
-            for cell in 0..cells_per_horizon {
-                let destination = cell * n_horizons + horizon_index;
-                lower[destination] =
-                    horizon_values.iter().map(|values| values[cell]).fold(f64::INFINITY, f64::min);
-                upper[destination] = horizon_values
-                    .iter()
-                    .map(|values| values[cell])
-                    .fold(f64::NEG_INFINITY, f64::max);
-            }
+            assembly.end_horizon(horizon_index, horizon)?;
         }
-        let (grid, dimension) = match &query.functional {
-            ResponseFunctional::MeanCurve { treatment, .. } => {
-                let doses = treatment
-                    .grid
-                    .values()
-                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-                let grid: Vec<f64> = doses
-                    .iter()
-                    .flat_map(|dose| {
-                        temporal.horizons.iter().flat_map(|horizon| [*dose, f64::from(*horizon)])
-                    })
-                    .collect();
-                (grid, 2)
-            }
-            ResponseFunctional::InterventionResponse { .. } => {
-                (temporal.horizons.iter().map(|horizon| f64::from(*horizon)).collect(), 1)
-            }
-            _ => unreachable!(),
-        };
-        let response_envelope = antecedent_core::ResponseEnvelope {
-            grid: Arc::from(grid),
-            dimension,
-            lower: Arc::from(lower),
-            upper: Arc::from(upper),
-        };
-        let support_refs = supports.iter().collect::<Vec<_>>();
-        let graph_values = temporal_class_complete_values(
-            &structural_atoms,
-            &horizon_fingerprints,
-            &response_envelope,
-            n_horizons,
-        );
-        let (identified_mass, unidentified_mass, unevaluable_mass) =
-            temporal_class_response_masses(&structural_atoms);
-        let incomplete = unidentified_mass > 0.0 || unevaluable_mass > 0.0 || !full_mass_scope;
         if query.observation != ObservationSpec::Complete {
             append_temporal_observation_assumptions(query, &mut assumptions);
         }
-        let mut support = super::response_path::mix_support_reports(&support_refs);
-        support.point_status = (0..cells_per_horizon)
-            .flat_map(|cell| (0..n_horizons).map(move |horizon| (cell, horizon)))
-            .map(|(cell, horizon)| {
-                horizon_supports[horizon].point_status.as_ref()?.get(cell).copied()
-            })
-            .collect::<Option<Vec<_>>>()
-            .map(Arc::from);
-        let mut response = CausalResponse {
-            estimand: query.functional.clone(),
-            identification_status: if incomplete {
-                IdentificationStatus::GraphDependent
-            } else {
-                IdentificationStatus::PartiallyIdentified
-            },
-            estimate: if incomplete {
-                ResponseIdentification::GraphDependent(graph_values)
-            } else {
-                ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(
-                    response_envelope.clone(),
-                ))
-            },
-            uncertainty: ResponseUncertainty::None,
-            support,
-            assumptions: assumptions.clone(),
-            provenance_id: Arc::from("estimate.temporal_response.class_envelope"),
-            horizon_identification: Some(
-                temporal
-                    .horizons
-                    .iter()
-                    .map(|&horizon| antecedent_core::HorizonIdentification {
-                        horizon,
-                        status: if incomplete {
-                            IdentificationStatus::GraphDependent
-                        } else {
-                            IdentificationStatus::PartiallyIdentified
-                        },
-                        method: Arc::from("temporal_class.completion_envelope"),
-                        adjustment: Arc::from([]),
-                    })
-                    .collect::<Vec<_>>()
-                    .into(),
-            ),
-            interaction_structurally_zero: false,
-        };
+        let ClassResponseParts {
+            mut response,
+            response_envelope,
+            identified_mass,
+            unidentified_mass,
+            unevaluable_mass,
+        } = assembly.finish(
+            query,
+            temporal,
+            assumptions.clone(),
+            "estimate.temporal_response.class_envelope",
+        )?;
+        let mut structural_atoms = std::mem::take(&mut assembly.structural_atoms);
+        let full_mass_scope = assembly.full_mass_scope;
+        let truncated_atoms = assembly.truncated_atoms;
         if query.observation != ObservationSpec::Complete
             && matches!(self.inference, InferenceMode::Frequentist)
             && self.bootstrap_replicates > 0
@@ -2229,22 +2084,10 @@ impl super::Study {
                 &mut identification.required_assumptions,
             );
         }
-        diagnostics.push(Diagnostic::new(
-            "estimate.temporal_response.class_identified_set",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "bounds are pointwise ranges over completion-specific point surfaces; completion \
-             weights are enumeration weights, not posterior probabilities or sampling uncertainty",
+        diagnostics.extend(class_response_identified_set_diagnostics(
+            matches!(self.inference, InferenceMode::Bayesian(_)),
+            self.class_prior.is_some(),
         ));
-        if matches!(self.inference, InferenceMode::Bayesian(_)) && self.class_prior.is_none() {
-            diagnostics.push(Diagnostic::new(
-                "estimate.envelope.response_posterior_not_mixed",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "Bayesian completion posteriors are retained as atoms; enumeration weights \
-                 are not mixed into a posterior",
-            ));
-        }
         if query.observation != ObservationSpec::Complete {
             diagnostics.push(class_observation_band_note(class_observation_band_applied));
         }
@@ -3359,13 +3202,7 @@ impl super::Study {
         let mut diagnostics =
             vec![temporal_class_envelope_diagnostic(envelope, self.graph.class())];
         if class_masses.is_none() {
-            diagnostics.push(Diagnostic::new(
-                "estimate.temporal_class.enumeration_not_probability",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "completion-enumeration weights are not a class prior; no blended posterior \
-                 is published",
-            ));
+            diagnostics.push(enumeration_not_probability_diagnostic());
         }
         let mut weights = Vec::new();
         let mut flags = Vec::new();
@@ -3485,49 +3322,21 @@ impl super::Study {
                 mean_idx += 1;
             }
         }
-        let (estimate, posterior, weight_basis) = if class_masses.is_some()
-            && envelope.truncated_completions == 0
-            && atoms.iter().any(|atom| atom.weight > 0.0)
-        {
-            let graphs = WeightedGraphSamples::new(weights, flags, keys)
-                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-            let mut mixed = aggregate_effect_envelope(
-                &graphs,
-                &per_graph,
-                InferenceDiagnostics::analytic("temporal_class_envelope"),
-                EnvelopeOptions::default(),
-            )
-            .map_err(CausalError::from)?;
-            merge_posterior_notes(&mut mixed, atoms.iter().map(|atom| &atom.posterior));
-            if let Some(summary) = envelope_conflict {
-                mixed = with_conflict_summary(mixed, summary);
-            }
-            let estimate = effect_from_posterior(&mixed)?;
-            diagnostics.push(Diagnostic::new(
-                "estimate.temporal_class.envelope",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!("unidentified_mass={}", mixed.unidentified_mass),
-            ));
-            (estimate, Some(mixed), crate::result::StructuralWeightBasis::CallerSuppliedClassPrior)
-        } else {
-            diagnostics.push(Diagnostic::new(
-                "estimate.envelope.response_posterior_not_mixed",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "completion posteriors are retained as atoms; mixing requires caller-supplied \
-                 class mass, positive evaluable mass, and uncapped class scope",
-            ));
-            (
-                nan_effect(),
-                None,
-                if class_masses.is_some() {
-                    crate::result::StructuralWeightBasis::CallerSuppliedClassPrior
-                } else {
-                    crate::result::StructuralWeightBasis::CompletionEnumeration
-                },
-            )
-        };
+        let (estimate, posterior, weight_basis) = mix_class_effect_posteriors(
+            ClassPosteriorMix {
+                class_prior_supplied: class_masses.is_some(),
+                truncated_completions: envelope.truncated_completions,
+                evaluable_mass_positive: atoms.iter().any(|atom| atom.weight > 0.0),
+                weights,
+                flags,
+                keys,
+                per_graph: &per_graph,
+                conflict: envelope_conflict,
+                label: "temporal_class_envelope",
+            },
+            atoms.iter().map(|atom| &atom.posterior),
+            &mut diagnostics,
+        )?;
         let mut structural_response = temporal_class_structural_mixture(
             envelope,
             weight_basis,
@@ -3750,17 +3559,17 @@ fn enforce_temporal_response_memory_budget(
 /// Caller-supplied class mass binds once, at the first horizon, and is then
 /// read by completion fingerprint. Without a prior the enumeration weights are
 /// normalized per horizon; they are not probabilities.
-struct TemporalClassWeights<'a> {
+pub(super) struct TemporalClassWeights<'a> {
     prior: Option<&'a crate::ClassPrior>,
     binding: Option<crate::class_prior::ClassPriorBinding>,
 }
 
 impl<'a> TemporalClassWeights<'a> {
-    const fn new(prior: Option<&'a crate::ClassPrior>) -> Self {
+    pub(super) const fn new(prior: Option<&'a crate::ClassPrior>) -> Self {
         Self { prior, binding: None }
     }
 
-    fn for_envelope(
+    pub(super) fn for_envelope(
         &mut self,
         envelope: &antecedent_identify::TemporalClassEnvelope,
     ) -> Result<Vec<f64>, CausalError> {
@@ -3848,7 +3657,7 @@ fn temporal_class_response_masses(
     }
 }
 
-fn temporal_class_response_mean(
+pub(super) fn temporal_class_response_mean(
     atoms: &[crate::result::StructuralResponseAtom],
     envelope: &antecedent_core::ResponseEnvelope,
     n_horizons: usize,
@@ -3902,70 +3711,447 @@ fn temporal_class_response_mean(
     })
 }
 
+/// Envelope assembly of a class-aware temporal response, shared by the series and
+/// panel owners.
+///
+/// One completion at one horizon is an *atom*: the owner fits it (a series surface, or
+/// the panel's equal-weight average of unit surfaces) and hands the surface here. The
+/// assembly keeps the pointwise minimum and maximum over the completions of each
+/// (cell, horizon), every atom's structural record and support, and publishes the
+/// identified set as a `PartiallyIdentified` envelope over the full surfaces — or, when
+/// mass is unidentified, unevaluable or capped, the completions' surfaces as
+/// `GraphDependent` atoms. The grid comes from the query, so it is the same whatever
+/// the horizon count.
+pub(super) struct ClassResponseAssembly {
+    /// Cells of one horizon: the dose grid, or one intervention-response cell.
+    cells_per_horizon: usize,
+    n_horizons: usize,
+    lower: Vec<f64>,
+    upper: Vec<f64>,
+    pub(super) structural_atoms: Vec<crate::result::StructuralResponseAtom>,
+    supports: Vec<antecedent_core::SupportReport>,
+    horizon_supports: Vec<antecedent_core::SupportReport>,
+    horizon_fingerprints: Vec<Vec<u64>>,
+    /// No horizon capped its completion enumeration.
+    pub(super) full_mass_scope: bool,
+    pub(super) truncated_atoms: usize,
+    horizon_values: Vec<Vec<f64>>,
+    support_start: usize,
+}
+
+/// What [`ClassResponseAssembly::finish`] publishes.
+pub(super) struct ClassResponseParts {
+    pub response: CausalResponse,
+    pub response_envelope: antecedent_core::ResponseEnvelope,
+    pub identified_mass: f64,
+    pub unidentified_mass: f64,
+    pub unevaluable_mass: f64,
+}
+
+impl ClassResponseAssembly {
+    /// Start an assembly for `query`'s functional over `temporal.horizons`.
+    ///
+    /// # Errors
+    ///
+    /// A functional that is neither a mean curve nor an intervention response, or an
+    /// unreadable dose grid.
+    pub(super) fn new(
+        query: &ResponseQuery,
+        temporal: &antecedent_core::TemporalResponseSpec,
+    ) -> Result<Self, CausalError> {
+        let cells_per_horizon = match &query.functional {
+            ResponseFunctional::MeanCurve { treatment, .. } => treatment
+                .grid
+                .values()
+                .map_err(|error| CausalError::Compile { message: error.to_string() })?
+                .len(),
+            ResponseFunctional::InterventionResponse { .. } => 1,
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "class-aware temporal response supports curves and intervention responses",
+                });
+            }
+        };
+        let n_horizons = temporal.horizons.len();
+        Ok(Self {
+            cells_per_horizon,
+            n_horizons,
+            lower: vec![f64::NAN; cells_per_horizon * n_horizons],
+            upper: vec![f64::NAN; cells_per_horizon * n_horizons],
+            structural_atoms: Vec::new(),
+            supports: Vec::new(),
+            horizon_supports: Vec::new(),
+            horizon_fingerprints: Vec::new(),
+            full_mass_scope: true,
+            truncated_atoms: 0,
+            horizon_values: Vec::new(),
+            support_start: 0,
+        })
+    }
+
+    pub(super) const fn cells_per_horizon(&self) -> usize {
+        self.cells_per_horizon
+    }
+
+    /// Open a horizon's completion envelope.
+    pub(super) fn begin_horizon(
+        &mut self,
+        envelope: &IdentificationEnvelope<antecedent_identify::TemporalCompletionGraph>,
+    ) {
+        self.horizon_fingerprints
+            .push(envelope.cases.iter().map(|case| case.graph.fingerprint()).collect());
+        self.full_mass_scope &= envelope.truncated_completions == 0;
+        self.truncated_atoms += envelope.truncated_completions;
+        self.horizon_values = Vec::new();
+        self.support_start = self.supports.len();
+    }
+
+    /// Record a completion the owner did not evaluate at this horizon.
+    pub(super) fn push_unevaluated(
+        &mut self,
+        horizon_index: usize,
+        case_index: usize,
+        weight: f64,
+        status: IdentificationStatus,
+    ) {
+        self.structural_atoms.push(crate::result::StructuralResponseAtom {
+            posterior: None,
+            response: None,
+            graph_key: ((horizon_index as u64) << 32) | case_index as u64,
+            weight,
+            status,
+            value: None,
+        });
+    }
+
+    /// Record one fitted completion surface at this horizon; returns its atom index.
+    ///
+    /// # Errors
+    ///
+    /// An atom that is not a point surface, or whose cell count is not the horizon's.
+    pub(super) fn push_atom(
+        &mut self,
+        horizon_index: usize,
+        case_index: usize,
+        weight: f64,
+        status: IdentificationStatus,
+        horizon: u32,
+        mut response: CausalResponse,
+    ) -> Result<usize, CausalError> {
+        if let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
+            response.estimate
+        {
+            response.estimate = ResponseIdentification::PointIdentified(ResponseValue::Surface {
+                grid: Arc::from([f64::from(horizon)]),
+                dimension: 1,
+                mean: Arc::from([value]),
+            });
+        }
+        let values = match &response.estimate {
+            ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
+                mean.to_vec()
+            }
+            _ => {
+                return Err(CausalError::Compile {
+                    message: "temporal class response atom did not produce a surface".into(),
+                });
+            }
+        };
+        if values.len() != self.cells_per_horizon {
+            return Err(CausalError::Compile {
+                message: "temporal class response atom shape mismatch".into(),
+            });
+        }
+        self.horizon_values.push(values);
+        self.structural_atoms.push(crate::result::StructuralResponseAtom {
+            posterior: None,
+            response: None,
+            graph_key: ((horizon_index as u64) << 32) | case_index as u64,
+            weight,
+            status,
+            value: match &response.estimate {
+                ResponseIdentification::PointIdentified(value)
+                | ResponseIdentification::PartiallyIdentified(value) => Some(value.clone()),
+                _ => None,
+            },
+        });
+        let index = self.structural_atoms.len() - 1;
+        self.supports.push(response.support.clone());
+        self.structural_atoms[index].response = Some(response);
+        Ok(index)
+    }
+
+    /// Close a horizon: mix its atoms' supports and take the pointwise envelope.
+    ///
+    /// # Errors
+    ///
+    /// No evaluable atom at this horizon.
+    pub(super) fn end_horizon(
+        &mut self,
+        horizon_index: usize,
+        horizon: u32,
+    ) -> Result<(), CausalError> {
+        if self.horizon_values.is_empty() {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "temporal class response has no evaluable atom at horizon {horizon}"
+                ),
+            });
+        }
+        self.horizon_supports.push(super::response_path::mix_support_reports(
+            &self.supports[self.support_start..].iter().collect::<Vec<_>>(),
+        ));
+        for cell in 0..self.cells_per_horizon {
+            let destination = cell * self.n_horizons + horizon_index;
+            self.lower[destination] =
+                self.horizon_values.iter().map(|values| values[cell]).fold(f64::INFINITY, f64::min);
+            self.upper[destination] = self
+                .horizon_values
+                .iter()
+                .map(|values| values[cell])
+                .fold(f64::NEG_INFINITY, f64::max);
+        }
+        Ok(())
+    }
+
+    /// Assemble the published response over every horizon's atoms.
+    ///
+    /// # Errors
+    ///
+    /// An unreadable dose grid.
+    pub(super) fn finish(
+        &self,
+        query: &ResponseQuery,
+        temporal: &antecedent_core::TemporalResponseSpec,
+        assumptions: antecedent_core::AssumptionSet,
+        provenance_id: &'static str,
+    ) -> Result<ClassResponseParts, CausalError> {
+        let (grid, dimension) = match &query.functional {
+            ResponseFunctional::MeanCurve { treatment, .. } => {
+                let doses = treatment
+                    .grid
+                    .values()
+                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                let grid: Vec<f64> = doses
+                    .iter()
+                    .flat_map(|dose| {
+                        temporal.horizons.iter().flat_map(|horizon| [*dose, f64::from(*horizon)])
+                    })
+                    .collect();
+                (grid, 2)
+            }
+            ResponseFunctional::InterventionResponse { .. } => {
+                (temporal.horizons.iter().map(|horizon| f64::from(*horizon)).collect(), 1)
+            }
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "class-aware temporal response supports curves and intervention responses",
+                });
+            }
+        };
+        let response_envelope = antecedent_core::ResponseEnvelope {
+            grid: Arc::from(grid),
+            dimension,
+            lower: Arc::from(self.lower.clone()),
+            upper: Arc::from(self.upper.clone()),
+        };
+        let graph_values = temporal_class_complete_values(
+            &self.structural_atoms,
+            &self.horizon_fingerprints,
+            &response_envelope,
+            self.n_horizons,
+        );
+        let (identified_mass, unidentified_mass, unevaluable_mass) =
+            temporal_class_response_masses(&self.structural_atoms);
+        let incomplete = unidentified_mass > 0.0 || unevaluable_mass > 0.0 || !self.full_mass_scope;
+        let mut support =
+            super::response_path::mix_support_reports(&self.supports.iter().collect::<Vec<_>>());
+        support.point_status = (0..self.cells_per_horizon)
+            .flat_map(|cell| (0..self.n_horizons).map(move |horizon| (cell, horizon)))
+            .map(|(cell, horizon)| {
+                self.horizon_supports[horizon].point_status.as_ref()?.get(cell).copied()
+            })
+            .collect::<Option<Vec<_>>>()
+            .map(Arc::from);
+        let status = if incomplete {
+            IdentificationStatus::GraphDependent
+        } else {
+            IdentificationStatus::PartiallyIdentified
+        };
+        let response = CausalResponse {
+            estimand: query.functional.clone(),
+            identification_status: status,
+            estimate: if incomplete {
+                ResponseIdentification::GraphDependent(graph_values)
+            } else {
+                ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(
+                    response_envelope.clone(),
+                ))
+            },
+            uncertainty: ResponseUncertainty::None,
+            support,
+            assumptions,
+            provenance_id: Arc::from(provenance_id),
+            horizon_identification: Some(
+                temporal
+                    .horizons
+                    .iter()
+                    .map(|&horizon| antecedent_core::HorizonIdentification {
+                        horizon,
+                        status,
+                        method: Arc::from("temporal_class.completion_envelope"),
+                        adjustment: Arc::from([]),
+                    })
+                    .collect::<Vec<_>>()
+                    .into(),
+            ),
+            interaction_structurally_zero: false,
+        };
+        Ok(ClassResponseParts {
+            response,
+            response_envelope,
+            identified_mass,
+            unidentified_mass,
+            unevaluable_mass,
+        })
+    }
+}
+
+/// The completion-envelope diagnostic every class response publishes, plus the
+/// Bayesian note when no class prior licenses a posterior mixture.
+pub(super) fn class_response_identified_set_diagnostics(
+    bayesian: bool,
+    class_prior: bool,
+) -> Vec<Diagnostic> {
+    let mut out = vec![Diagnostic::new(
+        "estimate.temporal_response.class_identified_set",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        "bounds are pointwise ranges over completion-specific point surfaces; completion \
+         weights are enumeration weights, not posterior probabilities or sampling uncertainty",
+    )];
+    if bayesian && !class_prior {
+        out.push(Diagnostic::new(
+            "estimate.envelope.response_posterior_not_mixed",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "Bayesian completion posteriors are retained as atoms; enumeration weights \
+             are not mixed into a posterior",
+        ));
+    }
+    out
+}
+
+/// Completion-enumeration weights are not a class prior.
+pub(super) fn enumeration_not_probability_diagnostic() -> Diagnostic {
+    Diagnostic::new(
+        "estimate.temporal_class.enumeration_not_probability",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        "completion-enumeration weights are not a class prior; no blended posterior \
+         is published",
+    )
+}
+
+/// Inputs of a Bayesian class-effect mixture over completion posteriors.
+pub(super) struct ClassPosteriorMix<'a> {
+    /// A caller class prior supplied the completion masses.
+    pub class_prior_supplied: bool,
+    pub truncated_completions: usize,
+    /// Some evaluated completion carries positive mass.
+    pub evaluable_mass_positive: bool,
+    pub weights: Vec<f64>,
+    pub flags: Vec<GraphIdentFlag>,
+    pub keys: Vec<u64>,
+    pub per_graph: &'a [GraphEffectDraws],
+    pub conflict: Option<antecedent_prob::ConflictSummary>,
+    /// Inference label of the mixed posterior.
+    pub label: &'static str,
+}
+
+/// The class-prior contract of a Bayesian class effect, shared by the series and
+/// panel owners: with a caller class prior over an uncapped class and positive
+/// evaluable mass, the completion posteriors' draws are mixed by class mass
+/// (within- plus between-completion variance); otherwise the effect is NaN and the
+/// completion posteriors stay atoms of the structural response.
+pub(super) fn mix_class_effect_posteriors<'a>(
+    mix: ClassPosteriorMix<'_>,
+    atom_posteriors: impl IntoIterator<Item = &'a CausalPosterior>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<
+    (EffectEstimate, Option<CausalPosterior>, crate::result::StructuralWeightBasis),
+    CausalError,
+> {
+    let basis = if mix.class_prior_supplied {
+        crate::result::StructuralWeightBasis::CallerSuppliedClassPrior
+    } else {
+        crate::result::StructuralWeightBasis::CompletionEnumeration
+    };
+    if !(mix.class_prior_supplied && mix.truncated_completions == 0 && mix.evaluable_mass_positive)
+    {
+        diagnostics.push(Diagnostic::new(
+            "estimate.envelope.response_posterior_not_mixed",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "completion posteriors are retained as atoms; mixing requires caller-supplied \
+             class mass, positive evaluable mass, and uncapped class scope",
+        ));
+        return Ok((nan_effect(), None, basis));
+    }
+    let graphs = WeightedGraphSamples::new(mix.weights, mix.flags, mix.keys)
+        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let mut mixed = aggregate_effect_envelope(
+        &graphs,
+        mix.per_graph,
+        InferenceDiagnostics::analytic(mix.label),
+        EnvelopeOptions::default(),
+    )
+    .map_err(CausalError::from)?;
+    merge_posterior_notes(&mut mixed, atom_posteriors);
+    if let Some(summary) = mix.conflict {
+        mixed = with_conflict_summary(mixed, summary);
+    }
+    let estimate = effect_from_posterior(&mixed)?;
+    diagnostics.push(
+        Diagnostic::new(
+            "estimate.temporal_class.envelope",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!("unidentified_mass={}", mixed.unidentified_mass),
+        )
+        .with_fields(super::mass_fields(None, mixed.unidentified_mass)),
+    );
+    Ok((estimate, Some(mixed), basis))
+}
+
+/// Structural uncertainty of a temporal class envelope, keyed by completion
+/// fingerprint.
+///
+/// The mixture itself is [`super::class_structural_mixture`],
+/// shared with the static class routes, so the mass split here is the
+/// envelope's own ([`antecedent_identify::carries_identified_mass`]) and
+/// agrees with the `identify.temporal_*.envelope` diagnostic published on the
+/// same result. Unlike the static arm, a temporal class result always carries
+/// its mixture: the completion atoms are part of the answer even when no
+/// completion produced a finite value.
 pub(crate) fn temporal_class_structural_mixture(
     envelope: &IdentificationEnvelope<antecedent_identify::TemporalCompletionGraph>,
     weight_basis: crate::result::StructuralWeightBasis,
     masses: Option<&[f64]>,
     values: &[Option<f64>],
 ) -> crate::result::StructuralResponseMixture {
-    let mut atoms = Vec::with_capacity(envelope.cases.len());
-    let mut identified_weight = 0.0;
-    let mut unidentified_weight = 0.0;
-    let mut unevaluable_weight = 0.0;
-    let mut lo = f64::INFINITY;
-    let mut hi = f64::NEG_INFINITY;
-    for (i, case) in envelope.cases.iter().enumerate() {
-        let weight = masses.and_then(|m| m.get(i).copied()).unwrap_or(case.weight.0);
-        let value = values.get(i).copied().flatten().filter(|v| v.is_finite());
-        if identification_status_ok_for_case(case.result.status) && value.is_some() {
-            identified_weight += weight;
-            if let Some(v) = value {
-                lo = lo.min(v);
-                hi = hi.max(v);
-            }
-        } else if identification_status_ok_for_case(case.result.status) {
-            unevaluable_weight += weight;
-        } else {
-            unidentified_weight += weight;
-        }
-        atoms.push(crate::result::StructuralResponseAtom {
-            posterior: None,
-            response: None,
-            graph_key: case.graph.fingerprint(),
-            weight,
-            status: case.result.status,
-            value: value.map(ResponseValue::Scalar),
-        });
-    }
-    let total = identified_weight + unidentified_weight + unevaluable_weight;
-    let identified_set = if lo.is_finite() && hi.is_finite() {
-        Some(antecedent_core::ResponseEnvelope {
-            grid: Arc::from([0.0]),
-            dimension: 1,
-            lower: Arc::from([lo]),
-            upper: Arc::from([hi]),
-        })
-    } else {
-        None
-    };
-    let (identified_mass, unidentified_mass, unevaluable_mass) = if total > 0.0 {
-        (identified_weight / total, unidentified_weight / total, unevaluable_weight / total)
-    } else {
-        (0.0, 0.0, 0.0)
-    };
-    crate::result::StructuralResponseMixture {
+    let outcomes: Vec<_> = values
+        .iter()
+        .map(|value| value.map_or(ClassAtomOutcome::NotEvaluated, ClassAtomOutcome::Evaluated))
+        .collect();
+    super::class_structural_mixture(
+        envelope,
         weight_basis,
-        atoms,
-        identified_mass,
-        unidentified_mass,
-        unevaluable_mass,
-        subsampled_out_mass: 0.0,
-        identified_set,
-        identified_set_interval: None,
-        conditional_on_identified: None,
-        full_mass_scope: envelope.truncated_completions == 0,
-        truncated_atoms: envelope.truncated_completions,
-    }
+        |_, case| case.graph.fingerprint(),
+        masses,
+        &outcomes,
+    )
+    .0
 }
 
 pub(crate) fn temporal_class_envelope_diagnostic<G>(
@@ -4852,7 +5038,7 @@ fn single_target_observation_band(
 /// Conflict-sensitive composition is also horizon-specific and therefore
 /// refuses a multi-horizon surface until the response estimator accepts one
 /// resolved prior per horizon.
-fn resolve_temporal_response_prior(
+pub(super) fn resolve_temporal_response_prior(
     cfg: &BayesianConfig,
     data: &TimeSeriesData,
     temporal: &antecedent_core::TemporalResponseSpec,

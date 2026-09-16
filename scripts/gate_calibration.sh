@@ -343,6 +343,11 @@ echo "== 1.9 temporal response surfaces: pointwise + simultaneous bands (anteced
 check "v19_temporal_response_calibration" \
   cargo test --release -p antecedent --test v19_temporal_response_calibration -- --ignored --nocapture
 
+echo "== 1.10 panel routes: cluster-by-unit SE, unit bootstrap, between-unit bands (antecedent) =="
+# One invocation runs every ignored test in the file.
+check "v110_panel_calibration" \
+  cargo test --release -p antecedent --test v110_panel_calibration -- --ignored --nocapture
+
 echo "== 1.9 remaining static cells: responses, mediation, path, distribution, counterfactual (R-19, R-17) =="
 run_static_remaining() {
   local filter="$1"

@@ -1693,23 +1693,6 @@ fn multi_env_regularity(
     Ok(first)
 }
 
-fn panel_regularity(panel: &PanelData) -> Result<antecedent_data::SamplingRegularity, CausalError> {
-    let first = &panel
-        .unit(0)
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?
-        .series
-        .time_index()
-        .regularity;
-    if panel.units().iter().any(|unit| &unit.series.time_index().regularity != first) {
-        return Err(CausalError::Compile {
-            message: "PreparedStudy requires every panel unit to share one time-index \
-                      regularity; align the units before preparing"
-                .into(),
-        });
-    }
-    Ok(first.clone())
-}
-
 impl Study {
     /// Compile once into a durable [`PreparedStudy`] for re-estimate-many.
     ///
@@ -1759,9 +1742,11 @@ impl Study {
                 PreparedModality::Series,
                 Some(data.time_index().regularity.clone()),
             ),
-            DataInput::Panel(panel) => {
-                (panel.schema().clone(), PreparedModality::Panel, Some(panel_regularity(panel)?))
-            }
+            DataInput::Panel(panel) => (
+                panel.schema().clone(),
+                PreparedModality::Panel,
+                Some(super::builder::panel_shared_regularity(panel)?),
+            ),
             DataInput::MultiEnv(multi) => (
                 multi.schema().clone(),
                 PreparedModality::MultiEnv,
@@ -2832,12 +2817,13 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
         }
         (DataInput::MultiEnv(_), CausalQuery::TemporalEffect(_)) => {
             if analysis.graph.class() != GraphClass::TemporalDag {
-                return Err(CausalError::Unsupported {
-                    message: "PreparedStudy supports multi-env TemporalEffect on TemporalDag",
-                });
+                return Err(crate::unsupported_reason!(
+                    "data_modality_not_licensed",
+                    "PreparedStudy supports multi-environment TemporalEffect on a TemporalDag"
+                ));
             }
         }
-        (DataInput::Panel(_), query) => {
+        (DataInput::Panel(panel), query) => {
             if !matches!(
                 (query, analysis.graph.class()),
                 (
@@ -2845,25 +2831,29 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                     GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
                 )
             ) {
-                return Err(CausalError::Unsupported {
-                    message: "PreparedStudy supports panel Pulse/Sustained and temporal \
-                              response on TemporalDag, TemporalCpdag, or TemporalPag",
-                });
+                return Err(crate::unsupported_reason!(
+                    "data_modality_not_licensed",
+                    "PreparedStudy supports panel Pulse/Sustained and temporal response on \
+                     TemporalDag, TemporalCpdag, or TemporalPag"
+                ));
             }
             super::builder::refuse_unlicensed_panel_route(
                 query,
                 analysis.graph.class(),
                 &analysis.inference,
+                panel,
+                analysis.split.as_ref(),
             )?;
         }
         _ => {
-            return Err(CausalError::Unsupported {
-                message: "PreparedStudy currently supports AverageEffect, ResponseCurve, \
-                    ConditionalEffect, PathSpecific, Distribution, temporal ResponseCurve, \
-                    TemporalEffect (Pulse / single-step Sustained), TemporalMediationEffect, \
-                    panel Pulse/Sustained, Counterfactual, AnomalyAttribution, \
-                    ChangeAttribution, TransportQuery, or InterferenceQuery",
-            });
+            return Err(crate::unsupported_reason!(
+                "data_modality_not_licensed",
+                "PreparedStudy supports AverageEffect, ResponseCurve, ConditionalEffect, \
+                 PathSpecific, Distribution, temporal ResponseCurve, TemporalEffect (Pulse / \
+                 single-step Sustained), TemporalMediationEffect, panel Pulse/Sustained, \
+                 Counterfactual, AnomalyAttribution, ChangeAttribution, TransportQuery, or \
+                 InterferenceQuery"
+            ));
         }
     }
     Ok(())
