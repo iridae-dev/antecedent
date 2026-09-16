@@ -316,9 +316,9 @@ fn multi_horizon_parent_identification_is_the_conservative_join() {
     );
 }
 
-#[test]
-fn temporal_cpdag_mediation_returns_per_horizon_identified_sets() {
-    let (data, _) = confounded_mediation_series();
+/// The confounded mediation law as a `TemporalCpdag` whose every edge is oriented:
+/// one completion, so each horizon's identified set is that completion's contrast.
+fn oriented_mediation_cpdag() -> TemporalCpdag {
     let mut graph = TemporalCpdag::empty();
     let t0 = graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
     let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
@@ -332,14 +332,39 @@ fn temporal_cpdag_mediation_returns_per_horizon_identified_sets() {
     graph.insert_directed(t1, y0).unwrap();
     graph.insert_directed(t1, m0).unwrap();
     graph.insert_directed(m0, y0).unwrap();
+    graph
+}
+
+/// Explicit (`accepted = false`) or accepted `TemporalCpdag` structure.
+fn class_mediation_study(data: &TimeSeriesData, accepted: bool) -> antecedent::StudyBuilder {
+    let builder = Study::series(data.clone());
+    if accepted {
+        builder.graph(AcceptedGraph::temporal_cpdag(oriented_mediation_cpdag()).unwrap())
+    } else {
+        builder.graph(oriented_mediation_cpdag())
+    }
+}
+
+/// The horizon-1 slice's identified set brackets the structural mediated effect
+/// `a·b` of the law to within `tol` at both ends.
+fn assert_horizon_one_mediated(result: &antecedent::StudyResult, tol: f64, case: &str) {
+    let grid = result.mediation_grid.as_ref().expect("class mediation grid");
+    let slice = grid.slices.iter().find(|slice| slice.horizon == 1).expect("horizon-1 slice");
+    let set = slice.identified_set.expect("horizon-1 identified set");
+    assert!(
+        (set.lower - STRUCTURAL_MEDIATED).abs() < tol
+            && (set.upper - STRUCTURAL_MEDIATED).abs() < tol,
+        "{case}: horizon-1 identified set [{}, {}] vs structural a·b = {STRUCTURAL_MEDIATED}",
+        set.lower,
+        set.upper
+    );
+}
+
+#[test]
+fn temporal_cpdag_mediation_returns_per_horizon_identified_sets() {
+    let (data, _) = confounded_mediation_series();
     for accepted in [false, true] {
-        let builder = Study::series(data.clone());
-        let builder = if accepted {
-            builder.graph(AcceptedGraph::temporal_cpdag(graph.clone()).unwrap())
-        } else {
-            builder.graph(graph.clone())
-        };
-        let result = builder
+        let result = class_mediation_study(&data, accepted)
             .query(CausalQuery::Mediation(query(&[1, 2])))
             .refute(RefuteSuite::None)
             .bootstrap_replicates(0)
@@ -347,11 +372,14 @@ fn temporal_cpdag_mediation_returns_per_horizon_identified_sets() {
             .unwrap()
             .run(&ExecutionContext::for_tests(27))
             .unwrap();
+        let case = format!("Frequentist accepted={accepted} none");
         let grid = result.mediation_grid.as_ref().expect("class mediation grid");
-        assert_eq!(grid.slices.len(), 2);
+        assert_eq!(grid.slices.len(), 2, "{case}");
         assert!(grid.slices.iter().all(|slice| {
             slice.identified_set.is_some_and(|set| set.lower.is_finite() && set.lower <= set.upper)
         }));
+        assert_horizon_one_mediated(&result, 1e-6, &case);
+        assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
         assert!(result.mediation.is_none());
         assert!(result.estimate.ate.is_nan());
     }
@@ -360,128 +388,94 @@ fn temporal_cpdag_mediation_returns_per_horizon_identified_sets() {
 #[test]
 fn temporal_cpdag_mediation_cheap_and_full_run_per_completion() {
     let (data, _) = confounded_mediation_series();
-    let mut graph = TemporalCpdag::empty();
-    let t0 = graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
-    let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
-    let m0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
-    let y0 = graph.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
-    let z0 = graph.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
-    let z1 = graph.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
-    graph.insert_directed(z0, t0).unwrap();
-    graph.insert_directed(z1, y0).unwrap();
-    graph.insert_directed(z1, m0).unwrap();
-    graph.insert_directed(t1, y0).unwrap();
-    graph.insert_directed(t1, m0).unwrap();
-    graph.insert_directed(m0, y0).unwrap();
-    for (accepted, suite) in [(false, RefuteSuite::Cheap), (true, RefuteSuite::Full)] {
-        let builder = Study::series(data.clone());
-        let builder = if accepted {
-            builder.graph(AcceptedGraph::temporal_cpdag(graph.clone()).unwrap())
-        } else {
-            builder.graph(graph.clone())
-        };
-        let result = builder
-            .query(CausalQuery::Mediation(query(&[1])))
-            .refute(suite)
-            .bootstrap_replicates(0)
-            .build()
-            .unwrap()
-            .run(&ExecutionContext::for_tests(29))
-            .unwrap();
-        assert!(
-            !result.refutations.is_empty(),
-            "TemporalCpdag mediation {suite:?} must run per-completion refuters"
-        );
-        assert!(
-            result
-                .refutations
-                .iter()
-                .any(|report| { report.refuter.as_ref().starts_with("horizon.1.completion.") })
-        );
-        assert!(result.mediation_grid.as_ref().is_some_and(|grid| {
-            grid.slices.iter().all(|slice| slice.identified_set.is_some())
-        }));
-        // One horizon whose completions all fit the same mediation design: the
-        // identified set is that one contrast, and it is published as the
-        // scalar estimate beside the set.
-        assert!(result.estimate.ate.is_finite());
-        assert!(result.mediation.is_some());
-        assert!(result.mediation_grid.as_ref().is_some_and(|grid| {
-            grid.slices[0].identified_set.is_some_and(|set| {
-                set.lower == result.estimate.ate && set.upper == result.estimate.ate
-            })
-        }));
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+            let result = class_mediation_study(&data, accepted)
+                .query(CausalQuery::Mediation(query(&[1])))
+                .refute(suite)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ExecutionContext::for_tests(29))
+                .unwrap();
+            let case = format!("Frequentist accepted={accepted} {suite:?}");
+            assert!(
+                !result.refutations.is_empty(),
+                "{case}: TemporalCpdag mediation must run per-completion refuters"
+            );
+            assert!(
+                result
+                    .refutations
+                    .iter()
+                    .any(|report| { report.refuter.as_ref().starts_with("horizon.1.completion.") }),
+                "{case}"
+            );
+            // One horizon whose completions all fit the same mediation design: the
+            // identified set is that one contrast, and it is published as the
+            // scalar estimate beside the set.
+            assert_horizon_one_mediated(&result, 1e-6, &case);
+            assert!(
+                (result.estimate.ate - STRUCTURAL_MEDIATED).abs() < 1e-6,
+                "{case}: estimate {} vs structural {STRUCTURAL_MEDIATED}",
+                result.estimate.ate
+            );
+            assert!(result.mediation.is_some(), "{case}");
+            assert!(result.mediation_grid.as_ref().is_some_and(|grid| {
+                grid.slices[0].identified_set.is_some_and(|set| {
+                    set.lower == result.estimate.ate && set.upper == result.estimate.ate
+                })
+            }));
+        }
     }
 }
 
 #[test]
 fn temporal_class_bayesian_mediation_returns_identified_sets() {
     let (data, _) = confounded_mediation_series();
-    let mut graph = TemporalCpdag::empty();
-    let t0 = graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
-    let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
-    let m0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
-    let y0 = graph.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
-    let z0 = graph.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
-    let z1 = graph.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
-    graph.insert_directed(z0, t0).unwrap();
-    graph.insert_directed(z1, y0).unwrap();
-    graph.insert_directed(z1, m0).unwrap();
-    graph.insert_directed(t1, y0).unwrap();
-    graph.insert_directed(t1, m0).unwrap();
-    graph.insert_directed(m0, y0).unwrap();
-    let result = Study::series(data)
-        .graph(graph)
-        .query(CausalQuery::Mediation(query(&[1, 2])))
-        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(31))
-        .unwrap();
-    let grid = result.mediation_grid.as_ref().expect("Bayesian class mediation grid");
-    assert_eq!(grid.slices.len(), 2);
-    assert!(grid.slices.iter().all(|slice| {
-        slice.identified_set.is_some_and(|set| set.lower.is_finite() && set.lower <= set.upper)
-    }));
-    assert!(result.estimate.ate.is_nan());
+    for accepted in [false, true] {
+        let result = class_mediation_study(&data, accepted)
+            .query(CausalQuery::Mediation(query(&[1, 2])))
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(31))
+            .unwrap();
+        let case = format!("Bayesian accepted={accepted} none");
+        let grid = result.mediation_grid.as_ref().expect("Bayesian class mediation grid");
+        assert_eq!(grid.slices.len(), 2, "{case}");
+        assert!(grid.slices.iter().all(|slice| {
+            slice.identified_set.is_some_and(|set| set.lower.is_finite() && set.lower <= set.upper)
+        }));
+        // Same tolerance as the Bayesian I(1) pin on the oriented TemporalDag.
+        assert_horizon_one_mediated(&result, 0.08, &case);
+        assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
+        assert!(result.estimate.ate.is_nan());
+    }
 }
 
 #[test]
 fn temporal_class_bayesian_mediation_cheap_and_full_run() {
     let (data, _) = confounded_mediation_series();
-    let mut graph = TemporalCpdag::empty();
-    let t0 = graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
-    let t1 = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
-    let m0 = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
-    let y0 = graph.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
-    let z0 = graph.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
-    let z1 = graph.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
-    graph.insert_directed(z0, t0).unwrap();
-    graph.insert_directed(z1, y0).unwrap();
-    graph.insert_directed(z1, m0).unwrap();
-    graph.insert_directed(t1, y0).unwrap();
-    graph.insert_directed(t1, m0).unwrap();
-    graph.insert_directed(m0, y0).unwrap();
-    for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
-        let result = Study::series(data.clone())
-            .graph(graph.clone())
-            .query(CausalQuery::Mediation(query(&[1])))
-            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)))
-            .refute(suite)
-            .bootstrap_replicates(0)
-            .build()
-            .unwrap()
-            .run(&ExecutionContext::for_tests(33))
-            .unwrap();
-        assert!(
-            !result.refutations.is_empty(),
-            "Bayesian TemporalCpdag mediation {suite:?} must run per-completion refuters"
-        );
-        assert!(result.mediation_grid.as_ref().is_some_and(|grid| {
-            grid.slices.iter().all(|slice| slice.identified_set.is_some())
-        }));
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+            let result = class_mediation_study(&data, accepted)
+                .query(CausalQuery::Mediation(query(&[1])))
+                .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)))
+                .refute(suite)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ExecutionContext::for_tests(33))
+                .unwrap();
+            let case = format!("Bayesian accepted={accepted} {suite:?}");
+            assert!(
+                !result.refutations.is_empty(),
+                "{case}: Bayesian TemporalCpdag mediation must run per-completion refuters"
+            );
+            assert_horizon_one_mediated(&result, 0.08, &case);
+        }
     }
 }
 

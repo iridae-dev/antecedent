@@ -1620,75 +1620,104 @@ fn class_aware_conditional_grid_mixes_envelope_atoms() {
     );
 }
 
+/// `E[Y | do(a = 1, d = 1)]` under [`interaction_dgp`]: `1.5·a·d` with mean-zero `z`
+/// and noise.
+const JOINT_CELL_TRUTH: f64 = 1.5;
+
+/// Explicit (`accepted = false`) or accepted `Dag` structure.
+fn dag_study(data: TabularData, graph: Dag, accepted: bool) -> antecedent::StudyBuilder {
+    let builder = Study::tabular(data);
+    if accepted {
+        builder.graph(antecedent::AcceptedGraph::dag(graph))
+    } else {
+        builder.graph(graph)
+    }
+}
+
 #[test]
 fn dag_intervention_response_cheap_runs_overlap_and_evalue() {
     let (data, graph) = interaction_dgp(800, 206);
     let ctx = ExecutionContext::for_tests(206);
-    let cell = Study::tabular(data.clone())
-        .graph(graph.clone())
-        .query(CausalQuery::Response(joint_query(1.0, 1.0)))
-        .estimator(EstimatorId::CellAipw)
-        .refute(RefuteSuite::Cheap)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ctx)
-        .unwrap();
-    assert!(cell.estimate.ate.is_finite());
-    assert!(
-        cell.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue"),
-        "cell.aipw cheap must E-value the cell-versus-control contrast"
-    );
-    assert!(
-        cell.diagnostics.iter().any(|d| d.code.as_ref() == "refute.cell_aipw.contrast"),
-        "cell.aipw cheap must disclose the contrast, not the intervention level"
-    );
-    assert!(!cell.diagnostics.iter().any(|d| d.code.as_ref() == "refute.response.skipped"));
+    for accepted in [false, true] {
+        let case = format!("accepted={accepted} cheap");
+        let cell = dag_study(data.clone(), graph.clone(), accepted)
+            .query(CausalQuery::Response(joint_query(1.0, 1.0)))
+            .estimator(EstimatorId::CellAipw)
+            .refute(RefuteSuite::Cheap)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        let value = response_value(&cell);
+        assert!(
+            (value - JOINT_CELL_TRUTH).abs() < 0.15,
+            "{case}: cell.aipw joint cell mean {value} vs known truth {JOINT_CELL_TRUTH}"
+        );
+        assert!(
+            cell.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue"),
+            "{case}: cell.aipw cheap must E-value the cell-versus-control contrast"
+        );
+        assert!(
+            cell.diagnostics.iter().any(|d| d.code.as_ref() == "refute.cell_aipw.contrast"),
+            "{case}: cell.aipw cheap must disclose the contrast, not the intervention level"
+        );
+        assert!(!cell.diagnostics.iter().any(|d| d.code.as_ref() == "refute.response.skipped"));
 
-    let plugin = Study::tabular(data)
-        .graph(graph)
-        .query(CausalQuery::Response(joint_query(1.0, 1.0)))
-        .estimator(EstimatorId::ResponseInterventionGcomp)
-        .refute(RefuteSuite::Cheap)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ctx)
-        .unwrap();
-    assert!(plugin.estimate.ate.is_finite());
-    assert!(
-        plugin.refutations.iter().any(|r| r.refuter.as_ref().contains("overlap")),
-        "plugin cheap must still run overlap"
-    );
-    assert!(
-        plugin.diagnostics.iter().any(|d| d.code.as_ref() == "refute.evalue.not_a_contrast"),
-        "plugin cheap must refuse E-value on an intervention level"
-    );
-    assert!(
-        !plugin.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue"),
-        "plugin cheap must not invent an E-value for a cell mean"
-    );
-    assert!(!plugin.diagnostics.iter().any(|d| d.code.as_ref() == "refute.response.skipped"));
+        let plugin = dag_study(data.clone(), graph.clone(), accepted)
+            .query(CausalQuery::Response(joint_query(1.0, 1.0)))
+            .estimator(EstimatorId::ResponseInterventionGcomp)
+            .refute(RefuteSuite::Cheap)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        assert!(plugin.estimate.ate.is_finite(), "{case}");
+        assert!(
+            plugin.refutations.iter().any(|r| r.refuter.as_ref().contains("overlap")),
+            "{case}: plugin cheap must still run overlap"
+        );
+        assert!(
+            plugin.diagnostics.iter().any(|d| d.code.as_ref() == "refute.evalue.not_a_contrast"),
+            "{case}: plugin cheap must refuse E-value on an intervention level"
+        );
+        assert!(
+            !plugin.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue"),
+            "{case}: plugin cheap must not invent an E-value for a cell mean"
+        );
+        assert!(!plugin.diagnostics.iter().any(|d| d.code.as_ref() == "refute.response.skipped"));
+    }
 }
 
 #[test]
 fn dag_intervention_response_full_runs_effect_refuters() {
     let (data, graph) = interaction_dgp(700, 207);
-    let result = Study::tabular(data)
-        .graph(graph)
-        .query(CausalQuery::Response(joint_query(1.0, 1.0)))
-        .estimator(EstimatorId::CellAipw)
-        .refute(RefuteSuite::Full)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(207))
-        .unwrap();
-    assert!(result.estimate.ate.is_finite());
-    assert!(
-        result.refutations.len() >= 2,
-        "full suite must publish more than the cheap overlap/E-value pair"
-    );
+    for accepted in [false, true] {
+        let case = format!("accepted={accepted} full");
+        let result = dag_study(data.clone(), graph.clone(), accepted)
+            .query(CausalQuery::Response(joint_query(1.0, 1.0)))
+            .estimator(EstimatorId::CellAipw)
+            .refute(RefuteSuite::Full)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(207))
+            .unwrap();
+        let value = response_value(&result);
+        assert!(
+            (value - JOINT_CELL_TRUTH).abs() < 0.15,
+            "{case}: cell.aipw joint cell mean {value} vs known truth {JOINT_CELL_TRUTH}"
+        );
+        assert!(
+            result.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue"),
+            "{case}: full keeps the cheap E-value"
+        );
+        assert!(
+            result.refutations.len() >= 2,
+            "{case}: full suite must publish more than the cheap overlap/E-value pair"
+        );
+    }
 }
 
 #[test]

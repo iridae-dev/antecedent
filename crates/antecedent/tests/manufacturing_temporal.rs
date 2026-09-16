@@ -380,66 +380,74 @@ fn manufacturing_dbn_posterior_frequentist_shared_block_bootstrap() {
     let seed = pin["seed"].as_u64().unwrap();
     let weights: Vec<f64> =
         pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
-    let (series, _, query) = white_noise_pulse_series(n, seed);
-    let posterior = known_truth_dbn_posterior(pin, &weights, &query);
-    let study = Study::series(series.clone())
-        .graph_posterior(posterior)
-        .temporal_query(query)
-        .inference(InferenceMode::Frequentist)
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(12)
-        .build()
-        .unwrap();
-    let ctx = ExecutionContext::for_tests(41);
-    let result = study.run(&ctx).unwrap();
-    assert!(
-        (result.estimate.ate - pin["expected_effect_given_identified"].as_f64().unwrap()).abs()
-            < pin["effect_abs_tolerance"].as_f64().unwrap()
-    );
-    assert!(result.estimate.se_bootstrap.is_some());
-    assert_eq!(result.estimate.bootstrap_replicates_ok, Some(12));
-    assert!(result.diagnostics.iter().any(|diagnostic| {
-        diagnostic.code.as_ref() == "estimate.dbn_posterior.frequentist"
+    // Pulse and single-step Sustained are the two licensed Frequentist none cells.
+    for policy in [TemporalPolicy::pulse(-1), TemporalPolicy::sustained(-1, -1)] {
+        let (series, _, query) = white_noise_pulse_series(n, seed);
+        let query = query.with_policy(policy.clone());
+        let posterior = known_truth_dbn_posterior(pin, &weights, &query);
+        let study = Study::series(series.clone())
+            .graph_posterior(posterior)
+            .temporal_query(query)
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(12)
+            .build()
+            .unwrap();
+        let ctx = ExecutionContext::for_tests(41);
+        let result = study.run(&ctx).unwrap();
+        assert!(
+            (result.estimate.ate - pin["expected_effect_given_identified"].as_f64().unwrap()).abs()
+                < pin["effect_abs_tolerance"].as_f64().unwrap(),
+            "{policy:?}: effect {}",
+            result.estimate.ate
+        );
+        assert!(result.refutations.is_empty(), "{policy:?}: none runs no refuter");
+        assert!(result.estimate.se_bootstrap.is_some());
+        assert_eq!(result.estimate.bootstrap_replicates_ok, Some(12));
+        assert!(result.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code.as_ref() == "estimate.dbn_posterior.frequentist"
             && diagnostic.message.contains("shared circular-block")
             // I-5: same aggregate-interval statement as the class-envelope diagnostic.
             && diagnostic.message.contains(
                 "the interval is for the reported aggregate, not a distribution over \
                  graph-specific effects",
             )
-    }));
-    // Structural mass accounting rides the result like the DBN mediation mixture.
-    let structural = result.structural_response.as_ref().expect("structural mixture");
-    assert_eq!(
-        structural.weight_basis,
-        antecedent::result::StructuralWeightBasis::PosteriorProbability
-    );
-    assert_eq!(structural.atoms.len(), weights.len());
-    let identified_truth = pin["identified_mass"].as_f64().unwrap();
-    let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
-    assert!((structural.identified_mass - identified_truth).abs() < 1e-12);
-    assert!((structural.unidentified_mass - unidentified_truth).abs() < 1e-12);
-    assert!(structural.unevaluable_mass.abs() < f64::EPSILON);
-    assert!(structural.subsampled_out_mass.abs() < f64::EPSILON);
-    let evaluated: Vec<_> = structural.atoms.iter().filter(|atom| atom.value.is_some()).collect();
-    assert_eq!(evaluated.len(), 1);
-    assert!((evaluated[0].weight - identified_truth).abs() < 1e-12);
-    assert_eq!(
-        structural
-            .atoms
-            .iter()
-            .filter(|atom| atom.status == IdentificationStatus::NotIdentified)
-            .count(),
-        1
-    );
-    match structural.conditional_on_identified.as_ref() {
-        Some(antecedent_core::ResponseValue::Scalar(value)) => {
-            assert!((value - result.estimate.ate).abs() < 1e-12);
+        }));
+        // Structural mass accounting rides the result like the DBN mediation mixture.
+        let structural = result.structural_response.as_ref().expect("structural mixture");
+        assert_eq!(
+            structural.weight_basis,
+            antecedent::result::StructuralWeightBasis::PosteriorProbability
+        );
+        assert_eq!(structural.atoms.len(), weights.len());
+        let identified_truth = pin["identified_mass"].as_f64().unwrap();
+        let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
+        assert!((structural.identified_mass - identified_truth).abs() < 1e-12);
+        assert!((structural.unidentified_mass - unidentified_truth).abs() < 1e-12);
+        assert!(structural.unevaluable_mass.abs() < f64::EPSILON);
+        assert!(structural.subsampled_out_mass.abs() < f64::EPSILON);
+        let evaluated: Vec<_> =
+            structural.atoms.iter().filter(|atom| atom.value.is_some()).collect();
+        assert_eq!(evaluated.len(), 1);
+        assert!((evaluated[0].weight - identified_truth).abs() < 1e-12);
+        assert_eq!(
+            structural
+                .atoms
+                .iter()
+                .filter(|atom| atom.status == IdentificationStatus::NotIdentified)
+                .count(),
+            1
+        );
+        match structural.conditional_on_identified.as_ref() {
+            Some(antecedent_core::ResponseValue::Scalar(value)) => {
+                assert!((value - result.estimate.ate).abs() < 1e-12);
+            }
+            other => panic!("expected a scalar conditional summary, got {other:?}"),
         }
-        other => panic!("expected a scalar conditional summary, got {other:?}"),
+        let set = structural.identified_set.as_ref().expect("identified set");
+        assert!((set.lower[0] - result.estimate.ate).abs() < 1e-12);
+        assert!((set.upper[0] - result.estimate.ate).abs() < 1e-12);
     }
-    let set = structural.identified_set.as_ref().expect("identified set");
-    assert!((set.lower[0] - result.estimate.ate).abs() < 1e-12);
-    assert!((set.upper[0] - result.estimate.ate).abs() < 1e-12);
 }
 
 #[test]
@@ -453,8 +461,12 @@ fn manufacturing_dbn_posterior_frequentist_cheap_and_full_mix_atom_refuters() {
     let seed = pin["seed"].as_u64().unwrap();
     let weights: Vec<f64> =
         pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    // Every licensed Frequentist cheap / full cell: Pulse and single-step Sustained
+    // under each suite.
     for (policy, suite) in [
         (TemporalPolicy::pulse(-1), RefuteSuite::Cheap),
+        (TemporalPolicy::pulse(-1), RefuteSuite::Full),
+        (TemporalPolicy::sustained(-1, -1), RefuteSuite::Cheap),
         (TemporalPolicy::sustained(-1, -1), RefuteSuite::Full),
     ] {
         let (series, _, query) = white_noise_pulse_series(n, seed);
