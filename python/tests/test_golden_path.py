@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 import warnings
 from collections.abc import Callable
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from typing import Any
 
 import antecedent as ant
@@ -275,20 +275,86 @@ def test_response_curve_on_a_binary_treatment_is_a_coded_refusal(graph: Any) -> 
     assert "backend error" not in message
 
 
-def test_discovered_autoregressive_treatment_refusal_gives_actionable_advice() -> None:
-    """PCMCI keeps a lag-1 self edge on the treatment of this series; the
-    treatment's ancestry is then unbounded. The refusal names the lagged cycle
-    and does not advise ``max_history_lag``, which ``PulseEffect`` does not take
-    and which cannot certify an unbounded chain."""
-    config = ant.discovery.PCMCI(max_lag=1, alpha=0.05)
-    accepted = config.accept(_temporal(1))
-    assert ("pressure", 1, "pressure", 0) in accepted.graph.edges()
-    assert "max_history_lag" not in {f.name for f in fields(ant.PulseEffect)}
+def _autoregressive(seed: int, n: int = 1000) -> dict[str, np.ndarray]:
+    """An autoregressive treatment confounded by ``z``; the lag-one pulse is 0.8.
+
+    ``t[i] = 0.6 t[i-1] + 0.8 z[i-1] + noise`` and
+    ``y[i] = 0.8 t[i-1] + 0.9 z[i-2] + noise``.
+    """
+    rng = np.random.default_rng(seed)
+    z = rng.normal(size=n)
+    t = np.zeros(n)
+    y = np.zeros(n)
+    for i in range(2, n):
+        t[i] = 0.6 * t[i - 1] + 0.8 * z[i - 1] + 0.5 * rng.normal()
+        y[i] = 0.8 * t[i - 1] + 0.9 * z[i - 2] + 0.5 * rng.normal()
+    return {"t": t, "y": y, "z": z}
+
+
+AUTOREGRESSIVE_DAG = [("t", 1, "t", 0), ("z", 1, "t", 0), ("z", 2, "y", 0), ("t", 1, "y", 0)]
+PARENT_ADJUSTMENT = "temporal.parent_adjustment"
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"graph": AUTOREGRESSIVE_DAG},
+        {"discovery": ant.discovery.PCMCI(max_lag=2, alpha=0.01)},
+    ],
+    ids=["explicit", "pcmci"],
+)
+def test_autoregressive_treatment_pulse_is_identified_by_parent_adjustment(
+    options: dict[str, Any],
+) -> None:
+    """An autoregressive treatment edge, which PCMCI finds on most real series,
+    makes the treatment's ancestry unbounded, so unfolding cannot certify. The
+    single-step pulse is identified by adjusting for the treatment's own parents
+    ``{t[t-2], z[t-2]}``: the five lines recover the known effect, and the report
+    and the loaded contract name the ``temporal.parent_adjustment`` derivation."""
+    query = ant.PulseEffect("t", "y", treatment_lag=1, horizon_steps=1)
+    if "discovery" in options:
+        accepted = options["discovery"].accept(_autoregressive(1))
+        assert set(accepted.graph.edges()) == set(AUTOREGRESSIVE_DAG)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = ant.analyze(_autoregressive(1), query=query, **options)
+        study = result.study
+        updated = study.refresh(_autoregressive(2))
+        report = result.inspect().to_dict()
+        loaded = ant.load(result.export())
+
+    for answer in (result.answer, updated.answer):
+        assert answer.kind == "point"
+        assert answer.value == pytest.approx(0.8, abs=0.08)
+    assert loaded.acceptance.verified
+    assert loaded.answer == result.answer
+
+    identification = report["identification"]["payload"]
+    assert identification["status"] == "NonparametricallyIdentified"
+    assert identification["adjustment_set"] == ["t", "z"]
+    (case,) = report["assumptions"]["payload"]["certificate"]["cases"]
+    assert [step["rule"] for step in case["identification"]["derivation"]][0] == PARENT_ADJUSTMENT
+    assert [(c["name"], c["offset"]) for c in case["adjustment_coordinates"][0]] == [
+        ("t", -2),
+        ("z", -2),
+    ]
+    product = loaded.inspect().to_dict()["contract"]["identification_product"]
+    assert product["derivation_rules"][0] == PARENT_ADJUSTMENT
+    assert len(product["estimands"][0]["adjustment_set"]) == 2
+    loaded_report = loaded.inspect().to_dict()
+    assert loaded_report["identification_product_id"] == report["identification_product_id"]
+
+
+def test_sustained_effect_on_an_autoregressive_treatment_still_refuses() -> None:
+    """Parent adjustment identifies a single-step pulse only: a multi-step
+    sustained window meets time-varying confounding through the treatment's own
+    past, so the refusal still names the lagged cycle."""
     with pytest.raises(ant.errors.CausalIdentifyError) as caught:
         ant.analyze(
-            _temporal(1),
-            discovery=config,
-            query=ant.PulseEffect("pressure", "defect", treatment_lag=1, horizon_steps=1),
+            _autoregressive(1),
+            graph=AUTOREGRESSIVE_DAG,
+            query=ant.SustainedEffect("t", "y", window=(-2, -1)),
         )
     message = str(caught.value)
     assert "lagged cycle" in message
