@@ -182,37 +182,79 @@ fn temporal_class_bayesian_pulse_without_prior_is_identified_set() {
     );
 }
 
+/// Explicit (`accepted = false`) or accepted `TemporalCpdag` structure.
+fn class_study(
+    data: TimeSeriesData,
+    graph: TemporalCpdag,
+    accepted: bool,
+) -> antecedent::StudyBuilder {
+    let builder = Study::series(data);
+    if accepted {
+        builder.graph(antecedent::AcceptedGraph::temporal_cpdag(graph).unwrap())
+    } else {
+        builder.graph(graph)
+    }
+}
+
+/// Every licensed Bayesian `TemporalCpdag` Pulse coordinate (explicit and accepted
+/// structure × none / cheap / full) mixes the completions under the fixture's
+/// `ClassPrior` and recovers the prior-weighted mixture of the completions' exact
+/// effects on the noise-free law (`with_class_prior.pulse_effect`, within
+/// `pulse_effect_tolerance`) with no unidentified mass; cheap / full run envelope
+/// refuters and none runs none. The prepared click reuses identification.
 #[test]
 fn temporal_class_bayesian_pulse_with_class_prior_mixes() {
     let pin = pin();
     let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
-    let data = series_from_law(n, false);
-    let prior = ClassPrior::from_ordered([0.3, 0.7]).unwrap();
-    let result = Study::series(data.clone())
-        .graph(cpdag())
-        .query(pulse_query())
-        .inference(bayes())
-        .class_prior(prior)
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
+    let truth = &pin["assertions"]["with_class_prior"];
+    let effect = truth["pulse_effect"].as_f64().unwrap();
+    let tol = truth["pulse_effect_tolerance"].as_f64().unwrap();
+    let ordered: Vec<f64> = pin["class_prior_ordered"]
+        .as_array()
         .unwrap()
-        .run(&ExecutionContext::for_tests(7))
-        .unwrap();
-    assert!(result.posterior.is_some());
-    assert!(result.estimate.ate.is_finite());
-    let structural = result.structural_response.as_ref().expect("structural envelope");
-    assert_eq!(
-        structural.weight_basis,
-        antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior
-    );
-    assert!(structural.unidentified_mass.abs() < 1e-9);
+        .iter()
+        .map(|m| m.as_f64().unwrap())
+        .collect();
+    let data = series_from_law(n, false);
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            let case = format!("accepted={accepted} {suite:?}");
+            let result = class_study(data.clone(), cpdag(), accepted)
+                .query(pulse_query())
+                .inference(bayes())
+                .class_prior(ClassPrior::from_ordered(ordered.clone()).unwrap())
+                .refute(suite)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ExecutionContext::for_tests(7))
+                .unwrap();
+            assert!(result.posterior.is_some(), "{case}");
+            assert!(
+                (result.estimate.ate - effect).abs() < tol,
+                "{case}: mixed pulse effect {} vs known truth {effect}",
+                result.estimate.ate
+            );
+            let structural = result.structural_response.as_ref().expect("structural envelope");
+            assert_eq!(
+                structural.weight_basis,
+                antecedent::result::StructuralWeightBasis::CallerSuppliedClassPrior,
+                "{case}"
+            );
+            assert!(structural.unidentified_mass.abs() < 1e-9, "{case}");
+            if suite == RefuteSuite::None {
+                assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
+            } else {
+                assert!(!result.refutations.is_empty(), "{case}: must run envelope refuters");
+            }
+        }
+    }
     let ctx = ExecutionContext::for_tests(7);
     let prepared: PreparedStudy = Study::series(data.clone())
         .graph(cpdag())
         .query(pulse_query())
         .inference(bayes())
-        .class_prior(ClassPrior::from_ordered([0.3, 0.7]).unwrap())
+        .class_prior(ClassPrior::from_ordered(ordered).unwrap())
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
@@ -221,22 +263,13 @@ fn temporal_class_bayesian_pulse_with_class_prior_mixes() {
         .unwrap();
     let click = prepared.estimate_series(&data, &ctx).unwrap();
     assert!(click.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
-    for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
-        let validated = Study::series(data.clone())
-            .graph(cpdag())
-            .query(pulse_query())
-            .inference(bayes())
-            .class_prior(ClassPrior::from_ordered([0.3, 0.7]).unwrap())
-            .refute(suite)
-            .bootstrap_replicates(0)
-            .build()
-            .unwrap()
-            .run(&ExecutionContext::for_tests(7))
-            .unwrap();
-        assert!(!validated.refutations.is_empty(), "{suite:?} must run envelope refuters");
-    }
+    assert!((click.estimate.ate - effect).abs() < tol, "prepared click {}", click.estimate.ate);
 }
 
+/// Every licensed Bayesian `TemporalCpdag` multi-step Sustained coordinate
+/// (explicit and accepted structure × none / cheap / full) recovers the full-window
+/// effect of the two-lag law (`multi_step.full_window_effect`) and does not collapse
+/// to the last step; cheap / full run refuters and none runs none.
 #[test]
 fn temporal_class_multi_step_is_not_last_step_collapse() {
     let pin = pin();
@@ -246,30 +279,39 @@ fn temporal_class_multi_step_is_not_last_step_collapse() {
         TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), 0, 1.0);
     multi.policy = TemporalPolicy::sustained(-2, -1);
     multi.horizon_steps = 1;
-    let result = Study::series(data)
-        .graph(two_lag_cpdag())
-        .query(CausalQuery::TemporalEffect(multi))
-        .inference(bayes())
-        .class_prior(ClassPrior::from_ordered([0.5, 0.5]).unwrap())
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(3))
-        .unwrap();
     let last_step = pin["multi_step"]["last_step_effect"].as_f64().unwrap();
     let full = pin["multi_step"]["full_window_effect"].as_f64().unwrap();
     let tol = pin["multi_step"]["absolute_tolerance"].as_f64().unwrap();
-    assert!(
-        (result.estimate.ate - last_step).abs() > 1.0,
-        "multi-step {} collapsed toward last-step {last_step}",
-        result.estimate.ate
-    );
-    assert!(
-        (result.estimate.ate - full).abs() < tol,
-        "multi-step {} vs window {full}",
-        result.estimate.ate
-    );
+    for accepted in [false, true] {
+        for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+            let case = format!("accepted={accepted} {suite:?}");
+            let result = class_study(data.clone(), two_lag_cpdag(), accepted)
+                .query(CausalQuery::TemporalEffect(multi.clone()))
+                .inference(bayes())
+                .class_prior(ClassPrior::from_ordered([0.5, 0.5]).unwrap())
+                .refute(suite)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ExecutionContext::for_tests(3))
+                .unwrap();
+            assert!(
+                (result.estimate.ate - last_step).abs() > 1.0,
+                "{case}: multi-step {} collapsed toward last-step {last_step}",
+                result.estimate.ate
+            );
+            assert!(
+                (result.estimate.ate - full).abs() < tol,
+                "{case}: multi-step {} vs window {full}",
+                result.estimate.ate
+            );
+            if suite == RefuteSuite::None {
+                assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
+            } else {
+                assert!(!result.refutations.is_empty(), "{case}: must run envelope refuters");
+            }
+        }
+    }
 }
 
 #[test]
@@ -1777,27 +1819,52 @@ fn mapped_transfer_onto_temporal_cpdag_cells() {
 
 /// Every licensed Bayesian `TemporalPag` Pulse and single-step Sustained
 /// coordinate (explicit and accepted structure × none / cheap / full) runs on the
-/// mixed-identification PAG under a `ClassPrior`: the draws are mixed, the latent
-/// completion's mass stays unidentified, and cheap / full execute refuters.
+/// mixed-identification PAG under the fixture's `ClassPrior` and must reproduce the
+/// fixture's known truth (`temporal_class_envelope` →
+/// `temporal_pag_mixed_identification`): the effect of the law (2), the prior mass
+/// of the identified completions (0.7) and of the latent completion (0.3, never
+/// renormalized away). Cheap / full must execute refuters; none runs none.
 #[test]
 fn temporal_pag_bayesian_pulse_and_sustained_all_structures_and_suites() {
+    let pin = pin();
+    let truth = &pin["temporal_pag_mixed_identification"];
+    let n = usize::try_from(truth["n"].as_u64().unwrap()).unwrap();
+    let seed = truth["seed"].as_u64().unwrap();
+    let tol = truth["absolute_tolerance"].as_f64().unwrap();
+    let identified_mass = truth["identified_mass"].as_f64().unwrap();
+    let unidentified_mass = truth["unidentified_mass"].as_f64().unwrap();
+    let masses: Vec<f64> = truth["class_prior_ordered"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m.as_f64().unwrap())
+        .collect();
     let mut sustained =
         TemporalEffectQuery::sustained(VariableId::from_raw(0), VariableId::from_raw(1), 0, 1.0);
     sustained.policy = TemporalPolicy::sustained(-1, -1);
     sustained.horizon_steps = 1;
-    let queries = [("pulse", pulse_query()), ("sustained", CausalQuery::TemporalEffect(sustained))];
+    let queries = [
+        ("pulse", pulse_query(), truth["pulse_effect"].as_f64().unwrap()),
+        (
+            "sustained",
+            CausalQuery::TemporalEffect(sustained),
+            truth["sustained_single_step_effect"].as_f64().unwrap(),
+        ),
+    ];
     let antecedent::Identification::TemporalEnvelope { envelope, .. } =
         identify(&antecedent::AcceptedGraph::temporal_pag(mixed_id_pag()), &pulse_query()).unwrap()
     else {
         panic!("mixed-ID TemporalPag Pulse returns an envelope");
     };
-    let n_cases = envelope.envelope.cases.len();
-    let masses: Vec<f64> =
-        (0..n_cases).map(|i| if i == 0 { 0.4 } else { 0.6 / (n_cases - 1) as f64 }).collect();
-    for (label, query) in queries {
+    assert_eq!(
+        envelope.envelope.cases.len() as u64,
+        truth["completion_count"].as_u64().unwrap(),
+        "completion count"
+    );
+    for (label, query, effect) in queries {
         for accepted in [false, true] {
             for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
-                let builder = Study::series(mixed_id_series(400));
+                let builder = Study::series(mixed_id_series(n));
                 let builder = if accepted {
                     builder.graph(antecedent::AcceptedGraph::temporal_pag(mixed_id_pag()))
                 } else {
@@ -1811,16 +1878,33 @@ fn temporal_pag_bayesian_pulse_and_sustained_all_structures_and_suites() {
                     .bootstrap_replicates(0)
                     .build()
                     .unwrap()
-                    .run(&ExecutionContext::for_tests(13))
+                    .run(&ExecutionContext::for_tests(seed))
                     .unwrap();
                 let case = format!("{label} accepted={accepted} {suite:?}");
                 assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{case}");
-                assert!(result.estimate.ate.is_finite(), "{case}");
+                assert!(
+                    (result.estimate.ate - effect).abs() < tol,
+                    "{case}: effect {} vs known truth {effect}",
+                    result.estimate.ate
+                );
                 let structural = result.structural_response.as_ref().expect("structural envelope");
-                assert!(structural.identified_mass > 0.0, "{case}");
-                assert!(structural.unidentified_mass > 0.0, "{case}");
+                assert!((structural.identified_mass - identified_mass).abs() < 1e-9, "{case}");
+                assert!((structural.unidentified_mass - unidentified_mass).abs() < 1e-9, "{case}");
+                let unidentified_atoms = structural
+                    .atoms
+                    .iter()
+                    .filter(|atom| atom.status == IdentificationStatus::NotIdentified)
+                    .count() as u64;
+                assert_eq!(
+                    unidentified_atoms,
+                    truth["unidentified_completions"].as_u64().unwrap(),
+                    "{case}"
+                );
                 let mixed = result.posterior.as_ref().expect("mixed posterior");
-                assert!(mixed.unidentified_mass > 0.0, "{case}: mass must not be renormalized");
+                assert!(
+                    (mixed.unidentified_mass - unidentified_mass).abs() < 1e-9,
+                    "{case}: mass must not be renormalized"
+                );
                 if suite == RefuteSuite::None {
                     assert!(result.refutations.is_empty(), "{case}: none runs no refuter");
                 } else {
