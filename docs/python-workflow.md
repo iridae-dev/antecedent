@@ -122,7 +122,12 @@ its frozen scores. `analyze_many` and `PreparedBatch.prepare` estimate each
 query's own population.
 
 `PulseEffect` and `SustainedEffect` take `control_level` as well as
-`active_level`; the effect is the contrast between the two.
+`active_level`; the effect is the contrast between the two. Continuous-response
+`estimator_config` accepts `bandwidth`, `confidence_level`, `folds`,
+`nuisance_basis`, `nuisance_lambda` and `minimum_local_ess` on curves and
+derivatives, plus `simultaneous_replicates`, `multiplier_seed` and
+`export_row_diagnostics` on a `ResponseCurve`, on a `Dag`, a `Cpdag` / `Pag`
+envelope and a graph-posterior mixture alike; an unknown key is refused.
 
 `identify(...)` returns an `Identification` whose `statement`, `verdict`,
 `qualified_verdict`, `assumption_statements`, and `derivation_statements` are

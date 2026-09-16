@@ -684,14 +684,20 @@ _ADMG_RESPONSE_REFUSED = (
     "refused: Admg response has no functional plug-in; licensed general-ID "
     "ATE does not estimate a curve."
 )
-_RESPONSE_CONFIG_KEYS = frozenset(
+#: Nuisance and interval options every continuous-response estimator reads.
+_RESPONSE_NUISANCE_KEYS = frozenset(
     {
         "bandwidth",
-        "simultaneous_replicates",
         "confidence_level",
-        "multiplier_seed",
-        "export_row_diagnostics",
+        "folds",
+        "nuisance_basis",
+        "nuisance_lambda",
+        "minimum_local_ess",
     }
+)
+#: Curve-only band and diagnostic options, on top of the nuisance options.
+_RESPONSE_CONFIG_KEYS = _RESPONSE_NUISANCE_KEYS | frozenset(
+    {"simultaneous_replicates", "multiplier_seed", "export_row_diagnostics"}
 )
 _RESPONSE_ESTIMATORS = {
     "response_curve": "response.kennedy_dr",
@@ -773,18 +779,31 @@ def _parse_response_estimator_config(
             raise ValueError(
                 "PointDerivative/Elasticity/SemiElasticity require estimator_config bandwidth"
             )
-        extra = set(options) - {"bandwidth"}
+        extra = set(options) - _RESPONSE_NUISANCE_KEYS
         if extra:
-            raise ValueError("prepared derivatives accept only bandwidth in estimator_config")
+            raise ValueError(
+                "prepared derivatives accept only "
+                + ", ".join(sorted(_RESPONSE_NUISANCE_KEYS))
+                + " in estimator_config"
+            )
     elif isinstance(query, (AverageDerivative, DirectionalDerivative, ResponseJacobian)):
-        extra = set(options) - {"bandwidth"}
+        extra = set(options) - _RESPONSE_NUISANCE_KEYS
         if extra:
-            raise ValueError("prepared derivatives accept only bandwidth in estimator_config")
+            raise ValueError(
+                "prepared derivatives accept only "
+                + ", ".join(sorted(_RESPONSE_NUISANCE_KEYS))
+                + " in estimator_config"
+            )
     elif not isinstance(query, ResponseCurve):
         raise ValueError(
             "response estimator_config currently applies to ResponseCurve and point derivatives only"
         )
     return options
+
+
+def _response_options_wire(options: Mapping[str, Any], seed: int) -> dict[str, Any]:
+    """A curve's response options; the simultaneous-band multipliers follow the study seed."""
+    return {"multiplier_seed": seed, **options}
 
 
 def _lagged_edges(
@@ -1797,7 +1816,23 @@ class _PrepareRoute:
                 **shared,
             )
             return native, "average"
-        self._refuse_estimator_config("a graph-posterior mixture other than AverageEffect")
+        if static and isinstance(query, ResponseCurve) and not query.is_temporal:
+            response_options = _parse_response_estimator_config(query, self.estimator_config)
+            native = _NativePreparedAnalysis.prepare_graph_posterior_response(
+                self.names,
+                self.columns,
+                query.treatment,
+                query.outcome,
+                list(query.grid),
+                response_options=_response_options_wire(response_options, self.seed)
+                if response_options
+                else None,
+                **shared,
+            )
+            return native, "response_curve"
+        self._refuse_estimator_config(
+            "a graph-posterior mixture other than AverageEffect or a static ResponseCurve"
+        )
         if static and isinstance(query, ConditionalEffect):
             from .query import coerce_outcome_functional
 
@@ -1815,11 +1850,6 @@ class _PrepareRoute:
                 **shared,
             )
             return native, "average"
-        if static and isinstance(query, ResponseCurve) and not query.is_temporal:
-            native = _NativePreparedAnalysis.prepare_graph_posterior_response(
-                self.names, self.columns, query.treatment, query.outcome, list(query.grid), **shared
-            )
-            return native, "response_curve"
         if static and isinstance(query, InterventionResponse) and not query.is_temporal:
             treatments, kinds, parameters = _encode_interventions(
                 query.intervention,
@@ -2303,8 +2333,6 @@ class _PrepareRoute:
 
     def _class_response(self, response_options: Mapping[str, Any]) -> tuple[Any, Any]:
         query, graph = self.query, self.graph
-        if response_options:
-            raise _not_applicable("estimator_config", "a Cpdag/Pag response envelope")
         if self.identifier not in (None, "generalized.adjustment"):
             raise CausalUnsupportedError(
                 "Cpdag/Pag response requires identifier='generalized.adjustment'"
@@ -2341,6 +2369,9 @@ class _PrepareRoute:
                 grid=list(query.grid),
                 identifier=self.identifier,
                 estimator=self.estimator,
+                response_options=_response_options_wire(response_options, self.seed)
+                if response_options
+                else None,
                 accepted=self.accepted,
                 **self._common(),
             )
@@ -2462,11 +2493,7 @@ class _PrepareRoute:
             identifier=self.identifier,
             estimator=self.estimator,
             accepted=self.accepted,
-            bandwidth=response_options.get("bandwidth"),
-            simultaneous_replicates=response_options.get("simultaneous_replicates"),
-            confidence_level=response_options.get("confidence_level", 0.95),
-            multiplier_seed=response_options.get("multiplier_seed", self.seed),
-            export_row_diagnostics=bool(response_options.get("export_row_diagnostics", False)),
+            response_options=_response_options_wire(response_options, self.seed),
             **self._common(),
         )
         return native, "response_curve"
@@ -2549,7 +2576,7 @@ class _PrepareRoute:
             order=getattr(query, "order", 1),
             scale=scale,
             weighting=getattr(query, "weighting", None) or "observed",
-            bandwidth=response_options.get("bandwidth"),
+            response_options=dict(response_options),
             accepted=self.accepted,
             **self._common(),
         )
