@@ -24,6 +24,13 @@ impl super::Study {
         let mut full_mass_scope = true;
         let mut truncated_atoms = 0;
         let mut class_weights = TemporalClassWeights::new(self.class_prior.as_ref());
+        let mut class_block_replicates_ok: Option<u32> = None;
+        let single_horizon = query.horizons.len() == 1;
+        // The contrast the completions share, when the shared-design branch
+        // below fires: at one horizon it is the result's scalar estimate.
+        let mut class_shared_contrast: Option<TemporalMediationEstimate> = None;
+        let mut class_shared_horizons = 0usize;
+        let mut class_block_cancelled = false;
         let mut diagnostics = vec![Diagnostic::new(
             "estimate.temporal_mediation.class_identified_set",
             DiagnosticKind::Scientific,
@@ -45,6 +52,14 @@ impl super::Study {
             let completion_count = envelope.cases.len();
             let mut effects = Vec::new();
             let mut local_diagnostics = Vec::new();
+            // Frequentist completions that all fit the same mediation design
+            // (same estimand, same S(h)) estimate one contrast; that design is
+            // kept for the class interval below.
+            let mut shared_design: Option<(
+                IdentifiedEstimand,
+                Arc<[antecedent_data::LaggedColumn]>,
+            )> = None;
+            let mut designs_agree = true;
             for (completion_idx, (case, indexer)) in
                 envelope.cases.iter().zip(&bundle.envelope.indexers).enumerate()
             {
@@ -143,6 +158,13 @@ impl super::Study {
                             )
                             .map_err(CausalError::from)?;
                         effects.push(estimate.effect.ate);
+                        match shared_design.as_ref() {
+                            None => shared_design = Some((estimand.clone(), adjustment.clone())),
+                            Some((first, first_adjustment)) => {
+                                designs_agree &= first.adjustment_set == estimand.adjustment_set
+                                    && first_adjustment.as_ref() == adjustment.as_ref();
+                            }
+                        }
                         Some(estimate)
                     }
                 };
@@ -195,22 +217,89 @@ impl super::Study {
                     completion_count
                 ),
             ));
+            let every_completion_identified = effects.len() == completion_count && !hit_cap;
+            // Every completion identified and fitting the one shared design:
+            // the identified set is a single contrast, so the design's own
+            // circular-block SE (the TemporalDag route's construction, same
+            // stream) is the class interval. Otherwise the set stays unbanded.
+            let (slice_estimate, slice_uncertainty) = match shared_design.as_ref() {
+                Some((shared_estimand, shared_adjustment))
+                    if designs_agree
+                        && every_completion_identified
+                        // One shared design fits every completion, so their
+                        // contrasts are the same number, bit for bit.
+                        && lower.total_cmp(&upper) == std::cmp::Ordering::Equal =>
+                {
+                    let mut qh = query.clone();
+                    qh.horizons = Arc::from([horizon]);
+                    let (mediation, block) = estimator
+                        .estimate_with_block_bootstrap(
+                            data,
+                            shared_estimand,
+                            &qh,
+                            shared_adjustment,
+                            self.bootstrap_replicates,
+                            MEDIATION_BLOCK_STREAM.wrapping_add(u64::from(horizon) << 32),
+                            ctx,
+                        )
+                        .map_err(CausalError::from)?;
+                    class_block_replicates_ok = Some(
+                        class_block_replicates_ok
+                            .map_or(block.replicates_ok, |ok: u32| ok.min(block.replicates_ok)),
+                    );
+                    class_block_cancelled |= mediation.effect.bootstrap_cancelled;
+                    class_shared_horizons += 1;
+                    if single_horizon {
+                        class_shared_contrast = Some(mediation.clone());
+                    }
+                    local_diagnostics.extend(temporal_dependence_se_diagnostics(
+                        antecedent_estimate::CircularBlockFamily::Mediation,
+                        block.block_length,
+                        block.rows,
+                        block.kernel_bias,
+                        block.effective_rows,
+                        block.replicates_attempted > 0,
+                        &format!(
+                            "horizon {horizon}: every completion fits the same mediation design, \
+                             so the completion identified set is one contrast; one shared \
+                             circular-block replicate of consecutive lag-aligned rows refits \
+                             all three mechanism regressions, {}/{} replicates",
+                            block.replicates_ok, block.replicates_attempted,
+                        ),
+                    ));
+                    let uncertainty = if block.replicates_attempted > 0 {
+                        antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+                            requested: mediation.effect.se_bootstrap,
+                            block,
+                        }
+                    } else {
+                        antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+                            standard_error: None,
+                        }
+                    };
+                    (mediation, uncertainty)
+                }
+                _ => (
+                    TemporalMediationEstimate {
+                        effect: nan_effect(),
+                        total: None,
+                        direct: None,
+                        mediated: None,
+                    },
+                    antecedent_estimate::TemporalMediationUncertainty::Unavailable,
+                ),
+            };
             slices.push(antecedent_estimate::TemporalMediationSlice {
                 horizon,
-                identification_status: if effects.len() == completion_count && !hit_cap {
+                identification_status: if every_completion_identified {
                     IdentificationStatus::PartiallyIdentified
                 } else {
                     IdentificationStatus::GraphDependent
                 },
                 method: Arc::from("temporal_mediation.cpdag_completion_envelope"),
                 adjustment: Arc::from([]),
-                estimate: TemporalMediationEstimate {
-                    effect: nan_effect(),
-                    total: None,
-                    direct: None,
-                    mediated: None,
-                },
-                uncertainty: antecedent_estimate::TemporalMediationUncertainty::Unavailable,
+                estimate: slice_estimate,
+                uncertainty: slice_uncertainty,
                 identified_set: Some(antecedent_estimate::TemporalMediationIdentifiedSet {
                     lower,
                     upper,
@@ -218,6 +307,40 @@ impl super::Study {
                 diagnostics: local_diagnostics,
             });
         }
+        // One horizon whose completions all fit the same mediation design: the
+        // identified set is that single contrast, so it is the result's scalar
+        // estimate under the design's own circular-block SE — the construction
+        // the `TemporalDag` route publishes, on the same stream. The identified
+        // set stays beside it; each states its own calibration.
+        let (scalar_estimate, scalar_mediation) = if let Some(contrast) = class_shared_contrast {
+            diagnostics.push(Diagnostic::new(
+                "estimate.temporal_mediation.class_shared_design_scalar",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "every completion is identified and fits the same mediation design, so the \
+                 completion identified set is one contrast; that contrast is the scalar estimate \
+                 and its circular-block SE is the reported interval, beside the identified set",
+            ));
+            (
+                contrast
+                    .effect
+                    .clone()
+                    .with_block_family(antecedent_estimate::CircularBlockFamily::Mediation),
+                Some(contrast),
+            )
+        } else {
+            if class_shared_horizons > 0 {
+                diagnostics.push(Diagnostic::new(
+                    "estimate.temporal_mediation.multi_horizon",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "all requested horizons are retained in mediation_grid; the scalar estimate \
+                     and scalar mediation fields are intentionally absent because no horizon is \
+                     authoritative",
+                ));
+            }
+            (nan_effect(), None)
+        };
         let (mut identification, estimand) = primary.ok_or_else(|| CausalError::Compile {
             message: "TemporalCpdag mediation missing primary completion".into(),
         })?;
@@ -281,7 +404,7 @@ impl super::Study {
             physical,
             identification,
             estimand,
-            estimate: nan_effect(),
+            estimate: scalar_estimate,
             identifier_id: IdentifierId::GeneralizedAdjustment,
             estimator_id: if matches!(self.inference, InferenceMode::Bayesian(_)) {
                 EstimatorId::BayesianTemporalMediation
@@ -294,10 +417,10 @@ impl super::Study {
             extra_diagnostics: diagnostics,
             refutations,
             distribution: None,
-            mediation: None,
+            mediation: scalar_mediation,
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),
-            bootstrap_replicates_ok: None,
-            cancelled: false,
+            bootstrap_replicates_ok: class_block_replicates_ok,
+            cancelled: class_block_cancelled,
             early_stopped: false,
             extras: IdentifiedExecuteExtras {
                 certificate: primary_envelope.map(|envelope| {
