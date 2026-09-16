@@ -2026,6 +2026,7 @@ pub(crate) fn apply_temporal_inference(
         prior_artifact,
         None,
         None,
+        antecedent_prob::BayesLikelihood::GaussianIdentity,
     )
 }
 
@@ -2037,6 +2038,7 @@ pub(crate) fn apply_temporal_inference_transfer(
     prior_artifact: Option<&[u8]>,
     prior_mapping: Option<antecedent_io::PriorMapping>,
     composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
+    likelihood: antecedent_prob::BayesLikelihood,
 ) -> PyResult<antecedent::StudyBuilder> {
     let Some(mode) = inference else {
         return Ok(builder);
@@ -2061,6 +2063,7 @@ pub(crate) fn apply_temporal_inference_transfer(
             )));
         }
     };
+    cfg = cfg.likelihood(likelihood);
     if let Some(comp) = composed_prior {
         cfg = crate::prior_bank::apply_owned_composed_prior(cfg, comp)?;
     } else if let Some(bytes) = prior_artifact {

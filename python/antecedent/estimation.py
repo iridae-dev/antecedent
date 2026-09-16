@@ -838,9 +838,17 @@ def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
         raise CausalValueError(
             f"unknown Bayesian backend {inference.backend!r}; use laplace|conjugate|hmc"
         )
+    likelihood = str(inference.likelihood).strip().lower()
+    if likelihood not in ("gaussian", "logit", "probit", "poisson"):
+        raise CausalValueError(
+            f"unknown Bayesian likelihood {inference.likelihood!r}; "
+            "use gaussian|logit|probit|poisson",
+            reason_code="invalid_argument",
+        )
     kw: dict[str, Any] = {
         "inference": inference_s,
         "prior_scale": inference.prior_scale,
+        "likelihood": likelihood,
     }
     if inference.n_draws_explicit:
         kw["n_draws"] = inference.n_draws
@@ -1561,6 +1569,7 @@ def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
         "prior_artifact": kw.get("prior_artifact"),
         "prior_mapping": kw.get("prior_mapping"),
         "composed_prior": kw.get("composed_prior"),
+        "likelihood": kw["likelihood"],
     }
 
 

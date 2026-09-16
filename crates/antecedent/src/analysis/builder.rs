@@ -671,6 +671,67 @@ fn population_estimable(query: &CausalQuery) -> bool {
     }
 }
 
+/// Refuse a non-Gaussian Bayesian likelihood where no executor fits it.
+///
+/// The one owner of which routes honour [`crate::BayesianConfig::likelihood`].
+/// Bayesian g-computation of a tabular [`CausalQuery::AverageEffect`] mean on
+/// one explicit or accepted [`GraphClass::Dag`] fits the declared Bernoulli or
+/// Poisson GLM and averages the inverse link over the rows; that construction
+/// has repeated-sampling coverage records. Every other Bayesian route
+/// (conditional effects, mediation, temporal effects and responses, continuous
+/// responses, panels, ADMG front door, class envelopes, tiered backgrounds and
+/// graph-posterior mixtures) is either a Gaussian identity-link model or has no
+/// coverage measurement under another link, the conjugate backend is Gaussian by
+/// construction, and a transferred prior is mapped on the identity-link
+/// coefficient scale. Those combinations refuse here rather than silently fit
+/// a Gaussian model or report an unmeasured construction.
+fn refuse_unsupported_likelihood(
+    query: &CausalQuery,
+    data: &DataInput,
+    class: GraphClass,
+    structure_fixed: bool,
+    inference: &InferenceMode,
+) -> Result<(), CausalError> {
+    let InferenceMode::Bayesian(cfg) = inference else {
+        return Ok(());
+    };
+    if cfg.likelihood == antecedent_prob::BayesLikelihood::GaussianIdentity {
+        return Ok(());
+    }
+    if cfg.backend == antecedent_estimate::BayesianBackendKind::ConjugateGaussian {
+        return Err(crate::unsupported_reason!(
+            "likelihood_not_supported",
+            "the conjugate backend fits a Gaussian identity-link model only; use the laplace or \
+             hmc backend for a Bernoulli or Poisson likelihood"
+        ));
+    }
+    if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+        return Err(crate::unsupported_reason!(
+            "likelihood_not_supported",
+            "a transferred prior is mapped onto identity-link coefficients; a Bernoulli or \
+             Poisson likelihood fits under the isotropic prior_scale only"
+        ));
+    }
+    let licensed = matches!(data, DataInput::Tabular(_))
+        && class == GraphClass::Dag
+        && structure_fixed
+        && matches!(
+            query,
+            CausalQuery::AverageEffect(q)
+                if matches!(q.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+        );
+    if licensed {
+        return Ok(());
+    }
+    Err(crate::unsupported_reason!(
+        "likelihood_not_supported",
+        "a Bernoulli or Poisson likelihood is fitted by Bayesian g-computation of a tabular \
+         AverageEffect mean on one Dag only; this route fits a Gaussian identity-link model or \
+         mixes structures, so it refuses the likelihood rather than fit a different model than \
+         the one declared"
+    ))
+}
+
 /// Whether the executors for `query` run caller custom validators.
 ///
 /// A custom validator refutes one scalar average effect. Function-valued
@@ -1278,6 +1339,13 @@ impl StudyBuilder {
         }
 
         let query = self.query.ok_or(CausalError::Missing { field: "query" })?;
+        refuse_unsupported_likelihood(
+            &query,
+            &data,
+            graph.class(),
+            graph_posterior.is_none() && self.tiered.is_none(),
+            &inference,
+        )?;
         if !population_estimable(&query) {
             return Err(crate::unsupported_reason!(
                 "population_not_estimable",

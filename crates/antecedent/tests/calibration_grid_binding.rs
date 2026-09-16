@@ -269,3 +269,81 @@ fn a_construction_that_failed_at_one_grid_point_is_a_named_boundary_over_its_ran
         assert_eq!(slot.observed, Some(0.87), "the failing point's coverage is reported");
     }
 }
+
+/// Leak a runtime key field into the `'static` shape of a generated record.
+fn leak(text: &str) -> &'static str {
+    Box::leak(text.to_owned().into_boxed_str())
+}
+
+/// A record whose construction is exactly the one `basis` reports, measured
+/// over `grid` (the default Bayesian grid's row counts).
+fn record_for(id: &'static str, basis: &CalibrationBasisWire) -> CoverageRecord {
+    let key = &basis.key;
+    CoverageRecord {
+        se_kind: leak(&key.se_kind),
+        identification: leak(&key.identification),
+        structure: leak(&key.structure),
+        ..record(
+            id,
+            [
+                leak(&key.query),
+                leak(&key.graph_class),
+                leak(&key.modality),
+                leak(&key.inference),
+                leak(&key.estimator),
+                leak(&key.interval_method),
+                leak(&key.dependence),
+                leak(&key.posterior),
+                leak(&key.functional),
+            ],
+            0,
+            0,
+            &BAYES_GRID,
+            false,
+        )
+    }
+}
+
+#[test]
+fn a_non_gaussian_likelihood_binds_only_to_records_of_that_likelihood() {
+    use antecedent_prob::BayesLikelihood;
+    let default =
+        primary_basis(default_ate(500, InferenceMode::Bayesian(BayesianConfig::laplace())));
+    let rows = 500;
+    let mut treatment = vec![0.0; rows];
+    let mut outcome = vec![0.0; rows];
+    let mut confounder = vec![0.0; rows];
+    for row in 0..rows {
+        let k = u32::try_from(row).unwrap();
+        let treated = (k * 13) % 7 < 3;
+        let high = (k * 37) % 101 > 50;
+        confounder[row] = f64::from((k * 37) % 101) / 50.0 - 1.0;
+        treatment[row] = f64::from(treated);
+        outcome[row] = f64::from((k * 29 + u32::from(treated) * 11) % 5 < 2 + u32::from(high));
+    }
+    let binary = antecedent_data::TabularData::from_f64_columns([
+        ("t", treatment.as_slice()),
+        ("y", &outcome),
+        ("z", &confounder),
+    ])
+    .unwrap();
+    let study = Study::tabular(binary)
+        .graph(dag())
+        .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::laplace().likelihood(BayesLikelihood::BernoulliLogit),
+        ))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let result = study.run(&ExecutionContext::for_tests(17)).unwrap();
+    let logit = primary_basis((study, result));
+    assert_eq!(logit.key.posterior, "laplace.bernoulli_logit.prior_scale=10");
+    let gaussian_records = registry();
+    let slot = slot(&logit, &gaussian_records);
+    assert_eq!(slot.status, "unavailable", "{slot:#?}");
+    assert_eq!(slot.reason.as_deref(), Some(antecedent_io::calibration::CONSTRUCTION_NOT_MEASURED));
+    let logit_records = vec![record_for("cov.fixture.logit", &logit)];
+    assert_eq!(calibration_slot_in(&logit, &logit_records).status, "calibrated");
+    assert_ne!(calibration_slot_in(&default, &logit_records).status, "calibrated");
+}

@@ -103,6 +103,12 @@ meaning = "This route fits under the isotropic prior scale and does not hydrate 
 max_uses = 0
 
 [[code]]
+id = "likelihood_not_supported"
+applies_to = ["runtime_refusal"]
+meaning = "The Bayesian route fits a Gaussian identity-link model only, or cannot carry a transferred prior onto a non-Gaussian link; a Bernoulli or Poisson likelihood is refused rather than fitted as Gaussian."
+max_uses = 0
+
+[[code]]
 id = "stage_stream_unavailable"
 applies_to = ["runtime_refusal"]
 meaning = "The route fits its point and uncertainty together, or mixes identifications, so it has no progressive stages."

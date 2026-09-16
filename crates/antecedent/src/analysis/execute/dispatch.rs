@@ -385,6 +385,7 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let mut result = self.execute_on_inner(data, physical, ctx)?;
+        push_gaussian_likelihood_disclosure(&mut result, &self.inference, data);
         result.custom_validator_names = self
             .custom_validators
             .iter()
@@ -852,5 +853,119 @@ impl super::Study {
             diagnostics.push(d);
         }
         record
+    }
+}
+
+/// Append [`gaussian_likelihood_disclosure`] to `result` once.
+///
+/// Fresh runs ([`Study::execute_on`]) and prepared clicks (which stamp their
+/// contract after bypassing it) both call this, so it is idempotent.
+pub(crate) fn push_gaussian_likelihood_disclosure(
+    result: &mut StudyResult,
+    inference: &InferenceMode,
+    data: &DataInput,
+) {
+    const CODE: &str = "estimate.bayesian.gaussian_likelihood_discrete_outcome";
+    if result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref() == CODE) {
+        return;
+    }
+    if let Some(disclosure) = gaussian_likelihood_disclosure(inference, data, result.outcome) {
+        result.diagnostics.push(disclosure);
+    }
+}
+
+/// Disclose a Gaussian likelihood fitted to a binary or count outcome.
+///
+/// A Bayesian execution under the Gaussian identity-link model (the default
+/// likelihood, and the only one the conjugate backend fits) is reported with
+/// `estimate.bayesian.gaussian_likelihood_discrete_outcome` when the outcome is
+/// declared binary or count in the schema, or when every observed value is 0/1
+/// (`binary`) or a nonnegative integer (`count`). The answer is unchanged; the
+/// diagnostic names the likelihood that models the outcome.
+fn gaussian_likelihood_disclosure(
+    inference: &InferenceMode,
+    data: &DataInput,
+    outcome: VariableId,
+) -> Option<Diagnostic> {
+    let InferenceMode::Bayesian(cfg) = inference else {
+        return None;
+    };
+    let gaussian = cfg.likelihood == antecedent_prob::BayesLikelihood::GaussianIdentity
+        || cfg.backend == antecedent_estimate::BayesianBackendKind::ConjugateGaussian;
+    if !gaussian {
+        return None;
+    }
+    let kind = match data {
+        DataInput::Tabular(table) => discrete_outcome_kind([table as &dyn TableView], outcome),
+        DataInput::Temporal(series) | DataInput::Event(series) => {
+            discrete_outcome_kind([series as &dyn TableView], outcome)
+        }
+        DataInput::Panel(panel) => {
+            let views: Vec<antecedent_data::PanelUnitView<'_>> =
+                panel.units().iter().map(antecedent_data::PanelUnitView::new).collect();
+            discrete_outcome_kind(views.iter().map(|view| view as &dyn TableView), outcome)
+        }
+        DataInput::MultiEnv(_) => None,
+    }?;
+    let (advice, suggested) = if kind == "binary" {
+        ("A Bernoulli (logit or probit) likelihood", "bernoulli_logit")
+    } else {
+        ("A Poisson log-link likelihood", "poisson_log")
+    };
+    Some(
+        Diagnostic::new(
+            "estimate.bayesian.gaussian_likelihood_discrete_outcome",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "the outcome is {kind}-valued but the Bayesian model was fitted with a Gaussian \
+                 identity-link likelihood, so the posterior describes a linear-Gaussian outcome \
+                 model. {advice} models this outcome and is available for a tabular \
+                 AverageEffect on a Dag"
+            ),
+        )
+        .with_fields([
+            ("outcome_kind", kind),
+            ("fitted_likelihood", "gaussian_identity"),
+            ("suggested_likelihood", suggested),
+        ]),
+    )
+}
+
+/// `binary` / `count` when the outcome is declared or observed as such.
+// Exact comparison is the point: a coded 0/1 outcome, not values near 0 or 1.
+#[allow(clippy::float_cmp)]
+fn discrete_outcome_kind<'a>(
+    tables: impl IntoIterator<Item = &'a dyn TableView>,
+    outcome: VariableId,
+) -> Option<&'static str> {
+    let mut binary = true;
+    let mut count = true;
+    let mut seen = false;
+    for table in tables {
+        match table.schema().get(outcome).ok().map(|variable| &variable.value_type) {
+            Some(antecedent_core::ValueType::Binary) => return Some("binary"),
+            Some(antecedent_core::ValueType::Count) => return Some("count"),
+            Some(antecedent_core::ValueType::Continuous) => {}
+            _ => return None,
+        }
+        let values = table.float64_values(outcome).ok()?;
+        for value in values.into_iter().filter(|value| value.is_finite()) {
+            seen = true;
+            binary &= value == 0.0 || value == 1.0;
+            count &= value >= 0.0 && value.fract() == 0.0;
+            if !binary && !count {
+                return None;
+            }
+        }
+    }
+    if !seen {
+        None
+    } else if binary {
+        Some("binary")
+    } else if count {
+        Some("count")
+    } else {
+        None
     }
 }

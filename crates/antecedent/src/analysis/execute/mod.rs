@@ -290,6 +290,7 @@ pub(super) use tuple_bootstrap::{
     TupleObservationTarget, TupleReplicates, TupleSurface, tuple_block_observation_replicates,
 };
 
+pub(crate) use dispatch::push_gaussian_likelihood_disclosure;
 pub(crate) use static_path::DistributionGraph;
 pub(crate) use transport_interference_path::live_transport_identification;
 
