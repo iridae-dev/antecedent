@@ -40,7 +40,7 @@ Usage:
 
     python3 scripts/calibration_facets.py check            # list + boundaries + waivers
     python3 scripts/calibration_facets.py status           # drift per measured SHA
-    python3 scripts/calibration_facets.py status --require # fail if any record owes a re-measurement
+    python3 scripts/calibration_facets.py status --require # the gate: every record must stand
     python3 scripts/calibration_facets.py counts           # records carrying each facet
     python3 scripts/calibration_facets.py stale-tests      # tests whose records owe a re-measurement
     python3 scripts/calibration_facets.py replay-candidates --from <ref> [--to <ref>] [path...]
@@ -1180,9 +1180,9 @@ def replay_summary(tally: Tally) -> str:
     return f"attested_by_replay: {tally.replayed} record(s) under waiver(s) {ids}"
 
 
-def release_verdict(tally: Tally, any_records: bool, invalid_waiver: bool) -> str:
-    """The release path's one-line verdict. Replay-attested records are accepted and
-    counted by waiver; anything owed, unverifiable or an invalid waiver is not."""
+def attestation_verdict(tally: Tally, any_records: bool, invalid_waiver: bool) -> str:
+    """The attestation gate's one-line verdict. Replay-attested records are accepted
+    and counted by waiver; anything owed, unverifiable or an invalid waiver is not."""
     if tally.owed or tally.unverifiable or not any_records or invalid_waiver:
         return (
             f"NOT ATTESTED: {tally.owed} owed, {tally.unverifiable} unverifiable"
@@ -1209,8 +1209,8 @@ def report(assessments: list[Assessment], surface: Surface) -> Tally:
         if not a.resolved:
             tally.unverifiable += len(a.records)
             print(
-                "    UNVERIFIABLE: that commit is not in this clone (fetch full history); "
-                "whether these records still stand cannot be decided"
+                "    UNVERIFIABLE: that commit is not in this clone, so whether these records "
+                "still stand cannot be decided"
             )
             continue
         for facet in sorted(surface.facets | a.drifted.keys()):
@@ -1247,12 +1247,71 @@ def report(assessments: list[Assessment], surface: Surface) -> Tally:
     if tally.owed:
         print(
             f"re-measurement owed: {tally.owed} record(s), because a facet they depend on changed "
-            "since they were measured (`python3 scripts/calibration_facets.py stale-tests` "
-            "lists their tests)"
+            "since they were measured"
         )
     if tally.unverifiable:
         print(f"unverifiable: {tally.unverifiable} record(s)")
     return tally
+
+
+MEASURE_COMMAND = "bash scripts/measure_calibration.sh"
+
+
+def attest(assessments: list[Assessment], surface: Surface, any_records: bool) -> int:
+    """The attestation gate: report, then pass only when every record stands.
+
+    A failure names what the author has to do: the drifted facets and paths behind
+    the owed records and the local command that re-measures exactly those, or the
+    commits a clone lacks and how to preserve them.
+    """
+    tally = report(assessments, surface)
+    invalid = bool(assessments and assessments[0].waiver_problems)
+    verdict = attestation_verdict(tally, any_records, invalid)
+    print(verdict)
+    if verdict.startswith("ATTESTED"):
+        return 0
+    if tally.owed:
+        owed_facets: dict[str, set[str]] = {}
+        for a in assessments:
+            for rec in a.stale:
+                for facet in a.facets[str(rec.get("id"))] & a.drifted.keys():
+                    owed_facets.setdefault(facet, set()).update(a.drifted[facet])
+        print(
+            f"FAIL: {tally.owed} coverage record(s) owe a re-measurement: a facet they depend on "
+            "changed since the commit they were measured at, and no valid replay waiver covers "
+            "the change."
+        )
+        print("Drifted facets behind them, with the changed paths:")
+        for facet in sorted(owed_facets):
+            paths = sorted(owed_facets[facet])
+            print(f"  {facet}: {len(paths)} path(s)")
+            for rel in paths:
+                print(f"    {rel}")
+    if tally.unverifiable:
+        missing = sorted(a.sha or "<no calibration_sha>" for a in assessments if not a.resolved)
+        print(
+            f"FAIL: {tally.unverifiable} coverage record(s) were measured at a commit this clone "
+            f"does not contain: {', '.join(missing)}. A rebase, squash or deleted branch orphans "
+            "the commit a record names. Push the branch or tag that preserves it, for example"
+        )
+        print("  git tag calibration/<name> <sha> && git push origin calibration/<name>")
+        print(f"or, if the commit is gone, re-measure those records: {MEASURE_COMMAND}")
+    if invalid:
+        print(f"FAIL: a replay waiver above is INVALID; fix or delete it in {WAIVERS.name}.")
+    if not any_records:
+        print(f"FAIL: {RECORDS.relative_to(ROOT)} has no records.")
+    if tally.owed:
+        print("Measure on a development machine, from a clean checkout of the commit to upload:")
+        print(
+            f"  {MEASURE_COMMAND}            "
+            "# re-measures only the owed records, collects them, re-runs this check"
+        )
+        print(f"  {MEASURE_COMMAND} --dry-run  # what it would run, with a rough duration")
+        print(
+            f"then commit {RECORDS.relative_to(ROOT)} with the files the collector regenerates, "
+            "and push."
+        )
+    return 1
 
 
 # --------------------------------------------------------------------------
@@ -1261,18 +1320,14 @@ def report(assessments: list[Assessment], surface: Surface) -> Tally:
 
 
 def _gate_groups_for(records: list[dict]) -> tuple[list, int, dict[str, list]]:
-    """Gate groups (scripts/calibration_shards.py owns the mapping) measuring each record."""
+    """Gate groups (scripts/calibration_groups.py owns the mapping) measuring each record."""
     sys.path.insert(0, str(ROOT / "scripts"))
-    import calibration_shards as shards
+    import calibration_groups
 
-    groups = shards.gate_groups()
+    groups = calibration_groups.gate_groups()
     matches: dict[str, list] = {}
     for rec in records:
-        found = [
-            g
-            for g in groups
-            if shards._measures(*g.label.partition(": ")[::2], rec)  # noqa: SLF001
-        ]
+        found = [g for g in groups if calibration_groups.measures(g.head, g.test_filter, rec)]
         # A cargo filter matches by substring; a group naming the test exactly is
         # the one that measured it, and running the others would only cost time.
         fn = str(rec["test"]).rpartition("::")[2]
@@ -1588,16 +1643,16 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
     )
     covered = Tally(standing=2, by_replay={"w-good": 3})
     expect(
-        release_verdict(covered, True, False)
+        attestation_verdict(covered, True, False)
         == "ATTESTED: 2 record(s) attested and matching their calibration_sha; "
         "attested_by_replay: 3 record(s) under waiver(s) w-good; no re-measurement is owed."
-        and release_verdict(Tally(standing=2), True, False).startswith("ATTESTED: 2 record(s)")
-        and "attested_by_replay" not in release_verdict(Tally(standing=2), True, False)
-        and release_verdict(covered, True, True).startswith("NOT ATTESTED")
-        and release_verdict(Tally(by_replay={"w-good": 3}, owed=1), True, False).startswith(
+        and attestation_verdict(Tally(standing=2), True, False).startswith("ATTESTED: 2 record(s)")
+        and "attested_by_replay" not in attestation_verdict(Tally(standing=2), True, False)
+        and attestation_verdict(covered, True, True).startswith("NOT ATTESTED")
+        and attestation_verdict(Tally(by_replay={"w-good": 3}, owed=1), True, False).startswith(
             "NOT ATTESTED"
         ),
-        "the release path accepts attested_by_replay, printing its count and waiver ids; "
+        "the attestation gate accepts attested_by_replay, printing its count and waiver ids; "
         "an invalid waiver or an owed record still fails",
     )
     _, owed, waived, _ = run(
@@ -1734,6 +1789,64 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
     )
 
 
+def _attestation_gate_self_test(
+    base: Surface, refs: References, records: list[dict], expect
+) -> None:
+    """The gate every PR runs fails on a drifted record without a waiver and on a
+    record whose commit does not resolve, and says what to do about each."""
+    import contextlib
+    import io
+
+    def gate(recs: list[dict], changes: dict[str, list[str]] | None, repo: Repo | None = None):
+        assessed = assess(base, recs, changes, waivers=[] if repo else None, repo=repo, refs=refs)
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed):
+            status = attest(assessed, base, bool(recs))
+        return status, printed.getvalue()
+
+    status, text = gate(records, {"a" * 40: [], "b" * 40: []})
+    expect(status == 0 and "ATTESTED: 3 record(s)" in text, "the gate passes an attested registry")
+    compile_rs = "crates/antecedent-model/src/compile.rs"
+    status, text = gate(records, {"a" * 40: [compile_rs], "b" * 40: []})
+    expect(
+        status == 1
+        and "FAIL: 1 coverage record(s) owe a re-measurement" in text
+        and f"  mechanism: 1 path(s)\n    {compile_rs}\n" in text
+        and MEASURE_COMMAND in text,
+        "a drifted record with no waiver fails the gate, naming the facet, its paths, the "
+        "count and the local command",
+    )
+    status, text = gate(records, {"a" * 40: []})
+    expect(
+        status == 1
+        and "FAIL: 2 coverage record(s) owe" not in text
+        and f"measured at a commit this clone does not contain: {'b' * 40}" in text
+        and "git push origin calibration/<name>" in text,
+        "a record whose commit does not resolve fails the gate and says to push what preserves it",
+    )
+    # The same two failures through real git, as CI reads them.
+    head = resolve("HEAD")
+    root = _git("rev-list", "--max-parents=0", "HEAD").stdout.split()
+    expect(bool(head and root), "the self-test runs in a clone with full history")
+    if head and root:
+        real = [dict(rec) for rec in load_records()[:1]]
+        orphan = "deadbeef" * 5
+        status, text = gate([real[0] | {"calibration_sha": root[-1]}], None, Repo())
+        expect(
+            status == 1
+            and "FAIL: 1 coverage record(s) owe a re-measurement" in text
+            and "  core: " in text,
+            "through git: a record measured at a commit whose surface differs fails the gate",
+        )
+        status, text = gate([real[0] | {"calibration_sha": orphan}], None, Repo())
+        expect(
+            status == 1
+            and f"does not contain: {orphan}" in text
+            and "owe a re-measurement" not in text,
+            "through git: a record naming a commit the clone lacks fails the gate",
+        )
+
+
 def self_test() -> int:
     failures: list[str] = []
 
@@ -1867,6 +1980,7 @@ def self_test() -> int:
         unverifiable({"a" * 40: []}) == {"old"},
         "a record measured at a commit missing from the clone is unverifiable",
     )
+    _attestation_gate_self_test(base, refs, records, expect)
     manifest = (ROOT / "Cargo.toml").read_text()
     bumped = re.sub(r'(?m)^version = "[^"]+"', 'version = "9.9.9"', manifest)
     profile = manifest.replace('lto = "thin"', 'lto = "fat"', 1)
@@ -1948,12 +2062,9 @@ def main() -> int:
     if args.command == "stale-tests":
         print("\n".join(sorted({str(rec["test"]) for a in assessments for rec in a.stale})))
         return 0
-    tally = report(assessments, surface)
-    invalid = bool(assessments and assessments[0].waiver_problems)
     if args.require:
-        verdict = release_verdict(tally, bool(records), invalid)
-        print(verdict)
-        return 0 if verdict.startswith("ATTESTED") else 1
+        return attest(assessments, surface, bool(records))
+    report(assessments, surface)
     return 0
 
 
