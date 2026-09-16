@@ -503,6 +503,20 @@ def _resolves(spec: str) -> bool:
     text = path.read_text(errors="ignore")
     if re.search(rf"fn\s+{re.escape(fn)}\s*[(<]", text):
         return True
+    # A suite that imports its data-generating function from a shared test module
+    # (`use common::static_dgp::{path_data, ..}`) names it through that import: it
+    # resolves when a file compiled into the same test target defines it.
+    if re.search(rf"\buse\b[^;]*\b{re.escape(fn)}\b[^;]*;", text):
+        sys.path.insert(0, str((root / "scripts").resolve()))
+        import test_evidence
+
+        target = test_evidence.target_root(path)
+        if target and any(
+            item.kind == "fn" and item.name == fn
+            for module in test_evidence.target_files(target[0].resolve())
+            for item in test_evidence.rust_items(module)[1]
+        ):
+            return True
     return "macro_rules!" in text and bool(re.search(rf"\b{re.escape(fn)}\b", text))
 
 
