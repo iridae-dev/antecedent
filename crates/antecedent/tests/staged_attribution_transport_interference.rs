@@ -267,6 +267,60 @@ fn interference_click_executes_on_the_clicked_outcomes() {
     );
 }
 
+/// The calibration match key of the prepared execution (the one a Python
+/// `analyze` result carries) is the key the coverage harness binds a
+/// `Study::run` replicate to, so a record measured by the harness binds to the
+/// study's claims.
+#[test]
+fn design_cells_bind_calibration_under_the_harness_key() {
+    let (units, prepared) = two_unit_interference(&[1.0, 4.0]);
+    let network = NetworkData::try_new(
+        units.clone(),
+        [NetworkEdge { from: 0, to: 1, weight: 1.0 }, NetworkEdge { from: 1, to: 0, weight: 1.0 }],
+    )
+    .unwrap();
+    let study = Study::tabular(units)
+        .graph(Dag::with_variables(1))
+        .query(prepared.query().clone())
+        .interference(InterferenceSpec { network, assignment: Arc::from([true, false]) })
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let keys = |bases: Vec<antecedent_io::calibration::CalibrationBasisWire>| {
+        bases.into_iter().map(|basis| basis.key).collect::<Vec<_>>()
+    };
+    let harness = study.run(&ctx()).unwrap();
+    let harness = keys(harness.calibration_bases(&study.inspect().unwrap()).unwrap());
+    let executed = prepared.estimate_retained(&ctx()).unwrap();
+    let executed = keys(executed.calibration_bases(&prepared.contract().unwrap()).unwrap());
+    assert_eq!(executed, harness);
+    let primary = &executed[0];
+    assert_eq!(
+        (
+            primary.query.as_str(),
+            primary.graph_class.as_str(),
+            primary.structure.as_str(),
+            primary.modality.as_str(),
+            primary.inference.as_str(),
+            primary.estimator.as_str(),
+            primary.interval_method.as_str(),
+            primary.dependence.as_str(),
+            primary.identification.as_str(),
+        ),
+        (
+            "InterferenceQuery",
+            "Dag",
+            "fixed",
+            "tabular",
+            "Frequentist",
+            "interference.ht_hajek",
+            "analytic_se",
+            "iid",
+            "point"
+        )
+    );
+}
+
 /// A support refusal renders as `refused: reason=<code>: <message>`.
 fn refused_with(error: &antecedent::CausalError) -> Option<String> {
     let text = error.to_string();
