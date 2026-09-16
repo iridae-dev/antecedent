@@ -55,7 +55,7 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Dag, DenseNodeId};
-use common::calibration::{CoverageTally, RecordKey, coverage_band, gaussian, n_sim};
+use common::calibration::{CoverageTally, RecordKey, SampleGrid, coverage_band, gaussian, n_sim};
 use common::calibration_bind::{bind, bind_all};
 
 const LEVEL: f64 = 0.9;
@@ -328,7 +328,7 @@ fn scalar_coverage(
     let mut zs = Vec::new();
     for rep in 0..u64::from(n_sim()) {
         let seed = replicate_seed(0x0D0E, rep);
-        let data = data_fn(N_POINT, seed);
+        let data = data_fn(SampleGrid::HEAVY.n(N_POINT), seed);
         match run_study(&data, &graph, functional.clone(), bandwidth, bayesian.then(bayes), seed) {
             Ok((study, result)) => {
                 let response = result.response.as_ref().expect("response");
@@ -622,7 +622,7 @@ fn gam_coverage(
     let mut zs: Vec<Vec<f64>> = vec![Vec::new(); truth.len()];
     for rep in 0..u64::from(n_sim()) {
         let seed = replicate_seed(0x0D0F, rep);
-        let data = gam_data(N_GAM, seed);
+        let data = gam_data(SampleGrid::HEAVY.n(N_GAM), seed);
         match run_study(&data, &graph, functional.clone(), None, Some(bayes()), seed) {
             Ok((study, result)) => {
                 bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), &study, &result);

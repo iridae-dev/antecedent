@@ -56,7 +56,7 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag};
 use common::calibration::{
-    CoverageTally, PRECISION_N_SIM, RecordKey, gaussian, n_sim, stream_seed,
+    CoverageTally, PRECISION_N_SIM, RecordKey, SampleGrid, gaussian, grid_n, n_sim, stream_seed,
 };
 use common::calibration_bind::bind;
 use common::reported::{
@@ -315,7 +315,7 @@ fn average_effect_dag_bayesian_default_nominal_coverage() {
         |rep| {
             let seed = stream_seed(0x110_0501, rep);
             let (study, result) = run(
-                linear_ate_data(500, seed),
+                linear_ate_data(grid_n(500), seed),
                 graph.clone(),
                 AverageEffectQuery::binary_ate(v(0), v(1)),
                 None,
@@ -401,7 +401,8 @@ fn average_effect_cpdag_bayesian_default_nominal_coverage() {
         &[cell],
         |rep| {
             let seed = stream_seed(0x110_0502, rep);
-            let (study, result) = run(cpdag_data(400, seed), cpdag(), ate_levels(), None, seed)?;
+            let (study, result) =
+                run(cpdag_data(grid_n(400), seed), cpdag(), ate_levels(), None, seed)?;
             if rep == 0 {
                 check_estimator(&result, cell);
             }
@@ -427,7 +428,8 @@ fn average_effect_pag_bayesian_default_nominal_coverage() {
         &[cell],
         |rep| {
             let seed = stream_seed(0x110_0503, rep);
-            let (study, result) = run(pag_data(400, seed), pag(), ate_levels(), None, seed)?;
+            let (study, result) =
+                run(pag_data(grid_n(400), seed), pag(), ate_levels(), None, seed)?;
             if rep == 0 {
                 check_estimator(&result, cell);
             }
@@ -499,7 +501,7 @@ fn conditional_case(
         |rep| {
             let seed = stream_seed(family, rep);
             let (study, result) =
-                run(sample(400, seed), graph(), conditional_query(modifier), None, seed)?;
+                run(sample(grid_n(400), seed), graph(), conditional_query(modifier), None, seed)?;
             if rep == 0 {
                 check_estimator(&result, cell);
             }
@@ -593,7 +595,7 @@ fn distribution_case(test: &'static str, base: f64, family: u64, measured: [f64;
                 [Intervention::set(v(0), Value::f64(1.0))],
             );
             let (study, result) = run(
-                distribution_data(600, base, seed),
+                distribution_data(grid_n(600), base, seed),
                 graph.clone(),
                 CausalQuery::Distribution(query),
                 None,
@@ -673,7 +675,7 @@ fn mediation_case(
             let seed = stream_seed(family, rep);
             let query = MediationQuery::binary(v(0), v(2), Arc::from([v(1)]), contrast);
             let (study, result) = run(
-                mediation_data(400, seed),
+                mediation_data(grid_n(400), seed),
                 graph.clone(),
                 CausalQuery::Mediation(query),
                 None,
@@ -735,8 +737,13 @@ fn path_case(
         |rep| {
             let seed = stream_seed(family, rep);
             let query = PathSpecificEffectQuery::binary(v(0), v(2)).with_path_nodes([v(1)]);
-            let (study, result) =
-                run(sample(n, seed), graph.clone(), CausalQuery::PathSpecific(query), None, seed)?;
+            let (study, result) = run(
+                sample(grid_n(n), seed),
+                graph.clone(),
+                CausalQuery::PathSpecific(query),
+                None,
+                seed,
+            )?;
             if rep == 0 {
                 check_estimator(&result, cell);
             }
@@ -808,7 +815,7 @@ fn counterfactual_bayesian_mean_ite_default_coverage() {
             )
             .with_control_level(0.0);
             let (study, result) = run(
-                counterfactual_data(300, seed),
+                counterfactual_data(grid_n(300), seed),
                 graph.clone(),
                 CausalQuery::Counterfactual(query),
                 None,
@@ -932,7 +939,7 @@ fn intervention_response_dag_bayesian_default_nominal_coverage() {
         &cells,
         |rep| {
             let seed = stream_seed(0x110_0510, rep);
-            let data = response_data(500, seed);
+            let data = response_data(grid_n(500), seed);
             let (reported, at_gate, pairs) =
                 response_pairs(&data, &response_dag(), &functional, None, seed, 1)?;
             if rep == 0 {
@@ -963,7 +970,7 @@ fn response_curve_dag_bayesian_default_pointwise_nominal_coverage() {
         &cells,
         |rep| {
             let seed = stream_seed(0x110_0511, rep);
-            let data = response_data(500, seed);
+            let data = response_data(grid_n(500), seed);
             let (reported, at_gate, pairs) =
                 response_pairs(&data, &response_dag(), &functional, None, seed, 5)?;
             if rep == 0 {
@@ -980,6 +987,12 @@ fn response_curve_dag_bayesian_default_pointwise_nominal_coverage() {
 // =============================================================== derivatives
 
 const N_DERIVATIVE: usize = 1000;
+
+/// Rows of a derivative design at this run's grid point: the heavy grid
+/// (500, 1000, 1500), since these cells already run for hours at 1000 rows.
+fn derivative_n() -> usize {
+    SampleGrid::HEAVY.n(N_DERIVATIVE)
+}
 /// Caller bandwidth of the 1.9 point-derivative designs (≈ the MSE-optimal
 /// local-quadratic first-derivative bandwidth at `N_DERIVATIVE`).
 const BANDWIDTH: f64 = 0.35;
@@ -1065,7 +1078,7 @@ fn derivative_case(
         |rep| {
             let seed = stream_seed(family, rep);
             let data =
-                if gam { gam_data(N_DERIVATIVE, seed) } else { point_data(N_DERIVATIVE, seed) };
+                if gam { gam_data(derivative_n(), seed) } else { point_data(derivative_n(), seed) };
             let (reported, at_gate, pairs) =
                 response_pairs(&data, &graph, functional, bandwidth, seed, truth.len())?;
             if rep == 0 {

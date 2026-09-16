@@ -52,7 +52,7 @@ use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::IdentificationStatus;
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, n_sim, normal_interval,
+    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, n_sim, normal_interval,
     quantile_interval, unit_uniform,
 };
 use common::calibration_bind::{bind, bind_all};
@@ -446,7 +446,7 @@ fn frequentist_dbn_tally(
 ) -> FreqTally {
     let mut tally = FreqTally::new(test, CONFOUNDED_SERIES, name, truth);
     for s in 0..n_sim() {
-        let data = confounded_series(n, B2, rho, seed_base + u64::from(s));
+        let data = confounded_series(grid_n(n), B2, rho, seed_base + u64::from(s));
         let (study, result) =
             run_freq_dbn_study(data, query.clone(), heterogeneous_dbn(), BOOT, u64::from(s));
         tally.record(&study, &result);
@@ -552,7 +552,7 @@ fn frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage() {
         B1,
     );
     for s in 0..n_sim() {
-        let data = confounded_series(N, B2, 0.0, 12_000 + u64::from(s));
+        let data = confounded_series(grid_n(N), B2, 0.0, 12_000 + u64::from(s));
         let (study, result) = run_freq_dbn_study(
             data,
             pulse_query(),
@@ -678,7 +678,7 @@ fn frequentist_cpdag_tally(
     let truth = fixtures::cpdag_completion_truths(rho).iter().sum::<f64>() / 2.0;
     let mut tally = FreqTally::new(test, CONFOUNDED_SERIES, name, truth);
     for s in 0..n_sim() {
-        let data = confounded_series(n, 0.0, rho, seed + u64::from(s));
+        let data = confounded_series(grid_n(n), 0.0, rho, seed + u64::from(s));
         let (study, result) = run_freq_class_study(
             data,
             confounded_cpdag(),
@@ -792,7 +792,7 @@ fn frequentist_temporal_pag_pulse_envelope_nominal_90_coverage() {
     );
     for s in 0..n_sim() {
         let (study, result) = run_freq_class_study(
-            pag_series(N, 15_000 + u64::from(s)),
+            pag_series(grid_n(N), 15_000 + u64::from(s)),
             circle_pag(),
             CausalQuery::TemporalEffect(pulse_query()),
             BOOT,
@@ -823,7 +823,7 @@ fn bayesian_temporal_dag_pulse_staged_nominal_90_coverage() {
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     for s in 0..n_sim() {
         let (study, result) = run_bayes_study(
-            noisy_xy(N, 16_000 + u64::from(s)),
+            noisy_xy(grid_n(N), 16_000 + u64::from(s)),
             xy_dag(),
             CausalQuery::TemporalEffect(pulse_query()),
             None,
@@ -852,7 +852,7 @@ fn bayesian_temporal_dag_multistep_sustained_nominal_90_coverage() {
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     for s in 0..n_sim() {
         let (study, result) = run_bayes_study(
-            two_lag_series(N, 17_000 + u64::from(s)),
+            two_lag_series(grid_n(N), 17_000 + u64::from(s)),
             two_lag_dag(),
             CausalQuery::TemporalEffect(multi_sustained()),
             None,
@@ -896,7 +896,7 @@ fn bayesian_temporal_dag_response_curve_pointwise_band_coverage() {
     let mut tally: Option<CoverageTally> = None;
     for s in 0..n_sim() {
         let (study, result) = run_bayes_study(
-            noisy_xy(N, 18_000 + u64::from(s)),
+            noisy_xy(grid_n(N), 18_000 + u64::from(s)),
             xy_dag(),
             query.clone(),
             None,
@@ -940,7 +940,7 @@ fn bayesian_cpdag_class_prior_case(
     );
     for s in 0..n_sim() {
         let (study, result) = run_bayes_study(
-            confounded_series(N, 0.0, 0.0, seed + u64::from(s)),
+            confounded_series(grid_n(N), 0.0, 0.0, seed + u64::from(s)),
             confounded_cpdag(),
             CausalQuery::TemporalEffect(query.clone()),
             Some(prior.clone()),
@@ -1009,7 +1009,7 @@ fn bayesian_temporal_pag_pulse_nominal_90_coverage() {
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     for s in 0..n_sim() {
         let (study, result) = run_bayes_study(
-            pag_series(N, 23_000 + u64::from(s)),
+            pag_series(grid_n(N), 23_000 + u64::from(s)),
             circle_pag(),
             CausalQuery::TemporalEffect(pulse_query()),
             Some(prior.clone()),
@@ -1040,7 +1040,7 @@ fn bayesian_dbn_posterior_pulse_nominal_90_coverage() {
     );
     for s in 0..n_sim() {
         let (study, result) = run_dbn_study(
-            confounded_series(N, B2, 0.0, 24_000 + u64::from(s)),
+            confounded_series(grid_n(N), B2, 0.0, 24_000 + u64::from(s)),
             pulse_query(),
             heterogeneous_dbn(),
             bayes(),
@@ -1076,7 +1076,7 @@ fn bayesian_cpdag_mediation_case(name: &str, kappa: f64, seed: u64) {
     let mut mean = [0.0; 2];
     for s in 0..n_sim() {
         let result = run_bayes(
-            mediation_series(N, kappa, seed + u64::from(s)),
+            mediation_series(grid_n(N), kappa, seed + u64::from(s)),
             mediation_cpdag_two(),
             mediated_query(),
             None,
@@ -1158,7 +1158,7 @@ fn bayesian_temporal_dag_mediation_confounded_nominal_90_coverage() {
         CoverageTally::for_record(key, REPORTED_LEVEL).labelled("mediated").unasserted();
     for s in 0..n_sim() {
         let (study, result) = run_confounded_mediation_study(
-            N,
+            grid_n(N),
             MediationContrast::Mediated,
             bayes(),
             0,
@@ -1253,7 +1253,7 @@ fn heterogeneous_dbn_fixture_has_disagreeing_atoms_and_unidentified_mass() {
 /// the fixture's known unidentified weight.
 #[test]
 fn dbn_mixture_functional_retains_unidentified_mass() {
-    let data = confounded_series(N, B2, 0.0, 3);
+    let data = confounded_series(grid_n(N), B2, 0.0, 3);
     let freq = run_freq_dbn(data.clone(), pulse_query(), heterogeneous_dbn(), 8, 41);
     assert_eq!(freq.identification.status, IdentificationStatus::GraphDependent);
     let code = "estimate.dbn_posterior.frequentist";
@@ -1282,7 +1282,7 @@ fn dbn_mixture_functional_retains_unidentified_mass() {
 /// positive cross-atom covariance implies.
 #[test]
 fn heterogeneous_dbn_shared_block_se_carries_cross_atom_covariance() {
-    let data = confounded_series(N, B2, 0.0, 5);
+    let data = confounded_series(grid_n(N), B2, 0.0, 5);
     let boot = 99;
     let mix = run_freq_dbn(data.clone(), pulse_query(), heterogeneous_dbn(), boot, 41);
     let a = run_freq_dbn(data.clone(), pulse_query(), fixtures::dbn_atom_a_only(), boot, 41);
@@ -1329,7 +1329,7 @@ fn heterogeneous_cpdag_fixture_has_disagreeing_completions() {
 
 #[test]
 fn heterogeneous_cpdag_shared_block_se_carries_cross_atom_covariance() {
-    let data = confounded_series(N, 0.0, 0.0, 9);
+    let data = confounded_series(grid_n(N), 0.0, 0.0, 9);
     let boot = 99;
     let query = CausalQuery::TemporalEffect(pulse_query());
     let mix = run_freq_class(data.clone(), confounded_cpdag(), query.clone(), boot, 41);
@@ -1507,7 +1507,7 @@ fn two_lag_fixture_composes_both_lags() {
 #[test]
 fn bayesian_full_pins_numeric_ppc_summary() {
     let result = run_bayes(
-        noisy_xy(N, 7),
+        noisy_xy(grid_n(N), 7),
         xy_dag(),
         CausalQuery::TemporalEffect(pulse_query()),
         None,

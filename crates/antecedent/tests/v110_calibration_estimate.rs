@@ -34,7 +34,9 @@ use antecedent::{EstimatorId, RefuteSuite, Study, StudyResult};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
-use common::calibration::{CoverageTally, RecordKey, gaussian, n_sim, stream_seed, unit_uniform};
+use common::calibration::{
+    CoverageTally, RecordKey, gaussian, grid_n, n_sim, stream_seed, unit_uniform,
+};
 use common::calibration_bind::bind_all;
 use common::reported::{GATE_LEVEL, REPORTED_LEVEL, gate, normal_at, record_pair, skip_pair};
 
@@ -113,7 +115,7 @@ fn glm_adjustment_binary_outcome_nominal_coverage() {
         [keyed(TEST, "analytic_se", REPORTED_LEVEL), keyed(TEST, "analytic_se", GATE_LEVEL)];
     for rep in 0..u64::from(n_sim()) {
         let seed = stream_seed(0x110_0301, rep);
-        let data = glm_data(N, seed);
+        let data = glm_data(grid_n(N), seed);
         let Some((study, result)) = run(data.clone(), None, seed) else {
             skip_pair(&mut bootstrap);
             skip_pair(&mut analytic);

@@ -35,7 +35,7 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag, TieredBackground, WithinTier};
 
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, n_sim, normal_interval,
+    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, n_sim, normal_interval,
     quantile_interval,
 };
 use common::calibration_bind::bind_all;
@@ -193,7 +193,7 @@ fn run_ate_coverage(
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     for rep in 0..u64::from(n_sim()) {
-        let data = generate(n, seed + rep);
+        let data = generate(grid_n(n), seed + rep);
         let Some((study, result)) = run(data, graph, ate_query(), inference(), seed + rep) else {
             tally.skip();
             reported.skip();
@@ -417,7 +417,7 @@ fn run_conditional_coverage(
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     for rep in 0..u64::from(n_sim()) {
-        let data = generate(n, seed + rep);
+        let data = generate(grid_n(n), seed + rep);
         let inference = if bayesian { bayes() } else { InferenceMode::Frequentist };
         let Some((study, result)) =
             run(data, graph, conditional_query(modifier), inference, seed + rep)
@@ -591,7 +591,7 @@ fn codetermined_aipw_closure_nominal_90_coverage() {
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     for rep in 0..u64::from(n_sim()) {
-        let data = codetermined_data(600, 20_200 + rep);
+        let data = codetermined_data(grid_n(600), 20_200 + rep);
         let schema = data.schema().clone();
         let background = TieredBackground::from_named(
             &schema,
@@ -664,7 +664,7 @@ fn unknown_two_scenario_joint_band_nominal_95_coverage() {
     let mut width_sum = 0.0;
     let mut widths = 0u32;
     for rep in 0..u64::from(n_sim()) {
-        let data = unknown_data(400, 20_300 + rep);
+        let data = unknown_data(grid_n(400), 20_300 + rep);
         let schema = data.schema().clone();
         let background = TieredBackground::from_named(
             &schema,

@@ -42,6 +42,19 @@
 //! (boundary when it misses the nominal band). `scripts/collect_coverage_records.py`
 //! turns those lines into the registry.
 //!
+//! **Sample-size grid.** A record's scope is a measured range, not one row
+//! count. Every record-keyed design draws its sample size through a
+//! [`SampleGrid`] (`grid_n(base)` for the standard `n/2, n, 2n`), and the gate
+//! runs each group once per grid point with [`GRID_POINT_ENV`] set. Each run
+//! prints its `calibration-record` line with its `grid_point`; the collector
+//! merges the points of one record into `n_min..n_max` with the coverage
+//! measured at every point, and the record is a boundary when any point is.
+//! The band, the recheck and the precision floor apply per point, so a
+//! failing point is never averaged into a pass. The base point
+//! ([`BASE_GRID_POINT`], also the default when the variable is unset)
+//! generates exactly the replicate data the design generated before the grid;
+//! the other points salt every generator in this module ([`grid_salt`]).
+//!
 //! `ANTECEDENT_CALIBRATION_NSIM` overrides the replicate count; the band
 //! widens automatically with fewer replicates, and the precision floor applies
 //! whenever the count reaches [`PRECISION_N_SIM`]. The gate script uses the
@@ -75,6 +88,132 @@ pub const PRECISION_N_SIM: u32 = 1000;
 /// Shortfall below the level (in coverage points) that asks for a recheck at
 /// fewer than [`PRECISION_N_SIM`] replicates.
 pub const RECHECK_SHORTFALL: f64 = 0.02;
+
+/// Environment variable selecting the sample-size grid point a run measures
+/// (`0`, `1` or `2`; unset is the base point [`BASE_GRID_POINT`]).
+pub const GRID_POINT_ENV: &str = "ANTECEDENT_CALIBRATION_GRID_POINT";
+
+/// Number of sample-size grid points every record-keyed tally is measured at.
+pub const GRID_POINTS: usize = 3;
+
+/// The grid point whose sample size is the design's base `n` and whose
+/// replicate data is exactly the data the design generated before the grid
+/// existed (no seed salt).
+pub const BASE_GRID_POINT: usize = 1;
+
+/// Sample-size grid of a coverage design: the factor applied to the design's
+/// base `n` at each of the [`GRID_POINTS`] points, smallest first. The base
+/// point (factor 1) is always [`BASE_GRID_POINT`].
+///
+/// A coverage record's measured scope is `[n at point 0, n at point 2]`; the
+/// runtime labels an execution `calibrated` only inside that range and only
+/// when the construction passed at every point
+/// (`scripts/collect_coverage_records.py` merges the points; the matcher in
+/// `antecedent_io::calibration` never extrapolates beyond them).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SampleGrid {
+    pub name: &'static str,
+    /// `(numerator, denominator)` of each point's factor.
+    pub factors: [(usize, usize); GRID_POINTS],
+}
+
+impl SampleGrid {
+    /// `n/2, n, 2n`: the default for every design whose base `n` is a
+    /// practical data size (tabular 300–1200 rows, series of 160–400 steps).
+    pub const STANDARD: Self = Self { name: "standard", factors: [(1, 2), (1, 1), (2, 1)] };
+    /// `3n/4, n, 2n`: short-series designs (base `n` ≤ 100 steps), whose base
+    /// point is already the shortest series the construction is licensed for;
+    /// halving it would measure a series the runtime warns on, not the design.
+    pub const SHORT_SERIES: Self = Self { name: "short_series", factors: [(3, 4), (1, 1), (2, 1)] };
+    /// `n/2, n, 3n/2`: designs whose cost grows faster than `n` and that
+    /// already run for hours at the base point (Bayesian derivative and
+    /// response-Jacobian bands at 1000 rows, the 2500-row counterfactual
+    /// designs, the ADMG front-door distribution).
+    pub const HEAVY: Self = Self { name: "heavy", factors: [(1, 2), (1, 1), (3, 2)] };
+
+    /// The design's sample size at the current grid point ([`grid_point`]).
+    #[must_use]
+    pub fn n(self, base: usize) -> usize {
+        self.n_at(grid_point(), base)
+    }
+
+    /// The design's sample size at grid point `point` (rounded to nearest).
+    #[must_use]
+    pub fn n_at(self, point: usize, base: usize) -> usize {
+        let (num, den) = self.factors[point];
+        (base * num + den / 2) / den
+    }
+}
+
+/// Sample-size grid point of this run, from [`GRID_POINT_ENV`].
+///
+/// # Panics
+///
+/// When the variable is set to anything but `0`, `1` or `2`: a typo must not
+/// silently re-measure the base point under another point's label.
+#[must_use]
+pub fn grid_point() -> usize {
+    static POINT: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *POINT.get_or_init(|| match std::env::var(GRID_POINT_ENV) {
+        Err(_) => BASE_GRID_POINT,
+        Ok(raw) => raw
+            .trim()
+            .parse::<usize>()
+            .ok()
+            .filter(|&point| point < GRID_POINTS)
+            .unwrap_or_else(|| panic!("{GRID_POINT_ENV}={raw}: want 0, 1 or 2")),
+    })
+}
+
+/// Largest base `n` measured on [`SampleGrid::SHORT_SERIES`] by [`grid_n`].
+pub const SHORT_SERIES_MAX_BASE: usize = 100;
+
+/// Sample size of a design with base `base` at this run's grid point:
+/// [`SampleGrid::SHORT_SERIES`] for a base of at most
+/// [`SHORT_SERIES_MAX_BASE`], [`SampleGrid::STANDARD`] otherwise. Heavy designs
+/// call [`SampleGrid::HEAVY`] explicitly.
+#[must_use]
+pub fn grid_n(base: usize) -> usize {
+    grid_for(base).n(base)
+}
+
+/// The grid [`grid_n`] measures a design with base `base` on.
+#[must_use]
+pub fn grid_for(base: usize) -> SampleGrid {
+    if base <= SHORT_SERIES_MAX_BASE { SampleGrid::SHORT_SERIES } else { SampleGrid::STANDARD }
+}
+
+/// Seed salt of this run's grid point: zero at [`BASE_GRID_POINT`] (the data
+/// every design generated before the grid), a fixed distinct constant at the
+/// other points, so each point measures independent replicate data and every
+/// point stays deterministic.
+#[must_use]
+pub fn grid_salt() -> u64 {
+    const SALTS: [u64; GRID_POINTS] = [0x9E6C_63D0_676A_9A98, 0, 0xD1B5_4A32_D192_ED02];
+    SALTS[grid_point()]
+}
+
+/// A replicate seed for a generator that does not draw through this module
+/// (e.g. `CausalRng::from_seed`): unchanged at the base point, salted at the
+/// others. Every generator in this module is salted already.
+#[must_use]
+pub fn grid_seed(seed: u64) -> u64 {
+    seed ^ grid_salt()
+}
+
+/// Environment variable of a wiring smoke run (`1`): tallies emit their
+/// records flagged `"smoke": true` and never gate. A smoke run proves that
+/// designs scale with the grid and that the records key and bind; it measures
+/// nothing (it is paired with a reduced `ANTECEDENT_CALIBRATION_NSIM`), so
+/// `scripts/collect_coverage_records.py` refuses its lines unless it writes a
+/// scratch registry with `--smoke`.
+pub const SMOKE_ENV: &str = "ANTECEDENT_CALIBRATION_SMOKE";
+
+/// Whether this is a wiring smoke run ([`SMOKE_ENV`]).
+#[must_use]
+pub fn smoke() -> bool {
+    std::env::var(SMOKE_ENV).is_ok_and(|value| value == "1")
+}
 
 /// Replicate count, honoring `ANTECEDENT_CALIBRATION_NSIM` for smoke runs.
 #[must_use]
@@ -397,9 +536,7 @@ impl CoverageTally {
             id.push_str(&sanitize_label(label));
         }
         let rate = self.rate();
-        eprintln!(
-            "calibration-record {}",
-            serde_json::json!({
+        let mut payload = serde_json::json!({
                 "id": id,
                 "query": construction.query,
                 "graph_class": construction.graph_class,
@@ -423,12 +560,21 @@ impl CoverageTally {
                 "mcse": (rate * (1.0 - rate) / f64::from(self.scored.max(1))).sqrt(),
                 "replicates": self.scored,
                 "bound_replicates": record.bound,
+                "grid_point": grid_point(),
                 "boundary": boundary,
                 "role": role,
                 "dgp": dgp,
                 "test": format!("{file}::{}", record.key.test),
-            })
-        );
+        });
+        if smoke() {
+            payload["smoke"] = serde_json::Value::Bool(true);
+        }
+        // One write of the whole line: a whole-file gate group runs its tests on
+        // several threads with stdout and stderr in one pipe, and a line written
+        // in pieces can be split by another test's `test ... ok`, which leaves
+        // the collector an unparseable record.
+        let line = format!("calibration-record {payload}\n");
+        let _ = std::io::Write::write_all(&mut std::io::stderr().lock(), line.as_bytes());
     }
 
     /// Record one replicate's interval `[lo, hi]` against `truth`.
@@ -489,6 +635,10 @@ impl CoverageTally {
             "{}: an unasserted tally is emitted, not asserted",
             self.name
         );
+        if smoke() {
+            self.emit_smoke(!self.passes_nominal(), "gated");
+            return;
+        }
         let total = self.scored + self.skipped;
         assert!(self.scored > 0, "{}: no replicates scored", self.name);
         assert!(
@@ -582,16 +732,102 @@ impl CoverageTally {
     /// assertion guards against a regression below, or a silent change above,
     /// the measured level.
     ///
+    /// `measured` is the coverage measured at the base grid point. At the other
+    /// sample-size grid points the cell is recorded as a boundary without a
+    /// band (nothing was measured there to hold it to); once those points are
+    /// measured, [`Self::assert_boundary_at`] holds each point to its own value.
+    ///
     /// # Panics
     ///
     /// When coverage falls outside `measured ± 3·MCSE` or too many replicates
     /// were skipped.
     pub fn assert_boundary(&self, measured: f64) {
+        if smoke() {
+            self.emit_smoke(true, "named_boundary");
+            return;
+        }
+        if grid_point() != BASE_GRID_POINT {
+            self.check_skips();
+            eprintln!(
+                "calibration-boundary {} (grid point {}; measured {measured:.3} at the base point \
+                 only, recorded, not gated): nominal={:.2} coverage={:.3} mean_length={:.4} \
+                 ({}/{} covered, {} skipped)",
+                self.name,
+                grid_point(),
+                self.level,
+                self.rate(),
+                self.mean_length(),
+                self.covered,
+                self.scored,
+                self.skipped
+            );
+            self.emit_record(true, "named_boundary");
+            return;
+        }
+        self.assert_measured_band(measured);
+    }
+
+    /// Assert a cell per sample-size grid point: at a point with
+    /// `Some(measured)` the cell is a named boundary held to
+    /// `measured ± 3·MCSE`; at a point with `None` it must pass the nominal
+    /// band (and floor or recheck) like [`Self::assert`]. The record is a
+    /// boundary over its whole range when any point is one, with the coverage
+    /// measured at each point.
+    ///
+    /// # Panics
+    ///
+    /// As [`Self::assert`] or [`Self::assert_boundary`] at this run's point.
+    pub fn assert_boundary_at(&self, measured: [Option<f64>; GRID_POINTS]) {
+        match measured[grid_point()] {
+            Some(value) => self.assert_measured_band(value),
+            None => self.assert(),
+        }
+    }
+
+    /// A smoke run's line: never gated, flagged `"smoke": true` (see [`SMOKE_ENV`]).
+    fn emit_smoke(&self, boundary: bool, role: &str) {
+        eprintln!(
+            "calibration-smoke {} (grid point {}; not gated): nominal={:.2} coverage={:.3} \
+             ({}/{} covered, {} skipped)",
+            self.name,
+            grid_point(),
+            self.level,
+            self.rate(),
+            self.covered,
+            self.scored,
+            self.skipped
+        );
+        if self.record.is_some() {
+            self.emit_record(boundary, role);
+        }
+    }
+
+    fn check_skips(&self) {
         assert!(
             !self.record.as_ref().is_some_and(|record| record.unasserted),
             "{}: an unasserted tally is emitted, not asserted",
             self.name
         );
+        let total = self.scored + self.skipped;
+        assert!(self.scored > 0, "{}: no replicates scored", self.name);
+        assert!(
+            self.skipped * 20 <= total,
+            "{}: {} of {total} replicates skipped (cap 5%)",
+            self.name,
+            self.skipped
+        );
+    }
+
+    fn assert_measured_band(&self, measured: f64) {
+        assert!(
+            !self.record.as_ref().is_some_and(|record| record.unasserted),
+            "{}: an unasserted tally is emitted, not asserted",
+            self.name
+        );
+        if smoke() {
+            self.emit_smoke(true, "named_boundary");
+            return;
+        }
         let total = self.scored + self.skipped;
         assert!(self.scored > 0, "{}: no replicates scored", self.name);
         assert!(
@@ -650,7 +886,7 @@ pub fn quantile_interval(draws: &[f64], level: f64) -> Option<(f64, f64)> {
 /// `SplitMix64` finalizer: decorrelates nearby integer seeds.
 #[must_use]
 pub fn mix_seed(seed: u64) -> u64 {
-    let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15).wrapping_add(grid_salt());
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     z ^ (z >> 31)
@@ -685,7 +921,7 @@ pub const LCG_MULTIPLIER: u64 = 6_364_136_223_846_793_005;
 /// re-generate their data, so their conditioning stays at the call site and is
 /// documented there.
 pub fn uniform_from_state(state: u64) -> impl FnMut() -> f64 {
-    let mut state = state;
+    let mut state = grid_seed(state);
     move || {
         state = state.wrapping_mul(LCG_MULTIPLIER).wrapping_add(1);
         (state >> 11) as f64 / (1u64 << 53) as f64

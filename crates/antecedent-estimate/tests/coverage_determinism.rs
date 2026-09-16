@@ -17,6 +17,12 @@
 //! change the result, so identical tallies cannot come from a pipeline that
 //! ignores its seeds.
 //!
+//! The sample-size grid keeps that property per grid point: this binary
+//! re-runs itself at each `ANTECEDENT_CALIBRATION_GRID_POINT` and requires the
+//! same point to reproduce its tally, the points to measure different data at
+//! strictly growing sample sizes, and the unset variable to be exactly the
+//! base point (so the base point's data is the data measured before the grid).
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_precision_loss)]
@@ -37,7 +43,10 @@ use antecedent_expr::{ExprId, IdentifiedEstimand};
 #[path = "../../antecedent/tests/common/calibration.rs"]
 mod calibration;
 
-use calibration::{CoverageTally, Z95, gaussian, normal_interval, uniform};
+use calibration::{
+    BASE_GRID_POINT, CoverageTally, GRID_POINT_ENV, GRID_POINTS, SHORT_SERIES_MAX_BASE, SampleGrid,
+    Z95, gaussian, grid_for, grid_n, grid_point, grid_seed, normal_interval, uniform,
+};
 
 const TRUE_ATE: f64 = 2.0;
 const ROWS: usize = 120;
@@ -76,10 +85,14 @@ fn column(id: u32, values: Vec<f64>) -> OwnedColumn {
 
 /// Binary treatment with a logistic propensity in `z`; `y = 2·t + 1.5·z + noise`.
 fn confounded(seed: u64) -> TabularData {
+    confounded_rows(ROWS, seed)
+}
+
+fn confounded_rows(rows: usize, seed: u64) -> TabularData {
     let mut normal = gaussian(seed);
     let mut unit = uniform(seed, 0x7EA7);
     let (mut t, mut y, mut z) = (Vec::new(), Vec::new(), Vec::new());
-    for _ in 0..ROWS {
+    for _ in 0..rows {
         let zi = normal();
         let p = 1.0 / (1.0 + (-0.8 * zi).exp());
         let ti = if unit() < p { 1.0 } else { 0.0 };
@@ -124,13 +137,17 @@ fn backdoor_z() -> IdentifiedEstimand {
 
 /// Analytic-SE linear adjustment over `REPLICATES` datasets seeded from `base`.
 fn analytic_cell(base: u64) -> Fingerprint {
+    analytic_cell_rows(ROWS, base)
+}
+
+fn analytic_cell_rows(rows: usize, base: u64) -> Fingerprint {
     let estimator =
         LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::default() };
     let ctx = ExecutionContext::for_tests(base);
     let mut tally = CoverageTally::new("determinism.linear_adjustment", 0.95);
     let mut estimates = Vec::new();
     for replicate in 0..REPLICATES {
-        let data = confounded(base + replicate);
+        let data = confounded_rows(rows, base + replicate);
         let prepared = estimator.prepare(&data, &backdoor_z(), &query()).unwrap();
         let mut workspace = EstimationWorkspace::default();
         let effect = estimator.fit(&prepared, &mut workspace, &ctx, AssumptionSet::new()).unwrap();
@@ -195,4 +212,75 @@ fn bootstrap_coverage_tally_is_reproducible_bit_for_bit() {
     };
     assert_eq!(first.estimates[0].1, se(5_100), "the cell's first SE is this resample's");
     assert_ne!(se(5_100), se(9_999), "the bootstrap ignores the context seed");
+}
+
+#[test]
+fn sample_grids_grow_strictly_and_keep_the_base_point() {
+    for grid in [SampleGrid::STANDARD, SampleGrid::SHORT_SERIES, SampleGrid::HEAVY] {
+        for base in [40, 60, 80, 100, 160, 300, 400, 500, 600, 800, 1000, 1200, 2500] {
+            let points: Vec<usize> = (0..GRID_POINTS).map(|k| grid.n_at(k, base)).collect();
+            assert_eq!(
+                points[BASE_GRID_POINT], base,
+                "{}: the base point is the design",
+                grid.name
+            );
+            assert!(points.windows(2).all(|w| w[0] < w[1]), "{}: {points:?}", grid.name);
+        }
+    }
+    assert_eq!(SampleGrid::STANDARD.n_at(0, 500), 250);
+    assert_eq!(SampleGrid::STANDARD.n_at(2, 500), 1000);
+    assert_eq!(SampleGrid::SHORT_SERIES.n_at(0, 60), 45);
+    assert_eq!(SampleGrid::HEAVY.n_at(2, 1000), 1500);
+    assert_eq!(grid_for(60), SampleGrid::SHORT_SERIES, "a 60-step series is short");
+    assert_eq!(grid_for(SHORT_SERIES_MAX_BASE + 1), SampleGrid::STANDARD);
+}
+
+/// Prints this process's grid-point fingerprint when run as the probe child.
+#[test]
+fn grid_point_fingerprint_probe() {
+    if std::env::var_os("ANTECEDENT_GRID_DETERMINISM_PROBE").is_none() {
+        return;
+    }
+    let rows = grid_n(ROWS);
+    println!(
+        "grid-probe point={} rows={rows} salt={} fingerprint={:?}",
+        grid_point(),
+        grid_seed(0),
+        analytic_cell_rows(rows, 6_100)
+    );
+}
+
+fn probe(point: Option<usize>) -> String {
+    let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+    command
+        .args(["--exact", "grid_point_fingerprint_probe", "--nocapture", "--test-threads", "1"])
+        .env("ANTECEDENT_GRID_DETERMINISM_PROBE", "1")
+        .env_remove(GRID_POINT_ENV);
+    if let Some(point) = point {
+        command.env(GRID_POINT_ENV, point.to_string());
+    }
+    let output = command.output().unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .find_map(|line| line.find("grid-probe ").map(|at| line[at..].to_string()))
+        .expect("the probe prints its fingerprint")
+}
+
+#[test]
+fn every_grid_point_is_deterministic_and_the_unset_point_is_the_base() {
+    let points: Vec<String> = (0..GRID_POINTS).map(|k| probe(Some(k))).collect();
+    for (k, line) in points.iter().enumerate() {
+        assert_eq!(line, &probe(Some(k)), "grid point {k} is not reproducible");
+    }
+    assert_eq!(probe(None), points[BASE_GRID_POINT], "unset must be the base point");
+    assert!(points[BASE_GRID_POINT].contains(" salt=0 "), "the base point is unsalted");
+    let fingerprints: Vec<&str> =
+        points.iter().map(|line| line.split(" fingerprint=").nth(1).unwrap()).collect();
+    assert!(fingerprints[0] != fingerprints[1] && fingerprints[1] != fingerprints[2]);
+    // The base point measures exactly the pre-grid data.
+    assert!(
+        points[BASE_GRID_POINT].ends_with(&format!("{:?}", analytic_cell_rows(ROWS, 6_100))),
+        "the base point's tally is the one measured without the grid"
+    );
 }

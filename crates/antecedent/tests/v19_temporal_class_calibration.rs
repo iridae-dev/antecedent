@@ -26,7 +26,8 @@ use antecedent_core::{
 };
 use antecedent_data::TimeSeriesData;
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, n_sim, normal_interval, quantile_interval,
+    BASE_GRID_POINT, CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n, grid_point, n_sim,
+    normal_interval, quantile_interval, smoke,
 };
 use common::calibration_bind::{bind, bind_all};
 use common::fixtures::{
@@ -279,12 +280,16 @@ fn boundary(tally: &FreqTally) {
     );
     tally.tally.emit_named_boundary();
     tally.reported.emit();
-    assert!(
-        tally.warned * 20 >= n_sim() * 19,
-        "boundary design must carry the short-series warning: {}/{}",
-        tally.warned,
-        n_sim()
-    );
+    // The warning is a property of the base sample size the design names; at
+    // the other grid points its rate is reported and coverage recorded.
+    if grid_point() == BASE_GRID_POINT && !smoke() {
+        assert!(
+            tally.warned * 20 >= n_sim() * 19,
+            "boundary design must carry the short-series warning: {}/{}",
+            tally.warned,
+            n_sim()
+        );
+    }
 }
 
 fn chain_pag_tally(
@@ -302,7 +307,7 @@ fn chain_pag_tally(
     );
     for s in 0..n_sim() {
         let (study, result) = run_study(
-            chain_pag_series(design.n, design.rho, seed + u64::from(s)),
+            chain_pag_series(grid_n(design.n), design.rho, seed + u64::from(s)),
             chain_pag(),
             query,
             InferenceMode::Frequentist,
@@ -328,7 +333,7 @@ fn frequentist_cpdag_multistep_case(test: &'static str, design: Design, seed: u6
     );
     for s in 0..n_sim() {
         let (study, result) = run_study(
-            confounded_series(design.n, 0.0, design.rho, seed + u64::from(s)),
+            confounded_series(grid_n(design.n), 0.0, design.rho, seed + u64::from(s)),
             confounded_cpdag(),
             &multi_sustained(),
             InferenceMode::Frequentist,
@@ -451,7 +456,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho095_n160_short_series_boundary() {
     );
     for s in 0..n_sim() {
         let (study, result) = run_study(
-            confounded_series(160, 0.0, RHO, 90_000 + u64::from(s)),
+            confounded_series(grid_n(160), 0.0, RHO, 90_000 + u64::from(s)),
             confounded_cpdag(),
             &pulse_query(),
             InferenceMode::Frequentist,
@@ -529,7 +534,7 @@ fn bayesian_circle_pag_class_prior_case(
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     for s in 0..n_sim() {
         let (study, result) = run_study(
-            fixtures::pag_series_ar1(design.n, design.rho, seed + u64::from(s)),
+            fixtures::pag_series_ar1(grid_n(design.n), design.rho, seed + u64::from(s)),
             fixtures::circle_pag(),
             query,
             bayes(),
@@ -607,7 +612,7 @@ fn frequentist_circle_pag_case(
     );
     for s in 0..n_sim() {
         let (study, result) = run_study(
-            fixtures::pag_series_ar1(design.n, design.rho, seed + u64::from(s)),
+            fixtures::pag_series_ar1(grid_n(design.n), design.rho, seed + u64::from(s)),
             fixtures::circle_pag(),
             query,
             InferenceMode::Frequentist,
@@ -781,7 +786,7 @@ fn frequentist_temporal_pag_identified_set_interval_nominal_90_coverage() {
     );
     identified_set_case(key, "frequentist TemporalPag Pulse", adjusted, Some(unadjusted), |s| {
         run_study(
-            chain_pag_series(N, 0.0, 74_000 + u64::from(s)),
+            chain_pag_series(grid_n(N), 0.0, 74_000 + u64::from(s)),
             chain_pag(),
             &pulse_query(),
             InferenceMode::Frequentist,
@@ -807,7 +812,7 @@ fn frequentist_temporal_pag_multistep_identified_set_interval_nominal_90_coverag
         Some(unadjusted),
         |s| {
             run_study(
-                chain_pag_series(N, 0.0, 75_000 + u64::from(s)),
+                chain_pag_series(grid_n(N), 0.0, 75_000 + u64::from(s)),
                 chain_pag(),
                 &multi_sustained(),
                 InferenceMode::Frequentist,
@@ -830,7 +835,7 @@ fn frequentist_temporal_cpdag_identified_set_interval_nominal_90_coverage() {
     );
     identified_set_case(key, "frequentist TemporalCpdag Pulse", adjusted, Some(unadjusted), |s| {
         run_study(
-            confounded_series(N, 0.0, 0.0, 76_000 + u64::from(s)),
+            confounded_series(grid_n(N), 0.0, 0.0, 76_000 + u64::from(s)),
             confounded_cpdag(),
             &pulse_query(),
             InferenceMode::Frequentist,
@@ -852,7 +857,7 @@ fn frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage() 
     );
     identified_set_case(key, "frequentist TemporalPag one-completion Pulse", B1, None, |s| {
         run_study(
-            fixtures::pag_series(N, 77_000 + u64::from(s)),
+            fixtures::pag_series(grid_n(N), 77_000 + u64::from(s)),
             fixtures::circle_pag(),
             &pulse_query(),
             InferenceMode::Frequentist,
@@ -881,7 +886,7 @@ fn bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage() {
         Some(unadjusted),
         |s| {
             let (study, result) = run_study(
-                chain_pag_series(N, 0.0, 78_000 + u64::from(s)),
+                chain_pag_series(grid_n(N), 0.0, 78_000 + u64::from(s)),
                 chain_pag(),
                 &pulse_query(),
                 bayes(),
@@ -910,7 +915,7 @@ fn bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_cove
         Some(unadjusted),
         |s| {
             run_study(
-                chain_pag_series(N, 0.0, 79_000 + u64::from(s)),
+                chain_pag_series(grid_n(N), 0.0, 79_000 + u64::from(s)),
                 chain_pag(),
                 &single_sustained(),
                 bayes(),
@@ -1000,7 +1005,7 @@ where
 fn frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion() {
     heterogeneous_se_case("frequentist TemporalCpdag Pulse heterogeneous SDs", |s| {
         run(
-            heterogeneous_se_series(N, 81_000 + u64::from(s)),
+            heterogeneous_se_series(grid_n(N), 81_000 + u64::from(s)),
             confounded_cpdag(),
             &pulse_query(),
             InferenceMode::Frequentist,
@@ -1016,7 +1021,7 @@ fn frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_no
 fn bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion() {
     heterogeneous_se_case("Bayesian TemporalCpdag Pulse heterogeneous SDs (no ClassPrior)", |s| {
         run(
-            heterogeneous_se_series(N, 82_000 + u64::from(s)),
+            heterogeneous_se_series(grid_n(N), 82_000 + u64::from(s)),
             confounded_cpdag(),
             &pulse_query(),
             bayes(),
@@ -1084,7 +1089,7 @@ fn chain_pag_identified_set_interval_is_flagged_truncated() {
     const TRUNCATED: &str = "estimate.temporal_class.identified_set_interval_truncated";
     for (inference, boot) in [(InferenceMode::Frequentist, 32), (bayes(), 0)] {
         let result = run(
-            chain_pag_series(N, 0.0, 11),
+            chain_pag_series(grid_n(N), 0.0, 11),
             chain_pag(),
             &pulse_query(),
             inference,

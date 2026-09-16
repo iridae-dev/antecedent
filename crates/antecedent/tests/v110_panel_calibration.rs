@@ -23,7 +23,7 @@ mod common;
 use antecedent::{RefuteSuite, Study, StudyResult};
 use antecedent_core::{CausalQuery, ExecutionContext, ResponseUncertainty};
 use common::calibration::{
-    CoverageTally, RecordKey, Z95, gaussian, n_sim, normal_interval, stream_seed,
+    CoverageTally, RecordKey, Z95, gaussian, grid_n, n_sim, normal_interval, stream_seed,
 };
 use common::calibration_bind::bind;
 use common::panel_dgp::{UnitSpec, curve_query, lagged_ty_dag, panel, pulse_query, unit_series};
@@ -41,6 +41,8 @@ fn panel_pulse_study(
     boot: u32,
     seed: u64,
 ) -> (Study, StudyResult) {
+    // The grid scales each unit's series length; the unit count is the design.
+    let spec = UnitSpec { n: grid_n(spec.n), ..spec };
     let series = (0..units)
         .map(|unit| unit_series(spec, stream_seed(seed + u64::from(rep), unit as u64)))
         .collect();
@@ -112,7 +114,7 @@ fn between_unit_band_coverage(test: &'static str, units: usize, seed: u64) {
         let mut slope = gaussian(stream_seed(seed + u64::from(rep), 1_000));
         let series = (0..units)
             .map(|unit| {
-                let spec = UnitSpec::iid(80, 0.8 + 0.4 * slope());
+                let spec = UnitSpec::iid(grid_n(80), 0.8 + 0.4 * slope());
                 unit_series(spec, stream_seed(seed + u64::from(rep), unit as u64))
             })
             .collect();

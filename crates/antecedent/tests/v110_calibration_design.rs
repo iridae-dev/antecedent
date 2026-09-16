@@ -35,7 +35,9 @@ use antecedent_core::{
 };
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::{Admg, Dag, DenseNodeId};
-use common::calibration::{CoverageTally, RecordKey, gaussian, n_sim, stream_seed, unit_uniform};
+use common::calibration::{
+    CoverageTally, RecordKey, gaussian, grid_n, n_sim, stream_seed, unit_uniform,
+};
 use common::calibration_bind::bind_all;
 use common::reported::{
     GATE_LEVEL, REPORTED_LEVEL, gate, record_pair, scalar_normal_pair, skip_pair,
@@ -171,7 +173,7 @@ fn transport_admg_trial_ipw_frequentist_nominal_coverage() {
         keyed_pair("transport_admg_trial_ipw_frequentist_nominal_coverage", TRANSPORT_CELL);
     for rep in 0..u64::from(n_sim()) {
         let seed = stream_seed(0x110_0201, rep);
-        let Some((study, result)) = run_transport(transport_data(1000, seed), seed) else {
+        let Some((study, result)) = run_transport(transport_data(grid_n(1000), seed), seed) else {
             skip_pair(&mut tallies);
             continue;
         };
@@ -188,6 +190,11 @@ fn transport_admg_trial_ipw_frequentist_nominal_coverage() {
 // ============================================================== interference
 
 const UNITS: usize = 400;
+
+/// Units of the finite population at this run's sample-size grid point.
+fn units() -> usize {
+    grid_n(UNITS)
+}
 const P_TREAT: f64 = 0.5;
 const DIRECT_EFFECT: f64 = 2.0;
 
@@ -200,11 +207,11 @@ const DIRECT_EFFECT: f64 = 2.0;
 /// finite-population estimand is exactly 2.
 fn alpha() -> Vec<f64> {
     let mut g = gaussian(0x1F7E_A1FA);
-    (0..UNITS).map(|i| 1.0 + 0.5 * (i as f64).sin() + 0.5 * g()).collect()
+    (0..units()).map(|i| 1.0 + 0.5 * (i as f64).sin() + 0.5 * g()).collect()
 }
 
 fn ring_edges() -> Vec<NetworkEdge> {
-    let n = UNITS as u32;
+    let n = units() as u32;
     (0..n)
         .flat_map(|i| {
             [
@@ -217,12 +224,13 @@ fn ring_edges() -> Vec<NetworkEdge> {
 
 /// The study and its result, so a scored replicate can be bound to its tally.
 fn run_interference(alpha: &[f64], seed: u64) -> Option<(Study, StudyResult)> {
+    let units = units();
     let assignment: Vec<bool> =
-        (0..UNITS).map(|i| unit_uniform(stream_seed(seed, i as u64)) < P_TREAT).collect();
-    let y: Vec<f64> = (0..UNITS)
+        (0..units).map(|i| unit_uniform(stream_seed(seed, i as u64)) < P_TREAT).collect();
+    let y: Vec<f64> = (0..units)
         .map(|i| {
-            let k = usize::from(assignment[(i + 1) % UNITS])
-                + usize::from(assignment[(i + UNITS - 1) % UNITS]);
+            let k = usize::from(assignment[(i + 1) % units])
+                + usize::from(assignment[(i + units - 1) % units]);
             alpha[i] + DIRECT_EFFECT * f64::from(u8::from(assignment[i])) + 0.5 * k as f64
         })
         .collect();

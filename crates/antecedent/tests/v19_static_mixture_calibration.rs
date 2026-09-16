@@ -43,7 +43,7 @@ use antecedent_data::TabularData;
 use antecedent_discovery::set_edge;
 use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, n_sim, normal_interval,
+    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, n_sim, normal_interval,
     quantile_interval, stream_seed,
 };
 use common::calibration_bind::bind_all;
@@ -82,13 +82,14 @@ fn draw_data(seed: u64, modifier: bool) -> TabularData {
     let mut unif = uniform(seed);
     let mut eps_noise = gaussian(stream_seed(seed, 0x5EED_0001));
     let mut w_noise = gaussian(stream_seed(seed, 0x5EED_0002));
+    let rows = grid_n(N);
     let (mut t, mut y, mut z, mut w) = (
-        Vec::with_capacity(N),
-        Vec::with_capacity(N),
-        Vec::with_capacity(N),
-        Vec::with_capacity(N),
+        Vec::with_capacity(rows),
+        Vec::with_capacity(rows),
+        Vec::with_capacity(rows),
+        Vec::with_capacity(rows),
     );
-    for _ in 0..N {
+    for _ in 0..rows {
         let zi = f64::from(u8::from(unif() < 0.5));
         let ti = f64::from(u8::from(unif() < 0.25 + 0.5 * zi));
         let wi = w_noise();

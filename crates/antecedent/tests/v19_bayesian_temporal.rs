@@ -28,7 +28,7 @@ use antecedent_core::{
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalCpdag, TemporalDag, ensure_lagged};
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, ar1_noise, n_sim, quantile_interval,
+    CoverageTally, REPORTED_LEVEL, RecordKey, ar1_noise, grid_n, n_sim, quantile_interval,
 };
 use common::calibration_bind::bind_all;
 
@@ -107,6 +107,11 @@ impl Regime {
 
     fn label(self) -> String {
         format!("{} n={}", self.noise.label(), self.n)
+    }
+
+    /// The regime at this run's sample-size grid point (`n` is the base point).
+    fn at_grid(self) -> Self {
+        Self { n: grid_n(self.n), ..self }
     }
 
     /// Stream seed for `rep`. The harness generator uses `seed | 1`, so streams
@@ -299,6 +304,7 @@ impl Cell {
 /// Gated at 90%; the runtime's reported 95% credible interval is scored on the
 /// same replicates and recorded.
 fn coverage(test: &'static str, cell: Cell, regime: Regime) {
+    let regime = regime.at_grid();
     let key = RecordKey { test, dgp: "series_xy", interval: "posterior_quantile" };
     let mut tally = CoverageTally::for_record(key, LEVEL);
     let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
@@ -473,6 +479,7 @@ fn run_mediation_study(
 /// reported 95% interval scored on the same replicates. Total and Direct are
 /// decomposition columns the facade does not report as an interval: no record.
 fn mediation_coverage(test: &'static str, regime: Regime) {
+    let regime = regime.at_grid();
     let targets =
         [("Total", 1, MED_C + MED_A * MED_B), ("Direct", 2, MED_C), ("Mediated", 3, MED_A * MED_B)];
     let key = RecordKey { test, dgp: "series_mediation", interval: "posterior_quantile" };
@@ -795,7 +802,7 @@ fn tyz_cpdag() -> TemporalCpdag {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage() {
-    let regime = Regime::RHO05_N160;
+    let regime = Regime::RHO05_N160.at_grid();
     let prior = ClassPrior::from_ordered([0.5, 0.5]).unwrap();
     let key = RecordKey {
         test: "bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage",
