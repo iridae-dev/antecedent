@@ -10,9 +10,6 @@ Give it data, a causal question, and a graph or discovery strategy. Antecedent d
 
 ## Python: one call, reusable study
 
-Ordinary analyses now retain reusable studies. This is not every Antecedent
-analysis — see the [workflow boundaries](docs/python-workflow.md#current-boundaries).
-
 ```python
 import antecedent as ant
 
@@ -23,15 +20,16 @@ report = result.inspect().to_dict()
 loaded = ant.load(result.export())
 ```
 
-The original result remains tied to its own execution after refresh. Start with
-`ant.prepare(...)` and call `study.estimate()` when preparation should be separate.
-Reports include descriptive answer scope, uncertainty, assumptions, support and
+Every licensed analysis retains a reusable study: `study.refresh(new_data)`
+re-executes the same program on new data, and the original result stays tied
+to its own execution. `result.inspect().to_dict()` is the whole report as
+JSON-safe data: answer scope, uncertainty, assumptions, support, identities and
 calibration availability. Calibration is explicitly unavailable when no evidence
-is bound to the execution.
+is bound to the execution. `ant.load(result.export())` round-trips the
+contracted execution through the Rust semantic consumer.
 
-See the [Python workflow](docs/python-workflow.md) for scope and the
-[example setup](examples/README.md#python-environment-110-branch) for building
-this branch before the 1.10 release.
+See the [Python workflow](docs/python-workflow.md) for studies, reports,
+portable executions and scope.
 
 ## Try it in Colab
 

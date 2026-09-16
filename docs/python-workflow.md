@@ -1,29 +1,39 @@
 # Python analysis workflow (1.10)
 
-These examples require the built `1.10.0` branch; see the
-[Python environment setup](../examples/README.md#python-environment-110-branch).
+```python
+import antecedent as ant
 
-## Start with one call
+result = ant.analyze(data, graph=graph, query=ant.AverageEffect("treatment", "outcome"))
+study = result.study
+updated = study.refresh(new_data)
+report = result.inspect().to_dict()
+loaded = ant.load(result.export())
+```
+
+These five lines are the Python API:
+
+| Line | What it does |
+|---|---|
+| `ant.analyze(...)` | Identifies the query on the graph (or on a `discovery=` configuration), runs only a licensed path, and returns the result |
+| `result.study` | The compiled study that produced the result, retained for reuse |
+| `study.refresh(new_data)` | Re-executes the same program on same-schema data; `result` and its export stay tied to their own execution |
+| `result.inspect().to_dict()` | Everything known about the execution as JSON-safe data: `answer`, the four reasoning slots, identities, `contract`, `calibration`, `diagnostics` |
+| `ant.load(result.export())` | Exports the contracted execution and loads it through the Rust semantic consumer |
+
+The same five verbs apply across query kinds and structures: swap in
+`PulseEffect`, `Counterfactual`, `MediationEffect`, `ConditionalEffect` or
+`ResponseCurve`, and a `Dag`, `Cpdag`, lagged edge list or `discovery=`
+configuration. `python/tests/test_golden_path.py` runs exactly these five lines,
+with no warnings, on each of those routes.
 
 Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
 Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists.
 Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
 
-The existing notebook call still works. It retains a prepared study on the
-ordinary tabular and temporal routes supported by `PreparedAnalysis`:
-
-```python
-import antecedent as ant
-
-result = ant.analyze(data, graph=graph, query=ant.AverageEffect("treatment", "outcome"))
-result                         # notebook display
-report = result.inspect()      # answer, four reasoning slots, calibration, diagnostics
-study = result.study           # the preparation that produced this result
-```
-
-The paid-search and continuous-response notebooks need no extra preparation
-steps. Their results can now be retained for repeated estimation. See the
+The paid-search and continuous-response notebooks use the same call; see the
 [executable workflow example](../examples/python/analysis_workflow.py).
+
+## Reading the answer
 
 `result.answer` is the safe consumption interface. `answer.kind` is one of six
 values, and a result loaded from `result.export()` gives the same kind as the
@@ -66,8 +76,17 @@ defaults, owned by the Rust study builder and readable as
 `refute`, `n_draws`) is resolved there, and `latency=` selects the tier for the
 omitted budgets only; an explicit value is never changed by a tier.
 
-`study.preflight()` is the explicit structural-only view; `study.inspect()`
-reports everything already known.
+A study has two views. `study.inspect()` reports everything already known
+(cached identification, the `contract` identities and reasoning slots, and a
+`calibration` that is `unavailable` / `not_executed` until an estimate runs).
+`study.preflight()` is the cheap structural-only view taken before
+identification. `study.preview_transform(intent)` previews a transformation
+(`compatible_data_replace`, `retarget`, `filter_population`,
+`new_conditional_query`, `change_graph`, `display_precision`, …) without
+executing anything.
+
+A query owns its target population:
+`ant.AverageEffect("t", "y", target_population=Treated())`.
 
 `identify(...)` returns an `Identification` whose `statement`, `verdict`,
 `qualified_verdict`, `assumption_statements`, and `derivation_statements` are
@@ -136,10 +155,8 @@ forwarding. See [artifact examples](artifacts.md#exporting-prepared-results).
 
 `program_id` is the compiled program identity (`contract["program"]`).
 `claim_id` is the execution claim identity (`contract["claim"]["claim_id"]`).
-They are different layers. A prepared inspect has a program and no claim.
-Earlier 1.10 drafts used `claim_id` for the program digest; that name now
-means the execution claim, and `program_id` is the alias for the compiled
-program.
+`data_snapshot_id` is the identity of the data the execution ran on. They are
+different layers. A prepared inspect has a program and no claim.
 
 ## Current boundaries
 

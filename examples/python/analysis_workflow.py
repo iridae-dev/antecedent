@@ -18,29 +18,30 @@ data = {
 graph = [("treatment", "outcome"), ("z", "outcome")]
 query = ant.AverageEffect("treatment", "outcome")
 
-# The same single call used in the notebooks also gives us a reusable study.
-result = ant.analyze(data, graph=graph, query=query, seed=19, bootstrap=25)
-print(result)
-study = result.study
-print("Calibration:", result.calibration.status, result.calibration.reason)
-json.dumps(result.inspect().to_dict(), allow_nan=False)
-
-# An immutable execution can be inspected and forwarded independently.
-encoded = result.export()
-loaded = ant.load(encoded)
-assert loaded.acceptance.verified
-assert loaded.answer.value == result.answer.value
-assert loaded.export() == encoded
-
-# Refresh updates the study only after success; the original result stays fixed.
 new_data = {**data, "outcome": data["outcome"] + treatment}
+
+# The five lines.
+result = ant.analyze(data, graph=graph, query=query, seed=19, bootstrap=25)
+study = result.study
 updated = study.refresh(new_data)
-assert np.isclose(updated.effect, result.effect + 1)
-assert result.export() == encoded
-assert np.isclose(study.estimate().effect, updated.effect)
+report = result.inspect().to_dict()
+loaded = ant.load(result.export())
+
+print(result)
+print("Calibration:", result.calibration.status, result.calibration.reason)
+json.dumps(report, allow_nan=False)
+
+# The loaded execution is verified and gives the same answer as the live one.
+assert loaded.acceptance.verified
+assert loaded.answer == result.answer
+assert loaded.export() == result.export()
+
+# Refresh re-executed the same program on new data; the original result stays fixed.
+assert np.isclose(updated.answer.value, result.answer.value + 1)
+assert np.isclose(study.estimate().answer.value, updated.answer.value)
 print("After refresh:", updated)
 
 # Explicit preparation is the same workflow when a caller wants to stop early.
 prepared = ant.prepare(data, graph=graph, query=query, seed=19, bootstrap=25)
 assert prepared.inspect().identification.available
-assert np.isclose(prepared.estimate().effect, result.effect)
+assert np.isclose(prepared.estimate().answer.value, result.answer.value)
