@@ -80,7 +80,9 @@ pub use result::{
     DerivationStep, DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
     IdentificationStatus, IdentifiedEstimand,
 };
-pub use temporal_backdoor::{TemporalBackdoorIdentifier, TemporalIdentificationResult};
+pub use temporal_backdoor::{
+    PARENT_ADJUSTMENT_RULE, TemporalBackdoorIdentifier, TemporalIdentificationResult,
+};
 pub use temporal_generalized::{TemporalClassEnvelope, TemporalCompletionGraph};
 pub use temporal_mediation::TemporalMediationIdentifier;
 pub use tiered::{
