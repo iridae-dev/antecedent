@@ -495,16 +495,15 @@ impl super::Study {
             Some(AnalysisRoute::MultiEnvTemporalEffect) => {
                 let DataInput::MultiEnv(multi) = data else { unreachable!() };
                 let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
-                let series = multi.environment(0).map_err(|err| CausalError::Compile {
-                    message: format!("multi-env: {err}"),
-                })?;
                 if self.graph.class().is_incomplete_temporal() {
-                    return self.execute_temporal_class(series, q, physical, ctx);
+                    return Err(CausalError::Unsupported {
+                        message: "multi-environment data supports only a supplied TemporalDag",
+                    });
                 }
                 let graph = physical.temporal_graph().ok_or(CausalError::Compile {
                     message: "Ready multi-env plan missing resolved graph".into(),
                 })?;
-                self.execute_temporal(series, graph, q, physical, ctx)
+                self.execute_multi_env_temporal(multi, graph, q, physical, ctx)
             }
             _ => Err(CausalError::Unsupported {
                 message: "execute path unsupported for this configuration",
