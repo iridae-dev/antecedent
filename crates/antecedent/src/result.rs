@@ -544,6 +544,20 @@ impl StudyResult {
         Some(binding)
     }
 
+    /// Construction of a counterfactual's published per-unit intervals
+    /// (`counterfactual.unit_effect_intervals`), when the execution formed them.
+    #[must_use]
+    pub fn unit_effect_interval_binding(&self) -> Option<IntervalBinding> {
+        let intervals = self.counterfactual.as_ref()?.unit_effect_intervals.as_ref()?;
+        let mut binding = IntervalBinding::new(
+            antecedent_core::IntervalMethod::UnitPosteriorQuantile,
+            intervals.level,
+            self.base_dependence(),
+        );
+        binding.posterior_draws = self.posterior_draw_count();
+        Some(binding)
+    }
+
     /// Construction of a temporal response's published simultaneous band
     /// (support diagnostic `response.simultaneous_band.critical`), when one
     /// accompanies a pointwise band.
@@ -577,10 +591,13 @@ impl StudyResult {
     pub fn reported_interval_bindings(&self, bayesian: bool) -> Vec<IntervalBinding> {
         let primary = self.primary_interval_binding(bayesian);
         let mut out = vec![primary];
-        for extra in
-            [self.identified_set_interval_binding(), self.simultaneous_band_binding(bayesian)]
-                .into_iter()
-                .flatten()
+        for extra in [
+            self.identified_set_interval_binding(),
+            self.simultaneous_band_binding(bayesian),
+            self.unit_effect_interval_binding(),
+        ]
+        .into_iter()
+        .flatten()
         {
             if out.iter().all(|seen| seen.method != extra.method) {
                 out.push(extra);

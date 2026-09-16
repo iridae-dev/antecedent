@@ -508,6 +508,7 @@ def render_coverage_records() -> str:
         ("AnalyticSe", "analytic_se"),
         ("BootstrapSe", "bootstrap_se"),
         ("PosteriorQuantile", "posterior_quantile"),
+        ("UnitPosteriorQuantile", "unit_posterior_quantile"),
         ("IdentifiedSet", "identified_set"),
         ("CircularBlockSe", "circular_block_se"),
         ("SimultaneousBand", "simultaneous_band"),

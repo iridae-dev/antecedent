@@ -103,6 +103,10 @@ class AteAnalysisResult:
     structural_identified_set_interval_truncated: bool | None
     certificate_json: str | None
     unit_effects: list[float] | None
+    unit_effect_intervals: list[tuple[float, float]] | None
+    unit_effect_intervals_level: float | None
+    unit_effect_intervals_method: str | None
+    unit_extrapolative: list[bool] | None
     assumptions: list[str]
     support_diagnostics: list[str]
     ate: float

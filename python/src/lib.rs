@@ -904,6 +904,18 @@ pub(crate) struct AteAnalysisResult {
     mediation_total: Option<f64>,
     #[pyo3(get)]
     unit_effects: Option<Vec<f64>>,
+    /// Per-unit `(lower, upper)` intervals aligned with `unit_effects`.
+    #[pyo3(get)]
+    unit_effect_intervals: Option<Vec<(f64, f64)>>,
+    /// Level of `unit_effect_intervals`.
+    #[pyo3(get)]
+    unit_effect_intervals_level: Option<f64>,
+    /// Construction of `unit_effect_intervals`.
+    #[pyo3(get)]
+    unit_effect_intervals_method: Option<String>,
+    /// Per-unit extrapolation flags aligned with `unit_effects`.
+    #[pyo3(get)]
+    unit_extrapolative: Option<Vec<bool>>,
     #[pyo3(get)]
     assumptions: Vec<String>,
     #[pyo3(get)]

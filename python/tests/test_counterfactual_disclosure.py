@@ -1,8 +1,12 @@
-"""A ``Counterfactual`` result whose selected mechanisms cannot represent effect
-modification says so.
+"""A ``Counterfactual`` result says when its per-unit effects are equal by
+construction, and only then.
 
-``unit_effects`` is then a per-unit *shape* around one number, and nothing in the
-numbers themselves tells a reader that.
+``unit_effects`` is a per-unit *shape* around one number whenever every mechanism
+on a treatment-to-outcome path is additively separable. That is disclosed as a
+property of the mechanism only when no family that could have represented effect
+modification was fit on those paths. When such a family was scored and lost on
+validation score, equal unit effects are a finding about the data, and the result
+records what was rejected instead.
 """
 
 import antecedent as ac
@@ -10,6 +14,7 @@ import numpy as np
 import pytest
 
 HOMOGENEITY = "gcm.counterfactual.unit_effects_homogeneous"
+REJECTED = "gcm.counterfactual.heterogeneity_rejected"
 
 
 def interaction_fixture():
@@ -35,9 +40,9 @@ def additive_fixture():
     return {"z": z, "a": a, "y": y}, [("z", "a"), ("z", "y"), ("a", "y")]
 
 
-def disclosure(result):
+def diagnostic(result, code):
     for text in result.diagnostics:
-        if text.startswith(f"{HOMOGENEITY}:"):
+        if text.startswith(f"{code}:"):
             return text
     return None
 
@@ -54,37 +59,37 @@ def counterfactual(data, graph, **kwargs):
 
 
 @pytest.mark.parametrize("bayesian", [False, True])
-def test_linear_mechanism_discloses_homogeneous_unit_effects(bayesian):
-    """The standard registry fits ``y`` as linear-Gaussian, which has no ``a × b``
-    term, so abduction-action-prediction returns one number per unit and the same
-    number for every unit. The Bayesian cell is not different in kind: its
-    posterior is uncertainty about that one slope, not per-unit variation."""
+def test_interaction_is_estimated_not_disclosed(bayesian):
+    """The consumer's interaction DGP. The counterfactual registry offers a
+    ``treatment × parent`` family, it wins on validation score, and the two
+    subgroups get their own contrast instead of one pooled slope. This fixture
+    used to return 1.1391 for every unit with standard deviation 0."""
     data, graph = interaction_fixture()
     kwargs = {"inference": ac.Bayesian(n_draws=64)} if bayesian else {}
     result = counterfactual(data, graph, **kwargs)
 
     effects = np.asarray(result.unit_effects)
     assert effects.shape == (2500,)
-    # The interaction is invisible: both subgroups get the identical contrast.
     b = data["b"]
-    assert effects[b == 0].mean() == pytest.approx(effects[b == 1].mean(), abs=1e-12)
-    assert float(effects.std()) == pytest.approx(0.0, abs=1e-12)
+    # Sampling error of the interaction coefficient at n = 2500 is about 0.07.
+    assert effects[b == 0].mean() == pytest.approx(0.8, abs=0.2)
+    assert effects[b == 1].mean() == pytest.approx(1.4, abs=0.25)
+    assert effects[b == 1].mean() - effects[b == 0].mean() > 0.3
+    assert float(effects.std()) > 0.1
 
-    assert result.estimate.unit_effects_homogeneous is True
-    text = disclosure(result)
-    assert text is not None, result.diagnostics
-    assert "admits no effect modification" in text
-    assert "LinearGaussian" in text and "for y" in text
-    assert "(homogeneous mechanism)" in repr(result.estimate)
-    assert repr(result.estimate).startswith("<EstimateView mean_ite=")
+    assert result.estimate.unit_effects_homogeneous is False
+    assert diagnostic(result, HOMOGENEITY) is None
+    assert "(homogeneous mechanism)" not in repr(result.estimate)
+    mechanisms = diagnostic(result, "gcm.counterfactual.mechanisms")
+    assert "selected: LinearInteractions" in mechanisms or "selected: LinearSpline" in mechanisms
 
 
 def test_additive_dgp_keeps_every_number_it_reports_today():
-    """``y = 0.8a + z + e`` is the case the mechanism *can* represent. The
-    disclosure still fires — a linear-Gaussian mechanism is homogeneous by
-    construction whatever the data-generating process — but it must not move a
-    single number: the point, the per-unit vector and the estimator are what this
-    cell reported before the disclosure existed."""
+    """``y = 0.8a + z + e`` has no effect modifier. The interaction families are
+    scored and lose, so the selected mechanism is the linear one and every number
+    this cell reported before the richer families existed is unchanged. The
+    equality of the unit effects is now an empirical finding, so the
+    homogeneity disclosure does not fire; the rejected families are named."""
     data, graph = additive_fixture()
     result = counterfactual(data, graph)
 
@@ -96,7 +101,35 @@ def test_additive_dgp_keeps_every_number_it_reports_today():
     assert result.estimate.ate == pytest.approx(0.8590508, abs=1e-6)
     assert result.mean_ite == pytest.approx(0.8590508, abs=1e-6)
     assert float(effects.std()) == pytest.approx(0.0, abs=1e-12)
+
+    assert result.estimate.unit_effects_homogeneous is False
+    assert diagnostic(result, HOMOGENEITY) is None
+    rejected = diagnostic(result, REJECTED)
+    assert rejected is not None, result.diagnostics
+    assert "linear_interactions" in rejected and "lost to linear_gaussian" in rejected
+
+
+@pytest.mark.parametrize("bayesian", [False, True])
+def test_single_parent_outcome_discloses_structural_homogeneity(bayesian):
+    """With the treatment as the outcome's only parent no cross-parent product
+    exists, every heterogeneity-capable family fails to fit, and the equal
+    contrast is fixed by the mechanism: that is disclosed."""
+    rng = np.random.default_rng(4)
+    n = 1500
+    a = (rng.uniform(size=n) < 0.5).astype(float)
+    y = 0.8 * a + rng.normal(size=n)
+    kwargs = {"inference": ac.Bayesian(n_draws=64)} if bayesian else {}
+    result = counterfactual({"a": a, "y": y}, [("a", "y")], **kwargs)
+
+    assert float(np.std(result.unit_effects)) == pytest.approx(0.0, abs=1e-12)
     assert result.estimate.unit_effects_homogeneous is True
+    text = diagnostic(result, HOMOGENEITY)
+    assert text is not None, result.diagnostics
+    assert "admits no effect modification" in text
+    assert "LinearGaussian" in text and "for y" in text
+    assert "(homogeneous mechanism)" in repr(result.estimate)
+    assert repr(result.estimate).startswith("<EstimateView mean_ite=")
+    assert diagnostic(result, REJECTED) is None
 
 
 def test_discrete_outcome_makes_no_homogeneity_claim():
@@ -110,5 +143,5 @@ def test_discrete_outcome_makes_no_homogeneity_claim():
     effects = np.asarray(result.unit_effects)
     assert float(effects.std()) > 0.0
     assert result.estimate.unit_effects_homogeneous is False
-    assert disclosure(result) is None
+    assert diagnostic(result, HOMOGENEITY) is None
     assert "(homogeneous mechanism)" not in repr(result.estimate)

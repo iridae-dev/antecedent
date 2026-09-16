@@ -279,6 +279,14 @@ def _probability_interval_from_raw(raw: Any) -> ProbabilityIntervalView | None:
     )
 
 
+def _unit_effect_intervals_from_raw(raw: Any) -> list[tuple[float, float]] | None:
+    """Native per-unit ``(lower, upper)`` pairs → tuples (``None`` passes through)."""
+    pairs = getattr(raw, "unit_effect_intervals", None)
+    if pairs is None:
+        return None
+    return [(float(lower), float(upper)) for lower, upper in pairs]
+
+
 def _distribution_atoms_from_raw(sec_estimate: Any) -> tuple[DistributionAtomView, ...] | None:
     """Native distribution atoms with their bounded probability intervals."""
     atoms = getattr(sec_estimate, "distribution_atoms", None)
@@ -531,6 +539,10 @@ def _wrap_ate(
         ),
         posterior=posterior,
         unit_effects=getattr(raw, "unit_effects", None),
+        unit_effect_intervals=_unit_effect_intervals_from_raw(raw),
+        unit_effect_intervals_level=getattr(raw, "unit_effect_intervals_level", None),
+        unit_effect_intervals_method=getattr(raw, "unit_effect_intervals_method", None),
+        unit_extrapolative=getattr(raw, "unit_extrapolative", None),
         assumptions=getattr(raw, "assumptions", None),
         support=getattr(raw, "support_diagnostics", None),
         mediation=mediation,

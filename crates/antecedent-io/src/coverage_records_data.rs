@@ -12786,6 +12786,7 @@ pub static INTERVAL_METHOD_REASONS: &[(antecedent_core::IntervalMethod, Option<&
     (antecedent_core::IntervalMethod::AnalyticSe, None),
     (antecedent_core::IntervalMethod::BootstrapSe, None),
     (antecedent_core::IntervalMethod::PosteriorQuantile, None),
+    (antecedent_core::IntervalMethod::UnitPosteriorQuantile, Some("estimator_grid_not_measured")),
     (antecedent_core::IntervalMethod::IdentifiedSet, None),
     (antecedent_core::IntervalMethod::CircularBlockSe, None),
     (antecedent_core::IntervalMethod::SimultaneousBand, None),

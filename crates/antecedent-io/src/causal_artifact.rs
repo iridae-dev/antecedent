@@ -57,6 +57,11 @@ pub struct StaticResultWire {
     pub refutations: Vec<crate::RefutationReportWire>,
     /// Per-unit ITEs for counterfactuals.
     pub unit_effects: Option<Vec<f64>>,
+    /// Per-unit extrapolation flags aligned with [`Self::unit_effects`]: the
+    /// unit's prediction into the arm it did not receive leaves that arm's
+    /// observed support. Absent on artifacts written before the flags existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit_extrapolative: Option<Vec<bool>>,
     /// Total, natural direct, natural indirect mediation contrasts.
     pub mediation: Option<[f64; 3]>,
     /// Control intervention level, including the counterfactual builder override.
@@ -241,12 +246,17 @@ fn validate_payload(payload: &CausalPayloadWire, variable_count: usize) -> Resul
             }
             let shape_matches = match &id.query {
                 antecedent_core::CausalQuery::Mediation(_) => {
-                    wire.mediation.is_some() && wire.unit_effects.is_none()
+                    wire.mediation.is_some()
+                        && wire.unit_effects.is_none()
+                        && wire.unit_extrapolative.is_none()
                 }
                 antecedent_core::CausalQuery::Counterfactual(_) => {
                     wire.unit_effects.is_some()
                         && wire.mediation.is_none()
                         && wire.standard_error.is_none()
+                        && wire.unit_extrapolative.as_ref().is_none_or(|flags| {
+                            Some(flags.len()) == wire.unit_effects.as_ref().map(Vec::len)
+                        })
                 }
                 _ => false,
             };

@@ -179,9 +179,13 @@ class EstimateView:
     monotone_rearranged: bool = False
     interaction_structurally_zero: bool | None = None
     #: Counterfactual disclosure: the mechanisms selected on every treatment to
-    #: outcome path admit no effect modification, so ``unit_effects`` is the same
-    #: number for every unit by construction of the mechanism family — not a
-    #: measured finding of a homogeneous treatment effect.
+    #: outcome path admit no effect modification *and* no family that could have
+    #: modified the effect was fit on those paths (none applied, e.g. a
+    #: single-parent outcome, or every such family failed), so ``unit_effects`` is
+    #: the same number for every unit by construction — not a measured finding.
+    #: When a heterogeneity-capable family was fit and lost on validation score
+    #: this stays ``False``: equal unit effects are then an empirical finding,
+    #: recorded in ``gcm.counterfactual.heterogeneity_rejected``.
     unit_effects_homogeneous: bool | None = None
     score_table: ScoreTableSection | None = None
     joint_covariance: list[list[float]] | None = None
@@ -623,6 +627,22 @@ class AnalysisResult(ResultAPI):
     query: Any = None
     certificate: dict[str, Any] | None = None
     unit_effects: list[float] | None = None
+    #: Per-unit ``(lower, upper)`` intervals aligned with ``unit_effects``, at
+    #: ``unit_effect_intervals_level`` and by ``unit_effect_intervals_method``.
+    #: Bayesian counterfactuals publish the equal-tailed posterior quantiles of
+    #: each unit's ITE draws (``"unit_posterior_quantile"``): a credible interval for
+    #: that observed unit's contrast under the fitted mechanism, carrying
+    #: mechanism-refit uncertainty only. Frequentist counterfactuals have no
+    #: per-unit construction and leave all three ``None``
+    #: (``gcm.counterfactual.uncertainty_unavailable``).
+    unit_effect_intervals: list[tuple[float, float]] | None = None
+    unit_effect_intervals_level: float | None = None
+    unit_effect_intervals_method: str | None = None
+    #: Per-unit flags aligned with ``unit_effects``: ``True`` where the unit's
+    #: prediction into the arm it did not receive leaves that arm's observed
+    #: support (covariate cell or abducted disturbance). Counts are in the
+    #: ``gcm.counterfactual.support`` diagnostic.
+    unit_extrapolative: list[bool] | None = None
     assumptions: list[str] | None = None
     support: list[str] | None = None
     reasoning: ReasoningSlots | None = None

@@ -60,7 +60,7 @@ pub(super) use crate::callback_plan::mark_python_callback_plan;
 pub(super) use crate::error::CausalError;
 pub(super) use crate::gcm::{
     anomaly_attribution, attribute_distribution_change, attribute_unit_change, counterfactual_ite,
-    fit_gcm, mechanism_change_detection,
+    fit_gcm, fit_gcm_counterfactual, map_mechanism_fit, mechanism_change_detection,
 };
 pub(super) use crate::inference::{
     BayesianConfig, InferenceMode, resolve_bayesian_prior_with_conflict,
