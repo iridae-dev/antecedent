@@ -289,6 +289,90 @@ fn temporal_cpdag_with_an_unoriented_treatment_edge_still_refuses() {
     assert!(message.contains("lagged cycle"), "{message}");
 }
 
+/// Coverage record whose construction is exactly `key` over `n_min..=n_max`.
+fn record_for(
+    key: &antecedent_io::calibration::CalibrationKeyWire,
+    id: &'static str,
+    n_min: u64,
+    n_max: u64,
+) -> antecedent_io::coverage_records_data::CoverageRecord {
+    let leak = |value: &str| -> &'static str { Box::leak(value.to_owned().into_boxed_str()) };
+    antecedent_io::coverage_records_data::CoverageRecord {
+        id,
+        query: leak(&key.query),
+        graph_class: leak(&key.graph_class),
+        structure: leak(&key.structure),
+        modality: leak(&key.modality),
+        inference: leak(&key.inference),
+        estimator: leak(&key.estimator),
+        interval_method: leak(&key.interval_method),
+        se_kind: leak(&key.se_kind),
+        dependence: leak(&key.dependence),
+        posterior: leak(&key.posterior),
+        functional: leak(&key.functional),
+        identification: leak(&key.identification),
+        nominal: key.level,
+        n_min,
+        n_max,
+        replicates_min: 0,
+        posterior_draws_min: 0,
+        unidentified_mass_max: 0.0,
+        observed: 0.95,
+        mcse: 0.01,
+        replicates: 400,
+        boundary: false,
+        grid: &[],
+        dgp: "crates/antecedent/tests/temporal_parent_adjustment.rs::fixture",
+        test: "crates/antecedent/tests/temporal_parent_adjustment.rs::fixture",
+        calibration_sha: "0123456789abcdef0123456789abcdef01234567",
+    }
+}
+
+/// A parent-adjusted pulse and an unfolding-identified pulse report the same
+/// estimator and interval, but their calibration keys differ in the
+/// identification construction: the parent-adjusted interval binds only to a
+/// record measured for parent adjustment, never to an unfolding record.
+#[test]
+fn parent_adjusted_interval_binds_only_to_parent_adjustment_records() {
+    use antecedent_io::calibration::{IDENTIFICATION_NOT_MEASURED, calibration_slot_in};
+    let ctx = ExecutionContext::for_tests(31);
+    let run = |graph: TemporalDag, data: TimeSeriesData| {
+        let study = Study::series(data)
+            .graph(graph)
+            .query(CausalQuery::TemporalEffect(pulse()))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let result = study.run(&ctx).unwrap();
+        let contract = study.inspect().unwrap();
+        result.calibration_bases(&contract).unwrap().remove(0)
+    };
+    let parent = run(
+        autoregressive_pulse_dag(true, false),
+        autoregressive_pulse_series(400, AR_PHI, false, 31),
+    );
+    let unfolding = run(
+        autoregressive_pulse_dag(false, false),
+        autoregressive_pulse_series(400, 0.0, false, 31),
+    );
+    assert_eq!(unfolding.key.identification, "point");
+    assert_eq!(parent.key.identification, "point+temporal.parent_adjustment");
+    let mut same_otherwise = parent.key.clone();
+    same_otherwise.identification = unfolding.key.identification.clone();
+    assert_eq!(same_otherwise, unfolding.key, "only the identification construction differs");
+
+    let unfolding_record = record_for(&unfolding.key, "cov.unfolding", 100, 1000);
+    let parent_record = record_for(&parent.key, "cov.parent", 100, 1000);
+    let slot = calibration_slot_in(&parent, &[unfolding_record]);
+    assert_eq!(slot.status, "unavailable");
+    assert_eq!(slot.reason.as_deref(), Some(IDENTIFICATION_NOT_MEASURED));
+    let slot = calibration_slot_in(&parent, &[unfolding_record, parent_record]);
+    assert_eq!(slot.status, "calibrated", "{slot:?}");
+    assert_eq!(slot.record_id.as_deref(), Some("cov.parent"));
+    let slot = calibration_slot_in(&unfolding, &[parent_record, unfolding_record]);
+    assert_eq!(slot.record_id.as_deref(), Some("cov.unfolding"));
+}
+
 #[test]
 fn contract_records_the_parent_adjustment_and_round_trips_it() {
     let data = autoregressive_pulse_series(600, AR_PHI, false, 13);

@@ -1720,6 +1720,10 @@ impl StudyResult {
         // verify against its own body.
         let modality = contract.modality.as_ref();
         let (label, unidentified_mass) = identification_label(identification);
+        let label = antecedent_io::calibration::identification_key(
+            label,
+            self.identification.derivation.steps.iter().map(|step| step.rule.as_ref()),
+        );
         let bayesian = contract.inference.eq_ignore_ascii_case("bayesian");
         self.reported_interval_bindings(bayesian)
             .into_iter()

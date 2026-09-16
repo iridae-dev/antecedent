@@ -87,7 +87,7 @@ estimator. The fallback does not apply to multi-step `SustainedEffect` or
 `Sequence` (time-varying confounding makes parent adjustment insufficient),
 to response queries, to `TemporalCpdag` / `TemporalPag` completions (their
 parents are not determined by the class), or to graph-posterior atoms, which
-are identified by unfolding alone.
+are identified by unfolding alone. The calibration key carries the construction (`identification = point+temporal.parent_adjustment`), so a parent-adjusted interval binds only to coverage records measured for parent adjustment.
 
 ### Estimation
 
