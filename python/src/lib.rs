@@ -491,6 +491,11 @@ impl IntoCausalPyErr for RustCausalError {
     fn into_antecedent_py_err(self) -> PyErr {
         match self {
             Self::Identify(e) => CausalIdentifyError::new_err(e.to_string()),
+            // A reason-coded estimator refusal is the one refusal class, as a Rust
+            // `Unsupported` refusal is.
+            Self::Estimate(e @ antecedent_estimate::EstimationError::Refused { .. }) => {
+                unsupported_py_err(e.to_string())
+            }
             Self::Estimate(e) => CausalEstimateError::new_err(e.to_string()),
             Self::Validate(e) => CausalValidateError::new_err(e.to_string()),
             Self::Discovery(e) => CausalDiscoveryError::new_err(e.to_string()),

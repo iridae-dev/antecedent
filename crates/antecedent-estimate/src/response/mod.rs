@@ -44,6 +44,41 @@ use crate::util::range;
 mod band;
 use band::simultaneous_multiplier_band;
 
+/// Refuse a local-polynomial response whose design is singular at `at`.
+///
+/// With a Gaussian kernel every row carries some weight, so the local design is
+/// singular only when fewer distinct treatment values than the polynomial's
+/// `order + 1` coefficients carry appreciable weight at `at`: a binary or
+/// few-level treatment, or levels spaced far beyond the bandwidth. That is a
+/// property of the treatment, not a numerical accident, so it is refused with a
+/// reason code that names the queries that answer a discrete treatment. Every
+/// other error passes through unchanged.
+fn local_design_refusal(
+    err: StatsError,
+    treatments: &[f64],
+    at: f64,
+    bandwidth: f64,
+) -> EstimationError {
+    let StatsError::SingularLocalDesign { order } = err else {
+        return err.into();
+    };
+    let mut levels: Vec<f64> = treatments.iter().copied().filter(|v| v.is_finite()).collect();
+    levels.sort_by(f64::total_cmp);
+    levels.dedup();
+    EstimationError::refused(
+        antecedent_core::reason_code!("treatment_support_too_discrete"),
+        format!(
+            "a local-polynomial response of order {order} needs at least {} distinct treatment \
+             values carrying kernel weight at each evaluation point; at treatment = {at} \
+             (bandwidth {bandwidth:.4}) fewer do, and the treatment takes {} distinct values in \
+             all. A binary treatment's contrast is AverageEffect; each level of a discrete \
+             treatment is InterventionResponse",
+            order + 1,
+            levels.len(),
+        ),
+    )
+}
+
 /// Lower clamp on the fitted conditional treatment density in the Kennedy weight.
 ///
 /// A clamped row has an unbounded inverse weight, so every clamp is counted and
@@ -677,7 +712,10 @@ impl ContinuousResponseEstimator {
                                 *at,
                                 bandwidth,
                                 &weights,
-                            )?;
+                            )
+                            .map_err(|err| {
+                                local_design_refusal(err, &samples[0].treatments, *at, bandwidth)
+                            })?;
                             scalars.push(transform_point_derivative(
                                 p.value,
                                 p.first_derivative,
@@ -692,7 +730,10 @@ impl ContinuousResponseEstimator {
                                 *at,
                                 bandwidth,
                                 Some(&weights),
-                            )?;
+                            )
+                            .map_err(|err| {
+                                local_design_refusal(err, &samples[0].treatments, *at, bandwidth)
+                            })?;
                             corrected_scalars.push(transform_point_derivative(
                                 c.value,
                                 c.first_derivative,
@@ -969,7 +1010,8 @@ impl ContinuousResponseEstimator {
                 &pseudo,
                 at,
                 bandwidth,
-            )?;
+            )
+            .map_err(|err| local_design_refusal(err, &sample.treatments, at, bandwidth))?;
             let point = fit.point;
             mean.push(point.value);
             // Kennedy et al. (2017, Thm. 3): the pseudo-outcome's marginalization
@@ -1212,7 +1254,8 @@ impl ContinuousResponseEstimator {
             &pseudo,
             at,
             bandwidth,
-        )?;
+        )
+        .map_err(|err| local_design_refusal(err, &sample.treatments, at, bandwidth))?;
         let point = local.point;
         let estimate = transform_point_derivative(
             point.value,
@@ -1235,7 +1278,8 @@ impl ContinuousResponseEstimator {
             at,
             bandwidth,
             None,
-        )?;
+        )
+        .map_err(|err| local_design_refusal(err, &sample.treatments, at, bandwidth))?;
         let corrected_estimate = transform_point_derivative(
             corrected.value,
             corrected.first_derivative,

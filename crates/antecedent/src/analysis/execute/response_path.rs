@@ -102,6 +102,12 @@ impl super::Study {
                     Err(err) => Err(err),
                 }
             };
+            // A reason-coded refusal is a property of the data (for example a
+            // treatment too discrete for a local-polynomial response), shared by
+            // every atom; it is the answer, not an unevaluable atom.
+            if let Err(err @ antecedent_estimate::EstimationError::Refused { .. }) = response {
+                return Err(err.into());
+            }
             let Ok(response) = response else {
                 // Identified but not evaluable: the atom keeps its identification
                 // status and has no value, so its mass is unevaluable.

@@ -23,6 +23,7 @@ pub const REASON_CODES: &[&str] = &[
     "row_weights_bound_to_snapshot",
     "sample_size_outside_measured_range",
     "stage_stream_unavailable",
+    "treatment_support_too_discrete",
     "unidentified_mass_above_measured",
     "validators_not_applicable",
 ];
@@ -39,5 +40,6 @@ pub const RUNTIME_REFUSAL_CODES: &[&str] = &[
     "prior_transfer_not_hydrated",
     "row_weights_bound_to_snapshot",
     "stage_stream_unavailable",
+    "treatment_support_too_discrete",
     "validators_not_applicable",
 ];
