@@ -51,7 +51,10 @@ pub fn estimate_static_mediation(
 ) -> Result<TemporalMediationEstimate, EstimationError> {
     query.validate()?;
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(EstimationError::unsupported("static mediation requires AllObserved"));
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("population_not_estimable"),
+            "static mediation requires AllObserved",
+        ));
     }
     let delta = crate::adjustment::intervention_f64(&query.active)?
         - crate::adjustment::intervention_f64(&query.control)?;

@@ -221,7 +221,12 @@ fn refuses_att_target_population_with_linear_adjustment() {
         estimator: Arc::from("linear.adjustment.ate"),
     })
     .unwrap_err();
-    assert!(matches!(err, CausalError::Compile { .. }));
+    let message = err.to_string();
+    assert_eq!(
+        antecedent_core::reason_code::split_prefix(&message).map(|(code, _)| code),
+        Some("population_not_estimable"),
+        "linear adjustment must refuse ATT by code: {message}"
+    );
 }
 
 #[test]

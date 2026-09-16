@@ -91,7 +91,8 @@ fn prepare_iv_problem(
         return Err(EstimationError::unsupported("IV estimators do not support effect modifiers"));
     }
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("population_not_estimable"),
             "IV estimators only support TargetPopulation::AllObserved",
         ));
     }

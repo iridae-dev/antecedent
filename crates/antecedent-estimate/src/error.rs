@@ -39,8 +39,13 @@ pub enum EstimationError {
     /// Effect modifiers not supported on this estimator path.
     #[error("effect modifiers are not supported on this estimator path")]
     EffectModifiers,
-    /// Target population not supported on this estimator path.
-    #[error("only TargetPopulation::AllObserved is supported on this estimator path")]
+    /// Target population not supported on this estimator path: a refusal with
+    /// the registered `population_not_estimable` reason code.
+    #[error(
+        "{}{}: only TargetPopulation::AllObserved is supported on this estimator path",
+        antecedent_core::reason_code::PREFIX,
+        antecedent_core::reason_code!("population_not_estimable")
+    )]
     TargetPopulation,
     /// Query options unsupported by this estimator (fixed message).
     #[error("{message}")]

@@ -39,6 +39,25 @@ pub struct StaticAteCompileInput<'a> {
     pub estimator: Arc<str>,
 }
 
+/// `linear.adjustment.ate` reports the treatment coefficient, the effect in the
+/// `AllObserved` population. On every graph class it refuses another target
+/// rather than reporting that coefficient under the target's name.
+fn refuse_linear_adjustment_population(
+    estimator: EstimatorId,
+    query: &AverageEffectQuery,
+) -> Result<(), CausalError> {
+    if matches!(estimator, EstimatorId::LinearAdjustmentAte)
+        && query.target_population != TargetPopulation::AllObserved
+    {
+        return Err(crate::unsupported_reason!(
+            "population_not_estimable",
+            "estimator \"linear.adjustment.ate\" only supports TargetPopulation::AllObserved; use \
+             a propensity or AIPW estimator for ATT/ATC/Predicate/CustomDistribution targets"
+        ));
+    }
+    Ok(())
+}
+
 /// Compile logical plan for static ATE .
 ///
 /// # Errors
@@ -53,17 +72,7 @@ pub fn compile_logical_static_ate(
     let identifier: IdentifierId = input.identifier.parse()?;
     let estimator: EstimatorId = input.estimator.parse()?;
     validate_static_pair(identifier, estimator)?;
-    if matches!(estimator, EstimatorId::LinearAdjustmentAte)
-        && input.query.target_population != TargetPopulation::AllObserved
-    {
-        return Err(CausalError::Compile {
-            message: format!(
-                "estimator \"linear.adjustment.ate\" only supports TargetPopulation::AllObserved \
-                 (got {:?}); use a propensity or AIPW estimator for ATT/ATC/Predicate",
-                input.query.target_population
-            ),
-        });
-    }
+    refuse_linear_adjustment_population(estimator, input.query)?;
     let record = LogicalAnalysisPlanRecord {
         plan_id: Arc::from("static_ate"),
         data_classification: DataClassification::Tabular,
@@ -210,6 +219,7 @@ pub fn compile_logical_static_pag_ate(
         });
     }
     validate_static_pair(identifier, estimator)?;
+    refuse_linear_adjustment_population(estimator, input.query)?;
     let record = LogicalAnalysisPlanRecord {
         plan_id: Arc::from("static_pag_ate"),
         data_classification: DataClassification::Tabular,
@@ -268,6 +278,7 @@ pub fn compile_logical_static_cpdag_ate(
         });
     }
     validate_static_pair(identifier, estimator)?;
+    refuse_linear_adjustment_population(estimator, input.query)?;
     let record = LogicalAnalysisPlanRecord {
         plan_id: Arc::from("static_cpdag_ate"),
         data_classification: DataClassification::Tabular,
