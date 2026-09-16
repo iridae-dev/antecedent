@@ -143,7 +143,7 @@ fn prepared_contract_uses_cached_identification() {
     let prepared = study(data, dag, query).prepare(&ctx).unwrap();
     let contract = prepared.contract().unwrap();
     let product = contract.identities.identification_product.expect("prepared product");
-    assert_ne!(contract.identities.target, contract.identities.program);
+    assert_ne!(Some(contract.identities.target), contract.identities.program);
     assert_ne!(contract.identities.identification, product);
     match &contract.reasoning.identification {
         SlotAvailability::Available(slot) => {
@@ -171,7 +171,11 @@ fn prepared_inspect_is_the_cheap_pre_prepare_record() {
     assert!(contract.identities.identification_product.is_some());
     assert!(matches!(contract.reasoning.identification, SlotAvailability::Available(_)));
     assert_eq!(contract.identities.target, cheap.identities.target);
-    assert_ne!(contract.identities.program, cheap.identities.program);
+    assert!(contract.identities.program.is_some());
+    assert_eq!(
+        cheap.identities.program, None,
+        "cheap inspection has no identification products, so no program identity"
+    );
 }
 
 #[test]
@@ -220,7 +224,7 @@ fn preview_does_not_authorize_a_changed_program() {
     let prepared = study(data, dag, query).prepare(&ctx).unwrap();
     let contract = prepared.contract().unwrap();
     let preview = prepared.preview_transform(TransformIntent::CompatibleDataReplace).unwrap();
-    assert!(preview.binds_program(contract.identities.program));
+    assert!(preview.binds_program(contract.identities.program.expect("prepared program")));
     assert!(!preview.refused);
     let support = preview.layer(antecedent_core::SemanticLayer::Support).unwrap();
     assert!(support.effects.contains(&antecedent_core::TransformEffect::Invalidates));
@@ -255,7 +259,8 @@ fn inspect_and_prepare_share_target_identity() {
     assert_eq!(inspected.identities.identification, contract.identities.identification);
     assert!(inspected.identities.identification_product.is_none());
     assert!(contract.identities.identification_product.is_some());
-    assert_ne!(inspected.identities.program, contract.identities.program);
+    assert!(inspected.identities.program.is_none());
+    assert!(contract.identities.program.is_some());
 }
 
 #[test]
@@ -358,10 +363,22 @@ fn same_shape_inspection_distinguishes_masks_and_weights() {
         )
         .unwrap(),
     );
+    let ctx = ExecutionContext::for_tests(1);
+    let program = |data: TabularData| {
+        study(data, dag.clone(), query.clone())
+            .prepare(&ctx)
+            .unwrap()
+            .contract()
+            .unwrap()
+            .identities
+    };
+    let baseline_program = program(data.clone()).program;
+    assert!(baseline_program.is_some());
     for changed in [masked, weighted] {
-        let contract = study(changed, dag.clone(), query.clone()).inspect().unwrap();
-        assert_eq!(baseline.identities.program, contract.identities.program);
+        let contract = study(changed.clone(), dag.clone(), query.clone()).inspect().unwrap();
+        assert_eq!(baseline.identities.identification, contract.identities.identification);
         assert_ne!(baseline.identities.data_snapshot, contract.identities.data_snapshot);
+        assert_eq!(baseline_program, program(changed).program);
     }
 }
 
@@ -395,7 +412,7 @@ fn dag_average_effect_vertical_path_is_independently_accepted() {
     assert!(consumed.acceptance.accepts_as_verified_program());
     assert_eq!(
         consumed.contract.as_ref().map(|section| section.identities.program),
-        Some(*contract.identities.program.as_bytes())
+        Some(*contract.identities.program.expect("prepared program").as_bytes())
     );
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     let names: Vec<String> =
@@ -454,7 +471,10 @@ fn dag_average_effect_vertical_path_binds_functional_after_retarget() {
     assert_executed_binary_ate(&section.target.query, &names);
     assert_eq!(section.target.query, consumed.body.query);
     assert_eq!(section.target.query, consumed.body.identification.query);
-    assert_eq!(section.identities.program, *contract.identities.program.as_bytes());
+    assert_eq!(
+        section.identities.program,
+        *contract.identities.program.expect("prepared program").as_bytes()
+    );
 }
 
 #[test]
@@ -791,7 +811,7 @@ fn consume_licensed_family(
     assert_eq!(inspected.identities.target, contract.identities.target);
     let preview = prepared.preview_transform(TransformIntent::CompatibleDataReplace).unwrap();
     assert!(!preview.refused);
-    assert!(preview.binds_program(contract.identities.program));
+    assert!(preview.binds_program(contract.identities.program.expect("prepared program")));
     let result = estimate(&prepared);
     let claim = result.claim(&contract, ctx).unwrap();
     assert_eq!(claim.identities.program, contract.identities.program);
@@ -1674,7 +1694,7 @@ fn composition_score_table_retarget_reuses_scores_and_refuses_illegal_weights() 
     let score_before = prepared.score_reuse_identity().unwrap().expect("score key");
     let preview = prepared.preview_transform(TransformIntent::Retarget).unwrap();
     assert!(!preview.refused);
-    assert!(preview.binds_program(before.identities.program));
+    assert!(preview.binds_program(before.identities.program.expect("prepared program")));
     let weights = vec![1.0; data.row_count()];
     let retargeted = prepared.apply_retarget(&preview, &weights, &[], &ctx).unwrap();
     assert_eq!(
@@ -1744,7 +1764,7 @@ fn composition_artifact_reload_in_separate_process() {
     .unwrap();
     assert_eq!(
         consumed.contract.as_ref().map(|section| section.identities.program),
-        Some(*contract.identities.program.as_bytes())
+        Some(*contract.identities.program.expect("prepared program").as_bytes())
     );
 }
 
@@ -4811,7 +4831,7 @@ fn composition_inspect_and_metadata_read_do_not_identify() {
     assert_eq!(identify_computations(&sink), before, "metadata-only read must not identify");
     assert_eq!(
         section.identities.program,
-        *prepared.contract().unwrap().identities.program.as_bytes()
+        *prepared.contract().unwrap().identities.program.expect("prepared program").as_bytes()
     );
 }
 

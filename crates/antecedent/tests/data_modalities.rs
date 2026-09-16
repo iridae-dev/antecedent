@@ -833,7 +833,8 @@ fn contract_snapshot_binds_panel_labels_order_and_time_metadata() {
     ] {
         let changed = inspect(units);
         assert_eq!(base.identities.target, changed.identities.target);
-        assert_eq!(base.identities.program, changed.identities.program);
+        assert_eq!(base.identities.identification, changed.identities.identification);
+        assert_eq!(changed.identities.program, None, "inspection compiles no program");
         assert_ne!(base.identities.data_snapshot, changed.identities.data_snapshot);
     }
 }

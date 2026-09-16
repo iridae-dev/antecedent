@@ -652,7 +652,7 @@ mod tests {
                 digest(target),
                 digest(2),
                 Some(digest(3)),
-                digest(4),
+                Some(digest(4)),
                 digest(inference),
                 digest(6),
                 digest(data),

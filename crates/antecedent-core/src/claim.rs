@@ -1359,7 +1359,7 @@ mod tests {
                 digest(10),
                 digest(11),
                 Some(digest(12)),
-                digest(13),
+                Some(digest(13)),
                 digest(14),
                 digest(15),
                 digest(16),

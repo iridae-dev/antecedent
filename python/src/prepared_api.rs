@@ -552,7 +552,9 @@ fn contract_to_map(
     if let Some(product) = contract.identities.identification_product {
         out.insert("identification_product".into(), product.to_hex());
     }
-    out.insert("program".into(), contract.identities.program.to_hex());
+    if let Some(program) = contract.identities.program {
+        out.insert("program".into(), program.to_hex());
+    }
     out.insert("inference_binding".into(), contract.identities.inference_binding.to_hex());
     out.insert("observation".into(), contract.identities.observation.to_hex());
     out.insert("data_snapshot".into(), contract.identities.data_snapshot.to_hex());
