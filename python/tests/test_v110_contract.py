@@ -24,7 +24,7 @@ def test_prepared_contract_has_domain_separated_identities() -> None:
         refute="none",
         bootstrap=0,
     )
-    contract = prepared.contract()
+    contract = prepared.inspect().contract
     assert contract["accepted_version"] == "1"
     assert contract["accepted_variable_binding"] in {"explicit", "unbound"}
     assert contract["target"] != contract["program"]
@@ -50,11 +50,11 @@ def test_same_shape_refresh_changes_only_data_identity() -> None:
         refute="none",
         bootstrap=0,
     )
-    before = prepared.contract()
+    before = prepared.inspect().contract
     preview = prepared.preview_transform("compatible_data_replace")
     assert preview["input_data_snapshot"] == before["data_snapshot"]
     prepared.refresh({**data, "y": data["y"] + data["t"]})
-    after = prepared.contract()
+    after = prepared.inspect().contract
     for layer in (
         "target",
         "identification",
@@ -81,8 +81,8 @@ def test_contracted_artifact_is_independently_accepted() -> None:
         bootstrap=0,
     )
     prepared.estimate(data)
-    contract = prepared.contract()
-    encoded = prepared.export_contracted_artifact()
+    contract = prepared.inspect().contract
+    encoded = prepared.export()
     loaded = artifacts.loads(encoded)
     assert loaded.payload_kind == "analysis_result"
     assert loaded.contract is not None
@@ -126,8 +126,8 @@ def test_conditional_effect_contracted_artifact_is_independently_accepted() -> N
         bootstrap=0,
     )
     result = prepared.estimate(data)
-    contract = prepared.contract()
-    accepted = artifacts.accept(prepared.export_contracted_artifact())
+    contract = prepared.inspect().contract
+    accepted = artifacts.accept(prepared.export())
     assert accepted["accepts_as_verified_program"] == "true"
     assert accepted["program"] == contract["program"]
     assert accepted["target"] == contract["target"]
@@ -157,8 +157,8 @@ def test_mediation_contracted_artifact_is_independently_accepted() -> None:
         bootstrap=0,
     )
     result = prepared.estimate(data)
-    contract = prepared.contract()
-    accepted = artifacts.accept(prepared.export_contracted_artifact())
+    contract = prepared.inspect().contract
+    accepted = artifacts.accept(prepared.export())
     assert accepted["accepts_as_verified_program"] == "true"
     assert accepted["program"] == contract["program"]
     assert accepted["target"] == contract["target"]
@@ -186,8 +186,8 @@ def test_response_curve_contracted_artifact_is_independently_accepted() -> None:
         bootstrap=0,
     )
     prepared.estimate(data)
-    contract = prepared.contract()
-    accepted = artifacts.accept(prepared.export_contracted_artifact())
+    contract = prepared.inspect().contract
+    accepted = artifacts.accept(prepared.export())
     assert accepted["accepts_as_verified_program"] == "true"
     assert accepted["program"] == contract["program"]
     assert accepted["query_kind"] == "response"
@@ -213,8 +213,8 @@ def test_intervention_response_contracted_artifact_is_independently_accepted() -
         bootstrap=0,
     )
     result = prepared.estimate(data)
-    contract = prepared.contract()
-    accepted = artifacts.accept(prepared.export_contracted_artifact())
+    contract = prepared.inspect().contract
+    accepted = artifacts.accept(prepared.export())
     assert accepted["accepts_as_verified_program"] == "true"
     assert accepted["program"] == contract["program"]
     assert accepted["query_kind"] == "response"
@@ -224,8 +224,6 @@ def test_intervention_response_contracted_artifact_is_independently_accepted() -
 
 
 def test_four_slots_agree_between_inspect_and_prepared_contract() -> None:
-    from antecedent.results import ConsumerIntent
-
     prepared = PreparedAnalysis.prepare(
         _data(),
         graph=[("z", "t"), ("z", "y"), ("t", "y")],
@@ -234,35 +232,37 @@ def test_four_slots_agree_between_inspect_and_prepared_contract() -> None:
         bootstrap=0,
     )
     inspected = prepared.inspect()
-    reasoned = prepared.reasoning()
-    contract = prepared.contract()
+    contract = inspected.contract
+    assert contract is not None
     assert inspected.support.payload["matrix_coordinate"] == contract["matrix_coordinate"]
-    assert inspected.program_id == reasoned.program_id == contract["program"]
+    assert inspected.program_id == contract["program"]
     assert inspected.claim_id is None
-    assert reasoned.claim_id is None
     assert "claim_id" not in contract
-    assert inspected.data_version == reasoned.data_version == contract["data_snapshot"]
+    assert inspected.data_snapshot_id == contract["data_snapshot"]
     assert inspected.identification.available is True
+    assert inspected.identification.payload["identified_mass"] == 1.0
+    assert inspected.rendering_limitation() is None
     assert prepared.preflight().identification.available is False
-    assert reasoned.identification.available is True
-    assert reasoned.identification.payload["identified_mass"] == 1.0
-    assert reasoned.rendering_limitation() is None
+    report = inspected.to_dict()
+    assert report["contract"] == contract
+    assert report["calibration"]["status"] == "unavailable"
+    assert report["calibration"]["reason"] == "not_executed"
     result = prepared.estimate(_data())
     assert result.reasoning is not None
     assert result.program_id == contract["program"]
     assert result.claim_id is not None
     assert result.claim_id != result.program_id
-    assert result.display_effect() == result.effect
-    display = prepared.preview_intent(ConsumerIntent.DISPLAY)
-    assert display["scientific"] == "false"
-    assert display["kind"] == "display"
-    scientific = prepared.preview_intent(ConsumerIntent.NEW_CAUSAL_TARGET)
-    assert scientific["scientific"] == "true"
+    assert result.answer.kind == "point" and result.answer.value == result.effect
+    # One preview API, one vocabulary: the Rust transformation intents.
+    display = prepared.preview_transform("display_precision")
+    assert display["intent"] == "display_precision"
+    assert display["refused"] == "false"
+    scientific = prepared.preview_transform("new_conditional_query")
     assert scientific["intent"] == "new_conditional_query"
+    assert scientific["input_program"] == contract["program"]
 
 
 def test_four_slots_refuse_identified_atom_mean_for_partial_claim() -> None:
-    from antecedent.errors import RenderingLimitation
     from antecedent.results import (
         AnalysisResult,
         EstimateView,
@@ -304,12 +304,9 @@ def test_four_slots_refuse_identified_atom_mean_for_partial_claim() -> None:
         structural_unidentified_mass=0.2,
     )
     assert result.rendering_limitation() == "unidentified_mass"
-    try:
-        result.display_effect()
-    except RenderingLimitation as err:
-        assert err.reason == "unidentified_mass"
-    else:
-        raise AssertionError("partial claim must not display a point mean")
+    assert result.answer.kind == "partial"
+    assert result.answer.value is None
+    assert result.answer.detail == "unidentified_mass"
     html = result._repr_html_()
     assert "no point mean" in html and "(unidentified_mass)" in html
     assert "2.290" not in html
@@ -339,8 +336,9 @@ def test_calibration_prepared_is_not_executed() -> None:
         refute="none",
         bootstrap=0,
     )
-    assert prepared.calibration.status == "unavailable"
-    assert prepared.calibration.reason == "not_executed"
+    calibration = prepared.inspect().calibration
+    assert calibration.status == "unavailable"
+    assert calibration.reason == "not_executed"
 
 
 def test_custom_validator_is_attested_and_covered_by_claim_id() -> None:

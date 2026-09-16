@@ -89,7 +89,6 @@ def analyze(
     cutoff: float | None = None,
     bandwidth: float | None = None,
     population_registry: Any | None = None,
-    target_population: Any | None = None,
     estimator_config: Mapping[str, Any] | None = None,
     latency: Latency | Literal["interactive", "standard", "report"] | None = None,
     cancel: Any | None = None,
@@ -172,9 +171,6 @@ def analyze(
         bytes on ``result.posterior.artifact`` (for download / sequential-prior
         hydrate). Default ``False``: UI summaries only. A mixture over several
         identified completions has no single estimand to hydrate and refuses.
-    target_population:
-        Optional population for a query that declares one; the query itself is
-        never mutated.
     """
     from .estimation import PreparedAnalysis
 
@@ -206,7 +202,6 @@ def analyze(
         latency=latency,
         class_prior=class_prior,
         max_completions=max_completions,
-        target_population=target_population,
         population_registry=population_registry,
         cancel=cancel,
         on_progress=on_progress,

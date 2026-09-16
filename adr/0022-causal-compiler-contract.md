@@ -231,7 +231,7 @@ Additive companions only. No `CausalProgram` builder. No second taxonomy.
 | Identity / contract wires, `verify_contract_against_body` | `antecedent-io` | Existing CBOR sections; consume rehashes stored payloads |
 | `PosteriorAtomIdentityWire` | `antecedent-io` | Projects each `GraphPosterior` atom (static adjacency, or lag+contemporaneous masks onto `TemporalGraphWire`) plus its weight; the local envelope key stays out of the hashed premises |
 | Storage content digest | `antecedent-data` | `OwnedColumnarStorage` construction |
-| Python `PreparedAnalysis.contract` / `preview_transform` / `artifacts.accept` | `antecedent-py` | String views of the same records; typed errors stay in `errors.py` |
+| Python `PreparedAnalysis.inspect().contract` / `preview_transform` / `artifacts.accept` | `antecedent-py` | String views of the same records; typed errors stay in `errors.py` |
 
 Namespace snapshots and artifact readers stay on the existing
 `analysis_result` container. Old artifacts without a contract section

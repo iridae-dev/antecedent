@@ -18,7 +18,6 @@ from ._slots import (
     describe_limitation,
     display_mass,
     mass_limitation,
-    require_scalar_display,
 )
 
 __all__ = [
@@ -650,7 +649,8 @@ class AnalysisResult(ResultAPI):
     program_id: str | None = None
     #: Execution claim identity. Distinct from ``program_id``.
     claim_id: str | None = None
-    data_version: str | None = None
+    #: Identity of the data snapshot this execution ran on.
+    data_snapshot_id: str | None = None
 
     def __post_init__(self) -> None:
         # Nested views carry the claim's rendering limitation so that
@@ -705,7 +705,7 @@ class AnalysisResult(ResultAPI):
                     f"bounds=[{fmt_float(answer.bounds[0])}, {fmt_float(answer.bounds[1])}]"
                 )
             parts.append(f"limitation={limitation}")
-            mass = self.display_mass()
+            mass = self._display_mass()
             if mass is not None and mass > 0:
                 parts.append(f"unidentified_mass={fmt_pct(mass)}")
             return f"<AnalysisResult {' '.join(parts)}>"
@@ -788,10 +788,10 @@ class AnalysisResult(ResultAPI):
             limit = self.reasoning.rendering_limitation()
             if limit is not None:
                 return limit
-        mass = self.display_mass()
+        mass = self._display_mass()
         return mass_limitation(mass, identified_set=self.structural_identified_set is not None)
 
-    def display_mass(self) -> float | None:
+    def _display_mass(self) -> float | None:
         """The unidentified mass every renderer of this result shows.
 
         One precedence rule, in :func:`._slots.display_mass`, so ``repr()`` and
@@ -801,7 +801,3 @@ class AnalysisResult(ResultAPI):
             self.structural_unidentified_mass,
             self.posterior.unidentified_mass if self.posterior is not None else None,
         )
-
-    def display_effect(self) -> float:
-        """Point effect only when the four-slot claim is a complete scalar."""
-        return require_scalar_display(self.rendering_limitation(), self._scalar_effect())

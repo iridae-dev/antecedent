@@ -1030,10 +1030,3 @@ binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_on_stage_reaches_plan"
 
-[[parameter]]
-name = "target_population"
-entry_points = ["prepare", "PreparedAnalysis.prepare"]
-binding = "contract"
-contract_key = "target.query"
-reason = ""
-test = "python/tests/test_parameter_bindings.py::test_target_population_reaches_plan"

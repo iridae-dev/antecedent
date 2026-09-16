@@ -137,7 +137,6 @@ class PC:
         seed: int = 1,
         threads: int = 1,
         accept_discovered: bool = True,
-        regimes: Sequence[int] | None = None,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
@@ -148,7 +147,6 @@ class PC:
             seed=seed,
             threads=threads,
             accept_discovered=accept_discovered,
-            regimes=regimes,
         )
 
 
@@ -202,7 +200,6 @@ class PCMCI:
         seed: int = 1,
         threads: int = 1,
         accept_discovered: bool = True,
-        regimes: Sequence[int] | None = None,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
@@ -213,7 +210,6 @@ class PCMCI:
             seed=seed,
             threads=threads,
             accept_discovered=accept_discovered,
-            regimes=regimes,
         )
 
 
@@ -271,7 +267,6 @@ class PCMCIPlus:
         seed: int = 1,
         threads: int = 1,
         accept_discovered: bool = True,
-        regimes: Sequence[int] | None = None,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
@@ -282,7 +277,6 @@ class PCMCIPlus:
             seed=seed,
             threads=threads,
             accept_discovered=accept_discovered,
-            regimes=regimes,
         )
 
 
@@ -336,7 +330,6 @@ class LPCMCI:
         seed: int = 1,
         threads: int = 1,
         accept_discovered: bool = True,
-        regimes: Sequence[int] | None = None,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
@@ -347,7 +340,6 @@ class LPCMCI:
             seed=seed,
             threads=threads,
             accept_discovered=accept_discovered,
-            regimes=regimes,
         )
 
 
@@ -427,7 +419,6 @@ class JPCMCIPlus:
         seed: int = 1,
         threads: int = 1,
         accept_discovered: bool = True,
-        regimes: Sequence[int] | None = None,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
@@ -438,7 +429,6 @@ class JPCMCIPlus:
             seed=seed,
             threads=threads,
             accept_discovered=accept_discovered,
-            regimes=regimes,
         )
 
 
@@ -500,12 +490,15 @@ class RPCMCI:
         self,
         data: Any,
         *,
+        regimes: Sequence[int] | None = None,
         seed: int = 1,
         threads: int = 1,
         accept_discovered: bool = True,
-        regimes: Sequence[int] | None = None,
     ) -> AcceptedGraph:
-        """Run this configuration once and accept it through its review gate."""
+        """Run this configuration once and accept it through its review gate.
+
+        ``regimes`` (one label per observation) is required.
+        """
         from .accepted_graph import accept_discovery
 
         return accept_discovery(
@@ -561,7 +554,6 @@ class GES:
         seed: int = 1,
         threads: int = 1,
         accept_discovered: bool = True,
-        regimes: Sequence[int] | None = None,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
@@ -572,7 +564,6 @@ class GES:
             seed=seed,
             threads=threads,
             accept_discovered=accept_discovered,
-            regimes=regimes,
         )
 
 
@@ -612,7 +603,6 @@ class LiNGAM:
         seed: int = 1,
         threads: int = 1,
         accept_discovered: bool = True,
-        regimes: Sequence[int] | None = None,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
@@ -623,7 +613,6 @@ class LiNGAM:
             seed=seed,
             threads=threads,
             accept_discovered=accept_discovered,
-            regimes=regimes,
         )
 
 
@@ -669,7 +658,6 @@ class NOTEARS:
         seed: int = 1,
         threads: int = 1,
         accept_discovered: bool = True,
-        regimes: Sequence[int] | None = None,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
@@ -680,7 +668,6 @@ class NOTEARS:
             seed=seed,
             threads=threads,
             accept_discovered=accept_discovered,
-            regimes=regimes,
         )
 
 
@@ -723,7 +710,6 @@ class FCI:
         seed: int = 1,
         threads: int = 1,
         accept_discovered: bool = True,
-        regimes: Sequence[int] | None = None,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
@@ -734,7 +720,6 @@ class FCI:
             seed=seed,
             threads=threads,
             accept_discovered=accept_discovered,
-            regimes=regimes,
         )
 
 
@@ -777,7 +762,6 @@ class RFCI:
         seed: int = 1,
         threads: int = 1,
         accept_discovered: bool = True,
-        regimes: Sequence[int] | None = None,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
         from .accepted_graph import accept_discovery
@@ -788,7 +772,6 @@ class RFCI:
             seed=seed,
             threads=threads,
             accept_discovered=accept_discovered,
-            regimes=regimes,
         )
 
 

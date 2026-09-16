@@ -133,6 +133,15 @@ def test_query_reaches_plan():
     )
     assert reverse["average_effect"]["treatment"] == 1
     assert reverse["average_effect"]["outcome"] == 0
+    # The query owns its target population; there is no second spelling on the entry points.
+    treated = _bound(
+        _analyze(query=ant.AverageEffect("t", "y", target_population=Treated()), estimator="aipw"),
+        "query",
+    )
+    assert treated["average_effect"]["target_population"] == "treated"
+    assert forward["average_effect"]["target_population"] == "all_observed"
+    for fn in (ant.analyze, ant.prepare, PreparedAnalysis.prepare):
+        assert "target_population" not in inspect.signature(fn).parameters
 
 
 def test_graph_reaches_plan():
@@ -287,26 +296,6 @@ def test_population_registry_reaches_plan():
     )
     target = _bound(result, "population_registry")
     assert "7" in str(target["average_effect"]["target_population"])
-
-
-def test_target_population_reaches_plan():
-    query = ant.AverageEffect("t", "y")
-    study = ant.prepare(
-        _data(),
-        graph=GRAPH,
-        query=query,
-        target_population=Treated(),
-        estimator="aipw",
-        bootstrap=0,
-        refute="none",
-    )
-    result = study.estimate()
-    assert _bound(result, "target_population")["average_effect"]["target_population"] == "treated"
-    # The caller's query is not rewritten by preparing it for another population.
-    assert query.target_population is None
-    assert _bound(_analyze(), "target_population")["average_effect"]["target_population"] == (
-        "all_observed"
-    )
 
 
 def test_return_posterior_artifact_reaches_plan():

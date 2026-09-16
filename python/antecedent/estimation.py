@@ -82,7 +82,6 @@ from .results import (
     AnalysisResult,
     CausalResponseView,
     ConflictSummaryView,
-    ConsumerIntent,
     DistributionAtomView,
     EffectEnvelope,
     EstimateView,
@@ -603,7 +602,7 @@ def _wrap_ate(
         reasoning=slots,
         program_id=None if slots is None else slots.program_id,
         claim_id=None if slots is None else slots.claim_id,
-        data_version=None if slots is None else slots.data_version,
+        data_snapshot_id=None if slots is None else slots.data_snapshot_id,
     )
 
 
@@ -1350,7 +1349,7 @@ def _wrap_prepared_response(
         reasoning=slots,
         program_id=None if slots is None else slots.program_id,
         claim_id=None if slots is None else slots.claim_id,
-        data_version=None if slots is None else slots.data_version,
+        data_snapshot_id=None if slots is None else slots.data_snapshot_id,
     )
 
 
@@ -1431,21 +1430,6 @@ def _unwrap_estimator(
             "estimator= already carries its configuration; do not also pass estimator_config="
         )
     return estimator.estimator_id, estimator._wire()
-
-
-def _with_target_population(query: Any, target_population: Any | None) -> Any:
-    """Return a copy of ``query`` carrying ``target_population``; never mutates ``query``."""
-    if target_population is None:
-        return query
-    from dataclasses import replace
-
-    if not hasattr(query, "target_population"):
-        raise _refused(
-            "population_not_estimable",
-            f"{type(query).__name__} has no target population; it is defined on the "
-            "observed series or unit",
-        )
-    return replace(query, target_population=target_population)
 
 
 def _frame_payload(data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
@@ -1573,12 +1557,16 @@ def _accept_live_discovery(
         raise CausalCancelledError("cancelled before discovery")
     if controls.on_progress is not None:
         controls.on_progress(0.0, "discovery")
+    from .discovery import RPCMCI
+
+    # Only RPCMCI labels regimes; prepare refuses `regimes=` for every other config.
+    labelled = {"regimes": regimes} if isinstance(discovery, RPCMCI) else {}
     accepted = discovery.accept(
         data,
         seed=seed,
         threads=threads,
         accept_discovered=accept_discovered,
-        regimes=regimes,
+        **labelled,
     )
     if controls.on_progress is not None:
         controls.on_progress(1.0, "discovery")
@@ -2567,7 +2555,6 @@ class PreparedAnalysis:
         latency: Latency | Literal["interactive", "standard", "report"] | None = None,
         class_prior: ClassPrior | None = None,
         max_completions: int | None = None,
-        target_population: Any | None = None,
         population_registry: Any | None = None,
         cancel: Any | None = None,
         on_progress: Any | None = None,
@@ -2654,7 +2641,6 @@ class PreparedAnalysis:
             or bootstrap < 0
         ):
             raise CausalValueError("bootstrap must be a non-negative integer or None")
-        query = _with_target_population(query, target_population)
         inference = inference or Frequentist()
         if not isinstance(inference, (Frequentist, Bayesian)):
             raise CausalTypeError("inference must be Frequentist or Bayesian")
@@ -2790,18 +2776,15 @@ class PreparedAnalysis:
         """
         return self._native.export_artifact(artifact_id=artifact_id, payload=payload)
 
-    def export_contracted_artifact(self, *, artifact_id: str = "prepared-contract") -> bytes:
-        """Export the last estimate as an ``analysis_result`` with a contract section."""
+    def export(self, *, artifact_id: str = "analysis-result") -> bytes:
+        """Export the last execution as a contracted ``analysis_result``, or refuse
+        if no claim was produced."""
         if getattr(self, "_cancelled", False):
             raise CausalUnsupportedError(
                 "Cancelled estimate produced no claim.",
                 reason_code="cancelled_no_claim",
             )
         return self._native.export_contracted_artifact(artifact_id=artifact_id)
-
-    def export(self, *, artifact_id: str = "analysis-result") -> bytes:
-        """Export the last execution, or refuse if no claim was produced."""
-        return self.export_contracted_artifact(artifact_id=artifact_id)
 
     @property
     def structure_source(self) -> str:
@@ -2824,57 +2807,38 @@ class PreparedAnalysis:
         raw = self._native.plan_summary().get("allowlist_parent")
         return str(raw) if raw is not None else None
 
-    def contract(self) -> dict[str, str]:
-        """Domain-separated identities and four reasoning slots (ADR 0022)."""
-        return dict(self._native.contract())
-
     def inspect(self) -> ReasoningSlots:
-        """Everything known about this prepared study, including cached identification."""
+        """Everything known about this study, including cached identification.
+
+        ``to_dict()`` gives the structured report; its ``contract`` field is the
+        study's domain-separated identities and reasoning slots (ADR 0022), and
+        its ``calibration`` is unavailable (``not_executed``) until an estimate
+        runs. :meth:`preflight` is the cheap structural-only view.
+        """
         from dataclasses import replace
 
-        from .results._execution import Answer
+        from .results._execution import Answer, CalibrationInfo
 
         return replace(
-            self.reasoning(),
+            ReasoningSlots.from_contract(dict(self._native.contract())),
             answer=Answer("unavailable", detail="not_executed"),
-            calibration=self.calibration,
+            calibration=CalibrationInfo(status="unavailable", reason="not_executed"),
         )
-
-    @property
-    def calibration(self):
-        """Calibration availability for this prepared study."""
-        from .results._execution import CalibrationInfo
-
-        return CalibrationInfo(status="unavailable", reason="not_executed")
 
     def preflight(self) -> ReasoningSlots:
         """Cheap structural-only inspection; identification and fitting are not run."""
         return ReasoningSlots.from_contract(self._native.inspect())
 
-    def reasoning(self) -> ReasoningSlots:
-        """Prepared four-slot view, including cached identification when present."""
-        return ReasoningSlots.from_contract(self.contract())
-
-    def preview_intent(self, intent: ConsumerIntent | str) -> dict[str, str]:
-        """Route a consumer intent. Display/presentation do not preview science."""
-        parsed = intent if isinstance(intent, ConsumerIntent) else ConsumerIntent(intent)
-        if parsed.kind != "scientific":
-            return {
-                "intent": parsed.value,
-                "kind": parsed.kind,
-                "refused": "false",
-                "scientific": "false",
-            }
-        name = parsed.preview_name()
-        if name is None:
-            raise CausalValueError(f"scientific intent {parsed.value} has no preview route")
-        preview = dict(self._native.preview_transform(name))
-        preview["kind"] = parsed.kind
-        preview["scientific"] = "true"
-        return preview
-
     def preview_transform(self, intent: str) -> dict[str, str]:
-        """Pure preview with frozen input identities under ``input_<domain>`` keys."""
+        """Pure preview of a transformation of this study; nothing is re-executed.
+
+        ``intent`` is one of ``display_precision``, ``filter_display``,
+        ``compatible_data_replace``, ``retarget``, ``filter_population``,
+        ``new_conditional_query``, ``change_graph``, ``change_prior``,
+        ``change_physical_policy`` or ``average_unweighted_class``. The report
+        names the intent, whether it is refused, its obligations, and the frozen
+        input identities it would carry under ``input_<domain>`` keys.
+        """
         return dict(self._native.preview_transform(intent))
 
     @property

@@ -32,7 +32,7 @@ def test_one_call_study_and_frozen_export():
     assert second.effect == pytest.approx(first.effect + 1.0)
     assert first.export() == before
     assert first.inspect() == old
-    assert second.data_version != first.data_version
+    assert second.data_snapshot_id != first.data_snapshot_id
     assert ant.artifacts.accept(second.export())["accepts_as_verified_program"] == "true"
     assert first.study.estimate().effect == pytest.approx(second.effect)
 
@@ -42,8 +42,8 @@ def test_estimate_other_data_does_not_rebind_study():
     study = ant.prepare(data, graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
     baseline = study.estimate()
     other = study.estimate({**data, "y": data["y"] + data["t"]})
-    assert other.data_version != baseline.data_version
-    assert study.inspect().data_version == baseline.data_version
+    assert other.data_snapshot_id != baseline.data_snapshot_id
+    assert study.inspect().data_snapshot_id == baseline.data_snapshot_id
     assert ant.artifacts.accept(other.export())["accepts_as_verified_program"] == "true"
     assert study.estimate().effect == pytest.approx(baseline.effect)
 
@@ -109,7 +109,7 @@ def test_load_verified_execution_and_forward_uncontracted_body():
     assert result.program_id
     assert result.claim_id
     assert result.claim_id != result.program_id
-    assert loaded.inspect().data_version == result.data_version
+    assert loaded.inspect().data_snapshot_id == result.data_snapshot_id
     assert (
         loaded.inspect().uncertainty.payload["components"]
         == result.inspect().uncertainty.payload["components"]
@@ -149,7 +149,7 @@ print(json.dumps(r.inspect().to_dict(), allow_nan=False))
     )
     report = json.loads(completed.stdout)
     assert report["answer"]["value"] == result.effect
-    assert report["data_version"] == result.data_version
+    assert report["data_snapshot_id"] == result.data_snapshot_id
 
 
 @pytest.mark.parametrize("latency", [None, "interactive", "standard", "report"])
@@ -170,7 +170,7 @@ def test_failed_refresh_retains_previous_binding_and_error_context():
         study.refresh({"t": np.zeros(2), "y": np.zeros(2), "z": np.zeros(2)})
     assert caught.value.study is study
     assert caught.value.report.operation == "refresh"
-    assert study.inspect().data_version == result.data_version
+    assert study.inspect().data_snapshot_id == result.data_snapshot_id
     assert study.estimate().effect == result.effect
 
 
@@ -205,7 +205,7 @@ def test_refuting_an_old_result_does_not_change_its_export():
     first.study.refresh({**data, "y": data["y"] + data["t"]})
     checked = first.refute(data, suite="cheap")
     assert checked.effect == first.effect
-    assert checked.data_version == first.data_version
+    assert checked.data_snapshot_id == first.data_snapshot_id
     assert first.export() == before
     assert ant.load(checked.export()).acceptance.verified
 
@@ -328,8 +328,7 @@ def test_cpdag_partial_identification_with_full_mass_reports_its_identified_set(
     lower, upper = result.answer.bounds
     assert lower < upper, "the two completions disagree, so the set is non-degenerate"
     assert result.answer.bounds == result.structural_identified_set
-    with pytest.raises(ant.errors.RenderingLimitation, match="identified_set"):
-        result.display_effect()
+    assert result.answer.detail == "identified_set"
     with pytest.warns(UserWarning, match="result.answer is the safe"):
         assert result.effect is not None
     monkeypatch.setenv("ANTECEDENT_STRICT_ANSWER", "1")

@@ -384,7 +384,8 @@ class CausalResponseView(ResultAPI):
     program_id: str | None = None
     #: Execution claim identity. Distinct from ``program_id``.
     claim_id: str | None = None
-    data_version: str | None = None
+    #: Identity of the data snapshot this execution ran on.
+    data_snapshot_id: str | None = None
     _prepared: Any = field(default=None, repr=False, compare=False)
     _execution: Any = field(default=None, repr=False, compare=False)
 

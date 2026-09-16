@@ -5,11 +5,9 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass, fields, is_dataclass
-from enum import Enum, StrEnum
+from enum import Enum
 from math import isfinite
-from typing import Any, Literal
-
-from ..errors import RenderingLimitation
+from typing import Any
 
 
 def _identity_hex(value: Any) -> str | None:
@@ -89,15 +87,11 @@ def _target_query(contract: Mapping[str, Any]) -> dict[str, Any]:
 
 
 __all__ = [
-    "ConsumerIntent",
     "ReasoningSlots",
-    "RenderingLimitation",
     "SlotView",
     "describe_limitation",
     "display_mass",
     "mass_limitation",
-    "require_scalar_display",
-    "slots_from_prepared",
 ]
 
 
@@ -116,29 +110,6 @@ def json_value(value: Any) -> Any:
     if isinstance(value, (tuple, list)):
         return [json_value(v) for v in value]
     return {"available": False, "reason": "not_json_serializable", "type": type(value).__name__}
-
-
-class ConsumerIntent(StrEnum):
-    """Host actions. Only scientific intents route through preview/apply."""
-
-    DISPLAY = "display_coordinates"
-    PRESENTATION = "change_presentation"
-    NEW_SUBGROUP = "new_subgroup"
-    NEW_CAUSAL_TARGET = "new_causal_target"
-
-    @property
-    def kind(self) -> Literal["display", "presentation", "scientific"]:
-        if self is ConsumerIntent.DISPLAY:
-            return "display"
-        if self is ConsumerIntent.PRESENTATION:
-            return "presentation"
-        return "scientific"
-
-    def preview_name(self) -> str | None:
-        return {
-            ConsumerIntent.NEW_SUBGROUP: "filter_population",
-            ConsumerIntent.NEW_CAUSAL_TARGET: "new_conditional_query",
-        }.get(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,7 +139,6 @@ class ReasoningSlots:
     execution_id: str | None = None
     score_reuse_id: str | None = None
     target_weights_id: str | None = None
-    data_version: str | None = None
     contract: dict[str, Any] | None = None
     answer: Any = None
     calibration: Any = None
@@ -243,8 +213,6 @@ class ReasoningSlots:
             or _nested(contract, "identities", "score_reuse"),
             target_weights_id=contract.get("target_weights")
             or _nested(contract, "identities", "target_weights"),
-            data_version=contract.get("data_snapshot")
-            or _nested(contract, "identities", "data_snapshot"),
             contract=dict(contract) if contract else None,
         )
 
@@ -338,7 +306,6 @@ class ReasoningSlots:
             execution_id=_identity_hex(identities.get("execution")),
             score_reuse_id=_identity_hex(identities.get("score_reuse")),
             target_weights_id=_identity_hex(identities.get("target_weights")),
-            data_version=_identity_hex(identities.get("data_snapshot")),
             contract=dict(section),
             answer=answer,
             calibration=calibration,
@@ -363,9 +330,6 @@ class ReasoningSlots:
         if self.identification.summary == "partially_identified":
             return "identified_set"
         return None
-
-    def display_effect(self, effect: float | None) -> float:
-        return require_scalar_display(self.rendering_limitation(), effect)
 
 
 #: Readable caveat per rendering-limitation id. Every renderer (reprs, HTML)
@@ -413,18 +377,3 @@ def display_mass(structural: object, posterior: object) -> float | None:
         if isinstance(mass, (int, float)) and not isinstance(mass, bool):
             return float(mass)
     return None
-
-
-def require_scalar_display(limitation: str | None, effect: float | None) -> float:
-    if limitation is not None:
-        raise RenderingLimitation(limitation)
-    if effect is None:
-        raise RenderingLimitation("absent_interval")
-    return effect
-
-
-def slots_from_prepared(prepared: object | None) -> ReasoningSlots | None:
-    reasoning = getattr(prepared, "reasoning", None)
-    if reasoning is None:
-        return None
-    return reasoning() if callable(reasoning) else reasoning
