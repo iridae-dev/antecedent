@@ -1377,6 +1377,19 @@ pub(crate) fn shared_study_sections(
     result: &antecedent::StudyResult,
     estimator_id: String,
 ) -> PyResult<SharedStudySections> {
+    // A temporal effect's estimand ids are dense unfolded node ids; read them
+    // through the certificate's unfolding coordinates, not as schema ids (a
+    // dense id past the first window slice would otherwise name the wrong
+    // variable, or none).
+    let temporal_indexer = result.certificate.as_ref().and_then(|certificate| {
+        match (&certificate.query, &certificate.identification) {
+            (
+                antecedent_core::CausalQuery::TemporalEffect(_),
+                antecedent::Identification::Point { temporal_indexer, .. },
+            ) => temporal_indexer.as_ref(),
+            _ => None,
+        }
+    });
     let adjustment_set: Vec<String> = public_adjustment_set(
         result.identification.status,
         result
@@ -1384,7 +1397,13 @@ pub(crate) fn shared_study_sections(
             .adjustment_set
             .iter()
             .map(|id| {
-                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
+                let variable = temporal_indexer
+                    .and_then(|indexer| indexer.key_of(id.raw()).ok())
+                    .map_or(*id, |key| key.variable);
+                names
+                    .get(variable.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("var{}", variable.raw()))
             })
             .collect(),
     );
