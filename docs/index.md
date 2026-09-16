@@ -35,9 +35,10 @@ Rules enforced throughout:
   MEC envelope rather than collapsing to a guessed DAG. Estimation refuses to
   run on an unreviewed partial graph; the Bayesian path reports how much
   posterior mass sits on structures where the effect is unidentified.
-* **Transport and interference as stage contracts.** Selection-diagram transport
-  and randomized interference change what identifies the estimand; they stay in
-  `antecedent.transport` / `antecedent.interference`, not ordinary `analyze` flags.
+* **Transport and interference as design contracts.** Selection-diagram transport
+  and randomized interference change what identifies the estimand, so their
+  design facts are fields of `TransportQuery` / `InterferenceQuery`, not ordinary
+  `analyze` flags. Their licensed cells run on `analyze` and retain a study.
 * **Analyze temporal systems.** Temporal graphs with lagged edges, PCMCI-family
   discovery, pulse and sustained interventions — including Frequentist
   envelopes that keep incomplete `TemporalCpdag` / `TemporalPag` as those
