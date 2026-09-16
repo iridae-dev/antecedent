@@ -113,15 +113,19 @@ fn unstaged(mut study: PreparedStudy) -> PreparedStudy {
 }
 
 fn parse_identifier(identifier: Option<String>) -> PyResult<Option<IdentifierId>> {
-    identifier
-        .map(|id| id.parse::<IdentifierId>().map_err(|e| PyValueError::new_err(e.to_string())))
-        .transpose()
+    identifier.map(|id| id.parse::<IdentifierId>().map_err(unknown_strategy_err)).transpose()
+}
+
+/// An unknown estimator or identifier id, as a reason-coded `ValueError`.
+fn unknown_strategy_err(err: antecedent::strategy_table::UnknownStrategy) -> PyErr {
+    crate::with_reason_code(
+        PyValueError::new_err(err.to_string()),
+        antecedent_core::reason_code!("unknown_strategy"),
+    )
 }
 
 fn parse_estimator(estimator: Option<String>) -> PyResult<Option<EstimatorId>> {
-    estimator
-        .map(|id| id.parse::<EstimatorId>().map_err(|e| PyValueError::new_err(e.to_string())))
-        .transpose()
+    estimator.map(|id| id.parse::<EstimatorId>().map_err(unknown_strategy_err)).transpose()
 }
 
 /// Bind a supplied or accepted structure; an accepted one keeps its discovery algorithm.
@@ -638,9 +642,12 @@ fn insert_reuse_identities(
 
 fn require_prepared_names(expected: &[String], names: &[String], op: &str) -> PyResult<()> {
     if names != expected {
-        return Err(PyValueError::new_err(format!(
-            "prepared {op} requires the same column names (order) as prepare"
-        )));
+        return Err(crate::with_reason_code(
+            PyValueError::new_err(format!(
+                "prepared {op} requires the same column names (order) as prepare"
+            )),
+            antecedent_core::reason_code!("schema_mismatch"),
+        ));
     }
     Ok(())
 }

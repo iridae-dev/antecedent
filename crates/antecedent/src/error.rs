@@ -153,6 +153,22 @@ pub enum CausalError {
         /// Message.
         message: String,
     },
+    /// The question has no identified estimand under the declared structure.
+    ///
+    /// A refusal, not a failure: it carries the identification outcome so a
+    /// caller learns why. `search_capped` separates a search that finished
+    /// without an estimand from one that stopped at a budget (a completion or
+    /// history cap), which is not a proof of non-identification. The message
+    /// carries the `effect_not_identified` reason code.
+    #[error("{message}")]
+    NotIdentified {
+        /// Identification status the search ended with.
+        status: antecedent_core::IdentificationStatus,
+        /// Whether the search stopped at a budget rather than completing.
+        search_capped: bool,
+        /// Reason-coded message.
+        message: String,
+    },
     /// Memory or other resource refusal.
     #[error("{message}")]
     Resource {
@@ -313,7 +329,69 @@ pub(crate) const OPERATION_UNLICENSED: [&str; 4] = [
     OPERATION_REQUIRES_LICENSE,
 ];
 
+/// [`CausalError::Compile`] whose message carries a registered runtime-refusal
+/// reason code, for refusals whose detail is formatted at run time.
+///
+/// The code is checked at compile time like [`unsupported_reason!`].
+#[macro_export]
+macro_rules! compile_reason {
+    ($code:literal, $($detail:tt)+) => {{
+        const _: () = assert!(
+            $crate::error::is_runtime_refusal_code($code),
+            concat!("`", $code, "` is not a runtime_refusal code in parity/reason_codes.toml")
+        );
+        $crate::CausalError::Compile {
+            message: format!(
+                "{}{}: {}",
+                $crate::error::REASON_PREFIX,
+                $code,
+                format!($($detail)+)
+            ),
+        }
+    }};
+}
+
+/// Wire prefix of a reason-coded message (see `antecedent_core::reason_code::PREFIX`).
+#[doc(hidden)]
+pub const REASON_PREFIX: &str = antecedent_core::reason_code::PREFIX;
+
 impl CausalError {
+    /// Refuse a question whose identification produced no estimand.
+    ///
+    /// `detail` names the route; the status and whether the search was
+    /// complete or capped come from the identification outcome.
+    #[must_use]
+    pub fn not_identified(
+        status: antecedent_core::IdentificationStatus,
+        search_capped: bool,
+        detail: &str,
+    ) -> Self {
+        let search = if search_capped {
+            "the search stopped at a budget, so this is not a proof of non-identification"
+        } else {
+            "the search completed"
+        };
+        Self::NotIdentified {
+            status,
+            search_capped,
+            message: format!(
+                "{REASON_PREFIX}effect_not_identified: {detail} (identification status {}; {search})",
+                status.as_str()
+            ),
+        }
+    }
+
+    /// The reason code a refusal carries, when its message is reason-coded.
+    #[must_use]
+    pub fn reason_code(&self) -> Option<&str> {
+        let message = match self {
+            Self::Compile { message } | Self::NotIdentified { message, .. } => message.as_str(),
+            Self::Unsupported { message } | Self::Support { message, .. } => message,
+            _ => return None,
+        };
+        antecedent_core::reason_code::split_prefix(message).map(|(code, _)| code)
+    }
+
     /// Build a structured review-required error.
     ///
     /// `pending_edges` should carry the real edges blocking review whenever the
@@ -381,3 +459,8 @@ impl CausalError {
         )
     }
 }
+
+const _: () = assert!(
+    is_runtime_refusal_code("effect_not_identified"),
+    "`effect_not_identified` is not a runtime_refusal code in parity/reason_codes.toml"
+);

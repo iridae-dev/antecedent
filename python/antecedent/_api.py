@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
@@ -35,6 +36,17 @@ class RefusalReport:
         return json_value(self)
 
 
+def _binds(fn: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> bool:
+    """Whether ``args`` / ``kwargs`` bind to ``fn``'s signature."""
+    try:
+        inspect.signature(fn).bind(*args, **kwargs)
+    except TypeError:
+        return False
+    except ValueError:
+        return True
+    return True
+
+
 def describe_refusal(fn: Callable[P, R]) -> Callable[P, R]:
     """Keep original exceptions and attach machine-readable operation context."""
 
@@ -47,14 +59,22 @@ def describe_refusal(fn: Callable[P, R]) -> Callable[P, R]:
             if getattr(error, "reason_code", None) is None and message.startswith("reason="):
                 code, _, _ = message.partition(":")
                 cast(Any, error).reason_code = code.removeprefix("reason=").strip()
+            if (
+                getattr(error, "reason_code", None) is None
+                and isinstance(error, TypeError)
+                and not _binds(fn, args, kwargs)
+            ):
+                # The call itself did not match the signature (an unknown or
+                # missing keyword): the argument, not the analysis, is refused.
+                cast(Any, error).reason_code = "invalid_argument"
             if not hasattr(error, "report"):
                 report = RefusalReport(
                     operation=fn.__name__,
-                    code=getattr(
-                        error,
-                        "reason_code",
-                        getattr(error, "reason", type(error).__name__),
-                    ),
+                    # An attribute that exists but is ``None`` falls through to
+                    # the next source rather than becoming the code.
+                    code=getattr(error, "reason_code", None)
+                    or getattr(error, "reason", None)
+                    or type(error).__name__,
                     message=message,
                     query=kwargs.get("query", getattr(args[0], "_query", None) if args else None),
                     hint=getattr(error, "hint", None),

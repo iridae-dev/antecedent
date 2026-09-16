@@ -599,7 +599,7 @@ pub struct UnknownStrategy {
 
 impl From<UnknownStrategy> for CausalError {
     fn from(e: UnknownStrategy) -> Self {
-        CausalError::Compile { message: e.to_string() }
+        crate::compile_reason!("unknown_strategy", "{e}")
     }
 }
 
@@ -752,13 +752,12 @@ pub fn validate_static_pair(
         _ => false,
     };
     if !supported {
-        return Err(CausalError::Compile {
-            message: format!(
-                "identifier {:?} is not compatible with estimator {:?}",
-                identifier.as_str(),
-                estimator.as_str()
-            ),
-        });
+        return Err(crate::compile_reason!(
+            "strategy_incompatible",
+            "identifier {:?} is not compatible with estimator {:?}",
+            identifier.as_str(),
+            estimator.as_str()
+        ));
     }
     Ok(())
 }
@@ -826,13 +825,15 @@ pub fn identification_status_acceptable(status: IdentificationStatus) -> bool {
 ///
 /// Effect not identified or no estimand returned.
 pub fn require_identified(result: &IdentificationResult) -> Result<(), CausalError> {
-    if matches!(result.status, IdentificationStatus::NotIdentified) || result.estimands.is_empty() {
-        return Err(CausalError::Compile { message: "effect not identified".into() });
-    }
-    if !identification_status_acceptable(result.status) {
-        return Err(CausalError::Compile {
-            message: format!("effect not identified (status {:?})", result.status),
-        });
+    if matches!(result.status, IdentificationStatus::NotIdentified)
+        || result.estimands.is_empty()
+        || !identification_status_acceptable(result.status)
+    {
+        return Err(CausalError::not_identified(
+            result.status,
+            antecedent_identify::search_truncated(result),
+            "effect not identified",
+        ));
     }
     Ok(())
 }

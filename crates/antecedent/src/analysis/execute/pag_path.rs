@@ -148,9 +148,11 @@ impl super::Study {
                     )
                     .map(|result| self.attach_certificate(result, certificate));
             }
-            return Err(CausalError::Compile {
-                message: "PAG effect not identified (no identified mass in envelope)".into(),
-            });
+            return Err(CausalError::not_identified(
+                envelope.status,
+                envelope.truncated_completions > 0,
+                "PAG effect not identified (no identified mass in envelope)",
+            ));
         }
 
         let mut diagnostics = vec![pag_envelope_diagnostic(&envelope)];
@@ -367,9 +369,11 @@ impl super::Study {
                     )
                     .map(|result| self.attach_certificate(result, certificate));
             }
-            return Err(CausalError::Compile {
-                message: "CPDAG effect not identified (no identified mass in envelope)".into(),
-            });
+            return Err(CausalError::not_identified(
+                envelope.status,
+                envelope.truncated_completions > 0,
+                "CPDAG effect not identified (no identified mass in envelope)",
+            ));
         }
 
         let mut diagnostics = vec![cpdag_envelope_diagnostic(&envelope)];

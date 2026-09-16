@@ -231,18 +231,24 @@ pub(crate) fn parse_estimator_config(
         if !valid_keys.contains(&key.as_str()) {
             let owners = estimators_accepting(&key);
             if owners.is_empty() {
-                return Err(PyValueError::new_err(format!(
-                    "unknown estimator_config key {key:?} for estimator {resolved_id:?}; valid \
-                     keys for {resolved_id:?} are: {}",
-                    format_id_list(valid_keys),
-                )));
+                return Err(crate::with_reason_code(
+                    PyValueError::new_err(format!(
+                        "unknown estimator_config key {key:?} for estimator {resolved_id:?}; \
+                         valid keys for {resolved_id:?} are: {}",
+                        format_id_list(valid_keys),
+                    )),
+                    antecedent_core::reason_code!("invalid_argument"),
+                ));
             }
-            return Err(PyValueError::new_err(format!(
-                "estimator_config key {key:?} is not valid for estimator {resolved_id:?}; it \
-                 belongs to estimator(s) {}. valid keys for {resolved_id:?} are: {}",
-                format_id_list(&owners),
-                format_id_list(valid_keys),
-            )));
+            return Err(crate::with_reason_code(
+                PyValueError::new_err(format!(
+                    "estimator_config key {key:?} is not valid for estimator {resolved_id:?}; it \
+                     belongs to estimator(s) {}. valid keys for {resolved_id:?} are: {}",
+                    format_id_list(&owners),
+                    format_id_list(valid_keys),
+                )),
+                antecedent_core::reason_code!("invalid_argument"),
+            ));
         }
     }
 

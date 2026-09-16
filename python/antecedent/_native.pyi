@@ -59,6 +59,9 @@ def set_review_error_class(cls: type) -> None:
 def set_unsupported_error_class(cls: type) -> None:
     """Register the Python class native code instantiates for refusals."""
 
+def set_not_identified_error_class(cls: type) -> None:
+    """Register the Python class native code instantiates for not-identified refusals."""
+
 def accept_rpcmci(
     names: list[str],
     columns: Sequence[Any],
