@@ -184,6 +184,16 @@ pub fn fit_laplace_glm(
             for i in 0..ncols {
                 workspace.beta[i] = workspace.q[i];
             }
+            // A Newton step whose predicted gain (half the Newton decrement
+            // `grad · step`) is below the rounding error of the summed
+            // log-posterior cannot be verified by the line search: at large n
+            // the objective's roundoff exceeds the absolute gradient tolerance.
+            // The iterate is then the mode to working precision.
+            let decrement: f64 = (0..ncols).map(|i| workspace.grad[i] * workspace.step[i]).sum();
+            let roundoff = 64.0 * f64::EPSILON * (1.0 + old_obj.abs());
+            if decrement.is_finite() && decrement >= 0.0 && 0.5 * decrement <= roundoff {
+                converged = true;
+            }
             break;
         }
     }
@@ -635,6 +645,56 @@ mod tests {
         // Cheap deterministic U(0,1) so Bernoulli labels overlap in x.
         let x = i.wrapping_mul(1_103_515_245).wrapping_add(12_345);
         ((x >> 16) & 0x7fff) as f64 / 32_768.0
+    }
+
+    /// At several thousand rows the summed log-posterior's rounding error is
+    /// larger than the gain of the last Newton step that still leaves the
+    /// gradient above the absolute tolerance, so the line search rejects it.
+    /// That iterate is the mode to working precision and publishes.
+    #[test]
+    fn laplace_logit_at_large_n_converges_when_the_line_search_stalls() {
+        let n = 5_000;
+        let mut x = vec![0.0; n * 3];
+        let mut y = vec![0.0; n];
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut unit = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            ((state >> 11) as f64 + 0.5) / (1u64 << 53) as f64
+        };
+        let mut stalled = 0;
+        for seed in 0..6 {
+            for r in 0..n {
+                let z = 4.0 * unit() - 2.0;
+                let t = f64::from(unit() < 1.0 / (1.0 + (-z).exp()));
+                x[r] = 1.0;
+                x[n + r] = t;
+                x[2 * n + r] = z;
+                let eta = -0.5 + 1.2 * t + 0.8 * z + 0.01 * f64::from(seed);
+                y[r] = f64::from(unit() < 1.0 / (1.0 + (-eta).exp()));
+            }
+            let prior = PriorSet::weakly_informative(3);
+            let design = BayesDesignRef {
+                x_colmajor: &x,
+                nrows: n,
+                ncols: 3,
+                y: &y,
+                weights: None,
+                offsets: None,
+            };
+            let opts = BayesFitOptions { n_draws: 50, seed: 3, max_iter: 50, grad_tol: 1e-8 };
+            let mut ws = LaplaceWorkspace::default();
+            let fit =
+                fit_laplace_glm(BayesLikelihood::BernoulliLogit, design, &prior, &opts, &mut ws)
+                    .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+            assert!(fit.diagnostics.allows_posterior());
+            assert!((fit.map[1] - 1.2).abs() < 0.2, "seed {seed}: {:?}", fit.map);
+            if fit.diagnostics.grad_inf_norm >= 1e-8 {
+                stalled += 1;
+            }
+        }
+        assert!(stalled > 0, "the design must exercise a stalled line search");
     }
 
     #[test]
