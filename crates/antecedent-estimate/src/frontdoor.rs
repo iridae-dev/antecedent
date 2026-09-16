@@ -107,7 +107,8 @@ fn prepare_frontdoor_problem(
         ));
     }
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(EstimationError::unsupported(
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("population_not_estimable"),
             "FrontDoorTwoStage only supports TargetPopulation::AllObserved",
         ));
     }
@@ -1235,6 +1236,6 @@ mod tests {
         let est = FrontDoorTwoStage::new();
         let query = query().with_target_population(TargetPopulation::Treated);
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(matches!(err, EstimationError::Unsupported { .. }));
+        assert!(matches!(err, EstimationError::Refused { .. }));
     }
 }

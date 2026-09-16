@@ -314,9 +314,10 @@ pub fn sample_interventional_distribution(
 ) -> Result<ValueBatch, CausalError> {
     query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(CausalError::Unsupported {
-            message: "sample_interventional_distribution only supports TargetPopulation::AllObserved",
-        });
+        return Err(crate::unsupported_reason!(
+            "population_not_estimable",
+            "sample_interventional_distribution only supports TargetPopulation::AllObserved"
+        ));
     }
     sample_do(model, &query.interventions, n, rng, ctx)
 }
@@ -336,9 +337,10 @@ pub fn attribute_path_specific(
 ) -> Result<ChangeAttributionResult, CausalError> {
     query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(CausalError::Unsupported {
-            message: "attribute_path_specific only supports TargetPopulation::AllObserved",
-        });
+        return Err(crate::unsupported_reason!(
+            "population_not_estimable",
+            "attribute_path_specific only supports TargetPopulation::AllObserved"
+        ));
     }
     let mut result = path_decompose(
         model,

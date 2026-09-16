@@ -2578,18 +2578,13 @@ def _check_quantile_functional(
 
 
 def _check_response_observation(query: Any, inference: Any) -> None:
-    """Observation mechanism, its assumptions, and the target population of a response."""
-    from .observation import Complete
-    from .population import coerce_target_population
+    """Observation mechanism and its assumptions on a response.
 
-    if query.target_population is not None and coerce_target_population(
-        query.target_population
-    ) != {"kind": "all"}:
-        raise _refused(
-            "population_not_estimable",
-            "a prepared response surface estimates the AllObserved population; declare "
-            "another target with prepare + retarget on a frozen score table",
-        )
+    A declared target population is licensed by the Rust study builder, which
+    refuses it with ``population_not_estimable`` on every response route.
+    """
+    from .observation import Complete
+
     if query.observation is not None and not isinstance(query.observation, Complete):
         if isinstance(inference, Bayesian) and not getattr(query, "is_temporal", False):
             raise CausalUnsupportedError("these response cells require complete observations")

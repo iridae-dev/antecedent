@@ -652,6 +652,25 @@ fn omitted_bootstrap_resamples(query: &CausalQuery, inference: &InferenceMode) -
     }
 }
 
+/// Whether an executor can estimate `query` in its declared target population.
+///
+/// The one owner of which query kinds take a population other than
+/// [`antecedent_core::TargetPopulation::AllObserved`] at build time: only an
+/// [`CausalQuery::AverageEffect`], whose estimators then accept or refuse the
+/// specific target (ATT/ATC, predicate, custom distribution) themselves. Every
+/// other population-scoped kind (temporal effects, mediation, interventional
+/// distributions, path-specific effects, responses and derivatives, conditional
+/// effects) has no estimator for another target, so a declared population is
+/// refused here rather than dropped by a route that ignores it. A row-weight
+/// target is produced by a retarget of frozen scores, never estimated from a
+/// build.
+fn population_estimable(query: &CausalQuery) -> bool {
+    match query.target_population() {
+        None | Some(antecedent_core::TargetPopulation::AllObserved) => true,
+        Some(_) => matches!(query, CausalQuery::AverageEffect(_)),
+    }
+}
+
 /// Whether the executors for `query` run caller custom validators.
 ///
 /// A custom validator refutes one scalar average effect. Function-valued
@@ -1259,6 +1278,15 @@ impl StudyBuilder {
         }
 
         let query = self.query.ok_or(CausalError::Missing { field: "query" })?;
+        if !population_estimable(&query) {
+            return Err(crate::unsupported_reason!(
+                "population_not_estimable",
+                "only an AverageEffect estimates a target population other than AllObserved; \
+                 this query kind has no weighting or subpopulation estimator for another target. \
+                 Declare the AllObserved population, or prepare an AllObserved AIPW or cell-AIPW \
+                 study and retarget its frozen scores"
+            ));
+        }
         if let Some(configured) =
             self.estimator_spec.as_ref().and_then(EstimatorSpec::bootstrap_replicates)
         {

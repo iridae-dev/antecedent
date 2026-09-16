@@ -824,11 +824,14 @@ fn target_population_other_than_all_observed_refuses_end_to_end() {
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(22))
         .unwrap_err();
     let msg = err.to_string();
     assert!(msg.contains("AllObserved"), "unexpected error content: {msg}");
+    assert_eq!(
+        antecedent_core::reason_code::split_prefix(&msg).map(|(code, _)| code),
+        Some("population_not_estimable"),
+        "{msg}"
+    );
 }
 
 fn joint_ab_series() -> (TimeSeriesData, TemporalDag) {
