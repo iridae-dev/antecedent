@@ -51,7 +51,11 @@ the identified-functional IR.
 accepted structure, support classification, and declared inference
 commitments. It must not identify, fit, bootstrap, enumerate a class, or
 run a user callback. Identification-product fields are explicitly
-unavailable.
+unavailable, and so is the program identity: the program covers the
+identification products, which do not exist yet, so inspection reports no
+program (`ContractIdentities::program` is `None`, Python
+`preflight().program_id` is `None`) rather than a digest of a different
+program.
 
 `PreparedStudy::contract` builds the same record from actual cached
 identification products. A budget cap or unsupported algorithm scope is
@@ -145,6 +149,30 @@ invalidate support, and require estimation at once. Composition unions
 effects and concatenates unresolved obligations; it cannot erase an earlier
 unresolved obligation. A preview carries input identities so it cannot
 authorize execution after those identities change.
+
+A prepared handle's preview reports the refusal its apply raises when the
+handle cannot perform the transformation at all:
+`PreparedStudy::transform_capability` is the one check, and both
+`preview_transform` and the apply (`retarget`, every `refresh*`, and the
+`apply_*` wrappers) run it. A retarget on a study with no prepared score table
+previews `refused` with the `score_table_unavailable` refusal the retarget
+raises. Checks that need the supplied data — refreshed-schema compatibility,
+retarget weights, declared dependencies and weighted overlap — run only at
+apply and stay as preview obligations. The `apply_*` wrappers additionally
+refuse a preview whose input identities no longer bind the handle; the plain
+`refresh` / `retarget` entry points do not require a preview.
+
+### Refusals
+
+A refusal is reason-coded from `parity/reason_codes.toml`. An estimator that
+does not implement the requested inference mode is refused at build with
+`estimator_inference_mismatch` in both directions, so a Frequentist estimator
+never runs under a Bayesian request bound to the Bayesian coordinate and
+inference binding. A question with no identified estimand is the typed
+`CausalError::NotIdentified` refusal (Python `EffectNotIdentified`, code
+`effect_not_identified`) carrying the identification status and whether the
+search completed or stopped at a budget; a capped search is not a proof of
+non-identification.
 
 ### Reasoning slots and claims
 
@@ -242,7 +270,9 @@ remain readable and are not promoted.
 Sharp RD stays the ADR 0020 identify-per-click exception. Prepare does
 not cache a sharp-RD identification product; each estimate click
 re-identifies with the declared `rd_config` (running variable, cutoff,
-bandwidth) as premises.
+bandwidth) as premises. Its prepared contract says so: the identification slot
+is `unavailable:identified_per_execution`, and each executed claim carries the
+identification that click produced.
 
 Other data-dependent prepare products reuse a *named* product, not a
 blanket “prepared means structural”:
