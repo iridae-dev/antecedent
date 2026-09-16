@@ -126,6 +126,42 @@ regenerates `crates/antecedent-io/src/coverage_records_data.rs`;
 `scripts/calibration_surface.list`, `collect_coverage_records.py --retag`
 recomputes the facets without measuring anything.
 
+### Replay waivers
+
+A reviewed change that cannot move a measured number (a new field with a
+default, a diagnostic) can stand in for a re-measurement through a waiver in
+`parity/calibration_waivers.toml`, which is outside the surface. A waiver names
+`from` (the commit or tag the records were measured at), `to` (the commit it
+attests forward to), the exact surface `paths` that changed between them, a
+`justification`, `reviewed_by`, and `replay` records, each with the waived
+paths its test `exercises`. A record is **attested_by_replay** only when it was
+measured at `from`, every drifted path in its facets is one the waiver names,
+and none of those facets changed between `to` and the tree. Any other change
+leaves it owing, as before.
+
+The evidence is a replay: `calibration_facets.py replay --waiver <id>`, run on a
+clean checkout of `to`, re-runs the gate groups behind the replay records
+through the unchanged `scripts/gate_calibration.sh` and compares each emitted
+`calibration-record` payload with the stored record bit for bit (covered count,
+observed, mcse, replicates and every other emitted field). It writes the
+outcome (the commit replayed at, the record ids, `identical`, any differing
+fields, and a fingerprint of each stored record) into the waiver. `check`
+fails a waiver whose replay was not identical, whose outcome is missing or was
+run elsewhere, whose stored records changed since, whose `from` or `to` does not
+resolve, which names a path that is off the surface or unchanged within its
+range, or whose `exercises` are empty, name a path outside the waiver, leave a
+waived path unexercised, or name a file the record's test cannot reach or a facet
+it does not carry. The attestation gate reports covered records as
+`attested_by_replay (waiver <id>)`, and a release cut accepts them and prints
+their count and waiver ids.
+
+```bash
+python3 scripts/calibration_facets.py replay-candidates --from <measured tag> --to <sha>
+# write the waiver (without `outcome`), check out `to`, then:
+python3 scripts/calibration_facets.py replay --waiver <id> --dry-run   # the gate groups it runs
+python3 scripts/calibration_facets.py replay --waiver <id>
+```
+
 `calibration.yml` splits the gate across 24 runners with
 `scripts/calibration_shards.py`: each long group (a Bayesian derivative cell,
 or another whose 2000-replicate recheck has measured tens of minutes to hours)
@@ -163,9 +199,10 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
 - **`REQUIRE_CALIBRATION_ATTESTATION=1`** makes `gate_calibration_attestation.sh`
   require every coverage record to be attested: each record's facets unchanged
   between its own `calibration_sha` (a commit that must be in the clone) and
-  this tree. An unchanged surface passes with no re-measurement. A drifted
-  facet fails, naming the changed paths and the records that owe a
-  re-measurement.
+  this tree, or attested_by_replay under a valid replay waiver (reported with
+  its count and waiver ids). An unchanged surface passes with no
+  re-measurement. A drifted facet fails, naming the changed paths and the
+  records that owe a re-measurement.
 - The gate then runs `gate_release.sh`, Python lint/types, the Python suite with
   its coverage floor, and builds one wheel into a fresh directory, installs it
   into a fresh venv and runs the full Python test suite against that installed
