@@ -34,7 +34,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 PARSE_MARKERS = re.compile(
-    r"serde_json::from_str|serde_json::from_slice|serde_json::Value|from_str::<|json\.loads|"
+    r"serde_json::from_str|serde_json::from_slice|from_str::<|json\.loads|"
     r"json\.load\(|tomllib\.loads|tomllib\.load\(|load_expected|load_json\(|toml::from_str"
 )
 ASSERT_MARKERS = re.compile(r"\bassert(?:_eq|_ne)?!|\bassert\s|pytest\.approx|\bpanic!")
