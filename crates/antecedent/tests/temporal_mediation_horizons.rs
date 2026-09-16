@@ -401,7 +401,16 @@ fn temporal_cpdag_mediation_cheap_and_full_run_per_completion() {
         assert!(result.mediation_grid.as_ref().is_some_and(|grid| {
             grid.slices.iter().all(|slice| slice.identified_set.is_some())
         }));
-        assert!(result.estimate.ate.is_nan());
+        // One horizon whose completions all fit the same mediation design: the
+        // identified set is that one contrast, and it is published as the
+        // scalar estimate beside the set.
+        assert!(result.estimate.ate.is_finite());
+        assert!(result.mediation.is_some());
+        assert!(result.mediation_grid.as_ref().is_some_and(|grid| {
+            grid.slices[0].identified_set.is_some_and(|set| {
+                set.lower == result.estimate.ate && set.upper == result.estimate.ate
+            })
+        }));
     }
 }
 

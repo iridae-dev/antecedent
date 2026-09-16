@@ -96,7 +96,7 @@ evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_cpdag_mediation_returns_per_horizon_identified_sets"
 calibration_reason = "estimator_grid_not_measured"
-limitations = "The existing linear temporal mediation identifier runs independently on every valid TemporalDag completion and horizon, each completion adjusting its own S(h) = I(h) plus its mediator-outcome confounders. Completion-specific effects are returned as identified sets, never an enumeration-weighted mean. TemporalPag latent-confounded natural mediation is not claimed. No sampling interval is published: per-completion iid analytic SEs are NaN and the identified set carries no block-bootstrap band."
+limitations = "The existing linear temporal mediation identifier runs independently on every valid TemporalDag completion and horizon, each completion adjusting its own S(h) = I(h) plus its mediator-outcome confounders. Completion-specific effects are returned as identified sets, never an enumeration-weighted mean. TemporalPag latent-confounded natural mediation is not claimed. When every completion is identified and fits the same mediation design (same estimand and same S(h)), the identified set is one contrast and the horizon slice publishes that design's shared circular-block bootstrap SE, the TemporalDag route's construction on the same stream (crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_slice_interval_is_the_shared_design_interval). At a single requested horizon that contrast is the result's own estimate and mediation record too, so the reported interval is that circular-block SE beside the identified set (crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_class_reports_the_circular_block_interval). Completions that fit different designs, an unidentified or capped completion, and several requested horizons keep an unbanded identified set: per-completion iid analytic SEs are NaN."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -109,7 +109,7 @@ evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_cpdag_mediation_cheap_and_full_run_per_completion"
 calibration_reason = "estimator_grid_not_measured"
-limitations = "Cheap mediation refuters run on every identified completion and horizon against that completion's point effect. The reported result remains a completion identified set, not an enumeration-weighted mean. No sampling interval is published: per-completion iid analytic SEs are NaN and the identified set carries no block-bootstrap band."
+limitations = "Cheap mediation refuters run on every identified completion and horizon against that completion's point effect. The reported result remains a completion identified set, not an enumeration-weighted mean. When every completion is identified and fits the same mediation design (same estimand and same S(h)), the identified set is one contrast and the horizon slice publishes that design's shared circular-block bootstrap SE, the TemporalDag route's construction on the same stream (crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_slice_interval_is_the_shared_design_interval). At a single requested horizon that contrast is the result's own estimate and mediation record too, so the reported interval is that circular-block SE beside the identified set (crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_class_reports_the_circular_block_interval). Completions that fit different designs, an unidentified or capped completion, and several requested horizons keep an unbanded identified set: per-completion iid analytic SEs are NaN."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -122,7 +122,7 @@ evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_cpdag_mediation_cheap_and_full_run_per_completion"
 calibration_reason = "estimator_grid_not_measured"
-limitations = "Full adds contiguous-window stability to the cheap per-completion mediation refuters. The reported result remains a completion identified set. No sampling interval is published: per-completion iid analytic SEs are NaN and the identified set carries no block-bootstrap band."
+limitations = "Full adds contiguous-window stability to the cheap per-completion mediation refuters. The reported result remains a completion identified set. When every completion is identified and fits the same mediation design (same estimand and same S(h)), the identified set is one contrast and the horizon slice publishes that design's shared circular-block bootstrap SE, the TemporalDag route's construction on the same stream (crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_slice_interval_is_the_shared_design_interval). At a single requested horizon that contrast is the result's own estimate and mediation record too, so the reported interval is that circular-block SE beside the identified set (crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_class_reports_the_circular_block_interval). Completions that fit different designs, an unidentified or capped completion, and several requested horizons keep an unbanded identified set: per-completion iid analytic SEs are NaN."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -135,7 +135,7 @@ evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_cpdag_mediation_returns_per_horizon_identified_sets"
 calibration_reason = "estimator_grid_not_measured"
-limitations = "Accepted structure shares the explicit TemporalCpdag completion identified-set evaluator. No sampling interval is published: per-completion iid analytic SEs are NaN and the identified set carries no block-bootstrap band."
+limitations = "Accepted structure shares the explicit TemporalCpdag completion identified-set evaluator. When every completion is identified and fits the same mediation design (same estimand and same S(h)), the identified set is one contrast and the horizon slice publishes that design's shared circular-block bootstrap SE, the TemporalDag route's construction on the same stream (crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_slice_interval_is_the_shared_design_interval). At a single requested horizon that contrast is the result's own estimate and mediation record too, so the reported interval is that circular-block SE beside the identified set (crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_class_reports_the_circular_block_interval). Completions that fit different designs, an unidentified or capped completion, and several requested horizons keep an unbanded identified set: per-completion iid analytic SEs are NaN."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -148,7 +148,7 @@ evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_cpdag_mediation_cheap_and_full_run_per_completion"
 calibration_reason = "estimator_grid_not_measured"
-limitations = "Accepted TemporalCpdag cheap suite shares the explicit per-completion mediation refuters. The reported result remains a completion identified set. No sampling interval is published: per-completion iid analytic SEs are NaN and the identified set carries no block-bootstrap band."
+limitations = "Accepted TemporalCpdag cheap suite shares the explicit per-completion mediation refuters. The reported result remains a completion identified set. When every completion is identified and fits the same mediation design (same estimand and same S(h)), the identified set is one contrast and the horizon slice publishes that design's shared circular-block bootstrap SE, the TemporalDag route's construction on the same stream (crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_slice_interval_is_the_shared_design_interval). At a single requested horizon that contrast is the result's own estimate and mediation record too, so the reported interval is that circular-block SE beside the identified set (crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_class_reports_the_circular_block_interval). Completions that fit different designs, an unidentified or capped completion, and several requested horizons keep an unbanded identified set: per-completion iid analytic SEs are NaN."
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -161,7 +161,7 @@ evidence_kind = "internal_cross_check"
 evidence_test = "crates/antecedent/tests/temporal_mediation_horizons.rs"
 evidence_assertion = "temporal_cpdag_mediation_cheap_and_full_run_per_completion"
 calibration_reason = "estimator_grid_not_measured"
-limitations = "Accepted TemporalCpdag full suite shares the explicit per-completion mediation refuters. The reported result remains a completion identified set. No sampling interval is published: per-completion iid analytic SEs are NaN and the identified set carries no block-bootstrap band."
+limitations = "Accepted TemporalCpdag full suite shares the explicit per-completion mediation refuters. The reported result remains a completion identified set. When every completion is identified and fits the same mediation design (same estimand and same S(h)), the identified set is one contrast and the horizon slice publishes that design's shared circular-block bootstrap SE, the TemporalDag route's construction on the same stream (crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_slice_interval_is_the_shared_design_interval). At a single requested horizon that contrast is the result's own estimate and mediation record too, so the reported interval is that circular-block SE beside the identified set (crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_class_reports_the_circular_block_interval). Completions that fit different designs, an unidentified or capped completion, and several requested horizons keep an unbanded identified set: per-completion iid analytic SEs are NaN."
 
 [[cell]]
 query = "ResponseCurve"
