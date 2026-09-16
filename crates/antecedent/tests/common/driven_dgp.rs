@@ -5,8 +5,9 @@
 //! scores `x_{t-h}·e_t` are serially correlated whenever the residual is: an iid
 //! SE or iid row bootstrap under-covers on these DGPs. No lagged outcome enters
 //! the adjustment set, so the residual autocorrelation is not absorbed. (A
-//! treatment self-loop would make persistence explicit, but temporal backdoor
-//! identification cannot certify a self-looped treatment over a finite window.)
+//! treatment self-loop would make persistence explicit, but unfolding cannot
+//! certify a self-looped treatment over a finite window, and only a single-step
+//! Pulse is then identified, by parent adjustment.)
 //!
 //! Truths are the population values of the reported estimands (linear-Gaussian):
 //! Pulse h=1 and single-step Sustained `BETA` (`y_t = BETA·x_{t-1} + e_t`);

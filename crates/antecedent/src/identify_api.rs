@@ -301,6 +301,7 @@ fn identify_with_source(
                 });
             };
             let identified = TemporalBackdoorIdentifier::new()
+                .with_parent_adjustment_fallback()
                 .identify_temporal(dag, q)
                 .map_err(CausalError::from)?;
             Ok(Identification::Point {
