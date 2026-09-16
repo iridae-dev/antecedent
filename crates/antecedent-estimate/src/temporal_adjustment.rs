@@ -327,29 +327,74 @@ impl TemporalLinearAdjustment {
         split: Option<&DiscoveryEstimationSplit>,
         policy: &antecedent_core::KernelPolicy,
     ) -> Result<(PreparedEstimationProblem, Vec<u32>, Vec<i64>), EstimationError> {
+        let units = self.prepare_panel_units(panel, estimand, query, indexer, split, policy)?;
+        let ids: Vec<u32> = panel.units().iter().map(|unit| unit.unit_id).collect();
+        self.stack_panel_units(&units.iter().collect::<Vec<_>>(), &ids)
+    }
+
+    /// Prepare every panel unit's own lag-aligned design (one [`Self::prepare`] per
+    /// unit, so no lag window crosses a unit boundary), in panel order.
+    ///
+    /// A unit cluster bootstrap prepares once and restacks these blocks per replicate
+    /// with [`Self::stack_panel_units`].
+    ///
+    /// # Errors
+    ///
+    /// Empty panel, incompatible estimand, or per-unit preparation failures.
+    pub fn prepare_panel_units(
+        &self,
+        panel: &antecedent_data::PanelData,
+        estimand: &IdentifiedEstimand,
+        query: &TemporalEffectQuery,
+        indexer: &TemporalIndexer,
+        split: Option<&DiscoveryEstimationSplit>,
+        policy: &antecedent_core::KernelPolicy,
+    ) -> Result<Vec<PreparedEstimationProblem>, EstimationError> {
         if panel.unit_count() == 0 {
             return Err(EstimationError::data_msg("panel needs ≥1 unit"));
         }
-        let mut all_t = Vec::new();
-        let mut all_y = Vec::new();
-        let mut all_covs: Vec<(VariableId, Vec<f64>)> = Vec::new();
-        let mut cluster_ids = Vec::new();
-        let mut panel_times = Vec::new();
-        let mut adj_keys: Vec<VariableId> = Vec::new();
-        let mut active = 0.0;
-        let mut control = 0.0;
-        let mut treatment_delta = 0.0;
-        let mut first = true;
+        panel
+            .units()
+            .iter()
+            .map(|unit| self.prepare(&unit.series, estimand, query, indexer, split, policy))
+            .collect()
+    }
 
-        for unit in panel.units() {
-            let prep = self.prepare(&unit.series, estimand, query, indexer, split, policy)?;
-            if first {
-                active = prep.active;
-                control = prep.control;
-                treatment_delta = prep.treatment_delta;
-                adj_keys = prep.adjustment_set.to_vec();
-                all_covs = adj_keys.iter().map(|&id| (id, Vec::new())).collect();
-                first = false;
+    /// Stack per-unit prepared blocks into one pooled design.
+    ///
+    /// `cluster_ids[k]` labels every row of `units[k]`; a resampled panel passes one
+    /// fresh id per draw so a unit drawn twice forms two clusters. Returns
+    /// `(problem, row_cluster_ids, panel_times)` with consecutive within-block times.
+    ///
+    /// # Errors
+    ///
+    /// No blocks, mismatched ids, blocks from different designs, or design failure.
+    pub fn stack_panel_units(
+        &self,
+        units: &[&PreparedEstimationProblem],
+        cluster_ids: &[u32],
+    ) -> Result<(PreparedEstimationProblem, Vec<u32>, Vec<i64>), EstimationError> {
+        let Some(first) = units.first() else {
+            return Err(EstimationError::data_msg("panel needs ≥1 unit"));
+        };
+        if cluster_ids.len() != units.len() {
+            return Err(EstimationError::data_msg("one cluster id per stacked panel unit"));
+        }
+        let adj_keys = first.adjustment_set.to_vec();
+        let total_rows: usize = units.iter().map(|unit| unit.design.nrows).sum();
+        let mut all_t = Vec::with_capacity(total_rows);
+        let mut all_y = Vec::with_capacity(total_rows);
+        let mut all_covs: Vec<(VariableId, Vec<f64>)> =
+            adj_keys.iter().map(|&id| (id, Vec::with_capacity(total_rows))).collect();
+        let mut row_clusters = Vec::with_capacity(total_rows);
+        let mut panel_times = Vec::with_capacity(total_rows);
+        for (prep, &cluster) in units.iter().zip(cluster_ids) {
+            if prep.adjustment_set.as_ref() != adj_keys.as_slice()
+                || prep.design.ncols != first.design.ncols
+            {
+                return Err(EstimationError::data_msg(
+                    "stacked panel units must share one adjustment design",
+                ));
             }
             let n = prep.treatment.len();
             all_t.extend_from_slice(&prep.treatment);
@@ -360,7 +405,7 @@ impl TemporalLinearAdjustment {
                 let base = (2 + i) * nrows;
                 dest.extend_from_slice(&prep.design.matrix[base..base + nrows]);
             }
-            cluster_ids.extend(std::iter::repeat_n(unit.unit_id, n));
+            row_clusters.extend(std::iter::repeat_n(cluster, n));
             // Prepared rows are consecutive in calendar time after lag alignment.
             for t_idx in 0..n {
                 let t_label = i64::try_from(t_idx)
@@ -381,13 +426,13 @@ impl TemporalLinearAdjustment {
                 method: Arc::from("temporal.linear.adjustment.panel"),
                 adjustment_set: Arc::from(adj_keys),
                 overlap: self.inner.overlap,
-                treatment_delta,
+                treatment_delta: first.treatment_delta,
                 target_population: TargetPopulation::AllObserved,
                 treatment: Arc::from(all_t),
-                active,
-                control,
+                active: first.active,
+                control: first.control,
             },
-            cluster_ids,
+            row_clusters,
             panel_times,
         ))
     }

@@ -41,8 +41,8 @@ pub use ci::{
 };
 pub use cluster::{
     MAX_CLUSTER_DIMENSIONS, bartlett_weight, combine_inclusion_exclusion, effective_nw_lag,
-    intern_cluster_tuples, multiway_subset_masks, multiway_subset_sign, panel_hac_meat_matrix,
-    panel_hac_meat_scalar,
+    few_cluster_t_ratio, intern_cluster_tuples, multiway_subset_masks, multiway_subset_sign,
+    panel_hac_meat_matrix, panel_hac_meat_scalar,
 };
 pub use covariance::{SandwichKind, coefficient_covariance, score_coefficient_covariance};
 pub use design::{

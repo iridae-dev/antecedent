@@ -30,11 +30,13 @@ impl super::Study {
 
     pub(super) fn ensure_supported_combination(&self) -> Result<(), CausalError> {
         let class = self.graph.class();
-        if matches!(self.data, DataInput::Panel(_)) {
+        if let DataInput::Panel(panel) = &self.data {
             super::super::builder::refuse_unlicensed_panel_route(
                 &self.query,
                 class,
                 &self.inference,
+                panel,
+                self.split.as_ref(),
             )?;
         }
         match (&self.data, &self.query, class) {

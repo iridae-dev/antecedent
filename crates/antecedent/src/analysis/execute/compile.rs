@@ -757,13 +757,14 @@ impl super::Study {
             &self.query,
             self.graph.class(),
             &self.inference,
+            panel,
+            self.split.as_ref(),
         )?;
         self.compile_logical_class_effect(
             panel_compile_series(panel)?,
             DataClassification::Panel,
             "panel_cpdag_effect",
             "panel_pag_effect",
-            true,
         )
     }
 
@@ -773,6 +774,8 @@ impl super::Study {
             &self.query,
             self.graph.class(),
             &self.inference,
+            panel,
+            self.split.as_ref(),
         )?;
         let CausalQuery::Response(q) = &self.query else { unreachable!() };
         let mut plan = compile_logical_temporal_response(
@@ -810,7 +813,6 @@ impl super::Study {
             classification,
             "temporal_cpdag_effect",
             "temporal_pag_effect",
-            true,
         )
     }
 
@@ -820,7 +822,6 @@ impl super::Study {
         classification: DataClassification,
         cpdag_plan: &'static str,
         pag_plan: &'static str,
-        rewrite_series_estimators: bool,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         let CausalQuery::TemporalEffect(q) = &self.query else { unreachable!() };
         let (plan_id, nodes) = match self.graph.class() {
@@ -843,14 +844,11 @@ impl super::Study {
             identifier,
             estimator,
         )?;
-        if rewrite_series_estimators {
-            if q.is_multi_step_sustained() {
-                logical.record.estimator =
-                    Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
-            } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                logical.record.estimator =
-                    Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
-            }
+        if q.is_multi_step_sustained() {
+            logical.record.estimator =
+                Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
+        } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
+            logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
         }
         logical.record.discovery_algorithm = self.graph.algorithm_id().map(Arc::from);
         Ok(logical)
