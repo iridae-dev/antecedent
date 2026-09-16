@@ -852,6 +852,15 @@ if listed.returncode != 0:
 else:
     problems.extend(json.loads(listed.stdout)["problems"])
 
+# ---- [gates] licensed cells link to the external oracles their routes rest on ----
+# parity/licensed_routes.toml (generated from executed plans) must route exactly
+# the licensed cells, and every `oracle_components` entry must sit on an external
+# oracle row and name a component a licensed cell actually runs
+# (scripts/external_evidence.py; rendered by generate_support_matrix_docs.py).
+import external_evidence  # noqa: E402
+
+problems.extend(f"external evidence: {p}" for p in external_evidence.check())
+
 # ---- [gates] publishing requires calibration attestation ----
 # A tag must not ship calibration labels from a registry that no longer
 # matches the code: both publish workflows attest before any build or upload.

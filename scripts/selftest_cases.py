@@ -406,6 +406,45 @@ def schema_cases() -> list[bool]:
         ),
         case(
             g,
+            "oracle_components_on_an_internal_row",
+            {
+                "parity/estimate.toml": in_block(
+                    "capabilities",
+                    "estimate.doubly_robust",
+                    replace(
+                        'evidence_kind = "internal_known_truth"\n',
+                        'evidence_kind = "internal_known_truth"\n'
+                        'oracle_components = ["estimator:aipw"]\n',
+                    ),
+                )
+            },
+            ["estimate.doubly_robust: oracle_components on a 'internal_known_truth' row"],
+        ),
+        case(
+            g,
+            "oracle_component_no_licensed_cell_runs",
+            {
+                "parity/estimate.toml": replace(
+                    'oracle_components = ["estimator:linear.adjustment.ate"]',
+                    'oracle_components = ["estimator:linear.adjustment.att"]',
+                )
+            },
+            ["'estimator:linear.adjustment.att' is not a estimator any licensed cell runs"],
+        ),
+        case(
+            g,
+            "licensed_cell_without_a_route",
+            {
+                "parity/licensed_routes.toml": replace(
+                    '\n[[route]]\ncoordinate = "ResponseCurve:Dag:graph_posterior:Frequentist:none"\n'
+                    'identifier = "response.backdoor"\nestimator = "response.kennedy_dr"\n',
+                    "",
+                )
+            },
+            ["ResponseCurve:Dag:graph_posterior:Frequentist:none has no route"],
+        ),
+        case(
+            g,
             "publish_without_attestation",
             {
                 ".github/workflows/publish-crates.yml": replace(

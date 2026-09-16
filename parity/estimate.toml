@@ -73,6 +73,7 @@ group = "identification"
 description = "Backdoor"
 status = "done"
 evidence_kind = "frozen_external_oracle"
+oracle_components = ["identifier:backdoor.adjustment", "identifier:general.id"]
 external_oracle = "dowhy 0.14"
 known_truth_fixture = "conformance/identify/general_id_backdoor_chain"
 limitations = "BackdoorIdentifier consumes the frozen Z -> T, Z -> Y, T -> Y oracle: identified status, backdoor estimand family, and the fixture graph_dot. Symbolic-expression formatting is not compared."
@@ -96,6 +97,7 @@ group = "identification"
 description = "General ID"
 status = "done"
 evidence_kind = "frozen_external_oracle"
+oracle_components = ["identifier:general.id"]
 external_oracle = "dowhy 0.14"
 known_truth_fixture = "conformance/identify/general_id_frontdoor"
 limitations = "Frozen external status/estimand-family/graph_dot comparisons cover backdoor, front-door, and bow-arc hedge graphs; clean-room conformance/identify/id_hedge separately pins the hedge certificate. Symbolic-expression prose is not compared byte-for-byte."
@@ -118,6 +120,7 @@ group = "estimation"
 description = "Linear regression"
 status = "done"
 evidence_kind = "frozen_external_oracle"
+oracle_components = ["estimator:linear.adjustment.ate"]
 external_oracle = "dowhy 0.14"
 known_truth_fixture = "conformance/estimate/linear_gaussian_ate"
 limitations = "The one estimate-group row whose test StableFloat-compares against the recorded DoWhy estimate itself."
@@ -207,6 +210,7 @@ group = "estimation"
 description = "Conditional effects / effect modifiers"
 status = "done"
 evidence_kind = "frozen_external_oracle"
+oracle_components = ["estimator:conditional.linear.adjustment"]
 external_oracle = "statsmodels 0.14.4"
 known_truth_fixture = "conformance/estimate/conditional_effects"
 owner = "context"
@@ -375,6 +379,19 @@ python_facade = "full"
 limitations = "Only the forms and assumptions in docs/v1.2-evidence.md are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
 notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
 calibration = ["cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage", "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_dag_multistep_sustained_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar1_rho09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n100_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n100_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_iid_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_multistep_sustained_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar1_rho09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n100_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n100_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_iid_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_ar1_rho05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_ar1_rho09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_ar1_rho05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_ar1_rho09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_multistep_sustained_nominal_90_coverage", "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_multistep_sustained_nominal_90_coverage", "cov.sustained_effect.temporal_pag.frequentist.identified_set.l90.frequentist_temporal_pag_multistep_identified_set_interval_nominal_90_coverage"]
+
+[[capabilities]]
+id = "estimate.temporal_mediation.external_parity"
+group = "external_parity"
+description = "Temporal mediation total, direct and mediated effects and the Sobel SE against a pinned statsmodels run"
+status = "done"
+evidence_kind = "frozen_external_oracle"
+oracle_components = ["estimator:temporal.mediation"]
+external_oracle = "statsmodels 0.14.4"
+known_truth_fixture = "conformance/estimate/temporal_mediation_grid"
+owner = "estimate"
+limitations = "One lag-one mediator with linear additive mechanisms on the fixture's n = 320 law; three independently fitted OLS models and the Sobel product variance are compared (TemporalMediationEstimator in temporal_mediation.rs; the licensed Frequentist TemporalDag cells' own outputs in prepared_analysis.rs). Circular-block and Bayesian uncertainty are not externally compared."
+notes = "Coverage for temporal.mediation stays on estimate.mediation.linear, the estimation-group row that owns the estimator's calibration."
 
 [[capabilities]]
 id = "estimate.mediation.linear"
