@@ -5,17 +5,18 @@ A coverage record in `parity/coverage_records.toml` stands until the code it
 measured changes. `scripts/calibration_surface.list` is the only owner of that
 surface. It assigns every path to a facet:
 
-* `core` — code every record depends on. A change here invalidates every
-  record. A path under the surface that no narrower line claims is `core`, and
-  a crate, manifest or record-emitting suite the list does not cover at all
-  fails `check`, so an unmapped edit can never look harmless.
-* any other facet — code only some records depend on. A change here
-  invalidates the records that carry the facet and no others.
+* `core` — shared code (facade, harness, manifests, toolchain). It stays on
+  the list so an unmapped file cannot look harmless, but records do not carry
+  it: a core edit does not owe a re-measurement.
+* `estimator.*` / `identity.*` — the implementation of one estimator or
+  identification path. A change owes only the records whose `estimator` /
+  `query` (or other keyed field) names that implementation.
+* `suite.*` / `mechanism` / `design` — as before: only the records that
+  carry the facet.
 
 A record's facets are derived from the record itself, never declared by hand:
-`core`; the facet of the file its `test` and `dgp` name; every facet a `key`
-line in the list assigns to one of its key fields; and every non-core facet
-whose items that suite file (or the shared test harness) names.
+the facet of the file its `test` and `dgp` name, and every facet a `key`
+line in the list assigns to one of its fields.
 
 A narrow facet is only sound while code outside it cannot run its code on
 behalf of records that do not carry it. `check` enforces that boundary from the
@@ -417,6 +418,11 @@ def references(surface: Surface) -> References:
     by_facet: dict[str, dict[str, set[str]]] = {}
     reexports: list[tuple[str, str]] = []
     for facet in sorted(surface.facets - {CORE}):
+        if _keyed_impl_facet(facet):
+            # Isolation is the key line, not an allow-list: crate lib.rs re-exports
+            # every estimator/identity, which would otherwise fail check.
+            by_facet[facet] = {}
+            continue
         members = [rel for rel in files if facet_of[rel] == facet]
         # Whole crates in the facet: reached only through their crate path.
         whole = sorted(
@@ -458,6 +464,10 @@ def references(surface: Surface) -> References:
     return References(by_facet, reexports, harness)
 
 
+def _keyed_impl_facet(facet: str) -> bool:
+    return facet.startswith(("estimator.", "identity."))
+
+
 def check(surface: Surface) -> list[str]:
     problems = list(surface.errors)
     if problems:
@@ -488,15 +498,19 @@ def check(surface: Surface) -> list[str]:
             problems.append(f"calibration surface omits {rel}")
     for rel in ("scripts/gate_calibration.sh", "crates/antecedent/tests/common/calibration.rs"):
         if surface.facet_of(rel) not in (None, CORE):
-            problems.append(f"{rel} must be {CORE}: every record depends on it")
+            problems.append(f"{rel} must be {CORE}: the shared harness is not an estimator")
     # Boundaries.
     refs = references(surface)
     for facet, rel in refs.reexports:
+        if _keyed_impl_facet(facet):
+            continue
         problems.append(
             f"{rel} re-exports {facet} items from outside the facet; make it a {facet} "
             "file or stop re-exporting"
         )
     for facet, hits in sorted(refs.by_facet.items()):
+        if _keyed_impl_facet(facet):
+            continue
         for rel, found in sorted(hits.items()):
             if is_test_consumer(rel):
                 continue
@@ -529,16 +543,17 @@ def load_records(path: Path = RECORDS) -> list[dict]:
 
 
 def record_facets(rec: dict, surface: Surface, refs: References | None = None) -> list[str]:
-    """Facets a record depends on, derived from its own fields."""
-    refs = refs or references(surface)
-    facets = {CORE}
-    consumers = []
+    """Facets a record depends on, derived from its own fields.
+
+    A record carries the suite of its test/DGP and every keyed estimator or
+    identity its fields name. It does not carry `core`.
+    """
+    del refs
+    facets: set[str] = set()
     for spec in (str(rec.get("test", "")), str(rec.get("dgp", ""))):
         rel = spec.rsplit("::", 1)[0]
-        facets.add(surface.facet_of(rel) or CORE)
-        consumers.append(rel)
-    for facet, hits in refs.by_facet.items():
-        if any(rel in hits for rel in consumers + refs.harness):
+        facet = surface.facet_of(rel)
+        if facet and facet != CORE:
             facets.add(facet)
     for facet, key, patterns in surface.keys:
         value = str(rec.get(key, ""))
@@ -1008,7 +1023,7 @@ def validate_waivers(
                     f"{label}: replay record {r.record} was not measured at from "
                     f"({rec.get('calibration_sha')}), so its replay compares nothing"
                 )
-            carried = set(record_facets(rec, surface, refs)) | set(rec.get("facets", []))
+            carried = set(record_facets(rec, surface, refs))
             test = str(rec.get("test", "")).rsplit("::", 1)[0]
             for rel in r.exercises:
                 facet = surface.facet_of(rel) or CORE
@@ -1060,7 +1075,7 @@ class Assessment:
     sha: str
     resolved: str | None
     records: list[dict]
-    facets: dict[str, set[str]]  # record id -> derived facets (plus any stored ones)
+    facets: dict[str, set[str]]  # record id -> derived facets
     drifted: dict[str, list[str]]  # facet -> changed paths
     stale: list[dict]  # owe a re-measurement
     waived: dict[str, str] = field(default_factory=dict)  # record id -> waiver id
@@ -1141,7 +1156,7 @@ def assess(
     for sha, recs in sorted(by_sha.items()):
         resolved = repo.resolve(sha) if sha else None
         facets = {
-            str(rec.get("id")): set(record_facets(rec, surface, refs)) | set(rec.get("facets", []))
+            str(rec.get("id")): set(record_facets(rec, surface, refs))
             for rec in recs
         }
         drifted: dict[str, list[str]] = {}
@@ -1520,7 +1535,7 @@ def replay_candidates(start_ref: str, end_ref: str, paths: list[str]) -> int:
         facet = surface.facet_of(rel) or CORE
         rows = []
         for rec in records:
-            carried = set(record_facets(rec, surface, refs)) | set(rec.get("facets", []))
+            carried = set(record_facets(rec, surface, refs))
             test = str(rec.get("test", "")).rsplit("::", 1)[0]
             groups = matches[str(rec["id"])]
             if facet in carried and _reaches(test, rel, deps) and groups:
@@ -1551,9 +1566,10 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
     import math
 
     start, end, other = "1" * 40, "2" * 40, "3" * 40
-    helpers = "crates/antecedent/src/analysis/helpers.rs"  # core
+    helpers = "crates/antecedent/src/analysis/helpers.rs"  # core; records do not carry it
     compile_rs = "crates/antecedent-model/src/compile.rs"  # mechanism
     stats = "crates/antecedent-stats/src/lib.rs"  # core, not waived
+    temporal_adj = "crates/antecedent-estimate/src/temporal_adjustment.rs"
     measured = {
         "nominal": 0.9,
         "n_min": 400,
@@ -1611,8 +1627,8 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
             to="calibration/replay",
             reviewed_by="reviewer",
             justification='Additive fields only.\nNo interval, SE or seed path; "quoted" \\ ok.',
-            paths=[helpers, compile_rs],
-            replay=[ReplayRecord("cf", [helpers, compile_rs])],
+            paths=[compile_rs],
+            replay=[ReplayRecord("cf", [compile_rs])],
             outcome=ReplayOutcome(end, ["cf"], True, [], {"cf": fingerprint(cf)}),
         )
         for key, value in changes.items():
@@ -1620,12 +1636,14 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         return waiver
 
     def diffs(after_to: list[str] | None = None, between: list[str] | None = None) -> FakeRepo:
+        between_paths = [helpers, compile_rs] if between is None else between
+        after = after_to or []
         return FakeRepo(
             commits,
             {
-                (start, end): [helpers, compile_rs] if between is None else between,
-                (start, None): [helpers, compile_rs] + (after_to or []),
-                (end, None): after_to or [],
+                (start, end): between_paths,
+                (start, None): between_paths + after,
+                (end, None): after,
                 (other, None): [helpers],
             },
         )
@@ -1642,21 +1660,19 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
 
     problems, owed, waived, assessed = run(good())
     expect(
-        problems == [] and waived == {"cf": "w-good", "tp": "w-good", "lib": "w-good"}
-        and owed == {"tp_other"},
-        "a valid waiver attests the records measured at from as attested_by_replay, and "
-        "only those",
+        problems == [] and waived == {"cf": "w-good"} and owed == set(),
+        "a valid waiver attests the records at from that depend on a named drifted facet",
     )
     printed = io.StringIO()
     with contextlib.redirect_stdout(printed):
         tally = report(assessed, base)
     text = printed.getvalue()
     expect(
-        "attested_by_replay (waiver w-good): 3 record(s)" in text
-        and "attested_by_replay: 3 record(s) under waiver(s) w-good" in text
-        and "attested and matching: 0 record(s)" in text
-        and tally.by_replay == {"w-good": 3}
-        and tally.owed == 1,
+        "attested_by_replay (waiver w-good): 1 record(s)" in text
+        and "attested_by_replay: 1 record(s) under waiver(s) w-good" in text
+        and "attested and matching: 3 record(s)" in text
+        and tally.by_replay == {"w-good": 1}
+        and tally.owed == 0,
         "the report shows replay-attested records under their own status, never as attested",
     )
     covered = Tally(standing=2, by_replay={"w-good": 3})
@@ -1674,31 +1690,31 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         "an invalid waiver or an owed record still fails",
     )
     _, owed, waived, _ = run(
-        good(paths=[helpers], replay=[ReplayRecord("cf", [helpers])]),
-        diffs(between=[helpers, compile_rs]),
+        good(paths=[compile_rs], replay=[ReplayRecord("cf", [compile_rs])]),
+        diffs(between=[compile_rs, temporal_adj]),
     )
     expect(
-        "cf" in owed and set(waived) == {"tp", "lib"},
+        "tp" in owed and set(waived) == {"cf"},
         "a changed path the waiver does not name leaves the records depending on it owing",
     )
-    _, owed, waived, _ = run(good(), diffs(after_to=[stats]))
+    _, owed, waived, _ = run(good(), diffs(after_to=[compile_rs]))
     expect(
-        waived == {} and {"cf", "tp", "lib"} <= owed,
-        "a surface change outside the waiver (after to) owes every record depending on it",
+        waived == {} and owed == {"cf"},
+        "a surface change outside the waiver (after to) owes the records depending on it",
     )
     _, owed, waived, _ = run(
         good(),
         FakeRepo(
             commits,
             {
-                (start, end): [helpers, compile_rs],
-                (start, None): [helpers],
-                (end, None): [helpers],
+                (start, end): [compile_rs],
+                (start, None): [compile_rs],
+                (end, None): [compile_rs],
             },
         ),
     )
     expect(
-        waived == {} and {"cf", "tp", "lib"} <= owed,
+        waived == {} and owed == {"cf"},
         "a waived path changed again after to: the waiver does not apply outside its range",
     )
     expect(
@@ -1721,7 +1737,7 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         and waived == {},
         "a replay record whose exercises is empty is invalid",
     )
-    problems, _, waived, _ = run(good(replay=[ReplayRecord("cf", [helpers, compile_rs, stats])]))
+    problems, _, waived, _ = run(good(replay=[ReplayRecord("cf", [compile_rs, stats])]))
     expect(
         any(f"exercises {stats}, which the waiver does not name" in p for p in problems)
         and waived == {},
@@ -1750,7 +1766,13 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         "a stored record that changed after the replay invalidates the waiver",
     )
     problems, _, _, _ = run(
-        good(replay=[ReplayRecord("cf", [compile_rs]), ReplayRecord("lib", [helpers])])
+        good(replay=[ReplayRecord("cf", [compile_rs]), ReplayRecord("lib", [compile_rs])]),
+        registry=[
+            cf,
+            tp,
+            lib | {"query": "Counterfactual", "estimator": "gcm.fit"},
+            elsewhere,
+        ],
     )
     expect(
         any("replay lib exercises" in p and "cannot reach" in p for p in problems),
@@ -1941,7 +1963,7 @@ def _attestation_gate_self_test(
         expect(
             status == 1
             and "FAIL: 1 coverage record(s) owe a re-measurement" in text
-            and "  core: " in text,
+            and "Drifted facets behind them" in text,
             "through git: a record measured at a commit whose surface differs fails the gate",
         )
         status, text = gate([real[0] | {"calibration_sha": orphan}], None, Repo())
@@ -2047,15 +2069,30 @@ def self_test() -> int:
     }
     expect(
         set(record_facets(counterfactual, base, refs))
-        >= {CORE, "mechanism", "suite.v19_static_calibration"},
-        "a counterfactual record carries core, mechanism and its suite",
+        >= {"mechanism", "suite.v19_static_calibration"},
+        "a counterfactual record carries mechanism and its suite, not core",
     )
     temporal_facets = record_facets(temporal_rec, base, refs)
     expect(
-        "mechanism" not in temporal_facets
+        CORE not in temporal_facets
+        and "mechanism" not in temporal_facets
         and "suite.v19_static_calibration" not in temporal_facets
-        and CORE in temporal_facets,
-        "a temporal record carries core but neither mechanism nor another suite",
+        and "estimator.temporal_adjustment" in temporal_facets
+        and "identity.temporal" in temporal_facets
+        and "suite.v19_temporal_frequentist" in temporal_facets,
+        "a temporal record carries its estimator, identity and suite; not core or mechanism",
+    )
+    split = []
+    for rec in load_records():
+        est = str(rec.get("estimator", ""))
+        if est.startswith("gcm."):
+            continue
+        got = [f for f in record_facets(rec, base) if f.startswith("estimator.")]
+        if len(got) != 1:
+            split.append((est, got))
+    expect(
+        split == [],
+        "every non-mechanism estimator maps to exactly one estimator facet",
     )
     counterfactual |= {"id": "cf", "calibration_sha": "a" * 40}
     temporal_rec |= {"id": "tp", "calibration_sha": "a" * 40}
@@ -2079,9 +2116,29 @@ def self_test() -> int:
         "a mechanism change owes a re-measurement of the mechanism records only",
     )
     shared = {"a" * 40: [], "b" * 40: ["crates/antecedent-stats/src/lib.rs"]}
-    expect(owed(shared) == {"old"}, "a core change owes every record measured before it")
+    expect(owed(shared) == set(), "a core change owes no record")
     suite = {"a" * 40: ["crates/antecedent/tests/v19_temporal_frequentist.rs"], "b" * 40: []}
     expect(owed(suite) == {"tp"}, "a suite change owes the records that suite emits")
+    estimator = {
+        "a" * 40: ["crates/antecedent-estimate/src/temporal_adjustment.rs"],
+        "b" * 40: [],
+    }
+    expect(
+        owed(estimator) == {"tp"},
+        "an estimator change owes only the records that use that estimator",
+    )
+    other_estimator = {"a" * 40: ["crates/antecedent-estimate/src/bayesian.rs"], "b" * 40: []}
+    expect(owed(other_estimator) == set(), "a different estimator's file owes nothing")
+    identity = {
+        "a" * 40: ["crates/antecedent-identify/src/temporal_backdoor.rs"],
+        "b" * 40: [],
+    }
+    expect(
+        owed(identity) == {"tp"},
+        "an identity change owes only the records that use that identity",
+    )
+    other_identity = {"a" * 40: ["crates/antecedent-identify/src/backdoor.rs"], "b" * 40: []}
+    expect(owed(other_identity) == set(), "a different identity's file owes nothing")
     expect(
         unverifiable({"a" * 40: []}) == {"old"},
         "a record measured at a commit missing from the clone is unverifiable",

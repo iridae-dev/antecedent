@@ -524,7 +524,7 @@ mod tests {
         assert!(report.power() > 0.40, "power={}", report.power());
     }
 
-    /// G² Type I near α (scheduled). Every-PR smoke uses a looser ceiling.
+    /// G² Type I near α (calibration gate). Every-PR smoke uses a looser ceiling.
     #[test]
     #[ignore = "calibration: run via scripts/gate_calibration.sh"]
     fn gsquared_calibration_gate() {

@@ -121,24 +121,26 @@ and is never re-measured on a timer.
 every path that can move a number (crate sources, manifests, the toolchain, the
 shared harness, each calibration suite) to a facet:
 
-- `core` — code every record depends on; a change invalidates every record.
-  Any path under the surface that no narrower line claims is `core`, and a
-  crate, manifest or record-emitting suite the list does not cover fails the
-  gate, so an unmapped edit never looks harmless.
+- `core` — shared code (facade, harness, manifests, toolchain). On the list
+  so an unmapped file cannot look harmless. Records do not carry it: a core
+  edit does not owe a re-measurement.
+- `estimator.*` / `identity.*` — one estimator or identification
+  implementation. A change owes only the records that use that estimator or
+  identity.
 - narrower facets — `mechanism` (the fitted-SCM crates and the dispatch path
   that alone reaches them), `design`, one `suite.<file>` per calibration
   suite, and `registry_mirror` (generated tables no measurement reads). A
   change invalidates only the records carrying the facet.
 
 Each record's `facets` are derived from the record itself by
-`scripts/calibration_facets.py`: `core`, the facet of its test and DGP file,
-facets the list's `key` lines assign to its query or estimator, and any facet
-whose items its suite names. `scripts/gate_parity_schema.sh` rejects a record
-whose facets are not exactly the derived set. A narrow facet is only sound
-while no other code runs it, so `calibration_facets.py check` fails when a file
-outside a facet names the facet's items, unless an `allow` line in the list
-records that reviewed reference exactly (an error conversion, a result slot,
-the query-keyed dispatch arm); a new reference or a stale entry fails.
+`scripts/calibration_facets.py`: the suite of its test and DGP file, and every
+`estimator.*` / `identity.*` (or `mechanism` / `design`) a `key` line assigns
+to its fields. Records do not carry `core`. `scripts/gate_parity_schema.sh`
+rejects a record whose facets are not exactly the derived set. `estimator.*` /
+`identity.*` isolation is the `key` line: a change owes only records whose
+fields match. For `mechanism` / `design`, `check` still fails when a file
+outside the facet names the facet's items, unless an `allow` line records that
+reviewed reference exactly; a new reference or a stale entry fails.
 
 A record is **attested** while none of its facets differs between its
 `calibration_sha` and the tree.
@@ -215,9 +217,10 @@ Without `--all`, the selection has three parts:
 Facets and replay waivers keep the cost proportional to the change:
 
 - an edit confined to one suite owes only that suite's records;
+- an estimator or identification-path edit owes only the records that use it;
 - a `mechanism` edit owes only the fitted-SCM records;
 - a reviewed change that cannot move a number owes nothing, through a waiver;
-- only a `core` change owes everything.
+- a `core` edit owes nothing (records do not carry `core`).
 
 **How long it takes.** The last full sweep, measured at one sample size per
 design, ran on an M-series laptop with the suites in parallel:
