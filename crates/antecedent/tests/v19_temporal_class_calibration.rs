@@ -25,7 +25,11 @@ use antecedent_core::{
     CausalQuery, ExecutionContext, ResponseValue, TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::TimeSeriesData;
-use common::calibration::{CoverageTally, Z90, n_sim, normal_interval, quantile_interval};
+use common::calibration::{
+    BASE_GRID_POINT, CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, grid_n, grid_point, n_sim,
+    normal_interval, quantile_interval, smoke,
+};
+use common::calibration_bind::{bind, bind_all};
 use common::fixtures::{
     self, B1, chain_pag, chain_pag_series, confounded_cpdag, confounded_series,
 };
@@ -67,6 +71,19 @@ fn run(
     boot: u32,
     ctx_seed: u64,
 ) -> StudyResult {
+    run_study(data, graph, query, inference, prior, boot, ctx_seed).1
+}
+
+/// [`run`], returning the study as well (coverage records bind to it).
+fn run_study(
+    data: TimeSeriesData,
+    graph: impl Into<antecedent::AcceptedGraph>,
+    query: &TemporalEffectQuery,
+    inference: InferenceMode,
+    prior: Option<ClassPrior>,
+    boot: u32,
+    ctx_seed: u64,
+) -> (Study, StudyResult) {
     let mut builder = Study::series(data)
         .graph(graph.into())
         .query(CausalQuery::TemporalEffect(query.clone()))
@@ -74,13 +91,9 @@ fn run(
     if let Some(prior) = prior {
         builder = builder.class_prior(prior);
     }
-    builder
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(boot)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(ctx_seed))
-        .unwrap()
+    let study = builder.refute(RefuteSuite::None).bootstrap_replicates(boot).build().unwrap();
+    let result = study.run(&ExecutionContext::for_tests(ctx_seed)).unwrap();
+    (study, result)
 }
 
 fn has_diagnostic(result: &StudyResult, code: &str) -> bool {
@@ -106,9 +119,16 @@ fn close(label: &str, got: f64, want: f64, tol: f64) {
 }
 
 /// Frequentist coverage of `ate ± z·se_bootstrap`, with bias and SE/SD for diagnosis.
+///
+/// That interval is the runtime's primary interval on the class path: the
+/// frozen-weight mixture's point with its shared circular-block SE, keyed
+/// `circular_block_se` under the mixture block family. `tally` is gated at
+/// [`LEVEL`] and `reported` scores the reported 95% interval on the same
+/// replicates (recorded, not gated).
 struct FreqTally {
     name: String,
     tally: CoverageTally,
+    reported: CoverageTally,
     estimates: Vec<f64>,
     ses: Vec<f64>,
     truth: f64,
@@ -116,10 +136,12 @@ struct FreqTally {
 }
 
 impl FreqTally {
-    fn new(name: &str, truth: f64) -> Self {
+    fn new(test: &'static str, dgp: &'static str, name: &str, truth: f64) -> Self {
+        let key = RecordKey { test, dgp, interval: "circular_block_se" };
         Self {
             name: name.to_owned(),
-            tally: CoverageTally::new(name, LEVEL),
+            tally: CoverageTally::for_record(key, LEVEL),
+            reported: CoverageTally::for_record(key, REPORTED_LEVEL).unasserted(),
             estimates: Vec::new(),
             ses: Vec::new(),
             truth,
@@ -127,9 +149,14 @@ impl FreqTally {
         }
     }
 
-    fn record(&mut self, result: &StudyResult) {
+    fn record(&mut self, study: &Study, result: &StudyResult) {
         let est = &result.estimate;
-        self.tally.record(normal_interval(est.ate, est.se_bootstrap, Z90), self.truth);
+        let interval = normal_interval(est.ate, est.se_bootstrap, Z90);
+        if interval.is_some() {
+            bind_all(&mut [&mut self.tally, &mut self.reported], study, result);
+        }
+        self.tally.record(interval, self.truth);
+        self.reported.record(normal_interval(est.ate, est.se_bootstrap, Z95), self.truth);
         if est.ate.is_finite() {
             self.estimates.push(est.ate);
         }
@@ -159,6 +186,7 @@ impl FreqTally {
     fn assert(&self) {
         self.report();
         self.tally.assert();
+        self.reported.emit();
     }
 }
 
@@ -216,19 +244,26 @@ const AR05_160: Design = Design { label: "AR(1) rho=0.5 n=160", rho: 0.5, n: 160
 const AR09_400: Design = Design { label: "AR(1) rho=0.9 n=400", rho: 0.9, n: 400 };
 const AR05_60: Design = Design { label: "AR(1) rho=0.5 n=60", rho: 0.5, n: 60 };
 
-fn frequentist_chain_pag_case(what: &str, query: &TemporalEffectQuery, design: Design, seed: u64) {
-    chain_pag_tally(what, query, design, seed).assert();
-}
-
-/// Boundary record, as in `v19_temporal_frequentist`: the six-completion
-/// mixture's score effective rows sit below the mixture threshold.
-fn frequentist_chain_pag_boundary(
+fn frequentist_chain_pag_case(
+    test: &'static str,
     what: &str,
     query: &TemporalEffectQuery,
     design: Design,
     seed: u64,
 ) {
-    boundary(&chain_pag_tally(what, query, design, seed));
+    chain_pag_tally(test, what, query, design, seed).assert();
+}
+
+/// Boundary record, as in `v19_temporal_frequentist`: the six-completion
+/// mixture's score effective rows sit below the mixture threshold.
+fn frequentist_chain_pag_boundary(
+    test: &'static str,
+    what: &str,
+    query: &TemporalEffectQuery,
+    design: Design,
+    seed: u64,
+) {
+    boundary(&chain_pag_tally(test, what, query, design, seed));
 }
 
 /// Boundary record: coverage is measured and printed, not gated, and the
@@ -238,35 +273,41 @@ fn boundary(tally: &FreqTally) {
     tally.report();
     let (lo, hi) = common::calibration::coverage_band(n_sim(), LEVEL);
     eprintln!(
-        "calibration-boundary {}: coverage={:.3} band=[{lo:.3}, {hi:.3}] mean_length={:.4} \
-         (not gated; short_series warnings {}/{})",
+        "info {}: nominal band=[{lo:.3}, {hi:.3}] (not gated; short_series warnings {}/{})",
         tally.name,
-        tally.tally.rate(),
-        tally.tally.mean_length(),
         tally.warned,
         n_sim()
     );
-    assert!(
-        tally.warned * 20 >= n_sim() * 19,
-        "boundary design must carry the short-series warning: {}/{}",
-        tally.warned,
-        n_sim()
-    );
+    tally.tally.emit_named_boundary();
+    tally.reported.emit();
+    // The warning is a property of the base sample size the design names; at
+    // the other grid points its rate is reported and coverage recorded.
+    if grid_point() == BASE_GRID_POINT && !smoke() {
+        assert!(
+            tally.warned * 20 >= n_sim() * 19,
+            "boundary design must carry the short-series warning: {}/{}",
+            tally.warned,
+            n_sim()
+        );
+    }
 }
 
 fn chain_pag_tally(
+    test: &'static str,
     what: &str,
     query: &TemporalEffectQuery,
     design: Design,
     seed: u64,
 ) -> FreqTally {
     let mut tally = FreqTally::new(
+        test,
+        "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         &format!("frequentist TemporalPag {what} [{}]", design.label),
         chain_mixture_truth(query),
     );
     for s in 0..n_sim() {
-        let result = run(
-            chain_pag_series(design.n, design.rho, seed + u64::from(s)),
+        let (study, result) = run_study(
+            chain_pag_series(grid_n(design.n), design.rho, seed + u64::from(s)),
             chain_pag(),
             query,
             InferenceMode::Frequentist,
@@ -278,19 +319,21 @@ fn chain_pag_tally(
             has_diagnostic(&result, "estimate.temporal_class.frequentist.shared_block"),
             "class envelope must publish the shared-block SE"
         );
-        tally.record(&result);
+        tally.record(&study, &result);
     }
     tally
 }
 
-fn frequentist_cpdag_multistep_case(design: Design, seed: u64) {
+fn frequentist_cpdag_multistep_case(test: &'static str, design: Design, seed: u64) {
     let mut tally = FreqTally::new(
+        test,
+        "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         &format!("frequentist TemporalCpdag multi-step Sustained [{}]", design.label),
         cpdag_mixture_truth(design.rho),
     );
     for s in 0..n_sim() {
-        let result = run(
-            confounded_series(design.n, 0.0, design.rho, seed + u64::from(s)),
+        let (study, result) = run_study(
+            confounded_series(grid_n(design.n), 0.0, design.rho, seed + u64::from(s)),
             confounded_cpdag(),
             &multi_sustained(),
             InferenceMode::Frequentist,
@@ -298,7 +341,7 @@ fn frequentist_cpdag_multistep_case(design: Design, seed: u64) {
             BOOT,
             u64::from(s),
         );
-        tally.record(&result);
+        tally.record(&study, &result);
     }
     tally.assert();
 }
@@ -306,19 +349,33 @@ fn frequentist_cpdag_multistep_case(design: Design, seed: u64) {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage() {
-    frequentist_cpdag_multistep_case(IID, 60_000);
+    frequentist_cpdag_multistep_case(
+        "frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage",
+        IID,
+        60_000,
+    );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage() {
-    frequentist_cpdag_multistep_case(AR05_160, 61_000);
+    frequentist_cpdag_multistep_case(
+        "frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage",
+        AR05_160,
+        61_000,
+    );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_pag_multistep_sustained_nominal_90_coverage() {
-    frequentist_chain_pag_case("multi-step Sustained", &multi_sustained(), IID, 62_000);
+    frequentist_chain_pag_case(
+        "frequentist_temporal_pag_multistep_sustained_nominal_90_coverage",
+        "multi-step Sustained",
+        &multi_sustained(),
+        IID,
+        62_000,
+    );
 }
 
 macro_rules! frequentist_pag_gate {
@@ -326,7 +383,7 @@ macro_rules! frequentist_pag_gate {
         #[test]
         #[ignore = "calibration: run via scripts/gate_calibration.sh"]
         fn $name() {
-            frequentist_chain_pag_case($what, &$query, $design, $seed);
+            frequentist_chain_pag_case(stringify!($name), $what, &$query, $design, $seed);
         }
     };
 }
@@ -360,13 +417,25 @@ frequentist_pag_gate!(
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_pag_pulse_ar1_rho09_n400_short_series_boundary() {
-    frequentist_chain_pag_boundary("Pulse", &pulse_query(), AR09_400, 66_000);
+    frequentist_chain_pag_boundary(
+        "frequentist_temporal_pag_pulse_ar1_rho09_n400_short_series_boundary",
+        "Pulse",
+        &pulse_query(),
+        AR09_400,
+        66_000,
+    );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_pag_sustained_ar1_rho09_n400_short_series_boundary() {
-    frequentist_chain_pag_boundary("single-step Sustained", &single_sustained(), AR09_400, 69_000);
+    frequentist_chain_pag_boundary(
+        "frequentist_temporal_pag_sustained_ar1_rho09_n400_short_series_boundary",
+        "single-step Sustained",
+        &single_sustained(),
+        AR09_400,
+        69_000,
+    );
 }
 
 /// The two-completion `TemporalCpdag` Pulse at ρ = 0.95, n = 160: the non-causal
@@ -380,12 +449,14 @@ fn frequentist_temporal_pag_sustained_ar1_rho09_n400_short_series_boundary() {
 fn frequentist_temporal_cpdag_pulse_ar1_rho095_n160_short_series_boundary() {
     const RHO: f64 = 0.95;
     let mut tally = FreqTally::new(
+        "frequentist_temporal_cpdag_pulse_ar1_rho095_n160_short_series_boundary",
+        "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         "frequentist TemporalCpdag Pulse [AR(1) rho=0.95 n=160 (boundary)]",
         cpdag_mixture_truth(RHO),
     );
     for s in 0..n_sim() {
-        let result = run(
-            confounded_series(160, 0.0, RHO, 90_000 + u64::from(s)),
+        let (study, result) = run_study(
+            confounded_series(grid_n(160), 0.0, RHO, 90_000 + u64::from(s)),
             confounded_cpdag(),
             &pulse_query(),
             InferenceMode::Frequentist,
@@ -393,7 +464,7 @@ fn frequentist_temporal_cpdag_pulse_ar1_rho095_n160_short_series_boundary() {
             BOOT,
             u64::from(s),
         );
-        tally.record(&result);
+        tally.record(&study, &result);
     }
     boundary(&tally);
 }
@@ -424,9 +495,16 @@ frequentist_pag_gate!(
 // ---------------------------------------------------------------------------
 
 fn posterior_interval(post: Option<&antecedent::CausalPosterior>) -> Option<(f64, f64)> {
+    posterior_interval_at(post, LEVEL)
+}
+
+fn posterior_interval_at(
+    post: Option<&antecedent::CausalPosterior>,
+    level: f64,
+) -> Option<(f64, f64)> {
     let post = post?;
     let col = post.effect_column()?;
-    quantile_interval(post.draws.column(col).ok()?, LEVEL)
+    quantile_interval(post.draws.column(col).ok()?, level)
 }
 
 /// `circle_pag` with class prior `[0.4, 0.6]`: the draw-level BMA over the one
@@ -435,20 +513,28 @@ fn posterior_interval(post: Option<&antecedent::CausalPosterior>) -> Option<(f64
 /// a class-prior mixture: its global m-separation audit is capped, so the class
 /// scope is not full and mixing is refused (its no-prior identified-set interval
 /// is calibrated below instead).
+///
+/// Gated at [`LEVEL`]; the runtime's reported 95% posterior interval is scored
+/// on the same replicates and recorded.
 fn bayesian_circle_pag_class_prior_case(
+    test: &'static str,
     what: &str,
     query: &TemporalEffectQuery,
     design: Design,
     seed: u64,
 ) {
     let prior = ClassPrior::from_ordered([0.4, 0.6]).unwrap();
-    let mut tally = CoverageTally::new(
-        format!("Bayesian TemporalPag {what} class-prior [{}]", design.label),
-        LEVEL,
-    );
+    eprintln!("calibration {test}: Bayesian TemporalPag {what} class-prior [{}]", design.label);
+    let key = RecordKey {
+        test,
+        dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
+        interval: "posterior_quantile",
+    };
+    let mut tally = CoverageTally::for_record(key, LEVEL);
+    let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     for s in 0..n_sim() {
-        let result = run(
-            fixtures::pag_series_ar1(design.n, design.rho, seed + u64::from(s)),
+        let (study, result) = run_study(
+            fixtures::pag_series_ar1(grid_n(design.n), design.rho, seed + u64::from(s)),
             fixtures::circle_pag(),
             query,
             bayes(),
@@ -462,27 +548,46 @@ fn bayesian_circle_pag_class_prior_case(
             "unidentified mass must stay a separate axis, got {}",
             post.unidentified_mass
         );
-        tally.record(posterior_interval(Some(post)), B1);
+        let interval = posterior_interval(Some(post));
+        if interval.is_some() {
+            bind_all(&mut [&mut tally, &mut reported], &study, &result);
+        }
+        tally.record(interval, B1);
+        reported.record(posterior_interval_at(Some(post), REPORTED_LEVEL), B1);
     }
     tally.assert();
+    reported.emit();
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn bayesian_temporal_pag_sustained_class_prior_nominal_90_coverage() {
-    bayesian_circle_pag_class_prior_case("single-step Sustained", &single_sustained(), IID, 71_000);
+    bayesian_circle_pag_class_prior_case(
+        "bayesian_temporal_pag_sustained_class_prior_nominal_90_coverage",
+        "single-step Sustained",
+        &single_sustained(),
+        IID,
+        71_000,
+    );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage() {
-    bayesian_circle_pag_class_prior_case("Pulse", &pulse_query(), AR05_160, 72_000);
+    bayesian_circle_pag_class_prior_case(
+        "bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage",
+        "Pulse",
+        &pulse_query(),
+        AR05_160,
+        72_000,
+    );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn bayesian_temporal_pag_sustained_class_prior_ar1_rho05_n160_nominal_90_coverage() {
     bayesian_circle_pag_class_prior_case(
+        "bayesian_temporal_pag_sustained_class_prior_ar1_rho05_n160_nominal_90_coverage",
         "single-step Sustained",
         &single_sustained(),
         AR05_160,
@@ -492,14 +597,22 @@ fn bayesian_temporal_pag_sustained_class_prior_ar1_rho05_n160_nominal_90_coverag
 
 /// Frequentist `circle_pag` (one identified completion) under AR(1): the
 /// reported aggregate is that completion's shared-block interval.
-fn frequentist_circle_pag_case(what: &str, query: &TemporalEffectQuery, design: Design, seed: u64) {
+fn frequentist_circle_pag_case(
+    test: &'static str,
+    what: &str,
+    query: &TemporalEffectQuery,
+    design: Design,
+    seed: u64,
+) {
     let mut tally = FreqTally::new(
+        test,
+        "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
         &format!("frequentist TemporalPag one-completion {what} [{}]", design.label),
         B1,
     );
     for s in 0..n_sim() {
-        let result = run(
-            fixtures::pag_series_ar1(design.n, design.rho, seed + u64::from(s)),
+        let (study, result) = run_study(
+            fixtures::pag_series_ar1(grid_n(design.n), design.rho, seed + u64::from(s)),
             fixtures::circle_pag(),
             query,
             InferenceMode::Frequentist,
@@ -507,7 +620,7 @@ fn frequentist_circle_pag_case(what: &str, query: &TemporalEffectQuery, design: 
             BOOT,
             u64::from(s),
         );
-        tally.record(&result);
+        tally.record(&study, &result);
     }
     tally.assert();
 }
@@ -515,7 +628,13 @@ fn frequentist_circle_pag_case(what: &str, query: &TemporalEffectQuery, design: 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_pag_one_completion_sustained_ar1_rho05_n160_nominal_90_coverage() {
-    frequentist_circle_pag_case("single-step Sustained", &single_sustained(), AR05_160, 80_000);
+    frequentist_circle_pag_case(
+        "frequentist_temporal_pag_one_completion_sustained_ar1_rho05_n160_nominal_90_coverage",
+        "single-step Sustained",
+        &single_sustained(),
+        AR05_160,
+        80_000,
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -553,15 +672,21 @@ struct SetTally {
 }
 
 impl SetTally {
-    fn new(name: &str, truth: f64, other: Option<f64>) -> Self {
+    /// `key` makes the true-effect tally back a coverage record of the reported
+    /// `identified_set` interval (at its reported level, [`LEVEL`]).
+    fn new(name: &str, key: Option<RecordKey>, truth: f64, other: Option<f64>) -> Self {
+        let truth_tally = match key {
+            Some(key) => CoverageTally::for_record(key, LEVEL),
+            None => {
+                CoverageTally::new(format!("{name} identified-set interval [true effect]"), LEVEL)
+            }
+        };
         Self {
             name: name.to_owned(),
-            truth: (
-                CoverageTally::new(format!("{name} identified-set interval [true effect]"), LEVEL),
-                truth,
-            ),
+            truth: (truth_tally, truth),
             other: other.map(|value| {
                 (
+                    // No record: coverage of the non-causal completion's estimand is info only.
                     CoverageTally::new(
                         format!("{name} identified-set interval [other endpoint, info]"),
                         LEVEL,
@@ -575,7 +700,8 @@ impl SetTally {
         }
     }
 
-    fn record(&mut self, result: &StudyResult) {
+    /// Score one replicate; `study` binds it to the record when the tally has one.
+    fn record(&mut self, study: Option<&Study>, result: &StudyResult) {
         let set = result
             .structural_response
             .as_ref()
@@ -585,6 +711,9 @@ impl SetTally {
         let interval = set.map(|s| (s.lower, s.upper));
         if let Some(s) = set {
             self.lower.push((s.bound_lower, s.lower_se, s.critical_value));
+            if let Some(study) = study {
+                bind(&mut self.truth.0, study, result);
+            }
         }
         self.truth.0.record(interval, self.truth.1);
         if let Some((tally, value)) = self.other.as_mut() {
@@ -625,25 +754,39 @@ impl SetTally {
     }
 }
 
-fn identified_set_case<F>(name: &str, truth: f64, other: Option<f64>, mut result_for: F)
-where
-    F: FnMut(u32) -> StudyResult,
+fn identified_set_case<F>(
+    key: RecordKey,
+    name: &str,
+    truth: f64,
+    other: Option<f64>,
+    mut run_for: F,
+) where
+    F: FnMut(u32) -> (Study, StudyResult),
 {
-    let mut tally = SetTally::new(name, truth, other);
+    let mut tally = SetTally::new(name, Some(key), truth, other);
     for s in 0..n_sim() {
-        let result = result_for(s);
-        tally.record(&result);
+        let (study, result) = run_for(s);
+        tally.record(Some(&study), &result);
     }
     tally.assert();
+}
+
+/// Record key of an identified-set coverage test on a `fixtures` DGP.
+fn set_key(test: &'static str, dgp: &'static str) -> RecordKey {
+    RecordKey { test, dgp, interval: "identified_set" }
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_pag_identified_set_interval_nominal_90_coverage() {
     let (adjusted, unadjusted) = fixtures::chain_pag_effects();
-    identified_set_case("frequentist TemporalPag Pulse", adjusted, Some(unadjusted), |s| {
-        run(
-            chain_pag_series(N, 0.0, 74_000 + u64::from(s)),
+    let key = set_key(
+        "frequentist_temporal_pag_identified_set_interval_nominal_90_coverage",
+        "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
+    );
+    identified_set_case(key, "frequentist TemporalPag Pulse", adjusted, Some(unadjusted), |s| {
+        run_study(
+            chain_pag_series(grid_n(N), 0.0, 74_000 + u64::from(s)),
             chain_pag(),
             &pulse_query(),
             InferenceMode::Frequentist,
@@ -658,13 +801,18 @@ fn frequentist_temporal_pag_identified_set_interval_nominal_90_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_pag_multistep_identified_set_interval_nominal_90_coverage() {
     let (adjusted, unadjusted) = fixtures::chain_pag_effects();
+    let key = set_key(
+        "frequentist_temporal_pag_multistep_identified_set_interval_nominal_90_coverage",
+        "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
+    );
     identified_set_case(
+        key,
         "frequentist TemporalPag multi-step Sustained",
         adjusted,
         Some(unadjusted),
         |s| {
-            run(
-                chain_pag_series(N, 0.0, 75_000 + u64::from(s)),
+            run_study(
+                chain_pag_series(grid_n(N), 0.0, 75_000 + u64::from(s)),
                 chain_pag(),
                 &multi_sustained(),
                 InferenceMode::Frequentist,
@@ -681,9 +829,13 @@ fn frequentist_temporal_pag_multistep_identified_set_interval_nominal_90_coverag
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_cpdag_identified_set_interval_nominal_90_coverage() {
     let [unadjusted, adjusted] = fixtures::cpdag_completion_truths(0.0);
-    identified_set_case("frequentist TemporalCpdag Pulse", adjusted, Some(unadjusted), |s| {
-        run(
-            confounded_series(N, 0.0, 0.0, 76_000 + u64::from(s)),
+    let key = set_key(
+        "frequentist_temporal_cpdag_identified_set_interval_nominal_90_coverage",
+        "crates/antecedent/tests/common/fixtures.rs::confounded_series",
+    );
+    identified_set_case(key, "frequentist TemporalCpdag Pulse", adjusted, Some(unadjusted), |s| {
+        run_study(
+            confounded_series(grid_n(N), 0.0, 0.0, 76_000 + u64::from(s)),
             confounded_cpdag(),
             &pulse_query(),
             InferenceMode::Frequentist,
@@ -699,9 +851,13 @@ fn frequentist_temporal_cpdag_identified_set_interval_nominal_90_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage() {
-    identified_set_case("frequentist TemporalPag one-completion Pulse", B1, None, |s| {
-        run(
-            fixtures::pag_series(N, 77_000 + u64::from(s)),
+    let key = set_key(
+        "frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage",
+        "crates/antecedent/tests/common/fixtures.rs::pag_series",
+    );
+    identified_set_case(key, "frequentist TemporalPag one-completion Pulse", B1, None, |s| {
+        run_study(
+            fixtures::pag_series(grid_n(N), 77_000 + u64::from(s)),
             fixtures::circle_pag(),
             &pulse_query(),
             InferenceMode::Frequentist,
@@ -719,13 +875,18 @@ fn frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage() 
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage() {
     let (adjusted, unadjusted) = fixtures::chain_pag_effects();
+    let key = set_key(
+        "bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage",
+        "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
+    );
     identified_set_case(
+        key,
         "Bayesian TemporalPag Pulse (no ClassPrior)",
         adjusted,
         Some(unadjusted),
         |s| {
-            let result = run(
-                chain_pag_series(N, 0.0, 78_000 + u64::from(s)),
+            let (study, result) = run_study(
+                chain_pag_series(grid_n(N), 0.0, 78_000 + u64::from(s)),
                 chain_pag(),
                 &pulse_query(),
                 bayes(),
@@ -734,7 +895,7 @@ fn bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage() {
                 u64::from(s),
             );
             assert!(result.estimate.ate.is_nan(), "no blended posterior without a class prior");
-            result
+            (study, result)
         },
     );
 }
@@ -743,13 +904,18 @@ fn bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_coverage() {
     let (adjusted, unadjusted) = fixtures::chain_pag_effects();
+    let key = set_key(
+        "bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_coverage",
+        "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
+    );
     identified_set_case(
+        key,
         "Bayesian TemporalPag single-step Sustained (no ClassPrior)",
         adjusted,
         Some(unadjusted),
         |s| {
-            run(
-                chain_pag_series(N, 0.0, 79_000 + u64::from(s)),
+            run_study(
+                chain_pag_series(grid_n(N), 0.0, 79_000 + u64::from(s)),
                 chain_pag(),
                 &single_sustained(),
                 bayes(),
@@ -817,9 +983,11 @@ fn heterogeneous_se_case<F>(name: &str, mut result_for: F)
 where
     F: FnMut(u32) -> StudyResult,
 {
-    let mut tally = SetTally::new(name, B1, Some(heterogeneous_se_unadjusted_plim()));
+    // No record: this cell is gated one-sided (at least the band's lower edge), which
+    // the record harness has no role for; the construction is conservative here by design.
+    let mut tally = SetTally::new(name, None, B1, Some(heterogeneous_se_unadjusted_plim()));
     for s in 0..n_sim() {
-        tally.record(&result_for(s));
+        tally.record(None, &result_for(s));
     }
     tally.report();
     let (lo, hi) = common::calibration::coverage_band(n_sim(), LEVEL);
@@ -837,7 +1005,7 @@ where
 fn frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion() {
     heterogeneous_se_case("frequentist TemporalCpdag Pulse heterogeneous SDs", |s| {
         run(
-            heterogeneous_se_series(N, 81_000 + u64::from(s)),
+            heterogeneous_se_series(grid_n(N), 81_000 + u64::from(s)),
             confounded_cpdag(),
             &pulse_query(),
             InferenceMode::Frequentist,
@@ -853,7 +1021,7 @@ fn frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_no
 fn bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion() {
     heterogeneous_se_case("Bayesian TemporalCpdag Pulse heterogeneous SDs (no ClassPrior)", |s| {
         run(
-            heterogeneous_se_series(N, 82_000 + u64::from(s)),
+            heterogeneous_se_series(grid_n(N), 82_000 + u64::from(s)),
             confounded_cpdag(),
             &pulse_query(),
             bayes(),
@@ -921,7 +1089,7 @@ fn chain_pag_identified_set_interval_is_flagged_truncated() {
     const TRUNCATED: &str = "estimate.temporal_class.identified_set_interval_truncated";
     for (inference, boot) in [(InferenceMode::Frequentist, 32), (bayes(), 0)] {
         let result = run(
-            chain_pag_series(N, 0.0, 11),
+            chain_pag_series(grid_n(N), 0.0, 11),
             chain_pag(),
             &pulse_query(),
             inference,

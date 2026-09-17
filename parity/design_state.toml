@@ -31,7 +31,7 @@ notes = "ReduceEffectPosteriorWidth via OLS Gram / n scaling"
 id = "design_state.decision_utility"
 status = "done"
 evidence_kind = "implementation_exists"
-notes = "Batch Utility + DecisionConstraint; EU / regret / chance probs"
+notes = "Batch Utility + DecisionConstraint; Bayes action, EVPI regret, chance probs; preposterior EVSI"
 
 [[capabilities]]
 id = "design_state.design_ranker"
@@ -70,7 +70,7 @@ notes = "ResultStore refuses over-budget inserts"
 id = "design_state.facade"
 status = "done"
 evidence_kind = "implementation_exists"
-notes = "rank_designs / new_antecedent_state / apply_state_event + Python surfaces"
+notes = "rank_designs / new_antecedent_state / apply_state_event + Python surfaces. 1.10 adapters: design_rank_* in crates/antecedent/tests/v110_contract.rs (licensed-cell gate, then this ranker). Does not invent a parallel ranking API."
 
 [[capabilities]]
 id = "design_state.incremental.particle_graph_score"

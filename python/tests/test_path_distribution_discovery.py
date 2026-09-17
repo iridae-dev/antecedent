@@ -1,4 +1,11 @@
-"""PathSpecific / Interventional queries with discovery= and CPDAG graph=."""
+"""PathSpecific / Interventional queries with discovery= and CPDAG graph=.
+
+Live discovery is accepted through its review gate and then estimated like any
+other accepted structure: an oriented DAG runs, a class structure that
+PathSpecific / Interventional cannot read refuses by naming what it needs. A
+graph *posterior* is different in kind — these two estimands have no mixture
+contract across atoms — and is refused permanently.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +16,7 @@ pytest.importorskip("antecedent")
 import antecedent
 from antecedent.errors import CausalUnsupportedError
 
-_PATH_DIST_REFUSED = "refused: Graph-posterior path and distribution mixtures are not staged."
+_POSTERIOR_REFUSED = "graph-posterior structures are refused"
 
 
 def _discrete_chain():
@@ -45,16 +52,18 @@ def _binary_pair(n: int = 80, seed: int = 4):
 
 
 def test_path_specific_lingam_discovery_smoke():
+    """LiNGAM returns an oriented DAG, so the path-specific effect runs on it."""
     data = _discrete_chain()
-    with pytest.raises(CausalUnsupportedError, match=_PATH_DIST_REFUSED):
-        antecedent.analyze(
-            data,
-            discovery=antecedent.discovery.LiNGAM(),
-            query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
-            refute=False,
-            bootstrap=0,
-            seed=1,
-        )
+    result = antecedent.analyze(
+        data,
+        discovery=antecedent.discovery.LiNGAM(),
+        query=antecedent.PathSpecificEffect("t", "y", path_nodes=["m"]),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert result.study is not None
+    assert np.isfinite(result.estimate.ate)
 
 
 def test_interventional_lingam_discovery_smoke():
@@ -63,20 +72,20 @@ def test_interventional_lingam_discovery_smoke():
     # y=1.0 deterministically, so the interventional mean has known ground truth —
     # a wildly wrong finite value must not pass.
     data = _discrete_chain()
-    with pytest.raises(CausalUnsupportedError, match=_PATH_DIST_REFUSED):
-        antecedent.analyze(
-            data,
-            discovery=antecedent.discovery.LiNGAM(),
-            query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
-            refute=False,
-            bootstrap=0,
-            seed=1,
-        )
+    result = antecedent.analyze(
+        data,
+        discovery=antecedent.discovery.LiNGAM(),
+        query=antecedent.InterventionalDistribution("y", interventions={"t": 1.0}),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert result.study is not None
 
 
 def test_path_specific_exact_dag_posterior_map():
     data = _binary_pair()
-    with pytest.raises(CausalUnsupportedError, match=_PATH_DIST_REFUSED):
+    with pytest.raises(CausalUnsupportedError, match=_POSTERIOR_REFUSED):
         antecedent.analyze(
             data,
             discovery=antecedent.discovery.ExactDagPosterior(),
@@ -94,7 +103,8 @@ def test_path_specific_fci_rejected():
     t = z + rng.normal(size=n) * 0.3
     y = t + z + rng.normal(size=n) * 0.3
     data = {"z": z, "t": t, "y": y}
-    with pytest.raises(CausalUnsupportedError, match=_PATH_DIST_REFUSED):
+    # FCI accepts as a PAG; PathSpecific reads an oriented DAG and says so.
+    with pytest.raises(ValueError, match="fully oriented|orient"):
         antecedent.analyze(
             data,
             discovery=antecedent.discovery.FCI(alpha=0.2, fdr=False),
@@ -113,7 +123,7 @@ def test_path_specific_incomplete_pc_rejected():
     t = z + rng.normal(size=n) * 0.3
     y = t + z + rng.normal(size=n) * 0.3
     data = {"z": z, "t": t, "y": y}
-    with pytest.raises(CausalUnsupportedError, match=_PATH_DIST_REFUSED):
+    with pytest.raises(ValueError, match="undirected|orient"):
         antecedent.analyze(
             data,
             discovery=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
@@ -131,16 +141,18 @@ def test_path_specific_accept_discovered_false_review_attrs():
     z = rng.normal(size=n)
     t = z + rng.normal(size=n) * 0.3
     y = 1.2 * t + z + rng.normal(size=n) * 0.3
-    with pytest.raises(CausalUnsupportedError, match=_PATH_DIST_REFUSED):
+    with pytest.raises(antecedent.errors.ReviewRequired) as raised:
         antecedent.analyze(
             {"t": t, "y": y, "z": z},
-            discovery=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
+            discovery=antecedent.discovery.FCI(alpha=0.5, fdr=False, max_cond_size=0),
             query=antecedent.PathSpecificEffect("t", "y"),
             accept_discovered=False,
             refute=False,
             bootstrap=0,
             seed=1,
         )
+    assert getattr(raised.value, "algorithm", None) == "fci"
+    assert isinstance(getattr(raised.value, "pending_edge_count", None), int)
 
 
 def test_analyze_path_specific_graph_cpdag_fully_oriented():

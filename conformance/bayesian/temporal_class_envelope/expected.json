@@ -36,8 +36,32 @@
       "posterior_attached": true,
       "primary_ate_finite": true,
       "unidentified_mass": 0.0,
-      "absolute_tolerance": 0.25
+      "absolute_tolerance": 0.25,
+      "pulse_effect_by_completion": {
+        "z_causes_t_adjusts_z": 2.0,
+        "t_causes_z_no_adjustment": 3.2136
+      },
+      "class_prior_binding": "completion enumeration order binds 0.3 to t_causes_z_no_adjustment and 0.7 to z_causes_t_adjusts_z",
+      "pulse_effect": 2.3641,
+      "pulse_effect_tolerance": 0.05,
+      "derivation": "the law is noise-free, so each completion's adjustment regression is exact on the sample: adjusting z@-1 recovers 2; without it the slope is 2 + 0.5 Cov(z@-1, t@-1) / Var(t@-1) = 3.2136 on these 800 rows; the class-prior mixture is 0.7 * 2 + 0.3 * 3.2136"
     }
+  },
+  "temporal_pag_mixed_identification": {
+    "law": "r_i = sin(0.29 i); z_i = 0.4 r_i + cos(0.13 i); t_i = 0.3 + 0.5 r_i + 0.2 z_i; y_i = 1 + 2 t_{i-1} + 0.6 z_{i-1}",
+    "columns": ["t", "y", "z", "r"],
+    "n": 400,
+    "seed": 13,
+    "pag": "r@-1 -> {z, t}@-1, z@-1 o-o t@-1, {z, t}@-1 -> y@0",
+    "completion_count": 3,
+    "unidentified_completions": 1,
+    "class_prior_ordered": [0.4, 0.3, 0.3],
+    "pulse_effect": 2.0,
+    "sustained_single_step_effect": 2.0,
+    "identified_mass": 0.7,
+    "unidentified_mass": 0.3,
+    "absolute_tolerance": 0.05,
+    "note": "Truths follow from the law: a unit pulse (or single-step sustained shift) of t at lag 1 moves y by 2; the latent z<->t completion is the one unidentified completion, so its prior mass 0.3 stays unidentified."
   },
   "multi_step": {
     "law": "y = 1 + 2 t_{i-1} + 3 t_{i-2}",

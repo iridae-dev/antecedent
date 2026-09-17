@@ -34,6 +34,14 @@ pub enum StatsError {
         /// Context.
         message: &'static str,
     },
+    /// A local-polynomial fit whose kernel-weighted design is singular: fewer
+    /// distinct regressor values carry weight at the evaluation point than the
+    /// polynomial has coefficients (`order + 1`).
+    #[error("singular local response design of order {order}")]
+    SingularLocalDesign {
+        /// Polynomial order of the local fit.
+        order: usize,
+    },
     /// Backend failure.
     #[error("backend error: {0}")]
     Backend(String),

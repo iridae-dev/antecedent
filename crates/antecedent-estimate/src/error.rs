@@ -39,8 +39,13 @@ pub enum EstimationError {
     /// Effect modifiers not supported on this estimator path.
     #[error("effect modifiers are not supported on this estimator path")]
     EffectModifiers,
-    /// Target population not supported on this estimator path.
-    #[error("only TargetPopulation::AllObserved is supported on this estimator path")]
+    /// Target population not supported on this estimator path: a refusal with
+    /// the registered `population_not_estimable` reason code.
+    #[error(
+        "{}{}: only TargetPopulation::AllObserved is supported on this estimator path",
+        antecedent_core::reason_code::PREFIX,
+        antecedent_core::reason_code!("population_not_estimable")
+    )]
     TargetPopulation,
     /// Query options unsupported by this estimator (fixed message).
     #[error("{message}")]
@@ -56,6 +61,16 @@ pub enum EstimationError {
     #[error("{message}")]
     NotCertified {
         /// Refusal, including the certificate's reason and message.
+        message: String,
+    },
+    /// A refusal carrying a registered runtime reason code
+    /// (`parity/reason_codes.toml`), rendered `reason=<code>: <message>` so every
+    /// boundary reads the code the same way.
+    #[error("{}{code}: {message}", antecedent_core::reason_code::PREFIX)]
+    Refused {
+        /// Registered reason code (checked with `antecedent_core::reason_code!`).
+        code: &'static str,
+        /// What was refused and what the caller can do instead.
         message: String,
     },
 }
@@ -75,6 +90,12 @@ impl EstimationError {
                 "{stage} refused: identification was not certified ({reason}): {message}"
             ),
         }
+    }
+
+    /// A refusal with a registered runtime reason code.
+    #[must_use]
+    pub fn refused(code: &'static str, message: impl Into<String>) -> Self {
+        Self::Refused { code, message: message.into() }
     }
 
     /// Ad-hoc data-layer message (maps to [`DataError::InvalidArgument`]).

@@ -1,628 +1,820 @@
-# Antecedent roadmap
-
-Release direction from the causal-response foundation to causal transport and
-evidence synthesis. Historical sections record earlier release intentions.
-Release notes and the generated support matrix are authoritative for shipped
-1.x behavior; this document records remaining public ownership and defines the
-goals and release boundary for 2.0, not a checklist for an in-flight cut.
-
-Last updated: 2026-09-11
-
-## How to read this
-
-**1.0 is a contract freeze, not another capability race.** After 0.5 the
-scientific object exists: contrast, curve, observation, transport, and
-interference, on typed queries, with fail-closed assumptions. 1.0 is the
-release where every public sentence is true under the gates we already run.
-
-There is no 0.8. The sequence is 0.6 (composition and evidence), 0.7 (time as
-a response), 0.9 (audit and freeze), 1.0 (version bump).
-
-Rules that carry forward from 0.5:
-
-- Do not bump crate or Python package versions until that release is accepted.
-- Preserve positional `(treatment, outcome)` query arguments and stage-specific
-  namespaces.
-- Keep structural identification, empirical support, statistical regularity,
-  and uncertainty as separate result axes.
-- Never infer observation assumptions from the presence of columns.
-- Provenance records and frozen parity oracles remain merge requirements.
-  Candidates are not claims.
-- Transport and interference stay stage APIs. They change what identifies the
-  estimand and are not folded into `analyze`.
-
-## After 0.5
-
-0.5 makes a causal response a first-class object and keeps Antecedent’s
-identify-before-estimate gate. What it does not yet freeze is the *matrix*:
-which query × graph class × inference × validation cells exist, and which fail
-closed with a stable error.
-
-ATE already participates in graph posteriors, PAGs, Bayesian inference, and
-refutation. Response participates in DAG execution, a PAG envelope, and
-curve-valid overlap/subset checks. That split can be the 1.0 contract only if
-it is published. An undocumented sidecar cannot.
-
-Permanent non-goals through 1.0: ML CATE / DML / causal forests; full PAG-native
-ID/IDC; multi-source meta-transport; cyclic/equilibrium models; observational
-interference and contagion; a plotting module; a do-calculus string language;
-bindings beyond Python and Rust (including WebAssembly); unsupervised regime
-discovery; interval-censoring and truncation as an unjustified response MLE.
-Post-1.0 may reopen a TypeScript/WebAssembly facade; it does not reopen R or
-Julia bindings.
-
-1.0 linear algebra stays CPU `faer` (ADR 0001). That is the conformance path,
-not a ban on later kernels. A GPU backend is an optimization behind
-`KernelPolicy`, like SIMD: it must not change estimands, and reductions stay
-deterministic or the non-determinism is a first-class result axis. It is not
-a 1.0 deliverable and not a reason to rewrite the engine.
-
----
-
-## 0.6 — Composition and evidence
-
-Shipped as **0.6.0** (contract cut) and **0.6.1** (correctness and hot-path
-patch). The bullets below are the 0.6 intent; they are not an open checklist.
-
-Make every public 0.5 query live on the existing spine, and turn 0.5 candidates
-into claims or deletions.
-
-- Staged response workflow: `identify(graph, query=ResponseCurve(...)).estimate(data)`
-  with the same identification, estimator selection, support, and provenance
-  semantics as `analyze(...)`.
-- Published support matrix for every name in the public query surface: graph
-  class, discovery/AcceptedGraph, inference mode, validation. Missing cells
-  fail closed with a stable error, not a silent hole.
-- Graph-posterior decision for curves. Either ship a scoped mixture over
-  identified completions that retains unidentified mass (priors do not upgrade
-  identification), or record Bayesian graph uncertainty as contrast-only in
-  the 1.0 contract. Do not leave this as “research” under a 1.0 banner.
-- Pin immutable exact-contract baselines for the remaining 0.5 parity
-  candidates, or drop them from the inventory. Similar names are not parity
-  evidence.
-- Cross-language artifact round trips for every 0.5 query and result variant.
-- Hot-path benches and allocation contracts (ADR 0011) for Kennedy
-  cross-fitting, simultaneous bands, and MAG curve envelopes.
-- Freeze the implemented sID subset plus `NotCertified`. Completing general
-  sID/z-transport recursion is post-1.0 science, not 0.6.
-
-0.6 does not add estimands.
-
----
-
-## 0.7 — Temporal response
-
-Shipped as **0.7.0**. The bullets below are the 0.7 intent; they are not an
-open checklist.
-
-Invariant 5 is still half-true after 0.5: pulse and sustained effects are
-two-point temporal contrasts. 0.7 makes time a response, not a contrast.
-
-- Temporal dose-over-horizon / policy-path queries in the same family as
-  `ResponseCurve`, not a second API.
-- `InterventionResponse` for soft and sequenced temporal policies that 0.5
-  currently refuses; fail closed where the contract is not licensed.
-- `CausalState` for function-valued estimands: a curve can update under
-  explicit invalidation and never silently rerun.
-- The same four result axes as static response (identification, support,
-  uncertainty kind, assumptions) on temporal grids.
-- Artifact, provenance, and calibration coverage for the new temporal
-  response path.
-
-0.7 is this one scientific expansion. It is not more identification algorithms.
-
----
-
-## 0.9 — Audit and freeze
-
-Shipped as **0.9.0**. The bullets below are the 0.9 intent; they are not an
-open checklist.
-
-No new estimands. No new identification theories.
-
-- A 0.4-style correctness pass on the 0.5–0.7 estimators: places a curve can
-  look identified, supported, and wrong.
-- Re-freeze the Python root namespace and stage-module surfaces after the 0.5
-  and 0.7 additions. Update `docs/api_naming.md` so the frozen-name count is
-  not a lie.
-- Rewrite `docs/capabilities.md` and `docs/comparison.md` against the support
-  matrix. Release notes state the matrix, including explicit refusals.
-- Freeze durable artifact format 0.4 for package 1.0.0. The 0.9 audit found
-  no remaining wire hole: migration and cross-language round trips cover the
-  implemented query and result variants.
-- Confirm every claimed external oracle has a pinned baseline, frozen fixture,
-  and consuming conformance test.
-
----
-
-## 0.9.1 — Matrix sentences
-
-Shipped as **0.9.1** — merged to main untagged and carried out by the 1.0.0
-cut, as with 0.7.1. The paragraph below is the 0.9.1 intent; it is not an
-open checklist.
-
-Patch on tagged 0.9.0. 0.9.0’s limitations are honest; some axis names
-were not. **Implement what those licensed rows already say** — do not
-demote the axis. `full` runs PPC / prior-sensitivity on PAG and
-graph-posterior ATE; `ObservationSpec != Complete` consumes
-`observation_primitives`; temporal Pulse / Sustained / dose×horizon
-share the Study bootstrap SE contract; Bayesian panel uses hierarchical
-unit effects; licensed Bayesian Pulse / single-step Sustained have a
-coverage case in `scripts/gate_calibration.sh`.
-
-Known-truth mixture pins and prepared-identification caching were deferred to
-1.1.0, where they shipped.
-
----
-
-## 1.0 — Contract freeze
-
-Shipped as **1.0.0**. The version bump of the 0.9.1 matrix. The public API,
-support matrix, artifact format, and scientific refusals do not move except
-by a later major.
-
-1.0 ships when:
-
-- every public query is on the documented spine or has a stable refusal;
-- structural uncertainty around a curve is either implemented as decided in
-  0.6 or explicitly contrast-only;
-- invariant 5 holds for response, not only for pulse/sustained contrasts;
-- provenance, parity, calibration, and hot-path gates pass for the claimed
-  surface.
-
-1.0 is Antecedent when every public sentence is true. It is not CausalFusion
-completed.
-
----
-
-## 1.1 — Stronger evidence on frozen families
-
-Shipped as **1.1.0**. This compatible minor adds no query kind, graph
-semantics, identification theory, support cell, or artifact change. It
-strengthens already-licensed families in three places:
-
-- static DAG-posterior ATE and temporal DBN-posterior pulse / single-step
-  sustained effects consume frozen known-truth mixtures, retaining
-  unidentified posterior mass;
-- PAG ATE and front-door ADMG ATE fixtures pin the numeric estimates already
-  returned after their identification envelopes;
-- prepared PAG, bidirected ADMG, graph-posterior, and DBN-posterior analyses
-  cache their identification products and expose reuse with
-  `exec.identify.cached`.
-
-Prepared-vs-fresh equality remains a useful execution invariant, but it no
-longer stands in for known-truth mixture evidence.
-
----
-
-## 1.2 — Compatible estimators and validation
-
-Implemented on the `1.2.0` branch. The existing query kinds gain native
-path/distribution and temporal-mediation validation, DBN mixture validation,
-Bayesian conditional/mediation/response estimators, accepted-DAG functional
-queries, and multi-step sustained-window g-computation. See the
-[evidence ledger](docs/v1.2-evidence.md) for exact forms and limits.
-Current graph-posterior response atoms and multi-step Sustained windows are described in the 1.6 ledger below.
-
-## 1.3 — Existing kinds on the staged handle
-
-Implemented on the `1.3.0` branch. Frequentist explicit/accepted DAG
-derivatives, conditional Cox IPCW observation pairs, static natural
-mediation with a native cheap/full suite, and explicit-DAG unit
-counterfactuals now run identify → prepare → estimate. See the
-[evidence ledger](docs/v1.3-evidence.md) and
-[observation pair contract](docs/observation-contract.md). Bayesian and
-partial-graph versions of these families remain refused; transport and
-interference stay stage APIs.
-
-## 1.4 — Class-preserving coordinates, then handoff
-
-Implemented and locally verified on the `1.4.0` branch. `AverageEffect` on a supplied `Cpdag`
-stays a `Cpdag` and estimates a MEC envelope. The same generalized-adjustment
-envelope licenses `ResponseCurve` / `InterventionResponse` and
-`ConditionalEffect` on `Cpdag` / `Pag`, and Frequentist Pulse / single-step
-Sustained on incomplete `TemporalCpdag` / `TemporalPag`. Frequentist
-graph-posterior ATE on DAG atoms is the 1.1 Bayesian envelope's sibling.
-`antecedent.handoff.econml` exports query-bound point-identified static and
-lag-aligned temporal adjustment designs, including all joint targets.
-Joint interventions certify a common adjustment set for all targets per
-completion; they do not inherit the first target's ATE certificate.
-See the [evidence ledger](docs/v1.4-evidence.md). Static multi-atom
-Frequentist uncertainty moved to 1.5. Frequentist DBN Pulse/Sustained
-mixtures with shared outer-block replicates shipped in 1.6; TemporalCpdag /
-TemporalPag class-envelope between-atom variance was calibrated in 1.9.
-The temporal PAG mixed-graph implementation is verified, with finite-window
-audit limits explicit.
-Bayesian incomplete-class temporal cells shipped in 1.7.
-
-### Explicit ownership from the 1.4 completion review
-
-1.4 owns query-faithful single/joint EconML handoffs, constrained conditional
-adjustment search, preservation of identification envelopes and temporal
-coordinates through Python, aligned temporal adjustment handoffs, static
-Bayesian stochastic response policies, and temporal PAG mixed-graph
-completion/adjustment. The PAG work also owns singleton and conditional MAG
-edge-visibility checks, matching the criterion already used for joint responses.
-Temporal PAG completion retains directed/bidirected MAGs; finite-window audit
-limits remain explicit. Each item
-requires consuming numerical or contract evidence and the PR gates.
-
-1.8 shipped the Bayesian remainder of the staged handle, including
-response-specific prior transfer for static Bayesian response cells,
-class envelopes, and explicit source/target compatibility.
-
-1.5 owns implementation and calibration of covariance-aware sampling
-uncertainty for existing static multi-atom Frequentist aggregates, including
-CPDAG/PAG responses. 1.6 owns Frequentist DBN shared-block mixture
-uncertainty. 1.9 owns calibration/coverage of those DBN intervals and the
-remaining temporal class-envelope between-atom variance, including
-dependence-preserving resampling. Graph-weight conditioning and unidentified
-mass must remain explicit.
-
-1.10 retains its result-composition and presentation work. It does not own
-repairing information lost at 1.4's native-to-Python identification boundary.
-1.4 must preserve certificates through analysis and prepared results as well as
-identify-only results, compare temporal completion certificates in shared named
-coordinates, and verify all advertised temporal validation modes.
-
-## 1.5 — Local, distributional, joint
-
-Released as [1.5.0](docs/release-notes/v1.5.0.md). See the
-[evidence ledger](docs/v1.5-evidence.md). It sits ahead of the temporal and
-Bayesian minors (1.6–1.10) because its consumer question needs none of them.
-
-The consumer question is inverse forecasting: which conditions move a target
-population toward the upper tail of an outcome distribution. The 1.4 surface
-answers with means, over the sample, one lever at a time. 1.5 adds no query
-kinds and no identification theory. It adds estimators, functional
-parameters, and an execution contract on kinds the staged handle already
-runs:
-
-- **Retargetable prepared plans.** Cross-fitted AIPW scores exported from a
-  prepared `AverageEffect` or discrete joint `InterventionResponse`, and
-  `retarget(weights, depends_on=...)` estimating the effect in a declared
-  covariate-defined target population without refitting. The weights must be
-  a function of the certified adjustment set. Declared parents that name the
-  treatment or a directed descendant refuse (on a `Dag` or an `Admg`), and
-  nonconstant weights require a declaration. This is standardization to a
-  declared target, not ML CATE; no heterogeneity model is learned.
-- **Exceedance, CDF, and quantile functionals.** `Exceedance(c)`,
-  `ExceedanceGrid`, and `Quantile(τ)` on `AverageEffect`,
-  `ConditionalEffect`, and discrete joint `InterventionResponse`: the
-  interventional CDF on a threshold grid, with raw-score bands simultaneous
-  over the grid and support per threshold. Quantile treatment effects invert
-  that CDF; they share its identification.
-- **Non-additive joint estimation.** A cell-saturated AIPW estimator on the
-  common adjustment set, with a first-class interaction contrast. The additive
-  estimators report on the result that their interaction is structurally
-  zero. A continuous coordinate enters as a coarsened treatment grid, not a
-  point intervention.
-- **Tier-rule identification at width.** A tiered background-knowledge
-  constructor over existing `Admg` / `Pag` semantics. `CoDetermined` tiers
-  certify the tier-closure adjustment set in O(p) under a named no-latent
-  premise, for single levers and, as ordinary joint adjustment on the known
-  closure ADMG, for lever pairs. It is a fast path on existing semantics, not
-  a new identification theory. `Unknown` tiers report separate
-  canonical-scenario effects and never collapse them.
-- **Class-aware response identification.** Responses on `Cpdag` / `Pag`
-  run generalized adjustment first, then Shpitser–Pearl ID on each
-  MAG-as-ADMG completion. This is complete-then-ID, not PAG-native ID/IDC.
-- **Batch execution and claim hygiene.** Parallel prepared batches with a
-  shared design, simultaneous inference over the claim family, typed
-  per-validator failures, and candidate-selection provenance on the artifact.
-
-1.5 owns the joint influence-covariance machinery (static multi-atom
-aggregates, as above) and the `PreparedStudy` handle shape: what a prepared
-plan freezes, what a call may vary, and `retarget` as a method on that plan.
-1.10 composes prior transfer and design ranking onto that shape rather than
-redesigning it.
-
-PN/PS/PNS bounds are new estimands and stay unscheduled post-1.x work.
-Later 1.x direction and ownership are summarized below.
-
-## 1.6 — Temporal policies and per-horizon ID
-
-Released as [1.6.0](docs/release-notes/v1.6.0.md). See the
-[evidence ledger](docs/v1.6-evidence.md). 1.5 is released; this cut is
-the rest of the temporal policy surface on the identification theory the
-handle already runs (`temporal.backdoor.unfolded`).
-
-Shipped on the branch: horizon-specific `I(h)` and a durable multi-horizon
-mediation grid across Rust, Python, and composite artifacts; licensed
-multi-step and joint Sequence overlays (nested Sequence refused, explicit
-native step timing authoritative), including multiplicative and bounded-shift Soft mean mechanisms;
-DBN-posterior mediation and multi-step Sustained mixtures that retain
-horizon-specific unidentified mass, with multi-step none/cheap/full validation through actual sequential refits; licensed 1.3 observation pairs on Frequentist temporal
-curves with outer nuisance-refitting block-bootstrap bands; Frequentist DBN
-effect mixtures with fixed graph weights and shared block replicates;
-same-design and mapped prior transfer onto licensed Bayesian Pulse,
-single-step Sustained, and temporal `ResponseCurve` when a fixture names
-source cell, target cell, and `PriorCatalog.filter_compatible`. Static DAG
-graph-posterior responses retain probability atoms/mass, while CPDAG/PAG
-completion responses retain enumeration atoms and identified sets rather than
-an unjustified weighted mean.
-
-Remaining boundaries are methodological, not schedule assignments. Cheap/full
-neighbors of the 1.6 `none` cells that already had a scalar or per-completion
-suite are licensed on this cut; function-valued cheap/full stay typed n/a.
-Bayesian temporal observations use the Gaussian observed-data SEM and latent-trajectory Gibbs sampler under ignorable trajectory coarsening and distinct priors. Selection-indicator or censoring-bound trajectories are assumed independent of latent outcome trajectories conditional on fully observed Z; the censoring event indicator is not assumed independent of Y. Complete-data posterior bands are not substituted. A joint horizon mediation
-posterior requires a shared dynamic parameter model; 1.6 reports honest
-pointwise posteriors. Latent-confounded PAG natural mediation remains outside
-the implemented identification theory. Incomplete-class DBN-posterior mixing
-stays closed.
-
-## 1.7 — Incomplete temporal graphs, Bayesian
-
-Released as [1.7.0](docs/release-notes/v1.7.0.md). See the
-[evidence ledger](docs/v1.7-evidence.md). Bayesian Pulse / Sustained,
-curves, Sequence, observation, and TemporalCpdag mediation run on
-`TemporalCpdag` / `TemporalPag` without collapsing the class. A caller-supplied
-`ClassPrior` is the only blended posterior; enumeration is not probability.
-
-## 1.8 — Bayesian remainder of the handle
-
-Released as [1.8.0](docs/release-notes/v1.8.0.md). See the
-[evidence ledger](docs/v1.8-evidence.md). Path, distribution, ADMG ATE,
-static mediation, counterfactuals, and derivatives read inference mode
-instead of being rewritten to `bayesian.gcomp`. ConditionalEffect × Dag ×
-graph-posterior retains unidentified mass as a separate axis. Staged
-prior transfer is fail-closed. Graph-posterior composed with transfer
-stays 1.10; calibration stays 1.9.
-
-## 1.9 — Calibration of licensed intervals
-
-Version 1.9.0. Every licensed cell was reviewed
-([review](docs/v1.9-cell-review.md)) and its intervals checked by a
-two-sided, 400-replicate coverage gate that runs weekly and on dispatch.
-Intervals that missed were fixed, or published as disclosed boundary records
-where no fix was available. Eleven cells were licensed on existing
-implementations (ADMG interventional distributions, accepted-Dag
-counterfactuals, Frequentist DBN-posterior mediation, and staged
-`AnomalyAttribution` / `ChangeAttribution` / `TransportQuery` /
-`InterferenceQuery` at validation `none`). Temporal class-envelope
-between-atom variance and DBN shared-block calibration, the owner item, are
-gated. Every licensed row names its executing test; the exemption list
-(`parity/_evidence_test_backlog.txt`) is empty.
-
-## 1.x — Compatible cells
-
-Minors add cells to the frozen matrix without new query kinds or new
-identification theories: another licensed observation mechanism under the
-existing vocabulary, another graph class for an existing query, another pinned
-oracle, a documented EconML handoff (Antecedent names the adjustment set and
-identification status; EconML estimates heterogeneity). After 1.4 comes
-local, distributional, and joint estimation on existing kinds (1.5). Then the
-remaining weight is temporal policy and Bayesian licensing — multi-step and
-dynamic schedules, Bayesian incomplete-class temporal cells, and Bayesian cells
-for queries the staged handle already runs (1.6–1.8) — then calibration (1.9)
-and composition of those cells (discovery → accept → analyze, frozen
-plans, design ranking, refusals that point at the next licensed neighbor;
-1.10) without adding query kinds.
-
-A 1.x item that needs a new query type, a new graph semantics, a new
-identification theory, or a new language runtime is not 1.x.
-
----
-
-## 2.0 — Causal transport and evidence synthesis
-
-Given explicit differences between environments and a declared collection of
-observational and experimental evidence, derive a target causal functional or
-a justified refusal, then execute supported functionals with traceable data
-dependencies, empirical support, and uncertainty.
-
-This is the organizing goal of 2.0. New identification theory, evidence types,
-and artifact shapes belong in this major. Transport remains a staged API in
-`antecedent.transport`. Statistical prior transfer remains a separate operation
-in `antecedent.priors`; it cannot establish structural transportability.
-
-### Starting point
-
-The current transport surface has single-source selection diagrams,
-population-labelled factors, direct transport, pre-treatment S-admissible
-standardization, and singleton-component factorization. Outside those rules,
-identification returns `NotCertified` without claiming non-transportability.
-
-The numerical surface is narrower: trial IPW/AIPW and the augmented
-response-grid primitive accept direct and standardization formulas, but refuse
-recursive factorization. Completing identification must be accompanied by
-execution of the resulting formulas. A larger collection of identify-only
-expressions would leave the central gap open.
-
-### 1. Declare the available causal evidence
-
-- Represent each environment's population, mechanism differences, available
-  observational distributions, and experimental distributions.
-- Distinguish variables that can be manipulated from experiments whose results
-  are actually available. Record intervention sets, including joint
-  interventions, and variables measured under each regime. A list containing
-  two treatment names does not establish that a joint experiment exists.
-- Validate which evidence can supply each required distribution. Missing
-  measurements or experiments must produce a specific unmet dependency.
-- Begin with aligned variables and a shared underlying ADMG, with explicit
-  mechanism-selection targets for each source relative to the target.
-  Arbitrary schema reconciliation, heterogeneous measurement models, and
-  automatic discovery of invariance are outside the 2.0 release boundary.
-
-Design this contract for multiple sources from the beginning. Define the exact
-evidence setting for each identifier before attaching a completeness claim.
-
-### 2. Complete identification in declared transport settings
-
-- Implement general single-source sID recursion, including multi-node
-  confounded components. Check target-only identification where source
-  experiments are unnecessary; absence of a source treatment experiment must
-  not pre-empt that check.
-- Return a derivation with positive formulas and a checkable graphical witness
-  for definitive negative results under the supported theorem.
-- Separate three outcomes: identified; proven non-transportable under the
-  declared graph and evidence model; and not certified because the
-  implementation is out of scope or a computation budget was exhausted.
-  Replace the current use of `NonTransportableCertificate` for a conservative
-  refusal with types that preserve this distinction through Rust, Python,
-  and artifacts.
-- Keep ordinary sID and restricted-experiment transport as separately named
-  contracts. Do not label an arbitrary catalog of available experiments
-  complete merely because the classical sID recursion is implemented.
-
-The single-source foundation is
-[general transportability](https://arxiv.org/abs/1312.7485).
-[z-Transportability](https://arxiv.org/abs/1309.6842) addresses experiments on
-controllable subsets and carries its own premises and completeness scope.
-Unsupported evidence settings remain explicit refusals.
-
-### 3. Execute the certified functional
-
-- Extend the existing expression engine with population and experimental-regime
-  identities on distribution leaves. Compile products, marginalizations, and
-  conditional ratios with those identities intact.
-- Bind each leaf to an evidence provider in a prepared transport plan. Preserve
-  the graph, query, evidence contract, derivation, and mechanism-invariance
-  assumptions. Changing these inputs requires re-preparation; replacing data
-  within the frozen contract reuses identification.
-- Start with finite discrete distributions, so recursive functionals can be
-  evaluated exactly against known SCM distributions. Add statistical providers
-  only with their own licensed estimation and uncertainty contracts.
-- Report missing factors, zero denominators, and insufficient empirical support
-  at the factor and intervention value where they occur. Successful structural
-  identification does not guarantee numerical estimability from a finite sample.
-- Propagate sampling uncertainty from every contributing dataset within the
-  licensed estimator scope, preserving declared dependence when datasets share
-  units. Exact evaluation of supplied probability tables is a separate contract
-  from inference on estimated tables.
-
-A general symbolic formula does not imply a universal estimator, double
-robustness, efficiency, or calibrated intervals. Each statistical claim needs
-its own evidence. Existing trial estimators remain specialized evaluators of
-the formulas they actually implement.
-
-### 4. Combine complementary sources
-
-Ship a scoped multi-source transport path that assembles a target functional
-from distinct source and target factors. Each source has its own declared
-mechanism differences and available evidence. Preserve the source of every
-factor through preparation, estimation, diagnostics, and serialization.
-
-The defining case is a target effect that neither source identifies alone,
-but their combined evidence identifies. Pin both the derivation and numerical
-execution of that case. Pooling studies or averaging already transported
-estimates does not satisfy this goal.
-
-Implement and validate single-source recursion before the multi-source path.
-Use [meta-transportability](https://proceedings.mlr.press/v31/bareinboim13a.html)
-and [transportability with limited experiments](https://ftp.cs.ucla.edu/pub/stat_ser/r419.pdf)
-as distinct theoretical references. Publish the precise supported setting;
-broader restricted-experiment completeness is follow-on work.
-
-### 5. Return target response curves with support limits
-
-Execute licensed transport functionals over intervention grids, retaining the
-requested target response rather than reducing it to a two-point contrast.
-For 2.0, finite discrete treatment grids provide the first executable scope.
-Keep identification, factor-specific empirical support, assumptions, and
-uncertainty visible at each grid point. Reuse a derivation across values only
-where its premises apply to the whole requested grid.
-
-Broader continuous-response estimation follows discrete execution. The current
-augmented response-grid primitive is an algebraic starting point; its component
-methods do not establish a joint robustness or inference theorem. Density
-estimation, smoothing, bandwidth, and pointwise or simultaneous uncertainty
-require separately licensed contracts.
-
-### Release boundary
-
-| Required for 2.0 | Follow-on 2.x transport goals |
-|---|---|
-| Explicit environment and experiment contracts | Additional restricted-experiment settings |
-| Complete single-source identification for a declared setting | Transport under graph uncertainty |
-| Positive derivations, genuine negative witnesses, and separate computational refusals | Sensitivity to violations of mechanism invariance |
-| Executable recursive discrete formulas and treatment grids | Broader continuous-response estimators |
-| A scoped multi-source path with complementary-source numerical evidence | Temporal transport with explicit time-varying invariance |
-| Prepared plans, factor-specific support, and licensed sampling uncertainty | Experiment planning to resolve transport failures |
-| Rust/Python and artifact round trips preserving the causal contract | Broader statistical providers with their own inference guarantees |
-
-The 2.x column describes direction, not a promise that every new theory or
-type fits a compatible minor. Changes that break the 2.0 contract require a
-later major.
-
-### Evidence required to ship
-
-- Frozen, consuming conformance cases for direct transport, standardization,
-  recursive multi-node components, target-only identification, and
-  complementary sources. Retain regression evidence for the existing subset.
-- Numerical functional equivalence on known SCMs and executing external
-  oracles where available. Formula-kind checks and rendered expression
-  snapshots alone do not establish recursive correctness.
-- Checkable negative witnesses and separate fixtures for unsupported settings,
-  unavailable evidence, and exhausted computation budgets. These outcomes
-  must not serialize to the same scientific claim.
-- Cases where identification succeeds but empirical support fails, including
-  grid-local failures and missing population/regime factors.
-- Known-truth sampling and calibration checks for every licensed uncertainty
-  method, including contributions from multiple datasets.
-- A transport support contract naming graph, evidence, functional, estimator,
-  and uncertainty scope; provenance records; artifact migrations and
-  cross-language round trips for new payloads; prepared-versus-fresh equality
-  and hot-path benchmarks where applicable.
-
-### Deferred from the former 2.0 goal set
-
-General graph-posterior response curves, Riesz sensitivity on average
-derivatives, continuous-treatment IV/front-door response identification, and
-design-ranker VoI over posterior curves remain future scientific work. They
-are not required for the transport release and have no committed release here.
-Existing 1.x references that parked these items in “2.0” should be read as
-post-1.x deferrals, not as additions to this release boundary. Priors must still
-never upgrade identification or erase unidentified mass.
-
----
-
-## 3.0 — Change what a graph is
-
-- Cyclic / equilibrium causal models.
-- Observational network treatment, contagion, and allocational interference.
-
-Randomized interference in 0.5 is design-based. Equilibrium SCMs are a
-different theory. Do not smuggle them in as exposure-mapping extensions.
-
-## Runtime — WebAssembly and TypeScript
-
-Independent of the 2.0/3.0 scientific releases.
-
-This is more earned than R or Julia bindings. Those would clone Antecedent
-into another scientific ecosystem. A `wasm32` build with a TypeScript facade
-puts the *same* engine in the host where the decision already lives: a
-spreadsheet or dashboard web app, client-side, with no notebook kernel, no
-server, and no Python install. That is the interactive / artifact-first spine
-already described for spreadsheets — discover once, hold an `AcceptedGraph`,
-run many `analyze` clicks — delivered as ordinary software.
-
-The TypeScript surface should be shaped like Python: `analyze` / `identify` /
-`estimate`, typed queries, stage modules. Capability parity, not API cloning.
-Heavy work stays in Rust.
-
-Constraints that keep it Antecedent rather than a demo:
-
-- The published support matrix may be a browser subset (interactive latency,
-  `ExecutionContext` memory and thread budgets). Missing cells fail closed.
-- The browser is the host, not a plotting product and not a WebGPU rewrite of
-  the engine. Bring your own grid; Antecedent returns identified estimates,
-  support, and refusals.
-- Artifacts and provenance still round-trip; mmap-backed paths fail closed in
-  favour of owned buffers.
-
-This track can ship whenever the 1.0 contract is frozen. It does not wait on
-general sID or cyclic models, and it still does not justify R or Julia
-bindings.
-
-## Continuing non-goals
-
-- Competing with EconML on ML CATE. Handoff, do not absorb.
-- PAG-native full ID/IDC, visualization, a string query language, R or
-  Julia bindings, unsupervised regime discovery.
-- Folding `antecedent.transport` / `antecedent.interference` into `analyze`.
-
-The test for any later item: does it make a causal response more honest or
-computable under explicit differences between environments, structural
-uncertainty, incomplete observation, or time; or does it put that same engine
-in a new host without becoming a second implementation?
+# Antecedent 2.x — Causal transport and evidence synthesis
+
+Last updated: 2026-09-15.
+
+This is the roadmap for 2.0 and the subsequent transport
+program. 
+
+Every checkbox below is an open implementation or evidence obligation, **not a
+claim of shipped support**. Proposed record and test names specify contracts;
+settle their exact public spelling in the architecture decision before freezing
+them. File references name existing owners, not a requirement for parallel
+implementations. Follow-on workstreams are dependency-ordered proposals, not
+assigned minor versions. A breaking extension requires a later major.
+
+## The outcome we are building toward
+
+A practitioner should be able to ask: **What would this intervention do in this
+target population, using the studies we actually have, under these explicit
+assumptions about what changes between populations?** Antecedent should return:
+
+1. A target response, or a precise explanation of why it cannot be obtained.
+2. A checked derivation showing which evidence supplies each part of the answer.
+3. Support diagnostics that locate the populations, regimes, and values where
+   data cannot sustain the calculation.
+4. Uncertainty that accounts for all contributing samples and declared dependence.
+5. A reusable, inspectable result whose scientific meaning survives export.
+6. In later 2.x, an account of sensitivity and which additional experiments
+   could resolve a failure or improve a decision.
+
+Success is measured by executable, auditable transport across complementary
+sources, rather than the number of named algorithms. A formula without a
+licensed evaluator is an identification result; it is not a completed analysis.
+
+## Contents
+
+- [Release contract and invariants](#release-contract-and-invariants)
+- [Existing owners and implementation seams](#existing-owners-and-implementation-seams)
+- [2.0 delivery sequence](#20-delivery-sequence)
+- [T0 — Architecture and licensing](#t0--architecture-and-licensing)
+- [T1 — Environments and available evidence](#t1--environments-and-available-evidence)
+- [T2 — Population-aware functional representation](#t2--population-aware-functional-representation)
+- [T3 — Complete single-source identification](#t3--complete-single-source-identification)
+- [T4 — Exact recursive execution](#t4--exact-recursive-execution)
+- [T5 — Prepared transport and practitioner workflow](#t5--prepared-transport-and-practitioner-workflow)
+- [T6 — Statistical execution and uncertainty](#t6--statistical-execution-and-uncertainty)
+- [T7 — Complementary sources](#t7--complementary-sources)
+- [T8 — Target response grids](#t8--target-response-grids)
+- [T9 — Durable claims and migration](#t9--durable-claims-and-migration)
+- [T10 — Scientific evidence and release acceptance](#t10--scientific-evidence-and-release-acceptance)
+- [Follow-on 2.x workstreams](#follow-on-2x-workstreams)
+- [Preserved boundaries and independent tracks](#preserved-boundaries-and-independent-tracks)
+
+## Release contract and invariants
+
+**Required for 2.0:** explicit evidence catalogs; complete classical single-source
+identification in its declared setting; checked positive derivations and genuine
+negative witnesses; recursive finite-discrete execution; a scoped complementary
+multi-source path; finite treatment grids; prepared reuse; factor-specific
+support; licensed sampling uncertainty; Rust/Python and artifact preservation.
+
+**Initial model:** aligned observed variables with declared domains on a shared
+underlying acyclic directed mixed graph (ADMG, allowing latent confounding).
+Each source declares mechanism-selection targets relative to the target.
+Selection nodes denote mechanisms that may differ; absence of a selection node
+is an invariance assumption, not a conclusion from matching data columns.
+Initial statistical execution assumes complete measurement of each required
+factor within its declared regime. A catalog can describe partial measurement;
+it does not thereby license missing-data recovery.
+
+**Follow-on:** additional restricted-experiment settings, graph uncertainty,
+invariance sensitivity, continuous responses, temporal transport, experiment
+planning, and broader statistical providers. None can substitute for an unmet
+2.0 acceptance condition.
+
+### Invariants inherited from 1.10
+
+- Transport remains in `antecedent.transport`; prior transfer remains in
+  `antecedent.priors`. Neither priors nor validation establish transportability.
+- Use the existing staged compiler and practitioner handle. Preserve positional
+  `(treatment, outcome)` conventions where applicable. Do not route transport
+  through `analyze` or create a second causal workflow engine.
+- Preserve Identification, Support, Uncertainty, and Assumptions at every
+  boundary. Statistical regularity is explicit within the inference contract;
+  structural identification is never a synonym for empirical estimability.
+- Separate target question, structural premises, identified functional,
+  compiled program, provider/inference binding, data snapshot, and execution
+  claim identities. Reusing identification does not reuse an old estimate.
+- Never invent an experiment, joint measurement, population equivalence,
+  independence relation, observation assumption, or invariance assumption.
+- Store scientific failures separately from unsupported scope, missing evidence,
+  numerical failure, cancellation, and exhausted budgets. Unknown is not false.
+- Exact supplied-table evaluation has no sampling interval. Estimated tables
+  require an explicit inferential contract. A point estimate can be available
+  while an interval is unavailable.
+- No omitted source, failed grid point, unresolved graph mass, or lossy export
+  may make a summary appear stronger than its contributing results.
+- Every new runtime claim must have registry ownership, consuming evidence,
+  and applicable calibration under the completed 1.10 extension rules.
+
+## Existing owners and implementation seams
+
+Repository inspection on 2026-09-15 gives the following starting points. Recheck
+against the accepted 1.10 tree before implementation; this backlog does not
+freeze the in-progress close-out internals.
+
+| Responsibility | Existing owner | Required extension |
+| --- | --- | --- |
+| Target and population semantics | `crates/antecedent-core/src/query/transport.rs`, `query/population.rs`, `query/target.rs` | Replace the flat experiment-variable list with explicit evidence contracts; reuse population identities |
+| Mechanism differences | `crates/antecedent-graph/src/selection.rs` | Source-specific selection diagrams over aligned ADMG coordinates |
+| Transport identification | `crates/antecedent-identify/src/transport.rs` | General recursion, derivations, truthful outcomes, multi-source composition |
+| Functional representation and evaluation | `crates/antecedent-expr/src/{lib,provider,eval,simplify}.rs` | Population/regime identity throughout the existing expression engine |
+| Transport estimators | `crates/antecedent-estimate/src/transport.rs` | Certified provider execution and estimator-specific uncertainty |
+| Staged orchestration | `crates/antecedent/src/analysis/{prepared,contract}.rs`, `analysis/execute/transport_interference_path.rs` | Transport contracts on the common lifecycle |
+| Python stage API | `python/antecedent/transport.py`, `_workflow.py`, `results/` | Retained native certificates, inspectable dependencies, faithful result views |
+| Artifacts and claims | `crates/antecedent-io/src/transport_interference_wire.rs`, `contract_section.rs`; core identity/claim owners | Versioned graph/evidence/derivation/provider bindings and migrations |
+| Statistical prior transfer | `crates/antecedent-prob/src/transport.rs` | Preserve separation from structural transport; no identifier implementation here |
+| Later experiment planning | `crates/antecedent-design/src/` | Transport-specific candidates and licensed objectives |
+| Evidence and licensing | `parity/`, `provenance/`, `conformance/`, `scripts/gate_*.sh` | Extend existing registries and gates, without a competing truth ledger |
+
+Concrete gaps already visible:
+
+- `TransportIdentifier` requires source treatment experiments before trying
+  target-only identification. Reverse that logical dependency.
+- `TransportFormula::RecursiveFactorization` represents singleton districts;
+  general recursion needs nested expressions and intermediate kernels.
+- `PopulationFactor` labels populations and intervention variables, but does
+  not identify a particular evidence regime/provider and its measured domain.
+- `NotCertified(NonTransportableCertificate)` is conservative despite the
+  certificate name. Migrate its meaning without upgrading historical refusals.
+- Existing trial and response-grid execution is narrower than symbolic support.
+- The current `causaleffect_transport_subset` fixture checks direct and
+  standardization formula structure. Preserve that evidence, but do not count
+  it as recursive numerical parity or interval calibration.
+
+## 2.0 delivery sequence
+
+| Milestone | Depends on | Exit artifact |
+| --- | --- | --- |
+| M0: contracts | Accepted 1.10, T0–T1 | ADR, evidence schema, exact theorem scopes and support coordinates |
+| M1: single-source exact path | M0, T2–T4 | Checked recursion executing against exact SCM tables, including negative witnesses |
+| M2: reusable statistical path | M1, T5–T6 | Prepared execution with licensed intervals and source-level diagnostics |
+| M3: synthesis and responses | M1–M2, T7–T8 | Complementary-source target curve with numerical and sampling evidence |
+| M4: release | M0–M3, T9–T10 | Independent artifact consumption, complete matrix, migrations, accepted release gates |
+
+Design multi-source identities in M0; implement and validate single-source
+recursion before implementing multi-source search. Start migration and fixture
+design alongside each schema/algorithm change, rather than leaving them to M4.
+No version bump until the complete release boundary is accepted.
+
+## T0 — Architecture and licensing
+
+**Owner:** core/graph/expression/identify owners plus ADRs and the existing
+support, identity, reason-code, claim, Python-product, and coverage registries.
+
+- [ ] Write the transport ADR: distinguish theoretical evidence availability,
+      concrete supplied evidence, statistical providers, and physical execution.
+      Settle extension points within the common prepared handle and claim model.
+- [ ] Define a theorem-scope record: reference/version, graph assumptions,
+      observed variables, allowed experiments, required distribution family,
+      query scope, outcome guarantees, and implemented computation limits.
+- [ ] Name classical sID separately from finite-catalog search and later
+      z-/limited-experiment contracts. Completeness applies only to its stated
+      mathematical input family, not to every catalog the API can represent.
+- [ ] Define support coordinates for graph × evidence setting × target
+      functional × evaluator × uncertainty method × observation contract.
+      Use stage-specific coordinates where necessary; do not fabricate an
+      `analyze` capability to fit an existing matrix shape.
+- [ ] Specify stable typed outcomes for identified, proven non-transportable,
+      not certified, invalid input, missing evidence/provider, unsupported
+      evaluator, support failure, numerical failure, and budget/cancel events.
+      Attach precise obligations and factor/graph locations where available.
+- [ ] Register new identity inputs, public product paths, defaults, and claim
+      vocabulary through the 1.10 registries. Record schema/API breaks and
+      migration policy before accepting new durable formats.
+
+**Done when:** each proposed public route has a licensed or closed contract;
+a caller can distinguish every outcome without parsing prose; a missing
+experiment and a verified impossibility witness produce different records.
+
+## T1 — Environments and available evidence
+
+**Owner:** core transport query and population records; graph selection diagrams;
+data-provider metadata. **Depends on:** T0.
+
+- [ ] Define an environment record referencing the existing population identity,
+      shared variable coordinates, value domains, units, and source-to-target
+      selection targets. Reject duplicate identities and incompatible domains.
+- [ ] Define evidence regimes with stable IDs: observational or experimental,
+      intervention set, available intervention values, measured variables,
+      population, and distribution availability. Two `do(A)`/`do(B)` regimes
+      never imply `do(A,B)`; separate marginals never imply joint measurements.
+- [ ] Separate manipulability and proposed future experiments from evidence
+      whose results exist. An executable factor must cite available evidence.
+- [ ] Keep measurement availability separate from observation mechanisms and
+      study inclusion/selection. A mechanism-selection node is not a sample
+      membership indicator. Unsupported measurement recovery fails explicitly.
+- [ ] Define admissible evidence projections: marginalization and conditioning
+      within a measured regime, with support obligations. Do not remove a hard
+      intervention and treat its law as observational without a licensed rule.
+- [ ] Bind datasets/tables to regimes with snapshot identity, schema, sampling
+      design, weights if licensed, and unit/cluster/dependence groups. Distinguish
+      known independent studies, linked units, and unknown dependence.
+- [ ] Define target-population sampling semantics: supplied population law,
+      representative target sample, or explicitly licensed weighted design.
+      A convenience target sample is not automatically representative.
+- [ ] Validate hard intervention assignments, target/source IDs, treatment and
+      outcome coordinates, measured domains, and provider compatibility before
+      estimation. Return all relevant unmet factor dependencies in stable order.
+- [ ] Support catalogs with multiple source entries from the start. Do not
+      assume source-source invariance merely from matching display names or
+      transitively compose unrelated source-to-target assumptions.
+
+**Done when:** fixtures distinguish single from joint experiments, manipulable
+from observed experiments, marginal from joint measurement, target sample from
+target law, and same-named incompatible variables. A target-only solution
+succeeds with an empty source experiment catalog.
+
+## T2 — Population-aware functional representation
+
+**Owner:** `antecedent-expr`, with typed graph/evidence references from core.
+**Depends on:** T0–T1.
+
+- [ ] Extend expression leaves to bind population, regime, random variables,
+      conditioning variables, intervention variables/values, and their domains.
+      Keep symbolic treatment placeholders distinct from concrete assignments.
+- [ ] Represent nested sums, products, ratios, and intermediate kernels produced
+      by recursion in the existing arena. An intermediate kernel is not an
+      invented observational distribution or an extra evidence provider.
+- [ ] Define free/bound-variable checks and scope-preserving substitution.
+      Reject variable capture, conflicting assignments, missing bindings, and
+      expressions whose free variables disagree with the certified target.
+- [ ] Preserve population/regime distinctions in interning, hashing,
+      simplification, compilation, pretty-printing, and artifact serialization.
+      Algebraic similarity alone must never merge factors from different studies.
+- [ ] Attach a derivation DAG to the functional: named rule, input/output
+      subproblem, graph operation, premises, evidence dependencies, and parent
+      steps. Keep display strings as projections of typed records.
+- [ ] Restrict simplifications to checked local identities with explicit domain
+      and denominator conditions. Do not promise a general equivalence prover.
+- [ ] Lower existing direct/standardization/singleton formulas into this engine;
+      retain compatible public views where justified without duplicate evaluation.
+
+**Done when:** one variable rename preserves numerical meaning; a population
+or regime swap changes identity and fails certificate binding; nested kernels
+survive Rust/Python/artifact round trips with the same dependencies and value.
+
+## T3 — Complete single-source identification
+
+**Owner:** `antecedent-identify/src/transport.rs` and existing ID/graph utilities.
+**Depends on:** T1–T2.
+
+- [ ] Implement the classical single-source sID algorithm against a pinned
+      theorem and pseudocode, documenting the mapping from every branch to
+      code and fixtures. Reuse existing ancestry, district, induced/mutilated
+      graph, and ordinary ID operations where their semantics match.
+- [ ] Try target-only ID before demanding source experimental factors. Keep a
+      successful target derivation even if no source evidence is needed.
+- [ ] Cover ancestry restriction, intervention enlargement where licensed,
+      district decomposition, recursive multi-node districts, source/target
+      kernel selection, and the theorem's obstruction branch. Preserve original
+      variable coordinates through every induced subproblem.
+- [ ] Separate deriving a formula under the theorem's evidence family from
+      binding its leaves to a finite supplied catalog. Missing a factor in one
+      derivation does not prove that no alternative catalog-supported formula
+      exists. Bounded alternative search returns its search scope and status.
+- [ ] Add a derivation checker that verifies recorded rule premises against
+      immutable inputs. It must validate steps rather than trust a success flag
+      or simply rerun the same top-level identifier.
+- [ ] Implement the theorem-specific negative witness and a checker for its
+      graph and selection conditions. Bind it to the exact query and evidence
+      setting; a single-source obstruction cannot negate combined-source evidence.
+- [ ] Replace misleading negative certificate names throughout native results,
+      Python, and wire records. Preserve historical `NotCertified` meaning.
+- [ ] Memoize only on complete subproblem identity, including population,
+      evidence setting, graph, selection targets, and query coordinates.
+      Enforce step, memory, recursion, and cancellation budgets. Budget exhaustion
+      returns no impossibility claim, even after several failed branches.
+
+**Done when:** direct, standardization, target-only, and genuinely recursive
+multi-node cases produce checked formulas and exact numerical truth in T4;
+negative fixtures have valid independently checked witnesses; corrupted witness
+edges/premises fail verification. Every recursion branch has a consuming case.
+
+**Scientific basis:** classical completeness is scoped to
+[general transportability](https://arxiv.org/abs/1312.7485), whose experimental
+information setting must be represented explicitly. It is not completeness for
+an arbitrary collection of individual study results.
+
+## T4 — Exact recursive execution
+
+**Owner:** expression providers/evaluator, estimate transport entry point.
+**Depends on:** T2–T3.
+
+- [ ] Implement finite-discrete table providers for observational and hard
+      intervention regimes. Validate cardinalities, nonnegative finite entries,
+      normalization, axis order, and complete assignment domains with declared
+      floating-point tolerances. Supplied tables represent exact laws for this
+      contract; they are not assumed to have been estimated without error.
+- [ ] Compile certified expressions into evaluation plans with leaf-to-provider
+      bindings, scoped marginalizations, ratio checks, and reusable intermediates.
+      Verify provider coverage before allocating large joint tables.
+- [ ] Evaluate full target distributions and derive licensed response
+      functionals from them. Validate normalization and probability bounds;
+      report numerical failures rather than silently clipping or renormalizing.
+- [ ] Locate zero denominators and absent support at the factor, conditioning
+      assignment, population, regime, and requested intervention value. Handle
+      irrelevant zero-mass summands only through an explicitly justified rule;
+      never use a blanket `0/0 = 0` convention.
+- [ ] Distinguish structural zeros in a supplied law from cells unobserved in
+      a finite sample. Record the support assumptions necessary for each ratio.
+- [ ] Bound intermediate factor sizes and elimination costs before execution.
+      Use deterministic ordering, reusable buffers, and safe common-subexpression
+      reuse. Refuse resource exhaustion without publishing a partial scalar.
+- [ ] Retain original functional identity alongside the physical evaluation
+      plan. Optimize execution only when it preserves the certified expression.
+
+**Done when:** exact enumeration of small finite SCMs produces the same target
+interventional law as recursive evaluation across multiple parameterizations,
+including multi-node districts. Tests compare probabilities and functionals,
+not just formula labels. Support and budget failures retain precise locations.
+
+## T5 — Prepared transport and practitioner workflow
+
+**Owner:** common prepared/contract/execute path and Python transport stage.
+**Depends on:** T0–T4; integrate statistical providers as T6 lands.
+
+- [ ] Offer transport identify → inspect → prepare → estimate on the common
+      retained handle. Keep native certificates authoritative; caller-edited
+      Python display objects cannot authorize execution.
+- [ ] Freeze target query, graph, selection assumptions, evidence contract,
+      derivation, and functional in preparation. Bind physical providers and
+      inference settings at their existing identity layers.
+- [ ] Inspect without accessing full data or executing callbacks: show the
+      target, assumed invariances, theorem scope, formula, required factors,
+      available provider bindings, supported operations, and unmet obligations.
+- [ ] Preview changes using the existing transformation/invalidation contract.
+      A data replacement within the same evidence contract reuses identification
+      but refreshes estimates, support, uncertainty, and execution claims.
+- [ ] Changing graph, target, mechanism assumptions, measured regime, or evidence
+      availability requires re-preparation. A new binding/estimator changes
+      inference and affected caches. Reordering equivalent catalog entries must
+      not cause arbitrary semantic identity changes.
+- [ ] Expose an actionable diagnostic path: affected factor, why unavailable,
+      required measurement/regime/value, and the distinction between supplying
+      existing evidence and proposing a future experiment. No automatic new
+      invariance assumption or hidden target restriction to make a run succeed.
+- [ ] Preserve four reasoning slots in repr, dictionaries, retained studies,
+      estimates, exported claims, and independent consumers. Support per factor
+      must remain accessible even when the top-level response is concise.
+- [ ] Retain request identity, budget/cancel handling, explicit refresh, and
+      stale-result rejection. Inspect/load must not trigger data fetch or fitting.
+
+**Done when:** a Rust and Python walkthrough performs inspect → prepare →
+estimate → replace one source snapshot → explicit refresh → export → independent
+consume. Prepared/fresh values and uncertainty agree; only the documented
+identification work is reused; stale or substituted certificates are rejected.
+
+## T6 — Statistical execution and uncertainty
+
+**Owner:** estimate transport, existing inference/calibration/provider machinery.
+**Depends on:** T4–T5. License each estimator separately.
+
+### T6.1 — First statistical provider
+
+- [ ] Start with finite categorical empirical tables under explicitly independent
+      IID sampling groups, fixed finite domains, and stated positivity/regularity
+      conditions. Register a plug-in estimator for the supported recursive
+      functionals. High-dimensional sparse tables do not gain automatic support.
+- [ ] Keep known supplied laws fixed and refit estimated factors in each
+      replicate. A target law estimated from target data contributes uncertainty.
+- [ ] Reuse a single fitted joint law when several factors come from the same
+      regime/sample. Do not fit or resample those factors as independent studies.
+- [ ] Define smoothing, pseudocounts, or model-based extrapolation as explicit
+      estimator choices with separate licenses. Defaults must not hide empty
+      cells or turn a support failure into a confident answer.
+- [ ] Adapt existing trial IPW/AIPW evaluators only when their certificate,
+      sampling design, treatment, and target-factor requirements match. State
+      their robustness conditions precisely; they do not apply to every sID
+      expression or to arbitrary compositions of augmented factors.
+
+### T6.2 — Joint uncertainty and dependence
+
+- [ ] Implement a joint outer bootstrap for the licensed empirical-table path:
+      independently resample independent datasets; reuse each dataset replicate
+      for every consuming factor and every treatment-grid point; refit the
+      complete functional inside each replicate.
+- [ ] Represent shared units and clusters in the evidence contract. Implement
+      synchronized resampling only for explicitly supported designs; otherwise
+      return uncertainty unavailable with the unsupported dependence reason.
+      Unknown dependence never defaults to independence.
+- [ ] Record interval method, coverage target, sample-size vector, support regime,
+      replicate count, failures, seed, and calibration binding. Failed replicates
+      cannot be silently dropped until nominal coverage appears acceptable.
+- [ ] Preserve covariance across contrasts/grid points through retained joint
+      replicates or a licensed covariance representation. Document whether
+      intervals are marginal, pointwise, or simultaneous over a specified family.
+- [ ] Separate sampling uncertainty from model assumptions, invariance, and
+      graph uncertainty. Bootstrap variation cannot quantify an unmodeled
+      mechanism difference or an unidentified target effect.
+- [ ] Calibrate every licensed interval row against known SCM truth, varying
+      source/target sample imbalance, weak overlap, nonlinear recursive formulas,
+      and shared-factor dependence. Gate coverage using declared Monte Carlo
+      tolerances and record interval width/failure rate as well as coverage.
+
+**Done when:** the recursive and multi-source statistical paths account for
+variation from every estimated contributing law. A deliberate implementation
+that holds the target sample fixed or independently resamples shared factors
+fails designated numeric/covariance evidence. Unsupported dependence retains
+identification but cannot claim a licensed interval.
+
+## T7 — Complementary sources
+
+**Owner:** identify transport, expression bindings, estimate orchestration.
+**Depends on:** validated T3–T4; T6 for inferential claims.
+
+- [ ] Choose and document the initial multi-source theorem/subset, query scope,
+      and experimental information assumptions. Publish soundness/completeness
+      claims only for that setting, with explicit unsupported catalog patterns.
+- [ ] Implement source-specific selection reasoning and assembly of target
+      district/kernel factors from different sources plus target evidence.
+      Every substitution needs its own checked invariance/transport premise.
+- [ ] Track factor provenance through recursion, provider choice, inference,
+      diagnostics, and serialization. A source ID is a scientific dependency,
+      not a display annotation.
+- [ ] If several derivations are admissible, use a documented deterministic
+      policy or explicit caller selection. Retain selected evidence and search
+      status. Do not choose the most favorable estimate after seeing outcomes.
+- [ ] Reuse shared datasets/factors without duplicate evidence counting. Forwarded
+      copies of one study do not become independent evidence. Different formulas
+      for one estimand do not automatically license averaging their estimates.
+- [ ] Freeze a complementary-source fixture where combined evidence identifies
+      the target effect and each source alone does not. Establish the latter
+      with theorem-scoped witnesses or a cited construction, not merely failure
+      of the implemented search. Execute the combined formula against exact SCM
+      truth and with licensed statistical providers.
+- [ ] Add source-ablation, source permutation, irrelevant-source, wrong-population,
+      and conflicting-selection cases. A failure under one source does not
+      terminate search before another licensed source can supply the factor.
+- [ ] For disagreeing evidence, report the affected factors and declared
+      assumptions; optional discrepancy checks do not decide which source is
+      causally valid. Do not silently pool incompatible studies.
+
+**Done when:** the combined-source fixture has a checked derivation, exact target
+law, correct sampling uncertainty, and faithful artifacts. Removing a required
+source exposes the missing identification/evidence dependency. Pooling studies
+or averaging independently transported estimates does not satisfy this milestone.
+
+**Scientific basis:** scope the implementation using
+[meta-transportability](https://proceedings.mlr.press/v31/bareinboim13a.html) and
+[transportability with limited experiments](https://ftp.cs.ucla.edu/pub/stat_ser/r419.pdf)
+as distinct references. The first multi-source subset need not claim the full
+limited-experiment result; that broader claim has its own follow-on gate.
+
+## T8 — Target response grids
+
+**Owner:** existing response query/functional types, expression execution,
+transport results. **Depends on:** T4–T7.
+
+- [ ] Execute a finite discrete treatment grid with stable named coordinates;
+      include joint intervention grids only where the declared identification
+      and experiment regimes license them. Never infer joint experimental support
+      from separate single-treatment regimes.
+- [ ] Preserve the requested target response and target distribution; derive
+      two-point contrasts as explicit transformations instead of replacing curves.
+- [ ] Reuse a structural derivation over values only if its premises cover the
+      requested grid. Check evidence value coverage and empirical support at each
+      coordinate; record grid-local failures without silently deleting points.
+- [ ] Reuse common factors and joint resampling across the grid. Implement and
+      calibrate a finite-family simultaneous-band method before claiming bands;
+      otherwise label licensed intervals pointwise. Changing the family changes
+      the relevant inference identity and calibration obligation.
+- [ ] Return factor-level support maps, denominator diagnostics, and selection/
+      treatment overlap where applicable. Clearly distinguish assumed population
+      positivity from its imperfect empirical diagnostics.
+- [ ] License mean responses first. Additional existing response functionals
+      need explicit transport evaluator and uncertainty rows; the availability
+      of a distribution does not auto-license quantile inference or derivatives.
+- [ ] Refuse continuous point interventions under the finite-discrete provider
+      contract; do not reinterpret a numeric treatment silently as bins.
+
+**Done when:** a transported curve agrees with exact target SCM responses at
+all supported points, retains a deliberate unsupported point, and passes the
+claimed pointwise/simultaneous calibration. Contrasts retain joint covariance.
+
+## T9 — Durable claims and migration
+
+**Owner:** existing core identities/claims, IO transport wire/contract section,
+Python retained products. **Depends on:** each new T1–T8 payload as it lands.
+
+- [ ] Version evidence catalogs, regimes, derivations/witnesses, expressions,
+      provider contracts, factor diagnostics, and result payloads using existing
+      artifact versioning. Do not assume package and artifact versions coincide.
+- [ ] Bind result claims to target, population assumptions, graph/evidence
+      identity, verified functional, provider/inference identity, snapshot vector,
+      and applicable coverage records. A changed source snapshot changes execution.
+- [ ] Verify expression leaves against their catalog and derivation on load or
+      semantic acceptance. Require unique IDs, resolvable references, valid graph
+      coordinates, acyclic derivation ancestry, and matching enclosing query.
+- [ ] Migrate historical conservative certificates to `NotCertified`, never
+      proven non-transportable. A legacy flat experiment list cannot acquire
+      invented joint regimes or measurement availability during migration;
+      preserve a legacy-scoped record or require explicit rebinding to execute.
+- [ ] Preserve missing raw data/provider references honestly. A consumer may
+      store or verify an artifact without being able to rerun its estimator.
+      Declare which verification requires graph inputs, tables, or linked data.
+- [ ] Retain the independent-consume and loss-receipt contracts for unknown
+      required features, unsupported inference, omitted covariance/draws, and
+      scalar-only exports. A forwarded scalar cannot recover source lineage.
+- [ ] Freeze Rust → Python → artifact → independent Rust/Python round trips for
+      positive, negative, computational, support, and partial-grid outcomes.
+      Test tampered population, regime, selection target, witness, and table axes.
+
+**Done when:** accepted claims reproduce the same four slots and dependencies
+across languages; corrupt or incomplete claims fail at the appropriate boundary;
+legacy artifacts never become scientifically stronger through migration.
+
+## T10 — Scientific evidence and release acceptance
+
+**Owner:** existing parity/provenance/conformance/calibration/release machinery.
+**Depends on:** T0–T9. New fixture names below are proposed consuming targets.
+
+### Required fixture families
+
+| Proposed family | Positive evidence | Required counterexample |
+| --- | --- | --- |
+| `transport_direct_regression` | Existing direct/trial outputs retained | Selected outcome mechanism invalidates shortcut |
+| `transport_standardize_regression` | Known target-standardized law | Post-treatment/invalid standardizer rejected |
+| `transport_target_only` | Target ID without source experiments | Missing source must not short-circuit target ID |
+| `transport_recursive_district` | Multi-node recursion matches exact SCM law | Wrong district/kernel population fails numeric truth |
+| `transport_negative_witness` | Theorem-scoped obstruction verifies | Mutated witness or changed evidence scope rejected |
+| `transport_catalog_binding` | Actual joint regime supplies a factor | Singles, missing measurements, or unavailable values do not |
+| `transport_complementary_sources` | Combined evidence succeeds, neither alone suffices | Source omission and incorrect selection premise |
+| `transport_support_local` | Supported assignments evaluate correctly | Zero denominator / empty empirical cell located precisely |
+| `transport_grid_joint_inference` | Known response vector and calibrated intervals/bands | Independent per-point resampling loses covariance |
+| `transport_multisample_inference` | Source and target contributions retained | Frozen target uncertainty / duplicated study |
+| `transport_prepared_lifecycle` | Fresh/reused execution and claim agreement | Changed evidence contract cannot use stale preparation |
+| `transport_artifact_acceptance` | Independent positive/negative verification | Population/regime substitution or stronger legacy migration |
+| `transport_budget_refusal` | Bounded valid work completes | Exhaustion cannot become a negative proof |
+
+### Identification and numerical correctness
+
+- [ ] Pin papers, algorithm versions, fixture generators, SCM definitions,
+      exact target truth, seeds, tolerances, and source revisions in existing
+      evidence records. Map each claimed rule to a consuming assertion.
+- [ ] Use small exactly enumerated SCMs with multiple valid parameterizations.
+      Add bounded graph/parameter sweeps to catch recursion mistakes; record
+      their domain and limits. Test agreement with target interventions, not
+      agreement between two wrappers around the same implementation.
+- [ ] Extend executing external-oracle comparisons where an oracle supports the
+      exact setting. Pin versions and numeric factor inputs. Normalize variable
+      names and compare evaluated laws when formula syntax differs.
+- [ ] Label external parity, internal cross-checks, theoretical witnesses, and
+      statistical calibration separately. Neither snapshots nor successful
+      serialization establish mathematical or inferential correctness.
+- [ ] Include adversarial contract fixtures beside successful counterparts so a
+      blanket refusal cannot make the suite green. Show designated assertions
+      fail after narrow deliberate corruptions of critical bindings.
+
+### Performance and operational completeness
+
+- [ ] Benchmark identification by graph width/district size, catalog search by
+      sources/regimes, and evaluation by factor cardinality and grid size.
+      Record intermediate memory, allocations, repeated-plan latency, and
+      bootstrap cost under ADR 0011; set budgets from measured baselines.
+- [ ] Ensure metadata inspection does not clone datasets, materialize tables,
+      rerun identification, or fit providers. Verify cancellation and deterministic
+      result order on expensive enumeration/search/resampling paths.
+- [ ] Add a transport gate entry point to the existing release gates, backed by
+      the same registries. Require nonzero expected test execution; missing
+      language runtimes/oracles are recorded skips, not complete evidence.
+- [ ] Enroll every licensed route and interval method in support, public-product,
+      claim, identity, reason-code, and coverage obligations. Remove overlapping
+      closed rules only when consuming evidence licenses the replacement.
+- [ ] Run regression gates for existing transport and unrelated 1.x consumers
+      affected by shared core/expression/wire changes. Preserve the CPU `faer`
+      conformance path and existing execution budgets.
+
+### Practitioner acceptance and release checklist
+
+- [ ] Publish a worked single-source example, a recursive example, and a
+      complementary-source target response example. Each has executable Rust/
+      Python counterparts and four-slot results, not just a notebook narrative.
+- [ ] Publish a failure guide covering structural impossibility, unsupported
+      evidence settings, missing factors, positivity failures, unsupported
+      uncertainty, and budget exhaustion, with a valid neighboring example.
+- [ ] Publish the exact support matrix, theorem scope, estimation assumptions,
+      calibration scope, migration guide, and limits against registry-owned claims.
+- [ ] Require a fresh release-candidate run covering designated scientific,
+      calibration, artifact, cross-language, composition, and performance evidence.
+      Retain configuration and skipped checks. Unrun required evidence blocks cut.
+- [ ] Accept M0–M4 only when their exit artifacts are executable and verified.
+      No identify-only recursive release, no complementary-source placeholder,
+      and no interval claim inferred from a parent estimator's reputation.
+
+## Follow-on 2.x workstreams
+
+These expand the transport program after the 2.0 foundation. Each starts with a
+bounded scientific contract and ends with an executable, calibrated, portable
+capability. A workstream may span releases; numbering below is dependency order,
+not a promise of 2.1, 2.2, or API compatibility. Preserve all T0–T10 gates.
+
+### X1 — Additional restricted-experiment settings
+
+**Question:** Can the studies we actually have identify the target when the
+source cannot experiment on every variable? **Depends on:** T1–T4, T7.
+
+- [ ] Implement a named z-transportability contract with controllable-set
+      assumptions and its required experimental information family. Keep planned
+      manipulability separate from the subset of results supplied for execution.
+- [ ] Extend limited-experiment multi-source identification in a separately
+      specified setting; record whether arbitrary finite catalogs are covered,
+      searched soundly but incompletely, or refused.
+- [ ] Preserve per-regime measurements and joint intervention availability
+      through reductions to existing identifier subproblems. Validate every
+      reduction's premises, rather than inheriting completeness by algorithm name.
+- [ ] Add positive derivations, theorem-specific obstructions, and catalog-local
+      computational failures. An unavailable experiment is not a proof witness.
+- [ ] Execute identified restricted-experiment formulas with T4/T6 providers;
+      add new provider support only with corresponding uncertainty evidence.
+
+**Exit evidence:** an effect recovered through a surrogate experiment when a
+direct treatment experiment is unavailable; a joint-experiment counterexample;
+limited multi-source positive/negative cases and exact numerical truth.
+
+**Reference:** [z-transportability](https://arxiv.org/abs/1309.6842) treats
+experiments on controllable subsets and has its own completeness premises.
+Use the limited-experiment reference in T7 for its distinct multi-source setting.
+
+### X2 — Transport under graph and selection uncertainty
+
+**Question:** Which transport claims survive plausible causal structures and
+mechanism differences? **Depends on:** T3, T7–T9.
+
+- [ ] Define supplied graph/selection scenarios and their shared named variable
+      coordinates. License explicit finite sets first; separately assess CPDAG/
+      PAG completions and posterior inputs. Do not claim PAG-native transport ID.
+- [ ] Identify and bind evidence per scenario. Distinguish identified,
+      non-transportable, unsupported, and unevaluated scenarios under budgets.
+- [ ] Preserve unweighted structural envelopes versus weighted posterior
+      mixtures. Retain unidentified and unevaluated mass; no automatic
+      renormalization over successful scenarios or invented scenario weights.
+- [ ] Propagate shared-data covariance across identified scenarios with licensed
+      inference. Priors can weight assumptions but cannot identify an effect in
+      a graph where it is structurally unidentified.
+- [ ] Report which mechanism invariances and graph features are necessary for
+      the claim, including scenario-specific evidence needs. Do not label a
+      scenario range a confidence interval or a sharp causal bound.
+
+**Exit evidence:** a mixture with positive unidentified mass, an unweighted
+set with incompatible transport requirements, a budget-truncated set, and
+numerical/calibration cases preserving the declared structural semantics.
+
+### X3 — Sensitivity to mechanism-invariance violations
+
+**Question:** How much allowed change would overturn the transported conclusion?
+**Depends on:** T2, T6–T8; may start on fixed graphs before X2.
+
+- [ ] Choose an initial bounded sensitivity model on a named mechanism/factor
+      scale, with units, feasible parameter domain, and a zero-violation baseline.
+      State how deviations alter the target functional or identified set.
+- [ ] Permit one and then jointly varying mechanism deviations without silently
+      treating arbitrary independent factor perturbations as a coherent SCM.
+      Verify compatibility, normalization, and the claimed interpretation.
+- [ ] Compute target responses and decision-threshold tipping points over the
+      declared sensitivity set. Separate assumption ranges, statistical intervals,
+      and any proven bounds; do not call a scenario sweep a sharp bound.
+- [ ] Compose sampling uncertainty with sensitivity only under a licensed
+      method. Record optimization tolerances and unresolved regions.
+- [ ] Add source-target discrepancy diagnostics where comparable evidence exists.
+      Non-rejection of an empirical test never certifies causal invariance.
+
+**Exit evidence:** zero violation reproduces the baseline; widening a nested
+sensitivity set cannot shrink its exact extremal range; synthetic violations
+recover the claimed coverage/bounding behavior and expose tipping thresholds.
+
+### X4 — Continuous responses and broader statistical providers
+
+**Question:** Can we compute useful transported responses beyond sparse finite
+tables with honest approximation and inference? **Depends on:** T4, T6–T8.
+
+- [ ] Define separately continuous point interventions, stochastic interventions,
+      smoothed dose responses, and coarsened treatment grids. Record the actual
+      target of smoothing; do not blur their estimands for API convenience.
+- [ ] Add narrowly scoped conditional-density/regression/quadrature providers
+      with domains, regularity, nuisance fits, fitting data, numerical tolerances,
+      and extrapolation diagnostics. Keep exact and approximate execution distinct.
+- [ ] Implement a justified estimator for a specific transport functional before
+      generalizing. Cross-fitting must respect study/unit dependence and reuse
+      nuisance fits only when the certified requirements match.
+- [ ] Establish robustness and influence-function claims for the whole composed
+      estimator. Component AIPW or augmented-grid formulas alone do not prove
+      joint double robustness or efficiency.
+- [ ] Separate sampling error, smoothing bias, numerical integration error, and
+      support limitations. License bandwidth selection and derivative inference
+      independently; nominal pointwise coverage does not imply a curve band.
+- [ ] Add broader sampling designs, linked/clustered studies, and model/posterior
+      providers incrementally. Summary estimates alone are not arbitrary density
+      providers. Retain evidence reuse and prior/data double-counting safeguards.
+- [ ] Treat incomplete observation and heterogeneous measurement as separate
+      identification/provider research contracts; no automatic schema matching
+      or missing-data repair under a continuous estimator label.
+
+**Exit evidence:** known continuous SCM curves, overlap boundary failures,
+nuisance misspecification cases matching the stated robustness theorem,
+convergence/tolerance checks, and calibration for each claimed inferential row.
+
+### X5 — Temporal transport
+
+**Question:** Which intervention sequences transfer across populations and time?
+**Depends on:** T1–T9 and accepted temporal 1.x contracts.
+
+- [ ] Define time-indexed mechanism differences, population and regime identity,
+      baseline versus time-varying variables, measurement windows, and initial
+      state distributions. Stationarity and cross-time invariance are explicit.
+- [ ] Start with a finite horizon and a declared unrolled acyclic model; reuse
+      temporal query coordinates and hard policy semantics. Bound horizon growth.
+- [ ] Identify target pulse/sustained/sequence responses with time-varying
+      confounding and source evidence availability explicit at each step.
+      Do not transport each time point independently and assume sequence validity.
+- [ ] Execute a scoped discrete temporal functional before continuous temporal
+      providers. Diagnose history/policy support and horizon-local failures.
+- [ ] Respect repeated-unit dependence, initial-condition uncertainty, shared
+      histories, and joint dose/horizon inference in licensed resampling.
+- [ ] Integrate explicit refresh/invalidation when new periods arrive. A changed
+      mechanism assumption requires re-preparation; an old selection diagram
+      does not remain valid merely because an update is incremental.
+
+**Exit evidence:** a known temporal SCM with a source/target mechanism change,
+a sequence transportable only under stated time-local invariance, a history
+support failure, and dependence-preserving horizon calibration.
+
+### X6 — Experiment planning from transport failures
+
+**Question:** Which feasible study would resolve this failure or improve the
+licensed target decision? **Depends on:** T1, T3, T7; X1 for restricted catalogs;
+X2/X3 only for objectives using their uncertainty.
+
+- [ ] Add intervention-and-measurement candidates with environment, feasible
+      values, recruitment/sampling design, cost, and constraints to the existing
+      design module. Proposed experiments never become available evidence.
+- [ ] Re-run identification under hypothetical evidence additions. Distinguish
+      resolving a structural obstruction, supplying a missing known factor,
+      improving empirical support, and reducing sampling uncertainty.
+- [ ] Return sufficient evidence additions with verified successful derivations.
+      Claim minimality only within an explicit candidate universe and completed
+      search; budgeted search returns the best verified candidates and limits.
+- [ ] Begin with structural feasibility and declared cost ranking. Add expected
+      information/value-of-information only when a predictive model, utility,
+      posterior, and uncertainty contract license that numerical objective.
+- [ ] Account for existing shared evidence and competing study designs. Record
+      ranking policy and candidate selection in provenance; avoid presenting a
+      heuristic score as the probability of transport success.
+
+**Exit evidence:** planning identifies a feasible experiment that repairs a
+frozen transport failure; executing its synthetic data completes the predicted
+transport path. Include impossible candidates, tied costs, and truncated search.
+
+### Follow-on ordering and promotion rule
+
+- [ ] Prioritize X1 and fixed-graph X3 after 2.0 to expand usable evidence and
+      make invariance assumptions inspectable under perturbation.
+- [ ] Develop X2 and X4 against distinct structural and statistical contracts;
+      compose them only after their independent evidence gates pass.
+- [ ] Build X5 on finite discrete transport first. Begin X6 with structural
+      experiment sufficiency before introducing probabilistic design objectives.
+- [ ] For every promoted capability, name the consumer problem, exact theorem/
+      estimator scope, existing owner, support rows, positive and negative
+      fixtures, calibration obligations, artifact changes, and compatibility
+      decision. Research success is not release acceptance without execution.
+
+## Preserved boundaries and independent tracks
+
+### Unscheduled scientific work
+
+Retained from the former TODO and roadmap; no committed 2.x release:
+
+- [ ] General graph-posterior response mixtures, including temporal response
+      mixtures beyond separately licensed transport-scenario work.
+- [ ] Continuous-treatment IV/front-door response identification.
+- [ ] Riesz sensitivity on average derivatives.
+- [ ] Design-ranker value of information over general posterior response curves.
+- [ ] PN/PS/PNS bounds on `Y > c`, localizable through licensed retargeting.
+      These are new estimands and do not follow automatically from distributional
+      responses or quantile treatment effects.
+
+Existing 1.x response, quantile, class-envelope, prior-transfer, and retargeting
+ownership stays in IMPLEMENTATION.md and the accepted release contract. These
+items are not a route for moving unfinished 1.x work into 2.0.
+
+### 3.0 — Changes to graph semantics
+
+- [ ] Cyclic/equilibrium causal models with their own identification theory.
+- [ ] Observational network treatment, contagion, and allocational interference.
+
+Existing randomized interference remains design-based. These goals cannot be
+introduced as ordinary transport or exposure-mapping extensions.
+
+### Independent runtime — WebAssembly and TypeScript
+
+- [ ] Build the same Rust engine for `wasm32` and expose typed stage APIs through
+      a TypeScript facade, preserving the artifact-first prepared workflow.
+- [ ] Publish a browser capability subset where memory/thread/latency budgets
+      require it, with stable refusals and `ExecutionContext` cancellation.
+- [ ] Preserve artifacts/provenance and support owned buffers when mmap is
+      unavailable; do not duplicate scientific implementations in TypeScript.
+
+This track does not wait for transport or 3.0. Optional future GPU kernels remain
+behind `KernelPolicy`, preserve CPU conformance and estimands, and expose any
+reduction nondeterminism. No GPU rewrite is required by this plan.
+
+### Continuing non-goals
+
+ML CATE competition with EconML; PAG-native full ID/IDC; plotting; a string
+query language; R/Julia bindings; unsupervised regime discovery; automatic
+invariance discovery; arbitrary schema reconciliation; routing transport or
+interference through `analyze`. Provide explicit handoffs where appropriate.
+
+**The promotion test:** does this make a target causal response more computable,
+more honest about evidence and assumptions, or more useful for choosing the
+next study—while preserving its meaning through execution and exchange?

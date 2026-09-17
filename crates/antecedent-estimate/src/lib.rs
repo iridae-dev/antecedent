@@ -58,6 +58,7 @@ pub mod transport;
 pub mod util;
 
 #[cfg(test)]
+#[allow(clippy::doc_markdown)]
 mod calibration_coverage;
 
 pub use adjustment::{
@@ -125,8 +126,8 @@ pub use quantile::{MIN_QUANTILE_DENSITY, empirical_threshold_grid, invert_cdf_qu
 pub use rd::{PreparedRdProblem, RdWorkspace, SharpRegressionDiscontinuity};
 pub use response::{ContinuousResponseEstimator, ContinuousResponseOptions, ResponseInfluence};
 pub use retarget::{
-    DirectedAncestry, MIN_WEIGHTED_ARM_N_EFF, RetargetRefusal, RetargetResult, check_depends_on,
-    exceedance_cdf_values, retarget, summarize_functional,
+    DirectedAncestry, MIN_WEIGHTED_ARM_N_EFF, RetargetRefusal, RetargetResult, changes_target,
+    check_depends_on, exceedance_cdf_values, retarget, summarize_functional,
 };
 pub use scores::{
     LinearContrast, ScoreColumn, ScoreInference, ScoreSummary, ScoreTable, ScoreTableWire,
@@ -180,6 +181,7 @@ pub use temporal_sequential_tuples::{
 pub use transport::{
     TransportEffectEstimate, TransportOverlapDiagnostic, TransportOverlapReport,
     TransportResponseGridEstimate, transport_augmented_response_grid, trial_to_target_effect,
+    trial_to_target_ipw_se,
 };
 pub use util::BootstrapSeResult;
 

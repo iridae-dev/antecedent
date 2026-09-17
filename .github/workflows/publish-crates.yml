@@ -18,6 +18,15 @@ jobs:
     # Separate from Python PyPI / Release wheels.
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The attestation diffs against each record's calibration_sha.
+          fetch-depth: 0
+
+      # Before any publish or dry-run: crates ship the coverage registry their
+      # calibration labels are bound to, so a record that does not match the
+      # code fails the job here.
+      - name: Calibration attestation (coverage records match the code)
+        run: bash scripts/gate_calibration_attestation.sh
 
       - name: Install Rust 1.85
         uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85

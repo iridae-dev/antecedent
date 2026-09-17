@@ -13,9 +13,9 @@ use antecedent_core::{
     ExposureMapping, InterferenceFunctional, InterferenceQuery, Intervention, InterventionSequence,
     InterventionalDistributionQuery, MechanismChangeQuery, MechanismOverride, MediationContrast,
     MediationQuery, OrderedFloatBits, OutcomeFunctional, PathSpecificEffectQuery,
-    PopulationSelector, PredicateExpr, SequencedIntervention, ShapleyConfig, ShapleyMode,
-    StochasticPolicy, TargetPopulation, TemporalEffectQuery, TemporalPolicy, TransportQuery,
-    UnitChangeQuery, Value, VariableId,
+    PopulationRegistry, PopulationSelector, PredicateExpr, SequencedIntervention, ShapleyConfig,
+    ShapleyMode, StochasticPolicy, TargetPopulation, TemporalEffectQuery, TemporalPolicy,
+    TransportQuery, UnitChangeQuery, Value, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -137,12 +137,31 @@ pub enum TargetPopulationWire {
     Untreated,
     /// Environment-restricted.
     Environment(u32),
-    /// Named registry predicate.
-    PredicateNamed(String),
+    /// Named registry predicate with resolved-row digest.
+    PredicateNamed {
+        /// Registry name.
+        name: String,
+        /// Digest of resolved row indices as little-endian `u64`.
+        rows: [u8; 32],
+    },
     /// Explicit row indices.
     PredicateRows(Vec<u64>),
-    /// Custom distribution handle.
-    CustomDistribution(u32),
+    /// Custom distribution handle with bound weights.
+    CustomDistribution {
+        /// Registry handle.
+        handle: u32,
+        /// Weight digest.
+        weights: [u8; 32],
+        /// Declared parents.
+        depends_on: Vec<u32>,
+    },
+    /// Row-weight retarget.
+    RowWeights {
+        /// Weight digest.
+        weights: [u8; 32],
+        /// Declared parents.
+        depends_on: Vec<u32>,
+    },
 }
 
 impl TargetPopulationWire {
@@ -152,13 +171,40 @@ impl TargetPopulationWire {
     ///
     /// Unknown variants or row indices that do not fit `u64`.
     pub fn from_domain(p: &TargetPopulation) -> Result<Self, IoError> {
+        Self::from_domain_with_registry(p, None)
+    }
+
+    /// Encode a population, resolving registry-backed variants.
+    ///
+    /// # Errors
+    ///
+    /// Unknown variants, missing registry entries, or row indices that do not fit `u64`.
+    pub fn from_domain_with_registry(
+        p: &TargetPopulation,
+        registry: Option<&PopulationRegistry>,
+    ) -> Result<Self, IoError> {
         Ok(match p {
             TargetPopulation::AllObserved => Self::AllObserved,
             TargetPopulation::Treated => Self::Treated,
             TargetPopulation::Untreated => Self::Untreated,
             TargetPopulation::Environment(id) => Self::Environment(id.raw()),
             TargetPopulation::Predicate(PredicateExpr::Named(name)) => {
-                Self::PredicateNamed(name.to_string())
+                let registry = registry.ok_or_else(|| {
+                    IoError::Convert("population registry required for named predicate".into())
+                })?;
+                let rows = registry
+                    .predicate(name)
+                    .ok_or_else(|| IoError::Convert(format!("unknown predicate {name}")))?;
+                let mut bytes = Vec::with_capacity(rows.len() * 8);
+                for &row in rows {
+                    bytes.extend_from_slice(
+                        &u64::try_from(row).map_err(|_| IoError::TooLarge)?.to_le_bytes(),
+                    );
+                }
+                Self::PredicateNamed {
+                    name: name.to_string(),
+                    rows: crate::payload_digest("population.predicate_rows", &bytes),
+                }
             }
             TargetPopulation::Predicate(PredicateExpr::Rows(rows)) => Self::PredicateRows(
                 rows.iter()
@@ -170,7 +216,32 @@ impl TargetPopulationWire {
                     "unsupported PredicateExpr for query wire: {other:?}"
                 )));
             }
-            TargetPopulation::CustomDistribution(r) => Self::CustomDistribution(r.raw()),
+            TargetPopulation::CustomDistribution(r) => {
+                let registry = registry.ok_or_else(|| {
+                    IoError::Convert("population registry required for custom distribution".into())
+                })?;
+                let weights = registry.distribution(*r).ok_or_else(|| {
+                    IoError::Convert(format!("unknown distribution handle {}", r.raw()))
+                })?;
+                let mut bytes = Vec::with_capacity(weights.len() * 8);
+                for &weight in weights {
+                    bytes.extend_from_slice(&weight.to_bits().to_le_bytes());
+                }
+                Self::CustomDistribution {
+                    handle: r.raw(),
+                    weights: crate::payload_digest("population.distribution_weights", &bytes),
+                    depends_on: registry
+                        .distribution_dependencies(*r)
+                        .unwrap_or(&[])
+                        .iter()
+                        .map(|id| id.raw())
+                        .collect(),
+                }
+            }
+            TargetPopulation::RowWeights { weights, depends_on } => Self::RowWeights {
+                weights: *weights,
+                depends_on: depends_on.iter().map(|id| id.raw()).collect(),
+            },
             other => {
                 return Err(IoError::Convert(format!(
                     "unsupported TargetPopulation for query wire: {other:?}"
@@ -190,7 +261,7 @@ impl TargetPopulationWire {
             Self::Treated => TargetPopulation::Treated,
             Self::Untreated => TargetPopulation::Untreated,
             Self::Environment(raw) => TargetPopulation::Environment(EnvironmentId::from_raw(*raw)),
-            Self::PredicateNamed(name) => {
+            Self::PredicateNamed { name, .. } => {
                 TargetPopulation::Predicate(PredicateExpr::named(name.as_str()))
             }
             Self::PredicateRows(rows) => {
@@ -200,9 +271,13 @@ impl TargetPopulationWire {
                     .collect::<Result<Vec<_>, _>>()?;
                 TargetPopulation::Predicate(PredicateExpr::rows(idxs))
             }
-            Self::CustomDistribution(raw) => {
-                TargetPopulation::CustomDistribution(DistributionRef::from_raw(*raw))
+            Self::CustomDistribution { handle, .. } => {
+                TargetPopulation::CustomDistribution(DistributionRef::from_raw(*handle))
             }
+            Self::RowWeights { weights, depends_on } => TargetPopulation::RowWeights {
+                weights: *weights,
+                depends_on: depends_on.iter().copied().map(VariableId::from_raw).collect(),
+            },
         })
     }
 }
@@ -650,6 +725,64 @@ pub enum CausalQueryWire {
     Interference(InterferenceQueryWire),
 }
 
+impl CausalQueryWire {
+    /// Mutable target population of a population-scoped query.
+    ///
+    /// Mirrors [`antecedent_core::CausalQuery::target_population_mut`] variant
+    /// for variant. The wire enum is a distinct type with distinct variant
+    /// shapes and a distinct population payload
+    /// ([`TargetPopulationWire`]), so the table cannot be shared with the core
+    /// owner; what keeps the two from drifting is that both matches here and
+    /// both matches there are exhaustive, so a new [`CausalQuery`] variant is
+    /// a compile error in all four. Which kinds are population-scoped is
+    /// decided by [`antecedent_core::CausalQuery::target_population`]; change
+    /// it there first.
+    pub fn target_population_mut(&mut self) -> Option<&mut TargetPopulationWire> {
+        match self {
+            Self::AverageEffect { target_population, .. }
+            | Self::TemporalEffect { target_population, .. }
+            | Self::Mediation { target_population, .. } => Some(target_population),
+            Self::Distribution(inner) => Some(&mut inner.target_population),
+            Self::PathSpecific(inner) => Some(&mut inner.target_population),
+            Self::Response(inner) => Some(&mut inner.target_population),
+            Self::ConditionalEffect { inner } => inner.target_population_mut(),
+            Self::Counterfactual { .. }
+            | Self::AnomalyAttribution { .. }
+            | Self::ChangeAttribution { .. }
+            | Self::MechanismChange { .. }
+            | Self::UnitChange { .. }
+            | Self::Transport(_)
+            | Self::Interference(_) => None,
+        }
+    }
+
+    /// Target population of a population-scoped query.
+    ///
+    /// The wire mirror of [`antecedent_core::CausalQuery::target_population`],
+    /// which owns the population-scoped / population-free split; see
+    /// [`Self::target_population_mut`] for why the table is mirrored rather
+    /// than shared.
+    #[must_use]
+    pub fn target_population(&self) -> Option<&TargetPopulationWire> {
+        match self {
+            Self::AverageEffect { target_population, .. }
+            | Self::TemporalEffect { target_population, .. }
+            | Self::Mediation { target_population, .. } => Some(target_population),
+            Self::Distribution(inner) => Some(&inner.target_population),
+            Self::PathSpecific(inner) => Some(&inner.target_population),
+            Self::Response(inner) => Some(&inner.target_population),
+            Self::ConditionalEffect { inner } => inner.target_population(),
+            Self::Counterfactual { .. }
+            | Self::AnomalyAttribution { .. }
+            | Self::ChangeAttribution { .. }
+            | Self::MechanismChange { .. }
+            | Self::UnitChange { .. }
+            | Self::Transport(_)
+            | Self::Interference(_) => None,
+        }
+    }
+}
+
 /// Structural transportability query wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct TransportQueryWire {
@@ -937,6 +1070,18 @@ fn allocation_from_wire(a: &AllocationMethodWire) -> Result<AllocationMethod, Io
 ///
 /// Unsupported nested fields.
 pub fn causal_query_to_wire(q: &CausalQuery) -> Result<CausalQueryWire, IoError> {
+    causal_query_to_wire_with_registry(q, None)
+}
+
+/// Encode any [`CausalQuery`], resolving registry-backed populations.
+///
+/// # Errors
+///
+/// Unsupported nested fields or missing registry entries.
+pub fn causal_query_to_wire_with_registry(
+    q: &CausalQuery,
+    registry: Option<&PopulationRegistry>,
+) -> Result<CausalQueryWire, IoError> {
     Ok(match q {
         CausalQuery::AverageEffect(q) => CausalQueryWire::AverageEffect {
             treatment: q.treatment.raw(),
@@ -944,7 +1089,10 @@ pub fn causal_query_to_wire(q: &CausalQuery) -> Result<CausalQueryWire, IoError>
             effect_modifiers: vars_to_raw(&q.effect_modifiers),
             control: InterventionWire::from_domain(&q.control)?,
             active: InterventionWire::from_domain(&q.active)?,
-            target_population: TargetPopulationWire::from_domain(&q.target_population)?,
+            target_population: TargetPopulationWire::from_domain_with_registry(
+                &q.target_population,
+                registry,
+            )?,
             outcome_functional: OutcomeFunctionalWire::from_domain(&q.outcome_functional),
         },
         CausalQuery::TemporalEffect(q) => CausalQueryWire::TemporalEffect {
@@ -955,7 +1103,10 @@ pub fn causal_query_to_wire(q: &CausalQuery) -> Result<CausalQueryWire, IoError>
             active: InterventionWire::from_domain(&q.active)?,
             horizon_steps: q.horizon_steps,
             max_history_lag: q.max_history_lag,
-            target_population: TargetPopulationWire::from_domain(&q.target_population)?,
+            target_population: TargetPopulationWire::from_domain_with_registry(
+                &q.target_population,
+                registry,
+            )?,
         },
         CausalQuery::Counterfactual(q) => CausalQueryWire::Counterfactual {
             outcomes: vars_to_raw(&q.outcomes),
@@ -1017,11 +1168,17 @@ pub fn causal_query_to_wire(q: &CausalQuery) -> Result<CausalQueryWire, IoError>
             contrast: mediation_contrast_to_str(q.contrast).into(),
             control: InterventionWire::from_domain(&q.control)?,
             active: InterventionWire::from_domain(&q.active)?,
-            target_population: TargetPopulationWire::from_domain(&q.target_population)?,
+            target_population: TargetPopulationWire::from_domain_with_registry(
+                &q.target_population,
+                registry,
+            )?,
             horizons: q.horizons.iter().copied().collect(),
         },
         CausalQuery::ConditionalEffect(q) => CausalQueryWire::ConditionalEffect {
-            inner: Box::new(causal_query_to_wire(&CausalQuery::AverageEffect(q.inner.clone()))?),
+            inner: Box::new(causal_query_to_wire_with_registry(
+                &CausalQuery::AverageEffect(q.inner.clone()),
+                registry,
+            )?),
         },
         CausalQuery::Distribution(q) => {
             CausalQueryWire::Distribution(interventional_distribution_to_wire(q)?)
@@ -1407,7 +1564,23 @@ pub fn path_specific_from_wire(
 mod tests {
     use super::*;
     use crate::convert::{from_cbor, to_cbor};
-    use antecedent_core::ComponentId;
+    use antecedent_core::{ComponentId, PopulationRegistry};
+
+    fn registry_for_wire_tests() -> PopulationRegistry {
+        let mut registry = PopulationRegistry::new();
+        registry.insert_predicate("cohort", [0usize, 2, 5]);
+        registry.insert_distribution_with_dependence(
+            DistributionRef::from_raw(9),
+            [1.0, 0.5],
+            [VariableId::from_raw(2)],
+        );
+        registry.insert_distribution_with_dependence(
+            DistributionRef::from_raw(11),
+            [1.0, 2.0],
+            [VariableId::from_raw(2)],
+        );
+        registry
+    }
 
     #[test]
     fn average_effect_and_distribution_round_trip() {
@@ -1510,7 +1683,9 @@ mod tests {
                     "cohort_a",
                 ))),
         );
-        let wire = causal_query_to_wire(&ate).unwrap();
+        let mut registry = PopulationRegistry::new();
+        registry.insert_predicate("cohort_a", [0usize, 1]);
+        let wire = causal_query_to_wire_with_registry(&ate, Some(&registry)).unwrap();
         let bytes = to_cbor(&wire).unwrap();
         let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
         let back = causal_query_from_wire(&decoded).unwrap();
@@ -1547,7 +1722,10 @@ mod tests {
                     DistributionRef::from_raw(9),
                 )),
         );
-        let back = causal_query_from_wire(&causal_query_to_wire(&dist_q).unwrap()).unwrap();
+        let back = causal_query_from_wire(
+            &causal_query_to_wire_with_registry(&dist_q, Some(&registry_for_wire_tests())).unwrap(),
+        )
+        .unwrap();
         match back {
             CausalQuery::AverageEffect(q) => {
                 assert_eq!(
@@ -1634,11 +1812,20 @@ mod tests {
             TargetPopulation::Treated,
             TargetPopulation::Untreated,
             TargetPopulation::Environment(EnvironmentId::from_raw(3)),
-            TargetPopulation::Predicate(PredicateExpr::named("cohort")),
             TargetPopulation::Predicate(PredicateExpr::rows([0usize, 2, 5])),
-            TargetPopulation::CustomDistribution(DistributionRef::from_raw(11)),
         ] {
             assert_rt(&ate(pop));
+        }
+        let registry = registry_for_wire_tests();
+        for pop in [
+            TargetPopulation::Predicate(PredicateExpr::named("cohort")),
+            TargetPopulation::CustomDistribution(DistributionRef::from_raw(11)),
+        ] {
+            let q = ate(pop);
+            let wire = causal_query_to_wire_with_registry(&q, Some(&registry)).unwrap();
+            let back = causal_query_from_wire(&wire).unwrap();
+            let again = causal_query_to_wire_with_registry(&back, Some(&registry)).unwrap();
+            assert_eq!(to_cbor(&wire).unwrap(), to_cbor(&again).unwrap());
         }
     }
 

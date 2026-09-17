@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::convert::{vars_from_raw, vars_to_raw};
 use crate::error::IoError;
 use crate::expr_wire::{ExprArenaWire, expr_arena_from_wire, expr_arena_to_wire};
-use crate::query_wire::{CausalQueryWire, causal_query_from_wire, causal_query_to_wire};
+use crate::query_wire::{CausalQueryWire, causal_query_from_wire};
 use crate::trace::{
     AssumptionRecordWire, DerivationStepWire, assumptions_from_wire, assumptions_to_wire,
 };
@@ -95,9 +95,15 @@ pub struct EffectEstimateWire {
     /// Additive joint-response disclosure: interaction is structurally zero.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interaction_structurally_zero: Option<bool>,
+    /// Per-unit effects are homogeneous by construction of the selected mechanisms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit_effects_homogeneous: Option<bool>,
     /// Point E-value for a named no-latent premise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evalue: Option<f64>,
+    /// Threshold the E-value refuter judged [`EffectEstimateWire::evalue`] against.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evalue_threshold: Option<f64>,
     /// Candidate-selection provenance, including screen/estimate row splits.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub candidate_selection: Option<CandidateSelectionWire>,
@@ -363,7 +369,9 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
         adjusted_p_values: e.adjusted_p_values,
         family_contrast: e.family_contrast,
         family_contrast_interval: e.family_contrast_interval,
+        unit_effects_homogeneous: e.unit_effects_homogeneous.then_some(true),
         evalue: e.evalue,
+        evalue_threshold: e.evalue_threshold,
         candidate_selection: e.candidate_selection.as_ref().map(|s| CandidateSelectionWire {
             screen_id: s.screen_id.to_string(),
             procedure: s.procedure.to_string(),
@@ -542,11 +550,13 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     estimate.family_contrast = w.family_contrast;
     estimate.family_contrast_interval = w.family_contrast_interval;
     estimate.evalue = w.evalue;
+    estimate.evalue_threshold = w.evalue_threshold;
     estimate.candidate_selection =
         w.candidate_selection.as_ref().map(candidate_selection_from_wire).transpose()?;
     estimate.scenario_effects = w.scenario_effects.clone().map(Into::into);
     estimate.scenario_intervals = w.scenario_intervals.clone().map(Into::into);
     estimate.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
+    estimate.unit_effects_homogeneous = w.unit_effects_homogeneous.unwrap_or(false);
     Ok(estimate)
 }
 
@@ -709,6 +719,18 @@ fn overlap_report_from_wire(wire: &OverlapReportWire) -> Result<OverlapReport, I
 pub fn identification_to_wire(
     r: &IdentificationResult,
 ) -> Result<IdentificationResultWire, IoError> {
+    identification_to_wire_with_registry(r, None)
+}
+
+/// Encode an identification result whose query names registry populations.
+///
+/// # Errors
+///
+/// Query encode failure, or a named population missing from `registry`.
+pub fn identification_to_wire_with_registry(
+    r: &IdentificationResult,
+    registry: Option<&antecedent_core::PopulationRegistry>,
+) -> Result<IdentificationResultWire, IoError> {
     Ok(IdentificationResultWire {
         status: match r.status {
             IdentificationStatus::NonparametricallyIdentified => {
@@ -724,7 +746,7 @@ pub fn identification_to_wire(
             IdentificationStatus::GraphDependent => "graph_dependent".into(),
             IdentificationStatus::NotIdentified => "not_identified".into(),
         },
-        query: causal_query_to_wire(&r.query)?,
+        query: crate::query_wire::causal_query_to_wire_with_registry(&r.query, registry)?,
         estimands: r
             .estimands
             .iter()
@@ -1014,7 +1036,9 @@ mod tests {
             exceedance_cdf: None,
             monotone_rearranged: false,
             interaction_structurally_zero: None,
+            unit_effects_homogeneous: None,
             evalue: None,
+            evalue_threshold: None,
             candidate_selection: None,
         };
         let domain = effect_estimate_from_wire(&wire).unwrap();

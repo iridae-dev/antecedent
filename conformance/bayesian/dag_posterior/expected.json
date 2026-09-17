@@ -27,7 +27,7 @@
   },
   "reference": {
     "project": "causal-library",
-    "command": "cargo test -p antecedent-discovery --lib exact_enumeration:: structure_mcmc:: order_mcmc:: ci_screened_posterior:: dbn_posterior::",
-    "notes": "Native Gaussian-BIC graph posterior; no external oracle package"
+    "command": "cargo test -p antecedent-discovery --test dag_posterior_conformance",
+    "notes": "Internal known truth: every engine runs on a known SEM defined in the consuming test and must meet these mass thresholds; no external oracle package"
   }
 }

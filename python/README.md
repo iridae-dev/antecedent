@@ -1,14 +1,27 @@
 # Antecedent
 
-Antecedent is an identification-first causal inference engine for Python (with
-a native Rust core). It takes an analysis from causal structure through
-estimation, diagnostics, interventions, and counterfactuals — without silently
-treating discovered graphs as ground truth.
+```python
+import antecedent as ant
 
-Use it when you need a causal effect you can defend: identification is checked
-before anything is estimated, refuters run against the estimate by default, and
-uncertainty about the causal graph — a CPDAG, a PAG, a posterior over graphs —
-is carried through to the effect instead of being resolved by fiat.
+result = ant.analyze(data, graph=graph, query=ant.AverageEffect("treatment", "outcome"))
+study = result.study
+updated = study.refresh(new_data)
+report = result.inspect().to_dict()
+loaded = ant.load(result.export())
+```
+
+Antecedent is an identification-first causal inference engine for Python (with
+a native Rust core). `analyze` checks that the effect is identified before
+anything is estimated and runs refuters against the estimate. `result.study`
+keeps the compiled study, so `study.refresh(new_data)` re-executes the same
+program on new data. `result.inspect().to_dict()` is the whole report as
+JSON-safe data: answer, identification, support, uncertainty, assumptions,
+identities and calibration. `ant.load(result.export())` round-trips the
+contracted execution through the Rust semantic consumer.
+
+Uncertainty about the causal graph (a CPDAG, a PAG, a posterior over graphs) is
+carried through to the effect instead of being resolved by fiat, and discovered
+graphs are never silently treated as ground truth.
 
 Requires CPython 3.11–3.14. Install from PyPI:
 
@@ -16,41 +29,66 @@ Requires CPython 3.11–3.14. Install from PyPI:
 pip install antecedent
 ```
 
-Paste this block and run it. It simulates a confounded dataset, checks that the
-effect is identified, estimates it, and runs refuters against the estimate:
+Paste this block and run it. It simulates two confounded datasets and runs the
+five lines on them:
 
 ```python
 import numpy as np
-from antecedent import AverageEffect, analyze
+import antecedent as ant
 
-rng = np.random.default_rng(0)
-n = 2000
-season = rng.normal(size=n)  # confounder
-price = 0.7 * season + rng.normal(size=n)  # treatment
-sales = 1.5 * price + 2.0 * season + rng.normal(size=n)  # outcome, true effect = 1.5
 
-result = analyze(
-    data={"season": season, "price": price, "sales": sales},
-    graph=[("season", "price"), ("season", "sales"), ("price", "sales")],
-    query=AverageEffect(treatment="price", outcome="sales"),
-)
+def simulate(seed, n=2000):
+    rng = np.random.default_rng(seed)
+    season = rng.normal(size=n)  # confounder
+    price = 0.7 * season + rng.normal(size=n)  # treatment
+    sales = 1.5 * price + 2.0 * season + rng.normal(size=n)  # outcome, true effect = 1.5
+    return {"season": season, "treatment": price, "outcome": sales}
 
-print(
-    result.identification
-)  # NonparametricallyIdentified via backdoor.adjustment, adjusting for season
-print(result.estimate)  # ate=1.48, analytic and bootstrap standard errors
-print(result.validation)  # refuters ran and passed
+
+data, new_data = simulate(0), simulate(1)
+graph = [("season", "treatment"), ("season", "outcome"), ("treatment", "outcome")]
+
+result = ant.analyze(data, graph=graph, query=ant.AverageEffect("treatment", "outcome"))
+study = result.study
+updated = study.refresh(new_data)
+report = result.inspect().to_dict()
+loaded = ant.load(result.export())
+
+print(result.answer)  # Answer(kind='point', value=1.48..., ...)
+print(updated.answer)  # the same program on new_data
+assert loaded.acceptance.verified and loaded.answer == result.answer
 ```
 
-The same `analyze()` call scales from this to temporal dose × horizon
+`result.answer` is the safe way to read the number: a set-identified or
+partially identified analysis answers with `bounds` or `partial`, never an
+unrestricted scalar. The same `analyze()` call scales to temporal dose × horizon
 ``ResponseCurve`` surfaces, pulse and sustained contrasts, Bayesian
-graph-posterior mixtures that report unidentified structure mass,
-mediation, counterfactuals, and root-cause attribution — see the
+graph-posterior mixtures that report unidentified structure mass, mediation,
+counterfactuals, and root-cause attribution — see the
 [project README](https://github.com/iridae-dev/antecedent#readme) for worked
-examples and the [documentation](https://antecedent.readthedocs.io/) for the
-full API.
+examples, the
+[Python workflow guide](https://github.com/iridae-dev/antecedent/blob/main/docs/python-workflow.md)
+for studies, reports and portable executions, and the
+[documentation](https://antecedent.readthedocs.io/) for the full API.
 
-## 1.9.0
+## 1.10.0
+
+The
+[1.10.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.10.0.md)
+cover composition of the existing 341 licensed cells: inspect/contract
+coordinates, the Rust inspect → preview → execute → claim → consume path
+for every licensed cell, retained studies on ordinary prepared routes, and
+portable claims.
+Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
+Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists.
+Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
+
+## Earlier releases
+
+These summaries describe the releases when they shipped. For current support,
+use the [support matrix](https://github.com/iridae-dev/antecedent/blob/v1.10.0/docs/support-matrix.md).
+
+### 1.9.0
 
 The
 [1.9.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.9.0.md)
@@ -63,7 +101,7 @@ Behaviour changes:
 `rd.sharp` defaults to the HC1 SE, NaN and null float cells are missing
 values, and the default bootstrap count is 199.
 
-## 1.8.0
+### 1.8.0
 
 The
 [1.8.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.8.0.md)
@@ -71,7 +109,7 @@ cover the Bayesian remainder of the staged handle: functional path,
 distribution, and ADMG ATE, static mediation, counterfactuals, derivatives,
 and ConditionalEffect graph-posterior mixtures.
 
-## 1.7.0
+### 1.7.0
 
 The
 [1.7.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.7.0.md)
@@ -80,7 +118,7 @@ The
 [1.6.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.6.0.md)
 cover per-horizon temporal identification, sequential overlays, and
 observation-adjusted temporal curves. The
-[1.5 Python walkthrough](https://github.com/iridae-dev/antecedent/blob/main/docs/local-distributional-joint.md)
+[Python walkthrough for local, distributional, and joint effects](https://github.com/iridae-dev/antecedent/blob/main/docs/local-distributional-joint.md)
 remains the guide for retargeting, CDFs, and joint interventions.
 
 ## Development
@@ -119,7 +157,15 @@ result = antecedent.analyze(
     query=antecedent.AverageEffect(treatment="t", outcome="y"),
     inference=antecedent.Frequentist(),  # or antecedent.Bayesian(...)
 )
-print(result.identification, result.estimate, result.validation)
+study = result.study
+updated = study.refresh(new_data)
+report = result.inspect().to_dict()
+loaded = antecedent.load(result.export())
+assert loaded.acceptance.verified
+
+# Or stop before estimation with the same ordinary defaults:
+prepared = antecedent.prepare(data, graph=g, query=antecedent.AverageEffect("t", "y"))
+repeated = prepared.estimate()
 
 # Identify without estimating:
 id_only = antecedent.identify(
@@ -137,11 +183,15 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace is frozen at 52 names as of 1.9 (the 50-name 1.7
-contract plus `AnomalyAttribution` and `ChangeAttribution`). Those two
-types exist for the query axis; `analyze()` refuses them — the licensed
-cells are Rust `Study` only. `TransportQuery` / `InterferenceQuery` stay
-stage modules (`antecedent.transport`, `antecedent.interference`).
+The root namespace contains 56 names in 1.10: the 1.9 contract plus
+`prepare`, `load`, `TransportQuery` and `InterferenceQuery`. `AnomalyAttribution`
+and `ChangeAttribution` types exist for the query axis; `analyze()` refuses them —
+the licensed cells are Rust `Study` only. `TransportQuery` and `InterferenceQuery`
+run their licensed cells on `analyze()` and retain a study like every other
+licensed route; `antecedent.transport` / `antecedent.interference` hold the
+selection diagram, designs, exposure mappings, the transport identification stage,
+and the unlicensed `estimate_trial_effect` / `estimate` utilities, which keep their
+1.9 behaviour (bare numbers, no study or license).
 Everything else is reached through a stage module (`antecedent.discovery`, `antecedent.priors`, `antecedent.errors`, …).
 
 Also exposed:

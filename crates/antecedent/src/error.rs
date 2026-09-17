@@ -153,6 +153,22 @@ pub enum CausalError {
         /// Message.
         message: String,
     },
+    /// The question has no identified estimand under the declared structure.
+    ///
+    /// A refusal, not a failure: it carries the identification outcome so a
+    /// caller learns why. `search_capped` separates a search that finished
+    /// without an estimand from one that stopped at a budget (a completion or
+    /// history cap), which is not a proof of non-identification. The message
+    /// carries the `effect_not_identified` reason code.
+    #[error("{message}")]
+    NotIdentified {
+        /// Identification status the search ended with.
+        status: antecedent_core::IdentificationStatus,
+        /// Whether the search stopped at a budget rather than completing.
+        search_capped: bool,
+        /// Reason-coded message.
+        message: String,
+    },
     /// Memory or other resource refusal.
     #[error("{message}")]
     Resource {
@@ -222,9 +238,160 @@ pub enum CausalError {
         /// What disagreed, naming the specific variable or count.
         detail: String,
     },
+    /// In-process callback failed (design utility, not portable).
+    #[error("callback {name}: {message}")]
+    Callback {
+        /// Callback name.
+        name: String,
+        /// Failure detail.
+        message: String,
+    },
 }
 
+/// Build a [`CausalError::Unsupported`] refusal carrying a registered
+/// runtime-refusal reason code.
+///
+/// The code is checked at compile time against `parity/reason_codes.toml` (the
+/// generated `antecedent_core::reason_code` lists), so an unregistered code
+/// cannot be emitted. The message is `reason=<code>: <message>`; the Python
+/// layer parses that prefix into `reason_code`.
+///
+/// ```
+/// let err = antecedent::unsupported_reason!("attested_not_reverifiable", "names differ");
+/// assert_eq!(err.to_string(), "reason=attested_not_reverifiable: names differ");
+/// ```
+///
+/// ```compile_fail
+/// let _ = antecedent::unsupported_reason!("bogus", "not registered");
+/// ```
+#[macro_export]
+macro_rules! unsupported_reason {
+    ($code:literal, $message:literal) => {{
+        const _: () = assert!(
+            $crate::error::is_runtime_refusal_code($code),
+            concat!("`", $code, "` is not a runtime_refusal code in parity/reason_codes.toml")
+        );
+        $crate::CausalError::Unsupported { message: concat!("reason=", $code, ": ", $message) }
+    }};
+}
+
+/// [`unsupported_reason!`] for a support-matrix refusal, which carries the
+/// cell's [`crate::support::SupportRefusal`] verdict alongside the reason.
+///
+/// ```
+/// let err = antecedent::support_reason!(
+///     "data_modality_not_licensed",
+///     "that cell is not licensed for this data modality"
+/// );
+/// assert!(err.to_string().contains("reason=data_modality_not_licensed: "));
+/// ```
+#[macro_export]
+macro_rules! support_reason {
+    ($code:literal, $message:literal) => {{
+        const _: () = assert!(
+            $crate::error::is_runtime_refusal_code($code),
+            concat!("`", $code, "` is not a runtime_refusal code in parity/reason_codes.toml")
+        );
+        $crate::CausalError::Support {
+            id: $crate::support::SupportRefusal::Refused,
+            message: concat!("reason=", $code, ": ", $message),
+        }
+    }};
+}
+
+/// Compile-time check used by [`unsupported_reason!`] and [`support_reason!`].
+#[doc(hidden)]
+#[must_use]
+pub const fn is_runtime_refusal_code(code: &str) -> bool {
+    antecedent_core::reason_code::is_runtime_refusal(code)
+}
+
+/// Shared with [`crate::PreparedStudy::rank_designs`] and capability reports.
+pub(crate) const RANK_DESIGNS_REQUIRES_LICENSE: &str =
+    "design ranking requires a licensed prepared contract";
+pub(crate) const RANK_DESIGNS_REQUIRES_PRODUCT: &str =
+    "design ranking requires cached identification products";
+pub(crate) const RANK_DESIGNS_INCOMPARABLE_TARGETS: &str =
+    "width ranking refuses incomparable estimands; declare a common decision utility";
+pub(crate) const RANK_DESIGNS_RENORMALIZED_MASS: &str =
+    "design ranking must not renormalize unidentified mass onto favorable atoms";
+pub(crate) const RETARGET_REQUIRES_LICENSE: &str = "retarget requires a licensed prepared contract";
+pub(crate) const EXPORT_REQUIRES_LICENSE: &str = "export requires a licensed prepared contract";
+pub(crate) const OPERATION_REQUIRES_LICENSE: &str =
+    "operation requires a licensed prepared contract";
+
+/// Refusals that block an operation for want of a license. Matched by
+/// constant identity: a reworded message never changes a blocker id.
+pub(crate) const OPERATION_UNLICENSED: [&str; 4] = [
+    RANK_DESIGNS_REQUIRES_LICENSE,
+    RETARGET_REQUIRES_LICENSE,
+    EXPORT_REQUIRES_LICENSE,
+    OPERATION_REQUIRES_LICENSE,
+];
+
+/// [`CausalError::Compile`] whose message carries a registered runtime-refusal
+/// reason code, for refusals whose detail is formatted at run time.
+///
+/// The code is checked at compile time like [`unsupported_reason!`].
+#[macro_export]
+macro_rules! compile_reason {
+    ($code:literal, $($detail:tt)+) => {{
+        const _: () = assert!(
+            $crate::error::is_runtime_refusal_code($code),
+            concat!("`", $code, "` is not a runtime_refusal code in parity/reason_codes.toml")
+        );
+        $crate::CausalError::Compile {
+            message: format!(
+                "{}{}: {}",
+                $crate::error::REASON_PREFIX,
+                $code,
+                format!($($detail)+)
+            ),
+        }
+    }};
+}
+
+/// Wire prefix of a reason-coded message (see `antecedent_core::reason_code::PREFIX`).
+#[doc(hidden)]
+pub const REASON_PREFIX: &str = antecedent_core::reason_code::PREFIX;
+
 impl CausalError {
+    /// Refuse a question whose identification produced no estimand.
+    ///
+    /// `detail` names the route; the status and whether the search was
+    /// complete or capped come from the identification outcome.
+    #[must_use]
+    pub fn not_identified(
+        status: antecedent_core::IdentificationStatus,
+        search_capped: bool,
+        detail: &str,
+    ) -> Self {
+        let search = if search_capped {
+            "the search stopped at a budget, so this is not a proof of non-identification"
+        } else {
+            "the search completed"
+        };
+        Self::NotIdentified {
+            status,
+            search_capped,
+            message: format!(
+                "{REASON_PREFIX}effect_not_identified: {detail} (identification status {}; {search})",
+                status.as_str()
+            ),
+        }
+    }
+
+    /// The reason code a refusal carries, when its message is reason-coded.
+    #[must_use]
+    pub fn reason_code(&self) -> Option<&str> {
+        let message = match self {
+            Self::Compile { message } | Self::NotIdentified { message, .. } => message.as_str(),
+            Self::Unsupported { message } | Self::Support { message, .. } => message,
+            _ => return None,
+        };
+        antecedent_core::reason_code::split_prefix(message).map(|(code, _)| code)
+    }
+
     /// Build a structured review-required error.
     ///
     /// `pending_edges` should carry the real edges blocking review whenever the
@@ -250,6 +417,34 @@ impl CausalError {
         }
     }
 
+    /// Stable capability-report blocker id, when this error is a preflight/execution
+    /// refusal. Budget and cancel are marked non-scientific.
+    #[must_use]
+    pub fn blocker_id(&self) -> Option<antecedent_core::BlockedOperation> {
+        use antecedent_core::BlockedOperation;
+        match self {
+            Self::Support { id: crate::support::SupportRefusal::NotApplicable, message } => {
+                Some(BlockedOperation::not_applicable(*message))
+            }
+            Self::Support { id: crate::support::SupportRefusal::Refused, message } => {
+                Some(BlockedOperation::refused(*message))
+            }
+            Self::Unsupported { message } if OPERATION_UNLICENSED.contains(message) => {
+                Some(BlockedOperation::operation_unlicensed(*message))
+            }
+            Self::Unsupported { message } if *message == RANK_DESIGNS_REQUIRES_PRODUCT => {
+                Some(BlockedOperation::binding("identification_product"))
+            }
+            Self::ReviewRequired { message, .. } => {
+                Some(BlockedOperation::new("review.required", message.clone(), true))
+            }
+            Self::Cancelled { stage } => Some(BlockedOperation::cancelled(*stage)),
+            Self::Resource { message } => Some(BlockedOperation::resource(message.clone())),
+            Self::Missing { field } => Some(BlockedOperation::binding(field)),
+            _ => None,
+        }
+    }
+
     /// Convenience when only a message is available (generic review).
     #[must_use]
     pub fn review_required_msg(message: impl Into<String>) -> Self {
@@ -264,3 +459,8 @@ impl CausalError {
         )
     }
 }
+
+const _: () = assert!(
+    is_runtime_refusal_code("effect_not_identified"),
+    "`effect_not_identified` is not a runtime_refusal code in parity/reason_codes.toml"
+);

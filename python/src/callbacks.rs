@@ -4,9 +4,10 @@
 
 use std::sync::Arc;
 
-use antecedent::design::Utility;
+use antecedent::design::{DesignError, Utility};
 use antecedent::gcm::{CompiledCausalModel, DynamicMechanism, MechanismSlot};
 use antecedent_core::{CausalRng, ExecutionContext};
+use antecedent_data::TableView;
 use antecedent_graph::DenseNodeId;
 use antecedent_model::{MechanismWorkspace, ModelError, ParentBatch};
 use antecedent_stats::{
@@ -291,40 +292,50 @@ impl PyUtility {
 }
 
 impl Utility<f64, f64> for PyUtility {
-    fn evaluate_batch(&self, actions: &[f64], outcomes: &[f64], out: &mut [f64]) {
+    fn evaluate_batch(
+        &self,
+        actions: &[f64],
+        outcomes: &[f64],
+        out: &mut [f64],
+    ) -> Result<(), DesignError> {
         let expected = actions.len().saturating_mul(outcomes.len());
         if out.len() < expected {
-            out.fill(f64::NAN);
-            return;
+            return Err(DesignError::Shape(format!(
+                "utility out buffer {} < {expected}",
+                out.len()
+            )));
         }
-        let result = Python::attach(|py| -> PyResult<()> {
+        Python::attach(|py| -> Result<(), DesignError> {
             let a = PyArray1::from_slice(py, actions);
             let o = PyArray1::from_slice(py, outcomes);
-            let got = self.callback.bind(py).call1((a, o))?;
-            let arr: PyReadonlyArray1<'_, f64> = got.extract()?;
-            let slice = arr.as_slice().map_err(|_| {
-                PyValueError::new_err("utility return must be contiguous float64 ndarray")
+            let got = self.callback.bind(py).call1((a, o)).map_err(|err| {
+                DesignError::Callback { name: "utility".into(), message: err.to_string() }
+            })?;
+            let arr = match got.extract::<PyReadonlyArray1<'_, f64>>() {
+                Ok(arr) => arr,
+                Err(err) => {
+                    return Err(DesignError::Callback {
+                        name: "utility".into(),
+                        message: err.to_string(),
+                    });
+                }
+            };
+            let slice = arr.as_slice().map_err(|_| DesignError::Callback {
+                name: "utility".into(),
+                message: "utility return must be contiguous float64 ndarray".into(),
             })?;
             if slice.len() < expected {
-                return Err(PyValueError::new_err(format!(
-                    "utility returned {} values; expected {expected}",
-                    slice.len()
-                )));
+                return Err(DesignError::Callback {
+                    name: "utility".into(),
+                    message: format!(
+                        "utility returned {} values; expected {expected}",
+                        slice.len()
+                    ),
+                });
             }
             out[..expected].copy_from_slice(&slice[..expected]);
             Ok(())
-        });
-        if let Err(err) = &result {
-            // `Utility::evaluate_batch` returns `()` (a hot per-batch call in the
-            // design-ranking loop), so a failing `utility` callback cannot be
-            // propagated as a `Result` without a trait-wide signature change. Surface
-            // the failure mode (raised exception, wrong return shape, non-contiguous
-            // array) via PyO3's traceback-to-stderr path before falling back to NaN,
-            // so a broken callback is diagnosable instead of a mysterious silent NaN
-            // flowing into downstream design-ranking math.
-            Python::attach(|py| err.print(py));
-            out[..expected].fill(f64::NAN);
-        }
+        })
     }
 }
 
@@ -361,8 +372,17 @@ impl CustomEffectValidator for PyCustomValidator {
             kwargs.set_item("ate", problem.original.ate).map_err(py_err)?;
             kwargs.set_item("se_analytic", problem.original.se_analytic).map_err(py_err)?;
             kwargs.set_item("method", problem.estimand.method.to_string()).map_err(py_err)?;
-            let adj: Vec<String> =
-                problem.estimand.adjustment_set.iter().map(|v| format!("V{}", v.raw())).collect();
+            let adj: Vec<String> = problem
+                .estimand
+                .adjustment_set
+                .iter()
+                .map(|v| {
+                    problem.data.schema().get(*v).map_or_else(
+                        |_| format!("V{}", v.raw()),
+                        |variable| variable.name.to_string(),
+                    )
+                })
+                .collect();
             kwargs.set_item("adjustment_set", adj).map_err(py_err)?;
             let out = self.callback.bind(py).call((), Some(&kwargs)).map_err(py_err)?;
             let dict = out.cast::<PyDict>().map_err(|_| {
@@ -442,22 +462,58 @@ pub fn resolve_ci_arg(
     ))
 }
 
-/// Parse optional validator callables into custom validators.
+/// Qualified name of a Python callable: `module.qualname` (the class's for a callable object).
+fn qualified_name(item: &Bound<'_, PyAny>) -> PyResult<String> {
+    let owner =
+        if item.hasattr("__qualname__")? { item.clone() } else { item.get_type().into_any() };
+    let qualname: String = owner.getattr("__qualname__")?.extract()?;
+    let module: Option<String> = owner
+        .getattr("__module__")
+        .ok()
+        .and_then(|module| module.extract::<Option<String>>().ok())
+        .flatten();
+    Ok(match module {
+        Some(module) => format!("{module}.{qualname}"),
+        None => qualname,
+    })
+}
+
+/// Parse caller validators into named custom validators.
+///
+/// A list names each callable by its qualified name (`module.qualname`); a
+/// mapping supplies the names. Names are the attested identity of each
+/// validator's evidence on a claim, so they must be unique.
 pub fn parse_validators(
     validators: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Vec<Arc<dyn CustomEffectValidator>>> {
     let Some(obj) = validators else {
         return Ok(Vec::new());
     };
-    let list = obj
-        .cast::<PyList>()
-        .map_err(|_| PyValueError::new_err("validators must be a list of callables"))?;
-    let mut out = Vec::with_capacity(list.len());
-    for (i, item) in list.iter().enumerate() {
+    let named: Vec<(String, Bound<'_, PyAny>)> = if let Ok(mapping) = obj.cast::<PyDict>() {
+        mapping
+            .iter()
+            .map(|(name, item)| Ok((name.extract::<String>()?, item)))
+            .collect::<PyResult<_>>()?
+    } else {
+        let list = obj.cast::<PyList>().map_err(|_| {
+            PyValueError::new_err(
+                "validators must be a list of callables or a {name: callable} mapping",
+            )
+        })?;
+        list.iter().map(|item| Ok((qualified_name(&item)?, item))).collect::<PyResult<_>>()?
+    };
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::with_capacity(named.len());
+    for (name, item) in named {
         if !item.is_callable() {
-            return Err(PyValueError::new_err(format!("validators[{i}] is not callable")));
+            return Err(PyValueError::new_err(format!("validator {name:?} is not callable")));
         }
-        let name = format!("python.validator.{i}");
+        if !seen.insert(name.clone()) {
+            return Err(PyValueError::new_err(format!(
+                "validator name {name:?} is not unique; pass a {{name: callable}} mapping to name \
+                 each validator's attested evidence"
+            )));
+        }
         out.push(
             Arc::new(PyCustomValidator::new(name, item.unbind())) as Arc<dyn CustomEffectValidator>
         );

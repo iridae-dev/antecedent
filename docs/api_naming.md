@@ -5,9 +5,11 @@ Rust and Python expose the **same capabilities** with idiomatic shapes on each s
 
 ## The shape
 
-Every analysis is three verbs:
+The day-1 workflow has five verbs:
 
-- `analyze(data, graph=..., query=...)` — identify, then estimate, in one call.
+- `analyze(data, graph=..., query=...)` — identify, then estimate, retaining a reusable study on ordinary prepared routes.
+- `prepare(data, graph=..., query=...)` — stop after preparation; call `.estimate()` on retained data.
+- `load(result.export())` — consume a portable execution through semantic verification.
 - `identify(graph=..., query=...)` — identify only; returns a staged
   `Identification` that can continue into `.estimate(data)` / `.validate(data)`
   while retaining the resolved strategy and query. The one-shot execution
@@ -16,11 +18,16 @@ Every analysis is three verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 52 names as of 1.9**.
-Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 adds
+The root namespace (`import antecedent`) is **frozen at 56 names as of 1.10**.
+Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
-them — the licensed cells are Rust `Study` only. The set is: the three verbs
+them — the licensed cells are Rust `Study` only. Version 1.10 added `prepare` and `load`,
+and the two design queries `TransportQuery` and `InterferenceQuery`, whose licensed
+cells `analyze()` now executes (they were previously reachable only from their stage
+modules).
+See [the Python workflow](python-workflow.md) for lifetime and report semantics.
+The set is: the five verbs
 above; the accepted-structure and result types (`AcceptedGraph`, `Identification`,
 `AnalysisResult`); the nine typed queries (`AverageEffect`, `PulseEffect`,
 `SustainedEffect`, `InterventionalDistribution`, `PathSpecificEffect`,
@@ -29,7 +36,8 @@ above; the accepted-structure and result types (`AcceptedGraph`, `Identification
 (`ResponseCurve`, `AverageDerivative`, `PointDerivative`, `Elasticity`,
 `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`,
 `InterventionResponse`) plus the two attribution queries
-(`AnomalyAttribution`, `ChangeAttribution`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
+(`AnomalyAttribution`, `ChangeAttribution`) plus the two design queries
+(`TransportQuery`, `InterferenceQuery`); the five graph classes (`Dag`, `Cpdag`, `Pag`, `Admg`,
 `TemporalDag`); the inference / identifier / estimator / latency / refute selectors
 (`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`);
 the structural mass type `ClassPrior`; the two
@@ -47,7 +55,7 @@ the module path rather than importing it flat:
 ``antecedent.priors``, ``antecedent.state``, ``antecedent.validation``.
 
 Each of those twelve modules has an explicit, separately frozen `__all__`
-surface. The 52-name count is only the package-root contract; it does not add
+surface. The 56-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
 **15** further modules are reachable as ``antecedent.<name>`` (nothing stops
@@ -120,7 +128,8 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Named CPDAG | `Cpdag::from_named_edges` + `insert_undirected` | `Cpdag.from_directed_undirected(names, directed, undirected)` |
 | EconML handoff | — | `antecedent.handoff.econml(result, modifiers=…, target_weights=…, outcome_functional=…)` — point-identified backdoor / generalized adjustment; temporal specs carry offsets |
 | Outcome functional | `OutcomeFunctional::{Mean, Exceedance, ExceedanceGrid}` | `antecedent.query.Mean` / `Exceedance` / `ExceedanceGrid` on `AverageEffect`, `ConditionalEffect`, `InterventionResponse` |
-| Retarget prepared plan | `PreparedStudy::retarget(weights, depends_on, ctx)` — requires a frozen AllObserved iid AIPW or cell-AIPW score table; nonempty `depends_on` needs a directed graph (DAG or ADMG); nonconstant weights require nonempty `depends_on` | `PreparedAnalysis.retarget(weights, depends_on)` — same; `analyze()` has no retarget handle and does not always return scores |
+| Re-execute a carried retarget | `PreparedStudy::reexecute_retarget(section, ctx)` — the weights an exported contract carries; refuses `row_weights_bound_to_snapshot` on another snapshot or score table | `PreparedAnalysis.reexecute_retarget(artifact)` — same, from the exported bytes |
+| Retarget prepared plan | `PreparedStudy::retarget(weights, depends_on, ctx)` — requires a frozen AllObserved iid AIPW or cell-AIPW score table; nonempty `depends_on` needs a directed graph (DAG or ADMG); nonconstant weights require nonempty `depends_on` | `PreparedAnalysis.retarget(weights, depends_on)` — same; `analyze(...).study` retains the prepared handle on supported routes; scores require a licensed score-table estimator |
 | Tiered background | `StudyBuilder::tiered_background(TieredBackground)` | `antecedent.graph.TieredBackground` / `WithinTier` as `analyze(..., graph=…)` |
 | Cell-saturated joint AIPW | `EstimatorId::CellAipw` (`cell.aipw`) | `Estimator.CELL_AIPW` / `"cell.aipw"` |
 | Average effect | `AverageEffectQuery` | `AverageEffect` |
@@ -128,8 +137,8 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Vector response derivative | `ResponseFunctional::DirectionalDerivative` / `::Jacobian` | `DirectionalDerivative` / `ResponseJacobian` |
 | Intervention response | `ResponseFunctional::InterventionResponse` | `InterventionResponse(..., intervention=intervention.Set/Shift/Bernoulli/Gaussian/Categorical(...))` |
 | Observation mechanism | `ObservationSpec` + explicit `ObservationAssumption` | `antecedent.observation` specs attached to a response query |
-| Structural transport | `TransportQuery` + `SelectionDiagram` | `antecedent.transport.TransportQuery` / `SelectionDiagram` |
-| Randomized interference | `InterferenceQuery` + `AssignmentDesign` + `ExposureMapping` | `antecedent.interference` stage types |
+| Structural transport | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)`; `antecedent.transport.identify` stages identification |
+| Randomized interference | `InterferenceQuery` + `AssignmentDesign` + `ExposureMapping` + `StudyBuilder::interference` | `InterferenceQuery(design, exposure, contrast, network=, realized_assignment=)` on `analyze(data, graph=Dag or edges, query=...)`; designs and mappings in `antecedent.interference` |
 | Temporal pulse / sustained | `TemporalEffectQuery` | `PulseEffect` / `SustainedEffect` |
 | Temporal dose × horizon response | `ResponseQuery` + `TemporalResponseSpec` on `ResponseFunctional::MeanCurve` / `::InterventionResponse` | `ResponseCurve(..., horizons=…, policy=…, treatment_lag=…, max_history_lag=…)` / matching `InterventionResponse(..., horizons=…, …)` — keyword-only after treatment/outcome names; absent `horizons` = static Dag cell. `treatment_lag`, allowed policies, and the horizon cap are `query.temporal_response_spec`, supplied by Rust `TemporalResponseSpec::license`. Python does not spell `policy="dynamic"`; that remains a Rust `TemporalEffectQuery` policy. |
 | Mediation (static) | `MediationQuery` | `MediationEffect` |
@@ -149,6 +158,18 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | d-separation | `Dag::is_d_separated` | `Dag.d_separated(x, y, z=…)` |
 | Latent projection | `latent_project` | `Dag.latent_project(observed)` |
 | External prior bank | `antecedent-prob::conjugate_moment_match` / `compose_external_priors` | `antecedent.priors.beta_from_moments` / `compose_external_priors` / `PriorCatalog` (module renamed from `prior_bank` to `priors`) |
+| Target identity | target digest on the inspect/contract | `inspect().target_id` |
+| Identification premises identity | identification digest over the population-free question, accepted structure (posterior atoms and weights), class prior, transport selection, and observation contract | `inspect().identification_id` |
+| Identification product identity | identification-product digest | `inspect().identification_product_id` |
+| Compiled program identity | program digest on the inspect/contract; covers the target population, so ATE and ATT are different programs | `result.program_id` / `inspect().program_id` — compiled program, not the execution claim; loaded (executed) study only for `claim_id` |
+| Inference binding identity | inference-binding digest over prior contents, backend and likelihood, and numeric knobs (a response bandwidth moves this, not the program); independent of structure | `inspect().inference_binding_id` |
+| Observation identity | observation digest | `inspect().observation_id` |
+| Data snapshot identity | data-snapshot digest | `inspect().data_snapshot_id` |
+| Execution identity | execution digest | `inspect().execution_id` |
+| Execution claim identity | `StudyResult::claim` digest over the contract seal (identities, four slots, audit fields), the claim fields, and the executed result body | `result.claim_id` / `inspect().claim_id` / `contract["claim"]["claim_id"]` |
+| Score reuse identity | score-reuse digest | `inspect().score_reuse_id` |
+| Target-weight identity | target-weights digest | `inspect().target_weights_id` |
+| Safe consumption shape | withheld leftover / partial ID | `result.answer` (`point` / `bounds` / `partial` / `unavailable`); historical `.effect` / `.posterior` / `.response` remain accessible and are not misuse-proof |
 | Primary scalar effect | `result.effect()` | `result.effect` (`.ate` alias) |
 | Rich result display | `Debug` / `Display` impls | `AnalysisResult.__repr__` / `_repr_html_` (amber callout when `unidentified_mass > 0`); `ValidationView` supports `len()` / iteration / indexing / `.failed` / `.to_pandas()`; `PosteriorView` supports `__array__` / `.interval()` |
 | Errors | `CausalError` | `CausalError` (+ typed subclasses); `ReviewRequired` carries structured `pending_edges` |

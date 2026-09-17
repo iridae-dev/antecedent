@@ -195,8 +195,9 @@ fn noise_kind_slot(slot: &MechanismSlot) -> &'static str {
         }
         MechanismSlot::LinearGaussian { .. }
         | MechanismSlot::HierarchicalLinear { .. }
+        | MechanismSlot::LinearBasis { .. }
         | MechanismSlot::Bvar { .. } => "additive_gaussian",
-        MechanismSlot::Discrete { .. } => "discrete",
+        MechanismSlot::Discrete { .. } | MechanismSlot::DiscreteBasis { .. } => "discrete",
         MechanismSlot::Constant { .. } => "constant",
         MechanismSlot::LinearGaussianStateSpace { .. }
         | MechanismSlot::ConditionalLinearGaussianStateSpace { .. } => "lgssm",

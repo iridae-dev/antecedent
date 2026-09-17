@@ -1,5 +1,10 @@
 //! Vector-variable PCMCI conformance (`Exact` logical edge set).
 //!
+//! The recovered logical parents must equal both the fixture's true parents and
+//! the frozen upstream reference run's (the pinned baseline) `reference.outputs.recovered_parents` (scalar
+//! logical parents at the same alpha, `max_lag` and BH-FDR). The recorded
+//! `vector_vars_probe` dump is informational and not compared.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::cast_possible_truncation)]
@@ -148,18 +153,46 @@ fn vector_vars_pcmci_exact_logical_parents() {
         "secondary component appeared in links: {recovered:?}"
     );
 
-    let mut true_set = BTreeSet::new();
-    for p in expected["true_parents"].as_array().expect("true_parents") {
-        true_set.insert((
-            name_to_id(p["source"].as_str().unwrap()).raw(),
-            p["source_lag"].as_u64().unwrap() as u32,
-            name_to_id(p["target"].as_str().unwrap()).raw(),
-            p["target_lag"].as_u64().unwrap() as u32,
-        ));
-    }
-
+    let true_set = parent_set(&expected["true_parents"]);
     assert_eq!(
         recovered, true_set,
         "Exact edge-set mismatch: recovered={recovered:?} true={true_set:?}"
     );
+
+    // Frozen external oracle: the recorded upstream reference run on the same data.csv, at the
+    // same alpha and max_lag, must recover exactly the parents this crate recovers.
+    let reference = &expected["reference"];
+    assert_eq!(
+        Some(reference["project"].as_str().expect("reference.project")),
+        std::path::Path::new(expected["generation"]["baseline_pin"].as_str().unwrap())
+            .file_stem()
+            .and_then(|s| s.to_str()),
+        "the reference is the pinned baseline's run"
+    );
+    assert_eq!(reference["available"].as_bool(), Some(true));
+    let outputs = &reference["outputs"];
+    assert_eq!(outputs["alpha"].as_f64(), Some(alpha), "reference alpha");
+    assert_eq!(outputs["max_lag"].as_u64(), Some(u64::from(max_lag)), "reference max_lag");
+    assert!(fdr && outputs["fdr_method"].as_str() == Some("fdr_bh"), "reference FDR control");
+    let upstream = parent_set(&outputs["recovered_parents"]);
+    assert_eq!(
+        recovered, upstream,
+        "upstream reference mismatch: recovered={recovered:?} reference={upstream:?}"
+    );
+}
+
+fn parent_set(parents: &JsonValue) -> BTreeSet<(u32, u32, u32, u32)> {
+    parents
+        .as_array()
+        .expect("parent list")
+        .iter()
+        .map(|p| {
+            (
+                name_to_id(p["source"].as_str().unwrap()).raw(),
+                p["source_lag"].as_u64().unwrap() as u32,
+                name_to_id(p["target"].as_str().unwrap()).raw(),
+                p["target_lag"].as_u64().unwrap() as u32,
+            )
+        })
+        .collect()
 }

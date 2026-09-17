@@ -56,9 +56,7 @@ def _assert_mixture_contract(
     assert fresh.posterior is not None and click.posterior is not None
     assert fresh.posterior.unidentified_mass == pytest.approx(unidentified_mass, abs=1e-12)
     assert click.posterior.unidentified_mass == pytest.approx(unidentified_mass, abs=1e-12)
-    assert all(
-        not diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics
-    )
+    assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics)
     assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
     if validation_suite is None:
         assert not fresh.validation.reports
@@ -133,9 +131,7 @@ def _assert_frequentist_mixture_contract(
     assert any(
         f"unidentified_mass={unidentified_mass}" in diagnostic for diagnostic in fresh.diagnostics
     )
-    assert all(
-        not diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics
-    )
+    assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics)
     assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
     if validation_suite is None:
         assert not fresh.validation.reports
@@ -391,7 +387,7 @@ def test_temporal_mediation_known_truth_mixture(validation, validation_suite: st
 
 def test_dbn_posterior_response_curve_stays_refused() -> None:
     data = white_noise_pulse_series(64, 1)
-    with pytest.raises(CausalUnsupportedError, match="response mixture"):
+    with pytest.raises(CausalUnsupportedError, match="graph-posterior structures are refused"):
         antecedent.analyze(
             data,
             discovery=temporal_posterior(),
@@ -414,7 +410,7 @@ def test_frequentist_dbn_mediation_mixture_follows_the_latency_tier() -> None:
 
     Atoms share one circular-block bootstrap for the aggregate SE, so the
     replicate count follows the latency tier: interactive runs none and
-    withholds the SE, standard runs the Study default.
+    withholds the SE, standard and an omitted tier run the omitted budget.
     """
     data = temporal_mediation_series(int(TEMPORAL_MEDIATION["n"]))
     posterior = temporal_mediation_posterior()
@@ -425,7 +421,7 @@ def test_frequentist_dbn_mediation_mixture_follows_the_latency_tier() -> None:
     shared_block = "estimate.dbn_posterior.mediation.shared_block"
 
     interactive = antecedent.estimation.PreparedAnalysis.prepare(
-        data, discovery=posterior, query=query, inference=FREQ, seed=seed
+        data, discovery=posterior, query=query, inference=FREQ, seed=seed, latency="interactive"
     ).estimate(data, seed=seed)
     assert interactive.ate == pytest.approx(expected, abs=tolerance)
     assert interactive.estimate.se_bootstrap is None
@@ -452,7 +448,8 @@ def test_frequentist_dbn_pulse_sustained_mixture_follows_the_latency_tier(kind) 
 
     Atoms share one circular-block bootstrap for the aggregate SE, so the
     replicate count follows the latency tier (interactive runs none and
-    withholds the SE), and the structural masses ride the result.
+    withholds the SE; an omitted tier keeps the omitted replicate budget), and
+    the structural masses ride the result.
     """
     data = white_noise_pulse_series(int(TEMPORAL["n"]), int(TEMPORAL["seed"]))
     posterior = temporal_posterior()
@@ -476,7 +473,13 @@ def test_frequentist_dbn_pulse_sustained_mixture_follows_the_latency_tier(kind) 
         assert result.identification.status == "GraphDependent"
 
     interactive = antecedent.estimation.PreparedAnalysis.prepare(
-        data, discovery=posterior, query=query, inference=FREQ, refute=False, seed=11
+        data,
+        discovery=posterior,
+        query=query,
+        inference=FREQ,
+        refute=False,
+        seed=11,
+        latency="interactive",
     ).estimate(data, seed=11)
     assert interactive.ate == pytest.approx(expected, abs=tolerance)
     assert interactive.estimate.se_bootstrap is None

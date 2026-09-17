@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import KW_ONLY, dataclass, field
+from typing import Any, Literal
 
 import numpy as np
 
@@ -89,14 +89,38 @@ class ExposureContrast:
 
 @dataclass(frozen=True, slots=True)
 class InterferenceQuery:
+    """A randomized exposure contrast on a fixed unit network.
+
+    ``assignment`` is the known randomization design, ``exposure`` the exposure
+    mapping and ``functional`` the contrast between two exposure levels.
+
+    :func:`antecedent.analyze` estimates the licensed cell (explicit ``Dag``,
+    Frequentist, validation ``none``): NeighborCount exposure under Bernoulli
+    assignment, Horvitz–Thompson / Hájek with the conservative Young variance
+    bound. It needs the keyword-only design facts: ``network``, the fixed
+    directed exposure edges between unit rows (``NetworkEdge`` or
+    ``(from, to[, weight])``; an empty sequence is a network without edges),
+    and ``realized_assignment``, the binary assignment in unit-row order. Both
+    freeze at prepare; the unit table is the data, so a refresh executes on
+    new outcomes under the same network and assignment.
+    """
+
     assignment: object
     exposure: object
     functional: ExposureContrast
     probability_draws: int = 10_000
+    _: KW_ONLY
+    network: Sequence[NetworkEdge | tuple[int, int] | tuple[int, int, float]] | None = None
+    realized_assignment: Sequence[bool] | None = None
+    kind: Literal["interference"] = field(default="interference", init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.probability_draws <= 0:
             raise CausalValueError("probability_draws must be positive")
+        if (self.network is None) != (self.realized_assignment is None):
+            raise CausalValueError(
+                "network and realized_assignment are the design together; supply both"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,6 +203,20 @@ def _exposure_name(exposure: object) -> str:
     raise CausalTypeError("unsupported exposure mapping")
 
 
+def _edge_values(
+    edges: Sequence[NetworkEdge | tuple[int, int] | tuple[int, int, float]],
+) -> list[tuple[int, int, float]]:
+    values: list[tuple[int, int, float]] = []
+    for edge in edges:
+        if isinstance(edge, NetworkEdge):
+            values.append((edge.from_, edge.to, edge.weight))
+        elif len(edge) == 2:
+            values.append((edge[0], edge[1], 1.0))
+        else:
+            values.append((edge[0], edge[1], edge[2]))
+    return values
+
+
 def estimate(
     data: Any,
     *,
@@ -187,7 +225,15 @@ def estimate(
     query: InterferenceQuery,
     seed: int = 1,
 ) -> InterferenceEstimate:
-    """Estimate a known randomized exposure contrast on a fixed unit network."""
+    """Estimate a known randomized exposure contrast on a fixed unit network.
+
+    This is an unlicensed utility with its 1.9 behaviour: every assignment
+    design and exposure mapping, and ``seed`` as the exposure-probability Monte
+    Carlo seed. It calls the interference estimator directly and returns bare
+    numbers, with no study, contract, export or calibration slot.
+    ``antecedent.analyze(data, graph=[], query=InterferenceQuery(..., network=,
+    realized_assignment=))`` is the licensed, study-retaining path.
+    """
 
     if not isinstance(query, InterferenceQuery):
         raise CausalTypeError("query must be an InterferenceQuery")
@@ -198,14 +244,7 @@ def estimate(
         raise CausalValueError(
             f"outcome column {query.functional.outcome!r} is missing from data"
         ) from error
-    edge_values: list[tuple[int, int, float]] = []
-    for edge in edges:
-        if isinstance(edge, NetworkEdge):
-            edge_values.append((edge.from_, edge.to, edge.weight))
-        elif len(edge) == 2:
-            edge_values.append((edge[0], edge[1], 1.0))
-        else:
-            edge_values.append((edge[0], edge[1], edge[2]))
+    edge_values = _edge_values(edges)
     raw = _estimate_network_interference(
         columns[outcome_index],
         list(assignment),

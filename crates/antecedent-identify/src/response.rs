@@ -243,7 +243,13 @@ fn require_observation_claim(response: &ResponseQuery) -> Result<(), Identificat
     Ok(())
 }
 
-fn append_observation_assumptions(response: &ResponseQuery, assumptions: &mut AssumptionSet) {
+/// Append one [`AssumptionRecord`] per declared [`ObservationAssumption`] of
+/// `response`.
+///
+/// The single owner of the observation-assumption id and description table:
+/// every path that identifies a response under an incomplete observation
+/// process — static or temporal — records the same ids and text.
+pub fn append_observation_assumptions(response: &ResponseQuery, assumptions: &mut AssumptionSet) {
     for claim in response.observation_assumptions.iter() {
         let (id, description) = match claim {
             ObservationAssumption::IndependentGiven(vars) => (

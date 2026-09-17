@@ -194,21 +194,27 @@ impl super::Study {
             mediated: mix(|m| m.mediated),
         };
         let mut diagnostics = identification.diagnostics.clone();
-        diagnostics.push(Diagnostic::new(
-            "estimate.dbn_posterior.mediation.frequentist",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "frozen posterior weights; identified_mass={}; unidentified_mass={}; \
+        diagnostics.push(
+            Diagnostic::new(
+                "estimate.dbn_posterior.mediation.frequentist",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "frozen posterior weights; identified_mass={}; unidentified_mass={}; \
                  unevaluable_mass={}; each atom uses its own S(h) (its I(h) plus \
                  mediator-outcome confounders); Total, Direct and Mediated are fixed-weight \
                  means over evaluable atoms; failed estimation is not mixed into unidentified \
                  mass; the mass split is in structural_response",
-                identified_mass / total_mass,
+                    identified_mass / total_mass,
+                    unidentified_mass / total_mass,
+                    failed_mass / total_mass
+                ),
+            )
+            .with_fields(super::mass_fields(
+                Some(identified_mass / total_mass),
                 unidentified_mass / total_mass,
-                failed_mass / total_mass
-            ),
-        ));
+            )),
+        );
         diagnostics.push(Diagnostic::new(
             "estimate.dbn_posterior.atom_demotion",
             DiagnosticKind::Scientific,

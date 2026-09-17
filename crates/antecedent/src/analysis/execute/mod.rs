@@ -17,10 +17,9 @@ pub(super) use std::time::Instant;
 pub(super) use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
 pub(super) use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalResponse, DataClassification, Diagnostic,
-    DiagnosticKind, DiagnosticSeverity, ExecutionContext, Intervention, ObservationAssumption,
-    ObservationSpec, PopulationRegistry, ProvenanceGraph, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, TemporalEffectQuery,
-    VariableId,
+    DiagnosticKind, DiagnosticSeverity, ExecutionContext, Intervention, ObservationSpec,
+    PopulationRegistry, ProvenanceGraph, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, TemporalEffectQuery, VariableId,
 };
 pub(super) use antecedent_data::{
     DiscoveryEstimationSplit, PanelData, TableView, TabularData, TemporalIndexer, TimeIndex,
@@ -61,7 +60,7 @@ pub(super) use crate::callback_plan::mark_python_callback_plan;
 pub(super) use crate::error::CausalError;
 pub(super) use crate::gcm::{
     anomaly_attribution, attribute_distribution_change, attribute_unit_change, counterfactual_ite,
-    fit_gcm, mechanism_change_detection,
+    fit_gcm, fit_gcm_counterfactual, map_mechanism_fit, mechanism_change_detection,
 };
 pub(super) use crate::inference::{
     BayesianConfig, InferenceMode, resolve_bayesian_prior_with_conflict,
@@ -137,6 +136,9 @@ pub struct Study {
     pub(crate) identifier: Option<IdentifierId>,
     pub(crate) estimator: Option<EstimatorId>,
     pub(crate) estimator_spec: Option<crate::estimator_spec::EstimatorSpec>,
+    /// Structured identity of [`Self::estimator_spec`], digested once at build
+    /// so data-sized cluster / panel vectors are never rehashed per contract.
+    pub(crate) estimator_spec_identity: Option<antecedent_io::EstimatorSpecWire>,
     pub(crate) response_options: Option<antecedent_estimate::ContinuousResponseOptions>,
     pub(crate) observation_options: antecedent_estimate::ObservationEstimatorOptions,
     pub(crate) observation_delayed_entry: Option<antecedent_core::VariableId>,
@@ -175,6 +177,9 @@ pub struct Study {
     /// Optional tier-rule background for O(p) closure certification.
     pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
     /// Refused: coarsened continuous coordinate is not a point CDE.
+    ///
+    /// `StudyBuilder::build` refuses a study that declares one, so a built
+    /// study always carries `None` and no identity layer binds it.
     pub(crate) continuous_cell: Option<(antecedent_core::VariableId, std::sync::Arc<[f64]>)>,
     /// Shared fold assignment / covariate design when this study is part of a batch.
     pub(crate) shared_batch_design: Option<std::sync::Arc<super::batch::SharedBatchDesign>>,
@@ -209,6 +214,7 @@ impl std::fmt::Debug for Study {
             .field("identifier", &self.identifier)
             .field("estimator", &self.estimator)
             .field("estimator_spec", &self.estimator_spec)
+            .field("estimator_spec_identity", &self.estimator_spec_identity)
             .field("response_options", &self.response_options)
             .field("observation_options", &self.observation_options)
             .field("observation_delayed_entry", &self.observation_delayed_entry)
@@ -284,6 +290,7 @@ pub(super) use tuple_bootstrap::{
     TupleObservationTarget, TupleReplicates, TupleSurface, tuple_block_observation_replicates,
 };
 
+pub(crate) use dispatch::push_gaussian_likelihood_disclosure;
 pub(crate) use static_path::DistributionGraph;
 pub(crate) use transport_interference_path::live_transport_identification;
 
@@ -293,6 +300,97 @@ pub(crate) use response_path::{
 
 #[cfg(test)]
 mod block_length_tests;
+
+#[cfg(test)]
+mod class_mixture_mass_tests {
+    //! A class mixture's published masses are the envelope's own split.
+    use antecedent_identify::{GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass};
+
+    use super::*;
+
+    fn case(status: IdentificationStatus, weight: f64) -> GraphIdentificationCase<u32> {
+        GraphIdentificationCase {
+            graph: 0,
+            result: IdentificationResult::from_parts(
+                status,
+                CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+                    VariableId::from_raw(0),
+                    VariableId::from_raw(1),
+                )),
+                Vec::new(),
+                antecedent_expr::CausalExprArena::new(),
+                DerivationTrace::default(),
+                antecedent_core::AssumptionSet::default(),
+                Vec::new(),
+                IdentificationPerformanceRecord::default(),
+                None,
+            ),
+            weight: ProbabilityMass(weight),
+        }
+    }
+
+    /// A completion identified only under prior restrictions carries identified
+    /// mass — `IdentificationEnvelope::from_cases` counts it in
+    /// `identified_weight` — but no frequentist arm estimates it, so it is
+    /// unevaluable, not unidentified.
+    ///
+    /// The temporal class arm used to ask "may this case be estimated?" here
+    /// while the envelope diagnostic published beside it asked "does this case
+    /// carry identified mass?", so a temporal class result with a
+    /// prior-restricted completion reported `unidentified_mass = 0.25` next to
+    /// an `identify.temporal_*.envelope` diagnostic saying
+    /// `unidentified_mass = 0`. Both now read
+    /// [`antecedent_identify::carries_identified_mass`].
+    #[test]
+    fn prior_restricted_mass_is_unevaluable_not_unidentified() {
+        let envelope = IdentificationEnvelope::from_cases(vec![
+            case(IdentificationStatus::NonparametricallyIdentified, 0.5),
+            case(IdentificationStatus::IdentifiedUnderPriorRestrictions, 0.25),
+            case(IdentificationStatus::NotIdentified, 0.25),
+        ]);
+        // Only the first completion is estimable, so only it has a value.
+        let outcomes = [
+            ClassAtomOutcome::Evaluated(2.0),
+            ClassAtomOutcome::NotEvaluated,
+            ClassAtomOutcome::NotEvaluated,
+        ];
+        let (mixture, facts) = class_structural_mixture(
+            &envelope,
+            crate::result::StructuralWeightBasis::CompletionEnumeration,
+            |index, _| u64::try_from(index).unwrap_or(u64::MAX),
+            None,
+            &outcomes,
+        );
+        assert!((facts.total_weight - 1.0).abs() < 1e-12);
+        assert!(
+            (mixture.unevaluable_mass - 0.25).abs() < 1e-12,
+            "prior-restricted mass is identified but unevaluable, got {}",
+            mixture.unevaluable_mass
+        );
+        // The invariant the two predicates used to break: the mixture's split
+        // is the envelope's split, so the published mass and the envelope
+        // diagnostic on the same result cannot contradict each other.
+        assert!(
+            (mixture.unidentified_mass - envelope.unidentified_weight.0 / facts.total_weight).abs()
+                < 1e-12,
+            "mixture unidentified_mass {} contradicts the envelope's {}",
+            mixture.unidentified_mass,
+            envelope.unidentified_weight.0
+        );
+        assert!(
+            (mixture.identified_mass + mixture.unevaluable_mass
+                - envelope.identified_weight.0 / facts.total_weight)
+                .abs()
+                < 1e-12,
+            "identified-and-evaluated plus unevaluable must be the envelope's identified mass"
+        );
+        let total = mixture.identified_mass
+            + mixture.unidentified_mass
+            + mixture.unevaluable_mass
+            + mixture.subsampled_out_mass;
+        assert!((total - 1.0).abs() < 1e-12, "the four masses must conserve, got {total}");
+    }
+}
 
 #[cfg(test)]
 mod envelope_se_tests {

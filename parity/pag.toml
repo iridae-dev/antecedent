@@ -54,6 +54,7 @@ notes = "GeneralizedAdjustmentIdentifier + IdentificationEnvelope; the mass-weig
 id = "pag.discovery.lpcmci"
 status = "done"
 evidence_kind = "frozen_external_oracle"
+oracle_components = ["discovery:TemporalPag"]
 external_oracle = "Tigramite 5.2.1.30"
 known_truth_fixture = "conformance/discovery/lpcmci_matrix"
 notes = "Lpcmci → TemporalPag; discriminating_paths + rule_scheduling; temporal estimate on PAG = completion→TemporalDag only (not class-aware temporal ID); accept_discovered auto-runs only when no circle/ambiguous marks"
@@ -68,6 +69,7 @@ notes = "reject_dag_only_on_pag"
 id = "pag.discovery.fci_rfci"
 status = "done"
 evidence_kind = "frozen_external_oracle"
+oracle_components = ["discovery:Pag"]
 external_oracle = "causal-learn 0.1.4.3"
 known_truth_fixture = "conformance/discovery/static_oracle_matrix"
 limitations = "External oracle covers the FCI half; RFCI is validated against clean-room Colombo-Maathuis motif enumeration (conformance/discovery/rfci), not an upstream package."

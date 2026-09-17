@@ -5,22 +5,27 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 
-# Also covers DesignObjective::ReduceDecisionRegret / ranker.rs::decision_regret_reduction,
-# a native heuristic that resamples existing outcome draws and scales the resulting regret
-# reduction by candidate reliability.
+# Covers evaluate_decision (Bayes action and its expected regret against perfect
+# information, EVPI) and DesignObjective::ReduceDecisionRegret, scored by
+# preposterior.rs::PreposteriorAnalysis as the expected value of sample information of
+# each candidate's sample size: exact for finite-support signals and for the conjugate
+# normal model with an affine utility, an unbiased Monte Carlo estimate (labelled
+# ScoreEvaluation::MonteCarlo) for draws with a continuous signal. Chance constraints
+# select the admissible actions under the current belief; that admissible set is the
+# fixed terminal-act space of the cited analysis (constraints never enter the utility).
 papers = [
- { title = "Applied Statistical Decision Theory", sections = ["Part II, Chapter 4 (additive utility, opportunity loss, and value of information)"] },
+ { title = "Applied Statistical Decision Theory", sections = ["Chapter 1 (preposterior analysis)", "Chapter 4 (opportunity loss, expected value of perfect and sample information)", "Chapter 5 (linear terminal analysis; normal linear-loss integral)"] },
+ { title = "Expected value of sample information calculations in medical decision modeling", doi = "10.1177/0272989X04263162", sections = ["Monte Carlo EVSI by simulating data and updating the prior"] },
 ]
 
-implementation_deviations = [
- "evaluate_decision follows empirical expected-utility maximization, but ReduceDecisionRegret resamples existing outcome draws and shrinks regret by heuristic candidate reliability rather than performing cited preposterior Bayesian decision analysis under a design-specific predictive model.",
-]
+implementation_deviations = []
 
 upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-design/src/decision.rs unit tests",
- "crates/antecedent-design/src/ranker.rs unit tests (decision_regret_reduction_matches_closed_form_single_outcome, decision_regret_reduction_zero_for_unknown_decision)",
+ "crates/antecedent-design/src/ranker.rs unit tests (decision_regret_score_increases_with_design_sample_size, decision_regret_continuous_signal_is_labelled_monte_carlo, decision_regret_records_candidates_without_a_sample_size, decision_regret_refuses_unknown_and_inadmissible_problems)",
+ "crates/antecedent-design/tests/value_of_information.rs",
  "crates/antecedent-design/tests/design_oracle.rs (decision_enumeration_matches_exact_feasibility_contract)",
  "conformance/design/decision_ranking",
 ]

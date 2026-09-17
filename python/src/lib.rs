@@ -32,6 +32,7 @@ mod graphs;
 mod identification_details;
 mod observation_api;
 mod prepared_api;
+mod prepared_options;
 mod prior_bank;
 mod response_api;
 mod stability;
@@ -267,6 +268,99 @@ fn review_required_py_err(
     })
 }
 
+/// The Python `CausalUnsupportedError` subclass, registered by `antecedent.errors`.
+static UNSUPPORTED_ERROR_CLASS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+/// Register the Python `CausalUnsupportedError` the error mapper instantiates.
+///
+/// Keeps one refusal class across the boundary: a refusal raised in Rust is the
+/// same class, with the same `reason_code`, as one raised in Python.
+#[pyfunction]
+fn set_unsupported_error_class(py: Python<'_>, cls: Py<PyAny>) {
+    let _ = UNSUPPORTED_ERROR_CLASS.get_or_init(py, || cls);
+}
+
+/// A refusal, as the registered Python class, carrying its `reason=<code>:` prefix.
+///
+/// Every refusal raised in this crate goes through here, so a caller catches one
+/// class and reads one `reason_code` whether Rust or Python refused.
+pub(crate) fn refusal(code: &str, message: impl AsRef<str>) -> PyErr {
+    let prefix = antecedent_core::reason_code::PREFIX;
+    unsupported_py_err(format!("{prefix}{code}: {}", message.as_ref()))
+}
+
+/// Build the Python exception for a refusal, carrying its `reason=<code>:` prefix.
+fn unsupported_py_err(message: String) -> PyErr {
+    // A support-matrix refusal renders its verdict first: `refused: reason=<code>: …`.
+    let reason = antecedent_core::reason_code::split_prefix(&message)
+        .or_else(|| {
+            message
+                .split_once(": ")
+                .and_then(|(_, rest)| antecedent_core::reason_code::split_prefix(rest))
+        })
+        .map(|(code, _)| code.to_string());
+    Python::attach(|py| {
+        let err: PyErr = UNSUPPORTED_ERROR_CLASS
+            .get(py)
+            .and_then(|cls| cls.bind(py).call1((message.as_str(),)).ok())
+            .map_or_else(|| CausalUnsupportedError::new_err(message.clone()), PyErr::from_value);
+        if let Some(code) = reason {
+            let _ = err.value(py).setattr("reason_code", code.as_str());
+        }
+        err
+    })
+}
+
+/// Attach a registered runtime-refusal reason code to a raised exception.
+///
+/// Callers pass a code checked by `antecedent_core::reason_code!`, or one read
+/// back from a reason-coded Rust message, so an unregistered code is never
+/// attached.
+pub(crate) fn with_reason_code(err: PyErr, code: &str) -> PyErr {
+    Python::attach(|py| {
+        let _ = err.value(py).setattr("reason_code", code);
+        err
+    })
+}
+
+/// [`with_reason_code`] unless the exception already carries a finer code.
+fn with_default_reason_code(err: PyErr, code: &str) -> PyErr {
+    Python::attach(|py| {
+        let value = err.value(py);
+        let present = value.getattr("reason_code").ok().is_some_and(|existing| !existing.is_none());
+        if !present {
+            let _ = value.setattr("reason_code", code);
+        }
+        err
+    })
+}
+
+/// The Python `EffectNotIdentified` class, registered by `antecedent.errors`.
+static NOT_IDENTIFIED_ERROR_CLASS: PyOnceLock<Py<PyAny>> = PyOnceLock::new();
+
+/// Register the Python class a not-identified refusal is raised as.
+#[pyfunction]
+fn set_not_identified_error_class(py: Python<'_>, cls: Py<PyAny>) {
+    let _ = NOT_IDENTIFIED_ERROR_CLASS.get_or_init(py, || cls);
+}
+
+/// A not-identified refusal carrying its identification outcome.
+fn not_identified_py_err(status: &str, search_capped: bool, message: String) -> PyErr {
+    Python::attach(|py| {
+        let err: PyErr = NOT_IDENTIFIED_ERROR_CLASS
+            .get(py)
+            .and_then(|cls| cls.bind(py).call1((message.as_str(),)).ok())
+            .map_or_else(|| CausalCompileError::new_err(message.clone()), PyErr::from_value);
+        let value = err.value(py);
+        let _ =
+            value.setattr("reason_code", antecedent_core::reason_code!("effect_not_identified"));
+        let _ = value.setattr("identification_status", status);
+        let _ = value.setattr("search_capped", search_capped);
+        let _ = value.setattr("search_complete", !search_capped);
+        err
+    })
+}
+
 /// Parse Python `refute=` — bool or suite name (`"full"` / `"placebo"` / `"none"`).
 /// `None` (omitted kwarg) defaults to PlaceboAndRcc.
 pub(crate) fn suite_from_refute(obj: Option<&Bound<'_, PyAny>>) -> PyResult<RefuteSuite> {
@@ -453,6 +547,12 @@ impl IntoCausalPyErr for RustCausalError {
     fn into_antecedent_py_err(self) -> PyErr {
         match self {
             Self::Identify(e) => CausalIdentifyError::new_err(e.to_string()),
+            // A reason-coded estimator refusal is the one refusal class, as a Rust
+            // `Unsupported` refusal is.
+            Self::Estimate(
+                e @ (antecedent_estimate::EstimationError::Refused { .. }
+                | antecedent_estimate::EstimationError::TargetPopulation),
+            ) => unsupported_py_err(e.to_string()),
             Self::Estimate(e) => CausalEstimateError::new_err(e.to_string()),
             Self::Validate(e) => CausalValidateError::new_err(e.to_string()),
             Self::Discovery(e) => CausalDiscoveryError::new_err(e.to_string()),
@@ -461,19 +561,52 @@ impl IntoCausalPyErr for RustCausalError {
             Self::Attribution(e) => CausalAttributionError::new_err(e.to_string()),
             Self::Serialization(e) => CausalSerializationError::new_err(e.to_string()),
             Self::Data(e) => CausalDataError::new_err(e.to_string()),
-            Self::Graph(e) => CausalGraphError::new_err(e.to_string()),
+            Self::Graph(e) => {
+                let code = if matches!(e, GraphError::UnknownVariableName { .. }) {
+                    antecedent_core::reason_code!("unknown_variable")
+                } else {
+                    antecedent_core::reason_code!("graph_invalid")
+                };
+                with_reason_code(CausalGraphError::new_err(e.to_string()), code)
+            }
             Self::Design(e) => CausalDesignError::new_err(e.to_string()),
+            Self::Callback { name, message } => {
+                CausalDesignError::new_err(format!("callback {name}: {message}"))
+            }
             Self::State(e) => match &e {
                 antecedent::state::StateError::CacheBudget { .. } => {
                     CausalResourceError::new_err(e.to_string())
                 }
                 _ => CausalStateError::new_err(e.to_string()),
             },
-            Self::Schema(e) => CausalDataError::new_err(e.to_string()),
+            Self::Schema(e) => {
+                let err = CausalDataError::new_err(e.to_string());
+                match e {
+                    SchemaError::UnknownVariableName { .. }
+                    | SchemaError::UnknownVariableId { .. } => {
+                        with_reason_code(err, antecedent_core::reason_code!("unknown_variable"))
+                    }
+                    _ => err,
+                }
+            }
             // A structure that does not describe the table is a data problem, and
             // callers should be able to catch it as one rather than the root class.
-            Self::SchemaMismatch { detail } => CausalDataError::new_err(detail),
-            Self::Compile { message } => CausalCompileError::new_err(message),
+            Self::SchemaMismatch { detail } => with_reason_code(
+                CausalDataError::new_err(detail),
+                antecedent_core::reason_code!("schema_mismatch"),
+            ),
+            Self::Compile { message } => {
+                let code = antecedent_core::reason_code::split_prefix(&message)
+                    .map(|(code, _)| code.to_string());
+                let err = CausalCompileError::new_err(message);
+                match code {
+                    Some(code) => with_reason_code(err, &code),
+                    None => err,
+                }
+            }
+            Self::NotIdentified { status, search_capped, message } => {
+                not_identified_py_err(status.as_str(), search_capped, message)
+            }
             Self::Resource { message } => CausalResourceError::new_err(message),
             Self::ReviewRequired {
                 kind,
@@ -490,9 +623,21 @@ impl IntoCausalPyErr for RustCausalError {
                 message,
                 hint,
             ),
-            Self::Unsupported { message } => CausalUnsupportedError::new_err(message),
+            Self::Unsupported { message } => with_default_reason_code(
+                unsupported_py_err(message.to_string()),
+                antecedent_core::reason_code!("route_not_supported"),
+            ),
             Self::Support { id, message } => {
-                CausalUnsupportedError::new_err(format!("{id}: {message}"))
+                // A matrix refusal without a finer registered code carries the
+                // code of its cell verdict.
+                let code = match antecedent_core::reason_code::split_prefix(message) {
+                    Some((code, _)) => code,
+                    None if id.as_str() == "not_applicable" => {
+                        antecedent_core::reason_code!("cell_not_applicable")
+                    }
+                    None => antecedent_core::reason_code!("cell_not_licensed"),
+                };
+                with_default_reason_code(unsupported_py_err(format!("{id}: {message}")), code)
             }
             Self::Missing { field } => {
                 CausalCompileError::new_err(format!("missing required field: {field}"))
@@ -865,6 +1010,18 @@ pub(crate) struct AteAnalysisResult {
     mediation_total: Option<f64>,
     #[pyo3(get)]
     unit_effects: Option<Vec<f64>>,
+    /// Per-unit `(lower, upper)` intervals aligned with `unit_effects`.
+    #[pyo3(get)]
+    unit_effect_intervals: Option<Vec<(f64, f64)>>,
+    /// Level of `unit_effect_intervals`.
+    #[pyo3(get)]
+    unit_effect_intervals_level: Option<f64>,
+    /// Construction of `unit_effect_intervals`.
+    #[pyo3(get)]
+    unit_effect_intervals_method: Option<String>,
+    /// Per-unit extrapolation flags aligned with `unit_effects`.
+    #[pyo3(get)]
+    unit_extrapolative: Option<Vec<bool>>,
     #[pyo3(get)]
     assumptions: Vec<String>,
     #[pyo3(get)]
@@ -903,6 +1060,12 @@ pub(crate) struct AteAnalysisResult {
     mediation_identified_upper: Vec<Option<f64>>,
     #[pyo3(get)]
     mediation_joint_posterior: Option<bool>,
+    /// Trial-to-target transport estimate and its overlap diagnostics (TransportQuery).
+    #[pyo3(get)]
+    transport: Option<transport_interference_api::TransportSection>,
+    /// Randomized exposure contrast (InterferenceQuery).
+    #[pyo3(get)]
+    interference: Option<transport_interference_api::InterferenceSection>,
     /// Support-matrix evidence contract (`licensed` or `allowed_unlicensed`).
     #[pyo3(get)]
     evidence_status: Option<String>,
@@ -1043,6 +1206,10 @@ pub(crate) struct EstimateSection {
     /// Additive joint-response disclosure.
     #[pyo3(get)]
     interaction_structurally_zero: Option<bool>,
+    /// Counterfactual disclosure: the selected mechanisms admit no effect
+    /// modification, so every per-unit effect is the same number by construction.
+    #[pyo3(get)]
+    unit_effects_homogeneous: Option<bool>,
     /// Score-table metadata (n, folds, provenance). Full scores stay on the artifact.
     #[pyo3(get)]
     score_table: Option<ScoreTableSection>,
@@ -1066,6 +1233,9 @@ pub(crate) struct EstimateSection {
     candidate_selection: Option<CandidateSelectionSection>,
     #[pyo3(get)]
     evalue: Option<f64>,
+    /// Threshold the E-value refuter judged `evalue` against.
+    #[pyo3(get)]
+    evalue_threshold: Option<f64>,
     /// Interventional-distribution atoms with their probability intervals.
     /// `None` for non-distribution queries.
     #[pyo3(get)]
@@ -1203,11 +1373,47 @@ impl SharedStudySections {
     }
 }
 
+pub(crate) fn mediation_uncertainty_projection(
+    slice: &antecedent_estimate::TemporalMediationSlice,
+) -> (String, Option<f64>, Option<f64>, Option<f64>) {
+    match &slice.uncertainty {
+        antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+            standard_error,
+        }
+        | antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+            requested: standard_error,
+            ..
+        } => ("frequentist_pointwise".to_string(), *standard_error, None, None),
+        antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
+            requested, ..
+        } => (
+            "bayesian_pointwise".to_string(),
+            Some(requested.standard_deviation),
+            Some(requested.q025),
+            Some(requested.q975),
+        ),
+        _ => ("unavailable".to_string(), None, None, None),
+    }
+}
+
 pub(crate) fn shared_study_sections(
     names: &[String],
     result: &antecedent::StudyResult,
     estimator_id: String,
 ) -> PyResult<SharedStudySections> {
+    // A temporal effect's estimand ids are dense unfolded node ids; read them
+    // through the certificate's unfolding coordinates, not as schema ids (a
+    // dense id past the first window slice would otherwise name the wrong
+    // variable, or none).
+    let temporal_indexer = result.certificate.as_ref().and_then(|certificate| {
+        match (&certificate.query, &certificate.identification) {
+            (
+                antecedent_core::CausalQuery::TemporalEffect(_),
+                antecedent::Identification::Point { temporal_indexer, .. },
+            ) => temporal_indexer.as_ref(),
+            _ => None,
+        }
+    });
     let adjustment_set: Vec<String> = public_adjustment_set(
         result.identification.status,
         result
@@ -1215,7 +1421,13 @@ pub(crate) fn shared_study_sections(
             .adjustment_set
             .iter()
             .map(|id| {
-                names.get(id.as_usize()).cloned().unwrap_or_else(|| format!("var{}", id.raw()))
+                let variable = temporal_indexer
+                    .and_then(|indexer| indexer.key_of(id.raw()).ok())
+                    .map_or(*id, |key| key.variable);
+                names
+                    .get(variable.as_usize())
+                    .cloned()
+                    .unwrap_or_else(|| format!("var{}", variable.raw()))
             })
             .collect(),
     );
@@ -1278,6 +1490,7 @@ pub(crate) fn shared_study_sections(
             .as_ref()
             .map(|r| r.interaction_structurally_zero)
             .or(Some(result.estimate.interaction_structurally_zero)),
+        unit_effects_homogeneous: Some(result.estimate.unit_effects_homogeneous),
         score_table: result.estimate.score_table.as_ref().map(|t| ScoreTableSection {
             n_rows: t.n_rows,
             n_folds: t.n_folds,
@@ -1322,6 +1535,7 @@ pub(crate) fn shared_study_sections(
                 })
             }),
         evalue: result.estimate.evalue,
+        evalue_threshold: result.estimate.evalue_threshold,
         distribution_atoms,
         mean_interval,
     };
@@ -2213,10 +2427,73 @@ fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+/// The study builder's omitted-default table, read from the builder itself.
+///
+/// `bootstrap` applies on resampling routes (the builder omits it on static and
+/// Bayesian response surfaces and counterfactuals); `refute` is downgraded to
+/// `none` on a cell that does not license it; `latency` is never injected.
+#[pyfunction]
+fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
+    let dict = PyDict::new(py);
+    dict.set_item("bootstrap", antecedent::StudyBuilder::OMITTED_BOOTSTRAP)?;
+    dict.set_item(
+        "refute",
+        match antecedent::StudyBuilder::OMITTED_REFUTE {
+            RefuteSuite::None => "none",
+            RefuteSuite::Cheap => "cheap",
+            RefuteSuite::PlaceboAndRcc => "placebo",
+            RefuteSuite::Full => "full",
+        },
+    )?;
+    dict.set_item("latency", py.None())?;
+    // Draw budgets belong to the Bayesian backend constructors.
+    dict.set_item("n_draws", BayesianConfig::laplace().n_draws)?;
+    dict.set_item("n_draws_hmc", BayesianConfig::hmc().n_draws)?;
+    Ok(dict.into())
+}
+
+#[pyfunction]
+fn identification_status_names() -> Vec<String> {
+    use antecedent_core::IdentificationStatus as S;
+    fn name(status: S) -> String {
+        match status {
+            S::NonparametricallyIdentified
+            | S::IdentifiedUnderParametricRestrictions
+            | S::IdentifiedUnderPriorRestrictions
+            | S::PartiallyIdentified
+            | S::GraphDependent
+            | S::NotIdentified => format!("{status:?}"),
+        }
+    }
+    [
+        S::NonparametricallyIdentified,
+        S::IdentifiedUnderParametricRestrictions,
+        S::IdentifiedUnderPriorRestrictions,
+        S::PartiallyIdentified,
+        S::GraphDependent,
+        S::NotIdentified,
+    ]
+    .into_iter()
+    .map(name)
+    .collect()
+}
+
+/// Registered runtime-refusal reason codes (`parity/reason_codes.toml`), the
+/// list `CausalUnsupportedError(reason_code=...)` validates against.
+#[pyfunction]
+fn runtime_refusal_codes() -> Vec<&'static str> {
+    antecedent_core::reason_code::RUNTIME_REFUSAL_CODES.to_vec()
+}
+
 fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_float64_columns, m)?)?;
     m.add_function(wrap_pyfunction!(load_float64_arrow_c_columns, m)?)?;
     m.add_function(wrap_pyfunction!(set_review_error_class, m)?)?;
+    m.add_function(wrap_pyfunction!(set_unsupported_error_class, m)?)?;
+    m.add_function(wrap_pyfunction!(set_not_identified_error_class, m)?)?;
+    m.add_function(wrap_pyfunction!(omitted_defaults, m)?)?;
+    m.add_function(wrap_pyfunction!(identification_status_names, m)?)?;
+    m.add_function(wrap_pyfunction!(runtime_refusal_codes, m)?)?;
     ate_api::register(m)?;
     discovery_api::register(m)?;
     temporal_api::register(m)?;

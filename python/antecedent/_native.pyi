@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -15,6 +15,9 @@ __build_optimized__: bool
 
 def temporal_response_spec() -> dict[str, Any]:
     """Licensed temporal-response query policy from Rust ``TemporalResponseSpec::license``."""
+
+def runtime_refusal_codes() -> list[str]:
+    """Registered runtime-refusal reason codes (``parity/reason_codes.toml``)."""
 
 class CausalError(Exception): ...
 class CausalIdentifyError(CausalError): ...
@@ -53,6 +56,29 @@ class CausalReviewError(CausalError):
 def set_review_error_class(cls: type) -> None:
     """Register the Python class native code instantiates for review errors."""
 
+def set_unsupported_error_class(cls: type) -> None:
+    """Register the Python class native code instantiates for refusals."""
+
+def set_not_identified_error_class(cls: type) -> None:
+    """Register the Python class native code instantiates for not-identified refusals."""
+
+def accept_rpcmci(
+    names: list[str],
+    columns: Sequence[Any],
+    *,
+    regimes: list[int],
+    max_lag: int = 1,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    seed: int = 1,
+    ci: CiArg = None,
+    weights: Sequence[Any] | None = None,
+    threads: int = 1,
+    max_cond_size: int = 2,
+    accept_discovered: bool = True,
+) -> Any:
+    """Run RPCMCI over labelled regimes and return the reviewed accepted graph."""
+
 class CausalUnsupportedError(CausalError): ...
 class CausalCancelledError(CausalError): ...
 
@@ -80,6 +106,10 @@ class AteAnalysisResult:
     structural_identified_set_interval_truncated: bool | None
     certificate_json: str | None
     unit_effects: list[float] | None
+    unit_effect_intervals: list[tuple[float, float]] | None
+    unit_effect_intervals_level: float | None
+    unit_effect_intervals_method: str | None
+    unit_extrapolative: list[bool] | None
     assumptions: list[str]
     support_diagnostics: list[str]
     ate: float
@@ -171,6 +201,8 @@ class AteAnalysisResult:
     mediation_identified_lower: list[float | None]
     mediation_identified_upper: list[float | None]
     mediation_joint_posterior: bool | None
+    transport: TransportSection | None
+    interference: InterferenceSection | None
     evidence_status: str | None
     allowlist_reason: str | None
     allowlist_parent: str | None
@@ -249,6 +281,25 @@ class TrialTransportResult:
     treatment_extreme_weight_count: int
 
 class InterferenceAnalysisResult:
+    horvitz_thompson: float
+    hajek: float
+    conservative_variance: float
+    from_probability_method: str
+    to_probability_method: str
+    minimum_exposure_probability: float
+
+class TransportSection:
+    ipw: float
+    selection_probability_min: float
+    selection_probability_max: float
+    selection_effective_sample_size: float
+    selection_extreme_weight_count: int
+    treatment_probability_min: float
+    treatment_probability_max: float
+    treatment_effective_sample_size: float
+    treatment_extreme_weight_count: int
+
+class InterferenceSection:
     horvitz_thompson: float
     hajek: float
     conservative_variance: float
@@ -352,6 +403,7 @@ class EstimateSection:
     exceedance_cdf: list[float] | None
     monotone_rearranged: bool
     interaction_structurally_zero: bool | None
+    unit_effects_homogeneous: bool | None
     score_table: ScoreTableSection | None
     joint_covariance: list[list[float]] | None
     score_inference: ScoreInferenceSection | None
@@ -363,6 +415,7 @@ class EstimateSection:
     family_contrast_interval: tuple[float, float, float] | None
     candidate_selection: CandidateSelectionSection | None
     evalue: float | None
+    evalue_threshold: float | None
     distribution_atoms: list[DistributionAtomSection] | None
     mean_interval: ProbabilityIntervalSection | None
 
@@ -529,6 +582,9 @@ class PcmciDiscoveryResult:
     cpdag_undirected_edges: int
     graph_edges: list[GraphEdge]
 
+    def accepted_graph(self, *, accept_discovered: bool = True) -> Any:
+        """The reviewed accepted graph; refuses while edges are pending."""
+
 class RpcmciDiscoverySummary:
     algorithm: str
     n_regimes: int
@@ -644,62 +700,90 @@ class AnalysisResult:
     structural_identified_set_interval_level: float | None
     structural_identified_set_interval_method: str | None
     structural_identified_set_interval_truncated: bool | None
+    adjustment_set: list[str]
+    assumption_count: int
+    derivation_step_count: int
+    estimator_id: str
 
 TemporalAnalysisResult = AnalysisResult
 
 class PreparedAnalysis:
-    @staticmethod
-    def prepare_derivative(
+    def contract(
+        self,
+    ) -> dict[str, str]: ...
+    def estimate(
+        self,
         names: list[str],
         columns: Sequence[Any],
-        edges: list[tuple[str, str]],
-        kind: str,
-        treatments: list[str],
-        outcomes: list[str],
         *,
-        at: list[float] | None = None,
-        direction: list[float] | None = None,
-        order: int = 1,
-        scale: str = "identity",
-        weighting: str = "observed",
-        bandwidth: float | None = None,
-        accepted: bool = False,
         seed: int = 1,
         threads: int = 1,
-        inference: str | None = None,
-        n_draws: int = 256,
-        prior_scale: float = 10.0,
-    ) -> PreparedAnalysis: ...
-    @staticmethod
-    def prepare_static_kind(
+        cancel: CancellationToken | None = None,
+        on_progress: Callable[..., Any] | None = None,
+        on_stage: Callable[..., Any] | None = None,
+    ) -> AteAnalysisResult: ...
+    def estimate_bound(
+        self,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        cancel: CancellationToken | None = None,
+        on_progress: Callable[..., Any] | None = None,
+        on_stage: Callable[..., Any] | None = None,
+    ) -> AteAnalysisResult: ...
+    def estimate_frame(
+        self,
         names: list[str],
         columns: Sequence[Any],
-        edges: list[tuple[str, str]],
-        kind: str,
-        treatment: str,
-        outcome: str,
+        frame: dict[str, Any] | None,
         *,
-        mediators: list[str] = ...,
-        contrast: str = "mediated",
-        control_level: float = 0.0,
-        active_level: float = 1.0,
-        refute: Any = None,
-        bootstrap: int = 0,
-        accepted: bool = False,
+        response: bool = False,
+        refresh: bool = False,
         seed: int = 1,
         threads: int = 1,
-        inference: str | None = None,
-        n_draws: int = 256,
-        prior_scale: float = 10.0,
-        prior_artifact: bytes | None = None,
-        prior_mapping: dict[str, Any] | None = None,
-        composed_prior: dict[str, Any] | None = None,
-    ) -> PreparedAnalysis: ...
+        cancel: CancellationToken | None = None,
+        on_progress: Callable[..., Any] | None = None,
+        on_stage: Callable[..., Any] | None = None,
+    ) -> Any: ...
+    def estimate_response(
+        self,
+        names: list[str],
+        columns: Sequence[Any],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        cancel: CancellationToken | None = None,
+        on_progress: Callable[..., Any] | None = None,
+        on_stage: Callable[..., Any] | None = None,
+    ) -> ResponseAnalysisResult: ...
+    def estimate_response_bound(
+        self,
+        *,
+        seed: int = 1,
+        threads: int = 1,
+        cancel: CancellationToken | None = None,
+        on_progress: Callable[..., Any] | None = None,
+        on_stage: Callable[..., Any] | None = None,
+    ) -> ResponseAnalysisResult: ...
+    def execution_contract(
+        self,
+    ) -> dict[str, str]: ...
+    def export_artifact(
+        self,
+        *,
+        artifact_id: str = "prepared-result",
+        payload: str = "result",
+    ) -> bytes: ...
+    def export_contracted_artifact(
+        self,
+        *,
+        artifact_id: str = "prepared-contract",
+    ) -> bytes: ...
     @staticmethod
     def identify_existing(
         names: list[str],
         edges: list[tuple[str, str]],
-        kind: str,
+        kind: Any,
         treatments: list[str],
         outcomes: list[str],
         *,
@@ -713,107 +797,61 @@ class PreparedAnalysis:
         scale: str = "identity",
         weighting: str = "observed",
     ) -> tuple[str, str, list[str], str]: ...
+    def inspect(
+        self,
+    ) -> dict[str, str]: ...
+    @property
+    def names(self) -> list[str]: ...
+    def plan_summary(
+        self,
+    ) -> dict[str, str]: ...
     @staticmethod
     def prepare(
         names: list[str],
         columns: Sequence[Any],
         edges: list[tuple[str, str]],
-        treatment: str,
-        outcome: str,
+        treatment: Any,
+        outcome: Any,
         *,
         control_level: float = 0.0,
         active_level: float = 1.0,
         identifier: str | None = None,
         estimator: str | None = None,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        prior_artifact: bytes | None = None,
-        prior_mapping: dict[str, Any] | None = None,
-        composed_prior: dict[str, Any] | None = None,
-        refute: bool | str | None = None,
-        seed: int = 1,
-        bootstrap: int | None = 199,
-        threads: int = 1,
-        latency: str | None = None,
-        accepted: bool = False,
+        estimator_config: Mapping[str, Any] | None = None,
         outcome_functional: dict[str, Any] | None = None,
+        running_variable: str | None = None,
+        cutoff: float | None = None,
+        bandwidth: float | None = None,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
-    def prepare_tiered(
+    def prepare_class_ate(
         names: list[str],
         columns: Sequence[Any],
-        tiers: list[list[str]],
-        within_tier: str,
-        treatment: str,
-        outcome: str,
+        graph: Any,
+        treatment: Any,
+        outcome: Any,
         *,
         control_level: float = 0.0,
         active_level: float = 1.0,
+        identifier: str | None = None,
         estimator: str | None = None,
-        refute: bool | str | None = None,
-        seed: int = 1,
-        bootstrap: int = 0,
-        threads: int = 1,
-        latency: str | None = None,
+        estimator_config: Mapping[str, Any] | None = None,
         outcome_functional: dict[str, Any] | None = None,
-    ) -> PreparedAnalysis: ...
-    @staticmethod
-    def prepare_pag(
-        names: list[str],
-        columns: Sequence[Any],
-        graph: Pag,
-        treatment: str,
-        outcome: str,
-        *,
-        control_level: float = 0.0,
-        active_level: float = 1.0,
-        identifier: str | None = None,
-        estimator: str | None = None,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        prior_artifact: bytes | None = None,
-        prior_mapping: dict[str, Any] | None = None,
-        composed_prior: dict[str, Any] | None = None,
-        refute: bool | str | None = None,
-        seed: int = 1,
-        bootstrap: int = 199,
-        threads: int = 1,
-        latency: str | None = None,
         accepted: bool = False,
-    ) -> PreparedAnalysis: ...
-    @staticmethod
-    def prepare_cpdag(
-        names: list[str],
-        columns: Sequence[Any],
-        graph: Cpdag,
-        treatment: str,
-        outcome: str,
-        *,
-        control_level: float = 0.0,
-        active_level: float = 1.0,
-        identifier: str | None = None,
-        estimator: str | None = None,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        prior_artifact: bytes | None = None,
-        prior_mapping: dict[str, Any] | None = None,
-        composed_prior: dict[str, Any] | None = None,
-        refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 199,
         threads: int = 1,
-        latency: str | None = None,
-        accepted: bool = False,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
-    def prepare_pag_response(
+    def prepare_class_response(
         names: list[str],
         columns: Sequence[Any],
-        graph: Pag,
-        kind: str,
+        graph: Any,
+        kind: Any,
         treatments: list[str],
         outcomes: list[str],
         *,
@@ -822,134 +860,348 @@ class PreparedAnalysis:
         intervention_parameters: list[list[float]] | None = None,
         identifier: str | None = None,
         estimator: str | None = None,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
+        response_options: dict[str, Any] | None = None,
+        accepted: bool = False,
         seed: int = 1,
         threads: int = 1,
-        latency: str | None = None,
-        accepted: bool = False,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
-    def prepare_cpdag_conditional(
+    def prepare_conditional(
         names: list[str],
         columns: Sequence[Any],
-        graph: Cpdag,
-        treatment: str,
-        outcome: str,
-        modifier: str,
+        edges: list[tuple[str, str]],
+        treatment: Any,
+        outcome: Any,
+        modifier: Any,
         *,
+        graph: Any = None,
         control_level: float = 0.0,
         active_level: float = 1.0,
         identifier: str | None = None,
         estimator: str | None = None,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        refute: bool | str | None = None,
-        seed: int = 1,
-        bootstrap: int = 199,
-        threads: int = 1,
-        latency: str | None = None,
-        accepted: bool = False,
         outcome_functional: dict[str, Any] | None = None,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
-    def prepare_pag_conditional(
+    def prepare_dbn_posterior_mediation(
         names: list[str],
         columns: Sequence[Any],
-        graph: Pag,
-        treatment: str,
-        outcome: str,
-        modifier: str,
+        treatment: Any,
+        mediator: Any,
+        outcome: Any,
         *,
+        contrast: str = "mediated",
         control_level: float = 0.0,
         active_level: float = 1.0,
-        identifier: str | None = None,
-        estimator: str | None = None,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        refute: bool | str | None = None,
+        horizons: list[int] | None = None,
+        max_lag: int = 1,
+        force_mcmc: bool = False,
+        n_chains: int = 2,
+        n_warmup: int = 200,
+        mcmc_draws: int = 400,
+        posterior: GraphPosterior | None = None,
+        frame: dict[str, Any] | None = None,
         seed: int = 1,
-        bootstrap: int = 199,
         threads: int = 1,
-        latency: str | None = None,
-        accepted: bool = False,
-        outcome_functional: dict[str, Any] | None = None,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
-    def prepare_cpdag_response(
+    def prepare_dbn_posterior_temporal(
         names: list[str],
         columns: Sequence[Any],
-        graph: Cpdag,
-        kind: str,
+        treatment: Any,
+        outcome: Any,
+        *,
+        policy: str = "pulse",
+        window: tuple[int, int] | None = None,
+        treatment_lag: int = 1,
+        horizon_steps: int = 1,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        max_history_lag: int | None = None,
+        max_lag: int = 1,
+        force_mcmc: bool = False,
+        n_chains: int = 2,
+        n_warmup: int = 200,
+        mcmc_draws: int = 400,
+        posterior: GraphPosterior | None = None,
+        frame: dict[str, Any] | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_derivative(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, str]],
+        kind: Any,
         treatments: list[str],
         outcomes: list[str],
         *,
-        grid: list[float] | None = None,
-        intervention_kinds: list[str] | None = None,
-        intervention_parameters: list[list[float]] | None = None,
-        identifier: str | None = None,
-        estimator: str | None = None,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
+        at: list[float] | None = None,
+        direction: list[float] | None = None,
+        order: int = 1,
+        scale: str = "identity",
+        weighting: str = "observed",
+        response_options: dict[str, Any] | None = None,
+        accepted: bool = False,
         seed: int = 1,
         threads: int = 1,
-        latency: str | None = None,
-        accepted: bool = False,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
-    def prepare_admg(
+    def prepare_distribution(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, str]],
+        outcome: Any,
+        interventions: dict[str, float],
+        *,
+        conditioning: list[str] | None = None,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_transport(
         names: list[str],
         columns: Sequence[Any],
         graph: Admg,
-        treatment: str,
+        selections: list[str],
+        source_population: str,
+        target_population: str,
+        source_experiments: list[str],
+        kind: str,
+        treatments: list[str],
+        outcomes: list[str],
+        trial: str,
+        selection_probability: str,
+        treatment_probability: str,
+        *,
+        grid: list[float] | None = None,
+        at: list[float] | None = None,
+        direction: list[float] | None = None,
+        order: int = 1,
+        scale: str = "identity",
+        weighting: str = "observed",
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_interference(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, str]],
         outcome: str,
+        network: list[tuple[int, int, float]],
+        realized_assignment: list[bool],
+        assignment_kind: str,
+        assignment_probabilities: list[float],
+        treated: int,
+        clusters: list[int],
+        treated_clusters: int,
+        exposure: str,
+        from_level: tuple[float, float],
+        to_level: tuple[float, float],
+        *,
+        probability_draws: int = 10_000,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_graph_posterior_ate(
+        names: list[str],
+        columns: Sequence[Any],
+        treatment: Any,
+        outcome: Any,
         *,
         control_level: float = 0.0,
         active_level: float = 1.0,
+        estimator_config: Mapping[str, Any] | None = None,
+        posterior: GraphPosterior | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_graph_posterior_conditional(
+        names: list[str],
+        columns: Sequence[Any],
+        treatment: Any,
+        outcome: Any,
+        modifier: Any,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        outcome_functional: dict[str, Any] | None = None,
+        posterior: GraphPosterior | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_graph_posterior_intervention_response(
+        names: list[str],
+        columns: Sequence[Any],
+        outcome: Any,
+        treatments: list[str],
+        intervention_kinds: list[str] | None,
+        intervention_parameters: list[list[float]] | None,
+        *,
+        posterior: GraphPosterior | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_graph_posterior_response(
+        names: list[str],
+        columns: Sequence[Any],
+        treatment: Any,
+        outcome: Any,
+        grid: list[float] | None,
+        *,
+        response_options: dict[str, Any] | None = None,
+        posterior: GraphPosterior | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_intervention_response(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, str]],
+        outcome: Any,
+        treatments: list[str],
+        intervention_kinds: list[str] | None,
+        intervention_parameters: list[list[float]] | None,
+        *,
         identifier: str | None = None,
         estimator: str | None = None,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        refute: bool | str | None = None,
-        seed: int = 1,
-        bootstrap: int = 199,
-        threads: int = 1,
-        latency: str | None = None,
+        outcome_functional: dict[str, Any] | None = None,
         accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_path_specific(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, str]],
+        treatment: Any,
+        outcome: Any,
+        *,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        path_nodes: list[str] | None = None,
+        max_paths: int = 64,
+        max_len: int = 16,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_response(
         names: list[str],
         columns: Sequence[Any],
         edges: list[tuple[str, str]],
-        treatment: str,
-        outcome: str,
-        grid: list[float],
+        treatment: Any,
+        outcome: Any,
+        grid: list[float] | None,
         *,
         identifier: str | None = None,
         estimator: str | None = None,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        prior_artifact: bytes | None = None,
-        prior_mapping: dict[str, Any] | None = None,
-        composed_prior: dict[str, Any] | None = None,
+        accepted: bool = False,
+        response_options: dict[str, Any] | None = None,
         seed: int = 1,
         threads: int = 1,
-        latency: str | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_static_kind(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, str]],
+        kind: Any,
+        treatment: Any,
+        outcome: Any,
+        *,
+        mediators: list[str] = ...,
+        contrast: str = "mediated",
+        control_level: float = 0.0,
+        active_level: float = 1.0,
         accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_temporal_effect(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, int, str, int]],
+        treatment: Any,
+        outcome: Any,
+        *,
+        policy: str = "pulse",
+        window: tuple[int, int] | None = None,
+        treatment_lag: int = 1,
+        horizon_steps: int = 1,
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        max_history_lag: int | None = None,
+        accepted: bool = False,
+        class_graph: Any = None,
+        class_prior_ordered: list[float] | None = None,
+        class_prior_pairs: list[tuple[int, float]] | None = None,
+        max_completions: str | None = None,
+        frame: dict[str, Any] | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_temporal_mediation(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, int, str, int]],
+        treatment: Any,
+        mediator: Any,
+        outcome: Any,
+        *,
+        contrast: str = "mediated",
+        control_level: float = 0.0,
+        active_level: float = 1.0,
+        horizons: list[int] | None = None,
+        accepted: bool = False,
+        class_graph: Any = None,
+        class_prior_ordered: list[float] | None = None,
+        class_prior_pairs: list[tuple[int, float]] | None = None,
+        max_completions: str | None = None,
+        frame: dict[str, Any] | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_temporal_response(
         names: list[str],
         columns: Sequence[Any],
         edges: list[tuple[str, int, str, int]],
-        kind: str,
+        kind: Any,
         treatments: list[str],
         outcomes: list[str],
         *,
@@ -957,19 +1209,14 @@ class PreparedAnalysis:
         intervention_kinds: list[str] | None = None,
         intervention_parameters: list[list[float]] | None = None,
         horizons: list[int],
-        policy: str = "pulse",
-        treatment_lag: int = 1,
-        max_history_lag: int | None = None,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        prior_artifact: bytes | None = None,
-        prior_mapping: dict[str, Any] | None = None,
-        composed_prior: dict[str, Any] | None = None,
-        seed: int = 1,
-        bootstrap: int | None = None,
-        threads: int = 1,
+        policy: Any = ...,
+        treatment_lag: Any = ...,
+        max_history_lag: str | None = None,
         accepted: bool = False,
+        class_graph: Any = None,
+        class_prior_ordered: list[float] | None = None,
+        class_prior_pairs: list[tuple[int, float]] | None = None,
+        max_completions: str | None = None,
         observation_kind: str | None = None,
         latent: str | None = None,
         observed: str | None = None,
@@ -979,375 +1226,89 @@ class PreparedAnalysis:
         upper: str | None = None,
         indicator: str | None = None,
         assumption_kind: str | None = None,
-        assumption_variables: list[str] = [],
+        assumption_variables: list[str] = ...,
         structural_model: str | None = None,
-        class_graph: TemporalCpdag | TemporalPag | None = None,
-        class_prior_ordered: list[float] | None = None,
-        class_prior_pairs: list[tuple[int, float]] | None = None,
-        max_completions: int | None = None,
-    ) -> PreparedAnalysis: ...
-    @staticmethod
-    def prepare_temporal_effect(
-        names: list[str],
-        columns: Sequence[Any],
-        edges: list[tuple[str, int, str, int]],
-        treatment: str,
-        outcome: str,
-        *,
-        policy: str = "pulse",
-        window: tuple[int, int] | None = None,
-        treatment_lag: int = 1,
-        horizon_steps: int = 1,
-        active_level: float = 1.0,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        prior_artifact: bytes | None = None,
-        prior_mapping: dict[str, Any] | None = None,
-        composed_prior: dict[str, Any] | None = None,
-        refute: bool | str | None = None,
+        frame: dict[str, Any] | None = None,
         seed: int = 1,
-        bootstrap: int = 0,
         threads: int = 1,
-        accepted: bool = False,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
-    def prepare_temporal_cpdag_effect(
+    def prepare_tiered(
         names: list[str],
         columns: Sequence[Any],
-        graph: TemporalCpdag,
-        treatment: str,
-        outcome: str,
-        *,
-        policy: str = "pulse",
-        window: tuple[int, int] | None = None,
-        treatment_lag: int = 1,
-        horizon_steps: int = 1,
-        active_level: float = 1.0,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        refute: bool | str | None = None,
-        seed: int = 1,
-        bootstrap: int = 0,
-        threads: int = 1,
-        accepted: bool = False,
-        class_prior_ordered: list[float] | None = None,
-        class_prior_pairs: list[tuple[int, float]] | None = None,
-        max_completions: int | None = None,
-        prior_artifact: bytes | None = None,
-        prior_mapping: dict[str, Any] | None = None,
-        composed_prior: dict[str, Any] | None = None,
-    ) -> PreparedAnalysis: ...
-    @staticmethod
-    def prepare_temporal_pag_effect(
-        names: list[str],
-        columns: Sequence[Any],
-        graph: TemporalPag,
-        treatment: str,
-        outcome: str,
-        *,
-        policy: str = "pulse",
-        window: tuple[int, int] | None = None,
-        treatment_lag: int = 1,
-        horizon_steps: int = 1,
-        active_level: float = 1.0,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        refute: bool | str | None = None,
-        seed: int = 1,
-        bootstrap: int = 0,
-        threads: int = 1,
-        accepted: bool = False,
-        class_prior_ordered: list[float] | None = None,
-        class_prior_pairs: list[tuple[int, float]] | None = None,
-        max_completions: int | None = None,
-        prior_artifact: bytes | None = None,
-        prior_mapping: dict[str, Any] | None = None,
-        composed_prior: dict[str, Any] | None = None,
-    ) -> PreparedAnalysis: ...
-    @staticmethod
-    def prepare_temporal_mediation(
-        names: list[str],
-        columns: Sequence[Any],
-        edges: list[tuple[str, int, str, int]],
-        treatment: str,
-        mediator: str,
-        outcome: str,
-        *,
-        contrast: str = "mediated",
-        control_level: float = 0.0,
-        active_level: float = 1.0,
-        horizons: list[int] | None = None,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        refute: bool | str | None = None,
-        seed: int = 1,
-        bootstrap: int = 0,
-        threads: int = 1,
-        accepted: bool = False,
-        class_graph: TemporalCpdag | TemporalPag | None = None,
-        class_prior_ordered: list[float] | None = None,
-        class_prior_pairs: list[tuple[int, float]] | None = None,
-        max_completions: int | None = None,
-    ) -> PreparedAnalysis: ...
-    @staticmethod
-    def prepare_graph_posterior_ate(
-        names: list[str],
-        columns: Sequence[Any],
-        treatment: str,
-        outcome: str,
+        tiers: list[list[str]],
+        within_tier: Any,
+        treatment: Any,
+        outcome: Any,
         *,
         control_level: float = 0.0,
         active_level: float = 1.0,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        refute: bool | str | None = None,
-        seed: int = 1,
-        bootstrap: int = 0,
-        threads: int = 1,
-        posterior: GraphPosterior | None = None,
-    ) -> PreparedAnalysis: ...
-    @staticmethod
-    def prepare_dbn_posterior_temporal(
-        names: list[str],
-        columns: Sequence[Any],
-        treatment: str,
-        outcome: str,
-        *,
-        policy: str = "pulse",
-        window: tuple[int, int] | None = None,
-        treatment_lag: int = 1,
-        horizon_steps: int = 1,
-        active_level: float = 1.0,
-        max_lag: int = 1,
-        force_mcmc: bool = False,
-        n_chains: int = 2,
-        n_warmup: int = 200,
-        mcmc_draws: int = 400,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        refute: bool | str | None = None,
-        seed: int = 1,
-        bootstrap: int = 0,
-        threads: int = 1,
-        posterior: GraphPosterior | None = None,
-    ) -> PreparedAnalysis: ...
-    @staticmethod
-    def prepare_dbn_posterior_mediation(
-        names: list[str],
-        columns: Sequence[Any],
-        treatment: str,
-        mediator: str,
-        outcome: str,
-        *,
-        contrast: str = "mediated",
-        control_level: float = 0.0,
-        active_level: float = 1.0,
-        horizons: Sequence[int] | None = None,
-        max_lag: int = 1,
-        force_mcmc: bool = False,
-        n_chains: int = 2,
-        n_warmup: int = 200,
-        mcmc_draws: int = 400,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        refute: bool | str | None = None,
-        seed: int = 1,
-        bootstrap: int = 0,
-        threads: int = 1,
-        posterior: GraphPosterior | None = None,
-    ) -> PreparedAnalysis: ...
-    @staticmethod
-    def prepare_conditional(
-        names: list[str],
-        columns: Sequence[Any],
-        edges: list[tuple[str, str]],
-        treatment: str,
-        outcome: str,
-        modifier: str,
-        *,
-        control_level: float = 0.0,
-        active_level: float = 1.0,
-        refute: bool | str | None = None,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        prior_artifact: bytes | None = None,
-        prior_mapping: dict[str, Any] | None = None,
-        composed_prior: dict[str, Any] | None = None,
-        seed: int = 1,
-        bootstrap: int = 199,
-        threads: int = 1,
-        latency: str | None = None,
-        accepted: bool = False,
+        estimator: str | None = None,
+        estimator_config: Mapping[str, Any] | None = None,
         outcome_functional: dict[str, Any] | None = None,
-    ) -> PreparedAnalysis: ...
-    @staticmethod
-    def prepare_path_specific(
-        names: list[str],
-        columns: Sequence[Any],
-        edges: list[tuple[str, str]],
-        treatment: str,
-        outcome: str,
-        *,
-        control_level: float = 0.0,
-        active_level: float = 1.0,
-        path_nodes: list[str] | None = None,
-        max_paths: int = 64,
-        max_len: int = 16,
-        refute: bool | str | None = None,
         seed: int = 1,
-        bootstrap: int = 199,
         threads: int = 1,
-        latency: str | None = None,
-        accepted: bool = False,
-        inference: str | None = None,
-        n_draws: int = 256,
-        prior_scale: float = 10.0,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_tiered_intervention_response(
         names: list[str],
         columns: Sequence[Any],
         tiers: list[list[str]],
-        within_tier: str,
-        outcome: str,
+        within_tier: Any,
+        outcome: Any,
         treatments: list[str],
-        intervention_kinds: list[str],
-        intervention_parameters: list[list[float]],
+        intervention_kinds: list[str] | None,
+        intervention_parameters: list[list[float]] | None,
         *,
         outcome_functional: dict[str, Any] | None = None,
-        refute: bool | str | None = None,
         seed: int = 1,
         threads: int = 1,
-        latency: str | None = None,
+        options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
-    @staticmethod
-    def prepare_intervention_response(
-        names: list[str],
-        columns: Sequence[Any],
-        edges: list[tuple[str, str]],
-        outcome: str,
-        treatments: list[str],
-        intervention_kinds: list[str],
-        intervention_parameters: list[list[float]],
-        *,
-        outcome_functional: dict[str, Any] | None = None,
-        estimator: str | None = None,
-        inference: str | None = None,
-        n_draws: int = 1000,
-        prior_scale: float = 10.0,
-        refute: bool | str | None = None,
-        seed: int = 1,
-        threads: int = 1,
-        latency: str | None = None,
-        accepted: bool = False,
-    ) -> PreparedAnalysis: ...
-    @staticmethod
-    def prepare_distribution(
-        names: list[str],
-        columns: Sequence[Any],
-        edges: list[tuple[str, str]],
-        outcome: str,
-        interventions: dict[str, float],
-        *,
-        conditioning: list[str] | None = None,
-        refute: bool | str | None = None,
-        seed: int = 1,
-        threads: int = 1,
-        latency: str | None = None,
-        accepted: bool = False,
-        inference: str | None = None,
-        n_draws: int = 256,
-        prior_scale: float = 10.0,
-    ) -> PreparedAnalysis: ...
-    def export_artifact(
-        self, *, artifact_id: str = "prepared-result", payload: str = "result"
-    ) -> bytes: ...
-    def plan_summary(self) -> dict[str, str]: ...
-    def retarget(
+    def preview_transform(
         self,
-        weights: list[float],
-        depends_on: list[str],
+        intent: Any,
+    ) -> dict[str, str]: ...
+    def rebind_validators(
+        self,
+        validators: Any,
+    ) -> None: ...
+    def reexecute_retarget(
+        self,
+        artifact: bytes,
         *,
         seed: int = 1,
         threads: int = 1,
     ) -> AteAnalysisResult: ...
-    def estimate(
-        self,
-        names: list[str],
-        columns: Sequence[NDArray[np.float64]],
-        *,
-        seed: int = 1,
-        threads: int = 1,
-    ) -> AteAnalysisResult: ...
-    def estimate_arrow_c(
-        self,
-        names: list[str],
-        columns: Sequence[Any],
-        *,
-        seed: int = 1,
-        threads: int = 1,
-    ) -> AteAnalysisResult: ...
-    def estimate_response(
-        self,
-        names: list[str],
-        columns: Sequence[NDArray[np.float64]],
-        *,
-        seed: int = 1,
-        threads: int = 1,
-    ) -> Any: ...
-    def estimate_response_arrow_c(
-        self,
-        names: list[str],
-        columns: Sequence[Any],
-        *,
-        seed: int = 1,
-        threads: int = 1,
-    ) -> Any: ...
     def refresh(
         self,
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
-        *,
-        seed: int = 1,
-        threads: int = 1,
-    ) -> AteAnalysisResult: ...
-    def refresh_arrow_c(
-        self,
-        names: list[str],
         columns: Sequence[Any],
         *,
         seed: int = 1,
         threads: int = 1,
+        cancel: CancellationToken | None = None,
+        on_progress: Callable[..., Any] | None = None,
+        on_stage: Callable[..., Any] | None = None,
     ) -> AteAnalysisResult: ...
     def refresh_response(
         self,
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
-        *,
-        seed: int = 1,
-        threads: int = 1,
-    ) -> Any: ...
-    def refresh_response_arrow_c(
-        self,
-        names: list[str],
         columns: Sequence[Any],
         *,
         seed: int = 1,
         threads: int = 1,
-    ) -> Any: ...
+        cancel: CancellationToken | None = None,
+        on_progress: Callable[..., Any] | None = None,
+        on_stage: Callable[..., Any] | None = None,
+    ) -> ResponseAnalysisResult: ...
     def refute(
         self,
         names: list[str],
-        columns: Sequence[NDArray[np.float64]],
-        suite: bool | str,
+        columns: Sequence[Any],
+        suite: Any,
         *,
         seed: int = 1,
         threads: int = 1,
@@ -1357,14 +1318,29 @@ class PreparedAnalysis:
         self,
         names: list[str],
         columns: Sequence[Any],
-        suite: bool | str,
+        suite: Any,
         *,
         seed: int = 1,
         threads: int = 1,
         cancel: CancellationToken | None = None,
     ) -> AteAnalysisResult: ...
-    @property
-    def names(self) -> list[str]: ...
+    def retarget(
+        self,
+        weights: list[float],
+        depends_on: list[str],
+        *,
+        seed: int = 1,
+        threads: int = 1,
+    ) -> AteAnalysisResult: ...
+    def snapshot(
+        self,
+    ) -> PreparedAnalysis: ...
+    def streams_stages(
+        self,
+    ) -> bool: ...
+    def validator_names(
+        self,
+    ) -> list[str]: ...
 
 class GcmIteResult:
     mean_ite: float
@@ -1413,6 +1389,7 @@ class RankedDesign:
     rank: int
     rank_uncertain: bool
     implemented_functional: str
+    evaluation: str
 
 class DesignConstraintViolation:
     candidate_index: int
@@ -1430,7 +1407,7 @@ class DesignRanking:
 class DecisionEvaluation:
     expected_utility: float
     posterior_regret: float
-    chosen_action: int | None
+    chosen_action: int
 
 class FittedGcm:
     names: list[str]
@@ -1573,13 +1550,15 @@ def analyze_ate_many(
     names: list[str],
     columns: Sequence[Any],
     edges: list[tuple[str, str]],
-    queries: list[tuple[str, str, float, float, dict[str, object] | None]],
+    queries: list[
+        tuple[str, str, float, float, dict[str, object] | None, dict[str, object] | None]
+    ],
     *,
     identifier: str | None = None,
     estimator: str | None = None,
     refute: bool | str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 199,
+    bootstrap: int | None = None,
     threads: int = 1,
     latency: str | None = None,
     screen_id: str | None = None,
@@ -1609,13 +1588,15 @@ def prepare_ate_batch(
     names: list[str],
     columns: Sequence[Any],
     edges: list[tuple[str, str]],
-    queries: list[tuple[str, str, float, float, dict[str, object] | None]],
+    queries: list[
+        tuple[str, str, float, float, dict[str, object] | None, dict[str, object] | None]
+    ],
     *,
     identifier: str | None = None,
     estimator: str | None = None,
     refute: bool | str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 199,
+    bootstrap: int | None = None,
     threads: int = 1,
     latency: str | None = None,
     screen_id: str | None = None,
@@ -1635,7 +1616,7 @@ def prepare_cells_batch(
     estimator: str | None = None,
     refute: bool | str | None = None,
     seed: int = 1,
-    bootstrap: int | None = 199,
+    bootstrap: int | None = None,
     threads: int = 1,
     latency: str | None = None,
     screen_id: str | None = None,
@@ -1658,7 +1639,7 @@ def analyze_ate(
     identifier: str | None = None,
     estimator: str | None = None,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     prior_mapping: dict[str, Any] | None = None,
@@ -1668,7 +1649,7 @@ def analyze_ate(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
-    estimator_config: dict[str, Any] | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
     threads: int = 1,
@@ -1717,7 +1698,7 @@ def analyze_ate_arrow_c(
     identifier: str | None = None,
     estimator: str | None = None,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     prior_mapping: dict[str, Any] | None = None,
@@ -1727,7 +1708,7 @@ def analyze_ate_arrow_c(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
-    estimator_config: dict[str, Any] | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
     threads: int = 1,
@@ -1745,12 +1726,12 @@ def analyze(
     treatment: str,
     outcome: str,
     *,
-    treatment_lag: int = 1,
+    treatment_lag: int = ...,
     horizon_steps: int = 1,
     active_level: float = 1.0,
-    policy: str = "pulse",
+    policy: str = ...,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     refute: bool | str | None = None,
@@ -1766,12 +1747,12 @@ def analyze_temporal_cpdag(
     treatment: str,
     outcome: str,
     *,
-    treatment_lag: int = 1,
+    treatment_lag: int = ...,
     horizon_steps: int = 1,
     active_level: float = 1.0,
-    policy: str = "pulse",
+    policy: str = ...,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     class_prior_ordered: list[float] | None = None,
@@ -1791,12 +1772,12 @@ def analyze_temporal_pag(
     treatment: str,
     outcome: str,
     *,
-    treatment_lag: int = 1,
+    treatment_lag: int = ...,
     horizon_steps: int = 1,
     active_level: float = 1.0,
-    policy: str = "pulse",
+    policy: str = ...,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     class_prior_ordered: list[float] | None = None,
@@ -1818,12 +1799,12 @@ def analyze_events(
     treatment: str,
     outcome: str,
     *,
-    treatment_lag: int = 1,
+    treatment_lag: int = ...,
     horizon_steps: int = 1,
     active_level: float = 1.0,
-    policy: str = "pulse",
+    policy: str = ...,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     refute: bool | str | None = None,
@@ -1852,12 +1833,12 @@ def analyze_panel(
     treatment: str,
     outcome: str,
     *,
-    treatment_lag: int = 1,
+    treatment_lag: int = ...,
     horizon_steps: int = 1,
     active_level: float = 1.0,
-    policy: str = "pulse",
+    policy: str = ...,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     refute: bool | str | None = None,
@@ -1879,12 +1860,12 @@ def analyze_panel_discover(
     max_cond_size: int = 2,
     fdr: bool = True,
     accept_discovered: bool = True,
-    treatment_lag: int = 1,
+    treatment_lag: int = ...,
     horizon_steps: int = 1,
     active_level: float = 1.0,
-    policy: str = "pulse",
+    policy: str = ...,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     refute: bool | str | None = None,
@@ -1948,8 +1929,8 @@ def analyze_temporal_response(
     intervention_kinds: list[str] | None = None,
     intervention_parameters: list[list[float]] | None = None,
     horizons: list[int],
-    policy: str = "pulse",
-    treatment_lag: int = 1,
+    policy: str = ...,
+    treatment_lag: int = ...,
     max_history_lag: int | None = None,
     seed: int = 1,
     bootstrap: int | None = None,
@@ -1965,7 +1946,7 @@ def analyze_temporal_response(
     upper: str | None = None,
     indicator: str | None = None,
     assumption_kind: str | None = None,
-    assumption_variables: list[str] = [],
+    assumption_variables: list[str] = ...,
     structural_model: str | None = None,
 ) -> ResponseAnalysisResult:
     """Temporal dose × horizon / intervention-path response (Frequentist).
@@ -2106,6 +2087,9 @@ def prepare_observation_response(
     censoring_survival_floor: float = 0.01,
     crossfit_folds: int = 5,
     accepted: bool = False,
+    seed: int = 1,
+    threads: int = 1,
+    options: dict[str, Any] | None = None,
 ) -> PreparedAnalysis: ...
 def binary_iv_ate_bounds(cells: list[list[float]]) -> tuple[float, float]:
     """Sharp Balke–Pearl bounds on E[Y(1)-Y(0)] from a 2×4 observed binary-IV law."""
@@ -2254,7 +2238,7 @@ def analyze_ate_discover(
     identifier: str | None = None,
     estimator: str | None = None,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     refute: bool | str | None = None,
@@ -2269,7 +2253,7 @@ def analyze_ate_discover(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
-    estimator_config: dict[str, Any] | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
     threads: int = 1,
@@ -2284,7 +2268,7 @@ def analyze_ate_graph_posterior(
     control_level: float = 0.0,
     active_level: float = 1.0,
     inference: str = "conjugate",
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     refute: bool | str | None = None,
     seed: int = 1,
@@ -2305,12 +2289,12 @@ def analyze_temporal_discover(
     max_cond_size: int = 2,
     fdr: bool = True,
     accept_discovered: bool = True,
-    treatment_lag: int = 1,
+    treatment_lag: int = ...,
     horizon_steps: int = 1,
     active_level: float = 1.0,
-    policy: str = "pulse",
+    policy: str = ...,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     refute: bool | str | None = None,
@@ -2345,7 +2329,7 @@ def analyze_temporal_graph_posterior(
     horizon_steps: int = 1,
     active_level: float = 1.0,
     inference: str = "conjugate",
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     refute: bool | str | None = None,
     seed: int = 1,
@@ -2367,7 +2351,7 @@ def analyze_temporal_graph_posterior_mediation(
     active_level: float = 1.0,
     horizons: Sequence[int] | None = None,
     inference: str = "conjugate",
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     refute: bool | str | None = None,
     seed: int = 1,
@@ -2762,6 +2746,7 @@ def rank_designs(
     graph_features: list[int] | None = None,
     effect_width: dict[str, Any] | None = None,
     model_loglik: dict[str, Any] | None = None,
+    decision: dict[str, Any] | None = None,
     max_cost: float | None = None,
     max_sample_budget: int | None = None,
     min_batches: int = 2,
@@ -2942,7 +2927,7 @@ def analyze_ate_pag_arrow_c(
     identifier: str | None = None,
     estimator: str | None = None,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     refute: bool | str | None = None,
@@ -2950,7 +2935,7 @@ def analyze_ate_pag_arrow_c(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
-    estimator_config: dict[str, Any] | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
@@ -2968,7 +2953,7 @@ def analyze_ate_pag(
     identifier: str | None = None,
     estimator: str | None = None,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     refute: bool | str | None = None,
@@ -2976,7 +2961,7 @@ def analyze_ate_pag(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
-    estimator_config: dict[str, Any] | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
@@ -2994,7 +2979,7 @@ def analyze_ate_cpdag_arrow_c(
     identifier: str | None = None,
     estimator: str | None = None,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     refute: bool | str | None = None,
@@ -3002,7 +2987,7 @@ def analyze_ate_cpdag_arrow_c(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
-    estimator_config: dict[str, Any] | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
@@ -3020,7 +3005,7 @@ def analyze_ate_cpdag(
     identifier: str | None = None,
     estimator: str | None = None,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     refute: bool | str | None = None,
@@ -3028,7 +3013,7 @@ def analyze_ate_cpdag(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
-    estimator_config: dict[str, Any] | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
@@ -3046,7 +3031,7 @@ def analyze_ate_admg_arrow_c(
     identifier: str | None = None,
     estimator: str | None = None,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     refute: bool | str | None = None,
@@ -3054,7 +3039,7 @@ def analyze_ate_admg_arrow_c(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
-    estimator_config: dict[str, Any] | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
@@ -3072,7 +3057,7 @@ def analyze_ate_admg(
     identifier: str | None = None,
     estimator: str | None = None,
     inference: str | None = None,
-    n_draws: int = 1000,
+    n_draws: int | None = None,
     prior_scale: float = 10.0,
     prior_artifact: bytes | None = None,
     refute: bool | str | None = None,
@@ -3080,7 +3065,7 @@ def analyze_ate_admg(
     running_variable: str | None = None,
     cutoff: float | None = None,
     bandwidth: float | None = None,
-    estimator_config: dict[str, Any] | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
     latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
@@ -3140,8 +3125,8 @@ class CausalState:
         *,
         grid: list[float],
         horizons: list[int] | None = None,
-        policy: str = "pulse",
-        treatment_lag: int = 1,
+        policy: str = ...,
+        treatment_lag: int = ...,
         max_history_lag: int | None = None,
     ) -> tuple[int, int]: ...
     def record_intervention(self, intervention_id: str, fingerprint: int) -> int: ...
@@ -3165,9 +3150,7 @@ class CausalState:
     def particle_filter_step(self, key: str, y: float) -> None: ...
     def particle_filter_get(self, key: str) -> dict[str, Any]: ...
 
-def antecedent_state_append(
-    n_appends: int = 2, cache_bytes: int = 1_048_576
-) -> tuple[int, int]: ...
+def antecedent_state_append(n_appends: int = 2, cache_bytes: int = ...) -> tuple[int, int]: ...
 def encode_model_bundle(
     variable_names: list[str],
     edges: list[tuple[int, int]],
@@ -3348,6 +3331,8 @@ class DecodedCausalArtifact:
     def variable_names(self) -> list[str]: ...
     @property
     def payload_json(self) -> str: ...
+    @property
+    def contract_json(self) -> str | None: ...
 
 def encode_causal_artifact(
     payload_kind: str,
@@ -3356,3 +3341,9 @@ def encode_causal_artifact(
     artifact_id: str,
 ) -> bytes: ...
 def decode_causal_artifact(bytes: bytes) -> DecodedCausalArtifact: ...
+def accept_analysis_result_contract(bytes: bytes) -> dict[str, str]: ...
+def omitted_defaults() -> dict[str, Any]:
+    """Budgets the builder applies when a caller omits them (bootstrap, refute, n_draws, ...)."""
+
+def identification_status_names() -> list[str]:
+    """Every native identification status string, exhaustively (the verdict table's key set)."""

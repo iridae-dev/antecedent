@@ -11,7 +11,7 @@ use super::error::QueryError;
 use super::target::{PredicateExpr, TargetPopulation};
 
 /// Caller-supplied bindings for named predicates and custom target distributions.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct PopulationRegistry {
     predicates: BTreeMap<Arc<str>, Arc<[usize]>>,
     distributions: BTreeMap<u32, Arc<[f64]>>,
@@ -64,6 +64,22 @@ impl PopulationRegistry {
     pub fn distribution(&self, id: DistributionRef) -> Option<&[f64]> {
         self.distributions.get(&id.raw()).map(std::convert::AsRef::as_ref)
     }
+
+    /// Named predicates in name order.
+    pub fn predicates(&self) -> impl Iterator<Item = (&str, &[usize])> {
+        self.predicates.iter().map(|(name, rows)| (name.as_ref(), rows.as_ref()))
+    }
+
+    /// Bound distributions in handle order with their declared parents
+    /// (empty when none were declared).
+    pub fn distributions(
+        &self,
+    ) -> impl Iterator<Item = (DistributionRef, &[f64], &[crate::VariableId])> {
+        self.distributions.iter().map(|(&handle, weights)| {
+            let id = DistributionRef::from_raw(handle);
+            (id, weights.as_ref(), self.distribution_dependencies(id).unwrap_or(&[]))
+        })
+    }
 }
 
 /// Resolved population as a keep-mask and optional observation weights.
@@ -91,7 +107,11 @@ impl TargetPopulation {
         registry: Option<&PopulationRegistry>,
     ) -> Result<PopulationSelection, QueryError> {
         match self {
-            Self::AllObserved => {
+            // A row-weight retarget keeps every row here: its weights live with
+            // the retarget owner that holds the snapshot they were written for,
+            // and this variant carries only their digest, so no weights can be
+            // recovered from it.
+            Self::AllObserved | Self::RowWeights { .. } => {
                 Ok(PopulationSelection { keep: Arc::from(vec![true; n]), weights: None })
             }
             Self::Treated | Self::Untreated => {

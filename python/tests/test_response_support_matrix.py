@@ -57,67 +57,43 @@ def test_admg_response_literal_matches_support_closed_toml():
     assert len(matches) == 1, matches
     reason = matches[0]["reason"]
 
-    from antecedent._analyze import handle_response
     from antecedent.errors import CausalUnsupportedError
 
     admg = antecedent.Admg.from_edges(["t", "y"], directed=[("t", "y")], bidirected=[])
     with pytest.raises(CausalUnsupportedError) as ei:
-        handle_response(
+        antecedent.analyze(
             _DATA,
-            _CURVE,
+            query=_CURVE,
             graph=admg,
-            discovery=None,
             inference=antecedent.Frequentist(),
-            identifier=None,
-            estimator=None,
-            estimator_config=None,
-            validators=None,
-            refute_requested=False,
             refute=False,
-            bootstrap_requested=False,
             seed=1,
-            threads=1,
         )
     assert str(ei.value) == f"refused: {reason}"
 
 
-def test_accepted_graph_analyze_response_curve_threads_accepted(monkeypatch):
-    """`AcceptedGraph.analyze` with a ResponseCurve must reach native with accepted=True.
-
-    The Dag response sidecar still has no `plan.structure_source` (staged ATE
-    and class-aware results do). Observe `accepted=` at the native call.
-    """
-    captured: dict[str, object] = {}
-    real = antecedent._analyze._analyze_response
-
-    def spy(*args, **kwargs):
-        captured["accepted"] = kwargs.get("accepted")
-        return real(*args, **kwargs)
-
-    monkeypatch.setattr(antecedent._analyze, "_analyze_response", spy)
-
+def test_accepted_graph_analyze_response_curve_threads_accepted():
+    """The retained contract preserves reviewed versus explicit structure."""
     result = _ACCEPTED.analyze(_DATA, query=_CURVE, refute=False, seed=1)
-    assert captured["accepted"] is True
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
+    assert antecedent.artifacts.loads(result.export()).contract["structure_source"] == "accepted"
 
-    captured.clear()
     result = antecedent.analyze(_DATA, graph=_DAG, query=_CURVE, refute=False, seed=1)
-    assert captured["accepted"] is False
     assert result.response is not None
+    assert antecedent.artifacts.loads(result.export()).contract["structure_source"] == "explicit"
 
 
 def test_path_distribution_literals_match_support_closed_toml():
-    """The three hand-rolled path/distribution refusals in `_analyze.py` must not drift.
+    """The prepare routing-gate refusal must not drift from the TOML.
 
-    They fire as routing gates (discovery= and accepted-structure pre-checks)
-    before the native support-matrix consultation, so they cannot be derived
-    from the TOML across the language boundary. Pin source text against the
-    TOML reason so either side changing alone fails loudly.
+    It fires before the native support-matrix consultation, so it cannot be
+    derived from the TOML across the language boundary. Pin source text
+    against the TOML reason so either side changing alone fails loudly.
     """
     import inspect
 
-    import antecedent._analyze as _analyze
+    import antecedent.estimation as estimation
 
     rules = load_toml(_SUPPORT_CLOSED_TOML)["closed"]
     matches = [
@@ -128,13 +104,12 @@ def test_path_distribution_literals_match_support_closed_toml():
     ]
     assert len(matches) == 1, matches
     reason = matches[0]["reason"]
-    source = inspect.getsource(_analyze)
-    # The literal is wrapped across two adjacent string fragments; normalize.
+    source = inspect.getsource(estimation)
+    # The literal is wrapped across adjacent string fragments; normalize.
     collapsed = source.replace('"\n            "', "")
-    count = collapsed.count(f"refused: {reason}")
-    assert count >= 2, (
-        f"expected the TOML reason to appear at the three hand-rolled sites; "
-        f"found {count}: {reason!r}"
+    count = collapsed.count(reason.rstrip("."))
+    assert count >= 1, (
+        f"expected the TOML reason at the prepare routing gate; found {count}: {reason!r}"
     )
 
 
@@ -158,24 +133,24 @@ def _handle_response_kwargs(**overrides):
 
 
 def test_handle_response_bayesian_curve_uses_staged_path():
-    """Leftover handler must not TypeError licensed Bayesian ResponseCurve."""
-    from antecedent._analyze import handle_response
-
-    result = handle_response(
+    """analyze is prepare().estimate(); Bayesian ResponseCurve stays licensed."""
+    result = antecedent.analyze(
         _DATA,
-        _CURVE,
-        **_handle_response_kwargs(inference=antecedent.Bayesian(backend="conjugate", n_draws=256)),
+        query=_CURVE,
+        graph=_DAG,
+        inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
+        refute=False,
     )
     assert result.response is not None
     assert np.isfinite(result.response.values).all()
 
 
 def test_handle_response_bayesian_derivative_is_licensed():
-    from antecedent._analyze import handle_response
-
-    result = handle_response(
+    result = antecedent.analyze(
         _DATA,
-        antecedent.AverageDerivative("t", "y"),
-        **_handle_response_kwargs(inference=antecedent.Bayesian(backend="conjugate", n_draws=32)),
+        query=antecedent.AverageDerivative("t", "y"),
+        graph=_DAG,
+        inference=antecedent.Bayesian(backend="conjugate", n_draws=32),
+        refute=False,
     )
     assert result is not None

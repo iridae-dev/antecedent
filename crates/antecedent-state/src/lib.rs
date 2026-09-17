@@ -36,11 +36,11 @@ pub use mechanism_diag::{
 };
 pub use particle_filter::{LgssmParams, ParticleFilterState};
 pub use retention::RetentionPolicy;
-pub use state::CausalState;
+pub use state::{CausalState, ResultPublication};
 pub use store::{
     CachedResult, ConstraintId, DataBatchRef, DataCatalog, DataVersion, GraphConstraintRecord,
     GraphEvidenceRecord, GraphEvidenceStore, InterventionRecord, ModelRecord, ModelStore,
-    QueryRecord, QueryStore, ResultStore, SuffStatStore,
+    PublishedLineage, QueryRecord, QueryStore, ResultStore, SuffStatStore,
 };
 pub use suff_stats::{
     LagIndexCacheEntry, LagIndexCacheKey, LinearOlsSuffStats, StreamingCovariance,

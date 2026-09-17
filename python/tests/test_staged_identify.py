@@ -51,6 +51,12 @@ def test_identify_returns_identification_and_bool():
     assert bool(result) is True
     assert result.graph is edges
     assert result.query is query
+    assert result.verdict == "identified"
+    assert result.statement == (
+        "AverageEffect of y from t is identified by backdoor.adjustment, adjusting for z."
+    )
+    assert result.to_dict()["statement"] == result.statement
+    assert repr(result) == f"<Identification {result.statement}>"
 
 
 def test_identification_estimate_matches_analyze():
@@ -147,6 +153,23 @@ def test_identification_bool_false_when_not_identified():
         query=query,
     )
     assert bool(not_identified) is False
+    assert not_identified.verdict == "not identified"
+    assert not_identified.statement == "AverageEffect of y from t is not identified."
+    assert repr(not_identified) == "<Identification AverageEffect of y from t is not identified.>"
+
+
+def test_identification_statement_is_honest_about_graph_dependence():
+    query = antecedent.AverageEffect(treatment="t", outcome="y")
+    dependent = Identification(
+        status="GraphDependent",
+        method="class.mixture",
+        adjustment_set=["z"],
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=query,
+    )
+    assert dependent.verdict == "graph-dependent"
+    assert "not a single identified effect" in dependent.statement
+    assert "adjusting for z" in dependent.statement
 
 
 def test_from_view_carries_assumption_counts():

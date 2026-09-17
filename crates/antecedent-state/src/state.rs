@@ -16,6 +16,21 @@ use crate::store::{
     ResultStore, SuffStatStore,
 };
 
+/// One recomputed result a caller publishes as fresh.
+#[derive(Clone, Copy, Debug)]
+pub struct ResultPublication {
+    /// Query whose result was recomputed.
+    pub query: QueryId,
+    /// Store-boundary fingerprint (truncated lineage digest).
+    pub fingerprint: u64,
+    /// Bytes retained for this result.
+    pub bytes: u64,
+    /// Complete lineage digest over every contract identity layer.
+    pub lineage: Option<antecedent_core::SemanticDigest>,
+    /// Data-snapshot identity the result was computed on.
+    pub data_snapshot: Option<antecedent_core::SemanticDigest>,
+}
+
 /// Incremental causal analysis state (embeddable; no service runtime).
 #[derive(Clone, Debug)]
 pub struct CausalState {
@@ -164,32 +179,132 @@ impl CausalState {
     ///
     /// Unknown query or cache budget refusal.
     pub fn refresh_results(&mut self, updates: &[(QueryId, u64, u64)]) -> Result<(), StateError> {
+        let updates: Vec<ResultPublication> = updates
+            .iter()
+            .map(|&(query, fingerprint, bytes)| ResultPublication {
+                query,
+                fingerprint,
+                bytes,
+                lineage: None,
+                data_snapshot: None,
+            })
+            .collect();
+        self.publish_results(&updates)
+    }
+
+    /// Publish recomputed results, refusing a republication that the data
+    /// events say cannot be a recomputation.
+    ///
+    /// A result whose data snapshot equals the one published under an earlier
+    /// data-catalog version was not recomputed on the current data, whatever
+    /// its fingerprint says.
+    ///
+    /// # Errors
+    ///
+    /// Unknown query, a snapshot that predates the latest data event, or cache
+    /// budget refusal.
+    pub fn publish_results(&mut self, updates: &[ResultPublication]) -> Result<(), StateError> {
+        for update in updates {
+            if !self.queries.queries.contains_key(&update.query) {
+                return Err(StateError::UnknownId(format!("query {}", update.query.raw())));
+            }
+            let Some(previous) =
+                self.queries.queries.get(&update.query).and_then(|record| record.last_published)
+            else {
+                continue;
+            };
+            let Some(published) = update.data_snapshot else {
+                continue;
+            };
+            if previous.data_version != self.data_catalog.version
+                && published == previous.data_snapshot
+            {
+                return Err(StateError::InvalidEvent(format!(
+                    "query {} republishes the data snapshot recorded before the latest data \
+                     event; recompute on the current data before publishing",
+                    update.query.raw()
+                )));
+            }
+        }
+        self.commit_results(updates)
+    }
+
+    fn commit_results(&mut self, updates: &[ResultPublication]) -> Result<(), StateError> {
         // Stage the whole batch first. `ResultStore::insert` is individually
         // atomic, but applying it directly to `self` would leave a prefix of the
         // batch committed when a later entry is unknown or exceeds the budget.
         // A refresh batch represents one caller-supplied recomputation boundary,
         // so publish all freshness stamps together or none of them.
-        for &(query, _, _) in updates {
-            if !self.queries.queries.contains_key(&query) {
-                return Err(StateError::UnknownId(format!("query {}", query.raw())));
+        for update in updates {
+            if !self.queries.queries.contains_key(&update.query) {
+                return Err(StateError::UnknownId(format!("query {}", update.query.raw())));
             }
         }
         let mut staged_results = self.cached_results.clone();
         let mut staged_budget = self.cache_budget;
-        for &(query, fingerprint, bytes) in updates {
+        for update in updates {
             staged_results.insert(
-                CachedResult { query, fingerprint, bytes, computed_at: self.version },
+                CachedResult {
+                    query: update.query,
+                    fingerprint: update.fingerprint,
+                    bytes: update.bytes,
+                    computed_at: self.version,
+                },
                 &mut staged_budget,
             )?;
         }
         self.cached_results = staged_results;
         self.cache_budget = staged_budget;
-        for &(query, _, _) in updates {
-            self.queries
-                .queries
-                .get_mut(&query)
-                .expect("query ids were prevalidated")
-                .result_valid_at = Some(self.version);
+        let data_version = self.data_catalog.version;
+        for update in updates {
+            let record =
+                self.queries.queries.get_mut(&update.query).expect("query ids were prevalidated");
+            record.result_valid_at = Some(self.version);
+            if let (Some(lineage), Some(data_snapshot)) = (update.lineage, update.data_snapshot) {
+                record.last_published =
+                    Some(crate::store::PublishedLineage { lineage, data_snapshot, data_version });
+            }
+        }
+        Ok(())
+    }
+
+    /// Like [`Self::refresh_results`], but refuse if `expected` is no longer
+    /// the current state version. A stale commit cannot mark results fresh.
+    ///
+    /// # Errors
+    ///
+    /// Version mismatch, unknown query, or cache budget refusal.
+    pub fn refresh_results_at(
+        &mut self,
+        expected: StateVersion,
+        updates: &[(QueryId, u64, u64)],
+    ) -> Result<(), StateError> {
+        self.require_version(expected)?;
+        self.refresh_results(updates)
+    }
+
+    /// Like [`Self::publish_results`], refusing a stale expected version.
+    ///
+    /// # Errors
+    ///
+    /// Version mismatch, a snapshot that predates the latest data event,
+    /// unknown query, or cache budget refusal.
+    pub fn publish_results_at(
+        &mut self,
+        expected: StateVersion,
+        updates: &[ResultPublication],
+    ) -> Result<(), StateError> {
+        self.require_version(expected)?;
+        self.publish_results(updates)
+    }
+
+    fn require_version(&self, expected: StateVersion) -> Result<(), StateError> {
+        if self.version != expected {
+            return Err(StateError::InvalidEvent(format!(
+                "stale commit: expected version {} but state is {}",
+                expected.raw(),
+                self.version.raw()
+            )));
         }
         Ok(())
     }
@@ -262,6 +377,29 @@ mod tests {
             .expect("apply");
         assert!(state.is_stale(q));
         assert!(state.cached_results.results.is_empty());
+    }
+
+    #[test]
+    fn refresh_results_at_rejects_a_stale_expected_version() {
+        let mut state = CausalState::new(CacheBudget::new(1024));
+        let q = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        )));
+        let expected = state.version;
+        state
+            .apply(StateEvent::AppendData(DataBatchRef {
+                id: Arc::from("b_stale"),
+                nrows: 4,
+                bytes: 32,
+            }))
+            .expect("append");
+        let err = state.refresh_results_at(expected, &[(q, 1, 16)]).expect_err("stale");
+        assert!(matches!(err, StateError::InvalidEvent(_)));
+        assert!(state.is_stale(q));
+        assert!(state.cached_results.results.is_empty());
+        state.refresh_results_at(state.version, &[(q, 1, 16)]).expect("current version");
+        assert!(!state.is_stale(q));
     }
 
     #[test]

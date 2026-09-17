@@ -43,10 +43,30 @@ from ._native import (
     CausalReviewError,
     CausalSerializationError,
     CausalStateError,
-    CausalUnsupportedError,
     CausalValidateError,
 )
+from ._native import (
+    CausalCancelledError as CausalCancelled,
+)
+from ._native import (
+    CausalUnsupportedError as _NativeUnsupported,
+)
+from ._native import runtime_refusal_codes as _runtime_refusal_codes
+from ._native import set_not_identified_error_class as _set_not_identified_error_class
 from ._native import set_review_error_class as _set_review_error_class
+from ._native import set_unsupported_error_class as _set_unsupported_error_class
+
+_RUNTIME_REFUSAL_CODES = frozenset(_runtime_refusal_codes())
+
+
+def _registered_code(reason_code: str | None) -> str | None:
+    """``reason_code`` if it is a registered runtime-refusal code; refuse any other."""
+    if reason_code is not None and reason_code not in _RUNTIME_REFUSAL_CODES:
+        raise ValueError(
+            f"unregistered runtime reason code {reason_code!r}; "
+            "add it to parity/reason_codes.toml with applies_to runtime_refusal"
+        )
+    return reason_code
 
 
 class CausalTypeError(CausalValidateError, TypeError):
@@ -61,7 +81,34 @@ class CausalTypeError(CausalValidateError, TypeError):
     ``estimation.py`` / ``discovery.py`` / ``accepted_graph.py`` where a
     caller-supplied argument (``graph=``, ``query=``, ``refute=``,
     ``latency=``, a discovery config, ...) is the wrong Python type.
+
+    ``reason_code`` is an optional registered runtime-refusal code, checked
+    like :class:`CausalUnsupportedError`'s.
     """
+
+    def __init__(self, message: str = "", *, reason_code: str | None = None) -> None:
+        super().__init__(message)
+        self.reason_code = _registered_code(reason_code)
+
+
+class CausalUnsupportedError(_NativeUnsupported):
+    """A refusal, with an optional closed reason code.
+
+    The native layer instantiates this same class for refusals raised in Rust
+    (see ``set_unsupported_error_class``), reading the ``reason=<code>:``
+    prefix into :attr:`reason_code`, so a caller catches one class either way.
+
+    ``reason_code`` must be a registered runtime-refusal code
+    (``parity/reason_codes.toml``, exposed as ``_native.runtime_refusal_codes()``);
+    constructing the error with any other code raises ``ValueError`` so an
+    unregistered code cannot be emitted.
+    """
+
+    def __init__(self, message: str = "", *, reason_code: str | None = None) -> None:
+        _registered_code(reason_code)
+        text = f"reason={reason_code}: {message}" if reason_code else message
+        super().__init__(text)
+        self.reason_code = reason_code
 
 
 class CausalValueError(CausalValidateError, ValueError):
@@ -71,6 +118,26 @@ class CausalValueError(CausalValidateError, ValueError):
     correctly-typed argument whose value is out of range, missing a required
     companion, or otherwise not acceptable) rather than type checks.
     """
+
+    def __init__(self, message: str = "", *, reason_code: str | None = None) -> None:
+        super().__init__(message)
+        self.reason_code = _registered_code(reason_code)
+
+
+class EffectNotIdentified(CausalUnsupportedError, CausalCompileError):
+    """The question has no identified estimand under the declared structure.
+
+    A refusal, never a result. ``reason_code`` is ``effect_not_identified``;
+    ``identification_status`` is the status the search ended with, and
+    ``search_complete`` / ``search_capped`` say whether it finished or stopped
+    at a budget (a capped search is not a proof of non-identification). It
+    subclasses :class:`CausalCompileError`, which this refusal was raised as
+    before it carried its outcome.
+    """
+
+    identification_status: str = "not_identified"
+    search_capped: bool = False
+    search_complete: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +176,10 @@ class ReviewRequired(CausalReviewError):
 # raised from Rust instantiates it (see `review_required_py_err` in
 # `python/src/lib.rs`) instead of falling back to a bare `CausalReviewError`.
 _set_review_error_class(ReviewRequired)
+# The same registration for refusals: a Rust refusal is this class, with its
+# reason code already attached.
+_set_unsupported_error_class(CausalUnsupportedError)
+_set_not_identified_error_class(EffectNotIdentified)
 
 
 def build_review_error(
@@ -177,6 +248,7 @@ def pending_edges(err: BaseException) -> tuple[PendingEdge, ...]:
 
 __all__ = [
     "CausalAttributionError",
+    "CausalCancelled",
     "CausalCancelledError",
     "CausalCompileError",
     "CausalCounterfactualError",
@@ -196,6 +268,7 @@ __all__ = [
     "CausalUnsupportedError",
     "CausalValidateError",
     "CausalValueError",
+    "EffectNotIdentified",
     "PendingEdge",
     "ReviewRequired",
     "build_review_error",

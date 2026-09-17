@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Spreadsheet-style discover-once → many interactive estimates (backlog D).
+"""Discover a graph once and reuse a reviewed graph for later estimates.
 
-Contrast with one-shot ``analyze(..., discovery=...)`` (script path). Interactive
-products should: discover → accept into ``AcceptedGraph`` → estimate clicks with
-``graph=`` / ``AcceptedGraph.analyze``; rediscover only on explicit refresh.
+We first run PC discovery. For this simulation, we then supply the known
+causal directions as an AcceptedGraph. In a real analysis, those directions
+would need justification from subject-matter knowledge or other evidence.
 
-Requires a built antecedent extension (`maturin develop` in python/).
-"""
+Keeping result.study lets us estimate again or refresh the data without
+repeating discovery. The counter below checks that discovery runs only once.
+Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 
@@ -46,7 +47,7 @@ def main() -> None:
     # it, so "estimate clicks never rediscover" is a claim this can actually check.
     antecedent.discovery.PC.run = counted_run  # type: ignore[method-assign]
 
-    # Structure-ready click (once).
+    # Run discovery once.
     evidence = antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0).accept(data, seed=1)
     assert discovery_calls["n"] == 1
     assert isinstance(evidence.graph, (antecedent.Dag, antecedent.Cpdag))
@@ -62,11 +63,13 @@ def main() -> None:
 
     query = antecedent.AverageEffect(treatment="t", outcome="y")
 
-    # Effect-ready clicks (many) — must not re-enter discovery.
-    first = accepted.analyze(data, query=query, seed=1)
-    second = accepted.analyze(data, query=query, seed=1, bootstrap=0)
-    prepared = accepted.prepare(data, query=query, seed=1)
-    third = prepared.estimate(data, seed=1)
+    # Reuse the reviewed graph for repeated estimates.
+    first = antecedent.analyze(data, graph=accepted, query=query, seed=1, latency="interactive")
+    study = first.study
+    second = study.estimate()
+    third = study.refresh(_confounded_scm(seed=8))
+    assert first.data_snapshot_id != third.data_snapshot_id
+    print("Calibration:", first.calibration.status)
 
     assert discovery_calls["n"] == 1, (
         f"second estimate re-ran discovery (calls={discovery_calls['n']})"

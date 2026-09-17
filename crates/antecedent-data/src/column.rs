@@ -60,6 +60,11 @@ impl ValidityBitmap {
         self.len
     }
 
+    /// Stored bytes, least-significant bit first; bits past [`Self::len`] are padding.
+    pub(crate) fn raw_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
     /// Whether empty.
     #[must_use]
     pub const fn is_empty(&self) -> bool {

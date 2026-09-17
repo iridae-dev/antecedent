@@ -15,8 +15,8 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, CausalSchema, PopulationRegistry, TemporalEffectQuery,
-    VariableId,
+    AverageEffectQuery, CausalQuery, CausalSchema, PopulationRegistry, ResponseQuery,
+    TemporalEffectQuery, VariableId,
 };
 use antecedent_data::{
     DiscoveryEstimationSplit, EventData, MultiEnvironmentData, NetworkData, PanelData, TableView,
@@ -91,14 +91,176 @@ pub struct InterferenceSpec {
     pub assignment: Arc<[bool]>,
 }
 
-/// Refusal for panel data paired with a [`CausalQuery::Response`] query.
+impl InterferenceSpec {
+    /// The same fixed network and realized assignment over `units`.
+    ///
+    /// The network's edges and the assignment are the design; the unit table is
+    /// the data. A study binds its network to the unit table it executes, so a
+    /// refresh or an estimate click on new outcomes executes on those outcomes
+    /// and its data snapshot names them.
+    ///
+    /// # Errors
+    ///
+    /// The edges or the assignment do not fit `units`.
+    pub(crate) fn bound_to(&self, units: &TabularData) -> Result<Self, CausalError> {
+        if self.network.units().storage().content_digest() == units.storage().content_digest() {
+            return Ok(self.clone());
+        }
+        if self.assignment.len() != units.row_count() {
+            return Err(CausalError::Compile {
+                message: "interference network, assignment, and unit table row counts must match"
+                    .into(),
+            });
+        }
+        Ok(Self {
+            network: NetworkData::try_new(units.clone(), self.network.edges().to_vec())?,
+            assignment: Arc::clone(&self.assignment),
+        })
+    }
+}
+
+/// Refuse a transport construction outside the licensed cell.
 ///
-/// Checked at build, compile, and prepare; one message keeps them in step.
-pub(crate) const PANEL_RESPONSE_REFUSAL: &str = concat!(
-    "panel ResponseCurve / InterventionResponse is not licensed in 1.9: scalar panel ",
-    "Pulse/Sustained SEs do not license response bands, and the single-series response ",
-    "likelihood is not a panel model",
+/// The licensed `TransportQuery` cell transports a mean `ResponseCurve` on the
+/// complete, all-observed, static response by binary trial-to-target IPW. A
+/// derivative, a non-mean outcome functional, an embedded population, an
+/// observation mechanism or a temporal attachment would be labelled with the
+/// executed binary contrast it is not, so it is refused.
+fn refuse_unlicensed_transport(query: &antecedent_core::TransportQuery) -> Result<(), CausalError> {
+    let response = &query.response;
+    let licensed =
+        matches!(response.functional, antecedent_core::ResponseFunctional::MeanCurve { .. })
+            && response.outcome_functional.is_mean()
+            && matches!(response.target_population, antecedent_core::TargetPopulation::AllObserved)
+            && matches!(response.observation, antecedent_core::ObservationSpec::Complete)
+            && response.observation_assumptions.is_empty()
+            && response.temporal.is_none();
+    if licensed {
+        Ok(())
+    } else {
+        Err(crate::support_reason!(
+            "construction_not_licensed",
+            "TransportQuery is licensed for a mean ResponseCurve on the complete, all-observed \
+             static response, transported by binary trial-to-target IPW"
+        ))
+    }
+}
+
+/// Refuse an interference design outside the licensed cell (NeighborCount
+/// exposure under Bernoulli assignment).
+fn refuse_unlicensed_interference(
+    query: &antecedent_core::InterferenceQuery,
+) -> Result<(), CausalError> {
+    let licensed = matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
+        && matches!(query.exposure, antecedent_core::ExposureMapping::NeighborCount);
+    if licensed {
+        Ok(())
+    } else {
+        Err(crate::support_reason!(
+            "construction_not_licensed",
+            "InterferenceQuery is licensed for NeighborCount exposure under Bernoulli assignment"
+        ))
+    }
+}
+
+/// Refusal for panel response on a non-temporal or static graph.
+pub(crate) const PANEL_RESPONSE_CLASS_REFUSAL: &str = concat!(
+    "panel ResponseCurve / InterventionResponse is licensed on a supplied ",
+    "TemporalDag, TemporalCpdag, or TemporalPag",
 );
+
+/// Refusal for a panel class multi-step Sustained run under a discovery split.
+pub(crate) const PANEL_CLASS_SEQUENTIAL_SPLIT_REFUSAL: &str =
+    "class-aware multi-step sustained requires no discovery-estimation split";
+
+/// Refusal for a transferred or informative prior on panel class multi-step Sustained.
+pub(crate) const PANEL_CLASS_SEQUENTIAL_PRIOR_REFUSAL: &str =
+    "multi-step Sequence transfer stays refused on incomplete classes";
+
+/// Single owner for panel data-route licenses. Build, prepare, compile, and
+/// execute consult this; they do not restate the same refusals.
+///
+/// Every panel route requires one sampling regularity across units: a horizon of
+/// `h` steps must mean the same duration in every unit.
+pub(crate) fn refuse_unlicensed_panel_route(
+    query: &CausalQuery,
+    class: GraphClass,
+    inference: &InferenceMode,
+    panel: &PanelData,
+    split: Option<&DiscoveryEstimationSplit>,
+) -> Result<(), CausalError> {
+    panel_shared_regularity(panel)?;
+    match query {
+        CausalQuery::Response(query) => refuse_unlicensed_panel_response(query, class),
+        CausalQuery::TemporalEffect(query) => {
+            refuse_unlicensed_panel_effect(query, class, inference, split)
+        }
+        _ => Ok(()),
+    }
+}
+
+/// The one time-index regularity every panel unit shares.
+///
+/// # Errors
+///
+/// When the panel is empty or its units disagree on regularity.
+pub(crate) fn panel_shared_regularity(
+    panel: &PanelData,
+) -> Result<antecedent_data::SamplingRegularity, CausalError> {
+    let first = &panel
+        .unit(0)
+        .map_err(|e| CausalError::Compile { message: e.to_string() })?
+        .series
+        .time_index()
+        .regularity;
+    if panel.units().iter().any(|unit| &unit.series.time_index().regularity != first) {
+        return Err(CausalError::Compile {
+            message: "panel analysis requires every panel unit to share one time-index \
+                      regularity: a horizon step would otherwise mean a different duration in \
+                      different units; align the units first"
+                .into(),
+        });
+    }
+    Ok(first.clone())
+}
+
+fn refuse_unlicensed_panel_response(
+    query: &ResponseQuery,
+    class: GraphClass,
+) -> Result<(), CausalError> {
+    if !query.is_temporal()
+        || !matches!(
+            class,
+            GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
+        )
+    {
+        return Err(CausalError::Unsupported { message: PANEL_RESPONSE_CLASS_REFUSAL });
+    }
+    Ok(())
+}
+
+fn refuse_unlicensed_panel_effect(
+    query: &TemporalEffectQuery,
+    class: GraphClass,
+    inference: &InferenceMode,
+    split: Option<&DiscoveryEstimationSplit>,
+) -> Result<(), CausalError> {
+    if !class.is_incomplete_temporal() || !query.is_multi_step_sustained() {
+        return Ok(());
+    }
+    // Panel class multi-step Sustained fits every unit's full series; a split's
+    // discovery rows would be reused for estimation, and the per-unit sequential
+    // g-computation has no mapping for a transferred coefficient prior.
+    if split.is_some() {
+        return Err(CausalError::Unsupported { message: PANEL_CLASS_SEQUENTIAL_SPLIT_REFUSAL });
+    }
+    if let InferenceMode::Bayesian(cfg) = inference {
+        if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+            return Err(CausalError::Unsupported { message: PANEL_CLASS_SEQUENTIAL_PRIOR_REFUSAL });
+        }
+    }
+    Ok(())
+}
 
 #[derive(Clone, Debug)]
 pub(crate) enum DataInput {
@@ -381,7 +543,240 @@ impl std::fmt::Debug for StudyBuilder {
     }
 }
 
+/// Whether an omitted replicate count is a real resampling budget for this route.
+///
+/// Static response surfaces carry analytic or influence-function uncertainty,
+/// Bayesian responses carry posterior intervals, and counterfactual unit
+/// effects have no sampling uncertainty. Reporting [`StudyBuilder::OMITTED_BOOTSTRAP`]
+/// replicates there would describe a budget that never runs, so the omitted
+/// count is zero. An explicit count is never rewritten here.
+/// Refuse an estimator that does not implement the requested inference mode.
+///
+/// Bayesian-only estimators never run under Frequentist inference, and the
+/// Frequentist-only estimators below never run under Bayesian inference. The
+/// remaining identifier-native estimators (`functional.*`, `mediation.linear`,
+/// `gcm.fit`, the temporal and derivative estimators) apply the requested
+/// mode at execution, and the query-specific pairings are checked where the
+/// query's expected estimator is resolved. Without this refusal a Frequentist
+/// estimator would run under a Bayesian request and be bound to the Bayesian
+/// license coordinate and inference binding.
+fn refuse_estimator_inference_mismatch(
+    query: &CausalQuery,
+    estimator: EstimatorId,
+    inference: &InferenceMode,
+) -> Result<(), CausalError> {
+    const _: () = assert!(
+        crate::error::is_runtime_refusal_code("estimator_inference_mismatch"),
+        "`estimator_inference_mismatch` is not a runtime_refusal code"
+    );
+    // The refusal removes a wrong label, not a capability: the estimator stays
+    // available under the inference mode it implements, and the message names
+    // both ways forward.
+    macro_rules! frequentist {
+        ($name:literal) => {
+            Err(CausalError::Unsupported {
+                message: concat!(
+                    "reason",
+                    "=estimator_inference_mismatch: estimator ",
+                    $name,
+                    " is Frequentist, so it does not run under inference=Bayesian (it would \
+                     report a sampling interval under a Bayesian label). Omit estimator= to use \
+                     the Bayesian estimator, or use inference=Frequentist to run ",
+                    $name
+                ),
+            })
+        };
+    }
+    macro_rules! bayesian {
+        ($name:literal) => {
+            Err(CausalError::Unsupported {
+                message: concat!(
+                    "reason",
+                    "=estimator_inference_mismatch: estimator ",
+                    $name,
+                    " is Bayesian, so it does not run under inference=Frequentist. Omit \
+                     estimator= to use the Frequentist estimator, or use inference=Bayesian to \
+                     run ",
+                    $name
+                ),
+            })
+        };
+    }
+    match inference {
+        InferenceMode::Frequentist => match estimator {
+            EstimatorId::BayesianGcomp => bayesian!("bayesian.gcomp"),
+            EstimatorId::BayesianConditional => bayesian!("conditional.bayesian"),
+            EstimatorId::BayesianTemporalGcomp => bayesian!("bayesian.temporal.gcomp"),
+            EstimatorId::TemporalResponseBayesian => bayesian!("response.temporal.bayesian"),
+            EstimatorId::ResponseBayesian => bayesian!("response.bayesian"),
+            EstimatorId::BayesianTemporalMediation => bayesian!("temporal.mediation.bayesian"),
+            _ => Ok(()),
+        },
+        InferenceMode::Bayesian(_) => {
+            let average = matches!(query, CausalQuery::AverageEffect(_));
+            match estimator {
+                EstimatorId::LinearAdjustmentAte if average => {
+                    frequentist!("linear.adjustment.ate")
+                }
+                EstimatorId::PropensityWeighting if average => frequentist!("propensity.weighting"),
+                EstimatorId::PropensityMatching if average => frequentist!("propensity.matching"),
+                EstimatorId::PropensityStratification if average => {
+                    frequentist!("propensity.stratification")
+                }
+                EstimatorId::DistanceMatching if average => frequentist!("distance.matching"),
+                EstimatorId::Aipw if average => frequentist!("aipw"),
+                EstimatorId::GlmAdjustment if average => frequentist!("glm.adjustment"),
+                EstimatorId::FrontDoorTwoStage if average => frequentist!("frontdoor.two_stage"),
+                EstimatorId::IvWald if average => frequentist!("iv.wald"),
+                EstimatorId::Iv2Sls if average => frequentist!("iv.2sls"),
+                EstimatorId::RdSharp if average => frequentist!("rd.sharp"),
+                EstimatorId::ConditionalLinearAdjustment => {
+                    frequentist!("conditional.linear.adjustment")
+                }
+                EstimatorId::CellAipw => frequentist!("cell.aipw"),
+                EstimatorId::TransportTrialIpw => frequentist!("transport.trial_ipw"),
+                EstimatorId::InterferenceHtHajek => frequentist!("interference.ht_hajek"),
+                _ => Ok(()),
+            }
+        }
+    }
+}
+
+fn omitted_bootstrap_resamples(query: &CausalQuery, inference: &InferenceMode) -> bool {
+    match query {
+        CausalQuery::Response(q) => {
+            q.is_temporal() && matches!(inference, InferenceMode::Frequentist)
+        }
+        CausalQuery::Counterfactual(_) => false,
+        _ => true,
+    }
+}
+
+/// Whether an executor can estimate `query` in its declared target population.
+///
+/// The one owner of which query kinds take a population other than
+/// [`antecedent_core::TargetPopulation::AllObserved`] at build time: only an
+/// [`CausalQuery::AverageEffect`], whose estimators then accept or refuse the
+/// specific target (ATT/ATC, predicate, custom distribution) themselves. Every
+/// other population-scoped kind (temporal effects, mediation, interventional
+/// distributions, path-specific effects, responses and derivatives, conditional
+/// effects) has no estimator for another target, so a declared population is
+/// refused here rather than dropped by a route that ignores it. A row-weight
+/// target is produced by a retarget of frozen scores, never estimated from a
+/// build.
+fn population_estimable(query: &CausalQuery) -> bool {
+    match query.target_population() {
+        None | Some(antecedent_core::TargetPopulation::AllObserved) => true,
+        Some(_) => matches!(query, CausalQuery::AverageEffect(_)),
+    }
+}
+
+/// Refuse a non-Gaussian Bayesian likelihood where no executor fits it.
+///
+/// The one owner of which routes honour [`crate::BayesianConfig::likelihood`].
+/// Bayesian g-computation of a tabular [`CausalQuery::AverageEffect`] mean on
+/// one explicit or accepted [`GraphClass::Dag`] fits the declared Bernoulli or
+/// Poisson GLM and averages the inverse link over the rows; that construction
+/// has repeated-sampling coverage records. Every other Bayesian route
+/// (conditional effects, mediation, temporal effects and responses, continuous
+/// responses, panels, ADMG front door, class envelopes, tiered backgrounds and
+/// graph-posterior mixtures) is either a Gaussian identity-link model or has no
+/// coverage measurement under another link, the conjugate backend is Gaussian by
+/// construction, and a transferred prior is mapped on the identity-link
+/// coefficient scale. Those combinations refuse here rather than silently fit
+/// a Gaussian model or report an unmeasured construction.
+fn refuse_unsupported_likelihood(
+    query: &CausalQuery,
+    data: &DataInput,
+    class: GraphClass,
+    structure_fixed: bool,
+    inference: &InferenceMode,
+) -> Result<(), CausalError> {
+    let InferenceMode::Bayesian(cfg) = inference else {
+        return Ok(());
+    };
+    if cfg.likelihood == antecedent_prob::BayesLikelihood::GaussianIdentity {
+        return Ok(());
+    }
+    if cfg.backend == antecedent_estimate::BayesianBackendKind::ConjugateGaussian {
+        return Err(crate::unsupported_reason!(
+            "likelihood_not_supported",
+            "the conjugate backend fits a Gaussian identity-link model only; use the laplace or \
+             hmc backend for a Bernoulli or Poisson likelihood"
+        ));
+    }
+    if cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+        return Err(crate::unsupported_reason!(
+            "likelihood_not_supported",
+            "a transferred prior is mapped onto identity-link coefficients; a Bernoulli or \
+             Poisson likelihood fits under the isotropic prior_scale only"
+        ));
+    }
+    let licensed = matches!(data, DataInput::Tabular(_))
+        && class == GraphClass::Dag
+        && structure_fixed
+        && matches!(
+            query,
+            CausalQuery::AverageEffect(q)
+                if matches!(q.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
+        );
+    if licensed {
+        return Ok(());
+    }
+    Err(crate::unsupported_reason!(
+        "likelihood_not_supported",
+        "a Bernoulli or Poisson likelihood is fitted by Bayesian g-computation of a tabular \
+         AverageEffect mean on one Dag only; this route fits a Gaussian identity-link model or \
+         mixes structures, so it refuses the likelihood rather than fit a different model than \
+         the one declared"
+    ))
+}
+
+/// Whether the executors for `query` run caller custom validators.
+///
+/// A custom validator refutes one scalar average effect. Function-valued
+/// responses, distributions, path-specific and mediation contrasts,
+/// counterfactual unit effects, and attribution have no such refutation
+/// problem, panel class completions are mixed without a per-completion scalar
+/// refuter, and a Bayesian graph-posterior response level is not refuted.
+/// Supplying validators there is refused rather than skipped.
+fn custom_validators_apply(
+    query: &CausalQuery,
+    data: &DataInput,
+    class: GraphClass,
+    graph_posterior: bool,
+    inference: &InferenceMode,
+) -> bool {
+    match query {
+        CausalQuery::AverageEffect(_) | CausalQuery::ConditionalEffect(_) => true,
+        CausalQuery::TemporalEffect(_) => {
+            !(matches!(data, DataInput::Panel(_)) && class.is_incomplete_temporal())
+        }
+        CausalQuery::Response(q) => {
+            !q.is_temporal()
+                && matches!(class, GraphClass::Dag | GraphClass::Admg)
+                && matches!(
+                    q.functional,
+                    antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                )
+                && !(graph_posterior && matches!(inference, InferenceMode::Bayesian(_)))
+        }
+        _ => false,
+    }
+}
+
 impl StudyBuilder {
+    /// Replicate count used when the caller omits [`Self::bootstrap_replicates`]
+    /// on a route that resamples. Language bindings read this value instead of
+    /// keeping their own copy.
+    ///
+    /// The omitted tier *is* the Standard tier, so this is the Standard tier's
+    /// replicate count by construction rather than a second copy of `199`.
+    pub const OMITTED_BOOTSTRAP: u32 = super::latency::STANDARD_BOOTSTRAP;
+    /// Validation suite used when the caller omits [`Self::refute`]. A cell
+    /// that does not license this suite is downgraded at build.
+    pub const OMITTED_REFUTE: RefuteSuite = RefuteSuite::PlaceboAndRcc;
+
     fn from_data(data: DataInput) -> Self {
         Self {
             data,
@@ -391,9 +786,9 @@ impl StudyBuilder {
             max_completions: None,
             structure_source: None,
             query: None,
-            refute: RefuteSuite::PlaceboAndRcc,
+            refute: Self::OMITTED_REFUTE,
             refute_explicit: false,
-            bootstrap_replicates: 199,
+            bootstrap_replicates: Self::OMITTED_BOOTSTRAP,
             bootstrap_explicit: false,
             split: None,
             identifier: None,
@@ -418,6 +813,45 @@ impl StudyBuilder {
             transport_trial: None,
             interference: None,
         }
+    }
+
+    /// Capability report without granting a license.
+    ///
+    /// Missing graph or query is a binding report with no neighbors. Present
+    /// coordinates classify through [`Self::inspect`] and do not identify.
+    ///
+    /// # Errors
+    ///
+    /// Schema mismatch or canonical-encoding failures after graph and query are
+    /// supplied.
+    pub fn capability(&self) -> Result<super::OperationReport, CausalError> {
+        if self.graph.is_none() && self.graph_posterior.is_none() {
+            return Ok(super::OperationReport::binding_missing(
+                super::OperationKind::Inspect,
+                "graph",
+            ));
+        }
+        if self.query.is_none() {
+            return Ok(super::OperationReport::binding_missing(
+                super::OperationKind::Inspect,
+                "query",
+            ));
+        }
+        Ok(self.clone().inspect()?.capability())
+    }
+
+    /// Cheap structural inspection without requiring a licensed cell.
+    ///
+    /// Closed, n/a, and refused coordinates still produce a contract: support
+    /// status is recorded and identification stays unavailable. This does not
+    /// authorize [`Study::prepare`] or execution — those still go through
+    /// [`Self::build`].
+    ///
+    /// # Errors
+    ///
+    /// Missing graph / query, schema mismatch, or canonical-encoding failures.
+    pub fn inspect(self) -> Result<super::CausalContract, CausalError> {
+        self.finish(true)?.inspect()
     }
 
     /// Supply the causal structure.
@@ -805,6 +1239,10 @@ impl StudyBuilder {
     /// data's, in order. Not checked for [`Self::graph_posterior`], which carries a
     /// placeholder graph.
     pub fn build(self) -> Result<Study, CausalError> {
+        self.finish(false)
+    }
+
+    fn finish(self, inspect_only: bool) -> Result<Study, CausalError> {
         if let Some(spec) = &self.estimator_spec {
             if spec.is_configured() {
                 if self.bootstrap_explicit {
@@ -901,6 +1339,48 @@ impl StudyBuilder {
         }
 
         let query = self.query.ok_or(CausalError::Missing { field: "query" })?;
+        refuse_unsupported_likelihood(
+            &query,
+            &data,
+            graph.class(),
+            graph_posterior.is_none() && self.tiered.is_none(),
+            &inference,
+        )?;
+        if !population_estimable(&query) {
+            return Err(crate::unsupported_reason!(
+                "population_not_estimable",
+                "only an AverageEffect estimates a target population other than AllObserved; \
+                 this query kind has no weighting or subpopulation estimator for another target. \
+                 Declare the AllObserved population, or prepare an AllObserved AIPW or cell-AIPW \
+                 study and retarget its frozen scores"
+            ));
+        }
+        if let Some(configured) =
+            self.estimator_spec.as_ref().and_then(EstimatorSpec::bootstrap_replicates)
+        {
+            // A configured estimator owns its replicate count (an explicit
+            // builder count beside it is refused above). The study reports and
+            // executes that same count instead of its own omitted default.
+            bootstrap_replicates = configured;
+        }
+        if !self.bootstrap_explicit && !omitted_bootstrap_resamples(&query, &inference) {
+            bootstrap_replicates = 0;
+        }
+        if !self.custom_validators.is_empty()
+            && !custom_validators_apply(
+                &query,
+                &data,
+                graph.class(),
+                graph_posterior.is_some(),
+                &inference,
+            )
+        {
+            return Err(crate::unsupported_reason!(
+                "validators_not_applicable",
+                "custom validators refute one scalar average effect; this query and data route \
+                 has no scalar refutation problem for them to run on"
+            ));
+        }
         let structure = if graph_posterior.is_some() {
             crate::support::StructureSource::GraphPosterior
         } else {
@@ -1085,6 +1565,9 @@ impl StudyBuilder {
                 });
             }
         }
+        if let Some(estimator) = self.estimator {
+            refuse_estimator_inference_mismatch(&query, estimator, &inference)?;
+        }
         if let Some(spec) = &self.estimator_spec {
             let bayesian = matches!(inference, InferenceMode::Bayesian(_));
             let expected = match &query {
@@ -1133,13 +1616,12 @@ impl StudyBuilder {
                                 )
                     );
                 if spec.id() != expected && !cell_aipw_ok {
-                    return Err(CausalError::Compile {
-                        message: format!(
-                            "query and inference require estimator {}; got {}",
-                            expected.as_str(),
-                            spec.id().as_str()
-                        ),
-                    });
+                    return Err(crate::compile_reason!(
+                        "strategy_incompatible",
+                        "query and inference require estimator {}; got {}",
+                        expected.as_str(),
+                        spec.id().as_str()
+                    ));
                 }
             }
         }
@@ -1198,8 +1680,14 @@ impl StudyBuilder {
                 _ => {}
             }
         }
-        if matches!((&data, &query), (DataInput::Panel(_), CausalQuery::Response(_))) {
-            return Err(CausalError::Unsupported { message: PANEL_RESPONSE_REFUSAL });
+        if let DataInput::Panel(panel) = &data {
+            refuse_unlicensed_panel_route(
+                &query,
+                graph.class(),
+                &inference,
+                panel,
+                self.split.as_ref(),
+            )?;
         }
         if self.class_prior.is_some() && matches!(inference, crate::InferenceMode::Frequentist) {
             return Err(CausalError::Unsupported {
@@ -1209,12 +1697,7 @@ impl StudyBuilder {
                           probabilities",
             });
         }
-        if self.class_prior.is_some()
-            && !matches!(
-                graph.class(),
-                crate::GraphClass::TemporalCpdag | crate::GraphClass::TemporalPag
-            )
-        {
+        if self.class_prior.is_some() && !graph.class().is_incomplete_temporal() {
             return Err(CausalError::Unsupported {
                 message: "class_prior requires an incomplete temporal graph class",
             });
@@ -1222,13 +1705,20 @@ impl StudyBuilder {
         let support_status = if let Some(cell) =
             crate::support::support_cell_named(&query, matrix_class, structure, &inference, refute)
         {
-            Some(crate::support::refuse_if_not_applicable(cell)?)
+            if inspect_only {
+                Some(crate::support::classify(cell))
+            } else {
+                Some(crate::support::refuse_if_not_applicable(cell)?)
+            }
         } else {
             None
         };
 
         let (selection_diagram, transport_trial, interference) = match &query {
-            CausalQuery::Transport(_) => {
+            CausalQuery::Transport(transport) => {
+                if !inspect_only {
+                    refuse_unlicensed_transport(transport)?;
+                }
                 if self.interference.is_some() {
                     return Err(CausalError::Unsupported {
                         message: "interference network is not used by TransportQuery",
@@ -1245,7 +1735,10 @@ impl StudyBuilder {
                 })?;
                 (Some(diagram), Some(trial), None)
             }
-            CausalQuery::Interference(_) => {
+            CausalQuery::Interference(design) => {
+                if !inspect_only {
+                    refuse_unlicensed_interference(design)?;
+                }
                 if self.transport_trial.is_some() || self.selection_targets.is_some() {
                     return Err(CausalError::Unsupported {
                         message: "transport trial columns are not used by InterferenceQuery",
@@ -1268,7 +1761,7 @@ impl StudyBuilder {
                             .into(),
                     });
                 }
-                (None, None, Some(spec))
+                (None, None, Some(spec.bound_to(units)?))
             }
             _ if self.transport_trial.is_some()
                 || self.selection_targets.is_some()
@@ -1297,6 +1790,10 @@ impl StudyBuilder {
             split: self.split,
             identifier: self.identifier,
             estimator: self.estimator,
+            estimator_spec_identity: self
+                .estimator_spec
+                .as_ref()
+                .map(super::contract_identity::estimator_spec_identity),
             estimator_spec: self.estimator_spec,
             response_options: self.response_options,
             observation_options: self.observation_options,

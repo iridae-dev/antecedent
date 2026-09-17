@@ -15,6 +15,9 @@
 /// path (`parametric_scm_identification` in the `antecedent` crate, covering counterfactual,
 /// anomaly-attribution, change-attribution, mechanism-change, and unit-change queries)
 /// and by IV Wald identification (linearity, or LATE under monotonicity).
+/// Licensed `TransportQuery` / `InterferenceQuery` execute paths do **not** use that
+/// helper: they emit [`Self::NonparametricallyIdentified`] under `transport.sid` or
+/// `interference.design`.
 /// [`Self::IdentifiedUnderPriorRestrictions`] is reserved and is **not** accepted by
 /// estimation gates or prior-bank hydration until an in-tree identifier emits it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -43,4 +46,21 @@ pub enum IdentificationStatus {
     /// freeze — there is no third variant — and is marked by an Execution
     /// diagnostic, not a scientific open-back-door.
     NotIdentified,
+}
+
+impl IdentificationStatus {
+    /// Stable `snake_case` name used by contracts and the artifact wire.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NonparametricallyIdentified => "nonparametrically_identified",
+            Self::IdentifiedUnderParametricRestrictions => {
+                "identified_under_parametric_restrictions"
+            }
+            Self::IdentifiedUnderPriorRestrictions => "identified_under_prior_restrictions",
+            Self::PartiallyIdentified => "partially_identified",
+            Self::GraphDependent => "graph_dependent",
+            Self::NotIdentified => "not_identified",
+        }
+    }
 }

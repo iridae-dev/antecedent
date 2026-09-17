@@ -146,7 +146,9 @@ def test_repr_html_omits_nan_interval_for_scalar_effect():
 
 def test_repr_html_counterfactual_row_shows_available_interval():
     result = AnalysisResult(
-        identification=_identification(status="gcm.parametric", method="gcm.parametric"),
+        identification=_identification(
+            status="IdentifiedUnderParametricRestrictions", method="gcm.parametric"
+        ),
         estimate=_estimate(estimator_id="gcm.fit", se_analytic=0.04),
         posterior=None,
         validation=_validation(ran=False, reports=[]),
@@ -163,7 +165,9 @@ def test_repr_html_counterfactual_row_shows_available_interval():
 
 def test_repr_html_counterfactual_row_omits_nan_interval():
     result = AnalysisResult(
-        identification=_identification(status="gcm.parametric", method="gcm.parametric"),
+        identification=_identification(
+            status="IdentifiedUnderParametricRestrictions", method="gcm.parametric"
+        ),
         estimate=_estimate(estimator_id="gcm.fit", se_analytic=float("nan")),
         posterior=None,
         validation=_validation(ran=False, reports=[]),
@@ -247,6 +251,8 @@ def test_repr_html_amber_callout_present_when_mass_positive():
     assert "gives no identified estimand" in html
     assert "50.0%" in html
     assert "no identified estimand" in html
+    assert "no point mean" in html
+    assert "(unidentified_mass)" in html
 
 
 def test_repr_html_amber_callout_absent_when_mass_zero():
@@ -374,3 +380,35 @@ def test_posterior_view_repr_html_standalone_populated():
     assert "2.290" in html
     assert '<div class="antecedent-ar-callout">' in html
     assert "gives no identified estimand" in html
+
+
+# --- one precedence rule for the displayed mass -----------------------------
+
+
+def test_html_and_repr_show_the_same_mass_when_a_result_carries_both():
+    """A result can carry a structural mass and a graph-posterior mass.
+
+    `repr()` read the structural one and the HTML callout read the posterior
+    one, so the same result quoted two different numbers depending on where it
+    was displayed. Both now go through `AnalysisResult._display_mass`, which is
+    the only precedence rule: structural first, because it is the mass of the
+    claim rather than of the sampled structures behind it.
+    """
+    posterior = PosteriorView(
+        effect_mean=2.29,
+        effect_sd=0.03,
+        q025=2.2,
+        q975=2.4,
+        n_draws=200,
+        p_below_zero=0.0,
+        backend="conjugate",
+        unidentified_mass=0.10,
+    )
+    result = _result(posterior=posterior)
+    object.__setattr__(result, "structural_unidentified_mass", 0.40)
+
+    assert result._display_mass() == 0.40
+    html = result._repr_html_()
+    assert "40.0%" in html, "the callout must quote the structural mass"
+    assert "10.0%" not in html, "the posterior mass must not reach the callout"
+    assert "unidentified_mass=40.0%" in repr(result)

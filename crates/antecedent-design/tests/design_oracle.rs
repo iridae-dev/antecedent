@@ -21,12 +21,18 @@ const RANKING_FIXTURE: &str =
 struct ProductUtility;
 
 impl Utility<f64, f64> for ProductUtility {
-    fn evaluate_batch(&self, actions: &[f64], outcomes: &[f64], out: &mut [f64]) {
+    fn evaluate_batch(
+        &self,
+        actions: &[f64],
+        outcomes: &[f64],
+        out: &mut [f64],
+    ) -> Result<(), antecedent_design::DesignError> {
         for (action_index, action) in actions.iter().enumerate() {
             for (outcome_index, outcome) in outcomes.iter().enumerate() {
                 out[action_index * outcomes.len() + outcome_index] = action * outcome;
             }
         }
+        Ok(())
     }
 }
 
@@ -128,13 +134,21 @@ fn decision_enumeration_matches_exact_feasibility_contract() {
             vec![Arc::new(FixedSatisfaction(Arc::from(satisfaction)))],
         );
         problem.chance_threshold = case["threshold"].as_f64().expect("threshold");
-        let actual = evaluate_decision(&problem, &outcomes);
+        let result = evaluate_decision(&problem, &outcomes);
+        if let Some(refusal) = case["refusal"].as_str() {
+            assert_eq!(refusal, "no_admissible_action", "{name}");
+            assert!(
+                matches!(result, Err(antecedent_design::DesignError::NoAdmissibleAction(_))),
+                "{name}: {result:?}"
+            );
+            continue;
+        }
+        let actual = result.expect("decision");
 
         assert_eq!(
             actual.chosen_action,
-            case["chosen_action"]
-                .as_u64()
-                .map(|value| usize::try_from(value).expect("chosen action fits usize")),
+            usize::try_from(case["chosen_action"].as_u64().expect("chosen action"))
+                .expect("chosen action fits usize"),
             "{name}"
         );
         assert!(

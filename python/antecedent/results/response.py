@@ -10,10 +10,13 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from math import isfinite, isnan
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
+from .._verdict import describe_status
 from ..errors import CausalValueError
+from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct
+from ._slots import ReasoningSlots, mass_limitation
 from ._views import IdentificationView
 
 SupportStatus = Literal["supported", "weak_overlap", "extrapolative", "outside_empirical_support"]
@@ -356,8 +359,10 @@ class SimultaneousBand:
 
 
 @dataclass(frozen=True, slots=True)
-class CausalResponseView:
+class CausalResponseView(ResultAPI):
     """Top-level result projection shared by response-family estimands."""
+
+    _function_valued: ClassVar[bool] = True
 
     estimand: object
     response: ResponseView | None
@@ -374,6 +379,15 @@ class CausalResponseView:
     allowlist_parent: str | None = None
     diagnostics: Sequence[str] = ()
     certificate: dict[str, Any] | None = None
+    reasoning: ReasoningSlots | None = None
+    #: Compiled program identity. Distinct from ``claim_id``.
+    program_id: str | None = None
+    #: Execution claim identity. Distinct from ``program_id``.
+    claim_id: str | None = None
+    #: Identity of the data snapshot this execution ran on.
+    data_snapshot_id: str | None = None
+    _prepared: Any = field(default=None, repr=False, compare=False)
+    _execution: Any = field(default=None, repr=False, compare=False)
 
     @property
     def simultaneous_band(self) -> SimultaneousBand | None:
@@ -389,6 +403,12 @@ class CausalResponseView:
         return SimultaneousBand.from_support(self.support)
 
     def __repr__(self) -> str:
+        limitation = self.rendering_limitation()
+        if limitation is not None:
+            return (
+                f"<CausalResponseView {describe_status(self.identification.status)} "
+                f"answer={self.answer.kind} limitation={limitation}>"
+            )
         if isinstance(self.estimate, (float, int)):
             estimate = fmt_float(float(self.estimate))
         elif self.response is not None:
@@ -415,6 +435,14 @@ class CausalResponseView:
             f"<CausalResponseView estimate={estimate} support={self.support.status!r} "
             f"uncertainty={self.uncertainty.kind!r}{extra}>"
         )
+
+    def rendering_limitation(self) -> str | None:
+        if self.reasoning is not None:
+            limit = self.reasoning.rendering_limitation()
+            if limit is not None:
+                return limit
+        mass = None if self.envelope is None else self.envelope.unidentified_mass
+        return mass_limitation(mass, identified_set=self.envelope is not None)
 
 
 __all__ = [

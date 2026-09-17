@@ -24,6 +24,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
 
+from ._verdict import describe_status, verdict_for
 from .errors import CausalUnsupportedError, CausalValueError
 from .estimation import IdentifyResult
 from .estimation import identify as _identify_native
@@ -50,13 +51,102 @@ from .query import (
 from .results import IdentificationView
 
 
+def _query_phrase(query: object) -> str:
+    name = type(query).__name__
+    treatment = getattr(query, "treatment", None)
+    outcome = getattr(query, "outcome", None)
+    if isinstance(treatment, str) and isinstance(outcome, str):
+        mediators = getattr(query, "mediators", None)
+        if mediators:
+            via = ", ".join(str(item) for item in mediators)
+            return f"{name} of {outcome} from {treatment} via {via}"
+        modifier = getattr(query, "modifier", None)
+        if isinstance(modifier, str):
+            return f"{name} of {outcome} from {treatment} given {modifier}"
+        return f"{name} of {outcome} from {treatment}"
+    return name
+
+
+def _assumption_line(item: object) -> str | None:
+    if isinstance(item, str) and item.strip():
+        return item.strip()
+    if not isinstance(item, Mapping):
+        return None
+    tag = item.get("assumption", item.get("id", item.get("kind")))
+    if isinstance(tag, Mapping):
+        description = tag.get("description")
+        if isinstance(description, str) and description.strip():
+            return description.strip()
+        tag = tag.get("id") or tag.get("kind") or next(iter(tag), None)
+    if tag is None:
+        return None
+    label = str(tag).replace("_", " ")
+    extras = [
+        str(item[key])
+        for key in ("source", "status")
+        if isinstance(item.get(key), str) and item[key]
+    ]
+    return f"{label} ({', '.join(extras)})" if extras else label
+
+
+def _certificate_cases(certificate: Mapping[str, Any] | None) -> list[Mapping[str, Any]]:
+    if not certificate:
+        return []
+    cases = certificate.get("cases")
+    if not isinstance(cases, list):
+        return []
+    return [case for case in cases if isinstance(case, Mapping)]
+
+
+def _assumption_statements(certificate: Mapping[str, Any] | None) -> tuple[str, ...]:
+    seen: list[str] = []
+    for case in _certificate_cases(certificate):
+        identification = case.get("identification")
+        raw = (
+            identification.get("required_assumptions")
+            if isinstance(identification, Mapping)
+            else None
+        )
+        entries = raw.get("entries", raw) if isinstance(raw, Mapping) else raw
+        if not isinstance(entries, list):
+            continue
+        for item in entries:
+            line = _assumption_line(item)
+            if line and line not in seen:
+                seen.append(line)
+    return tuple(seen)
+
+
+def _derivation_statements(certificate: Mapping[str, Any] | None) -> tuple[str, ...]:
+    seen: list[str] = []
+    for case in _certificate_cases(certificate):
+        identification = case.get("identification")
+        steps = identification.get("derivation") if isinstance(identification, Mapping) else None
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if isinstance(step, str) and step.strip() and step not in seen:
+                seen.append(step.strip())
+                continue
+            if not isinstance(step, Mapping):
+                continue
+            detail = step.get("detail") or step.get("rule")
+            if isinstance(detail, str) and detail.strip() and detail not in seen:
+                seen.append(detail.strip())
+    return tuple(seen)
+
+
 @dataclass(frozen=True)
 class Identification:
     """A resolved identification strategy, staged for ``.estimate()`` / ``.validate()``.
 
     Produced by :func:`identify` or :meth:`from_view`. Typed-structure
     certificates retain each case's assumptions, derivation and search diagnostics;
-    aggregate counts remain unset when there is no single point certificate. Conceptually immutable, like :class:`antecedent.AcceptedGraph`.
+    aggregate counts remain unset when there is no single point certificate.
+    :attr:`statement`, :attr:`verdict`, :attr:`assumption_statements`, and
+    :attr:`derivation_statements` are human-readable state on this object —
+    not a notebook renderer. Conceptually immutable, like
+    :class:`antecedent.AcceptedGraph`.
     """
 
     status: str
@@ -111,24 +201,72 @@ class Identification:
         ]
 
     def __bool__(self) -> bool:
-        """``True`` when the estimand is identified.
+        """``True`` when the single verdict table (:mod:`antecedent._verdict`) reports identified."""
+        return self.verdict == "identified"
 
-        Delegates to :class:`antecedent.results.IdentificationView`'s status
-        heuristic — the one place in this codebase that already makes this
-        judgment call across the native status vocabulary
-        (``NonparametricallyIdentified`` / ``PartiallyIdentified`` /
-        ``NotIdentified`` / ``GraphDependent`` / the GCM path's
-        ``"gcm.parametric"``) — rather than re-deriving it here.
+    @property
+    def verdict(self) -> str:
+        """Stable human label: identified, not identified, partial, or graph-dependent."""
+        return verdict_for(self.status)
+
+    @property
+    def qualified_verdict(self) -> str:
+        """:attr:`verdict` plus the restriction it holds under, when there is one.
+
+        ``IdentifiedUnderParametricRestrictions`` reads
+        ``"identified under parametric restrictions"``; priors never upgrade
+        identification, so ``IdentifiedUnderPriorRestrictions`` keeps its
+        qualifier too.
         """
-        return bool(
-            IdentificationView(
-                status=self.status,
-                method=self.method,
-                adjustment_set=list(self.adjustment_set),
-                assumption_count=self.assumption_count or 0,
-                derivation_step_count=self.derivation_step_count or 0,
-            )
-        )
+        return describe_status(self.status)
+
+    @property
+    def assumption_statements(self) -> tuple[str, ...]:
+        """Readable assumption lines retained from the identification certificate."""
+        return _assumption_statements(self.certificate)
+
+    @property
+    def derivation_statements(self) -> tuple[str, ...]:
+        """Readable derivation steps retained from the identification certificate."""
+        return _derivation_statements(self.certificate)
+
+    @property
+    def statement(self) -> str:
+        """One-sentence identification state. This is data, not a display hook."""
+        query = _query_phrase(self.query)
+        verdict = self.verdict
+        if verdict == "not identified":
+            return f"{query} is not identified."
+        if verdict == "graph-dependent":
+            phrase = f"{query} is graph-dependent, not a single identified effect"
+        else:
+            phrase = f"{query} is {self.qualified_verdict}"
+        method = self.method.strip() if self.method else ""
+        if method and method.lower() not in {"none", "unavailable"}:
+            phrase = f"{phrase} by {method}"
+        if self.adjustment_set:
+            adjusted = ", ".join(self.adjustment_set)
+            phrase = f"{phrase}, adjusting for {adjusted}"
+        return f"{phrase}."
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe identification state, including the human-readable fields."""
+        return {
+            "status": self.status,
+            "verdict": self.verdict,
+            "qualified_verdict": self.qualified_verdict,
+            "statement": self.statement,
+            "method": self.method,
+            "adjustment_set": list(self.adjustment_set),
+            "identifier": self.identifier,
+            "assumption_count": self.assumption_count,
+            "derivation_step_count": self.derivation_step_count,
+            "assumption_statements": list(self.assumption_statements),
+            "derivation_statements": list(self.derivation_statements),
+        }
+
+    def __repr__(self) -> str:
+        return f"<Identification {self.statement}>"
 
     def to_identify_result(self) -> IdentifyResult:
         """Convert down to the legacy identify-only result shape.
@@ -316,7 +454,7 @@ def _identify_typed_graph(
             "horizon_steps": int((query.horizons or [1])[0]),
         }
     elif isinstance(query, InterventionResponse) and query.is_temporal:
-        from ._analyze import _encode_temporal_interventions
+        from .intervention import encode_temporal_steps
 
         supplied_steps = query.intervention
         specs = (
@@ -324,7 +462,7 @@ def _identify_typed_graph(
             if isinstance(supplied_steps, Sequence) and not isinstance(supplied_steps, (str, bytes))
             else [supplied_steps]
         )
-        steps = [step for spec in specs for step in _encode_temporal_interventions(spec)]
+        steps = [step for spec in specs for step in encode_temporal_steps(spec)]
         if not steps:
             raise CausalValueError("InterventionResponse requires at least one intervention")
         kind = "temporal_response"
@@ -367,6 +505,7 @@ def _identify_typed_graph(
             "treatment_lag": query.treatment_lag,
             "horizon_steps": query.horizon_steps,
             "active_level": query.active_level,
+            "max_history_lag": query.max_history_lag,
         }
     elif isinstance(query, SustainedEffect):
         kind = "sustained"
@@ -376,6 +515,7 @@ def _identify_typed_graph(
             "treatment_lag": query.treatment_lag,
             "horizon_steps": query.horizon_steps,
             "active_level": query.active_level,
+            "max_history_lag": query.max_history_lag,
             "window": query.window,
         }
     else:

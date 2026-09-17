@@ -102,6 +102,12 @@ impl super::Study {
                     Err(err) => Err(err),
                 }
             };
+            // A reason-coded refusal is a property of the data (for example a
+            // treatment too discrete for a local-polynomial response), shared by
+            // every atom; it is the answer, not an unevaluable atom.
+            if let Err(err @ antecedent_estimate::EstimationError::Refused { .. }) = response {
+                return Err(err.into());
+            }
             let Ok(response) = response else {
                 // Identified but not evaluable: the atom keeps its identification
                 // status and has no value, so its mass is unevaluable.
@@ -211,21 +217,27 @@ impl super::Study {
         } else {
             EstimatorId::default_for_response(&query.functional)
         };
-        let mut diagnostics = vec![Diagnostic::new(
-            "estimate.response.graph_posterior",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
+        let mut diagnostics = vec![
+            Diagnostic::new(
+                "estimate.response.graph_posterior",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
                  unevaluable_mass={}; subsampled_out_mass={}; failed estimation and \
                  atoms the Interactive tier did not evaluate are not mixed into \
                  unidentified mass",
-                identified_mass / total_mass,
+                    identified_mass / total_mass,
+                    unidentified_mass / total_mass,
+                    failed_mass / total_mass,
+                    subsampled_out_mass / total_mass
+                ),
+            )
+            .with_fields(super::mass_fields(
+                Some(identified_mass / total_mass),
                 unidentified_mass / total_mass,
-                failed_mass / total_mass,
-                subsampled_out_mass / total_mass
-            ),
-        )];
+            )),
+        ];
         if weighted.len() > 1 && mixed_if_se.is_none() {
             diagnostics.push(Diagnostic::new(
                 "estimate.response.graph_posterior.uncertainty_withheld",
@@ -262,7 +274,7 @@ impl super::Study {
         let scalar_intervention = plugin_scalar.is_finite()
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         let (refutations, refute_diags) = if scalar_intervention
-            && !matches!(self.refute, RefuteSuite::None)
+            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
             && matches!(self.inference, InferenceMode::Frequentist)
         {
             let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
@@ -549,7 +561,7 @@ impl super::Study {
         let scalar_intervention = scalar.is_finite()
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         let (refutations, refute_diags) = if scalar_intervention
-            && !matches!(self.refute, RefuteSuite::None)
+            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
         {
             let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
             let mut refute_ws = EstimationWorkspace::default();
@@ -842,15 +854,23 @@ impl super::Study {
             estimate: ResponseIdentification::PointIdentified(ResponseValue::Scalar(scalar)),
             uncertainty: ResponseUncertainty::Scalar {
                 standard_error: se,
-                lower: scalar - 1.96 * se,
-                upper: scalar + 1.96 * se,
+                lower: scalar - crate::result::reported_se_interval_z() * se,
+                upper: scalar + crate::result::reported_se_interval_z() * se,
                 level: 0.95,
             },
             support: antecedent_core::SupportReport {
                 status: antecedent_core::SupportStatus::Supported,
                 query_region: antecedent_core::SupportRegion {
-                    minima: Arc::from([]),
-                    maxima: Arc::from([]),
+                    minima: Arc::from(
+                        (0..treatments.len())
+                            .map(|j| f64::from((requested_arm >> j) & 1))
+                            .collect::<Vec<_>>(),
+                    ),
+                    maxima: Arc::from(
+                        (0..treatments.len())
+                            .map(|j| f64::from((requested_arm >> j) & 1))
+                            .collect::<Vec<_>>(),
+                    ),
                 },
                 diagnostics: Vec::new(),
                 warnings: Vec::new(),
@@ -1153,10 +1173,11 @@ impl super::Study {
         if matches!(envelope.status, IdentificationStatus::NotIdentified)
             || envelope.identified_weight.0 <= 0.0
         {
-            return Err(CausalError::Compile {
-                message: "class-aware response not identified (no identified mass in envelope)"
-                    .into(),
-            });
+            return Err(CausalError::not_identified(
+                envelope.status,
+                envelope.truncated_completions > 0,
+                "class-aware response not identified (no identified mass in envelope)",
+            ));
         }
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let data_est = super::super::helpers::apply_scalar_outcome_functional(
@@ -1334,6 +1355,18 @@ impl super::Study {
         // identified-atom SE as the envelope.
         if envelope.cases.len() > 1 {
             mixed.uncertainty = ResponseUncertainty::None;
+        }
+        // Bayesian completions carry no influence scores to mix. When every
+        // completion is identified and each returns the same response (they
+        // share the adjustment set, so their posteriors are one posterior),
+        // any mixture of them is that posterior: its band is the class band.
+        if matches!(self.inference, InferenceMode::Bayesian(_))
+            && envelope.unidentified_weight.0 <= 1e-12
+            && unestimated_id_mass <= 1e-12
+        {
+            if let Some(shared) = shared_completion_uncertainty(&weighted) {
+                mixed.uncertainty = shared;
+            }
         }
         let mixed_scores = if atom_scores.len() == weighted.len()
             && envelope.unidentified_weight.0 <= 1e-12
@@ -1533,6 +1566,21 @@ impl super::Study {
     }
 }
 
+/// The uncertainty every contributing completion shares, when they all
+/// return the same estimate and the same published band; `None` when any two
+/// differ or none publishes a band.
+fn shared_completion_uncertainty(
+    weighted: &[(u64, f64, antecedent_core::CausalResponse)],
+) -> Option<ResponseUncertainty> {
+    let ((_, _, first), rest) = weighted.split_first()?;
+    if matches!(first.uncertainty, ResponseUncertainty::None) {
+        return None;
+    }
+    rest.iter()
+        .all(|(_, _, r)| r.estimate == first.estimate && r.uncertainty == first.uncertainty)
+        .then(|| first.uncertainty.clone())
+}
+
 fn response_identified_value(response: &antecedent_core::CausalResponse) -> Option<ResponseValue> {
     match &response.estimate {
         ResponseIdentification::PointIdentified(value)
@@ -1562,12 +1610,7 @@ fn response_envelope_from_weighted(
                 lower = lower.min(*candidate);
                 upper = upper.max(*candidate);
             }
-            Some(antecedent_core::ResponseEnvelope {
-                grid: Arc::from([0.0]),
-                dimension: 1,
-                lower: Arc::from([lower]),
-                upper: Arc::from([upper]),
-            })
+            Some(scalar_identified_set(lower, upper))
         }
         ResponseValue::Surface { grid, dimension, mean } => {
             let mut lower = mean.to_vec();
@@ -1670,11 +1713,7 @@ fn mix_class_responses(
         mix_support_reports(&weighted.iter().map(|(_, _, r)| &r.support).collect::<Vec<_>>());
     let mut assumptions = first.assumptions.clone();
     for (_, _, response) in weighted.iter().skip(1) {
-        for record in &response.assumptions.entries {
-            if !assumptions.entries.contains(record) {
-                assumptions.push(record.clone());
-            }
-        }
+        assumptions.extend_unique(&response.assumptions.entries);
     }
     let (identification_status, estimate) =
         if matches!(envelope_status, IdentificationStatus::GraphDependent) {
@@ -1692,7 +1731,14 @@ fn mix_class_responses(
                         "class-aware response could not construct a common identified envelope"
                             .into(),
                 })?;
-            if identified_set_is_singleton(&envelope) {
+            if identified_set_is_singleton(&envelope)
+                && matches!(
+                    envelope_status,
+                    IdentificationStatus::NonparametricallyIdentified
+                        | IdentificationStatus::IdentifiedUnderParametricRestrictions
+                        | IdentificationStatus::IdentifiedUnderPriorRestrictions
+                )
+            {
                 let value = singleton_response_value(&items, &envelope)?;
                 (envelope_status, ResponseIdentification::PointIdentified(value))
             } else {
@@ -1793,14 +1839,45 @@ pub(super) fn mix_support_reports(
         if support_rank(report.status) > support_rank(status) {
             status = report.status;
         }
-        warnings.extend(report.warnings.iter().cloned());
+        for warning in &report.warnings {
+            if !warnings
+                .iter()
+                .any(|seen| seen.code == warning.code && seen.message == warning.message)
+            {
+                warnings.push(warning.clone());
+            }
+        }
     }
+    // Per-cell status is the most conservative over the mixed reports whenever
+    // they share one cell layout; a cell outside any report's support is outside
+    // the mixture's.
+    let point_status = match first.point_status.as_deref() {
+        Some(cells)
+            if reports
+                .iter()
+                .all(|r| r.point_status.as_deref().is_some_and(|p| p.len() == cells.len())) =>
+        {
+            Some(
+                (0..cells.len())
+                    .map(|cell| {
+                        reports
+                            .iter()
+                            .filter_map(|r| r.point_status.as_deref().map(|p| p[cell]))
+                            .max_by_key(|status| support_rank(*status))
+                            .unwrap_or(cells[cell])
+                    })
+                    .collect::<Vec<_>>()
+                    .into(),
+            )
+        }
+        _ => first.point_status.clone(),
+    };
     let mut mixed = antecedent_core::SupportReport {
         status,
         query_region: first.query_region.clone(),
         diagnostics: first.diagnostics.clone(),
         warnings,
-        point_status: first.point_status.clone(),
+        point_status,
     };
     // A simultaneous band belongs to one atom's surface; it stays on that atom and
     // never describes the mixed class report.
@@ -2020,7 +2097,7 @@ fn estimate_general_id_response(
     let map_eval = |e: EvalError| {
         CausalError::from(antecedent_estimate::EstimationError::data_msg(e.to_string()))
     };
-    let (estimate, support) = match eval {
+    let (estimate, mut support) = match eval {
         Ok(ate) => (
             ResponseIdentification::PointIdentified(ResponseValue::Scalar(ate)),
             support_from_functional_eval(None).map_err(map_eval)?,
@@ -2033,6 +2110,23 @@ fn estimate_general_id_response(
         ),
         Err(err) => return Err(map_eval(err)),
     };
+    if let ResponseFunctional::InterventionResponse { interventions, .. } = &query.functional {
+        let levels = interventions
+            .iter()
+            .map(|intervention| match intervention {
+                Intervention::Set { value, .. } => value.as_f64().ok_or(CausalError::Unsupported {
+                    message: "general-ID response requires numeric Set levels",
+                }),
+                _ => Err(CausalError::Unsupported {
+                    message: "general-ID response requires Set interventions",
+                }),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        support.query_region = antecedent_core::SupportRegion {
+            minima: Arc::from(levels.clone()),
+            maxima: Arc::from(levels),
+        };
+    }
     Ok((
         CausalResponse {
             estimand: query.functional.clone(),

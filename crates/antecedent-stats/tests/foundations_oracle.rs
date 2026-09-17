@@ -340,8 +340,12 @@ fn rng_stream_and_gaussian_sampler_match_frozen_scipy_battery() {
     );
 }
 
+/// The B-spline basis matrices are compared with the frozen `SciPy` `BSpline` oracle.
+/// The penalized fit (intercept, coefficients, fitted values, EDF, predictions) is
+/// compared with values this crate wrote itself (`update_gam_oracle_fixture`): a
+/// regression pin that catches drift, not independent evidence the fit is right.
 #[test]
-fn gam_basis_fit_edf_and_prediction_match_frozen_scipy_oracle() {
+fn gam_basis_matches_scipy_oracle_and_fit_matches_self_snapshot() {
     let expected = fixture("gam");
     assert_eq!(expected["reference"]["available"].as_bool(), Some(true));
     let atol = expected["atol"].as_f64().unwrap();
@@ -495,7 +499,7 @@ fn update_gam_oracle_fixture() {
     }
 
     root["reference"]["project"] = Value::from(
-        "SciPy BSpline bases + Rust second-difference roughness (D2'D2) clean-room oracle",
+        "SciPy BSpline basis matrices (external oracle); coefficients, fitted, intercept, edf and prediction are a Rust self-snapshot written by update_gam_oracle_fixture (regression pin, not an oracle)",
     );
     root["reference"]["penalty"] = Value::from("second_difference_D2T_D2");
     let out = serde_json::to_string_pretty(&root).unwrap();

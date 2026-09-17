@@ -608,12 +608,39 @@ mod tests {
     }
 
     #[test]
-    fn joint_closure_is_linear_in_p() {
-        // Unoptimized measurement: ~230 ms on the 200-node facet clique
-        // (bidirected C(198,2) plus earlier confounder and Y). Single-lever
-        // 200-node is chunked tiers and stays under 200 ms; this is the
-        // recorded joint-path bound.
-        assert_joint_width_identified(200, |elapsed| elapsed.as_millis() < 500);
+    fn joint_closure_growth_stays_cubic_in_p() {
+        // The facet clique carries C(p-2, 2) bidirected edges, and the joint
+        // closure measures roughly cubic in p (unoptimized: ~230 ms at p=200,
+        // ~8.1 s at p=667). An absolute bound measures the machine, not the
+        // algorithm, and fails under parallel test load; bound the growth
+        // instead. Each round times both sizes back to back, so the pair
+        // shares whatever load the machine is under and their ratio cancels
+        // it; the median over rounds discards a round a spike split.
+        // Doubling p costs ~8x when cubic; 12x leaves headroom and still
+        // rejects a quartic regression (16x).
+        assert_joint_width_identified(100, |_| true);
+        assert_joint_width_identified(200, |_| true);
+        let (small_schema, small_bg) = facet_width_joint(100);
+        let small_query = joint_query(&small_schema, "t1", "t2", "y");
+        let (large_schema, large_bg) = facet_width_joint(200);
+        let large_query = joint_query(&large_schema, "t1", "t2", "y");
+        let time = |bg: &TieredBackground, schema: &CausalSchema, query: &ResponseQuery| {
+            let started = std::time::Instant::now();
+            identify_tiered_joint(bg, schema, query).unwrap();
+            started.elapsed()
+        };
+        let mut ratios: Vec<f64> = (0..7)
+            .map(|_| {
+                let small = time(&small_bg, &small_schema, &small_query);
+                let large = time(&large_bg, &large_schema, &large_query);
+                large.as_secs_f64() / small.as_secs_f64().max(1e-6)
+            })
+            .collect();
+        ratios.sort_by(f64::total_cmp);
+        let median = ratios[ratios.len() / 2];
+        assert!(median < 12.0, "p 100 -> 200 grew {median:.1}x (per round: {ratios:.1?})");
+        let large = time(&large_bg, &large_schema, &large_query);
+        assert!(large.as_secs() < 10, "200-node joint closure took {large:?}");
     }
 
     #[test]

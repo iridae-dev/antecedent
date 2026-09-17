@@ -267,7 +267,8 @@ fn analyze_observation_response(
     observed=None, censoring=None, event=None, lower=None, upper=None, indicator=None,
     assumption_kind, assumption_variables=Vec::new(), structural_model=None,
     delayed_entry=None, correction="aipw", observation_probability_floor=0.01,
-    censoring_survival_floor=0.01, crossfit_folds=5, accepted=false
+    censoring_survival_floor=0.01, crossfit_folds=5, accepted=false, seed=1, threads=1,
+    options=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_observation_response(
@@ -295,7 +296,11 @@ fn prepare_observation_response(
     censoring_survival_floor: f64,
     crossfit_folds: usize,
     accepted: bool,
+    seed: u64,
+    threads: u32,
+    options: Option<Bound<'_, pyo3::types::PyDict>>,
 ) -> PyResult<crate::prepared_api::PyPreparedAnalysis> {
+    let mut opts = crate::prepared_options::PrepareOptions::parse(options.as_ref())?;
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     let correction = parse_correction(correction)?;
@@ -326,10 +331,12 @@ fn prepare_observation_response(
         } else {
             antecedent::Study::tabular(data.clone()).graph(dag)
         };
-        let mut builder = builder
-            .query(CausalQuery::Response(query))
-            .refute(antecedent::RefuteSuite::None)
-            .bootstrap_replicates(0)
+        let mut query = query;
+        if let Some(population) = opts.target_population.clone() {
+            query.target_population = population;
+        }
+        let mut builder = opts
+            .apply(builder.query(CausalQuery::Response(query)))
             .observation_options(ObservationEstimatorOptions {
                 selected_correction: correction,
                 observation_probability_floor,
@@ -339,9 +346,8 @@ fn prepare_observation_response(
         if let Some(entry) = delayed_entry {
             builder = builder.observation_delayed_entry(entry);
         }
-        let study = builder.build().map_err(py_err)?;
-        let ctx = crate::py_execution_context(1, 1);
-        let prepared = study.prepare(&ctx).map_err(py_err)?;
+        let study = opts.apply_inference(builder)?.build().map_err(py_err)?;
+        let prepared = study.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
         Ok(crate::prepared_api::PyPreparedAnalysis::from_study(prepared, names))
     })
 }

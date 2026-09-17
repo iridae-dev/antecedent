@@ -22,10 +22,11 @@ use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 use antecedent_stats::invert_square;
 
 use crate::candidate::{CandidateDesign, DesignCost};
-use crate::decision::{DecisionEvaluation, DecisionProblem, DecisionProblemId, evaluate_decision};
+use crate::decision::DecisionProblem;
 use crate::error::DesignError;
 use crate::objective::DesignObjective;
-use crate::result::{ConstraintViolation, DesignRanking, RankedCandidate};
+use crate::preposterior::{DecisionPrior, DecisionSignal, PreposteriorAnalysis};
+use crate::result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};
 
 /// Hard resource limits applied before scoring (violations are recorded, not silent).
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -124,12 +125,15 @@ pub struct ModelLoglikDraws {
     pub n_draws: usize,
 }
 
-/// Optional decision problem registry (by [`DecisionProblemId`]).
+/// Decision problems plus the Bayesian model a candidate's data updates, for
+/// [`DesignObjective::ReduceDecisionRegret`] (problems keyed by [`crate::DecisionProblemId`]).
 pub struct DecisionRegistry<A, O> {
     /// Problems keyed by raw id order (sparse holes allowed via Option).
     pub problems: Vec<Option<DecisionProblem<A, O>>>,
-    /// Outcome draws shared across candidates (CRN).
-    pub outcomes: Vec<O>,
+    /// Current belief about the decision state, shared by every problem.
+    pub prior: DecisionPrior<O>,
+    /// Sampling model of the data each candidate collects about the state.
+    pub signal: Arc<dyn DecisionSignal<O>>,
 }
 
 /// Inputs shared across candidates for one ranking call.
@@ -207,16 +211,35 @@ impl DesignRanker {
         O: Clone,
     {
         self.validate_rank_inputs(candidates, ctx_eval)?;
+        let analysis = prepare_decision(objective, ctx_eval)?;
 
-        let (violations, active) = self.filter_active_candidates(candidates);
+        let (violations, active) = self.filter_active_candidates(candidates, analysis.as_ref());
+        let decision = analysis
+            .map(|analysis| DecisionScoring::new(analysis, candidates, &active))
+            .transpose()?;
+        let evaluations: Vec<ScoreEvaluation> = active
+            .iter()
+            .map(|&cand_i| {
+                decision
+                    .as_ref()
+                    .map_or_else(|| static_evaluation(objective), |d| d.evaluation(cand_i))
+            })
+            .collect();
 
-        let (sums, sumsq, n_samples, budget, early_stopped) =
-            self.run_mc_scoring_loop(objective, candidates, ctx_eval, ctx, &active)?;
+        let (sums, sumsq, n_samples, budget, early_stopped) = self.run_mc_scoring_loop(
+            objective,
+            candidates,
+            ctx_eval,
+            ctx,
+            &active,
+            decision.as_ref(),
+        )?;
 
         Ok(Self::assemble_ranking(
             &active,
             &sums,
             &sumsq,
+            &evaluations,
             n_samples,
             candidates,
             violations,
@@ -245,15 +268,19 @@ impl DesignRanker {
     }
 
     /// Split `candidates` into hard-constraint violations and the indices that remain
-    /// active for MC scoring.
-    fn filter_active_candidates(
+    /// active for MC scoring. Under a decision objective, a candidate the signal has
+    /// no sample size for is recorded as unlicensed rather than scored.
+    fn filter_active_candidates<O>(
         &self,
         candidates: &[CandidateDesign],
+        decision: Option<&PreposteriorAnalysis<'_, O>>,
     ) -> (Vec<ConstraintViolation>, Vec<usize>) {
         let mut violations = Vec::new();
         let mut active: Vec<usize> = Vec::new();
         for (i, c) in candidates.iter().enumerate() {
             if let Some(v) = self.check_constraints(i, c.cost()) {
+                violations.push(v);
+            } else if let Some(v) = decision.and_then(|d| unmapped_decision_candidate(i, c, d)) {
                 violations.push(v);
             } else {
                 active.push(i);
@@ -272,6 +299,7 @@ impl DesignRanker {
         ctx_eval: &DesignEvaluationContext<'_, A, O>,
         ctx: &ExecutionContext,
         active: &[usize],
+        decision: Option<&DecisionScoring<'_, O>>,
     ) -> Result<(Vec<f64>, Vec<f64>, u64, MonteCarloBudget, bool), DesignError>
     where
         A: Clone,
@@ -291,9 +319,20 @@ impl DesignRanker {
             for _ in 0..self.config.batch_size {
                 // Shared CRN draw index into graph posterior.
                 let g_idx = sample_categorical(&mut rng, &ctx_eval.graphs.weights);
+                // Decision replicates share one seed across candidates, so every
+                // candidate sees the same sampled state and noise (CRN).
+                let crn_seed = decision.map(|_| rng.next_u64());
                 for (slot, &cand_i) in active.iter().enumerate() {
-                    let score =
-                        score_candidate(objective, &candidates[cand_i], ctx_eval, g_idx, &mut rng)?;
+                    let score = match (decision, crn_seed) {
+                        (Some(d), Some(seed)) => d.score(cand_i, seed)?,
+                        _ => score_candidate(
+                            objective,
+                            &candidates[cand_i],
+                            ctx_eval,
+                            g_idx,
+                            &mut rng,
+                        )?,
+                    };
                     sums[slot] += score;
                     sumsq[slot] += score * score;
                     budget.evaluations += 1;
@@ -329,6 +368,7 @@ impl DesignRanker {
         active: &[usize],
         sums: &[f64],
         sumsq: &[f64],
+        evaluations: &[ScoreEvaluation],
         n_samples: u64,
         candidates: &[CandidateDesign],
         violations: Vec<ConstraintViolation>,
@@ -336,16 +376,17 @@ impl DesignRanker {
         early_stopped: bool,
         implemented_functional: &'static str,
     ) -> DesignRanking {
-        let mut scored: Vec<(usize, f64, MonteCarloError)> = active
+        let mut scored: Vec<(usize, f64, MonteCarloError, ScoreEvaluation)> = active
             .iter()
             .enumerate()
             .map(|(slot, &cand_i)| {
                 let mean = if n_samples > 0 { sums[slot] / n_samples as f64 } else { 0.0 };
-                let err = MonteCarloError {
-                    stderr: mc_stderr(sums[slot], sumsq[slot], n_samples),
-                    samples: n_samples,
+                let stderr = match evaluations[slot] {
+                    ScoreEvaluation::Exact => 0.0,
+                    ScoreEvaluation::MonteCarlo => mc_stderr(sums[slot], sumsq[slot], n_samples),
                 };
-                (cand_i, mean, err)
+                let err = MonteCarloError { stderr, samples: n_samples };
+                (cand_i, mean, err, evaluations[slot])
             })
             .collect();
 
@@ -354,7 +395,7 @@ impl DesignRanker {
         });
 
         let mut ranked = Vec::with_capacity(scored.len());
-        for (rank, (cand_i, score, mc)) in scored.iter().enumerate() {
+        for (rank, (cand_i, score, mc, evaluation)) in scored.iter().enumerate() {
             let uncertain = if rank + 1 < scored.len() {
                 let gap = (score - scored[rank + 1].1).abs();
                 let se = (mc.stderr.powi(2) + scored[rank + 1].2.stderr.powi(2)).sqrt();
@@ -370,6 +411,7 @@ impl DesignRanker {
                 rank,
                 rank_uncertain: uncertain,
                 implemented_functional: Arc::from(implemented_functional),
+                evaluation: *evaluation,
             });
         }
 
@@ -494,14 +536,9 @@ where
             };
             Ok(model_distinguish_score(candidate, ll, models, rng))
         }
-        DesignObjective::ReduceDecisionRegret { decision } => {
-            let Some(reg) = ctx.decisions else {
-                return Err(DesignError::Config(
-                    "ReduceDecisionRegret requires decisions context".into(),
-                ));
-            };
-            Ok(decision_regret_reduction(candidate, reg, *decision, rng))
-        }
+        DesignObjective::ReduceDecisionRegret { .. } => Err(DesignError::Config(
+            "ReduceDecisionRegret is scored through its prepared preposterior analysis".into(),
+        )),
     }
 }
 
@@ -594,7 +631,7 @@ fn observation_reliability(candidate: &CandidateDesign) -> f64 {
 }
 
 fn evidence_strength(candidate: &CandidateDesign) -> f64 {
-    // Used only for DistinguishModels / decision scaling (not EIG / ID / SE).
+    // Used only by the DistinguishModels heuristic (not EIG / ID / SE / decisions).
     observation_reliability(candidate)
 }
 
@@ -816,53 +853,98 @@ fn model_distinguish_score(
     if count == 0 { 0.0 } else { strength * gap / count as f64 }
 }
 
-fn decision_regret_reduction<A, O>(
+/// How non-decision objectives are evaluated: deterministic functionals are exact;
+/// scores that consume per-draw randomness are Monte Carlo estimates.
+const fn static_evaluation(objective: &DesignObjective) -> ScoreEvaluation {
+    match objective {
+        DesignObjective::IncreaseIdentificationProbability { .. }
+        | DesignObjective::ReduceEffectPosteriorWidth { .. } => ScoreEvaluation::Exact,
+        DesignObjective::ReduceGraphEntropy
+        | DesignObjective::DistinguishModels { .. }
+        | DesignObjective::ReduceDecisionRegret { .. } => ScoreEvaluation::MonteCarlo,
+    }
+}
+
+/// Prepare the preposterior analysis for [`DesignObjective::ReduceDecisionRegret`]
+/// (utilities and admissibility evaluated once per ranking).
+fn prepare_decision<'a, A, O>(
+    objective: &DesignObjective,
+    ctx: &DesignEvaluationContext<'a, A, O>,
+) -> Result<Option<PreposteriorAnalysis<'a, O>>, DesignError> {
+    let DesignObjective::ReduceDecisionRegret { decision } = objective else {
+        return Ok(None);
+    };
+    let Some(registry) = ctx.decisions else {
+        return Err(DesignError::Config("ReduceDecisionRegret requires decisions context".into()));
+    };
+    let Some(Some(problem)) = registry.problems.get(decision.raw() as usize) else {
+        return Err(DesignError::Config(format!("decision problem {decision} is not registered")));
+    };
+    PreposteriorAnalysis::new(problem, &registry.prior, registry.signal.as_ref()).map(Some)
+}
+
+fn unmapped_decision_candidate<O>(
+    index: usize,
     candidate: &CandidateDesign,
-    reg: &DecisionRegistry<A, O>,
-    decision: DecisionProblemId,
-    rng: &mut CausalRng,
-) -> f64
-where
-    A: Clone,
-    O: Clone,
-{
-    let idx = decision.raw() as usize;
-    let Some(Some(problem)) = reg.problems.get(idx) else {
-        return 0.0;
-    };
-    if reg.outcomes.is_empty() {
-        return 0.0;
-    }
-    // Baseline regret.
-    let base: DecisionEvaluation = evaluate_decision(problem, &reg.outcomes);
-    // Candidate: subsample outcomes with replacement (information → tighter effective support).
-    let keep = match candidate {
-        CandidateDesign::IncreaseSamplingRate(s) => {
-            (reg.outcomes.len() as u64).saturating_add(s.additional_samples / 10)
+    analysis: &PreposteriorAnalysis<'_, O>,
+) -> Option<ConstraintViolation> {
+    let signal = analysis.signal();
+    signal.sample_size(candidate).is_none().then(|| ConstraintViolation {
+        candidate_index: index,
+        constraint: Arc::from("unlicensed_candidate"),
+        detail: Arc::from(format!(
+            "decision signal `{}` declares no sample size for this candidate",
+            signal.name()
+        )),
+    })
+}
+
+/// Per-candidate preposterior scoring: the design's sample size and, where
+/// available, its exact EVSI (computed once and reused by every replicate).
+struct DecisionScoring<'a, O> {
+    analysis: PreposteriorAnalysis<'a, O>,
+    /// `(n, exact EVSI)` by candidate index; `None` for inactive candidates.
+    plans: Vec<Option<(u64, Option<f64>)>>,
+}
+
+impl<'a, O> DecisionScoring<'a, O> {
+    fn new(
+        analysis: PreposteriorAnalysis<'a, O>,
+        candidates: &[CandidateDesign],
+        active: &[usize],
+    ) -> Result<Self, DesignError> {
+        let mut plans = vec![None; candidates.len()];
+        for &cand_i in active {
+            if let Some(n) = analysis.signal().sample_size(&candidates[cand_i]) {
+                plans[cand_i] = Some((n, analysis.exact_evsi(n)?));
+            }
         }
-        CandidateDesign::Measure(_) | CandidateDesign::Intervene(_) => reg.outcomes.len() as u64,
-        CandidateDesign::ObserveEnvironment(e) => {
-            (reg.outcomes.len() as u64).saturating_add(e.additional_rows / 10)
-        }
-    };
-    let n_keep = (keep as usize).clamp(1, reg.outcomes.len().saturating_mul(2).max(1));
-    let mut sample = Vec::with_capacity(n_keep.min(reg.outcomes.len()));
-    for _ in 0..n_keep.min(reg.outcomes.len()) {
-        let i = (rng.next_u64() as usize) % reg.outcomes.len();
-        sample.push(reg.outcomes[i].clone());
+        Ok(Self { analysis, plans })
     }
-    // Strength reduces effective regret toward 0.
-    let strength = evidence_strength(candidate);
-    let after = evaluate_decision(problem, &sample);
-    let reduced = after.posterior_regret * (1.0 - strength);
-    (base.posterior_regret - reduced).max(0.0)
+
+    fn evaluation(&self, cand_i: usize) -> ScoreEvaluation {
+        match self.plans.get(cand_i).copied().flatten() {
+            Some((_, Some(_))) => ScoreEvaluation::Exact,
+            _ => ScoreEvaluation::MonteCarlo,
+        }
+    }
+
+    fn score(&self, cand_i: usize, crn_seed: u64) -> Result<f64, DesignError> {
+        match self.plans.get(cand_i).copied().flatten() {
+            Some((_, Some(exact))) => Ok(exact),
+            Some((n, None)) => self.analysis.sample_evsi(n, &mut CausalRng::from_seed(crn_seed)),
+            None => Err(DesignError::Config(format!(
+                "candidate {cand_i} has no decision sample size and cannot be scored"
+            ))),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::candidate::{DesignCost, EnvironmentPlan, MeasurementPlan, SamplingPlan};
-    use crate::decision::{DecisionConstraint, Utility};
+    use crate::decision::{DecisionConstraint, DecisionProblemId, Utility};
     use antecedent_core::{CausalRng, EnvironmentId, VariableId};
     use antecedent_prob::GraphIdentFlag;
 
@@ -1337,76 +1419,207 @@ mod tests {
         assert_eq!(model_distinguish_score(&candidate, &ll, &[m0], &mut rng), 0.0);
     }
 
-    // -- decision_regret_reduction --------------------------------------------------
+    // -- ReduceDecisionRegret -------------------------------------------------------
 
     struct LinearUtility;
     impl Utility<f64, f64> for LinearUtility {
-        fn evaluate_batch(&self, actions: &[f64], outcomes: &[f64], out: &mut [f64]) {
+        fn evaluate_batch(
+            &self,
+            actions: &[f64],
+            outcomes: &[f64],
+            out: &mut [f64],
+        ) -> Result<(), crate::error::DesignError> {
             let n_o = outcomes.len();
             for (ai, a) in actions.iter().enumerate() {
                 for (oi, o) in outcomes.iter().enumerate() {
                     out[ai * n_o + oi] = a * o;
                 }
             }
+            Ok(())
         }
     }
 
-    /// Only action 0 satisfies the constraint, regardless of outcomes.
-    struct OnlyFirstFeasible;
-    impl DecisionConstraint<f64, f64> for OnlyFirstFeasible {
+    struct Never;
+    impl DecisionConstraint<f64, f64> for Never {
         fn name(&self) -> &str {
-            "only_first"
+            "never"
         }
         fn satisfaction_batch(&self, actions: &[f64], _outcomes: &[f64], out: &mut [f64]) {
-            for (a, slot) in (0..actions.len()).zip(out.iter_mut()) {
-                *slot = if a == 0 { 1.0 } else { 0.0 };
+            out[..actions.len()].fill(0.0);
+        }
+    }
+
+    /// Bet on a coin (action 1, pays θ − 0.5) or abstain (action 0, pays 0), with
+    /// the coin's success probability θ drawn from three equally likely values.
+    fn coin_registry(
+        signal: Arc<dyn crate::preposterior::DecisionSignal<f64>>,
+    ) -> DecisionRegistry<f64, f64> {
+        struct Bet;
+        impl Utility<f64, f64> for Bet {
+            fn evaluate_batch(
+                &self,
+                actions: &[f64],
+                outcomes: &[f64],
+                out: &mut [f64],
+            ) -> Result<(), crate::error::DesignError> {
+                for (ai, a) in actions.iter().enumerate() {
+                    for (oi, theta) in outcomes.iter().enumerate() {
+                        out[ai * outcomes.len() + oi] = a * (theta - 0.45);
+                    }
+                }
+                Ok(())
             }
+        }
+        DecisionRegistry {
+            problems: vec![Some(DecisionProblem::new(vec![0.0, 1.0], Arc::new(Bet), vec![]))],
+            prior: DecisionPrior::Draws(vec![0.2, 0.5, 0.8]),
+            signal,
+        }
+    }
+
+    fn sampling(n: u64, tag: u64) -> CandidateDesign {
+        CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+            additional_samples: n,
+            cost: DesignCost::zero(),
+            tag,
+        })
+    }
+
+    fn decision_eval<'a>(
+        graphs: &'a WeightedGraphSamples,
+        registry: &'a DecisionRegistry<f64, f64>,
+    ) -> DesignEvaluationContext<'a, f64, f64> {
+        DesignEvaluationContext {
+            graphs,
+            effect_width: None,
+            model_loglik: None,
+            decisions: Some(registry),
+            query_id_unlock: None,
+            env_id_unlock: None,
+            identified_under_intervention: None,
+            graph_features: None,
+        }
+    }
+
+    fn fixed_ranker() -> DesignRanker {
+        DesignRanker::new().with_config(DesignRankConfig {
+            min_batches: 4,
+            max_batches: 4,
+            batch_size: 4,
+            rank_uncertainty_threshold: 0.0,
+        })
+    }
+
+    /// The design's sample size must drive the score: more coin flips are worth
+    /// strictly more. The previous score clamped every candidate to the same
+    /// resample count and returned the same value for every sample size.
+    #[test]
+    fn decision_regret_score_increases_with_design_sample_size() {
+        let graphs = toy_graphs();
+        let registry = coin_registry(Arc::new(crate::preposterior::BinomialSignal));
+        let candidates = vec![sampling(1, 0), sampling(10, 1), sampling(100, 2), sampling(0, 3)];
+        let ranking = fixed_ranker()
+            .rank(
+                &DesignObjective::ReduceDecisionRegret { decision: DecisionProblemId::from_raw(0) },
+                &candidates,
+                &decision_eval(&graphs, &registry),
+                &ExecutionContext::for_tests(5),
+            )
+            .expect("rank");
+        let score = |i: usize| {
+            ranking.ranked.iter().find(|r| r.candidate_index == i).expect("ranked").score
+        };
+        assert_eq!(score(3), 0.0);
+        assert!(0.0 < score(0) && score(0) < score(1) && score(1) < score(2), "{ranking:?}");
+        let problem = registry.problems[0].as_ref().unwrap();
+        let analysis =
+            PreposteriorAnalysis::new(problem, &registry.prior, registry.signal.as_ref()).unwrap();
+        for (i, n) in [(0, 1), (1, 10), (2, 100)] {
+            let exact = analysis.exact_evsi(n).unwrap().unwrap();
+            assert!((score(i) - exact).abs() < 1e-15);
+        }
+        assert!(score(2) < analysis.expected_value_of_perfect_information());
+        for ranked in ranking.ranked.iter() {
+            assert_eq!(ranked.evaluation, ScoreEvaluation::Exact);
+            assert_eq!(ranked.monte_carlo.stderr, 0.0);
+            assert_eq!(
+                ranked.implemented_functional.as_ref(),
+                "preposterior_expected_value_of_sample_information"
+            );
         }
     }
 
     #[test]
-    fn decision_regret_reduction_matches_closed_form_single_outcome() {
-        // Actions [1.0, 5.0], utility(a, o) = a*o, single outcome o=2.0:
-        // EU(action0)=2.0 (feasible), EU(action1)=10.0 (infeasible, sets the
-        // oracle). Baseline regret = 10.0 - 2.0 = 8.0.
-        let problem = DecisionProblem::new(
-            vec![1.0_f64, 5.0],
-            Arc::new(LinearUtility),
-            vec![Arc::new(OnlyFirstFeasible) as Arc<dyn DecisionConstraint<f64, f64>>],
-        );
-        let reg =
-            DecisionRegistry::<f64, f64> { problems: vec![Some(problem)], outcomes: vec![2.0] };
-        let base = evaluate_decision(reg.problems[0].as_ref().unwrap(), &reg.outcomes);
-        assert!((base.posterior_regret - 8.0).abs() < 1e-12, "base={:?}", base.posterior_regret);
-
-        let candidate = CandidateDesign::Measure(MeasurementPlan {
-            variables: Arc::from([VariableId::from_raw(0)]),
-            cost: DesignCost::zero(),
-            tag: 0,
-        });
-        // With a single outcome, `n_keep` collapses to 1 for a Measure candidate, so
-        // the resampled `sample` is always `[outcomes[0]]` — identical to
-        // `reg.outcomes` — regardless of RNG draws, making `after == base` exactly.
-        // reduced = base.regret * (1 - strength); result = base.regret * strength.
-        let expected_strength = 1.0 - (-0.75_f64).exp();
-        let expected = 8.0 * expected_strength;
-        let mut rng = ExecutionContext::for_tests(1).rng.stream(0);
-        let got =
-            decision_regret_reduction(&candidate, &reg, DecisionProblemId::from_raw(0), &mut rng);
-        assert!((got - expected).abs() < 1e-9, "got={got} expected={expected}");
+    fn decision_regret_continuous_signal_is_labelled_monte_carlo() {
+        let graphs = toy_graphs();
+        let signal = crate::preposterior::GaussianMeanSignal::new(0.25).unwrap();
+        let registry = coin_registry(Arc::new(signal));
+        let ranking = fixed_ranker()
+            .rank(
+                &DesignObjective::ReduceDecisionRegret { decision: DecisionProblemId::from_raw(0) },
+                &[sampling(4, 0), sampling(0, 1)],
+                &decision_eval(&graphs, &registry),
+                &ExecutionContext::for_tests(5),
+            )
+            .expect("rank");
+        let top = &ranking.ranked[0];
+        assert_eq!(top.candidate_index, 0);
+        assert_eq!(top.evaluation, ScoreEvaluation::MonteCarlo);
+        assert!(top.monte_carlo.stderr > 0.0 && top.score > 0.0);
+        assert_eq!(ranking.ranked[1].evaluation, ScoreEvaluation::Exact);
     }
 
     #[test]
-    fn decision_regret_reduction_zero_for_unknown_decision() {
-        let reg = DecisionRegistry::<f64, f64> { problems: vec![None], outcomes: vec![2.0] };
-        let candidate = CandidateDesign::Measure(MeasurementPlan {
+    fn decision_regret_records_candidates_without_a_sample_size() {
+        let graphs = toy_graphs();
+        let registry = coin_registry(Arc::new(crate::preposterior::BinomialSignal));
+        let measure = CandidateDesign::Measure(MeasurementPlan {
             variables: Arc::from([VariableId::from_raw(0)]),
             cost: DesignCost::zero(),
             tag: 0,
         });
-        let mut rng = ExecutionContext::for_tests(1).rng.stream(0);
-        let got =
-            decision_regret_reduction(&candidate, &reg, DecisionProblemId::from_raw(0), &mut rng);
-        assert_eq!(got, 0.0);
+        let ranking = fixed_ranker()
+            .rank(
+                &DesignObjective::ReduceDecisionRegret { decision: DecisionProblemId::from_raw(0) },
+                &[measure, sampling(3, 1)],
+                &decision_eval(&graphs, &registry),
+                &ExecutionContext::for_tests(5),
+            )
+            .expect("rank");
+        assert_eq!(ranking.ranked.len(), 1);
+        assert_eq!(ranking.ranked[0].candidate_index, 1);
+        assert_eq!(ranking.violations.len(), 1);
+        assert_eq!(ranking.violations[0].candidate_index, 0);
+        assert_eq!(ranking.violations[0].constraint.as_ref(), "unlicensed_candidate");
+    }
+
+    #[test]
+    fn decision_regret_refuses_unknown_and_inadmissible_problems() {
+        let graphs = toy_graphs();
+        let registry = DecisionRegistry::<f64, f64> {
+            problems: vec![
+                None,
+                Some(DecisionProblem::new(
+                    vec![1.0, 2.0],
+                    Arc::new(LinearUtility),
+                    vec![Arc::new(Never) as Arc<dyn DecisionConstraint<f64, f64>>],
+                )),
+            ],
+            prior: DecisionPrior::Draws(vec![-1.0, 3.0]),
+            signal: Arc::new(crate::preposterior::GaussianMeanSignal::new(1.0).unwrap()),
+        };
+        let rank = |raw: u32| {
+            fixed_ranker().rank(
+                &DesignObjective::ReduceDecisionRegret {
+                    decision: DecisionProblemId::from_raw(raw),
+                },
+                &[sampling(3, 0)],
+                &decision_eval(&graphs, &registry),
+                &ExecutionContext::for_tests(5),
+            )
+        };
+        assert!(matches!(rank(0), Err(DesignError::Config(_))));
+        assert!(matches!(rank(7), Err(DesignError::Config(_))));
+        assert!(matches!(rank(1), Err(DesignError::NoAdmissibleAction(_))));
     }
 }

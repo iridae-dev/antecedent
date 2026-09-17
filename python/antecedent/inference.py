@@ -50,14 +50,31 @@ class Bayesian:
         MCMC publication gate (Ř ≤ 1.01, bulk/tail ESS ≥ 100 **per chain**, so
         400 total at the 4-chain default, and every chain must have moved);
         under-specified draw counts are floored in Rust.
+    likelihood:
+        Outcome model of the g-computation fit: ``gaussian`` (identity link,
+        default), ``logit`` or ``probit`` (Bernoulli, for a 0/1 outcome), or
+        ``poisson`` (log link, for a count outcome). A non-Gaussian likelihood
+        is fitted for a tabular ``AverageEffect`` mean on a ``Dag`` by the
+        ``laplace`` or ``hmc`` backend, under the isotropic ``prior_scale``
+        (Bayesian g-computation averages the inverse link over the rows, so the
+        effect stays a mean difference on the outcome scale); every other
+        route, the ``conjugate`` backend and ``prior_from`` refuse it with
+        ``reason_code="likelihood_not_supported"``. A Gaussian fit to an
+        outcome that is binary or count-valued reports the
+        ``estimate.bayesian.gaussian_likelihood_discrete_outcome`` diagnostic.
     """
 
-    n_draws: int = 1000
+    n_draws: int | None = None
     prior_scale: float = 10.0
     prior_from: bytes | ComposedPrior | None = None
     mapping: PriorMapping | None = None
     backend: Literal["laplace", "conjugate", "hmc"] = "laplace"
     kind: Literal["bayesian"] = "bayesian"
+    likelihood: Literal["gaussian", "logit", "probit", "poisson"] = "gaussian"
+
+    @property
+    def n_draws_explicit(self) -> bool:
+        return self.n_draws is not None
 
 
 @dataclass(frozen=True, slots=True)

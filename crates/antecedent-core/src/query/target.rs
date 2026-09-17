@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use crate::ids::{DistributionRef, EnvironmentId};
+use crate::ids::{DistributionRef, EnvironmentId, VariableId};
 
 use super::error::QueryError;
 
@@ -75,6 +75,15 @@ pub enum TargetPopulation {
     Predicate(PredicateExpr),
     /// Custom target distribution handle (weights via [`super::PopulationRegistry`]).
     CustomDistribution(DistributionRef),
+    /// Row-weight retarget bound to one data snapshot.
+    RowWeights {
+        /// Target-weights identity (`antecedent.identity.target_weights.v1`):
+        /// the exact weight bits in row order, their row count, the data
+        /// snapshot, the score table they reweight, and `depends_on`.
+        weights: [u8; 32],
+        /// Covariates the weights are declared to depend on.
+        depends_on: Arc<[VariableId]>,
+    },
 }
 
 impl TargetPopulation {
@@ -90,7 +99,8 @@ impl TargetPopulation {
             | Self::Treated
             | Self::Untreated
             | Self::Environment(_)
-            | Self::CustomDistribution(_) => Ok(()),
+            | Self::CustomDistribution(_)
+            | Self::RowWeights { .. } => Ok(()),
         }
     }
 }

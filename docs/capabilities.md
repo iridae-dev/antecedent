@@ -2,7 +2,9 @@
 
 This page is a readable tour of what exists in Antecedent. The parity manifests
 are the maintained implementation inventory; the [support matrix](support-matrix.md)
-is the public **license** for analysis cells. Presence here does not mean every
+is the public **license** for analysis cells. 1.10 inspect / claim / reuse /
+handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/v1.10.0/parity/compiler.toml)
+and are not analysis-matrix coordinates. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).
 
@@ -29,14 +31,13 @@ verified from the data, intervals are universally calibrated, identification is 
 beyond the named subset, or parametric restrictions disappeared. In particular, priors
 cannot convert a nonidentified estimand into an identified one.
 
-At analysis level, the support matrix is the license. The 1.6 matrix keeps
-the 1.5 licensed cells and adds temporal policy cells: per-horizon
+At analysis level, the support matrix is the license. The 1.10 matrix includes
+temporal policy cells: per-horizon
 `TemporalMediationEffect`, multi-step and joint `Sequence` overlays,
 observation-adjusted temporal curves (Frequentist IPCW pairs and the
 parametric Bayesian observed-data CAR route), DBN-posterior mixtures on
 the contrasts the handle already runs, and bounded prior transfer on
-named Pulse / Sustained / ResponseCurve cells. The 1.5 additions remain:
-retargetable
+named Pulse / Sustained / ResponseCurve cells. It also includes retargetable
 prepared AIPW scores (AllObserved iid AIPW and cell-AIPW only; `analyze()`
 does not always return scores), exceedance functionals, cell-saturated joint AIPW,
 `TieredBackground` as a fast path over ADMG / PAG adjustment, and joint
@@ -44,6 +45,12 @@ influence-function standard errors on static Cpdag / Pag effect and response
 aggregates. Unknown tiers retain distinct canonical scenario effects.
 Completions stay envelope atoms; the runtime class is not collapsed.
 Static Cpdag / Pag Frequentist aggregates publish joint-IF standard errors.
+A static class effect whose completions disagree — Cpdag / Pag average and
+conditional effects, Frequentist and Bayesian, and an Unknown tier's canonical
+scenarios — publishes the identified set over its identified completions
+alongside that aggregate, with every completion's value and enumeration weight
+and with unidentified, unevaluable and incomplete-search mass kept apart. A
+point-identified class effect still publishes a point.
 Frequentist DBN Pulse/Sustained mixtures publish shared outer-block
 bootstrap uncertainty. TemporalCpdag/TemporalPag class envelopes publish a
 shared circular-block mixture SE (frozen-weight aggregate over identified
@@ -125,8 +132,7 @@ CBOR artifacts.
 Selected posterior graph samples can be propagated into licensed Bayesian
 or Frequentist effect envelopes. Static graph-posterior analysis is limited to
 `AverageEffect` and `ResponseCurve` / one-coordinate `InterventionResponse`
-with DAG atoms (Rust Study API only; the Python API refuses graph-posterior
-responses). A Frequentist multi-atom aggregate publishes a joint-IF SE only for
+with DAG atoms. A Frequentist multi-atom aggregate publishes a joint-IF SE only for
 a scalar (one-coordinate `InterventionResponse`) when atom influences align on
 the shared rows; a multi-atom curve, or unaligned influences, withholds
 uncertainty with `estimate.response.graph_posterior.uncertainty_withheld`. The
@@ -138,8 +144,40 @@ effects, and single-horizon Frequentist or Bayesian temporal mediation with
 posterior mixing, and ADMG/CPDAG/PAG posterior ATE atoms are refused.
 
 Panel Pulse/Sustained on an explicit or accepted `TemporalDag` can prepare and
-refresh. Panel `ResponseCurve` / `InterventionResponse` is refused: scalar
-panel SEs do not license response bands.
+refresh. Every panel route requires one time-index regularity across units, so
+a horizon step means one duration everywhere, and refuses a unit with fewer
+lag-aligned rows than a per-unit fit needs.
+
+Panel Pulse / single-step Sustained fits one pooled common-coefficient
+regression over the stacked unit rows: its analytic SE is the Arellano
+cluster-by-unit variance with `G − 1` degrees of freedom (the SE is scaled by
+`t_{G−1}/z` so `estimate ± 1.96·SE` is the t interval), and its bootstrap SE
+resamples whole units, each draw its own cluster, refitting the pooled
+regression. The same pooled fit answers a multi-environment Pulse /
+single-step Sustained, clustered by environment. On a supplied
+`TemporalCpdag` / `TemporalPag` each identified completion is fit that way and
+mixed by completion mass.
+
+Panel `ResponseCurve` / `InterventionResponse` and panel multi-step Sustained
+instead average per-unit fits with equal weight: the response publishes the
+between-unit pointwise band `mean ± t_{N−1}·sd/√N` over the unit surfaces (the
+series simultaneous band is withheld, requested bootstrap replicates are
+unused), and multi-step Sustained reports the between-unit SE on the same `t`
+scale. Which estimand a result reports — pooled common coefficient or
+equal-weight unit average — is named in its diagnostics and in an assumption
+record. The panel support report, its per-cell status and its assumptions are
+merged over every unit.
+
+Bayesian panel response uses per-unit posterior means under the caller's
+resolved prior. Bayesian panel class Pulse and multi-step panel Sustained
+follow the class-prior contract: with a caller `class_prior` over an uncapped
+class the completion posteriors' draws are mixed, and without one the effect
+is NaN with the completion posteriors kept as atoms. Panel class response
+publishes the pointwise envelope over the completions' unit-average surfaces
+at every requested horizon, as the series class response does. A class-aware
+multi-step Sustained refuses a discovery/estimation split and a transferred
+prior. Units are not stacked onto the series class owner; a temporal class is
+not completed onto the DAG executor.
 
 Unconditional finite-discrete `InterventionalDistribution` on an explicit or
 accepted ADMG is licensed at validation `none` via general ID (bidirected
@@ -428,25 +466,32 @@ composition remains refused. See the [1.2 evidence ledger](v1.2-evidence.md).
 
 ## Observation, transport, and interference
 
-These are stage modules. They change what identifies the estimand and are not
-hidden behind an ordinary `target_population` flag. 1.9 licenses three
-staged cells at validation `none` (Rust `Study` only): `TransportQuery` ×
-`Admg` × explicit × Frequentist (Direct / S-admissible sID plus binary
-trial-to-target IPW), `InterferenceQuery` × `Dag` × explicit × Frequentist
-(NeighborCount HT/Hájek, Young variance), and — on the GCM path —
-`AnomalyAttribution` / `ChangeAttribution` × `Dag` × explicit × Frequentist.
+They change what identifies the estimand and are not hidden behind an
+ordinary `target_population` flag: their design facts are explicit fields of
+their queries. `TransportQuery` × `Admg` × explicit × Frequentist (Direct /
+S-admissible sID plus binary trial-to-target IPW) and `InterferenceQuery` ×
+`Dag` × explicit × Frequentist (NeighborCount under Bernoulli assignment,
+HT/Hájek, Young variance) run on `analyze` and the Rust `Study` API at
+validation `none`, and retain a study like every other licensed cell. On the
+GCM path, `AnomalyAttribution` / `ChangeAttribution` × `Dag` × explicit ×
+Frequentist are Rust `Study` only.
 
 * **Observation** (`antecedent.observation`): complete, right/left/interval-
   censored, truncated, and selected mechanisms. Assumptions are declared
   separately from the recorded columns; MAR / independent censoring is never
   inferred from column presence.
 * **Structural transport** (`antecedent.transport`): single-source selection
-  diagrams and trial-to-target IPW/AIPW with separate selection and treatment
-  overlap diagnostics. Distinct from Bayesian prior/evidence transfer in
+  diagrams, the `identify` stage, and `TransportQuery`, whose trial-to-target
+  IPW reports separate selection and treatment overlap diagnostics
+  (`result.transport_overlap`). `transport.estimate_trial_effect` remains an
+  unlicensed IPW/AIPW utility with its 1.9 behaviour. Distinct from Bayesian prior/evidence transfer in
   `antecedent.priors`.
 * **Randomized interference** (`antecedent.interference`): assignment design,
   exposure mapping, and exposure-contrast estimands with Horvitz–Thompson and
-  Hájek estimates. The network is fixed and supplied by the caller.
+  Hájek estimates (`result.interference`). The network and realized assignment
+  are fixed and supplied by the caller on `InterferenceQuery`.
+  `interference.estimate` remains an unlicensed utility over every design and
+  exposure mapping, with its 1.9 behaviour.
 
 Multi-source meta-transport, cyclic/equilibrium models, and observational
 network interference remain outside the current contract.

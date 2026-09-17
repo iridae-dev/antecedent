@@ -15,7 +15,9 @@
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
     clippy::too_many_lines,
-    clippy::float_cmp
+    clippy::float_cmp,
+    // SCM fixtures name their variables the way the graph does (z, a, b, y).
+    clippy::many_single_char_names
 )]
 
 use std::sync::Arc;
@@ -23,14 +25,17 @@ use std::sync::Arc;
 use antecedent::validate::PredictiveCheckKind;
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ExecutionContext,
+    AverageEffectQuery, CausalQuery, ConditionalEffectQuery, CounterfactualQuery, ExecutionContext,
     IdentificationStatus, Intervention, InterventionalDistributionQuery, MediationContrast,
     MediationQuery, Value, VariableId,
 };
-use antecedent_data::TabularData;
-use antecedent_discovery::{GraphPosterior, set_edge};
+use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_prob::InferenceDiagnostics;
+
+mod common;
+
+// The three-atom static graph posterior, in one owner.
+use common::fixtures::mixture_graph_posterior;
 
 const SUITES: [RefuteSuite; 3] = [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full];
 
@@ -95,6 +100,27 @@ fn report<'a>(result: &'a StudyResult, name: &str) -> &'a antecedent_validate::R
         .iter()
         .find(|r| r.refuter.as_ref() == name)
         .unwrap_or_else(|| panic!("{name} must run; got {:?}", refuter_names(result)))
+}
+
+/// The typed E-value pair must reproduce the `sensitivity.evalue` verdict without
+/// reading report prose: `evalue` mirrors the report's own number and
+/// `evalue_threshold` is the value that report judged it against. Both stay `None`
+/// when the refuter did not run.
+fn assert_evalue_fields(result: &StudyResult, ran: bool, label: &str) {
+    if !ran {
+        assert_eq!(result.estimate.evalue, None, "{label}");
+        assert_eq!(result.estimate.evalue_threshold, None, "{label}");
+        return;
+    }
+    let report = report(result, "sensitivity.evalue");
+    assert_eq!(result.estimate.evalue, Some(report.comparison), "{label}");
+    let threshold = result.estimate.evalue_threshold.expect("threshold must accompany the evalue");
+    assert_eq!(threshold, antecedent_validate::DEFAULT_EVALUE_THRESHOLD, "{label}");
+    assert_eq!(
+        report.passed,
+        report.comparison >= threshold,
+        "{label}: the typed pair must reproduce the report verdict"
+    );
 }
 
 /// Bayesian cheap/full attach prior and posterior predictive checks; full also
@@ -170,6 +196,7 @@ fn average_effect_dag_frequentist_known_truth_all_structures_and_suites() {
             );
             assert!(result.posterior.is_none(), "{label}: Frequentist publishes no posterior");
             assert!((result.estimate.ate - truth).abs() < 1e-8, "{label}: {}", result.estimate.ate);
+            assert_evalue_fields(&result, suite != RefuteSuite::None, &label);
             match suite {
                 RefuteSuite::None => assert!(result.refutations.is_empty(), "{label}"),
                 RefuteSuite::Cheap => {
@@ -314,32 +341,6 @@ fn conditional_effect_dag_frequentist_known_truth_all_structures_and_suites() {
             }
         }
     }
-}
-
-/// Graph posterior over three DAG atoms (weights 0.5 / 0.3 / 0.2): a direct
-/// `t -> y` graph, a `z`-adjusted graph, and a reversed `y -> t` graph that
-/// leaves the effect unidentified.
-fn mixture_graph_posterior() -> GraphPosterior {
-    let weights = [0.5, 0.3, 0.2];
-    let direct = set_edge(0, 3, 0, 1, true);
-    let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
-    let unidentified = set_edge(0, 3, 1, 0, true);
-    let mut marginals = vec![0.0; 9];
-    marginals[1] = weights[0] + weights[1];
-    marginals[3] = weights[2];
-    marginals[6] = weights[1];
-    marginals[7] = weights[1];
-    GraphPosterior::new(
-        3,
-        weights.to_vec(),
-        vec![direct, adjusted, unidentified],
-        marginals.clone(),
-        marginals,
-        1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("known_truth_mixtures"),
-        0,
-    )
-    .unwrap()
 }
 
 /// `Y = 2T + 2Z ± 0.2` on a balanced `(z, t)` design.
@@ -605,4 +606,443 @@ fn distribution_bayesian_known_truth_all_structures_and_suites() {
             );
         }
     }
+}
+
+// --------------------------------------------------------------- Counterfactual
+
+/// Treatment `a` with a genuine `a × b` interaction: the true unit effect is
+/// `0.8` when `b = 0` and `1.4` when `b = 1`. `z` confounds `a` and `y`.
+///
+/// Variables: `0 = z`, `1 = a`, `2 = b`, `3 = y`.
+fn interaction_scm(binary_outcome: bool) -> (TabularData, Dag) {
+    let n = 800usize;
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 * 0.71).sin()).collect();
+    let a: Vec<f64> =
+        (0..n).map(|i| f64::from(u8::from((i as f64 * 1.37).sin() + 0.8 * z[i] > 0.0))).collect();
+    let b: Vec<f64> = (0..n).map(|i| f64::from(u8::from((i as f64 * 2.11).cos() > 0.0))).collect();
+    let latent: Vec<f64> = (0..n)
+        .map(|i| 0.8 * a[i] + 0.5 * b[i] + 0.6 * a[i] * b[i] + z[i] + 0.2 * (i as f64 * 0.29).sin())
+        .collect();
+    let y: Vec<f64> = if binary_outcome {
+        latent.iter().map(|v| f64::from(u8::from(*v > 0.9))).collect()
+    } else {
+        latent
+    };
+    let data = TabularData::from_f64_columns([
+        ("z", z.as_slice()),
+        ("a", a.as_slice()),
+        ("b", b.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    (data, dag(4, &[(0, 1), (0, 3), (1, 3), (2, 3)]))
+}
+
+fn counterfactual_query() -> CausalQuery {
+    CausalQuery::Counterfactual(
+        CounterfactualQuery::new(
+            VariableId::from_raw(3),
+            Arc::from([Intervention::set(VariableId::from_raw(1), Value::f64(1.0))]),
+        )
+        .with_control_level(0.0),
+    )
+}
+
+fn homogeneity_diagnostic(result: &StudyResult) -> Option<&antecedent_core::Diagnostic> {
+    result
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == "gcm.counterfactual.unit_effects_homogeneous")
+}
+
+fn unit_effect_spread(effects: &[f64]) -> f64 {
+    effects.iter().copied().fold(f64::NEG_INFINITY, f64::max)
+        - effects.iter().copied().fold(f64::INFINITY, f64::min)
+}
+
+fn diagnostic<'a>(result: &'a StudyResult, code: &str) -> Option<&'a antecedent_core::Diagnostic> {
+    result.diagnostics.iter().find(|d| d.code.as_ref() == code)
+}
+
+fn field(diagnostic: &antecedent_core::Diagnostic, key: &str) -> Option<String> {
+    diagnostic.fields.iter().find(|(k, _)| k.as_ref() == key).map(|(_, v)| v.to_string())
+}
+
+fn subgroup_mean(effects: &[f64], key: &[f64], want: f64) -> f64 {
+    let picked: Vec<f64> =
+        effects.iter().zip(key).filter(|(_, k)| **k == want).map(|(e, _)| *e).collect();
+    picked.iter().sum::<f64>() / picked.len() as f64
+}
+
+/// `Counterfactual × Dag × explicit|accepted × Frequentist|Bayesian × none`:
+/// the counterfactual registry offers heterogeneity-capable mechanism families
+/// beside the linear one, and on this SCM — a genuine `a × b` interaction — one
+/// of them wins on validation score. Abduction–action–prediction then recovers
+/// the two subgroup effects (0.8 where `b = 0`, 1.4 where `b = 1`) instead of
+/// one pooled slope for every unit, abduction stays exact, and nothing is
+/// disclosed as homogeneous.
+///
+/// Before the heterogeneity families existed this cell returned the same
+/// contrast for all 800 units (spread 0) and disclosed it; that is the defect
+/// this pins.
+#[test]
+fn counterfactual_dag_interaction_outcome_recovers_subgroup_unit_effects() {
+    let (data, graph) = interaction_scm(false);
+    let b = data.float64_values(VariableId::from_raw(2)).unwrap();
+    for accepted in [false, true] {
+        for inference in [InferenceMode::Frequentist, bayes(64, 1_000.0)] {
+            let bayesian = matches!(inference, InferenceMode::Bayesian(_));
+            let label = format!("accepted={accepted} inference={inference:?}");
+            let result = staged(
+                &data,
+                &graph,
+                accepted,
+                counterfactual_query(),
+                inference,
+                RefuteSuite::None,
+                21,
+            );
+            assert_eq!(result.logical_plan.estimator.as_deref(), Some("gcm.fit"), "{label}");
+            let cf = result.counterfactual.as_ref().unwrap();
+            assert_eq!(cf.unit_effects.len(), 800, "{label}");
+
+            let low = subgroup_mean(&cf.unit_effects, &b, 0.0);
+            let high = subgroup_mean(&cf.unit_effects, &b, 1.0);
+            assert!((low - 0.8).abs() < 0.05, "{label}: b=0 subgroup effect {low}");
+            assert!((high - 1.4).abs() < 0.05, "{label}: b=1 subgroup effect {high}");
+            assert!(unit_effect_spread(&cf.unit_effects) > 0.5, "{label}");
+
+            assert!(!result.estimate.unit_effects_homogeneous, "{label}");
+            assert!(homogeneity_diagnostic(&result).is_none(), "{label}");
+            let mechanisms = diagnostic(&result, "gcm.counterfactual.mechanisms").unwrap();
+            assert!(
+                mechanisms.message.contains("LinearInteractions")
+                    || mechanisms.message.contains("LinearSpline"),
+                "{label}: the selection must be auditable: {}",
+                mechanisms.message
+            );
+            let engine = diagnostic(&result, "gcm.counterfactual").unwrap();
+            // `a` is categorical, so the model-wide mode is Posterior exactly as it
+            // was for the linear family; the outcome's own abduction is exact
+            // inversion (pinned in the model crate).
+            assert!(engine.message.contains("noise_inference="), "{label}");
+
+            if bayesian {
+                let intervals = cf
+                    .unit_effect_intervals
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("{label}: Bayesian unit intervals missing"));
+                assert_eq!(
+                    intervals.level,
+                    antecedent::result::REPORTED_SE_INTERVAL_LEVEL,
+                    "{label}"
+                );
+                assert_eq!(intervals.method, "unit_posterior_quantile", "{label}");
+                assert_eq!(intervals.lower.len(), 800, "{label}");
+                for (unit, effect) in cf.unit_effects.iter().enumerate() {
+                    assert!(
+                        intervals.lower[unit] <= *effect && *effect <= intervals.upper[unit],
+                        "{label}: unit {unit} mean {effect} outside [{}, {}]",
+                        intervals.lower[unit],
+                        intervals.upper[unit]
+                    );
+                }
+                assert!(
+                    diagnostic(&result, "gcm.counterfactual.uncertainty_unavailable").is_none()
+                );
+            } else {
+                assert!(cf.unit_effect_intervals.is_none(), "{label}");
+                assert!(
+                    diagnostic(&result, "gcm.counterfactual.uncertainty_unavailable").is_some(),
+                    "{label}: Frequentist unit effects must keep saying uncertainty is unavailable"
+                );
+            }
+        }
+    }
+}
+
+/// `y = 0.8a + z + e` has no effect modifier. The interaction families are scored
+/// and lose on validation score, so the selected mechanism is the linear one and
+/// every unit gets the same contrast — but that equality is a finding about the
+/// data, not a property the mechanism fixed in advance, so the homogeneity
+/// disclosure must not fire. What was rejected is recorded instead.
+#[test]
+fn counterfactual_dag_additive_outcome_reports_rejected_heterogeneity_not_homogeneity() {
+    let n = 1500usize;
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 * 0.71).sin()).collect();
+    let a: Vec<f64> =
+        (0..n).map(|i| f64::from(u8::from((i as f64 * 1.37).sin() + 0.8 * z[i] > 0.0))).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| 0.8 * a[i] + z[i] + 0.5 * (i as f64 * 0.29).sin() + 0.4 * (i as f64 * 2.3).cos())
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("z", z.as_slice()),
+        ("a", a.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let graph = dag(3, &[(0, 1), (0, 2), (1, 2)]);
+    let query = CausalQuery::Counterfactual(
+        CounterfactualQuery::new(
+            VariableId::from_raw(2),
+            Arc::from([Intervention::set(VariableId::from_raw(1), Value::f64(1.0))]),
+        )
+        .with_control_level(0.0),
+    );
+    let result =
+        staged(&data, &graph, false, query, InferenceMode::Frequentist, RefuteSuite::None, 21);
+    let cf = result.counterfactual.as_ref().unwrap();
+    assert!(unit_effect_spread(&cf.unit_effects) < 1e-9, "linear family must still be selected");
+    assert!(!result.estimate.unit_effects_homogeneous);
+    assert!(homogeneity_diagnostic(&result).is_none());
+    let rejected = diagnostic(&result, "gcm.counterfactual.heterogeneity_rejected")
+        .expect("the rejected heterogeneity families must be recorded");
+    assert_eq!(rejected.severity, antecedent_core::DiagnosticSeverity::Info);
+    let families = field(rejected, "families").unwrap();
+    assert!(families.contains("linear_interactions"), "{families}");
+    assert!(rejected.message.contains("lost to linear_gaussian"), "{}", rejected.message);
+}
+
+/// A single-parent outcome cannot form any cross-parent product, so every
+/// heterogeneity-capable family fails to fit and the constant contrast really is
+/// fixed by the mechanism: the disclosure fires, with the structured fields the
+/// consumer reads.
+#[test]
+fn counterfactual_dag_single_parent_outcome_discloses_structural_homogeneity() {
+    let n = 800usize;
+    let a: Vec<f64> = (0..n).map(|i| f64::from(u8::from((i as f64 * 1.37).sin() > 0.0))).collect();
+    let y: Vec<f64> = (0..n).map(|i| 0.8 * a[i] + 0.3 * (i as f64 * 0.29).sin()).collect();
+    let data = TabularData::from_f64_columns([("a", a.as_slice()), ("y", y.as_slice())]).unwrap();
+    let graph = dag(2, &[(0, 1)]);
+    let query = CausalQuery::Counterfactual(
+        CounterfactualQuery::new(
+            VariableId::from_raw(1),
+            Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+        )
+        .with_control_level(0.0),
+    );
+    for accepted in [false, true] {
+        for inference in [InferenceMode::Frequentist, bayes(64, 1_000.0)] {
+            let label = format!("accepted={accepted} inference={inference:?}");
+            let result =
+                staged(&data, &graph, accepted, query.clone(), inference, RefuteSuite::None, 21);
+            let cf = result.counterfactual.as_ref().unwrap();
+            assert!(unit_effect_spread(&cf.unit_effects) < 1e-9, "{label}");
+            assert!(result.estimate.unit_effects_homogeneous, "{label}");
+            let disclosure = homogeneity_diagnostic(&result)
+                .unwrap_or_else(|| panic!("{label}: homogeneity disclosure missing"));
+            assert_eq!(disclosure.severity, antecedent_core::DiagnosticSeverity::Warning);
+            assert!(
+                disclosure.message.contains("LinearGaussian")
+                    && disclosure.message.contains("for y")
+                    && disclosure.message.contains("admits no effect modification"),
+                "{label}: {}",
+                disclosure.message
+            );
+            assert_eq!(field(disclosure, "outcome").as_deref(), Some("y"), "{label}");
+            assert_eq!(field(disclosure, "family").as_deref(), Some("linear_gaussian"), "{label}");
+            assert!(diagnostic(&result, "gcm.counterfactual.heterogeneity_rejected").is_none());
+        }
+    }
+}
+
+/// `y = a·exp(z) + z + e`: the unit effect is `exp(z)`. The spline family can
+/// bend the contrast with `z`, so the published unit effects must rise with `z`
+/// (checked as a rank correlation) and nothing is disclosed as homogeneous.
+#[test]
+fn counterfactual_dag_exp_modifier_unit_effects_rise_with_the_modifier() {
+    let n = 2000usize;
+    let z: Vec<f64> = (0..n).map(|i| 1.2 * (i as f64 * 0.713).sin()).collect();
+    let a: Vec<f64> =
+        (0..n).map(|i| f64::from(u8::from((i as f64 * 1.37).sin() + 0.5 * z[i] > 0.0))).collect();
+    let y: Vec<f64> =
+        (0..n).map(|i| a[i] * z[i].exp() + z[i] + 0.3 * (i as f64 * 0.29).sin()).collect();
+    let data = TabularData::from_f64_columns([
+        ("z", z.as_slice()),
+        ("a", a.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let graph = dag(3, &[(0, 1), (0, 2), (1, 2)]);
+    let query = CausalQuery::Counterfactual(
+        CounterfactualQuery::new(
+            VariableId::from_raw(2),
+            Arc::from([Intervention::set(VariableId::from_raw(1), Value::f64(1.0))]),
+        )
+        .with_control_level(0.0),
+    );
+    let result =
+        staged(&data, &graph, false, query, InferenceMode::Frequentist, RefuteSuite::None, 21);
+    let cf = result.counterfactual.as_ref().unwrap();
+    assert!(!result.estimate.unit_effects_homogeneous);
+    assert!(homogeneity_diagnostic(&result).is_none());
+    let rank = |values: &[f64]| {
+        let mut order: Vec<usize> = (0..values.len()).collect();
+        order.sort_by(|&i, &j| values[i].partial_cmp(&values[j]).unwrap());
+        let mut ranks = vec![0.0; values.len()];
+        for (r, i) in order.into_iter().enumerate() {
+            ranks[i] = r as f64;
+        }
+        ranks
+    };
+    let (rz, re) = (rank(&z), rank(&cf.unit_effects));
+    let m = (n as f64 - 1.0) / 2.0;
+    let cov: f64 = rz.iter().zip(&re).map(|(x, y)| (x - m) * (y - m)).sum();
+    let var: f64 = rz.iter().map(|x| (x - m).powi(2)).sum();
+    let spearman = cov / var;
+    assert!(spearman > 0.95, "unit effects must rise with z; spearman={spearman}");
+    // And the level is right where the data are dense: exp(0) = 1 at z ≈ 0.
+    let near_zero: Vec<f64> =
+        cf.unit_effects.iter().zip(&z).filter(|(_, zi)| zi.abs() < 0.1).map(|(e, _)| *e).collect();
+    let centre = near_zero.iter().sum::<f64>() / near_zero.len() as f64;
+    assert!((centre - 1.0).abs() < 0.1, "unit effect near z=0 is {centre}");
+}
+
+/// Per-unit support: treated units whose covariate `x` exceeds every control
+/// unit's `x` are predicted into the control arm at a cell the fit never saw.
+/// The pooled treatment range is fully observed (`extrapolative=false`), so only
+/// the per-unit flag can say so — and it must flag exactly those units.
+#[test]
+fn counterfactual_dag_flags_units_outside_the_opposite_arms_covariate_support() {
+    let n = 1200usize;
+    let a: Vec<f64> = (0..n).map(|i| f64::from(u8::from(i % 2 == 0))).collect();
+    // Controls see x in [0, 1); treated units reach up to 1.5.
+    let x: Vec<f64> = (0..n)
+        .map(|i| {
+            let u = ((i as f64 * 0.618_033_988_7) % 1.0).abs();
+            if a[i] > 0.5 { 1.5 * u } else { u }
+        })
+        .collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| 0.5 * a[i] + x[i] + 0.7 * a[i] * x[i] + 0.2 * (i as f64 * 0.29).sin())
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("x", x.as_slice()),
+        ("a", a.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let graph = dag(3, &[(0, 2), (1, 2)]);
+    let query = CausalQuery::Counterfactual(
+        CounterfactualQuery::new(
+            VariableId::from_raw(2),
+            Arc::from([Intervention::set(VariableId::from_raw(1), Value::f64(1.0))]),
+        )
+        .with_control_level(0.0),
+    );
+    let result =
+        staged(&data, &graph, false, query, InferenceMode::Frequentist, RefuteSuite::None, 21);
+    let cf = result.counterfactual.as_ref().unwrap();
+    let flags = cf.unit_extrapolative.as_ref().expect("per-unit support flags");
+    let arm_range = |treated: bool| {
+        x.iter()
+            .zip(&a)
+            .filter(|(_, ai)| (**ai > 0.5) == treated)
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), (xi, _)| {
+                (lo.min(*xi), hi.max(*xi))
+            })
+    };
+    let (control, treated) = (arm_range(false), arm_range(true));
+    let mut expected_cells = 0usize;
+    let mut above_control = 0usize;
+    for unit in 0..n {
+        let (lo, hi) = if a[unit] > 0.5 { control } else { treated };
+        let outside_cell = x[unit] < lo || x[unit] > hi;
+        above_control += usize::from(a[unit] > 0.5 && x[unit] > control.1);
+        if outside_cell {
+            expected_cells += 1;
+            assert!(flags[unit], "unit {unit} (a={}, x={}) must be flagged", a[unit], x[unit]);
+        }
+    }
+    assert!(above_control > 100, "the fixture must put real treated mass above control support");
+    // Nothing else is flagged for the covariate cell.
+    let cell_flags = flags.iter().filter(|f| **f).count();
+    assert!(cell_flags >= expected_cells);
+    let support = diagnostic(&result, "gcm.counterfactual.support").unwrap();
+    assert_eq!(field(support, "extrapolative").as_deref(), Some("false"));
+    assert_eq!(field(support, "parent_cell_extrapolative"), Some(expected_cells.to_string()));
+    assert_eq!(support.severity, antecedent_core::DiagnosticSeverity::Warning);
+    assert!(support.message.contains("covariates=[x]"), "{}", support.message);
+}
+
+/// A parent-conditional categorical lever whose parents sit on very different
+/// scales (a raw year column beside a 0–1 axis). The Bayesian refit used to run
+/// the multinomial IRLS on the raw columns under Dirichlet row weights and stop
+/// short of tolerance, refusing the whole analysis; standardizing parents
+/// inside the fit makes the counterfactual identical under an affine rescaling
+/// of those parents, on either inference mode.
+#[test]
+fn counterfactual_dag_categorical_lever_is_invariant_to_parent_rescaling() {
+    let n = 3000usize;
+    let frac = |i: usize, k: f64| ((i as f64 * k) % 1.0).abs();
+    let year: Vec<f64> =
+        (0..n).map(|i| 2015.0 + (frac(i, 0.618_033_988_7) * 11.0).floor()).collect();
+    let axis: Vec<f64> = (0..n).map(|i| frac(i, 0.414_213_562_4)).collect();
+    let lever: Vec<f64> = (0..n)
+        .map(|i| {
+            let eta = 0.4 * (year[i] - 2020.0) / 3.16 + axis[i] - 0.5;
+            f64::from(u8::from(frac(i, 0.732_050_807_6) < 1.0 / (1.0 + (-eta).exp())))
+        })
+        .collect();
+    let y: Vec<f64> =
+        (0..n).map(|i| 0.06 * lever[i] + 0.3 * axis[i] + 0.5 * (i as f64 * 0.29).sin()).collect();
+    let standardize = |col: &[f64]| {
+        let mean = col.iter().sum::<f64>() / n as f64;
+        let sd = (col.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n as f64).sqrt();
+        col.iter().map(|v| (v - mean) / sd).collect::<Vec<f64>>()
+    };
+    let (year_std, axis_std) = (standardize(&year), standardize(&axis));
+    let graph = dag(4, &[(0, 2), (1, 2), (2, 3), (1, 3)]);
+    let query = CausalQuery::Counterfactual(
+        CounterfactualQuery::new(
+            VariableId::from_raw(3),
+            Arc::from([Intervention::set(VariableId::from_raw(2), Value::f64(1.0))]),
+        )
+        .with_control_level(0.0),
+    );
+    for inference in [InferenceMode::Frequentist, bayes(32, 1_000.0)] {
+        let label = format!("{inference:?}");
+        let run = |year_col: &[f64], axis_col: &[f64]| {
+            let data = TabularData::from_f64_columns([
+                ("year", year_col),
+                ("axis", axis_col),
+                ("lever", lever.as_slice()),
+                ("y", y.as_slice()),
+            ])
+            .unwrap();
+            staged(&data, &graph, false, query.clone(), inference.clone(), RefuteSuite::None, 7)
+        };
+        let raw = run(&year, &axis);
+        let std = run(&year_std, &axis_std);
+        let (raw_cf, std_cf) = (raw.counterfactual.unwrap(), std.counterfactual.unwrap());
+        assert!((raw_cf.mean_ite - std_cf.mean_ite).abs() < 1e-8, "{label}");
+        for (unit, (r, s)) in raw_cf.unit_effects.iter().zip(std_cf.unit_effects.iter()).enumerate()
+        {
+            assert!((r - s).abs() < 1e-8, "{label}: unit {unit}: raw {r} vs standardized {s}");
+        }
+    }
+}
+
+/// The same SCM with a binary outcome selects a parent-conditional discrete
+/// mechanism, which *can* modify the effect. Nothing is disclosed and the unit
+/// effects really do differ, so the disclosure is not vacuous.
+#[test]
+fn counterfactual_dag_discrete_outcome_makes_no_homogeneity_claim() {
+    let (data, graph) = interaction_scm(true);
+    let result = staged(
+        &data,
+        &graph,
+        false,
+        counterfactual_query(),
+        InferenceMode::Frequentist,
+        RefuteSuite::None,
+        21,
+    );
+    let cf = result.counterfactual.as_ref().unwrap();
+    assert!(
+        unit_effect_spread(&cf.unit_effects) > 1e-9,
+        "a discrete outcome must not produce one constant contrast"
+    );
+    assert!(!result.estimate.unit_effects_homogeneous);
+    assert!(homogeneity_diagnostic(&result).is_none());
 }

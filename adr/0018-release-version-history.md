@@ -48,8 +48,8 @@ independently needed correction to match reality.
 - Record the historical artifact format at this decision: `FormatVersion {
   major: 0, minor: 2 }`, unchanged from 0.2.0 through 0.4.1. ADR 0019 later
   advanced response artifacts to 0.3, and ADR 0021 advanced temporal response
-  artifacts to the current `antecedent_io::STABLE_FORMAT`, 0.4. Formats
-  0.1–0.3 remain supported migration sources, not the frozen target.
+  artifacts to 0.4. The current stable format is 0.5; formats 0.1–0.4
+  remain supported migration sources. See [artifact contracts](../docs/artifacts.md).
 - Future version bumps continue to be recorded in `CHANGELOG.md` (breaking
   changes called out per the 0.4.0 entry's convention) rather than requiring
   a new ADR on every release; a new ADR is only needed if the artifact
@@ -58,7 +58,7 @@ independently needed correction to match reality.
 ## Consequences
 
 ADR 0017 is marked Superseded and points here for version/format history.
-`docs/artifacts.md` follows the live stable-format constant, currently 0.4;
+`docs/artifacts.md` follows the live stable-format constant, currently 0.5;
 ADR 0019 and ADR 0021 record the two later wire advances. Package releases
 after 0.4.1 are recorded in `CHANGELOG.md` and their release notes rather than
 retroactively rewriting the historical version list above.

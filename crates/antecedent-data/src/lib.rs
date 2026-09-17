@@ -28,6 +28,7 @@ pub mod arrow_ffi;
 pub mod buffer;
 pub mod categorical;
 pub mod column;
+mod content_identity;
 pub mod dataset;
 pub mod error;
 pub mod event;

@@ -118,18 +118,30 @@ def test_identification_view_repr_not_identified():
 
 
 def test_identification_view_bool_known_identified_statuses():
-    assert bool(_identification(status="NonparametricallyIdentified"))
-    assert bool(_identification(status="gcm.parametric"))
-    assert bool(_identification(status="ParametricallyIdentified"))
+    for status in (
+        "NonparametricallyIdentified",
+        "IdentifiedUnderParametricRestrictions",
+        "IdentifiedUnderPriorRestrictions",
+    ):
+        assert bool(_identification(status=status)), status
+
+
+def test_identification_view_repr_keeps_restriction_qualifier():
+    parametric = repr(_identification(status="IdentifiedUnderParametricRestrictions"))
+    prior = repr(_identification(status="IdentifiedUnderPriorRestrictions"))
+    assert "identified under parametric restrictions" in parametric
+    assert "identified under prior restrictions" in prior
+    assert "identified under" not in repr(_identification(status="NonparametricallyIdentified"))
 
 
 def test_identification_view_bool_negated_statuses_are_false():
-    for status in ("NotIdentified", "Unidentified", "PartiallyIdentified", "GraphDependent"):
+    for status in ("NotIdentified", "PartiallyIdentified", "GraphDependent"):
         assert not bool(_identification(status=status)), status
 
 
 def test_identification_view_bool_unknown_status_defaults_false():
-    assert not bool(_identification(status="SomeFutureStatus"))
+    with pytest.warns(RuntimeWarning, match="unrecognized identification status"):
+        assert not bool(_identification(status="SomeFutureStatus"))
 
 
 # --- MediationView -----------------------------------------------------
@@ -456,7 +468,9 @@ def test_analysis_result_repr_no_refutations_ran():
 
 def test_analysis_result_repr_counterfactual_uses_mean_ite():
     result = AnalysisResult(
-        identification=_identification(status="gcm.parametric", method="gcm.parametric"),
+        identification=_identification(
+            status="IdentifiedUnderParametricRestrictions", method="gcm.parametric"
+        ),
         estimate=_estimate(estimator_id="gcm.fit", se_analytic=float("nan")),
         posterior=None,
         validation=_validation(ran=False, reports=[]),

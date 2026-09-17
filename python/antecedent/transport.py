@@ -7,8 +7,8 @@ from statistical prior/evidence transport in :mod:`antecedent.priors`.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import KW_ONLY, dataclass, field
+from typing import Any, Literal
 
 import numpy as np
 
@@ -48,11 +48,30 @@ class SelectionDiagram:
 
 @dataclass(frozen=True, slots=True)
 class TransportQuery:
-    """Transport a response query under a single-source selection diagram."""
+    """Transport a response query under a single-source selection diagram.
+
+    ``query`` is the response requested in the target population, ``diagram``
+    the selection diagram's populations and mechanism-selection targets, and
+    ``source_experiments`` the variables randomized in the source.
+
+    :func:`antecedent.analyze` estimates the licensed cell (explicit ``Admg``,
+    Frequentist, validation ``none``): a mean :class:`antecedent.ResponseCurve`
+    transported from trial to target by binary trial-to-target IPW. It reads
+    three data columns named by the keyword-only fields: ``trial`` (source-trial
+    membership, nonzero for trial rows), ``selection_probability``
+    (``P(S=1 | X)`` on every row) and ``treatment_probability``
+    (``P(A=1 | X, S=1)`` on trial rows). The selection diagram and these column
+    bindings freeze at prepare; a refresh reads the columns from the new data.
+    """
 
     query: object
     diagram: SelectionDiagram
     source_experiments: Sequence[str] = ()
+    _: KW_ONLY
+    trial: str | None = None
+    selection_probability: str | None = None
+    treatment_probability: str | None = None
+    kind: Literal["transport"] = field(default="transport", init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.query is None:
@@ -61,6 +80,26 @@ class TransportQuery:
             raise CausalValueError("source_experiments must not contain duplicates")
         if any(not value.strip() for value in self.source_experiments):
             raise CausalValueError("source_experiments must contain variable names")
+        columns = (self.trial, self.selection_probability, self.treatment_probability)
+        if any(column is not None for column in columns):
+            if any(column is None for column in columns):
+                raise CausalValueError(
+                    "trial, selection_probability and treatment_probability name the trial "
+                    "columns together; supply all three"
+                )
+            if any(not str(column).strip() for column in columns):
+                raise CausalValueError("trial columns must be non-empty variable names")
+            if len(set(columns)) != len(columns):
+                raise CausalValueError("trial columns must be distinct")
+
+    @property
+    def trial_columns(self) -> tuple[str, str, str] | None:
+        """``(trial, selection_probability, treatment_probability)`` when bound."""
+        if self.trial is None or self.selection_probability is None:
+            return None
+        if self.treatment_probability is None:
+            return None
+        return (self.trial, self.selection_probability, self.treatment_probability)
 
 
 @dataclass(frozen=True, slots=True)
@@ -281,6 +320,12 @@ def estimate_trial_effect(
     mu1: Sequence[float] | None = None,
 ) -> TrialTransportEstimate:
     """Estimate a trial-to-target binary-treatment contrast by IPW and optional AIPW.
+
+    This is an unlicensed utility with its 1.9 behaviour: it calls the
+    trial-to-target estimator directly and returns bare numbers, with no study,
+    contract, export or calibration slot. ``antecedent.analyze(data, graph=Admg,
+    query=TransportQuery(..., trial=, selection_probability=,
+    treatment_probability=))`` is the licensed, study-retaining path.
 
     ``identification`` must be the result of :func:`identify` for this query.
     Identification and estimation stay separate operations, but the estimator

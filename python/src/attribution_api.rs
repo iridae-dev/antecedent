@@ -348,7 +348,12 @@ fn evaluate_decision_py(
     let util = Arc::new(callbacks::PyUtility::new(utility.unbind()));
     let problem = DecisionProblem::new(actions, util, Vec::new());
     // Keep GIL acquired: utility callback reacquires anyway; this is an explicit slow path.
-    let eval = facade_evaluate_decision(&problem, &outcomes);
+    let eval = facade_evaluate_decision(&problem, &outcomes).map_err(|err| match err {
+        antecedent::design::DesignError::Callback { name, message } => {
+            crate::py_err(antecedent::CausalError::Callback { name, message })
+        }
+        other => crate::py_err(antecedent::CausalError::from(other)),
+    })?;
     let _ = py; // silence unused if optimized
     Ok(gcm_api::DecisionEvaluation {
         expected_utility: eval.expected_utility,

@@ -59,6 +59,20 @@ impl Diagnostic {
             fields: Arc::from([]),
         }
     }
+
+    /// Attach structured `key=value` fields.
+    ///
+    /// Readers take numbers from here; the message is prose for humans and is
+    /// never parsed.
+    #[must_use]
+    pub fn with_fields<K, V>(mut self, fields: impl IntoIterator<Item = (K, V)>) -> Self
+    where
+        K: Into<Arc<str>>,
+        V: Into<Arc<str>>,
+    {
+        self.fields = fields.into_iter().map(|(key, value)| (key.into(), value.into())).collect();
+        self
+    }
 }
 
 /// Collection of diagnostics.

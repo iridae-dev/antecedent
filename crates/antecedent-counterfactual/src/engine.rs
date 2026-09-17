@@ -827,6 +827,10 @@ fn nested_rows_independent(
                 | MechanismSlot::Constant { .. }
                 | MechanismSlot::Discrete { .. }
                 | MechanismSlot::GaussianProcess { .. }
+                // A basis expansion reads only its own row's parents and
+                // disturbance, exactly like the linear family it extends.
+                | MechanismSlot::LinearBasis { .. }
+                | MechanismSlot::DiscreteBasis { .. }
         );
     }
     Ok(row_independent)

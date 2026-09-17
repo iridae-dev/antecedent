@@ -1,7 +1,8 @@
-"""Rank candidate experimental designs by identification probability.
+"""Compare experiments by how much they could help identify an effect.
 
-See ADR 0016: ranking is advisory — it does not auto-rerun analyses.
-"""
+The ranking depends on the planning assumptions you supply. It recommends
+an action but does not run it. After choosing, use analyze(...) for the
+causal question and keep result.study if you need to estimate again."""
 
 from __future__ import annotations
 

@@ -1620,75 +1620,104 @@ fn class_aware_conditional_grid_mixes_envelope_atoms() {
     );
 }
 
+/// `E[Y | do(a = 1, d = 1)]` under [`interaction_dgp`]: `1.5·a·d` with mean-zero `z`
+/// and noise.
+const JOINT_CELL_TRUTH: f64 = 1.5;
+
+/// Explicit (`accepted = false`) or accepted `Dag` structure.
+fn dag_study(data: TabularData, graph: Dag, accepted: bool) -> antecedent::StudyBuilder {
+    let builder = Study::tabular(data);
+    if accepted {
+        builder.graph(antecedent::AcceptedGraph::dag(graph))
+    } else {
+        builder.graph(graph)
+    }
+}
+
 #[test]
 fn dag_intervention_response_cheap_runs_overlap_and_evalue() {
     let (data, graph) = interaction_dgp(800, 206);
     let ctx = ExecutionContext::for_tests(206);
-    let cell = Study::tabular(data.clone())
-        .graph(graph.clone())
-        .query(CausalQuery::Response(joint_query(1.0, 1.0)))
-        .estimator(EstimatorId::CellAipw)
-        .refute(RefuteSuite::Cheap)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ctx)
-        .unwrap();
-    assert!(cell.estimate.ate.is_finite());
-    assert!(
-        cell.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue"),
-        "cell.aipw cheap must E-value the cell-versus-control contrast"
-    );
-    assert!(
-        cell.diagnostics.iter().any(|d| d.code.as_ref() == "refute.cell_aipw.contrast"),
-        "cell.aipw cheap must disclose the contrast, not the intervention level"
-    );
-    assert!(!cell.diagnostics.iter().any(|d| d.code.as_ref() == "refute.response.skipped"));
+    for accepted in [false, true] {
+        let case = format!("accepted={accepted} cheap");
+        let cell = dag_study(data.clone(), graph.clone(), accepted)
+            .query(CausalQuery::Response(joint_query(1.0, 1.0)))
+            .estimator(EstimatorId::CellAipw)
+            .refute(RefuteSuite::Cheap)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        let value = response_value(&cell);
+        assert!(
+            (value - JOINT_CELL_TRUTH).abs() < 0.15,
+            "{case}: cell.aipw joint cell mean {value} vs known truth {JOINT_CELL_TRUTH}"
+        );
+        assert!(
+            cell.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue"),
+            "{case}: cell.aipw cheap must E-value the cell-versus-control contrast"
+        );
+        assert!(
+            cell.diagnostics.iter().any(|d| d.code.as_ref() == "refute.cell_aipw.contrast"),
+            "{case}: cell.aipw cheap must disclose the contrast, not the intervention level"
+        );
+        assert!(!cell.diagnostics.iter().any(|d| d.code.as_ref() == "refute.response.skipped"));
 
-    let plugin = Study::tabular(data)
-        .graph(graph)
-        .query(CausalQuery::Response(joint_query(1.0, 1.0)))
-        .estimator(EstimatorId::ResponseInterventionGcomp)
-        .refute(RefuteSuite::Cheap)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ctx)
-        .unwrap();
-    assert!(plugin.estimate.ate.is_finite());
-    assert!(
-        plugin.refutations.iter().any(|r| r.refuter.as_ref().contains("overlap")),
-        "plugin cheap must still run overlap"
-    );
-    assert!(
-        plugin.diagnostics.iter().any(|d| d.code.as_ref() == "refute.evalue.not_a_contrast"),
-        "plugin cheap must refuse E-value on an intervention level"
-    );
-    assert!(
-        !plugin.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue"),
-        "plugin cheap must not invent an E-value for a cell mean"
-    );
-    assert!(!plugin.diagnostics.iter().any(|d| d.code.as_ref() == "refute.response.skipped"));
+        let plugin = dag_study(data.clone(), graph.clone(), accepted)
+            .query(CausalQuery::Response(joint_query(1.0, 1.0)))
+            .estimator(EstimatorId::ResponseInterventionGcomp)
+            .refute(RefuteSuite::Cheap)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        assert!(plugin.estimate.ate.is_finite(), "{case}");
+        assert!(
+            plugin.refutations.iter().any(|r| r.refuter.as_ref().contains("overlap")),
+            "{case}: plugin cheap must still run overlap"
+        );
+        assert!(
+            plugin.diagnostics.iter().any(|d| d.code.as_ref() == "refute.evalue.not_a_contrast"),
+            "{case}: plugin cheap must refuse E-value on an intervention level"
+        );
+        assert!(
+            !plugin.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue"),
+            "{case}: plugin cheap must not invent an E-value for a cell mean"
+        );
+        assert!(!plugin.diagnostics.iter().any(|d| d.code.as_ref() == "refute.response.skipped"));
+    }
 }
 
 #[test]
 fn dag_intervention_response_full_runs_effect_refuters() {
     let (data, graph) = interaction_dgp(700, 207);
-    let result = Study::tabular(data)
-        .graph(graph)
-        .query(CausalQuery::Response(joint_query(1.0, 1.0)))
-        .estimator(EstimatorId::CellAipw)
-        .refute(RefuteSuite::Full)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(207))
-        .unwrap();
-    assert!(result.estimate.ate.is_finite());
-    assert!(
-        result.refutations.len() >= 2,
-        "full suite must publish more than the cheap overlap/E-value pair"
-    );
+    for accepted in [false, true] {
+        let case = format!("accepted={accepted} full");
+        let result = dag_study(data.clone(), graph.clone(), accepted)
+            .query(CausalQuery::Response(joint_query(1.0, 1.0)))
+            .estimator(EstimatorId::CellAipw)
+            .refute(RefuteSuite::Full)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(207))
+            .unwrap();
+        let value = response_value(&result);
+        assert!(
+            (value - JOINT_CELL_TRUTH).abs() < 0.15,
+            "{case}: cell.aipw joint cell mean {value} vs known truth {JOINT_CELL_TRUTH}"
+        );
+        assert!(
+            result.refutations.iter().any(|r| r.refuter.as_ref() == "sensitivity.evalue"),
+            "{case}: full keeps the cheap E-value"
+        );
+        assert!(
+            result.refutations.len() >= 2,
+            "{case}: full suite must publish more than the cheap overlap/E-value pair"
+        );
+    }
 }
 
 #[test]
@@ -2161,6 +2190,14 @@ fn prepared_batch_shares_fold_object_and_covariate_design() {
         t1.scores.as_ref(),
         "different outcomes must not share residualization"
     );
+    let design_key0 = prepared.plans()[0].batch_share_identity().unwrap().expect("batch share");
+    let design_key1 = prepared.plans()[1].batch_share_identity().unwrap().expect("batch share");
+    assert_eq!(design_key0, design_key1, "shared design is one reuse key");
+    assert_eq!(design_key0, prepared.batch_share_identity().unwrap().expect("batch share"));
+    let score0 = prepared.plans()[0].score_reuse_identity().unwrap().expect("score key");
+    let score1 = prepared.plans()[1].score_reuse_identity().unwrap().expect("score key");
+    assert_ne!(score0, score1, "shared design is not a shared nuisance fit");
+    assert_ne!(score0, design_key0);
     let results = prepared.estimate(&data, &ctx).unwrap();
     assert!(
         results
@@ -2309,7 +2346,30 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
         .unwrap()
         .run(&ExecutionContext::for_tests(213))
         .unwrap();
-    assert!(mixed.estimate.ate.is_finite(), "identified-mass response level is still published");
+    // Unresolved completion mass keeps the class answer set-valued: the payload
+    // is the identified set over the completions that did evaluate, the scalar
+    // level is withheld, and the identified atom's SE is never republished as
+    // the envelope's.
+    assert!(!mixed.estimate.ate.is_finite(), "a set-valued class answer publishes no scalar level");
+    let response = mixed.response.as_ref().expect("class response payload");
+    let set = match &response.estimate {
+        ResponseIdentification::PartiallyIdentified(antecedent_core::ResponseValue::Envelope(
+            envelope,
+        )) => envelope.clone(),
+        other => panic!("expected the completion identified set, got {other:?}"),
+    };
+    assert_eq!(set.dimension, 0, "a scalar functional's identified set is coordinate-free");
+    assert!(set.lower[0].is_finite() && set.upper[0] >= set.lower[0]);
+    let structural = mixed.structural_response.as_ref().expect("completion mass accounting");
+    assert!(
+        structural.identified_mass < 1.0,
+        "the completion that could not be evaluated must keep its own mass"
+    );
+    assert_eq!(
+        structural.identified_set.as_ref().map(|s| (s.lower[0], s.upper[0])),
+        Some((set.lower[0], set.upper[0])),
+        "the published payload and the structural identified set are the same bounds"
+    );
     assert!(
         !mixed.estimate.se_analytic.is_finite(),
         "unidentified completions must not publish an identified-atom SE as the envelope; mixed se={} primary se={}",
@@ -2320,13 +2380,15 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
         primary.estimate.se_analytic.is_finite(),
         "the identified MAG still has its own SE; the envelope must not reuse it"
     );
-    assert!(
-        mixed
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "estimate.envelope.se_omits_between_atom_variance"),
-        "omitted envelope SE must be disclosed"
-    );
+    for code in [
+        "estimate.envelope.response_identified_set_unbanded",
+        "estimate.response.no_scalar_summary",
+    ] {
+        assert!(
+            mixed.diagnostics.iter().any(|d| d.code.as_ref() == code),
+            "a withheld envelope scalar must be disclosed ({code})"
+        );
+    }
 }
 
 #[test]
@@ -3535,4 +3597,32 @@ fn pag_two_atom_conditional_quantile_retains_joint_influence() {
     assert!(result.diagnostics.iter().any(|d| d.message.contains("cases=2")));
     let click = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap();
     assert!((click.estimate.ate - result.estimate.ate).abs() < 1e-10);
+}
+
+#[test]
+fn replacement_data_changes_score_reuse_not_identification() {
+    let (data_a, graph, query, _, _) = confounded_hetero(400, 215);
+    let (data_b, _, _, _, _) = confounded_hetero(400, 216);
+    assert_eq!(data_a.row_count(), data_b.row_count());
+    assert_eq!(data_a.schema(), data_b.schema());
+    let ctx = ExecutionContext::for_tests(215);
+    let mut prepared = Study::tabular(data_a)
+        .graph(graph)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let before = prepared.contract().unwrap().identities;
+    let score_before = prepared.score_reuse_identity().unwrap().expect("score key");
+    prepared.refresh(data_b, &ctx).unwrap();
+    let after = prepared.contract().unwrap().identities;
+    let score_after = prepared.score_reuse_identity().unwrap().expect("score key");
+    assert_eq!(before.identification, after.identification);
+    assert_eq!(before.program, after.program);
+    assert_ne!(before.data_snapshot, after.data_snapshot);
+    assert_ne!(score_before, score_after, "same schema and n do not reuse scores");
 }

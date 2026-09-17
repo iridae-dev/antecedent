@@ -16,6 +16,12 @@
 //! no longer touches the truncated boundary (or until `max_history_lag` / a
 //! derived cap refuses certification).
 //!
+//! **Parent adjustment:** when that cap refuses a single-step Pulse and the
+//! caller enabled [`TemporalBackdoorIdentifier::parent_adjustment_fallback`],
+//! the pulse is identified by adjusting for the treatment's own parents
+//! (derivation rule [`PARENT_ADJUSTMENT_RULE`]), which is valid in the unrolled
+//! DAG whatever the depth of the treatment's ancestry.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(
@@ -50,7 +56,19 @@ use crate::result::IdentificationResult;
 pub struct TemporalBackdoorIdentifier {
     /// Static backdoor identifier applied to the unfolded graph.
     pub inner: BackdoorIdentifier,
+    /// When set, a single-step [`TemporalPolicy::Pulse`] whose unfolding
+    /// cannot certify (for example an autoregressive treatment edge) is
+    /// identified by adjusting for the treatment's own parents instead
+    /// ([`Self::identify_pulse_by_parent_adjustment`], derivation rule
+    /// [`PARENT_ADJUSTMENT_RULE`]). Off by default: callers enable it only
+    /// where the graph is one fully oriented [`TemporalDag`] the analysis
+    /// accepted, never for completions of a class or posterior atoms.
+    pub parent_adjustment_fallback: bool,
 }
+
+/// Derivation rule id of a single-step pulse identified by adjusting for the
+/// treatment's parents `pa(T[t])`.
+pub const PARENT_ADJUSTMENT_RULE: &str = "temporal.parent_adjustment";
 
 /// Backdoor identification result paired with the finite-unfolding context
 /// needed to reinterpret dense adjustment-set ids as `(variable, offset)`
@@ -74,6 +92,14 @@ impl TemporalBackdoorIdentifier {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Enable the parent-adjustment fallback for single-step pulses
+    /// ([`Self::parent_adjustment_fallback`]).
+    #[must_use]
+    pub fn with_parent_adjustment_fallback(mut self) -> Self {
+        self.parent_adjustment_fallback = true;
+        self
     }
 
     /// Unfold `template` to a finite static DAG sized for `query`, then run
@@ -155,12 +181,9 @@ impl TemporalBackdoorIdentifier {
         let base_history = min_offset.unsigned_abs().max(max_lag).max(minimum_history);
         // The user's max_history_lag, when set, caps window growth; otherwise
         // bound simple confounder chains through every template variable.
-        let history_cap = query
-            .max_history_lag
-            .unwrap_or_else(|| {
-                variable_count.saturating_mul(max_lag).saturating_add(min_offset.unsigned_abs())
-            })
-            .max(base_history);
+        let chain_cap =
+            variable_count.saturating_mul(max_lag).saturating_add(min_offset.unsigned_abs());
+        let history_cap = query.max_history_lag.unwrap_or(chain_cap).max(base_history);
 
         let treatment_key = TemporalNodeKey { variable: query.treatment, offset: treatment_at };
         let outcome_key = TemporalNodeKey { variable: query.outcome, offset: outcome_at };
@@ -194,12 +217,16 @@ impl TemporalBackdoorIdentifier {
                 break (history, unfolded, treatment_dense, outcome_dense);
             }
             if history >= history_cap {
-                return Err(IdentificationError::NotCertified {
-                    message: "temporal unfolding reached its history cap while confounder \
-                              ancestry still crossed the truncated boundary; cannot certify \
-                              backdoor identification over the finite window (raise \
-                              max_history_lag or shorten confounder chains)",
-                });
+                let refusal = history_cap_refusal(history_cap, chain_cap);
+                if self.parent_adjustment_fallback
+                    && matches!(query.policy, TemporalPolicy::Pulse { .. })
+                {
+                    let IdentificationError::NotCertified { message } = refusal else {
+                        return Err(refusal);
+                    };
+                    return self.parent_adjustment(template, query, Some(message));
+                }
+                return Err(refusal);
             }
             history += 1;
         };
@@ -232,6 +259,215 @@ impl TemporalBackdoorIdentifier {
             identifier.identify(&prepared, &CausalQuery::average_effect(ate), &mut id_ws)?;
         annotate_temporal(&mut result, query, treatment_key, outcome_key, history, horizon);
 
+        Ok(TemporalIdentificationResult {
+            result,
+            indexer: unfolded.indexer,
+            treatment_key,
+            outcome_key,
+        })
+    }
+
+    /// Identify a single-step pulse `do(T[t] = x)` on `Y[t + h]` by adjusting
+    /// for the treatment's own parents `pa(T[t])`, lagged and contemporaneous.
+    ///
+    /// In a temporal DAG with no latent structure, every back-door path into
+    /// `T[t]` enters through a parent, and a parent is a non-collider on that
+    /// path, so `pa(T[t])` blocks every back-door path; no parent is a
+    /// descendant of `T[t]`. This holds in the infinite unrolled graph, so it
+    /// needs no finite-window certificate and stands where unfolding cannot
+    /// certify (an autoregressive treatment edge makes the treatment's ancestry
+    /// unbounded). The window is sized to contain every parent, and the set is
+    /// checked against the back-door criterion on that window.
+    ///
+    /// The result records derivation rule [`PARENT_ADJUSTMENT_RULE`] and its
+    /// premises (causal sufficiency; every parent oriented and observed at its
+    /// lag). The estimand method stays `temporal.backdoor.unfolded`, so the
+    /// temporal linear adjustment estimator fits the declared set unchanged.
+    ///
+    /// # Errors
+    ///
+    /// [`IdentificationError::UnsupportedQuery`] for any policy other than a
+    /// [`TemporalPolicy::Pulse`] (time-varying confounding makes parent
+    /// adjustment insufficient for multi-step schedules), and
+    /// [`IdentificationError::NotCertified`] when a parent lies beyond the
+    /// query's `max_history_lag` (not available within the permitted history)
+    /// or the outcome node is itself a parent of the treatment.
+    pub fn identify_pulse_by_parent_adjustment(
+        &self,
+        template: &TemporalDag,
+        query: &TemporalEffectQuery,
+    ) -> Result<TemporalIdentificationResult, IdentificationError> {
+        self.parent_adjustment(template, query, None)
+    }
+
+    fn parent_adjustment(
+        &self,
+        template: &TemporalDag,
+        query: &TemporalEffectQuery,
+        unfolding_refusal: Option<&'static str>,
+    ) -> Result<TemporalIdentificationResult, IdentificationError> {
+        query.validate().map_err(|_| IdentificationError::UnsupportedQuery {
+            message: "invalid temporal-effect query",
+        })?;
+        if !matches!(query.policy, TemporalPolicy::Pulse { .. }) {
+            return Err(IdentificationError::UnsupportedQuery {
+                message: "parent adjustment identifies only a single-step Pulse; multi-step \
+                          schedules need sequential (g-formula) identification",
+            });
+        }
+        let treatment_at = query.try_treatment_offset().map_err(|_| {
+            IdentificationError::UnsupportedQuery { message: "invalid pulse treatment offset" }
+        })?;
+        let outcome_at = query.outcome_offset();
+        let min_offset = treatment_at.min(outcome_at).min(0);
+        let max_offset = treatment_at.max(outcome_at).max(0);
+        let horizon = u32::try_from(max_offset)
+            .map_err(|_| IdentificationError::msg("negative horizon"))?
+            .saturating_add(1);
+        let variable_count = required_variable_count(template, [query.treatment, query.outcome]);
+        // Every template parent of T[treatment_at] sits at most template_max_lag
+        // slices earlier, so this window contains all of pa(T).
+        let history = min_offset.unsigned_abs().saturating_add(template_max_lag(template));
+
+        let treatment_key = TemporalNodeKey { variable: query.treatment, offset: treatment_at };
+        let outcome_key = TemporalNodeKey { variable: query.outcome, offset: outcome_at };
+        let indexer = TemporalIndexer::new(variable_count, history, horizon)
+            .map_err(|e| IdentificationError::msg(e.to_string()))?;
+        let unfolded =
+            template.unfold(indexer).map_err(|e| IdentificationError::msg(e.to_string()))?;
+        let treatment_dense = unfolded
+            .indexer
+            .dense_id(treatment_key)
+            .map_err(|_| IdentificationError::UnknownVariable { id: query.treatment })?;
+        let outcome_dense = unfolded
+            .indexer
+            .dense_id(outcome_key)
+            .map_err(|_| IdentificationError::UnknownVariable { id: query.outcome })?;
+        let t = DenseNodeId::from_raw(treatment_dense);
+        let y = DenseNodeId::from_raw(outcome_dense);
+
+        let mut parents: Vec<DenseNodeId> = unfolded.dag.parents(t).to_vec();
+        parents.sort_unstable();
+        if parents.contains(&y) {
+            return Err(IdentificationError::NotCertified {
+                message: "parent adjustment cannot identify this pulse: the outcome node is a \
+                          parent of the treatment",
+            });
+        }
+        let reference = treatment_at.max(outcome_at);
+        let mut parent_keys = Vec::with_capacity(parents.len());
+        for &parent in &parents {
+            let key = unfolded
+                .indexer
+                .key_of(parent.raw())
+                .map_err(|e| IdentificationError::msg(e.to_string()))?;
+            let lag = u32::try_from(reference.saturating_sub(key.offset)).unwrap_or(0);
+            if query.max_history_lag.is_some_and(|cap| lag > cap) {
+                return Err(IdentificationError::NotCertified {
+                    message: "temporal unfolding cannot certify backdoor identification, and \
+                              parent adjustment cannot stand in: a parent of the treatment lies \
+                              beyond max_history_lag, so it is not observed within the permitted \
+                              history (raise max_history_lag)",
+                });
+            }
+            parent_keys.push(key);
+        }
+        let mutilated = crate::backdoor::remove_outgoing(&unfolded.dag, t)?;
+        let mut dsep = antecedent_graph::DSeparationWorkspace::default();
+        if !crate::backdoor::is_backdoor_adjustment(&mutilated, t, y, &parents, &mut dsep)? {
+            return Err(IdentificationError::NotCertified {
+                message: "the treatment's parents do not satisfy the back-door criterion on the \
+                          unfolded window",
+            });
+        }
+
+        let treatment_var = VariableId::from_raw(treatment_dense);
+        let outcome_var = VariableId::from_raw(outcome_dense);
+        let active = retarget(&query.active, treatment_var)?;
+        let control = retarget(&query.control, treatment_var)?;
+        let ate = AverageEffectQuery::new(
+            treatment_var,
+            outcome_var,
+            Arc::from([]),
+            control.clone(),
+            active.clone(),
+            query.target_population.clone(),
+        );
+        let active_value = crate::intervention_support::require_set_value(&active, "backdoor")?;
+        let control_value = crate::intervention_support::require_set_value(&control, "backdoor")?;
+        let adjustment: Vec<VariableId> =
+            parents.iter().map(|parent| VariableId::from_raw(parent.raw())).collect();
+        let mut arena = antecedent_expr::CausalExprArena::new();
+        let functional = arena.backdoor_ate(
+            treatment_var,
+            outcome_var,
+            &adjustment,
+            active_value,
+            control_value,
+        );
+        let estimand = crate::result::IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from(adjustment),
+            functional,
+        );
+
+        let mut assumptions = antecedent_core::AssumptionSet::new();
+        assumptions.push(crate::assumptions::causal_markov(PARENT_ADJUSTMENT_RULE));
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::CausalSufficiency,
+            source: AssumptionSource::AlgorithmDefault {
+                algorithm: Arc::from(PARENT_ADJUSTMENT_RULE),
+            },
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("temporal.parent_adjustment.parents_oriented_observed"),
+                description: Arc::from(
+                    "every parent of the treatment, lagged and contemporaneous, is a fully \
+                     oriented edge of the accepted temporal DAG and is observed at its lag",
+                ),
+            },
+            source: AssumptionSource::AlgorithmDefault {
+                algorithm: Arc::from(PARENT_ADJUSTMENT_RULE),
+            },
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+
+        let rendered: Vec<String> =
+            parent_keys.iter().map(|key| format!("{}@{}", key.variable, key.offset)).collect();
+        let mut derivation = crate::result::DerivationTrace::default();
+        derivation.push(
+            PARENT_ADJUSTMENT_RULE,
+            match unfolding_refusal {
+                Some(refusal) => format!(
+                    "unfolding could not certify ({refusal}); Z = pa(treatment) = \
+                     {{{}}} blocks every back-door path in the unrolled temporal DAG",
+                    rendered.join(", ")
+                ),
+                None => format!(
+                    "Z = pa(treatment) = {{{}}} blocks every back-door path in the unrolled \
+                     temporal DAG",
+                    rendered.join(", ")
+                ),
+            },
+        );
+        derivation.push("backdoor.adjustment_set", format!("|Z|={}", parents.len()));
+
+        let mut result = IdentificationResult::identified(
+            CausalQuery::average_effect(ate),
+            vec![estimand],
+            arena,
+            derivation,
+            assumptions,
+            crate::result::IdentificationPerformanceRecord {
+                candidates_examined: 1,
+                sets_returned: 1,
+            },
+        );
+        annotate_temporal(&mut result, query, treatment_key, outcome_key, history, horizon);
         Ok(TemporalIdentificationResult {
             result,
             indexer: unfolded.indexer,
@@ -316,12 +552,9 @@ impl TemporalBackdoorIdentifier {
         let variable_count = required_variable_count(template, variables);
         let max_lag = template_max_lag(template);
         let base_history = min_offset.unsigned_abs().max(max_lag);
-        let history_cap = query
-            .max_history_lag
-            .unwrap_or_else(|| {
-                variable_count.saturating_mul(max_lag).saturating_add(min_offset.unsigned_abs())
-            })
-            .max(base_history);
+        let chain_cap =
+            variable_count.saturating_mul(max_lag).saturating_add(min_offset.unsigned_abs());
+        let history_cap = query.max_history_lag.unwrap_or(chain_cap).max(base_history);
 
         let treatment_key = TemporalNodeKey { variable: query.treatment, offset: from };
         let outcome_key = TemporalNodeKey { variable: query.outcome, offset: outcome_at };
@@ -357,11 +590,7 @@ impl TemporalBackdoorIdentifier {
                 break (history, unfolded, treatment_nodes, outcome_dense);
             }
             if history >= history_cap {
-                return Err(IdentificationError::NotCertified {
-                    message: "temporal unfolding reached its history cap while confounder \
-                              ancestry still crossed the truncated boundary; cannot certify \
-                              identification over the finite window",
-                });
+                return Err(history_cap_refusal(history_cap, chain_cap));
             }
             history += 1;
         };
@@ -418,6 +647,31 @@ impl TemporalBackdoorIdentifier {
             outcome_key,
         })
     }
+}
+
+/// The refusal when window growth stops at `history_cap` with ancestry still
+/// crossing the truncated boundary.
+///
+/// A confounder chain that repeats no variable reaches at most `chain_cap`
+/// slices back (`variable_count * template_max_lag + |min_offset|`). Reaching
+/// that depth therefore means an ancestor lies on a lagged cycle, such as an
+/// autoregressive edge `x(t-1) -> x(t)`, whose ancestry never ends: no finite
+/// window certifies it, and a larger `max_history_lag` cannot help. Only a
+/// caller-set `max_history_lag` below `chain_cap` can stop growth early, and
+/// then raising it is the remedy.
+fn history_cap_refusal(history_cap: u32, chain_cap: u32) -> IdentificationError {
+    let message = if history_cap < chain_cap {
+        "temporal unfolding reached the query's max_history_lag while confounder ancestry \
+         still crossed the truncated boundary; cannot certify backdoor identification over \
+         the finite window (raise max_history_lag)"
+    } else {
+        "temporal unfolding reached its history cap while confounder ancestry still crossed \
+         the truncated boundary: an ancestor of the treatment or outcome lies on a lagged \
+         cycle (for example an autoregressive edge x(t-1) -> x(t)), so no finite window \
+         certifies backdoor identification; review whether that lagged edge belongs in the \
+         graph"
+    };
+    IdentificationError::NotCertified { message }
 }
 
 fn template_max_lag(template: &TemporalDag) -> u32 {
@@ -624,6 +878,219 @@ mod tests {
                 .iter()
                 .any(|a| a.assumption == Assumption::Stationarity)
         );
+    }
+
+    #[test]
+    fn autoregressive_ancestry_refusal_names_the_lagged_cycle() {
+        // Template: X_{t-1} -> X_t, X_{t-1} -> Y_t. The treatment's ancestry is
+        // an unbounded autoregressive chain, so no window certifies it and the
+        // refusal must not advise a max_history_lag that cannot help.
+        let mut template = TemporalDag::empty();
+        let x_lag = template.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let x_now = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(x_lag, x_now).unwrap();
+        template.insert_directed(x_lag, y).unwrap();
+
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1);
+        for query in [query.clone(), query.with_max_history_lag(Some(50))] {
+            let Err(IdentificationError::NotCertified { message }) =
+                TemporalBackdoorIdentifier::new().identify_temporal(&template, &query)
+            else {
+                panic!("an autoregressive treatment chain must not certify");
+            };
+            assert!(message.contains("lagged cycle"), "{message}");
+            assert!(message.contains("history cap"), "{message}");
+            assert!(!message.contains("max_history_lag"), "{message}");
+        }
+    }
+
+    /// `T@1 -> T@0` (autoregressive), `Z@1 -> T@0`, `Z@2 -> Y@0`, `T@1 -> Y@0`,
+    /// with variables `T = 0`, `Y = 1`, `Z = 2`. For the pulse on `T[-1]` and
+    /// `Y[0]`, `Z[-2]` confounds, and the treatment's ancestry is unbounded.
+    fn autoregressive_confounded_template() -> TemporalDag {
+        let mut template = TemporalDag::empty();
+        let t_lag = template.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let t_now = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let z_lag = template.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+        let z_lag2 = template.add_lagged(VariableId::from_raw(2), Lag::from_raw(2)).unwrap();
+        template.insert_directed(t_lag, t_now).unwrap();
+        template.insert_directed(z_lag, t_now).unwrap();
+        template.insert_directed(z_lag2, y).unwrap();
+        template.insert_directed(t_lag, y).unwrap();
+        template
+    }
+
+    fn lag_one_pulse() -> TemporalEffectQuery {
+        TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+    }
+
+    fn adjustment_keys(identified: &TemporalIdentificationResult) -> Vec<(u32, i32)> {
+        let mut keys: Vec<(u32, i32)> = identified.result.estimands[0]
+            .adjustment_set
+            .iter()
+            .map(|dense| {
+                let key = identified.indexer.key_of(dense.raw()).unwrap();
+                (key.variable.raw(), key.offset)
+            })
+            .collect();
+        keys.sort_unstable();
+        keys
+    }
+
+    #[test]
+    fn autoregressive_pulse_is_identified_by_parent_adjustment() {
+        let template = autoregressive_confounded_template();
+        let query = lag_one_pulse();
+        assert!(matches!(
+            TemporalBackdoorIdentifier::new().identify_temporal(&template, &query),
+            Err(IdentificationError::NotCertified { .. })
+        ));
+
+        let identified = TemporalBackdoorIdentifier::new()
+            .with_parent_adjustment_fallback()
+            .identify_temporal(&template, &query)
+            .expect("parent adjustment identifies the single-step pulse");
+        let result = &identified.result;
+        assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(result.estimands.len(), 1);
+        assert_eq!(result.estimands[0].method.as_ref(), "temporal.backdoor.unfolded");
+        // pa(T[-1]) = {T[-2], Z[-2]}.
+        assert_eq!(adjustment_keys(&identified), [(0, -2), (2, -2)]);
+        let rules: Vec<&str> = result.derivation.steps.iter().map(|s| s.rule.as_ref()).collect();
+        assert!(rules.contains(&PARENT_ADJUSTMENT_RULE), "{rules:?}");
+        assert!(!rules.contains(&"backdoor.criterion"), "{rules:?}");
+        let step =
+            result.derivation.steps.iter().find(|s| s.rule.as_ref() == PARENT_ADJUSTMENT_RULE);
+        assert!(step.unwrap().detail.contains("lagged cycle"));
+        assert!(
+            result
+                .required_assumptions
+                .entries
+                .iter()
+                .any(|record| matches!(record.assumption, Assumption::CausalSufficiency))
+        );
+        assert!(result.required_assumptions.entries.iter().any(|record| matches!(
+            &record.assumption,
+            Assumption::Custom { id, .. }
+                if id.as_ref() == "temporal.parent_adjustment.parents_oriented_observed"
+        )));
+    }
+
+    #[test]
+    fn parent_adjustment_refuses_a_parent_beyond_max_history_lag() {
+        let template = autoregressive_confounded_template();
+        // Both parents sit two slices before the outcome; a one-slice cap does
+        // not observe them.
+        let query = lag_one_pulse().with_max_history_lag(Some(1));
+        let Err(IdentificationError::NotCertified { message }) = TemporalBackdoorIdentifier::new()
+            .with_parent_adjustment_fallback()
+            .identify_temporal(&template, &query)
+        else {
+            panic!("a parent outside the permitted history must not be adjusted for");
+        };
+        assert!(message.contains("beyond max_history_lag"), "{message}");
+        // At the parents' own depth the same query identifies.
+        TemporalBackdoorIdentifier::new()
+            .with_parent_adjustment_fallback()
+            .identify_temporal(&template, &lag_one_pulse().with_max_history_lag(Some(2)))
+            .expect("parents inside the cap");
+    }
+
+    #[test]
+    fn parent_adjustment_does_not_reach_multi_step_schedules() {
+        let template = autoregressive_confounded_template();
+        let sustained = TemporalEffectQuery::sustained(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            -2,
+            1.0,
+        )
+        .with_policy(TemporalPolicy::sustained(-2, -1))
+        .with_horizon_steps(1);
+        let identifier = TemporalBackdoorIdentifier::new().with_parent_adjustment_fallback();
+        assert!(matches!(
+            identifier.identify_temporal(&template, &sustained),
+            Err(IdentificationError::NotCertified { .. })
+        ));
+        assert!(matches!(
+            identifier.identify_pulse_by_parent_adjustment(&template, &sustained),
+            Err(IdentificationError::UnsupportedQuery { .. })
+        ));
+        // A single-step Sustained is not a Pulse query and keeps the refusal.
+        let single = TemporalEffectQuery::sustained(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            -1,
+            1.0,
+        )
+        .with_policy(TemporalPolicy::sustained(-1, -1))
+        .with_horizon_steps(1);
+        assert!(matches!(
+            identifier.identify_temporal(&template, &single),
+            Err(IdentificationError::NotCertified { .. })
+        ));
+    }
+
+    #[test]
+    fn parent_adjustment_on_a_certifiable_graph_names_the_parents() {
+        // Z_{t-1} -> X_t, X_{t-1} -> Y_t, Z_{t-2} -> Y_t: unfolding certifies,
+        // and the direct parent-adjustment derivation adjusts pa(X[-1]) = {Z[-2]}.
+        let mut template = TemporalDag::empty();
+        let z1 = template.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+        let z2 = template.add_lagged(VariableId::from_raw(2), Lag::from_raw(2)).unwrap();
+        let x1 = template.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let x0 = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(z1, x0).unwrap();
+        template.insert_directed(x1, y).unwrap();
+        template.insert_directed(z2, y).unwrap();
+        let identifier = TemporalBackdoorIdentifier::new().with_parent_adjustment_fallback();
+        let unfolded = identifier.identify_temporal(&template, &lag_one_pulse()).unwrap();
+        let rules: Vec<&str> =
+            unfolded.result.derivation.steps.iter().map(|s| s.rule.as_ref()).collect();
+        assert!(!rules.contains(&PARENT_ADJUSTMENT_RULE), "unfolding certified: {rules:?}");
+        let parents =
+            identifier.identify_pulse_by_parent_adjustment(&template, &lag_one_pulse()).unwrap();
+        assert_eq!(adjustment_keys(&parents), [(2, -2)]);
+    }
+
+    #[test]
+    fn caller_history_cap_below_the_chain_bound_names_max_history_lag() {
+        // Template: W_{t-1} -> Z_t, Z_{t-1} -> X_t, X_{t-1} -> Y_t. The chain is
+        // finite (three slices deep) and certifies under the default cap; a
+        // caller cap of one slice stops growth early, and only then is raising
+        // max_history_lag the remedy.
+        let mut template = TemporalDag::empty();
+        let w = template.add_lagged(VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
+        let z_lag = template.add_lagged(VariableId::from_raw(2), Lag::from_raw(1)).unwrap();
+        let z_now = template.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        let x_lag = template.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let x_now = template.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(w, z_now).unwrap();
+        template.insert_directed(z_lag, x_now).unwrap();
+        template.insert_directed(x_lag, y).unwrap();
+
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                .with_policy(TemporalPolicy::pulse(-1))
+                .with_horizon_steps(1);
+        let identifier = TemporalBackdoorIdentifier::new();
+        identifier.identify_temporal(&template, &query).expect("finite chain certifies");
+        let Err(IdentificationError::NotCertified { message }) =
+            identifier.identify_temporal(&template, &query.with_max_history_lag(Some(1)))
+        else {
+            panic!("a one-slice cap must stop growth before the chain ends");
+        };
+        assert!(message.contains("raise max_history_lag"), "{message}");
+        assert!(!message.contains("lagged cycle"), "{message}");
     }
 
     #[test]

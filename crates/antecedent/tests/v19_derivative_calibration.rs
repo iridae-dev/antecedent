@@ -46,7 +46,7 @@ mod common;
 
 use std::sync::Arc;
 
-use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
+use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     CausalQuery, CausalResponse, DerivativeScale, DerivativeWeighting, ExecutionContext,
     ResponseFunctional as F, ResponseIdentification, ResponseQuery, ResponseUncertainty,
@@ -55,7 +55,8 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Dag, DenseNodeId};
-use common::calibration::{CoverageTally, coverage_band, gaussian, n_sim};
+use common::calibration::{CoverageTally, RecordKey, SampleGrid, coverage_band, gaussian, n_sim};
+use common::calibration_bind::{bind, bind_all};
 
 const LEVEL: f64 = 0.9;
 /// Rows per point-derivative / ADE replicate.
@@ -226,6 +227,19 @@ fn run(
     inference: Option<InferenceMode>,
     seed: u64,
 ) -> Result<CausalResponse, String> {
+    let (_, result) = run_study(data, graph, functional, bandwidth, inference, seed)?;
+    result.response.ok_or_else(|| "no response".to_owned())
+}
+
+/// [`run`], keeping the study and its full result (to bind coverage records).
+fn run_study(
+    data: &TabularData,
+    graph: &Dag,
+    functional: F,
+    bandwidth: Option<f64>,
+    inference: Option<InferenceMode>,
+    seed: u64,
+) -> Result<(Study, StudyResult), String> {
     let mut builder = Study::tabular(data.clone())
         .graph(graph.clone())
         .query(CausalQuery::Response(ResponseQuery::new(functional)))
@@ -242,7 +256,10 @@ fn run(
     let study = builder.build().map_err(|e| e.to_string())?;
     let ctx = ExecutionContext::for_tests(seed);
     let result = study.run(&ctx).map_err(|e| e.to_string())?;
-    result.response.ok_or_else(|| "no response".to_owned())
+    if result.response.is_none() {
+        return Err("no response".to_owned());
+    }
+    Ok((study, result))
 }
 
 fn scalar_value(response: &CausalResponse) -> f64 {
@@ -273,17 +290,36 @@ fn band_interval(response: &CausalResponse, j: usize) -> Option<(f64, f64)> {
     }
 }
 
-/// Score a scalar functional against `truth` over `n_sim()` replicates.
+/// Interval method the runtime keys a derivative response's scalar interval or
+/// pointwise band under, at the configured `LEVEL`: the Dirichlet-weight
+/// quantile interval of a Bayesian program's draws, the influence-function
+/// interval of a Frequentist one.
+fn response_interval(bayesian: bool) -> &'static str {
+    if bayesian { "posterior_quantile" } else { "analytic_se" }
+}
+
+/// Record key of a gated scalar cell on [`point_data`].
+// The callers take `Option<RecordKey>`; this coordinate always has one.
+#[allow(clippy::unnecessary_wraps)]
+fn point_record(test: &'static str, bayesian: bool) -> Option<RecordKey> {
+    Some(RecordKey { test, dgp: "point_data", interval: response_interval(bayesian) })
+}
+
+/// Score a scalar functional against `truth` over `n_sim()` replicates of
+/// `N_POINT` rows. A `record` key backs a coverage record; a probe passes `None`.
 fn scalar_coverage(
     name: &str,
+    record: Option<RecordKey>,
     data_fn: fn(usize, u64) -> TabularData,
-    n: usize,
     functional: &F,
     bandwidth: Option<f64>,
     bayesian: bool,
     truth: f64,
 ) -> CoverageTally {
-    let mut tally = CoverageTally::new(name, LEVEL);
+    let mut tally = match record {
+        Some(key) => CoverageTally::for_record(key, LEVEL),
+        None => CoverageTally::new(name, LEVEL),
+    };
     let graph = point_graph();
     // Interval centres and half-widths, so a failing gate says whether the
     // interval is mis-centred (bias) or mis-scaled (SE).
@@ -292,10 +328,14 @@ fn scalar_coverage(
     let mut zs = Vec::new();
     for rep in 0..u64::from(n_sim()) {
         let seed = replicate_seed(0x0D0E, rep);
-        let data = data_fn(n, seed);
-        match run(&data, &graph, functional.clone(), bandwidth, bayesian.then(bayes), seed) {
-            Ok(response) => {
-                let interval = scalar_interval(&response);
+        let data = data_fn(SampleGrid::HEAVY.n(N_POINT), seed);
+        match run_study(&data, &graph, functional.clone(), bandwidth, bayesian.then(bayes), seed) {
+            Ok((study, result)) => {
+                let response = result.response.as_ref().expect("response");
+                let interval = scalar_interval(response);
+                if record.is_some() {
+                    bind(&mut tally, &study, &result);
+                }
                 tally.record(interval, truth);
                 if let Some((lo, hi)) = interval {
                     centres.push(0.5 * (lo + hi));
@@ -365,8 +405,8 @@ fn ade_truth() -> f64 {
 fn ade_frequentist_gaussian_treatment_nominal_90_coverage() {
     scalar_coverage(
         "ade_frequentist_gaussian_treatment",
+        point_record("ade_frequentist_gaussian_treatment_nominal_90_coverage", false),
         point_data,
-        N_POINT,
         &ade_query(),
         None,
         false,
@@ -380,8 +420,8 @@ fn ade_frequentist_gaussian_treatment_nominal_90_coverage() {
 fn ade_bayesian_gaussian_treatment_nominal_90_coverage() {
     scalar_coverage(
         "ade_bayesian_gaussian_treatment",
+        point_record("ade_bayesian_gaussian_treatment_nominal_90_coverage", true),
         point_data,
-        N_POINT,
         &ade_query(),
         None,
         true,
@@ -413,8 +453,8 @@ fn ade_skewed_heteroskedastic_treatment_probe() {
         ("ade_frequentist_skewed_treatment_probe", false),
         ("ade_bayesian_skewed_treatment_probe", true),
     ] {
-        let tally =
-            scalar_coverage(name, skewed_data, N_POINT, &ade_query(), None, bayesian, truth);
+        // Misspecification probe: recorded in the log, emits no coverage record.
+        let tally = scalar_coverage(name, None, skewed_data, &ade_query(), None, bayesian, truth);
         report_probe(name, &tally);
     }
 }
@@ -426,8 +466,8 @@ fn ade_skewed_heteroskedastic_treatment_probe() {
 fn point_derivative_frequentist_curvature_nominal_90_coverage() {
     scalar_coverage(
         "point_derivative_frequentist_curvature",
+        point_record("point_derivative_frequentist_curvature_nominal_90_coverage", false),
         point_data,
-        N_POINT,
         &point_query(DerivativeScale::Identity),
         Some(BANDWIDTH),
         false,
@@ -441,8 +481,8 @@ fn point_derivative_frequentist_curvature_nominal_90_coverage() {
 fn point_derivative_bayesian_curvature_nominal_90_coverage() {
     scalar_coverage(
         "point_derivative_bayesian_curvature",
+        point_record("point_derivative_bayesian_curvature_nominal_90_coverage", true),
         point_data,
-        N_POINT,
         &point_query(DerivativeScale::Identity),
         Some(BANDWIDTH),
         true,
@@ -466,8 +506,8 @@ fn second_order_query() -> F {
 fn point_derivative_order_2_frequentist_curvature_nominal_90_coverage() {
     scalar_coverage(
         "point_derivative_order_2_frequentist_curvature",
+        point_record("point_derivative_order_2_frequentist_curvature_nominal_90_coverage", false),
         point_data,
-        N_POINT,
         &second_order_query(),
         Some(SECOND_ORDER_BANDWIDTH),
         false,
@@ -489,8 +529,8 @@ fn point_derivative_order_2_frequentist_curvature_nominal_90_coverage() {
 fn point_derivative_order_2_bayesian_curvature_nominal_90_coverage() {
     scalar_coverage(
         "point_derivative_order_2_bayesian_curvature",
+        point_record("point_derivative_order_2_bayesian_curvature_nominal_90_coverage", true),
         point_data,
-        N_POINT,
         &second_order_query(),
         Some(SECOND_ORDER_BANDWIDTH),
         true,
@@ -504,8 +544,8 @@ fn point_derivative_order_2_bayesian_curvature_nominal_90_coverage() {
 fn semi_elasticity_log_treatment_frequentist_nominal_90_coverage() {
     scalar_coverage(
         "semi_elasticity_log_treatment_frequentist",
+        point_record("semi_elasticity_log_treatment_frequentist_nominal_90_coverage", false),
         point_data,
-        N_POINT,
         &point_query(DerivativeScale::LogTreatment),
         Some(BANDWIDTH),
         false,
@@ -519,8 +559,8 @@ fn semi_elasticity_log_treatment_frequentist_nominal_90_coverage() {
 fn semi_elasticity_log_treatment_bayesian_nominal_90_coverage() {
     scalar_coverage(
         "semi_elasticity_log_treatment_bayesian",
+        point_record("semi_elasticity_log_treatment_bayesian_nominal_90_coverage", true),
         point_data,
-        N_POINT,
         &point_query(DerivativeScale::LogTreatment),
         Some(BANDWIDTH),
         true,
@@ -534,8 +574,8 @@ fn semi_elasticity_log_treatment_bayesian_nominal_90_coverage() {
 fn semi_elasticity_log_outcome_bayesian_nominal_90_coverage() {
     scalar_coverage(
         "semi_elasticity_log_outcome_bayesian",
+        point_record("semi_elasticity_log_outcome_bayesian_nominal_90_coverage", true),
         point_data,
-        N_POINT,
         &point_query(DerivativeScale::LogOutcome),
         Some(BANDWIDTH),
         true,
@@ -549,8 +589,8 @@ fn semi_elasticity_log_outcome_bayesian_nominal_90_coverage() {
 fn elasticity_bayesian_nominal_90_coverage() {
     scalar_coverage(
         "elasticity_bayesian",
+        point_record("elasticity_bayesian_nominal_90_coverage", true),
         point_data,
-        N_POINT,
         &point_query(DerivativeScale::LogLog),
         Some(BANDWIDTH),
         true,
@@ -561,9 +601,18 @@ fn elasticity_bayesian_nominal_90_coverage() {
 
 // --- Multivariate GAM plug-in (Bayesian publishes a pointwise band) ----------
 
-fn gam_coverage(name: &str, functional: &F, truth: &[f64]) -> Vec<CoverageTally> {
-    let mut tallies: Vec<_> =
-        (0..truth.len()).map(|j| CoverageTally::new(format!("{name}[{j}]"), LEVEL)).collect();
+/// Per-coordinate tallies of the Bayesian band, each backing a record of
+/// `test` labelled by its coordinate `j`.
+fn gam_coverage(
+    test: &'static str,
+    name: &str,
+    functional: &F,
+    truth: &[f64],
+) -> Vec<CoverageTally> {
+    let key = RecordKey { test, dgp: "gam_data", interval: response_interval(true) };
+    let mut tallies: Vec<_> = (0..truth.len())
+        .map(|j| CoverageTally::for_record(key, LEVEL).labelled(format!("j={j}")))
+        .collect();
     let graph = gam_graph();
     // Posterior means and band half-widths per coordinate, so a failing gate
     // says whether the band is mis-centred (bias) or mis-scaled (SE).
@@ -573,9 +622,11 @@ fn gam_coverage(name: &str, functional: &F, truth: &[f64]) -> Vec<CoverageTally>
     let mut zs: Vec<Vec<f64>> = vec![Vec::new(); truth.len()];
     for rep in 0..u64::from(n_sim()) {
         let seed = replicate_seed(0x0D0F, rep);
-        let data = gam_data(N_GAM, seed);
-        match run(&data, &graph, functional.clone(), None, Some(bayes()), seed) {
-            Ok(response) => {
+        let data = gam_data(SampleGrid::HEAVY.n(N_GAM), seed);
+        match run_study(&data, &graph, functional.clone(), None, Some(bayes()), seed) {
+            Ok((study, result)) => {
+                bind_all(&mut tallies.iter_mut().collect::<Vec<_>>(), &study, &result);
+                let response = result.response.as_ref().expect("response");
                 let values: Vec<f64> = match &response.estimate {
                     ResponseIdentification::PointIdentified(
                         ResponseValue::Jacobian { values, .. } | ResponseValue::Vector(values),
@@ -583,7 +634,7 @@ fn gam_coverage(name: &str, functional: &F, truth: &[f64]) -> Vec<CoverageTally>
                     other => panic!("{name}: unexpected estimate {other:?}"),
                 };
                 for (j, tally) in tallies.iter_mut().enumerate() {
-                    let interval = band_interval(&response, j);
+                    let interval = band_interval(response, j);
                     tally.record(interval, truth[j]);
                     points[j].push(values[j]);
                     if let Some((lo, hi)) = interval {
@@ -659,7 +710,12 @@ fn assert_all_boundary(tallies: &[CoverageTally], measured: &[f64]) {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn response_jacobian_bayesian_boundary_within_band() {
-    let tallies = gam_coverage("response_jacobian_bayesian", &jacobian_query(), &JACOBIAN_TRUTH);
+    let tallies = gam_coverage(
+        "response_jacobian_bayesian_boundary_within_band",
+        "response_jacobian_bayesian",
+        &jacobian_query(),
+        &JACOBIAN_TRUTH,
+    );
     assert_all_boundary(&tallies, &JACOBIAN_MEASURED);
 }
 
@@ -682,8 +738,12 @@ fn assert_all_nominal(tallies: &[CoverageTally]) {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn directional_derivative_bayesian_nominal_90_coverage() {
-    let tallies =
-        gam_coverage("directional_derivative_bayesian", &directional_query(), &DIRECTIONAL_TRUTH);
+    let tallies = gam_coverage(
+        "directional_derivative_bayesian_nominal_90_coverage",
+        "directional_derivative_bayesian",
+        &directional_query(),
+        &DIRECTIONAL_TRUTH,
+    );
     assert_all_nominal(&tallies);
 }
 

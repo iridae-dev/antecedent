@@ -31,6 +31,46 @@ pub struct AnalysisIdentification {
     pub graph_class: crate::GraphClass,
 }
 
+/// Row-weight target population of a retarget, bound to the data snapshot and
+/// score table it was computed on.
+///
+/// The `RowWeights` population references [`Self::target_weights`], so the
+/// target identity and every claim over the result name exactly this
+/// weighting. The weights travel in the exported contract so a consumer can
+/// re-derive the identity.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct RowWeightsBinding {
+    /// Weights in score-table row order.
+    pub weights: std::sync::Arc<[f64]>,
+    /// Declared parents of the weights.
+    pub depends_on: std::sync::Arc<[VariableId]>,
+    /// Rehashable target-weights identity payload.
+    pub identity: antecedent_io::TargetWeightsIdentityWire,
+    /// Digest of [`Self::identity`].
+    pub target_weights: antecedent_core::SemanticDigest,
+}
+
+impl StudyResult {
+    /// Target population a row-weight retarget recorded, when it differs from
+    /// the prepared query.
+    #[must_use]
+    pub fn retarget_population(&self) -> Option<antecedent_core::TargetPopulation> {
+        self.row_weights.as_ref().map(RowWeightsBinding::population)
+    }
+}
+
+impl RowWeightsBinding {
+    /// The population this binding defines.
+    #[must_use]
+    pub fn population(&self) -> antecedent_core::TargetPopulation {
+        antecedent_core::TargetPopulation::RowWeights {
+            weights: *self.target_weights.as_bytes(),
+            depends_on: std::sync::Arc::clone(&self.depends_on),
+        }
+    }
+}
+
 /// Meaning of structural atom weights retained on a response result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
@@ -201,9 +241,376 @@ pub struct StudyResult {
     pub outcome: VariableId,
     /// Candidate-selection screen recorded for a prepared batch family.
     pub candidate_selection: Option<crate::analysis::CandidateSelection>,
+    /// How this execution formed its reported interval.
+    pub interval: Option<IntervalBinding>,
+    /// Row-weight population recorded by a nonconstant retarget.
+    pub row_weights: Option<RowWeightsBinding>,
+    /// Names of caller-supplied custom validators that ran on this execution.
+    pub custom_validator_names: Vec<std::sync::Arc<str>>,
+    /// Prepared contract this result was executed under, stamped by the
+    /// [`crate::PreparedStudy`] entry point that produced it. `None` for
+    /// results no prepared handle executed; those cannot be exported as claims.
+    pub executed_contract: Option<ExecutedContract>,
+    /// Population bindings in force, when the query names a predicate or a
+    /// custom target distribution. Encoding the query needs them.
+    pub population_registry: Option<antecedent_core::PopulationRegistry>,
+}
+
+/// Prepared contract a result was executed under.
+///
+/// Export recompiles the contract on the handle and refuses unless every
+/// identity layer — including the data snapshot the result was computed on —
+/// matches this stamp.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ExecutedContract {
+    /// Every contract identity layer, including the executed data snapshot.
+    pub identities: antecedent_core::ContractIdentities,
+    /// Validation suite whose refutations the result carries.
+    pub refute: crate::RefuteSuite,
+}
+
+/// Nominal level of the interval a standard-error result reports.
+///
+/// An [`EffectEstimate`] carries a standard error, not endpoints; every
+/// rendering of it (Python views, HTML, the analysis-result artifact's
+/// `standard_error`) forms the two-sided `estimate ± 1.96·SE` interval.
+/// Posterior summaries report the equal-tailed `q025` / `q975` interval at the
+/// same level.
+pub const REPORTED_SE_INTERVAL_LEVEL: f64 = 0.95;
+
+/// Two-sided normal critical value of [`REPORTED_SE_INTERVAL_LEVEL`].
+///
+/// Every path that forms `estimate ± z·SE` at the published level reads this
+/// one quantile rather than writing `normal_ppf(0.975)` again:
+/// `0.5 + 0.95 / 2.0` is exactly `0.975` in binary64, so the value is
+/// bit-identical to the literal it replaces.
+#[must_use]
+pub fn reported_se_interval_z() -> f64 {
+    antecedent_stats::normal_ppf(0.5 + REPORTED_SE_INTERVAL_LEVEL / 2.0)
+}
+
+/// How one reported interval was formed: the construction the calibration
+/// match key describes.
+///
+/// Derived from the result's own content by
+/// [`StudyResult::primary_interval_binding`] and
+/// [`StudyResult::identified_set_interval_binding`], so it always describes
+/// what the execution reported, never what was requested.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct IntervalBinding {
+    /// Interval method.
+    pub method: antecedent_core::IntervalMethod,
+    /// Analytic SE kind recorded by the estimator, when the method is analytic.
+    pub se_kind: Option<antecedent_estimate::AnalyticSeKind>,
+    /// Nominal coverage level of the reported interval.
+    pub level: f64,
+    /// Dependence rule of the construction: `iid`, `panel_cluster`, or
+    /// `circular_block:<family>` ([`antecedent_estimate::CircularBlockFamily::tag`]).
+    pub dependence: &'static str,
+    /// Resampling replicates that succeeded (bootstrap, circular block, or
+    /// simultaneous-band multipliers), when the interval is resampling-based.
+    pub replicates_ok: Option<u32>,
+    /// Resampling replicates that failed, when reported.
+    pub replicates_failed: Option<u32>,
+    /// Posterior draws behind a posterior interval.
+    pub posterior_draws: Option<u32>,
+}
+
+impl IntervalBinding {
+    const fn new(
+        method: antecedent_core::IntervalMethod,
+        level: f64,
+        dependence: &'static str,
+    ) -> Self {
+        Self {
+            method,
+            se_kind: None,
+            level,
+            dependence,
+            replicates_ok: None,
+            replicates_failed: None,
+            posterior_draws: None,
+        }
+    }
+
+    /// Binding of an execution that reported no interval.
+    #[must_use]
+    pub const fn none(dependence: &'static str) -> Self {
+        Self::new(antecedent_core::IntervalMethod::None, f64::NAN, dependence)
+    }
+}
+
+/// Dependence label of a circular-block family.
+#[must_use]
+pub const fn circular_block_dependence(
+    family: antecedent_estimate::CircularBlockFamily,
+) -> &'static str {
+    match family {
+        antecedent_estimate::CircularBlockFamily::SingleWindow => "circular_block:single_window",
+        antecedent_estimate::CircularBlockFamily::Mediation => "circular_block:mediation",
+        antecedent_estimate::CircularBlockFamily::Sequential => "circular_block:sequential",
+        antecedent_estimate::CircularBlockFamily::Mixture => "circular_block:mixture",
+    }
+}
+
+fn positive_finite(value: f64) -> bool {
+    value.is_finite() && value > 0.0
+}
+
+fn draws_u32(n: usize) -> Option<u32> {
+    u32::try_from(n).ok()
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn count_u32(value: f64) -> Option<u32> {
+    (value.is_finite() && value >= 0.0 && value <= f64::from(u32::MAX)).then_some(value as u32)
+}
+
+fn support_values<'a>(response: &'a CausalResponse, id: &str) -> Option<&'a [f64]> {
+    response
+        .support
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.id.as_ref() == id)
+        .map(|diagnostic| diagnostic.values.as_ref())
+}
+
+/// A Frequentist temporal response band built from circular-block replicates
+/// of the lag-aligned surface (support diagnostic `response.temporal.block_length`).
+fn temporal_response_band(response: &CausalResponse, level: f64) -> Option<IntervalBinding> {
+    support_values(response, antecedent_estimate::TEMPORAL_RESPONSE_BLOCK_LENGTH)?;
+    let mut binding = IntervalBinding::new(
+        antecedent_core::IntervalMethod::CircularBlockSe,
+        level,
+        "circular_block:response",
+    );
+    if let Some(counts) = support_values(response, "response.observation_block_bootstrap") {
+        binding.replicates_ok = counts.get(1).and_then(|n| count_u32(*n));
+    }
+    Some(binding)
 }
 
 impl StudyResult {
+    /// Dependence rule the execution's data imposes before any circular-block
+    /// family: panel executions cluster by unit, every other modality is `iid`
+    /// unless a circular-block construction names its family.
+    fn base_dependence(&self) -> &'static str {
+        if self.logical_plan.data_classification == antecedent_core::DataClassification::Panel {
+            "panel_cluster"
+        } else {
+            "iid"
+        }
+    }
+
+    fn posterior_draw_count(&self) -> Option<u32> {
+        self.posterior.as_ref().and_then(|posterior| draws_u32(posterior.draws.n_draws))
+    }
+
+    /// Construction of the primary interval this execution reported.
+    ///
+    /// `bayesian` is the program's inference family: a Bayesian response's
+    /// band is a posterior band even when the draws live in a referenced
+    /// artifact rather than on the result.
+    ///
+    /// One owner of the rule, read by the claim's calibration match key:
+    ///
+    /// 1. A function-valued response reports its `ResponseUncertainty`
+    ///    (`None` → [`IntervalMethod::None`](antecedent_core::IntervalMethod::None);
+    ///    simultaneous band; identified-envelope band; posterior; a temporal
+    ///    circular-block band; otherwise the influence-function band).
+    /// 2. An interventional distribution with a binary outcome reports its
+    ///    bounded mean interval.
+    /// 3. A posterior reports its `q025` / `q975` interval.
+    /// 4. A standard error reports `estimate ± 1.96·SE`: the bootstrap SE when
+    ///    one was reported (circular-block when a family is recorded), else the
+    ///    analytic SE with the estimator's recorded kind. A requested bootstrap
+    ///    that reported no SE is not a bootstrap interval.
+    /// 5. When no finite scalar interval exists, a reported identified-set
+    ///    interval is the primary interval; otherwise nothing was reported.
+    #[must_use]
+    pub fn primary_interval_binding(&self, bayesian: bool) -> IntervalBinding {
+        use antecedent_core::{IntervalMethod as M, ResponseUncertainty as U};
+        let base = self.base_dependence();
+        if let Some(response) = &self.response {
+            // A Bayesian response publishes credible bands; the draws behind a
+            // band are in the referenced posterior artifact, not on the result.
+            let posterior = bayesian || self.posterior.is_some();
+            let mut binding = match &response.uncertainty {
+                U::None => return IntervalBinding::none(base),
+                U::Posterior { .. } => {
+                    IntervalBinding::new(M::PosteriorQuantile, REPORTED_SE_INTERVAL_LEVEL, base)
+                }
+                U::Scalar { level, .. } | U::PointwiseBand { level, .. } if posterior => {
+                    IntervalBinding::new(M::PosteriorQuantile, *level, base)
+                }
+                U::Scalar { level, .. } | U::PointwiseBand { level, .. } => {
+                    temporal_response_band(response, *level)
+                        .unwrap_or_else(|| IntervalBinding::new(M::AnalyticSe, *level, base))
+                }
+                U::SimultaneousBand { level, replicates, .. } => {
+                    let mut binding = IntervalBinding::new(M::SimultaneousBand, *level, base);
+                    binding.replicates_ok = Some(*replicates);
+                    binding
+                }
+                U::IdentifiedEnvelopeBand { level, .. } => {
+                    IntervalBinding::new(M::IdentifiedSet, *level, base)
+                }
+            };
+            if binding.method == M::PosteriorQuantile {
+                binding.posterior_draws = self.posterior_draw_count();
+            }
+            return binding;
+        }
+        if let Some(distribution) = &self.distribution {
+            if self.posterior.is_none() {
+                match distribution.mean_interval {
+                    Some(antecedent_estimate::ProbabilityInterval::Bounded { level, .. }) => {
+                        let mut binding = IntervalBinding::new(M::BootstrapSe, level, base);
+                        binding.replicates_ok = distribution.bootstrap_replicates_ok;
+                        binding.replicates_failed = distribution.bootstrap_replicates_failed;
+                        return binding;
+                    }
+                    Some(antecedent_estimate::ProbabilityInterval::Unavailable(_)) => {
+                        return IntervalBinding::none(base);
+                    }
+                    None => {}
+                }
+            }
+        }
+        if self.posterior.is_some() {
+            let mut binding =
+                IntervalBinding::new(M::PosteriorQuantile, REPORTED_SE_INTERVAL_LEVEL, base);
+            binding.posterior_draws = self.posterior_draw_count();
+            return binding;
+        }
+        let estimate = &self.estimate;
+        if estimate.ate.is_finite() {
+            if estimate.se_bootstrap.is_some_and(positive_finite) {
+                let (method, dependence) = match estimate.block_family {
+                    Some(family) => (M::CircularBlockSe, circular_block_dependence(family)),
+                    None => (M::BootstrapSe, base),
+                };
+                let mut binding =
+                    IntervalBinding::new(method, REPORTED_SE_INTERVAL_LEVEL, dependence);
+                binding.replicates_ok = estimate.bootstrap_replicates_ok;
+                binding.replicates_failed = estimate.bootstrap_replicates_failed;
+                return binding;
+            }
+            if positive_finite(estimate.se_analytic) {
+                let mut binding =
+                    IntervalBinding::new(M::AnalyticSe, REPORTED_SE_INTERVAL_LEVEL, base);
+                binding.se_kind = estimate.se_kind;
+                return binding;
+            }
+        }
+        self.identified_set_interval_binding().unwrap_or_else(|| IntervalBinding::none(base))
+    }
+
+    /// Construction of a reported identified-set interval
+    /// (`structural_response.identified_set_interval`), when one was reported.
+    ///
+    /// A class-aware scalar can report both a frozen-weight point with its
+    /// shared-block SE and an Imbens–Manski interval for the identified set;
+    /// each states its own calibration.
+    #[must_use]
+    pub fn identified_set_interval_binding(&self) -> Option<IntervalBinding> {
+        use antecedent_estimate::IdentifiedSetIntervalMethod as Method;
+        let structural = self.structural_response.as_ref()?;
+        let interval = structural.identified_set_interval.as_ref()?;
+        let mut binding = IntervalBinding::new(
+            antecedent_core::IntervalMethod::IdentifiedSet,
+            interval.level,
+            self.base_dependence(),
+        );
+        match interval.method {
+            Method::ImbensManskiSharedBlock => {
+                binding.dependence =
+                    circular_block_dependence(antecedent_estimate::CircularBlockFamily::Mixture);
+                binding.replicates_ok = self.estimate.bootstrap_replicates_ok;
+                binding.replicates_failed = self.estimate.bootstrap_replicates_failed;
+            }
+            Method::ProductPosteriorEnvelopeQuantile => {
+                binding.posterior_draws = structural
+                    .atoms
+                    .iter()
+                    .filter_map(|atom| atom.posterior.as_ref())
+                    .filter_map(|posterior| draws_u32(posterior.draws.n_draws))
+                    .min()
+                    .or_else(|| self.posterior_draw_count());
+            }
+            _ => {}
+        }
+        Some(binding)
+    }
+
+    /// Construction of a counterfactual's published per-unit intervals
+    /// (`counterfactual.unit_effect_intervals`), when the execution formed them.
+    #[must_use]
+    pub fn unit_effect_interval_binding(&self) -> Option<IntervalBinding> {
+        let intervals = self.counterfactual.as_ref()?.unit_effect_intervals.as_ref()?;
+        let mut binding = IntervalBinding::new(
+            antecedent_core::IntervalMethod::UnitPosteriorQuantile,
+            intervals.level,
+            self.base_dependence(),
+        );
+        binding.posterior_draws = self.posterior_draw_count();
+        Some(binding)
+    }
+
+    /// Construction of a temporal response's published simultaneous band
+    /// (support diagnostic `response.simultaneous_band.critical`), when one
+    /// accompanies a pointwise band.
+    #[must_use]
+    pub fn simultaneous_band_binding(&self, bayesian: bool) -> Option<IntervalBinding> {
+        let response = self.response.as_ref()?;
+        if matches!(
+            response.uncertainty,
+            antecedent_core::ResponseUncertainty::SimultaneousBand { .. }
+        ) {
+            return None;
+        }
+        let critical = support_values(response, antecedent_estimate::SIMULTANEOUS_BAND_CRITICAL)?;
+        let level = *critical.first()?;
+        let mut binding = IntervalBinding::new(
+            antecedent_core::IntervalMethod::SimultaneousBand,
+            level,
+            self.primary_interval_binding(bayesian).dependence,
+        );
+        binding.replicates_ok = critical.get(2).and_then(|n| count_u32(*n));
+        if bayesian || self.posterior.is_some() {
+            binding.posterior_draws = binding.replicates_ok.take();
+        }
+        Some(binding)
+    }
+
+    /// Every interval this execution reported: the primary interval first,
+    /// then an identified-set interval and a simultaneous band when they are
+    /// reported beside it. Each states its own calibration on the claim.
+    #[must_use]
+    pub fn reported_interval_bindings(&self, bayesian: bool) -> Vec<IntervalBinding> {
+        let primary = self.primary_interval_binding(bayesian);
+        let mut out = vec![primary];
+        for extra in [
+            self.identified_set_interval_binding(),
+            self.simultaneous_band_binding(bayesian),
+            self.unit_effect_interval_binding(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if out.iter().all(|seen| seen.method != extra.method) {
+                out.push(extra);
+            }
+        }
+        out
+    }
+
+    /// Re-derive [`Self::interval`] from the reported content.
+    pub(crate) fn rebind_interval(&mut self, bayesian: bool) {
+        self.interval = Some(self.primary_interval_binding(bayesian));
+    }
+
     /// Primary scalar effect for display and tests.
     ///
     /// Prefer this over reading [`EffectEstimate::ate`] directly when the query may be a

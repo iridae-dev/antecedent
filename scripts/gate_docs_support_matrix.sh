@@ -7,6 +7,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# --self-test: each broken input, applied alone to an overlay of the repo,
+# must fail this gate with the expected message.
+if [[ "${1:-}" == "--self-test" ]]; then
+  exec python3 "$ROOT/scripts/selftest_cases.py" docs
+fi
+
 python3 - <<'PY'
 from __future__ import annotations
 
@@ -155,6 +161,52 @@ else:
                     f"{notes_path}: zero-cell root query {query!r} is absent from "
                     "the explicit-refusals section"
                 )
+
+claims = tomllib.loads((root / "parity/claims.toml").read_text())
+products = tomllib.loads((root / "parity/python_products.toml").read_text())
+for claim in claims.get("claim", []):
+    licensed = root / claim["licensed_by"]
+    if not licensed.is_file():
+        fail.append(f"claims.toml {claim['id']}: licensed_by {claim['licensed_by']} missing")
+    if claim["id"] == "reusable_headline":
+        for row in products.get("route", []):
+            if not row.get("retains") and not row.get("reason"):
+                fail.append(
+                    f"python_products.toml route {row.get('kind')}/{row.get('data')}/"
+                    f"{row.get('structure')}: retains=false without reason"
+                )
+    sentence = claim["sentence"]
+    for rel in claim.get("files", []):
+        text = (root / rel).read_text()
+        count = text.count(sentence)
+        if count != 1:
+            fail.append(f"{rel}: claim {claim['id']} occurs {count} times (want 1)")
+
+def changelog_current(text: str) -> str:
+    # The current version's section only; earlier sections are frozen history.
+    head = f"## [{version}]"
+    if head not in text:
+        fail.append(f"CHANGELOG.md: no {head} section to scan")
+        return ""
+    return text.split(head, 1)[1].split("\n## [", 1)[0]
+
+
+for row in claims.get("forbidden", []):
+    pat = re.compile(row["pattern"])
+    for rel in row.get("files", []):
+        path = root / rel
+        if not path.is_file():
+            fail.append(f"{rel}: listed in claims.toml forbidden files but missing")
+            continue
+        text = path.read_text()
+        if rel == "CHANGELOG.md" and row.get("changelog_section") == "current":
+            text = changelog_current(text)
+        for m in pat.finditer(text):
+            line = text.count("\n", 0, m.start()) + 1
+            fail.append(
+                f"{rel}: forbidden {row.get('id', 'pattern')} {m.group(0)!r} "
+                f"(line {line} of the scanned text)"
+            )
 
 if fail:
     print("Docs support-matrix gate FAILED:")

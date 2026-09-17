@@ -130,6 +130,18 @@ impl BayesianConfig {
         self
     }
 
+    /// Outcome likelihood of the g-computation model (Laplace and HMC backends).
+    ///
+    /// [`BayesLikelihood::GaussianIdentity`] is the default. A Bernoulli or
+    /// Poisson likelihood is licensed on a tabular `AverageEffect`; every
+    /// other route, the conjugate backend and a transferred prior refuse it
+    /// at build with `likelihood_not_supported`.
+    #[must_use]
+    pub const fn likelihood(mut self, likelihood: BayesLikelihood) -> Self {
+        self.likelihood = likelihood;
+        self
+    }
+
     /// Draw count.
     #[must_use]
     pub fn n_draws(mut self, n: usize) -> Self {
