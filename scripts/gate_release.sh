@@ -135,6 +135,7 @@ EVIDENCE = {
     "release.conformance_docs": "docs/conformance/README.md",
     "release.hot_path_baselines": "docs/hot_paths.md",
     "release.security_review": "docs/security_review.md",
+    "release.ci_required_jobs": ".github/workflows/ci.yml",
 }
 
 for c in caps(Path("parity/release.toml")):
