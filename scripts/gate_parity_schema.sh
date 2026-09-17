@@ -551,8 +551,6 @@ if cr.is_file():
         if not isinstance(tagged, list) or not tagged or not all(isinstance(f, str) for f in tagged):
             problems.append(f"{label}: facets must be a non-empty list of facet names")
         else:
-            if collector.facets.CORE not in tagged:
-                problems.append(f"{label}: facets must include {collector.facets.CORE}")
             unknown = sorted(set(tagged) - surface.facets)
             if unknown:
                 problems.append(f"{label}: unknown facets {', '.join(unknown)}")

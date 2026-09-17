@@ -184,7 +184,7 @@ mod tests {
 
     /// Empirical FPR near α under independent noise. Runs in well under a second
     /// (`n_sim=40`, `n_obs=200`, `n_vars=3`), so it stays in the default `cargo
-    /// test` suite rather than the weekly `scripts/gate_calibration.sh` gate — a
+    /// test` suite rather than the locally measured `scripts/gate_calibration.sh` gate — a
     /// regression in the PCMCI significance calibration should fail CI, not wait
     /// a week to be caught.
     #[test]
