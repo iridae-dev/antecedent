@@ -56,7 +56,7 @@ jobs:
           done < <(git rev-list --no-merges "$RANGE")
 
       - name: Format
-        run: cargo fmt --all -- --check
+        run: bash scripts/gate_rustfmt.sh
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
