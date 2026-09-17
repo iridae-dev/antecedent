@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Spreadsheet-style discover-once → many interactive estimates (backlog D).
+"""Discover a graph once and reuse a reviewed graph for later estimates.
 
-Contrast with one-shot ``analyze(..., discovery=...)`` (script path). Interactive
-products can discover → review an ``AcceptedGraph`` → call ``analyze`` once
-and retain ``result.study`` for estimate clicks. Study refresh rebinds data;
-rediscovery is a separate, explicit operation.
+We first run PC discovery. For this simulation, we then supply the known
+causal directions as an AcceptedGraph. In a real analysis, those directions
+would need justification from subject-matter knowledge or other evidence.
 
-Requires a built antecedent extension (`maturin develop` in python/).
-"""
+Keeping result.study lets us estimate again or refresh the data without
+repeating discovery. The counter below checks that discovery runs only once.
+Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def main() -> None:
     # it, so "estimate clicks never rediscover" is a claim this can actually check.
     antecedent.discovery.PC.run = counted_run  # type: ignore[method-assign]
 
-    # Structure-ready click (once).
+    # Run discovery once.
     evidence = antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0).accept(
         data, seed=1
     )
@@ -65,7 +65,7 @@ def main() -> None:
 
     query = antecedent.AverageEffect(treatment="t", outcome="y")
 
-    # Effect-ready clicks (many) — must not re-enter discovery.
+    # Reuse the reviewed graph for repeated estimates.
     first = antecedent.analyze(
         data, graph=accepted, query=query, seed=1, latency="interactive"
     )

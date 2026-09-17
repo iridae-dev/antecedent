@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Class-preserving CPDAG ATE: the graph stays a Cpdag.
+"""Estimate an effect when some causal directions are unknown.
 
-A partial CPDAG estimates a MEC envelope. A fully-oriented CPDAG stays a
-Cpdag and can hand off its adjustment set. Completing the graph yourself
-is still the Dag cell.
+A CPDAG represents several possible causal graphs. First, we leave one edge
+undirected and get an answer that preserves that uncertainty. Then we supply
+its direction and pass the resulting adjustment set to an EconML handoff.
+The graph object remains a Cpdag in both cases.
 
-Requires a built antecedent extension (`maturin develop` in python/).
-"""
+Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 

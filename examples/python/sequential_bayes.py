@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Sequential Bayes: batch A posterior → batch B prior.
+"""Use the first batch of results as prior evidence for a second batch.
 
-Requires a built antecedent extension (`maturin develop` in python/).
+We estimate an average effect on batch A, save its posterior, and pass it to
+Bayesian(prior_from=...) for an independent batch B. Both batches use the
+same graph and model design, so their coefficient positions match.
 
-Fits Bayesian ATE on batch A, encodes the posterior artifact, then re-analyzes
-an independent batch B with ``Bayesian(prior_from=artifact)`` on the same
-graph/design (index-aligned coefficient hydrate).
-"""
+Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 

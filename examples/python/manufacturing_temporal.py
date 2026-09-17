@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Manufacturing-style temporal analyze() example.
+"""Estimate how a pressure change affects defects over time.
 
-Requires a built antecedent extension (`maturin develop` in python/).
-"""
+This example uses a graph with lagged edges to describe delayed effects.
+Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 

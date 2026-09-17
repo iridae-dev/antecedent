@@ -20,69 +20,109 @@ report = result.inspect().to_dict()
 loaded = ant.load(result.export())
 ```
 
-Every licensed analysis retains a reusable study: `study.refresh(new_data)`
-re-executes the same program on new data, and the original result stays tied
-to its own execution. `result.inspect().to_dict()` is the whole report as
-JSON-safe data: answer scope, uncertainty, assumptions, support, identities and
-calibration availability. Calibration is explicitly unavailable when no evidence
-is bound to the execution. `ant.load(result.export())` round-trips the
-contracted execution through the Rust semantic consumer.
+A typical causal library returns an estimate. This returns a study: the same
+program can run again, the report still carries the assumptions, and the
+export is the claim you can hand to another process.
 
-See the [Python workflow](docs/python-workflow.md) for studies, reports,
-portable executions and scope.
+Paste this and run it. Two seasons of confounded price and sales; true
+effect 1.5:
 
-## Try it in Colab
+```python
+import numpy as np
+import antecedent as ant
 
-Five decision-focused notebooks use the 1.10 source-build environment described
-in the [example setup](examples/README.md#python-environment-110-branch):
 
-| Notebook | Run |
-| --- | --- |
-| [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb) — see how a naive dashboard can overstate paid-search impact by crediting the campaign for demand that would have existed anyway. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb) |
-| [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb) — reuse evidence from a previous campaign without assuming the new campaign is identical, then let current data update or contradict it. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/sales_campaign_prior_transfer.ipynb) |
-| [Experiment design](examples/notebooks/marketing_experiment_design.ipynb) — compare a holdout, better intent data, and more CRM records to find the best feasible action under a £40,000 budget. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/marketing_experiment_design.ipynb) |
-| [Continuous causal response](examples/notebooks/continuous_causal_response.ipynb) — estimate a nonlinear dose–response curve and examine identification, empirical support, and uncertainty as separate result axes. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/continuous_causal_response.ipynb) |
-| [Pricing, availability, and latent demand](examples/notebooks/pricing_availability_latent_demand.ipynb) — compare observed sales with an explicit censoring mechanism and see the fail-closed boundary for observation-aware response. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/pricing_availability_latent_demand.ipynb) |
+def simulate(seed, n=2000):
+    rng = np.random.default_rng(seed)
+    season = rng.normal(size=n)
+    price = 0.7 * season + rng.normal(size=n)
+    sales = 1.5 * price + 2.0 * season + rng.normal(size=n)
+    return {"season": season, "treatment": price, "outcome": sales}
 
-The [examples directory](examples/README.md) also contains paired Python and Rust workflows for discovery, propensity weighting, temporal response, Bayesian prior transfer, design ranking, incremental state, class-preserving CPDAG estimation, and end-to-end analysis.
 
-## What Can I Do With Antecedent?
+data, new_data = simulate(0), simulate(1)
+graph = [("season", "treatment"), ("season", "outcome"), ("treatment", "outcome")]
+query = ant.AverageEffect("treatment", "outcome")
 
-Most causal libraries center on an estimator, a graph, or a particular stage of analysis. Antecedent centers on the **causal analysis itself**.
+result = ant.analyze(data, graph=graph, query=query)
+study = result.study
+updated = study.refresh(new_data)
+report = result.inspect().to_dict()
+loaded = ant.load(result.export())
 
-The question, structural assumptions, identification status, uncertainty, estimation path, diagnostics, and provenance move through the system together. That lets Antecedent connect work that is often split across separate tools:
+print(result.answer)
+print(updated.answer)
+```
 
-- causal discovery and graph review;
-- identification before estimation;
-- frequentist and Bayesian inference;
-- scalar effects, distributions, response curves, and temporal trajectories;
-- structural uncertainty from CPDAGs, PAGs, and graph posteriors;
-- observation mechanisms, transport, interference, and interventions;
-- durable artifacts with explicit contracts for the scientific fields they retain.
+The same analysis, with the identification in hand:
 
-The point is not simply breadth. It is that distinctions established upstream remain meaningful downstream, so unearned certainty cannot creep in at the seams. Most choices in Antecedent come from that and it has become a central organizing principle: a scientific claim must not become stronger merely because context was dropped while moving through discovery, identification, estimation, serialization, or the Rust/Python boundary.
+```python
+ident = ant.identify(graph=graph, query=query, names=list(data))
+result = ident.estimate(data)
+updated = result.study.refresh(new_data)
+report = updated.inspect().to_dict()
+loaded = ant.load(updated.export())
+```
 
-See [**Capabilities**](docs/capabilities.md) for the full inventory and [**Support Matrix**](docs/support-matrix.md) for the analysis combinations licensed in the current release.
+`analyze` is those verbs in one call. `ident.validate(data)` is a refute
+run, not a preflight. Read `result.answer.kind` (`point`, `bounds`,
+`partial`, `response`, `structured`, `unavailable`); do not treat `.effect`
+as the claim. A loaded result has no study — the export moved a contracted
+execution, not a live object.
 
-On supported prepared routes, `result.export()` preserves the execution contract
-and its numerical payloads for `ant.load(...)`. Posterior-only payloads used for
-prior transfer have narrower scope. See the
-[artifact contracts](docs/artifacts.md#exporting-prepared-results).
+See the [Python workflow](docs/python-workflow.md) and
+[examples](examples/README.md) for discovery review and the exception surface.
 
-## Epistemic Honesty
+## The claim does not get stronger at the seams
 
-Antecedent does not rely on a single notion of “tested.” It triangulates its claims from several directions, then makes those constraints executable.
+Discovery, identification, estimation, and serialization are the places a
+typical library drops context and the number gets more certain than the
+evidence. Antecedent keeps the typed workflow intact: a CPDAG stays a
+CPDAG, a partial answer stays partial, and `export` / `load` cannot invent
+a study or a point.
 
-- [**External oracles**](parity/README.md) record pinned upstream implementations, exact generation recipes, frozen results, comparison rules, and consuming conformance tests. A fixture sitting on disk is not evidence until the code actually exercises it.
-- [**Algorithm provenance**](provenance/README.md) records primary literature, upstream exposure, test sources, and implementation deviations… including where the implementation does *not* inherit the guarantees of the cited method.
-- [**The support matrix**](docs/support-matrix.md) **is a license, not a feature list.** A capability existing somewhere in the codebase does not mean the public analysis workflow may use it. Each licensed combination carries an explicit evidence contract; everything else is typed impossible or refuses by default.
-- **Evidence itself is typed.** Implementation tests, analytic known truths, internal cross-checks, frozen external oracles, behavioral parity, and stronger equivalence claims remain distinct so weaker evidence cannot quietly acquire a stronger label.
+The [support matrix](docs/support-matrix.md) is a license, not a feature
+list. A combination that exists in the codebase but is not licensed
+refuses. [Capabilities](docs/capabilities.md) is the inventory; the matrix
+is what `analyze` may claim.
 
-For example, consider an average treatment effect estimated with AIPW. The public analysis route is licensed only where Antecedent has evidence for the full causal contract. The legacy full-sample AIPW path has a provenance record that explicitly excludes cross-fitting guarantees. The 1.5 score path adds cross-fitting, whose inference still requires positivity and suitable nuisance convergence rates; the review ledger records its current evidence and gaps. The legacy path’s point estimate is checked only against the known effect of a synthetic SCM (to within 0.4): the DoWhy run recorded beside that fixture used propensity-score weighting, not AIPW, so no external AIPW implementation is compared, and its parity row says so. Repository gates verify that cited fixtures are actually exercised by conformance tests. None of those facts is allowed to stand in for the others: an external match does not prove identification, a citation does not grant an unimplemented theorem, and code that happens to run does not make an analysis supported. If the requested combination falls outside the licensed contract, Antecedent refuses it instead.
+## Evidence is classified
+
+Antecedent does not rely on a single notion of “tested.” It triangulates,
+then makes those constraints executable.
+
+- [**External oracles**](parity/README.md) record pinned upstream implementations, exact recipes, frozen results, and the tests that consume them. A fixture on disk is not evidence until the code exercises it.
+- [**Algorithm provenance**](provenance/README.md) records the literature, upstream exposure, and where the implementation does *not* inherit the cited method’s guarantees.
+- **Evidence itself is typed.** Implementation tests, analytic known truths, internal cross-checks, frozen oracles, behavioral parity, and stronger equivalence claims stay distinct, so a weaker label cannot become a stronger one.
+
+An AIPW average treatment effect is licensed only where the full causal
+contract has evidence. The legacy full-sample path’s provenance excludes
+cross-fitting; its point is checked against a synthetic SCM, and the
+DoWhy fixture beside it used weighting, not AIPW. An external match does
+not prove identification, a citation does not grant an unimplemented
+theorem, and code that runs does not make an analysis supported.
 
 **None of this proves Antecedent correct. Together, these mechanisms make accidental overclaiming harder, make unsupported claims fail closed, and leave a visible trail for someone trying to prove the software wrong.**
 
-## Project status and documentation
+## On a real decision
+
+The notebooks are the same contract on a decision, not a second API.
+Each one keeps a distinction the opening paragraphs refuse to drop.
+Install their Python dependencies using the
+[example setup](examples/README.md#python-environment):
+
+| Notebook | What it keeps visible |
+| --- | --- |
+| [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb) — a dashboard can credit paid search for demand that would have existed anyway. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb) |
+| [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb) — reuse a previous campaign’s evidence without assuming the new campaign is identical. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/sales_campaign_prior_transfer.ipynb) |
+| [Experiment design](examples/notebooks/marketing_experiment_design.ipynb) — rank a holdout, better intent data, and more CRM records under a £40,000 budget. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/marketing_experiment_design.ipynb) |
+| [Continuous causal response](examples/notebooks/continuous_causal_response.ipynb) — a nonlinear dose–response, with identification, support, and uncertainty as separate axes. | [![Open in Colab](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/continuous_causal_response.ipynb) |
+| [Pricing, availability, and latent demand](examples/notebooks/pricing_availability_latent_demand.ipynb) — observed sales are not demand; the observation-aware route fails closed. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.0/examples/notebooks/pricing_availability_latent_demand.ipynb) |
+
+Paired Python and Rust scripts for the same workflows live in
+[examples](examples/README.md).
+
+## 1.10.0
 
 The current package version is **1.10.0**.
 1.10 is a composition release of the existing 341 licensed cells (1423

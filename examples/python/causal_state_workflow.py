@@ -1,18 +1,11 @@
-"""CausalState as the primary online append path (ADR 0016 / backlog B).
+"""Update an analysis as new data arrive.
 
-Interactive products should prefer this over fresh ``analyze()`` on every batch:
+CausalState tracks which results are out of date after data change.
+Appending data does not rerun queries: call refresh_results explicitly and
+check the version before displaying results together.
 
-1. Append (or replace) data — state versions and marks registered queries stale.
-2. Call ``refresh_results`` under the ``CacheBudget`` — never auto-reruns on
-   ``append`` / ``apply`` (ADR 0016).
-3. UI code must key on ``version`` / stale queries so it never mixes an old
-   identification summary with a new estimate.
-
-For full re-estimate on a fixed graph/query with a new table (same schema), use
-``antecedent.prepare(data, graph=graph, query=query)`` or retain
-``antecedent.analyze(...).study``. Then use ``study.estimate()`` or
-``study.refresh(new_data)`` for repeated full estimation.
-"""
+For a full re-estimate on a fixed graph and question, retain result.study
+from analyze(...) and call study.refresh(new_data) instead."""
 
 from __future__ import annotations
 

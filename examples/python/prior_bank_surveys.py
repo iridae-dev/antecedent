@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Survey prior bank: catalog → compose → analyze target (P4E facade demo).
+"""Combine evidence from earlier surveys for a new survey analysis.
 
-Illustrative domain only — two fake survey posteriors tagged by product/context,
-ranked by caller-supplied similarity, composed with power-prior weights, then
-transferred into a new target survey. Requires a built extension
-(``maturin develop`` in ``python/``).
-"""
+Two simulated surveys provide prior evidence. We rank them using similarity
+scores supplied by the caller, choose their weights, and combine them for
+the target analysis. The library does not infer those similarity judgments.
+
+Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 

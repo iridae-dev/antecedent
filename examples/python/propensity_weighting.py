@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Propensity-weighting (IPW) analyze() example.
+"""Adjust for treatment selection with inverse-probability weights.
 
-Requires a built antecedent extension (`maturin develop` in python/).
+The baseline variable z affects both treatment assignment and the outcome.
+A raw group comparison therefore mixes the treatment effect with differences
+in z. Weighting adjusts for that selection; the known treatment effect is 2.
 
-Confounded SCM: `Z ~ N(0,1)`, `T ~ Bernoulli(sigmoid(-0.4 + 0.9 Z))`,
-`Y = 2T + Z + noise`. True ATE = 2; a naive unadjusted contrast is biased by
-`Z`, so this exercises the `propensity.weighting` estimator explicitly rather
-than the default (`linear.adjustment.ate`).
-"""
+This example selects propensity.weighting explicitly. It also prints overlap
+diagnostics, which help you check whether the weights rely on too few rows.
+Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 
