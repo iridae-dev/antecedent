@@ -2,6 +2,14 @@
 
 use super::*;
 
+fn temporal_response_estimator_id(inference: &InferenceMode) -> &'static str {
+    if matches!(inference, InferenceMode::Bayesian(_)) {
+        EstimatorId::TemporalResponseBayesian.as_str()
+    } else {
+        EstimatorId::TemporalResponseGcomp.as_str()
+    }
+}
+
 impl super::Study {
     /// Compile logical plan only (inspectable semantics).
     ///
@@ -222,11 +230,7 @@ impl super::Study {
                 plan.record.identifier =
                     Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
                 plan.record.estimator =
-                    Some(Arc::from(if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                        EstimatorId::TemporalResponseBayesian.as_str()
-                    } else {
-                        EstimatorId::TemporalResponseGcomp.as_str()
-                    }));
+                    Some(Arc::from(temporal_response_estimator_id(&self.inference)));
                 Ok(plan)
             }
             (Some(AnalysisRoute::MultiEnvTemporalEffect), GraphClass::TemporalDag) => {
@@ -263,11 +267,7 @@ impl super::Study {
                 )?;
                 plan.record.data_classification = DataClassification::Panel;
                 plan.record.estimator =
-                    Some(Arc::from(if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                        EstimatorId::TemporalResponseBayesian.as_str()
-                    } else {
-                        EstimatorId::TemporalResponseGcomp.as_str()
-                    }));
+                    Some(Arc::from(temporal_response_estimator_id(&self.inference)));
                 Ok(plan)
             }
             (
@@ -786,12 +786,7 @@ impl super::Study {
         )?;
         plan.record.data_classification = DataClassification::Panel;
         plan.record.identifier = Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
-        plan.record.estimator =
-            Some(Arc::from(if matches!(self.inference, InferenceMode::Bayesian(_)) {
-                EstimatorId::TemporalResponseBayesian.as_str()
-            } else {
-                EstimatorId::TemporalResponseGcomp.as_str()
-            }));
+        plan.record.estimator = Some(Arc::from(temporal_response_estimator_id(&self.inference)));
         plan.record.plan_id = Arc::from(match self.graph.class() {
             GraphClass::TemporalCpdag => "panel_cpdag_response",
             GraphClass::TemporalPag => "panel_pag_response",

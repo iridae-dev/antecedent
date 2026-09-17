@@ -1814,7 +1814,10 @@ fn analysis_result_from_run(
         evidence_status,
         allowlist_reason,
         allowlist_parent,
-        ..
+        structural_weight_basis,
+        structural_identified_mass,
+        structural_unidentified_mass,
+        structural_unevaluable_mass,
     } = crate::shared_study_sections(names, &result, estimator_id)?;
     let mut mediation_horizons = Vec::new();
     let mut mediation_effects = Vec::new();
@@ -1844,35 +1847,11 @@ fn analysis_result_from_run(
             );
             mediation_identified_lower.push(slice.identified_set.map(|set| set.lower));
             mediation_identified_upper.push(slice.identified_set.map(|set| set.upper));
-            match &slice.uncertainty {
-                antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
-                    standard_error,
-                }
-                | antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
-                    requested: standard_error,
-                    ..
-                } => {
-                    mediation_uncertainty_kinds.push("frequentist_pointwise".to_string());
-                    mediation_standard_deviations.push(*standard_error);
-                    mediation_q025.push(None);
-                    mediation_q975.push(None);
-                }
-                antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
-                    requested,
-                    ..
-                } => {
-                    mediation_uncertainty_kinds.push("bayesian_pointwise".to_string());
-                    mediation_standard_deviations.push(Some(requested.standard_deviation));
-                    mediation_q025.push(Some(requested.q025));
-                    mediation_q975.push(Some(requested.q975));
-                }
-                _ => {
-                    mediation_uncertainty_kinds.push("unavailable".to_string());
-                    mediation_standard_deviations.push(None);
-                    mediation_q025.push(None);
-                    mediation_q975.push(None);
-                }
-            }
+            let (kind, se, q025, q975) = crate::mediation_uncertainty_projection(slice);
+            mediation_uncertainty_kinds.push(kind);
+            mediation_standard_deviations.push(se);
+            mediation_q025.push(q025);
+            mediation_q975.push(q975);
         }
     }
 
@@ -1958,22 +1937,10 @@ fn analysis_result_from_run(
         evidence_status,
         allowlist_reason,
         allowlist_parent,
-        structural_weight_basis: result
-            .structural_response
-            .as_ref()
-            .map(|mixture| mixture.weight_basis.as_str().to_string()),
-        structural_identified_mass: result
-            .structural_response
-            .as_ref()
-            .map(|mixture| mixture.identified_mass),
-        structural_unidentified_mass: result
-            .structural_response
-            .as_ref()
-            .map(|mixture| mixture.unidentified_mass),
-        structural_unevaluable_mass: result
-            .structural_response
-            .as_ref()
-            .map(|mixture| mixture.unevaluable_mass),
+        structural_weight_basis,
+        structural_identified_mass,
+        structural_unidentified_mass,
+        structural_unevaluable_mass,
         structural_identified_set: identified_set.set,
         structural_identified_set_interval: identified_set.interval,
         structural_identified_set_interval_level: identified_set.level,

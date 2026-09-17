@@ -1373,6 +1373,29 @@ impl SharedStudySections {
     }
 }
 
+pub(crate) fn mediation_uncertainty_projection(
+    slice: &antecedent_estimate::TemporalMediationSlice,
+) -> (String, Option<f64>, Option<f64>, Option<f64>) {
+    match &slice.uncertainty {
+        antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
+            standard_error,
+        }
+        | antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
+            requested: standard_error,
+            ..
+        } => ("frequentist_pointwise".to_string(), *standard_error, None, None),
+        antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
+            requested, ..
+        } => (
+            "bayesian_pointwise".to_string(),
+            Some(requested.standard_deviation),
+            Some(requested.q025),
+            Some(requested.q975),
+        ),
+        _ => ("unavailable".to_string(), None, None, None),
+    }
+}
+
 pub(crate) fn shared_study_sections(
     names: &[String],
     result: &antecedent::StudyResult,

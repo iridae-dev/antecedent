@@ -374,10 +374,7 @@ pub(super) fn report_subsampled_out_mass(
 ///
 /// The reasoning slot reads these; `identified` is absent when the emitter
 /// knows only the unidentified share.
-pub(crate) fn mass_fields(
-    identified: Option<f64>,
-    unidentified: f64,
-) -> Vec<(Arc<str>, Arc<str>)> {
+pub(crate) fn mass_fields(identified: Option<f64>, unidentified: f64) -> Vec<(Arc<str>, Arc<str>)> {
     let mut fields: Vec<(Arc<str>, Arc<str>)> = Vec::with_capacity(2);
     if let Some(identified) = identified {
         fields.push((Arc::from("identified_mass"), Arc::from(identified.to_string())));
@@ -1621,11 +1618,7 @@ pub(super) fn envelope_to_identification_result_for<G>(
         // assumptions, including one identified only under prior restrictions:
         // its mass is reported, so the conditions behind it must be too.
         if identification_status_carries_identified_mass(case.result.status) {
-            for record in &case.result.required_assumptions.entries {
-                if !assumptions.entries.contains(record) {
-                    assumptions.push(record.clone());
-                }
-            }
+            assumptions.extend_unique(&case.result.required_assumptions.entries);
         }
         // Refused and unverified cases explain the missing mass too.
         diagnostics.extend(case.result.diagnostics.iter().cloned());
@@ -1833,87 +1826,109 @@ pub(super) fn bayesian_temporal_gcomp(
     }
 }
 
+fn push_unique_diagnostic(
+    diagnostics: &mut Vec<Diagnostic>,
+    seen: &mut std::collections::HashSet<Arc<str>>,
+    diagnostic: Diagnostic,
+) {
+    if seen.insert(Arc::clone(&diagnostic.code)) {
+        diagnostics.push(diagnostic);
+    }
+}
+
 fn push_aipw_score_kind(
     diagnostics: &mut Vec<Diagnostic>,
+    seen: &mut std::collections::HashSet<Arc<str>>,
     estimator_id: EstimatorId,
     estimate: &EffectEstimate,
 ) {
-    if diagnostics.iter().any(|d| {
-        matches!(
-            d.code.as_ref(),
-            "estimate.aipw.crossfit_scores" | "estimate.aipw.full_sample_residualized"
-        )
-    }) {
+    if seen.contains("estimate.aipw.crossfit_scores")
+        || seen.contains("estimate.aipw.full_sample_residualized")
+    {
         return;
     }
     match estimator_id {
         EstimatorId::CellAipw | EstimatorId::Aipw if estimate.score_table.is_some() => {
-            diagnostics.push(Diagnostic::new(
-                "estimate.aipw.crossfit_scores",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "cross-fitted AIPW scores φᵢ^a; retarget averages this table. A residualized full-sample AIPW fit is a different object",
-            ));
+            push_unique_diagnostic(
+                diagnostics,
+                seen,
+                Diagnostic::new(
+                    "estimate.aipw.crossfit_scores",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "cross-fitted AIPW scores φᵢ^a; retarget averages this table. A residualized full-sample AIPW fit is a different object",
+                ),
+            );
         }
         EstimatorId::Aipw => {
-            diagnostics.push(Diagnostic::new(
-                "estimate.aipw.full_sample_residualized",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "this AIPW fit is full-sample residualized and has no score table; it is not the cross-fitted φ family that retarget averages. Prepare an AllObserved iid AIPW plan to retarget",
-            ));
+            push_unique_diagnostic(
+                diagnostics,
+                seen,
+                Diagnostic::new(
+                    "estimate.aipw.full_sample_residualized",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "this AIPW fit is full-sample residualized and has no score table; it is not the cross-fitted φ family that retarget averages. Prepare an AllObserved iid AIPW plan to retarget",
+                ),
+            );
         }
         _ => {}
     }
 }
 
-fn push_grid_scalar_cleared(diagnostics: &mut Vec<Diagnostic>, estimate: &EffectEstimate) {
+fn push_grid_scalar_cleared(
+    diagnostics: &mut Vec<Diagnostic>,
+    seen: &mut std::collections::HashSet<Arc<str>>,
+    estimate: &EffectEstimate,
+) {
     if let Some(inf) = estimate.score_inference.as_ref() {
-        if !diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.cdf_inference") {
-            diagnostics.push(Diagnostic::new(
+        push_unique_diagnostic(
+            diagnostics,
+            seen,
+            Diagnostic::new(
                 "estimate.functional.cdf_inference",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
                 "per-arm F_a(c) simultaneous bands describe raw CDF coordinates; rearranged exceedance_cdf values are not mixed with those intervals",
-            ));
+            ),
+        );
+        if inf.threshold_supported.iter().any(|ok| !ok) {
+            push_unique_diagnostic(
+                diagnostics,
+                seen,
+                Diagnostic::new(
+                    "estimate.functional.threshold_tail.unsupported",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    "at least one threshold tail lacks enough treated/control events for a tail probability; that coordinate's band is non-finite rather than an empty-cell or first-threshold SE",
+                ),
+            );
         }
-        if inf.threshold_supported.iter().any(|ok| !ok)
-            && !diagnostics
-                .iter()
-                .any(|d| d.code.as_ref() == "estimate.functional.threshold_tail.unsupported")
-        {
-            diagnostics.push(Diagnostic::new(
-                "estimate.functional.threshold_tail.unsupported",
+    } else if estimate.score_table.is_none() && estimate.exceedance_cdf.is_some() {
+        push_unique_diagnostic(
+            diagnostics,
+            seen,
+            Diagnostic::new(
+                "estimate.functional.cdf_inference.unavailable",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                "at least one threshold tail lacks enough treated/control events for a tail probability; that coordinate's band is non-finite rather than an empty-cell or first-threshold SE",
-            ));
-        }
-    } else if estimate.score_table.is_none()
-        && estimate.exceedance_cdf.is_some()
-        && !diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "estimate.functional.cdf_inference.unavailable")
-    {
-        diagnostics.push(Diagnostic::new(
-            "estimate.functional.cdf_inference.unavailable",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Warning,
-            "conditional CDF values have no per-arm simultaneous bands or threshold tail-support evidence; joint covariance, when present, describes raw threshold contrasts, not the projected per-arm CDF",
-        ));
-    }
-    if diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared") {
-        return;
+                "conditional CDF values have no per-arm simultaneous bands or threshold tail-support evidence; joint covariance, when present, describes raw threshold contrasts, not the projected per-arm CDF",
+            ),
+        );
     }
     if estimate.exceedance_cdf.as_ref().is_some_and(|cdf| cdf.len() > 2)
         && !estimate.ate.is_finite()
     {
-        diagnostics.push(Diagnostic::new(
-            "estimate.functional.grid_scalar_cleared",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "exceedance grids do not publish a first-threshold scalar ATE; use exceedance_cdf and the score table",
-        ));
+        push_unique_diagnostic(
+            diagnostics,
+            seen,
+            Diagnostic::new(
+                "estimate.functional.grid_scalar_cleared",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "exceedance grids do not publish a first-threshold scalar ATE; use exceedance_cdf and the score table",
+            ),
+        );
     }
 }
 
@@ -1958,15 +1973,15 @@ impl super::Study {
             diagnostics.extend(args.extra_diagnostics);
             diagnostics
         };
+        let mut seen: std::collections::HashSet<Arc<str>> =
+            diagnostics.iter().map(|d| Arc::clone(&d.code)).collect();
         // Envelope routes supply their own diagnostic seed, but a prepared
         // envelope still must expose cache reuse just like a single-graph path.
-        if args.identify_cached
-            && diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached")
-        {
-            diagnostics.push(identify_cached_diagnostic());
+        if args.identify_cached {
+            push_unique_diagnostic(&mut diagnostics, &mut seen, identify_cached_diagnostic());
         }
-        push_aipw_score_kind(&mut diagnostics, args.estimator_id, &args.estimate);
-        push_grid_scalar_cleared(&mut diagnostics, &args.estimate);
+        push_aipw_score_kind(&mut diagnostics, &mut seen, args.estimator_id, &args.estimate);
+        push_grid_scalar_cleared(&mut diagnostics, &mut seen, &args.estimate);
         let structural_posteriors = extras
             .structural_response
             .iter()
@@ -1974,9 +1989,7 @@ impl super::Study {
         for diagnostic in
             posterior_note_diagnostics(extras.posterior.iter().chain(structural_posteriors))
         {
-            if diagnostics.iter().all(|d| d.code != diagnostic.code) {
-                diagnostics.push(diagnostic);
-            }
+            push_unique_diagnostic(&mut diagnostics, &mut seen, diagnostic);
         }
         if let (Some(mode), Some(n)) = (self.latency_mode, extras.n_draws) {
             let tier = match mode {
@@ -1995,10 +2008,7 @@ impl super::Study {
                     "latency.explicit_budget_kept",
                     DiagnosticKind::Execution,
                     DiagnosticSeverity::Info,
-                    format!(
-                        "explicit n_draws={n} kept over {} tier default {tier}",
-                        mode.as_str()
-                    ),
+                    format!("explicit n_draws={n} kept over {} tier default {tier}", mode.as_str()),
                 ));
             }
         }

@@ -2204,26 +2204,8 @@ pub(crate) fn ate_result_from_analysis(
     } = sections;
     let mediation_slices: &[antecedent_estimate::TemporalMediationSlice] =
         result.mediation_grid.as_ref().map_or(&[], |grid| grid.slices.as_ref());
-    let mediation_uncertainty = |slice: &antecedent_estimate::TemporalMediationSlice| match &slice
-        .uncertainty
-    {
-        antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
-            standard_error,
-        }
-        | antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
-            requested: standard_error,
-            ..
-        } => ("frequentist_pointwise".to_string(), *standard_error, None, None),
-        antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
-            requested, ..
-        } => (
-            "bayesian_pointwise".to_string(),
-            Some(requested.standard_deviation),
-            Some(requested.q025),
-            Some(requested.q975),
-        ),
-        _ => ("unavailable".to_string(), None, None, None),
-    };
+    let mediation_uncertainty: Vec<_> =
+        mediation_slices.iter().map(crate::mediation_uncertainty_projection).collect();
 
     Ok(AteAnalysisResult {
         structural_weight_basis,
@@ -2389,22 +2371,13 @@ pub(crate) fn ate_result_from_analysis(
                 slice.adjustment.iter().map(|key| (key.variable.raw(), key.offset)).collect()
             })
             .collect(),
-        mediation_uncertainty_kinds: mediation_slices
+        mediation_uncertainty_kinds: mediation_uncertainty
             .iter()
-            .map(|slice| mediation_uncertainty(slice).0)
+            .map(|row| row.0.clone())
             .collect(),
-        mediation_standard_deviations: mediation_slices
-            .iter()
-            .map(|slice| mediation_uncertainty(slice).1)
-            .collect(),
-        mediation_q025: mediation_slices
-            .iter()
-            .map(|slice| mediation_uncertainty(slice).2)
-            .collect(),
-        mediation_q975: mediation_slices
-            .iter()
-            .map(|slice| mediation_uncertainty(slice).3)
-            .collect(),
+        mediation_standard_deviations: mediation_uncertainty.iter().map(|row| row.1).collect(),
+        mediation_q025: mediation_uncertainty.iter().map(|row| row.2).collect(),
+        mediation_q975: mediation_uncertainty.iter().map(|row| row.3).collect(),
         mediation_identified_lower: mediation_slices
             .iter()
             .map(|slice| slice.identified_set.map(|set| set.lower))
