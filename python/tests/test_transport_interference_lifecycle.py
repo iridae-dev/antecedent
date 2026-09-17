@@ -187,6 +187,8 @@ def test_route_transport_tabular_explicit():
             "identification": "point",
         },
     )
+    assert result.identification.status == "NonparametricallyIdentified"
+    assert result.identification.method.startswith("transport.sid")
     assert result.estimate.estimator_id == "transport.trial_ipw"
     overlap = result.transport_overlap
     assert overlap is not None
@@ -222,6 +224,8 @@ def test_route_interference_tabular_explicit():
             "identification": "point",
         },
     )
+    assert result.identification.status == "NonparametricallyIdentified"
+    assert result.identification.method == "interference.design"
     contrast = result.interference
     assert contrast is not None
     assert result.estimate.ate == contrast.contrast.horvitz_thompson

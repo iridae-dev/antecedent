@@ -9,9 +9,9 @@ use std::sync::Arc;
 use antecedent::{CellStatus, InterferenceSpec, RefuteSuite, Study, TransportTrialSpec};
 use antecedent_core::{
     AnomalyAttributionQuery, AssignmentDesign, CausalQuery, ChangeAttributionQuery,
-    ContinuousDomain, ExposureLevel, ExposureMapping, GridSpec, InterferenceFunctional,
-    InterferenceQuery, PopulationSelector, ResponseFunctional, ResponseQuery, TransportQuery,
-    VariableId,
+    ContinuousDomain, ExposureLevel, ExposureMapping, GridSpec, IdentificationStatus,
+    InterferenceFunctional, InterferenceQuery, PopulationSelector, ResponseFunctional,
+    ResponseQuery, TransportQuery, VariableId,
 };
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::{Admg, Dag, DenseNodeId};
@@ -150,6 +150,8 @@ fn transport_direct_trial_ipw_known_truth() {
     let result = prepared.estimate(&data, &ctx()).unwrap();
     assert_eq!(result.support_status, Some(CellStatus::Licensed));
     assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
+    assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
+    assert_eq!(result.estimand.method.as_ref(), "transport.sid.direct");
     let transported = result.transport.as_ref().expect("transport estimate");
     let atol = pin["tolerance"].as_f64().unwrap();
     assert!((transported.ipw - pin["ipw"].as_f64().unwrap()).abs() <= atol);
@@ -192,6 +194,8 @@ fn interference_bernoulli_neighbor_count_known_truth() {
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&units, &ctx()).unwrap();
     assert_eq!(result.support_status, Some(CellStatus::Licensed));
+    assert_eq!(result.identification.status, IdentificationStatus::NonparametricallyIdentified);
+    assert_eq!(result.estimand.method.as_ref(), "interference.design");
     let estimated = result.interference.as_ref().expect("interference estimate");
     let expected = &pin["expected"];
     let atol = pin["tolerance"]["atol"].as_f64().unwrap();
