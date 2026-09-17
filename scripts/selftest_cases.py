@@ -552,7 +552,7 @@ def schema_cases() -> list[bool]:
 
 
 COND_DAG_BAYES = (
-    "0.892 (record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90."
+    "0.890 (record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90."
     "conditional_effect_dag_bayesian_nominal_90_coverage`)"
 )
 
@@ -565,14 +565,14 @@ def citation_cases() -> list[bool]:
         case(
             g,
             "coverage_figure_unattributed",
-            {lic: replace(COND_DAG_BAYES, "0.892")},
-            ["coverage figure 0.892 has no record citation"],
+            {lic: replace(COND_DAG_BAYES, "0.890")},
+            ["coverage figure 0.890 has no record citation"],
         ),
         case(
             g,
             "coverage_figure_disagrees_with_record",
-            {lic: replace(COND_DAG_BAYES, COND_DAG_BAYES.replace("0.892", "0.931"))},
-            ["coverage figure 0.931 does not match its cited record(s) (0.8925)"],
+            {lic: replace(COND_DAG_BAYES, COND_DAG_BAYES.replace("0.890", "0.931"))},
+            ["coverage figure 0.931 does not match its cited record(s) (0.8900)"],
         ),
         case(
             g,
@@ -585,10 +585,10 @@ def citation_cases() -> list[bool]:
             "attribution_for_a_later_clause_does_not_cover",
             {
                 lic: replace(
-                    COND_DAG_BAYES, "0.892; the probe measured 0.180 (not a registry value)"
+                    COND_DAG_BAYES, "0.890; the probe measured 0.180 (not a registry value)"
                 )
             },
-            ["coverage figure 0.892 has no record citation"],
+            ["coverage figure 0.890 has no record citation"],
         ),
         # Known-truth values, SEs, locations and disclosed probe figures are never rejected.
         case(

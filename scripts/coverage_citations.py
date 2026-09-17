@@ -22,7 +22,8 @@ it in the same sentence:
   where it comes from.
 
 `cite` inserts record citations after figures whose value matches a record of a
-test the sentence already names, and marks the remaining figures as disclosures.
+test the sentence already names, marks the remaining figures as disclosures, and
+rewrites an already-cited figure whose record has moved so the prose follows it.
 """
 
 from __future__ import annotations
@@ -183,6 +184,43 @@ def cited_records(sentence: str, records: dict[str, dict]) -> list[dict]:
     return out
 
 
+def _format_observed(observed: float, template: str) -> str:
+    decimals = len(template.split(".", 1)[1])
+    rendered = f"{observed:.{decimals}f}"
+    if abs(float(rendered) - observed) <= TOLERANCE:
+        return rendered
+    return f"{observed:.4f}"
+
+
+def rebind_text(text: str, records: dict[str, dict]) -> str:
+    """Move already-cited figures onto their records' current `observed` values."""
+    edits: list[tuple[int, int, str]] = []
+    for lo, hi in sentences(text):
+        for fig in figures(text, lo, hi):
+            kind, ids = attribution_after(text, fig.end(), hi)
+            if kind != "records" or not ids:
+                continue
+            known = [records[i] for i in ids if i in records]
+            if not known:
+                continue
+            value = float(fig.group(0))
+            if any(abs(float(r["observed"]) - value) <= TOLERANCE for r in known):
+                continue
+            observed_vals = [float(r["observed"]) for r in known]
+            before = text[max(lo, fig.start() - 2) : fig.start()]
+            after = text[fig.end() : fig.end() + 1]
+            if before.endswith(("–", "-")):
+                target = max(observed_vals)
+            elif after in {"–", "-"}:
+                target = min(observed_vals)
+            else:
+                target = min(observed_vals, key=lambda obs: abs(obs - value))
+            edits.append((fig.start(), fig.end(), _format_observed(target, fig.group(0))))
+    for start, end, new in sorted(edits, reverse=True):
+        text = text[:start] + new + text[end:]
+    return text
+
+
 def cite_text(text: str, records: dict[str, dict]) -> str:
     edits: list[tuple[int, str]] = []
     for lo, hi in sentences(text):
@@ -234,7 +272,7 @@ def cite() -> int:
     def repl(m: re.Match) -> str:
         nonlocal changed
         value = tomllib.loads(m.group(0))["limitations"]
-        new = cite_text(value, records)
+        new = cite_text(rebind_text(value, records), records)
         if new == value:
             return m.group(0)
         changed += 1

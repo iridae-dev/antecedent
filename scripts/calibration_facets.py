@@ -340,7 +340,7 @@ def _test_only_module(rel: str) -> bool:
         return False
     for parent in (path.parent / "lib.rs", path.parent / "mod.rs", path.parent.with_suffix(".rs")):
         if parent.is_file() and re.search(
-            rf"#\[cfg\(test\)\]\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+{re.escape(path.stem)}\s*;",
+            rf"#\[cfg\(test\)\](?:\s*#\[[^\]]+\])*\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+{re.escape(path.stem)}\s*;",
             _code(parent.relative_to(ROOT).as_posix()),
         ):
             return True
@@ -1992,6 +1992,10 @@ def self_test() -> int:
             _CODE_CACHE.clear()
 
     base = load_surface()
+    expect(
+        _test_only_module("crates/antecedent-estimate/src/calibration_coverage.rs"),
+        "#[cfg(test)] plus lint allows still marks a test-only module",
+    )
     expect(check(base) == [], "the committed list passes")
 
     temporal = "crates/antecedent/src/analysis/execute/temporal_path.rs"

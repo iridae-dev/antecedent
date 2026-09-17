@@ -3748,7 +3748,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/v110_calibration_design.rs::run_interference"
 test = "crates/antecedent/tests/v110_calibration_design.rs::interference_dag_bernoulli_neighbor_count_conservative_bound_boundary"
-facets = ["suite.v110_calibration_design"]
+facets = ["estimator.interference", "suite.v110_calibration_design"]
 calibration_sha = "1bfa436e627cb4c702e3df07a5322420621cd6b1"
 
 [[record]]
@@ -3783,7 +3783,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/v110_calibration_design.rs::run_interference"
 test = "crates/antecedent/tests/v110_calibration_design.rs::interference_dag_bernoulli_neighbor_count_conservative_bound_boundary"
-facets = ["suite.v110_calibration_design"]
+facets = ["estimator.interference", "suite.v110_calibration_design"]
 calibration_sha = "1bfa436e627cb4c702e3df07a5322420621cd6b1"
 
 [[record]]
@@ -20513,7 +20513,7 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/v110_calibration_design.rs::transport_data"
 test = "crates/antecedent/tests/v110_calibration_design.rs::transport_admg_trial_ipw_frequentist_nominal_coverage"
-facets = ["suite.v110_calibration_design"]
+facets = ["estimator.transport", "suite.v110_calibration_design"]
 calibration_sha = "1bfa436e627cb4c702e3df07a5322420621cd6b1"
 
 [[record]]
@@ -20548,5 +20548,5 @@ grid = [
 ]
 dgp = "crates/antecedent/tests/v110_calibration_design.rs::transport_data"
 test = "crates/antecedent/tests/v110_calibration_design.rs::transport_admg_trial_ipw_frequentist_nominal_coverage"
-facets = ["suite.v110_calibration_design"]
+facets = ["estimator.transport", "suite.v110_calibration_design"]
 calibration_sha = "1bfa436e627cb4c702e3df07a5322420621cd6b1"
