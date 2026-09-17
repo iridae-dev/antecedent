@@ -1183,6 +1183,10 @@ fn distribution_bayesian(test: &'static str, base: f64, seed: u64, measured: Opt
     reported.emit();
 }
 
+/// Measured 90% coverage at 2000 replicates: 0.861 (1703/1977; 23 draws
+/// outside [0, 1] skipped). Near `p = 1` the conjugate atom posterior is
+/// bounded at one and left-skewed, so the equal-tailed quantile interval
+/// under-covers the sampling distribution of the atom.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn interventional_distribution_bayesian_near_one_nominal_90_coverage() {
@@ -1190,7 +1194,7 @@ fn interventional_distribution_bayesian_near_one_nominal_90_coverage() {
         "interventional_distribution_bayesian_near_one_nominal_90_coverage",
         0.95,
         33_000,
-        None,
+        Some(0.861),
     );
 }
 
