@@ -1,4 +1,4 @@
-# Static response observation contract (1.3)
+# Static response observation contract
 
 This table is part of the licensed `ResponseCurve × Dag × explicit/accepted ×
 Frequentist × none` cell in the [support matrix](support-matrix.md).
@@ -56,7 +56,7 @@ remain unavailable. Observation-adjusted results omit uncertainty rather than
 reuse complete-data intervals. These cells do not extend to derivatives,
 Bayesian responses, or partial graphs.
 
-# Temporal response observation contract (1.6)
+# Temporal response observation contract
 
 The same pairs ride Frequentist `TemporalDag` `ResponseCurve` /
 `InterventionResponse` at validation `none`. Each pair consumes

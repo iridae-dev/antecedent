@@ -3,7 +3,7 @@
 This page is a readable tour of what exists in Antecedent. The parity manifests
 are the maintained implementation inventory; the [support matrix](support-matrix.md)
 is the public **license** for analysis cells. 1.10 inspect / claim / reuse /
-handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/1.10.0/parity/compiler.toml)
+handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/v1.10.0/parity/compiler.toml)
 and are not analysis-matrix coordinates. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).
@@ -31,14 +31,13 @@ verified from the data, intervals are universally calibrated, identification is 
 beyond the named subset, or parametric restrictions disappeared. In particular, priors
 cannot convert a nonidentified estimand into an identified one.
 
-At analysis level, the support matrix is the license. The 1.6 matrix keeps
-the 1.5 licensed cells and adds temporal policy cells: per-horizon
+At analysis level, the support matrix is the license. The 1.10 matrix includes
+temporal policy cells: per-horizon
 `TemporalMediationEffect`, multi-step and joint `Sequence` overlays,
 observation-adjusted temporal curves (Frequentist IPCW pairs and the
 parametric Bayesian observed-data CAR route), DBN-posterior mixtures on
 the contrasts the handle already runs, and bounded prior transfer on
-named Pulse / Sustained / ResponseCurve cells. The 1.5 additions remain:
-retargetable
+named Pulse / Sustained / ResponseCurve cells. It also includes retargetable
 prepared AIPW scores (AllObserved iid AIPW and cell-AIPW only; `analyze()`
 does not always return scores), exceedance functionals, cell-saturated joint AIPW,
 `TieredBackground` as a fast path over ADMG / PAG adjustment, and joint

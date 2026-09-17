@@ -1,7 +1,7 @@
 # Local targets, outcome distributions, and joint interventions
 
 This walkthrough uses Antecedent 1.10. Install it with
-`python -m pip install antecedent`; see the [example setup](https://github.com/iridae-dev/antecedent/blob/1.10.0/examples/README.md#python-environment).
+`python -m pip install antecedent`; see the [example setup](https://github.com/iridae-dev/antecedent/blob/v1.10.0/examples/README.md#python-environment).
 Run the Python blocks below in order in one interpreter. They use NumPy and
 Antecedent, with no optional causal-learning package.
 
@@ -214,6 +214,6 @@ CoDetermined tier backgrounds also license joint cells when their closure is
 certified; Unknown tiers do not. `continuous_cell` does not license a point
 intervention on a continuous mediator.
 
-See the [release notes](release-notes/v1.5.0.md) for the full scope,
+See the [support matrix](support-matrix.md) for the current scope,
 [artifact guide](artifacts.md#package-15-payloads) for saved payload semantics,
 and [evidence ledger](v1.5-evidence.md) for the consuming numerical tests.

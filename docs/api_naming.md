@@ -19,10 +19,10 @@ The day-1 workflow has five verbs:
   `Identification`.
 
 The root namespace (`import antecedent`) is **frozen at 56 names as of 1.10**.
-Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 adds
+Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
-them — the licensed cells are Rust `Study` only. Version 1.10 adds `prepare` and `load`,
+them — the licensed cells are Rust `Study` only. Version 1.10 added `prepare` and `load`,
 and the two design queries `TransportQuery` and `InterferenceQuery`, whose licensed
 cells `analyze()` now executes (they were previously reachable only from their stage
 modules).

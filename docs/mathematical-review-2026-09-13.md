@@ -1,5 +1,9 @@
 # Shared mathematics and evidence review — 2026-09-13
 
+> Historical evidence or review record. Findings and version references describe
+> the work recorded here. For 1.10 behavior, use the [support matrix](support-matrix.md)
+> and [1.10 release notes](release-notes/v1.10.0.md).
+
 This pass follows the 1.7 temporal-class review and examines shared numerical
 inference, discovery statistics, regression/spline machinery, and validation.
 The implementation changes preserve existing licensed capabilities. They are
