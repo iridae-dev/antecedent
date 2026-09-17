@@ -937,7 +937,11 @@ pub fn uniform(seed: u64, tag: u64) -> impl FnMut() -> f64 {
     uniform_from_state(mix_seed(seed ^ tag) | 1)
 }
 
-/// Deterministic standard-normal generator (LCG + Box–Muller), stable across platforms.
+/// Deterministic standard-normal generator (LCG + Box–Muller).
+///
+/// The LCG uniforms are bit-identical across platforms. The `ln`/`sqrt`/`cos`
+/// step is host libm, so the last bits of each draw can differ (glibc vs
+/// Apple). That is not a law change; see [`super::static_dgp::digest`].
 ///
 /// The seed is scrambled before seeding the LCG: a bare `seed | 1` maps the
 /// consecutive replicate seeds `2k` and `2k + 1` to the same stream, which
