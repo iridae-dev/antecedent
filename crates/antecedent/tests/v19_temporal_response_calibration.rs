@@ -618,10 +618,11 @@ fn frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage() {
     assert_all_at(&tallies, &CURVE_AR1_MEASURED);
 }
 
-/// Grid-point-1 floor misses at `a = −1` (both horizons) and simultaneous;
+/// Grid-point-0 floor miss at `a = −1, h = 1` (0.938; 1875/2000);
+/// grid-point-1 floor misses at `a = −1` (both horizons) and simultaneous;
 /// grid-point-2 floor miss at `a = −1, h = 2`.
 const CURVE_AR1_MEASURED: [[Option<f64>; 3]; 7] = [
-    [None, Some(0.939), None],
+    [Some(0.938), Some(0.939), None],
     [Some(0.932), Some(0.939), Some(0.940)],
     [None, None, None],
     [None, None, None],
