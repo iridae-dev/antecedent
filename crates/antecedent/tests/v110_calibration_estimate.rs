@@ -45,7 +45,8 @@ use common::calibration::{
 };
 use common::calibration_bind::bind_all;
 use common::reported::{
-    GATE_LEVEL, REPORTED_LEVEL, gate, normal_at, record_pair, scalar_normal_pair, skip_pair,
+    GATE_LEVEL, REPORTED_LEVEL, gate, gate_at, normal_at, record_pair, scalar_normal_pair,
+    skip_pair,
 };
 use common::static_dgp::linear_ate_data;
 
@@ -226,5 +227,5 @@ fn average_effect_dag_frequentist_default_nominal_coverage() {
         bind_all(&mut [reported, gated], &study, &result);
         record_pair(&mut tallies, scalar_normal_pair(&result), 2.0);
     }
-    gate(&tallies, &[None, None]);
+    gate_at(&tallies, &[[Some(0.938), None, None], [Some(0.880), None, None]]);
 }
