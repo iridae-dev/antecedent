@@ -9,6 +9,9 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
+  features:
+    - content.code.copy
+    - navigation.footer
   palette:
     - scheme: default
       primary: blue grey
@@ -27,17 +30,39 @@ markdown_extensions:
   - toc:
       permalink: true
   - pymdownx.superfences
+  - pymdownx.highlight
 
 nav:
   - Home: index.md
-  - Capabilities: capabilities.md
-  - Support matrix: support-matrix.md
-  - Causal responses: causal-responses.md
-  - Local, distributional, and joint effects: local-distributional-joint.md
-  - Observation contract: observation-contract.md
-  - Transport and interference: transport-interference.md
-  - Comparison: comparison.md
+  - Start here:
+      - Python quickstart: python-workflow.md
+      - Rust quickstart: rust-quickstart.md
+      - Examples: examples.md
+      - Supported analyses: supported-analyses.md
+  - Guides:
+      - Causal responses: causal-responses.md
+      - Local, distributional, and joint effects: local-distributional-joint.md
+      - Transport and interference: transport-interference.md
+      - Prior bank: priors.md
+  - Concepts:
+      - Capabilities: capabilities.md
+      - Observation contract: observation-contract.md
+      - Comparison: comparison.md
+      - Architecture: architecture.md
+  - Reference:
+      - Python API: python-api.md
+      - Python workflow options: python-options.md
+      - Support matrix: support-matrix.md
+      - Artifacts: artifacts.md
+      - API naming: api_naming.md
+  - Evidence and development:
+      - Development: development.md
+      - Conformance: conformance/README.md
+      - Execution contract walkthrough: v1.10-practitioner-walkthrough.md
+      - Hot paths: hot_paths.md
+      - Security review: security_review.md
   - Release notes:
+      - "1.10.0": release-notes/v1.10.0.md
       - "1.9.0": release-notes/v1.9.0.md
       - "1.9 licensed-cell review": v1.9-cell-review.md
       - "Short-series thresholds": short-series-thresholds.md
@@ -70,16 +95,6 @@ nav:
       - "0.5.1": release-notes/v0.5.1.md
       - "0.5.0": release-notes/v0.5.0.md
       - "0.4.0": release-notes/v0.4.0.md
-  - Python workflow: python-workflow.md
-  - Python API: python-api.md
-  - Architecture: architecture.md
-  - Development: development.md
-  - API naming: api_naming.md
-  - Artifacts: artifacts.md
-  - Prior bank: priors.md
-  - Hot paths: hot_paths.md
-  - Security review: security_review.md
-  - Conformance: conformance/README.md
 
 plugins:
   - search

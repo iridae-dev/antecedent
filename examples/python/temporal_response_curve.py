@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Temporal dose × horizon response on a TemporalDag.
+"""Compare pressure levels and their delayed effects on defects.
 
-Shows ``ResponseCurve`` with a temporal attachment (horizons, pulse policy,
-treatment lag). Requires a built antecedent extension (``maturin develop``).
-"""
+A response curve asks what would happen at each pressure level and time
+horizon. We also estimate the path after setting pressure to one fixed level.
+The graph states which earlier pressure measurements affect today's outcome.
+
+Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 
@@ -69,7 +71,7 @@ for point, lo_row, hi_row in zip(curve_result.response.points, band.lower, band.
         f"  dose={point[0]:.1f} horizon={point[1]:.0f}  [{lo_row[0]:.4f}, {hi_row[0]:.4f}]"
     )
 
-# Intervention path at a fixed level (same licensed temporal cell family).
+# Next, hold the intervention level fixed and follow its effect over time.
 path = analyze(
     data,
     graph=graph,

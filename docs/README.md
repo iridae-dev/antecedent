@@ -1,65 +1,20 @@
 # Documentation
 
-Antecedent’s narrative docs. The identification-first engine covers contrasts and
-continuous causal responses; observation, transport, and interference stay
-explicit stage contracts. Package version **1.10.0**.
+Start with the [documentation home](index.md).
 
-| Doc | Contents |
-|-----|----------|
-| [Python workflow](python-workflow.md) | One-call analysis, retained studies, reports, refresh and portable executions |
-| [Causal responses](causal-responses.md) | Curves, derivatives, support, uncertainty, observation mechanisms |
-| [Observation contract](observation-contract.md) | Licensed ResponseCurve observation-spec × assumption pairs |
-| [Transport and interference](transport-interference.md) | Selection diagrams, trial generalization, assignment designs, exposure mappings |
-| [Capabilities](capabilities.md) | Full inventory: graphs, discovery, identification, estimation, validation, design |
-| [Support matrix](support-matrix.md) | Licensed / n/a / refused cells (generated) |
-| [Comparison](comparison.md) | Antecedent vs. DoWhy, EconML, Tigramite, causal-learn — and when to use each |
-| [Architecture](architecture.md) | Invariants, crates, analysis pipeline, execution model |
-| [Development](development.md) | CI vs local gates, tests, performance rules, versions |
-| [Artifacts](artifacts.md) | Wire format, migration, graph interchange (format 0.5) |
-| [Prior bank](priors.md) | External prior catalog, compose, conflict, transport |
-| [API naming](api_naming.md) | Rust ↔ Python capability dictionary |
-| [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
-| [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
-| [Security review](security_review.md) | Unsafe, deps, licensing evidence |
-| [1.10 practitioner walkthrough](v1.10-practitioner-walkthrough.md) | Inspect → preview → execute → independent consume of one DAG AverageEffect path |
-| [1.10.0 release notes](release-notes/v1.10.0.md) | Composition of the existing 341 licensed cells; inspect/contract first-class; Rust inspect→preview→execute→claim→consume for every licensed cell |
-| [1.9.0 release notes](release-notes/v1.9.0.md) | Calibration of licensed intervals; ADMG distributions, accepted-Dag counterfactuals, Frequentist DBN mediation, staged attribution / transport / interference |
-| [1.9 licensed-cell review](v1.9-cell-review.md) | Per-cell correctness and honesty review and the status of each finding |
-| [Short-series thresholds](short-series-thresholds.md) | Coverage sweep behind the circular-block short-series warning |
-| [1.8.0 release notes](release-notes/v1.8.0.md) | Bayesian remainder: functional path/distribution/ADMG, mediation, CF, derivatives, CATE mixtures |
-| [1.8 evidence ledger](v1.8-evidence.md) | Query-aware inference, Rubin row-law functionals, mapped NDE hydrate, identified-conditional envelopes |
-| [1.7.0 release notes](release-notes/v1.7.0.md) | Class-preserving Bayesian incomplete-temporal Pulse, Sustained, curves, Sequence, mediation |
-| [1.7 evidence ledger](v1.7-evidence.md) | Class priors, per-completion transfer, observation bands, MAG unevaluable Sequence |
-| [1.6.0 release notes](release-notes/v1.6.0.md) | Per-horizon temporal ID, Sequence overlays, observation correction, DBN mixtures, prior transfer |
-| [1.6 evidence ledger](v1.6-evidence.md) | Multi-horizon mediation, structural mixtures, block bootstrap, composite artifacts |
-| [1.5.0 release notes](release-notes/v1.5.0.md) | Retargetable plans, exceedance, cell AIPW, tier background, static joint-IF SEs |
-| [1.5 evidence ledger](v1.5-evidence.md) | Retarget pins, exceedance, cell AIPW, tier ID, static envelope SE |
-| [1.4.0 release notes](release-notes/v1.4.0.md) | Class-preserving CPDAG/PAG cells, temporal incomplete Pulse, EconML handoff |
-| [1.4 evidence ledger](v1.4-evidence.md) | CPDAG ATE, class-aware response/CATE, temporal class envelope, Frequentist GP ATE |
-| [1.3.0 release notes](release-notes/v1.3.0.md) | Staged derivatives, observation pairs, static mediation, unit counterfactuals |
-| [1.3 evidence ledger](v1.3-evidence.md) | Derivative, observation, mediation, and counterfactual pins |
-| [1.2.0 release notes](release-notes/v1.2.0.md) | Query-native validation, Bayesian estimators, and sequential sustained windows |
-| [1.1.0 release notes](release-notes/v1.1.0.md) | Known-truth mixture pins, numeric PAG/ADMG pins, prepared identification caches |
-| [1.0.0 release notes](release-notes/v1.0.0.md) | Contract freeze: version bump of the 0.9.1 matrix |
-| [0.9.1 release notes](release-notes/v0.9.1.md) | Patch: envelope PPC, temporal bootstrap contract, panel GLS |
-| [0.9.0 release notes](release-notes/v0.9.0.md) | Closed-world support matrix; prepared-analysis parity |
-| [0.7.1 release notes](release-notes/v0.7.1.md) | Patch: Kennedy-DR heavy-tail diagnostic |
-| [0.7.0 release notes](release-notes/v0.7.0.md) | Temporal response; artifact format 0.4 |
-| [0.6.1 release notes](release-notes/v0.6.1.md) | Patch: envelope/ingest correctness and hot paths |
-| [0.6.0 release notes](release-notes/v0.6.0.md) | Contract cut; matrix is the license |
-| [0.5.2 release notes](release-notes/v0.5.2.md) | Performance pass and localized correctness |
-| [0.5.1 release notes](release-notes/v0.5.1.md) | Honesty gates and row diagnostics |
-| [0.5.0 release notes](release-notes/v0.5.0.md) | Causal-response release |
-| [Roadmap](https://github.com/iridae-dev/antecedent/blob/main/ROADMAP.md) | Shipped contract cuts, compatible 1.x work, and later research scope |
-
-Decisions: [adr/](https://github.com/iridae-dev/antecedent/blob/main/adr/README.md).
+- [Python quickstart](python-workflow.md): install, estimate, and read an answer.
+- [Rust quickstart](rust-quickstart.md): run an example and build the API reference.
+- [Examples](examples.md): choose a workflow by the question you want to answer.
+- [Supported analyses](supported-analyses.md): check support and understand refusals.
+- [Python workflow reference](python-options.md): configure or integrate an analysis.
+- [1.10 release notes](release-notes/v1.10.0.md): changes in this version.
 
 ## How docs are published
 
 | Surface | Host | Builder |
 |---------|------|---------|
 | Narrative (`docs/`) | [Read the Docs](https://antecedent.readthedocs.io/) | MkDocs — `mkdocs.yml`, `.readthedocs.yaml` |
-| Python API | [RTD `/python/`](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) | `pip install antecedent` + `pdoc` in RTD `post_build` |
+| Python API | [RTD `/python/`](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) | source checkout + `pdoc` in RTD `post_build` |
 | Rust API | [docs.rs/antecedent](https://docs.rs/antecedent) | `cargo doc` on crates.io publish |
 
 Release `docs.tar.gz` still bundles markdown + rustdoc + pdoc for offline use; the

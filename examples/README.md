@@ -1,67 +1,51 @@
 # Examples
 
-## Python environment (1.10 branch)
+## Python environment
 
-These Python scripts and all five notebooks use the **1.10 Python API**.
-Build the `1.10.0` checkout; older published wheels do not have `prepare`,
-`load`, or `result.study`. The notebook setup checks the API and will not
-silently install an older release over a development build.
-
-With the repository's Rust toolchain installed, from the repository root:
+These examples use Antecedent 1.10 and Python 3.11 or later.
+Install the package and notebook tools from PyPI:
 
 ```bash
-python -m venv python/.venv
-source python/.venv/bin/activate
-python -m pip install maturin numpy pandas matplotlib ipykernel jupyterlab
-maturin develop --release --manifest-path python/Cargo.toml
-python -m ipykernel install --sys-prefix --name antecedent --display-name "Antecedent 1.10"
-jupyter lab examples/notebooks
+python -m pip install antecedent pandas matplotlib ipykernel jupyterlab
 ```
 
-Choose the **Antecedent 1.10** kernel. For Google Colab, first install a Rust
-toolchain that supports this repository (see [development](../docs/development.md)),
-then install the branch from source in a setup cell:
+Download an example notebook and open it with `jupyter lab`. If you have the
+repository locally, run `jupyter lab examples/notebooks` from its root.
+Choose the kernel for the Python environment where you installed Antecedent.
+
+For Google Colab, run this in a setup cell:
 
 ```python
-%pip install "git+https://github.com/iridae-dev/antecedent.git@1.10.0#subdirectory=python" numpy pandas matplotlib
+%pip install antecedent pandas matplotlib
 ```
 
-Restart the Colab session after installation if Antecedent was already imported.
-The branch reference follows development; record the git commit or pin the source
-URL to a commit for a reproducible run. Building from source can take several minutes.
+If you upgrade Antecedent after importing it, restart the kernel or Colab session.
 
-## Shared Python workflow
+## Start with one analysis
 
-```python
-import antecedent as ant
+Run the [first analysis](python/analysis_workflow.py):
 
-result = ant.analyze(data, graph=graph, query=query)
-study = result.study
-report = result.inspect().to_dict()
-updated = study.refresh(new_data)
-loaded = ant.load(result.export())
+```bash
+python examples/python/analysis_workflow.py
 ```
 
-Use `ant.prepare(...)` followed by `study.estimate()` when you want to stop
-before estimation. Keep ordinary notebook analyses as a single `analyze(...)`
-call. Reports preserve answer shape, uncertainty, assumptions, support and
-calibration availability. See the [workflow guide](../docs/python-workflow.md)
-for prepared-route boundaries and descriptive refusal reports.
+It creates a simulated experiment with a treatment effect of 2, estimates that
+effect, and then repeats the analysis on updated data. It also shows how to save
+and reload the result. Read the [step-by-step guide](../docs/python-workflow.md)
+for installation, expected output, and explanations.
 
-The Bayesian transfer examples use `result.study.export_artifact()` to obtain
-the posterior payload required by `Bayesian(prior_from=...)`. Full execution
-archives use `result.export()` and `ant.load(...)`; they serve a different purpose.
-Design ranking and incremental `CausalState` keep their stage APIs.
+Choose an example below by the question you want to answer. All datasets are
+simulated. The assertions check the examples; they do not validate assumptions
+for your own data.
 
 ## Notebooks
 
 See Antecedent on a real decision. Open a notebook locally or in Google Colab
-after the source-build setup above. The saved outputs were regenerated with this branch; run all cells to reproduce
-the tables, plots and execution reports in your environment.
+after the setup above. Run all cells to generate the tables, plots, and reports in your environment.
 
 ### [Paid-search attribution](notebooks/marketing_channel_structural_uncertainty.ipynb)
 
-See how a naive marketing dashboard can materially overstate paid-search impact by crediting the campaign for demand that would have existed anyway. Antecedent adjusts for market demand and produces a decision-ready estimate of incremental pipeline.
+See how a naive marketing dashboard can materially overstate paid-search impact by crediting the campaign for demand that would have existed anyway. Compare results under uncertain graph directions with an estimate conditional on a reviewed graph.
 
 ### [Campaign evidence transfer](notebooks/sales_campaign_prior_transfer.ipynb)
 
@@ -73,19 +57,17 @@ Compare a holdout experiment, better intent data and additional CRM records to d
 
 ### [Continuous causal response](notebooks/continuous_causal_response.ipynb)
 
-Estimate a nonlinear dose-response curve, local derivative, elasticity and
-observed-law average derivative. Read structural identification, empirical
-support and uncertainty as separate result axes.
+Ask how the outcome changes with dose, how steep the curve is, and how that
+slope changes across the data. Check where the data support those answers.
 
 ### [Pricing, availability and latent demand](notebooks/pricing_availability_latent_demand.ipynb)
 
-Show why inventory-limited sales are not demand. The notebook compares the
-naive observed-sales slope with a demand `ResponseCurve` under Cox IPCW, then
-shows that an observation-adjusted demand derivative still fails closed.
+Show why inventory-limited sales are not demand. Estimate a demand curve under an explicit censoring assumption, then see why
+the same method refuses a demand derivative.
 
 ## Scripts
 
-Paired Python and Rust demos for the same workflows.
+Choose Python or Rust for each workflow.
 
 [The Python analysis workflow](python/analysis_workflow.py) demonstrates the 1.10 one-call
 API, retained study, inspection, refresh, and verified artifact loading.
@@ -100,17 +82,17 @@ cargo run -p antecedent --example <name>
 
 | Example | Description | Python | Rust |
 | ------- | ----------- | ------ | ---- |
-| Propensity weighting | IPW ATE on confounded data with overlap diagnostics | [python](python/propensity_weighting.py) | [rust](rust/propensity_weighting.rs) |
-| Staged static kinds | Natural mediation and unit ITE on a confounded linear SCM | [python](python/staged_static_kinds.py) | [rust](rust/staged_static_kinds.rs) |
-| Class-preserving CPDAG | MEC-envelope ATE on a supplied `Cpdag`; oriented Cpdag handoff | [python](python/class_preserving_cpdag.py) | [rust](rust/class_preserving_cpdag.rs) |
-| Manufacturing temporal | Pulse effect of pressure → defect on a temporal DAG | [python](python/manufacturing_temporal.py) | [rust](rust/manufacturing_temporal.rs) |
-| Temporal response curve | Dose × horizon ``ResponseCurve`` and intervention path on a temporal DAG | [python](python/temporal_response_curve.py) | [rust](rust/temporal_response_curve.rs) |
+| Propensity weighting | Adjust for treatment selection using inverse-probability weights | [python](python/propensity_weighting.py) | [rust](rust/propensity_weighting.rs) |
+| Mediation and individual effects | Separate direct and mediated effects; estimate individual effects | [python](python/staged_static_kinds.py) | [rust](rust/staged_static_kinds.rs) |
+| Uncertain graph directions | Estimate a range of effects when some edge directions are unknown | [python](python/class_preserving_cpdag.py) | [rust](rust/class_preserving_cpdag.rs) |
+| Manufacturing temporal | Estimate how a pressure change affects later defects | [python](python/manufacturing_temporal.py) | [rust](rust/manufacturing_temporal.rs) |
+| Temporal response curve | Compare pressure levels and their effects over time | [python](python/temporal_response_curve.py) | [rust](rust/temporal_response_curve.rs) |
 | Discover then estimate | Discover once, accept a DAG, re-estimate many times | [python](python/discover_then_estimate.py) | [rust](rust/discover_then_estimate.rs) |
-| Sequential Bayes | Transfer a posterior artifact from batch A as batch B’s prior | [python](python/sequential_bayes.py) | [rust](rust/sequential_bayes.rs) |
-| Prior bank surveys | Catalog → rank → compose external priors → target analysis | [python](python/prior_bank_surveys.py) | [rust](rust/prior_bank_surveys.rs) |
+| Sequential Bayes | Use one batch’s results as prior evidence for the next | [python](python/sequential_bayes.py) | [rust](rust/sequential_bayes.rs) |
+| Prior bank surveys | Select and combine evidence from earlier surveys | [python](python/prior_bank_surveys.py) | [rust](rust/prior_bank_surveys.rs) |
 | Rank designs | Rank candidate experiments by identification probability | [python](python/rank_designs.py) | [rust](rust/rank_designs.rs) |
-| CausalState workflow | Online append / stale queries / incremental OLS (ADR 0016) | [python](python/causal_state_workflow.py) | [rust](rust/causal_state_workflow.rs) |
-| Sales spreadsheet E2E | Bayesian ATE + path decompose + ITE + temporal pulse | [python](python/sales_spreadsheet_e2e.py) | [rust](rust/sales_spreadsheet_e2e.rs) |
-| ATE quickstart | Minimal static ATE builder → run | — | [rust](rust/ate_quickstart.rs) |
+| CausalState workflow | Update an analysis as data arrive and identify outdated results | [python](python/causal_state_workflow.py) | [rust](rust/causal_state_workflow.rs) |
+| Sales analysis | Explore average, mediated, individual, and delayed effects | [python](python/sales_spreadsheet_e2e.py) | [rust](rust/sales_spreadsheet_e2e.rs) |
+| ATE quickstart | Build and run an average-effect analysis | — | [rust](rust/ate_quickstart.rs) |
 | Identify only | Identification without fitting | — | [rust](rust/identify_only.rs) |
 | GCM do | Fit a GCM and sample under `do(·)` | — | [rust](rust/gcm_do.rs) |

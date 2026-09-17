@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
-"""Sales spreadsheet E2E: discover → Bayesian ATE → path → ITE + temporal pulse.
+"""Explore several causal questions in a simulated sales analysis.
 
-Mirrors the interactive UX spine (ADR 0011 / backlog Docs):
+Discover and accept a graph, estimate an average effect with Bayesian
+inference, and examine effects along particular paths and for individual
+rows. A separate temporal example estimates the effect of a brief intervention.
 
-  discover once → AcceptedGraph
-    → Bayesian ATE estimate click
-    → path-specific decompose
-    → unit ITE
-  plus a temporal pulse Bayesian block on a held TemporalDag.
-
-Requires a built antecedent extension (`maturin develop` in python/).
-"""
+Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 

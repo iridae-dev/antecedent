@@ -1,4 +1,8 @@
-"""One-call analysis, retained preparation, and portable execution reports (1.10)."""
+"""Estimate an effect, reuse the analysis, and save the result.
+
+The simulated treatment increases the outcome by 2. After estimating it,
+we change the data so the effect is 3 and run the same study again.
+See docs/python-workflow.md for installation and a step-by-step explanation."""
 
 from __future__ import annotations
 
@@ -20,7 +24,7 @@ query = ant.AverageEffect("treatment", "outcome")
 
 new_data = {**data, "outcome": data["outcome"] + treatment}
 
-# The five lines.
+# Estimate the effect, then keep the study so we can reuse it.
 result = ant.analyze(data, graph=graph, query=query, seed=19, bootstrap=25)
 study = result.study
 updated = study.refresh(new_data)
@@ -41,7 +45,7 @@ assert np.isclose(updated.answer.value, result.answer.value + 1)
 assert np.isclose(study.estimate().answer.value, updated.answer.value)
 print("After refresh:", updated)
 
-# Explicit preparation is the same workflow when a caller wants to stop early.
+# To inspect identification before estimating, prepare the study explicitly.
 prepared = ant.prepare(data, graph=graph, query=query, seed=19, bootstrap=25)
 assert prepared.inspect().identification.available
 assert np.isclose(prepared.estimate().answer.value, result.answer.value)

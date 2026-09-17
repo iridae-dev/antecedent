@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Staged MediationEffect and Counterfactual on a confounded linear SCM.
+"""Separate a treatment effect into direct and mediated parts.
 
-Requires a built antecedent extension (`maturin develop` in python/).
+The baseline variable Z affects treatment A, mediator M, and outcome Y.
+For a change from 0.2 to 0.8, the simulated direct effect is 1.8 and the
+indirect effect through M is 4.8. Their total is 6.6, which also equals the
+mean individual effect in this simulation. Omitting Z would bias the analysis.
 
-Z confounds A, M, and Y. For control 0.2 vs active 0.8 the structural
-contrasts are NDE=1.8, NIE=4.8, total/mean ITE=6.6. Unadjusted parent
-regressions that omit Z are not those numbers.
-"""
+Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 
