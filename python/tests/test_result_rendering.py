@@ -278,7 +278,8 @@ def test_limited_function_valued_answer_is_partial_live_and_loaded():
         )
     loaded = ant.load(result.export())
     assert result.answer.kind == loaded.answer.kind == "partial"
-    assert result.answer.detail == loaded.answer.detail is not None
+    assert result.answer.detail == loaded.answer.detail
+    assert result.answer.detail is not None
     verdict = describe_status(result.identification.status)
     assert verdict in {"partially identified", "graph-dependent"}
     assert repr(result).startswith(f"<CausalResponseView {verdict} answer=partial limitation=")

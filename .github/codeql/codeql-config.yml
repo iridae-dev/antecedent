@@ -15,6 +15,7 @@ paths-ignore:
   # stale code outside the current release tree and can report already-fixed
   # findings against ignored local state.
   - "**/.claude/worktrees/**"
+  - "**/.handover/**"
   - "**/.refactor-ref/**"
   - "**/conformance/**/data.csv"
   - "**/parity/fixtures/**"

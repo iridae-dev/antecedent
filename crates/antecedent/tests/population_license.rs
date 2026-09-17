@@ -122,7 +122,8 @@ fn non_average_kinds_refuse_a_declared_population_by_code() {
     for (kind, query) in scoped_queries(&TargetPopulation::AllObserved) {
         let built = Study::tabular(data(60)).graph(dag()).query(query).build();
         if let Err(err) = built {
-            assert_ne!(reason(&err).as_deref(), Some("population_not_estimable"), "{kind}: {err}");
+            let message = format!("{kind}: {err}");
+            assert_ne!(reason(&err).as_deref(), Some("population_not_estimable"), "{message}");
         }
     }
 }
