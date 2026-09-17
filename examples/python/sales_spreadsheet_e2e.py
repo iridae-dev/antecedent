@@ -89,9 +89,7 @@ def main() -> None:
         seed=5,
     )
     assert math.isfinite(path.total_change)
-    print(
-        f"Path decompose total_change={path.total_change:.4f} paths={len(path.path_breakdown)}"
-    )
+    print(f"Path decompose total_change={path.total_change:.4f} paths={len(path.path_breakdown)}")
 
     ite = antecedent.analyze(
         data, graph=accepted, query=antecedent.Counterfactual("t", "y"), seed=7

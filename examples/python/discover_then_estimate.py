@@ -48,9 +48,7 @@ def main() -> None:
     antecedent.discovery.PC.run = counted_run  # type: ignore[method-assign]
 
     # Run discovery once.
-    evidence = antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0).accept(
-        data, seed=1
-    )
+    evidence = antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0).accept(data, seed=1)
     assert discovery_calls["n"] == 1
     assert isinstance(evidence.graph, (antecedent.Dag, antecedent.Cpdag))
 
@@ -66,9 +64,7 @@ def main() -> None:
     query = antecedent.AverageEffect(treatment="t", outcome="y")
 
     # Reuse the reviewed graph for repeated estimates.
-    first = antecedent.analyze(
-        data, graph=accepted, query=query, seed=1, latency="interactive"
-    )
+    first = antecedent.analyze(data, graph=accepted, query=query, seed=1, latency="interactive")
     study = first.study
     second = study.estimate()
     third = study.refresh(_confounded_scm(seed=8))
