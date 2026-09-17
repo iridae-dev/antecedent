@@ -297,7 +297,7 @@ def _kwargs(kind: str, data: str, structure: str, options: str) -> dict[str, obj
     if options == "validators":
 
         def one_sided(*, ate, **_kwargs):
-            return {"passed": ate == ate, "refuted_ate": ate, "comparison": 0.0}
+            return {"passed": not math.isnan(ate), "refuted_ate": ate, "comparison": 0.0}
 
         kwargs["validators"] = {"matrix.finite_effect": one_sided}
     if options == "target_population":
