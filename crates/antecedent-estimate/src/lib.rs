@@ -58,6 +58,7 @@ pub mod transport;
 pub mod util;
 
 #[cfg(test)]
+#[allow(clippy::doc_markdown)]
 mod calibration_coverage;
 
 pub use adjustment::{
