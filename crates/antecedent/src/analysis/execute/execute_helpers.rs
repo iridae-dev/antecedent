@@ -1300,7 +1300,8 @@ pub(super) fn run_envelope_effect_refuters(
 /// `Expectation`/`Distribution` leaf (not `CausalExprArena::backdoor_ate`'s `Product`/`SumOut`
 /// shape) so it is inert if a future caller ever tries to mechanically re-evaluate
 /// `functional` via the arena's generic evaluator — there is no adjustment-set
-/// marginalization here to (mis)compute.
+/// marginalization here to (mis)compute. Licensed transport and interference
+/// routes do not call this; they stamp `transport.sid` / `interference.design`.
 pub(crate) fn parametric_scm_identification(
     query: CausalQuery,
     treatment: VariableId,

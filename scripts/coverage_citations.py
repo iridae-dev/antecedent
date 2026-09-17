@@ -44,6 +44,9 @@ FIGURE_RE = re.compile(r"(?<![\w.])0\.(\d{3,4})(?![\d])")
 RECORD_RE = re.compile(r"`(cov\.[A-Za-z0-9_.]+)`")
 DISCLOSURE_RE = re.compile(re.escape(DISCLOSURE))
 COVERAGE_WORD_RE = re.compile(r"(?i)\bcover(?:s|ed|age)?\b")
+# A cited boundary record must be named as a boundary in the surrounding
+# sentence, not only inside a record id or test name.
+BOUNDARY_DISCLOSURE_RE = re.compile(r"(?i)\bboundary\b|below the band|unasserted|floor miss")
 # A number right after one of these words is a location, bias, SE or pin, not a rate.
 EXEMPT_BEFORE = re.compile(
     r"(?:\bat|\bbias|\bSE(?: is)?|\bSD|\bmean|\btotal|\beffect|\bMixture|draw's|=)\s*$"
@@ -138,7 +141,22 @@ def check() -> list[str]:
                             f"{label}: coverage figure {fig.group(0)} does not match its cited "
                             f"record(s) ({observed})"
                         )
+                    if known and any(r.get("boundary") for r in known) and not _discloses_boundary(
+                        text[lo:hi]
+                    ):
+                        problems.append(
+                            f"{label}: coverage figure {fig.group(0)} cites a boundary record "
+                            "without naming it a boundary"
+                        )
     return problems
+
+
+def _discloses_boundary(sentence: str) -> bool:
+    """True when the sentence names a boundary outside citations and test paths."""
+    stripped = RECORD_RE.sub("", sentence)
+    stripped = re.sub(r"`[^`]+`", "", stripped)
+    stripped = re.sub(r"::[A-Za-z0-9_{},*]+", "", stripped)
+    return BOUNDARY_DISCLOSURE_RE.search(stripped) is not None
 
 
 # ------------------------------------------------------------------ cite

@@ -44,10 +44,11 @@ impl super::Study {
                 (live_transport_identification(diagram, query)?, false)
             };
         refuse_unestimable_transport(&transport_id)?;
-        let (identification, estimand) = parametric_scm_identification(
+        let (identification, estimand) = transport_sid_identification(
             CausalQuery::Transport(query.clone()),
             treatment,
             outcome,
+            &transport_id,
         );
         let outcomes = data
             .float64_values(outcome)
@@ -144,11 +145,8 @@ impl super::Study {
         let seed = ctx.rng.stream(0x1F7E).next_u64();
         let estimated = estimate_interference(query, &spec.network, &spec.assignment, seed)
             .map_err(CausalError::from)?;
-        let (identification, estimand) = parametric_scm_identification(
-            CausalQuery::Interference(query.clone()),
-            outcome,
-            outcome,
-        );
+        let (identification, estimand) =
+            interference_design_identification(CausalQuery::Interference(query.clone()), outcome);
         let se = estimated.contrast.conservative_variance.sqrt();
         let estimate = EffectEstimate::new(
             estimated.contrast.horvitz_thompson,
@@ -195,6 +193,127 @@ pub(crate) fn live_transport_identification(
         .map_err(|e| CausalError::Compile { message: e.to_string() })?;
     refuse_unestimable_transport(&identified)?;
     Ok(identified)
+}
+
+/// Inspectable do-expectation leaf. Same shape as `parametric_scm_identification`,
+/// but the rule and assumptions name the design-based identifier, not GCM.
+fn inspectable_do_expectation(
+    treatment: VariableId,
+    outcome: VariableId,
+    rule: &str,
+    note: &str,
+) -> (CausalExprArena, IdentifiedEstimand) {
+    let mut arena = CausalExprArena::new();
+    let y = arena.intern_var_set([outcome]);
+    let do_t = arena.intern_intervention_set([treatment]);
+    let empty = arena.empty_var_set();
+    let distribution = arena.intern(ExprNode::Distribution {
+        variables: y,
+        conditioned_on: empty,
+        intervention: do_t,
+        domain: DomainRef::Interventional,
+    });
+    let functional = arena
+        .intern(ExprNode::Expectation { function: OutcomeExprId::identity(outcome), distribution });
+    arena.set_derivation(
+        functional,
+        DerivationMeta { rule: Arc::from(rule), note: Some(Arc::from(note)) },
+    );
+    let estimand = IdentifiedEstimand::new(
+        rule,
+        Arc::from([]),
+        Arc::from([]),
+        Arc::from([]),
+        functional,
+        None,
+    );
+    (arena, estimand)
+}
+
+fn transport_sid_identification(
+    query: CausalQuery,
+    treatment: VariableId,
+    outcome: VariableId,
+    identified: &TransportIdentification,
+) -> (IdentificationResult, IdentifiedEstimand) {
+    let TransportIdentification::Transportable { certificate, .. } = identified else {
+        unreachable!("execute already refused an uncertified transport formula");
+    };
+    let premises = certificate.premises.iter().map(AsRef::as_ref).collect::<Vec<_>>().join("; ");
+    let (arena, estimand) = inspectable_do_expectation(
+        treatment,
+        outcome,
+        certificate.rule.as_ref(),
+        &format!("sID: treatment={treatment:?} outcome={outcome:?}; {premises}"),
+    );
+    let mut assumptions = antecedent_core::AssumptionSet::default();
+    assumptions.push(antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::Custom {
+            id: Arc::from(certificate.rule.as_ref()),
+            description: Arc::from(if premises.is_empty() {
+                "Structural transportability under the implemented sID subset (Direct or S-admissible standardize)."
+                    .to_string()
+            } else {
+                premises.clone()
+            }),
+        },
+        source: antecedent_core::AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("transport.sid"),
+        },
+        scope: antecedent_core::AssumptionScope::Identification,
+        status: antecedent_core::AssumptionStatus::Declared,
+    });
+    let mut derivation = DerivationTrace::default();
+    derivation.push(certificate.rule.as_ref(), premises);
+    let identification = IdentificationResult::identified(
+        query,
+        vec![estimand.clone()],
+        arena,
+        derivation,
+        assumptions,
+        IdentificationPerformanceRecord::default(),
+    );
+    (identification, estimand)
+}
+
+fn interference_design_identification(
+    query: CausalQuery,
+    outcome: VariableId,
+) -> (IdentificationResult, IdentifiedEstimand) {
+    let (arena, estimand) = inspectable_do_expectation(
+        outcome,
+        outcome,
+        "interference.design",
+        "The Dag binds schema and outcome; it does not identify the exposure contrast. \
+         Identification is the known assignment mechanism and exposure mapping \
+         (Horvitz–Thompson / Hájek).",
+    );
+    let mut assumptions = antecedent_core::AssumptionSet::default();
+    assumptions.push(antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::Custom {
+            id: Arc::from("interference.design"),
+            description: Arc::from(
+                "The Dag binds schema and outcome; it does not identify the exposure contrast. \
+                 Identification is the known assignment mechanism and exposure mapping.",
+            ),
+        },
+        source: antecedent_core::AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("interference.design"),
+        },
+        scope: antecedent_core::AssumptionScope::Identification,
+        status: antecedent_core::AssumptionStatus::Declared,
+    });
+    let mut derivation = DerivationTrace::default();
+    derivation.push("interference.design", "known assignment mechanism; graph is schema-only");
+    let identification = IdentificationResult::identified(
+        query,
+        vec![estimand.clone()],
+        arena,
+        derivation,
+        assumptions,
+        IdentificationPerformanceRecord::default(),
+    );
+    (identification, estimand)
 }
 
 fn refuse_unestimable_transport(identified: &TransportIdentification) -> Result<(), CausalError> {

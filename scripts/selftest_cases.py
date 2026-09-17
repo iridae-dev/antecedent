@@ -555,6 +555,10 @@ COND_DAG_BAYES = (
     "0.890 (record `cov.conditional_effect.dag.bayesian.posterior_quantile.l90."
     "conditional_effect_dag_bayesian_nominal_90_coverage`)"
 )
+BOUNDARY_CITE = (
+    "0.858 (boundary record `cov.mediation_effect.dag.bayesian.posterior_quantile.l90."
+    "mediation_nde_bayesian_nominal_90_coverage`)"
+)
 
 
 def citation_cases() -> list[bool]:
@@ -589,6 +593,12 @@ def citation_cases() -> list[bool]:
                 )
             },
             ["coverage figure 0.890 has no record citation"],
+        ),
+        case(
+            g,
+            "boundary_record_undisclosed",
+            {lic: replace(BOUNDARY_CITE, BOUNDARY_CITE.replace("boundary record", "record"))},
+            ["cites a boundary record without naming it a boundary"],
         ),
         # Known-truth values, SEs, locations and disclosed probe figures are never rejected.
         case(

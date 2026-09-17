@@ -133,6 +133,32 @@ def test_parametric_identification_keeps_its_qualifier():
     assert staged.verdict == "identified"
 
 
+def test_licensed_design_routes_are_nonparametric():
+    from test_transport_interference_lifecycle import (
+        _interference_design,
+        _interference_query,
+        _transport_data,
+        _transport_graph,
+        _transport_query,
+    )
+
+    transport_result = ant.analyze(
+        _transport_data(80, 1), graph=_transport_graph(), query=_transport_query()
+    )
+    assignment, data = _interference_design()
+    interference_result = ant.analyze(data, graph=[], query=_interference_query(assignment))
+    for result, method_prefix in (
+        (transport_result, "transport.sid"),
+        (interference_result, "interference.design"),
+    ):
+        assert result.identification.status == "NonparametricallyIdentified"
+        assert result.identification.method.startswith(method_prefix)
+        assert _banner(result._repr_html_()) == ("ar-ok", "Identified")
+        assert repr(result).startswith("<AnalysisResult identified ")
+        assert "parametric restrictions" not in repr(result)
+        assert "parametric restrictions" not in repr(result.identification)
+
+
 # --- nested views of a set-identified result -----------------------------------------------
 
 
