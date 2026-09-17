@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::ids::VariableId;
 
 /// Collection of assumption records referenced by analysis artifacts.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct AssumptionSet {
     /// Ordered assumption entries.
     pub entries: Vec<AssumptionRecord>,
@@ -25,6 +25,17 @@ impl AssumptionSet {
         self.entries.push(record);
     }
 
+    /// Append records that are not already present, preserving first-seen order.
+    pub fn extend_unique<'a>(&mut self, records: impl IntoIterator<Item = &'a AssumptionRecord>) {
+        let mut seen: std::collections::HashSet<AssumptionRecord> =
+            self.entries.iter().cloned().collect();
+        for record in records {
+            if seen.insert(record.clone()) {
+                self.entries.push(record.clone());
+            }
+        }
+    }
+
     /// Number of entries.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -39,7 +50,7 @@ impl AssumptionSet {
 }
 
 /// One assumption with provenance of how it entered the analysis.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct AssumptionRecord {
     /// The assumption itself.
     pub assumption: Assumption,
@@ -52,7 +63,7 @@ pub struct AssumptionRecord {
 }
 
 /// Typed causal / statistical assumption.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Assumption {
     /// Causal Markov condition.
     CausalMarkov,
@@ -93,7 +104,7 @@ pub enum Assumption {
 }
 
 /// Parametric restriction details.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct ParametricAssumption {
     /// Stable identifier for the restriction family.
     pub id: Arc<str>,
@@ -102,7 +113,7 @@ pub struct ParametricAssumption {
 }
 
 /// Prior restriction details (recorded as assumptions, not identification).
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct PriorAssumption {
     /// Stable identifier for the prior family.
     pub id: Arc<str>,
@@ -111,7 +122,7 @@ pub struct PriorAssumption {
 }
 
 /// Origin of an assumption record.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum AssumptionSource {
     /// Declared by the caller.
     UserDeclared,
@@ -130,7 +141,7 @@ pub enum AssumptionSource {
 }
 
 /// Scope over which an assumption applies.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum AssumptionScope {
     /// Entire analysis.
     Global,

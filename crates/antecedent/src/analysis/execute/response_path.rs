@@ -1713,11 +1713,7 @@ fn mix_class_responses(
         mix_support_reports(&weighted.iter().map(|(_, _, r)| &r.support).collect::<Vec<_>>());
     let mut assumptions = first.assumptions.clone();
     for (_, _, response) in weighted.iter().skip(1) {
-        for record in &response.assumptions.entries {
-            if !assumptions.entries.contains(record) {
-                assumptions.push(record.clone());
-            }
-        }
+        assumptions.extend_unique(&response.assumptions.entries);
     }
     let (identification_status, estimate) =
         if matches!(envelope_status, IdentificationStatus::GraphDependent) {

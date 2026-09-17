@@ -4316,11 +4316,7 @@ pub(crate) fn aggregate_temporal_horizon_evidence<'a>(
                 });
             }
         }
-        for record in &identification.required_assumptions.entries {
-            if !assumptions.entries.contains(record) {
-                assumptions.push(record.clone());
-            }
-        }
+        assumptions.extend_unique(&identification.required_assumptions.entries);
     }
     if !saw_any {
         return Err(CausalError::Compile {
