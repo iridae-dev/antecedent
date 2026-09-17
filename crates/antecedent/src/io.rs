@@ -5,11 +5,14 @@
 use antecedent_io::{graph_dot, graph_gml, graph_json, graph_mixed, graph_networkx};
 
 pub use antecedent_io::{
-    AssignmentDesignWire, ExposureLevelWire, ExposureMappingWire, ExposureProbabilityMethodWire,
+    AnalysisResultConsumption, AnalysisResultContractWire, AssignmentDesignWire, CONTRACT_SECTION,
+    ExposureLevelWire, ExposureMappingWire, ExposureProbabilityMethodWire,
     InterferenceEstimateWire, InterferenceFunctionalWire, InterferenceQueryWire,
     NonTransportableCertificateWire, PopulationFactorWire, RandomizationContrastWire,
     TransportCertificateWire, TransportEffectEstimateWire, TransportFormulaWire,
     TransportIdentificationWire, TransportOverlapDiagnosticWire, TransportQueryWire,
+    consume_analysis_result, decode_analysis_result_artifact, decode_analysis_result_contract,
+    encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
     interference_estimate_from_wire, interference_estimate_to_wire, interference_query_from_wire,
     interference_query_to_wire, transport_effect_from_wire, transport_effect_to_wire,
     transport_identification_from_wire, transport_identification_to_wire,

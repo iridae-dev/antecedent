@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] — 2026-09-15
+
+### Added
+
+- `analyze` is `prepare(...).estimate()`. Ordinary one-call analyses retain
+  reusable studies: `result.study`, immutable `result.export()`, and
+  semantically checked `load(...)`. `inspect().to_dict()` includes answer
+  shape, reasoning slots, explicit calibration availability and diagnostics;
+  refusals retain their exception type and gain structured context.
+  `estimate(other_data)` leaves the study binding intact; successful
+  `refresh(new_data)` updates it. Contracted exports retain full response,
+  posterior and structural payloads.   `result.answer` is the safe consumption
+  interface; historical `.effect` / `.ate` warn when a point display would
+  misrepresent (`ANTECEDENT_STRICT_ANSWER=1` raises). `.posterior` /
+  `.response` remain accessible. See [the Python workflow](docs/python-workflow.md).
+- `program_id` is the compiled program identity. `claim_id` is the execution
+  claim identity. They are different layers.
+- One omitted-default table (`antecedent._defaults.OMITTED`, from
+  `_native.omitted_defaults()`) is shared by `analyze`, `antecedent.prepare`,
+  and `PreparedAnalysis.prepare`. Latency is never injected when omitted.
+- Composition/release gates require `uv` for the Python smoke.
+  `gate_release.sh` is the PR inventory. Release cuts run
+  `gate_release_candidate.sh`: a green CI run on HEAD, the inventory
+  (including the calibration attestation: every coverage record's
+  statistical surface unchanged since the commit it was measured at), plus
+  Python lint/pytest and one local wheel. `publish-release.yml` and
+  `publish-crates.yml` run the attestation before building or publishing.
+  No PR or release job runs the 400-replicate calibration.
+- Every licensed support-matrix cell inspects as a first-class contract and
+  completes inspect → preview → execute → claim → consume on the Rust
+  compiler path (`compiler.e2e_licensed_cells`). That is composition-seam
+  evidence, not inherited parent-estimator truth or interval calibration.
+  Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
+  Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists.
+  Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
+
+- 1.10 contracts-first foundation ([ADR 0022](adr/0022-causal-compiler-contract.md)):
+  domain-separated target / identification / program / inference / observation /
+  data identities, four reasoning slots, transformation-effect reports, a
+  portable claim envelope, and validated provenance ancestry (`try_push` /
+  `validate`). `Study::inspect` is cheap structural classification;
+  `PreparedStudy::contract` binds cached identification products;
+  `StudyResult::claim` is the first-class execution envelope. Remaining
+  panel class promotions (Bayesian panel response/class, panel class
+  response, multi-step panel Sustained) now have their own panel contracts.
+- Contract identification now separates acceptance history from graph semantics:
+  reaccepting an unchanged graph preserves program identity, while acceptance
+  version, discovery algorithm, and original binding remain inspectable.
+  Explicit matching schema bindings resolve to the same semantic premises.
+- Content-based data snapshot identities include typed values, validity, analysis
+  masks, weights, ordered partitions, panel labels, and represented time metadata.
+  Storage retains its digest at construction so inspection does not rescan rows.
+  Full contract-input preview checks detect same-shape refreshes even when the
+  causal program is unchanged; Python previews expose their frozen input IDs.
+- Composite `analysis_result` artifacts may carry an additive
+  `analysis_result.contract` section. Old artifacts stay readable and are not
+  promoted to verified programs. `consume_analysis_result` accepts or refuses
+  from bytes alone. The DAG `AverageEffect` path can export a contracted result
+  that a separate consumer verifies without the originating handle. ADMG
+  front-door identification and latent-confounding non-identification now appear
+  on the same contract slots.
+- Independent consume rehashes stored identification/program/inference payloads
+  against the analysis-result body. Support slots report the existing matrix
+  coordinate. `StudyResult::claim` binds execution identity from
+  `ExecutionContext`. `PreparedStudy::apply_refresh` / `apply_retarget` /
+  `rank_designs` call the 1.5 owners. Host `RequestIdentity` /
+  `ExecutionReceipt` wrap `execution.rs` without a service runtime.
+- Frequentist panel `ResponseCurve` / `InterventionResponse` on a supplied
+  `TemporalDag` averages per-unit temporal-response surfaces and publishes
+  between-unit pointwise bands. The series simultaneous band is withheld.
+  Frequentist panel Pulse / single-step Sustained on `TemporalCpdag` /
+  `TemporalPag` fits each identified completion with panel cluster SEs and
+  mixes by completion mass. Bayesian panel response averages per-unit
+  Bayesian surfaces. Bayesian panel class Pulse and multi-step panel
+  Sustained fit each completion on panel units and mix by mass. Panel
+  class response averages unit surfaces per completion and mixes by mass.
+
 ## [1.9.0] — 2026-09-15
 
 Every licensed cell was reviewed for mathematical correctness and for claims
@@ -2405,7 +2482,8 @@ First crates.io-oriented release of the Rust library graph.
 - Known 0.1 API debt: many result structs still expose public fields rather than
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
-[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.10.0...HEAD
+[1.10.0]: https://github.com/iridae-dev/antecedent/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/iridae-dev/antecedent/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/iridae-dev/antecedent/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/iridae-dev/antecedent/compare/v1.6.0...v1.7.0

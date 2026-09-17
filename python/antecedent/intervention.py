@@ -6,7 +6,7 @@ import math
 from collections.abc import Sequence as SequenceValues
 from dataclasses import KW_ONLY, dataclass
 
-from .errors import CausalValueError
+from .errors import CausalUnsupportedError, CausalValueError
 
 
 def _variable(value: str) -> None:
@@ -138,6 +138,43 @@ class Sequence:
 
 
 Intervention = Set | Shift | Bernoulli | Gaussian | Categorical | Soft | Sequence
+
+
+def encode_temporal_step(spec: object) -> tuple[str, str, list[float]]:
+    """Map one Set/Shift/Soft leaf to native ``(variable, kind, params)``."""
+    if isinstance(spec, Sequence):
+        raise CausalUnsupportedError(
+            "refused: nested Sequence interventions are not licensed for temporal "
+            "InterventionResponse"
+        )
+    if isinstance(spec, Set):
+        return spec.variable, "set", [spec.value]
+    if isinstance(spec, Shift):
+        return spec.variable, "shift", [spec.delta]
+    if isinstance(spec, Soft):
+        if spec.mechanism == "constant":
+            return spec.variable, "soft_constant", list(spec.parameters)
+        if spec.mechanism in ("additive_shift", "multiplicative", "truncated_shift"):
+            return spec.variable, f"soft_{spec.mechanism}", list(spec.parameters)
+        raise CausalUnsupportedError(
+            f"Soft mechanism {spec.mechanism!r} is not licensed temporally"
+        )
+    raise TypeError(
+        "temporal InterventionResponse supports Set/Shift/Soft and Sequence of those steps"
+    )
+
+
+def encode_temporal_steps(spec: object) -> list[tuple[str, str, list[float]]]:
+    """Flatten a licensed Sequence or a single Set/Shift/Soft into overlay steps."""
+    if isinstance(spec, Sequence):
+        if any(isinstance(step, Sequence) for step in spec.steps):
+            raise CausalUnsupportedError(
+                "refused: nested Sequence interventions are not licensed for temporal "
+                "InterventionResponse"
+            )
+        return [encode_temporal_step(step) for step in spec.steps]
+    return [encode_temporal_step(spec)]
+
 
 __all__ = [
     "Bernoulli",

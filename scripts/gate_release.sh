@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
-# Release gate (also run in CI on every PR via the `gates` job).
+# PR inventory / composition umbrella (also run in CI on every PR via `gates`).
 #
-# Inventory honesty, docs, artifacts, security, Criterion smokes, and prior
-# feature gates. CI's `gates` job runs this on every PR; the separate `rust` job
-# runs fmt + clippy + cargo test --workspace (+ DCO). `gate_calibration.sh` is
-# NOT invoked from here — it runs weekly via .github/workflows/calibration.yml.
-# Run this when cutting a release or when a change might break a domain:
-#   bash scripts/gate_release.sh
+# This script is not a release candidate. Cut with
+# `scripts/gate_release_candidate.sh` (a green CI run on the SHA via CI_RUN_ID,
+# calibration-surface identity, this inventory, Python lint/pytest, the Python
+# suite against one locally built wheel). The CI `python-wheels` matrix is
+# required on the candidate SHA through CI_RUN_ID.
+#
+# `gate_calibration.sh` is NOT invoked from here, nor anywhere in CI: the
+# statistical measurement is made on a development machine before upload
+# (scripts/measure_calibration.sh). This gate, on every PR, push and release
+# cut alike, requires every coverage record to match the code it was measured
+# at (gate_calibration_attestation.sh, a git comparison that runs in seconds).
+#   CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh
 #
 # Invokes prior feature gates unless SKIP_PRIOR_GATES=1.
 # Optional: cargo deny check when cargo-deny is on PATH.
+# Composition Python smoke requires `uv` (fail, do not skip).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -19,6 +26,21 @@ cd "$ROOT"
 # must not skip the schema contract that pass depends on.
 echo "== parity manifest schema =="
 bash scripts/gate_parity_schema.sh
+
+# ---- gate self-tests -------------------------------------------------------
+# Unconditional: each gate that decides a release must fail on deliberately
+# broken input, or its green result proves nothing.
+echo "== gate self-tests (broken inputs must fail) =="
+bash scripts/gate_parity_schema.sh --self-test
+bash scripts/gate_docs_support_matrix.sh --self-test
+bash scripts/gate_composition.sh --self-test
+bash scripts/gate_release_candidate.sh --self-test
+bash scripts/gate_calibration_attestation.sh --self-test
+bash scripts/gate_coverage_citations.sh --self-test
+bash scripts/gate_evidence_reachability.sh --self-test
+bash scripts/gate_metadata_consistency.sh --self-test
+bash scripts/gate_support_matrix.sh --self-test
+# ---- end gate self-tests ---------------------------------------------------
 
 echo "== algorithm provenance schema and paths =="
 bash scripts/gate_provenance_schema.sh
@@ -40,8 +62,11 @@ bash scripts/gate_docs_support_matrix.sh
 echo "== evidence reachability (cited fixtures execute; deviations ratchet) =="
 bash scripts/gate_evidence_reachability.sh
 
-echo "== coverage citations name existing test fns =="
+echo "== coverage citations name existing test fns; coverage figures cite records =="
 bash scripts/gate_coverage_citations.sh
+
+echo "== calibration attestation (every coverage record matches the code) =="
+bash scripts/gate_calibration_attestation.sh
 
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   echo "== prior feature gates =="
@@ -56,6 +81,7 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_response_calibration.sh
   bash scripts/gate_causal_artifacts.sh
   bash scripts/gate_estimate_reuse.sh
+  bash scripts/gate_composition.sh
 fi
 
 python3 - <<'PY'
@@ -92,6 +118,7 @@ for manifest in [
     "parity/gcm.toml",
     "parity/attribution.toml",
     "parity/response.toml",
+    "parity/compiler.toml",
 ]:
     for c in caps(Path(manifest)):
         if c["status"] == "intentional_deviation":
@@ -108,6 +135,7 @@ EVIDENCE = {
     "release.conformance_docs": "docs/conformance/README.md",
     "release.hot_path_baselines": "docs/hot_paths.md",
     "release.security_review": "docs/security_review.md",
+    "release.ci_required_jobs": ".github/workflows/ci.yml",
 }
 
 for c in caps(Path("parity/release.toml")):
@@ -251,9 +279,11 @@ python3 scripts/generate_support_matrix_docs.py
 VERSION="$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml','rb'))['workspace']['package']['version'])")"
 if ! git diff --exit-code -- docs/support-matrix.md \
     crates/antecedent/src/support_matrix_data.rs \
+    crates/antecedent-io/src/coverage_records_data.rs \
     "docs/release-notes/v${VERSION}.md" >/dev/null; then
   echo "support-matrix generated files are stale; commit regenerated output"
   git diff --stat -- docs/support-matrix.md crates/antecedent/src/support_matrix_data.rs \
+    crates/antecedent-io/src/coverage_records_data.rs \
     "docs/release-notes/v${VERSION}.md"
   exit 1
 fi
@@ -291,4 +321,5 @@ else
   echo "WARN: cargo-deny not installed; skipping deny check (optional local tool)."
 fi
 
-echo "Release gate PASSED"
+echo "PR inventory / composition gate PASSED (not an RC)."
+echo "Cut with: CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh"

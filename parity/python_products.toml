@@ -1,0 +1,1050 @@
+# Python product matrix. Routes retain a reusable study that re-executes the same
+# program on the same data; refusals are permanent and reason-coded. Parameters bind
+# into the contract or are an execution control. The code signatures are the source;
+# this file must match.
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_accepted"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "discovered.ges"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_discovered_ges"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "discovered.lingam"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_discovered_lingam"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "discovered.pc"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_discovered_pc"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "discovered.pc"
+options = "callbacks"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_discovered_pc_callbacks"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_explicit"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "explicit"
+options = "callbacks"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_explicit_callbacks"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "explicit"
+options = "population_registry"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_explicit_population_registry"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "explicit"
+options = "rd"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_explicit_rd"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "explicit"
+options = "target_population"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_explicit_target_population"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "explicit"
+options = "validators"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_explicit_validators"
+
+[[route]]
+kind = "average"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_tabular_graph_posterior"
+
+[[route]]
+kind = "average_derivative"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_derivative_tabular_accepted"
+
+[[route]]
+kind = "average_derivative"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_derivative_tabular_explicit"
+
+[[route]]
+kind = "conditional"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_conditional_tabular_accepted"
+
+[[route]]
+kind = "conditional"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_conditional_tabular_explicit"
+
+[[route]]
+kind = "conditional"
+data = "tabular"
+structure = "explicit"
+options = "validators"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_conditional_tabular_explicit_validators"
+
+[[route]]
+kind = "conditional"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_conditional_tabular_graph_posterior"
+
+[[route]]
+kind = "counterfactual"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_counterfactual_tabular_accepted"
+
+[[route]]
+kind = "counterfactual"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_counterfactual_tabular_explicit"
+
+[[route]]
+kind = "directional_derivative"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_directional_derivative_tabular_accepted"
+
+[[route]]
+kind = "directional_derivative"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_directional_derivative_tabular_explicit"
+
+[[route]]
+kind = "distribution"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_distribution_tabular_accepted"
+
+[[route]]
+kind = "distribution"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_distribution_tabular_explicit"
+
+[[route]]
+kind = "elasticity"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_elasticity_tabular_accepted"
+
+[[route]]
+kind = "elasticity"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_elasticity_tabular_explicit"
+
+[[route]]
+kind = "intervention_response"
+data = "event"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_intervention_response_event_accepted"
+
+[[route]]
+kind = "intervention_response"
+data = "event"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_intervention_response_event_explicit"
+
+[[route]]
+kind = "intervention_response"
+data = "panel"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_intervention_response_panel_accepted"
+
+[[route]]
+kind = "intervention_response"
+data = "panel"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_intervention_response_panel_explicit"
+
+[[route]]
+kind = "intervention_response"
+data = "series"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_intervention_response_series_accepted"
+
+[[route]]
+kind = "intervention_response"
+data = "series"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_intervention_response_series_explicit"
+
+[[route]]
+kind = "intervention_response"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_intervention_response_tabular_accepted"
+
+[[route]]
+kind = "intervention_response"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_intervention_response_tabular_explicit"
+
+[[route]]
+kind = "intervention_response"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_intervention_response_tabular_graph_posterior"
+
+[[route]]
+kind = "mediation"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_mediation_tabular_accepted"
+
+[[route]]
+kind = "mediation"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_mediation_tabular_explicit"
+
+[[route]]
+kind = "path_specific"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_path_specific_tabular_accepted"
+
+[[route]]
+kind = "path_specific"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_path_specific_tabular_explicit"
+
+[[route]]
+kind = "point_derivative"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_point_derivative_tabular_accepted"
+
+[[route]]
+kind = "point_derivative"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_point_derivative_tabular_explicit"
+
+[[route]]
+kind = "pulse"
+data = "event"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_event_accepted"
+
+[[route]]
+kind = "pulse"
+data = "event"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_event_explicit"
+
+[[route]]
+kind = "pulse"
+data = "event"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_event_graph_posterior"
+
+[[route]]
+kind = "pulse"
+data = "multi_env"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_multi_env_accepted"
+
+[[route]]
+kind = "pulse"
+data = "multi_env"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_multi_env_explicit"
+
+[[route]]
+kind = "pulse"
+data = "panel"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_panel_accepted"
+
+[[route]]
+kind = "pulse"
+data = "panel"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_panel_explicit"
+
+[[route]]
+kind = "pulse"
+data = "panel"
+structure = "explicit"
+options = "validators"
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_panel_explicit_validators"
+
+[[route]]
+kind = "pulse"
+data = "series"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_series_accepted"
+
+[[route]]
+kind = "pulse"
+data = "series"
+structure = "discovered.pcmci"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_series_discovered_pcmci"
+
+[[route]]
+kind = "pulse"
+data = "series"
+structure = "discovered.pcmci_plus"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_series_discovered_pcmci_plus"
+
+[[route]]
+kind = "pulse"
+data = "series"
+structure = "discovered.rpcmci"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_series_discovered_rpcmci"
+
+[[route]]
+kind = "pulse"
+data = "series"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_series_explicit"
+
+[[route]]
+kind = "pulse"
+data = "series"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_pulse_series_graph_posterior"
+
+[[route]]
+kind = "response_curve"
+data = "event"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_curve_event_accepted"
+
+[[route]]
+kind = "response_curve"
+data = "event"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_curve_event_explicit"
+
+[[route]]
+kind = "response_curve"
+data = "panel"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_curve_panel_accepted"
+
+[[route]]
+kind = "response_curve"
+data = "panel"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_curve_panel_explicit"
+
+[[route]]
+kind = "response_curve"
+data = "series"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_curve_series_accepted"
+
+[[route]]
+kind = "response_curve"
+data = "series"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_curve_series_explicit"
+
+[[route]]
+kind = "response_curve"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_curve_tabular_accepted"
+
+[[route]]
+kind = "response_curve"
+data = "tabular"
+structure = "discovered.lingam"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_curve_tabular_discovered_lingam"
+
+[[route]]
+kind = "response_curve"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_curve_tabular_explicit"
+
+[[route]]
+kind = "response_curve"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_curve_tabular_graph_posterior"
+
+[[route]]
+kind = "response_jacobian"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_jacobian_tabular_accepted"
+
+[[route]]
+kind = "response_jacobian"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_jacobian_tabular_explicit"
+
+[[route]]
+kind = "semi_elasticity"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_semi_elasticity_tabular_accepted"
+
+[[route]]
+kind = "semi_elasticity"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_semi_elasticity_tabular_explicit"
+
+[[route]]
+kind = "sustained"
+data = "event"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_sustained_event_accepted"
+
+[[route]]
+kind = "sustained"
+data = "event"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_sustained_event_explicit"
+
+[[route]]
+kind = "sustained"
+data = "event"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_sustained_event_graph_posterior"
+
+[[route]]
+kind = "sustained"
+data = "multi_env"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_sustained_multi_env_accepted"
+
+[[route]]
+kind = "sustained"
+data = "multi_env"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_sustained_multi_env_explicit"
+
+[[route]]
+kind = "sustained"
+data = "panel"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_sustained_panel_accepted"
+
+[[route]]
+kind = "sustained"
+data = "panel"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_sustained_panel_explicit"
+
+[[route]]
+kind = "sustained"
+data = "series"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_sustained_series_accepted"
+
+[[route]]
+kind = "sustained"
+data = "series"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_sustained_series_explicit"
+
+[[route]]
+kind = "sustained"
+data = "series"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_sustained_series_graph_posterior"
+
+[[route]]
+kind = "temporal_mediation"
+data = "event"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_temporal_mediation_event_accepted"
+
+[[route]]
+kind = "temporal_mediation"
+data = "event"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_temporal_mediation_event_explicit"
+
+[[route]]
+kind = "temporal_mediation"
+data = "event"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_temporal_mediation_event_graph_posterior"
+
+[[route]]
+kind = "temporal_mediation"
+data = "series"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_temporal_mediation_series_accepted"
+
+[[route]]
+kind = "temporal_mediation"
+data = "series"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_temporal_mediation_series_explicit"
+
+[[route]]
+kind = "temporal_mediation"
+data = "series"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_temporal_mediation_series_graph_posterior"
+
+[[route]]
+kind = "transport"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_transport_interference_lifecycle.py::test_route_transport_tabular_explicit"
+
+[[route]]
+kind = "interference"
+data = "tabular"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_transport_interference_lifecycle.py::test_route_interference_tabular_explicit"
+
+# Permanent refusals: combinations the study builder does not license. Each names its
+# reason code and the test that pins it.
+
+[[refusal]]
+kind = "average"
+data = "multi_env"
+structure = "explicit"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_average_multi_env_explicit"
+
+[[refusal]]
+kind = "average"
+data = "panel"
+structure = "explicit"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_average_panel_explicit"
+
+[[refusal]]
+kind = "conditional"
+data = "panel"
+structure = "explicit"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_conditional_panel_explicit"
+
+[[refusal]]
+kind = "response_curve"
+data = "multi_env"
+structure = "explicit"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_response_curve_multi_env_explicit"
+
+[[refusal]]
+kind = "temporal_mediation"
+data = "panel"
+structure = "explicit"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_temporal_mediation_panel_explicit"
+
+[[refusal]]
+kind = "pulse"
+data = "panel"
+structure = "graph_posterior"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_pulse_panel_graph_posterior"
+
+[[refusal]]
+kind = "pulse"
+data = "multi_env"
+structure = "graph_posterior"
+reason = "data_modality_not_licensed"
+test = "python/tests/test_python_products.py::test_refusal_pulse_multi_env_graph_posterior"
+
+[[refusal]]
+kind = "path_specific"
+data = "tabular"
+structure = "graph_posterior"
+reason = "option_not_applicable"
+test = "python/tests/test_python_products.py::test_refusal_path_specific_tabular_graph_posterior"
+[[parameter]]
+name = "data"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "data_snapshot"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_data_reaches_plan"
+
+[[parameter]]
+name = "query"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "target.query"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_query_reaches_plan"
+
+[[parameter]]
+name = "graph"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "identification.graph"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_graph_reaches_plan"
+
+[[parameter]]
+name = "discovery"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "identification.algorithm_id"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_discovery_reaches_plan"
+
+[[parameter]]
+name = "accept_discovered"
+entry_points = ["analyze", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "identification.structure_source"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_accept_discovered_reaches_plan"
+
+[[parameter]]
+name = "identifier"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "program.commitments.identifier"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_identifier_reaches_plan"
+
+[[parameter]]
+name = "estimator"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "inference_binding.estimator_spec"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_estimator_reaches_plan"
+
+[[parameter]]
+name = "estimator_config"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "inference_binding.estimator_spec"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_estimator_config_reaches_plan"
+
+[[parameter]]
+name = "bootstrap"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "inference_binding.bootstrap_replicates"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_bootstrap_reaches_plan"
+
+[[parameter]]
+name = "inference"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "inference_binding.inference"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_inference_reaches_plan"
+
+[[parameter]]
+name = "refute"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "inference_binding.validation_suite"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_refute_reaches_plan"
+
+[[parameter]]
+name = "validators"
+entry_points = ["analyze", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "claim.attested"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_validators_reaches_plan"
+
+[[parameter]]
+name = "class_prior"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "identities.identification"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_class_prior_reaches_plan"
+
+[[parameter]]
+name = "max_completions"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "identities.identification"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_max_completions_reaches_plan"
+
+[[parameter]]
+name = "latency"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "inference_binding"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_latency_reaches_plan"
+
+[[parameter]]
+name = "regimes"
+entry_points = ["analyze", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "identification.algorithm_id"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_regimes_reaches_plan"
+
+[[parameter]]
+name = "population_registry"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "target.query"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_population_registry_reaches_plan"
+
+[[parameter]]
+name = "return_posterior_artifact"
+entry_points = ["analyze"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_return_posterior_artifact_reaches_plan"
+
+[[parameter]]
+name = "running_variable"
+entry_points = ["analyze", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "identification.rd_config.running_variable"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_running_variable_reaches_plan"
+
+[[parameter]]
+name = "cutoff"
+entry_points = ["analyze", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "identification.rd_config.cutoff_bits"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_cutoff_reaches_plan"
+
+[[parameter]]
+name = "bandwidth"
+entry_points = ["analyze", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "identification.rd_config.bandwidth_bits"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_bandwidth_reaches_plan"
+
+[[parameter]]
+name = "seed"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "execution.seed"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_seed_reaches_plan"
+
+[[parameter]]
+name = "threads"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "contract"
+contract_key = "execution.threads"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_threads_reaches_plan"
+
+[[parameter]]
+name = "cancel"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_cancel_reaches_plan"
+
+[[parameter]]
+name = "on_progress"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_on_progress_reaches_plan"
+
+[[parameter]]
+name = "on_stage"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_on_stage_reaches_plan"
+

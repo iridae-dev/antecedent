@@ -66,6 +66,7 @@ cargo bench -p antecedent-prob --bench hmc -- --test
 cargo bench -p antecedent-prob --bench mcmc_stats -- --test
 cargo bench -p antecedent-model --bench sample_overlay -- --test
 cargo bench -p antecedent-counterfactual --bench counterfactual_batch -- --test
+cargo bench -p antecedent --bench staged_handle -- --test
 cargo bench -p antecedent --bench temporal_zero_replicates -- --test
 ```
 
@@ -78,3 +79,6 @@ Cached derivative estimation and refitted GCM unit counterfactual execution are
 measured in `antecedent/benches/staged_handle.rs`.
 [Baseline](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/staged_handle.md). Preparation is excluded from
 these timings; supplied-data estimation remains inside each iteration.
+The same target also smokes inspect, capability, and metadata-only artifact
+reads (`inspect_n400`, `capability_n400`, `metadata_only_artifact_read`;
+none published). Inspection must not clone datasets or rerun identification.

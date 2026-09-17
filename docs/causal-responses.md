@@ -1,6 +1,6 @@
 # Causal responses
 
-For the 1.5 workflows, see [local targets, outcome distributions, and joint
+For retargeting, outcome distributions, and joint interventions, see [local targets, outcome distributions, and joint
 interventions](local-distributional-joint.md): prepare/retarget, raw CDF bands,
 unsupported tails, and non-additive joint-cell estimation.
 
@@ -155,21 +155,22 @@ or model correctness.
 
 ## Bayesian responses
 
-Use the prepared workflow to estimate a Gaussian response posterior:
+Estimate a Gaussian response posterior with the one-call workflow and retain its study:
 
 ```python
-from antecedent.estimation import PreparedAnalysis
-
-prepared = PreparedAnalysis.prepare(
+result = antecedent.analyze(
     data,
     graph=dag,
     query=query,
     inference=antecedent.Bayesian(backend="conjugate", n_draws=2048),
     refute="none",
 )
-result = prepared.estimate(data)
-response_bytes = prepared.export_artifact()
-query_bytes = prepared.export_artifact(payload="query")
+study = result.study
+report = result.inspect().to_dict()
+response_bytes = result.export()
+loaded = antecedent.load(response_bytes)
+assert loaded.acceptance.verified
+repeated = study.estimate()
 ```
 
 Explicit and accepted DAGs, TemporalDAGs, CPDAGs, and PAGs are licensed for
@@ -313,7 +314,7 @@ when any cell reads fewer than 30 effective rows.
   identified set (no class band; each completion atom keeps its own pointwise and
   simultaneous band, calibrated against that atom's own probability limit).
 
-In Python, `bootstrap=` on `analyze(...)` and `PreparedAnalysis.prepare(...)` is
+In Python, `bootstrap=` on `analyze(...)` and `prepare(...)` is
 the replicate count for Frequentist temporal `ResponseCurve` /
 `InterventionResponse` (TemporalDag surfaces and TemporalCpdag/Pag completion
 atoms). An explicit count always wins. Omitted, it follows the `latency` tier

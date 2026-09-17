@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Survey prior bank: catalog → compose → analyze target (P4E facade demo).
+"""Combine evidence from earlier surveys for a new survey analysis.
 
-Illustrative domain only — two fake survey posteriors tagged by product/context,
-ranked by caller-supplied similarity, composed with power-prior weights, then
-transferred into a new target survey. Requires a built extension
-(``maturin develop`` in ``python/``).
-"""
+Two simulated surveys provide prior evidence. We rank them using similarity
+scores supplied by the caller, choose their weights, and combine them for
+the target analysis. The library does not infer those similarity judgments.
+
+Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 
@@ -40,12 +40,12 @@ def _fit_artifact(
         graph=edges,
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
         inference=antecedent.Bayesian(n_draws=96, backend="conjugate"),
-        refute=False,
+        refute="none",
         seed=seed,
-        return_posterior_artifact=True,
     )
     assert result.posterior is not None
-    return bytes(result.posterior.artifact), float(result.posterior.effect_mean)
+    # The prior catalog consumes a posterior payload, not a full execution export.
+    return result.study.export_artifact(), float(result.posterior.effect_mean)
 
 
 def main() -> None:
@@ -163,6 +163,7 @@ def main() -> None:
         refute="full",
         seed=13,
     )
+    print("Calibration:", target.calibration.status)
     assert target.posterior is not None
     assert np.isfinite(target.posterior.effect_mean)
     sens = target.validation.prior_sensitivity

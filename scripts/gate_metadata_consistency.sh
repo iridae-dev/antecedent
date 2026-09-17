@@ -11,6 +11,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# --self-test: each broken input, applied alone to an overlay of the repo, must
+# fail this gate with the expected message (scripts/selftest_cases.py).
+if [[ "${1:-}" == "--self-test" ]]; then
+  exec python3 "$ROOT/scripts/selftest_cases.py" metadata
+fi
+
 python3 - <<'PY'
 from pathlib import Path
 import json
@@ -225,28 +231,15 @@ UPSTREAM = [
 ledger = tomllib.load(open("parity/oracle_closure.toml", "rb"))
 
 # A closed oracle row is only evidence when an executing conformance test
-# consumes its frozen fixture.  The repository-wide reachability gate answers
-# a broader question and deliberately counts package code/gate scripts; that is
-# insufficient for the ROADMAP's oracle-closure promise.
-oracle_test_sources = set(root.glob("crates/**/tests/**/*.rs"))
-oracle_test_sources.update(root.glob("python/tests/**/*.py"))
-oracle_rust_sources = set(root.glob("crates/**/src/**/*.rs"))
+# consumes its frozen fixture: a test function (with the helpers it calls) that
+# names the fixture's full `conformance/<category>/<name>` path outside comments,
+# parses it and asserts (scripts/test_evidence.py).
+sys.path.insert(0, str((root / "scripts").resolve()))
+import test_evidence  # noqa: E402  (the one reader of test source for the gates)
 
 
 def oracle_fixture_has_test(fixture_dir: str) -> bool:
-    name = Path(fixture_dir).name
-    marker = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])")
-    for path in oracle_test_sources:
-        if marker.search(path.read_text(errors="ignore")):
-            return True
-    for path in oracle_rust_sources:
-        text = path.read_text(errors="ignore")
-        hits = list(marker.finditer(text))
-        if path.name == "tests.rs" and hits:
-            return True
-        if any("#[cfg(test)]" in text[: hit.start()] for hit in hits):
-            return True
-    return False
+    return bool(test_evidence.fixture_consumers(fixture_dir))
 
 
 for method in ledger.get("method", []):

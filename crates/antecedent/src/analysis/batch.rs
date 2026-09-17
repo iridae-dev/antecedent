@@ -343,8 +343,10 @@ enum BatchGraph {
 pub struct BatchStudy {
     data: TabularData,
     graph: BatchGraph,
-    bootstrap_replicates: u32,
-    refute: RefuteSuite,
+    /// `None` leaves the per-query builder's omitted table and latency tier in force.
+    bootstrap_replicates: Option<u32>,
+    /// `None` leaves the per-query builder's omitted suite (and its downgrade) in force.
+    refute: Option<RefuteSuite>,
     latency_mode: Option<LatencyMode>,
     identifier: Option<IdentifierId>,
     estimator: Option<EstimatorId>,
@@ -359,8 +361,8 @@ impl BatchStudy {
         Self {
             data,
             graph: BatchGraph::Dag(graph),
-            bootstrap_replicates: 199,
-            refute: RefuteSuite::PlaceboAndRcc,
+            bootstrap_replicates: None,
+            refute: None,
             latency_mode: None,
             identifier: None,
             estimator: None,
@@ -378,8 +380,8 @@ impl BatchStudy {
         Self {
             data,
             graph: BatchGraph::Tiered(background),
-            bootstrap_replicates: 199,
-            refute: RefuteSuite::PlaceboAndRcc,
+            bootstrap_replicates: None,
+            refute: None,
             latency_mode: None,
             identifier: None,
             estimator: None,
@@ -398,14 +400,14 @@ impl BatchStudy {
     /// Bootstrap replicates for every query.
     #[must_use]
     pub fn bootstrap_replicates(mut self, n: u32) -> Self {
-        self.bootstrap_replicates = n;
+        self.bootstrap_replicates = Some(n);
         self
     }
 
     /// Refute suite for every query.
     #[must_use]
     pub fn refute(mut self, suite: RefuteSuite) -> Self {
-        self.refute = suite;
+        self.refute = Some(suite);
         self
     }
 
@@ -581,11 +583,13 @@ impl BatchStudy {
         data: &TabularData,
         query: &ResponseQuery,
     ) -> Result<Study, CausalError> {
-        let mut builder = self
-            .bind_graph(Study::tabular(data.clone()))?
-            .query(query.clone())
-            .refute(self.refute)
-            .bootstrap_replicates(self.bootstrap_replicates);
+        let mut builder = self.bind_graph(Study::tabular(data.clone()))?.query(query.clone());
+        if let Some(suite) = self.refute {
+            builder = builder.refute(suite);
+        }
+        if let Some(replicates) = self.bootstrap_replicates {
+            builder = builder.bootstrap_replicates(replicates);
+        }
         if let Some(mode) = self.latency_mode {
             builder = builder.latency_mode(mode);
         }
@@ -645,11 +649,13 @@ impl BatchStudy {
         data: &TabularData,
         query: &AverageEffectQuery,
     ) -> Result<Study, CausalError> {
-        let mut builder = self
-            .bind_graph(Study::tabular(data.clone()))?
-            .query(query.clone())
-            .refute(self.refute)
-            .bootstrap_replicates(self.bootstrap_replicates);
+        let mut builder = self.bind_graph(Study::tabular(data.clone()))?.query(query.clone());
+        if let Some(suite) = self.refute {
+            builder = builder.refute(suite);
+        }
+        if let Some(replicates) = self.bootstrap_replicates {
+            builder = builder.bootstrap_replicates(replicates);
+        }
         if let Some(mode) = self.latency_mode {
             builder = builder.latency_mode(mode);
         }

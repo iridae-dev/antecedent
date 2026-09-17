@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Scheduled statistical calibration gate.
-# Not part of every-PR unit CI — run locally / before release / weekly GHA.
+# Statistical calibration gate, measured on a development machine before upload.
+# Never run in CI: scripts/measure_calibration.sh drives it; CI checks attestation only.
 #
 # Every group runs even when an earlier one fails; the failed groups are listed
 # at the end and the script exits nonzero.
@@ -13,9 +13,9 @@ FAILED_COUNT=0
 RECHECKED=""
 GROUP_INDEX=0
 
-# Sharding for the scheduled workflow: `ANTECEDENT_CALIBRATION_SHARD=k/N` runs
-# only the groups whose index (in script order) is congruent to k modulo N, so
-# N runners split the gate and each stays under its timeout. Unset runs all.
+# Group selection: `ANTECEDENT_CALIBRATION_SHARD=k/N` runs only the groups whose
+# index (in script order) is congruent to k modulo N; scripts/calibration_groups.py
+# runs one group at a time with N = the group count. Unset runs all.
 # `ANTECEDENT_CALIBRATION_DRY_RUN=1` lists the groups this shard would run.
 SHARD_K=""
 SHARD_N=""
@@ -31,12 +31,38 @@ fi
 # Replicate count of the precision recheck (crates/antecedent/tests/common/calibration.rs).
 RECHECK_NSIM="${ANTECEDENT_CALIBRATION_RECHECK_NSIM:-2000}"
 
+# Sample-size grid. Every coverage group that emits records (the
+# antecedent-estimate SE suite and the v19_* / v110_* suites) is measured once
+# per grid point with ANTECEDENT_CALIBRATION_GRID_POINT=<k>: each design draws
+# its row count through `SampleGrid` (crates/antecedent/tests/common/calibration.rs),
+# and scripts/collect_coverage_records.py merges the points of a record into
+# the measured range n_min..n_max. `ANTECEDENT_CALIBRATION_GRID_POINTS` limits
+# the points a run measures (default all three); the collector refuses a
+# record that misses one, so a partial run is for replay and smoke tests only.
+GRID_POINTS="${ANTECEDENT_CALIBRATION_GRID_POINTS:-0 1 2}"
+for point in $GRID_POINTS; do
+  case "$point" in 0|1|2) ;; *) echo "bad ANTECEDENT_CALIBRATION_GRID_POINTS=$GRID_POINTS (want points from 0 1 2)" >&2; exit 2;; esac
+done
+
+# Groups measured over the sample-size grid (every other group is a pass/fail
+# gate that emits no record and runs once).
+grid_group() {
+  case "$1" in
+    "antecedent-estimate: bayesian_"*) return 1 ;;
+    antecedent-estimate:*|v19_*|v110_*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # Run one gate group; record it as failed instead of aborting the gate.
 #
 # A coverage cell that passes its 400-replicate band but lands more than 2
 # points under its level prints a `calibration-recheck` line. The group is then
 # re-run at RECHECK_NSIM replicates, where the harness also enforces the
 # one-sided precision floor (level − 2·MCSE), and that run's verdict stands.
+# A grid group runs, logs and rechecks each grid point on its own
+# (`<group>.p<k>.log`, `<group>.p<k>.recheck.log`): a point that lands low is
+# rechecked at that point, and its verdict never borrows another point's.
 check() {
   local label="$1"
   shift
@@ -48,17 +74,43 @@ check() {
     echo "group ${GROUP_INDEX}: ${label}"
     return 0
   fi
-  local log status
-  log="$(mktemp -t gate_calibration.XXXXXX)"
-  "$@" 2>&1 | tee "$log"
+  local log status safe point stem shown
+  mkdir -p "$ROOT/target/calibration-records"
+  safe="$(echo "${label}" | tr ' /:' '___')"
+  if grid_group "$label"; then
+    for point in $GRID_POINTS; do
+      stem="$ROOT/target/calibration-records/${safe}.p${point}"
+      shown="${label} [grid point ${point}]"
+      echo "== grid point ${point}: ${label} =="
+      log="${stem}.log"
+      ANTECEDENT_CALIBRATION_GRID_POINT="$point" "$@" 2>&1 | tee "$log"
+      status="${PIPESTATUS[0]}"
+      if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
+        echo "== recheck at ${RECHECK_NSIM} replicates: ${shown} =="
+        RECHECKED="${RECHECKED}  ${shown}"$'\n'
+        # The recheck's verdict stands, so its `calibration-record` lines are the
+        # ones scripts/collect_coverage_records.py keeps for this grid point.
+        ANTECEDENT_CALIBRATION_GRID_POINT="$point" ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
+          "$@" 2>&1 | tee "${stem}.recheck.log"
+        status="${PIPESTATUS[0]}"
+      fi
+      if [ "$status" -ne 0 ]; then
+        FAILED="${FAILED}  ${shown}"$'\n'
+        FAILED_COUNT=$((FAILED_COUNT + 1))
+      fi
+    done
+    return 0
+  fi
+  log="$ROOT/target/calibration-records/${safe}.log"
+  env -u ANTECEDENT_CALIBRATION_GRID_POINT "$@" 2>&1 | tee "$log"
   status="${PIPESTATUS[0]}"
   if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
     echo "== recheck at ${RECHECK_NSIM} replicates: ${label} =="
     RECHECKED="${RECHECKED}  ${label}"$'\n'
-    ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" "$@"
-    status=$?
+    env -u ANTECEDENT_CALIBRATION_GRID_POINT ANTECEDENT_CALIBRATION_NSIM="$RECHECK_NSIM" \
+      "$@" 2>&1 | tee "$ROOT/target/calibration-records/${safe}.recheck.log"
+    status="${PIPESTATUS[0]}"
   fi
-  rm -f "$log"
   if [ "$status" -ne 0 ]; then
     FAILED="${FAILED}  ${label}"$'\n'
     FAILED_COUNT=$((FAILED_COUNT + 1))
@@ -85,7 +137,9 @@ run_ignored antecedent-estimate ipw_hajek_analytic_conformance_scm_ci_coverage
 run_ignored antecedent-estimate aipw_analytic_ci_coverage
 run_ignored antecedent-estimate aipw_ate_hc1_ci_coverage
 run_ignored antecedent-estimate aipw_att_hc1_ci_coverage
-run_ignored antecedent-estimate aipw_atc_hc1_ci_coverage
+# Boundary cell: measured 0.939 at 2000 replicates (the untreated arm's IF SE
+# runs about 3% short of the Monte Carlo SD at n = 600).
+run_ignored antecedent-estimate aipw_atc_hc1_boundary_within_band
 run_ignored antecedent-estimate aipw_att_cluster_ci_coverage
 run_ignored antecedent-estimate matching_homoskedastic_ci_coverage
 run_ignored antecedent-estimate wald_iv_analytic_ci_coverage
@@ -338,6 +392,11 @@ echo "== 1.9 temporal response surfaces: pointwise + simultaneous bands (anteced
 check "v19_temporal_response_calibration" \
   cargo test --release -p antecedent --test v19_temporal_response_calibration -- --ignored --nocapture
 
+echo "== 1.10 panel routes: cluster-by-unit SE, unit bootstrap, between-unit bands (antecedent) =="
+# One invocation runs every ignored test in the file.
+check "v110_panel_calibration" \
+  cargo test --release -p antecedent --test v110_panel_calibration -- --ignored --nocapture
+
 echo "== 1.9 remaining static cells: responses, mediation, path, distribution, counterfactual (R-19, R-17) =="
 run_static_remaining() {
   local filter="$1"
@@ -363,11 +422,11 @@ run_static_remaining path_specific_bayesian_nominal_90_coverage
 run_static_remaining path_specific_two_path_frequentist_nominal_90_coverage
 run_static_remaining path_specific_two_path_bayesian_nominal_90_coverage
 run_static_remaining interventional_distribution_bayesian_near_one_nominal_90_coverage
-run_static_remaining interventional_distribution_bayesian_near_zero_nominal_90_coverage
+run_static_remaining interventional_distribution_bayesian_near_zero_boundary_within_band
 run_static_remaining interventional_distribution_frequentist_near_one_nominal_95_coverage
 run_static_remaining interventional_distribution_frequentist_near_zero_nominal_95_coverage
 run_static_remaining interventional_distribution_frequentist_interior_nominal_95_coverage
-run_static_remaining counterfactual_bayesian_mean_ite_nominal_90_coverage
+run_static_remaining counterfactual_bayesian_mean_ite_boundary_within_band
 # Gates the correctly specified law; the misspecified outcomes are recorded only.
 run_static_remaining bayesian_gcomp_misspecification_probe
 # Out-of-assumption probes: coverage recorded, not gated.
@@ -396,6 +455,63 @@ echo "== Discovery null FPR / power (antecedent-discovery) =="
 run_ignored antecedent-discovery pc_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_null_fpr_near_alpha
 run_ignored antecedent-discovery pcmci_planted_lag1_power
+
+echo "== 1.10 coordinates measured at the level the facade publishes (0.95) and at 0.90 =="
+run_v110() {
+  local file="$1"
+  local filter="$2"
+  echo "== antecedent: ${file} ${filter} =="
+  check "${file}: ${filter}" \
+    cargo test --release -p antecedent --test "$file" "$filter" -- --ignored --exact --nocapture
+}
+run_v110 v110_calibration_response intervention_response_dag_graph_posterior_frequentist_nominal_coverage
+run_v110 v110_calibration_response intervention_response_cpdag_bayesian_nominal_coverage
+run_v110 v110_calibration_response intervention_response_pag_bayesian_nominal_coverage
+run_v110 v110_calibration_response response_curve_cpdag_bayesian_pointwise_nominal_coverage
+run_v110 v110_calibration_response response_curve_pag_bayesian_pointwise_nominal_coverage
+run_v110 v110_calibration_response intervention_response_codetermined_frequentist_nominal_coverage
+run_v110 v110_calibration_admg average_effect_admg_frontdoor_frequentist_nominal_coverage
+run_v110 v110_calibration_admg average_effect_admg_frontdoor_bayesian_nominal_coverage
+run_v110 v110_calibration_admg interventional_distribution_admg_frontdoor_bayesian_nominal_coverage
+run_v110 v110_calibration_design transport_admg_trial_ipw_frequentist_nominal_coverage
+# Boundary cell: the conservative Young variance bound over-covers by design.
+run_v110 v110_calibration_design interference_dag_bernoulli_neighbor_count_conservative_bound_boundary
+run_v110 v110_calibration_estimate glm_adjustment_binary_outcome_nominal_coverage
+run_v110 v110_calibration_estimate average_effect_dag_frequentist_default_nominal_coverage
+run_v110 v110_calibration_temporal temporal_cpdag_mediation_frequentist_confounded_nominal_coverage
+run_v110 v110_calibration_temporal temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage
+run_v110 v110_calibration_temporal pulse_effect_temporal_dag_bayesian_default_nominal_coverage
+run_v110 v110_calibration_temporal pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage
+run_v110 v110_calibration_bayesian_static average_effect_dag_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static average_effect_dag_bayesian_logit_nominal_coverage
+run_v110 v110_calibration_bayesian_static average_effect_dag_bayesian_probit_nominal_coverage
+run_v110 v110_calibration_bayesian_static average_effect_dag_bayesian_poisson_nominal_coverage
+run_v110 v110_calibration_bayesian_static average_effect_cpdag_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static average_effect_pag_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static conditional_effect_dag_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static conditional_effect_cpdag_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static conditional_effect_pag_bayesian_default_nominal_coverage
+# Boundary cells: an atom probability 0.035 from a boundary at 600 rows.
+run_v110 v110_calibration_bayesian_static interventional_distribution_dag_bayesian_near_one_default_coverage
+run_v110 v110_calibration_bayesian_static interventional_distribution_dag_bayesian_near_zero_default_coverage
+run_v110 v110_calibration_bayesian_static mediation_nde_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static mediation_nie_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static path_specific_chain_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static path_specific_two_path_bayesian_default_nominal_coverage
+# Boundary cell: the mean-ITE credible interval is finite-sample tight at n=300.
+run_v110 v110_calibration_bayesian_static counterfactual_bayesian_mean_ite_default_coverage
+run_v110 v110_calibration_bayesian_static intervention_response_dag_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static response_curve_dag_bayesian_default_pointwise_nominal_coverage
+run_v110 v110_calibration_bayesian_static average_derivative_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static point_derivative_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static semi_elasticity_log_treatment_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static semi_elasticity_log_outcome_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static elasticity_bayesian_default_nominal_coverage
+run_v110 v110_calibration_bayesian_static directional_derivative_bayesian_default_nominal_coverage
+# Boundary cell: the Jacobian band's measured coverage is asserted, not nominal.
+run_v110 v110_calibration_bayesian_static response_jacobian_bayesian_default_coverage
+run_v110 v110_calibration_counterfactual counterfactual_interaction_bayesian_unit_and_mean_ite_coverage
+run_v110 v110_calibration_counterfactual counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage
 
 echo "== 0.5.0 response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh

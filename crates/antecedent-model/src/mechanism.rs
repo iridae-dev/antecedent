@@ -15,6 +15,7 @@
 use antecedent_core::CausalRng;
 use antecedent_kernels::{categorical_from_u, standard_normal};
 
+use crate::basis::ParentBasis;
 use crate::batch::{MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatchMut};
 use crate::compile::MechanismSlot;
 use crate::error::ModelError;
@@ -56,6 +57,7 @@ pub fn sample_noise_column(
         MechanismSlot::LinearGaussian { sigma, .. }
         | MechanismSlot::HierarchicalLinear { sigma, .. }
         | MechanismSlot::Bvar { sigma, .. }
+        | MechanismSlot::LinearBasis { sigma, .. }
         | MechanismSlot::GaussianProcess { noise_std: sigma, .. } => {
             for i in 0..n_rows {
                 output[i] = *sigma * standard_normal(rng);
@@ -66,7 +68,7 @@ pub fn sample_noise_column(
         | MechanismSlot::ConditionalLinearGaussianStateSpace { .. } => {
             sample_lgssm_noise(n_rows, rng, output)
         }
-        MechanismSlot::Discrete { .. } => {
+        MechanismSlot::Discrete { .. } | MechanismSlot::DiscreteBasis { .. } => {
             // Uniform(0,1) drives categorical draws in evaluate / sample_column.
             for i in 0..n_rows {
                 output[i] = rng.next_f64().clamp(f64::EPSILON, 1.0 - f64::EPSILON);
@@ -117,6 +119,37 @@ pub fn evaluate_column(
                     eta += coeffs[p] * parents.column(p)?[r];
                 }
                 output[r] = eta;
+            }
+            Ok(())
+        }
+        MechanismSlot::LinearBasis { intercept, basis, coeffs, .. } => {
+            basis_mean_column(*intercept, basis, coeffs, parents, &mut output[..n])?;
+            for r in 0..n {
+                output[r] += noise[r];
+            }
+            Ok(())
+        }
+        MechanismSlot::DiscreteBasis { support, basis, logit_coeffs, .. } => {
+            if support.is_empty() {
+                return Err(ModelError::Shape { message: "empty discrete support".into() });
+            }
+            let k = support.len();
+            let mut row_probs = vec![0.0; k];
+            let mut expanded = vec![0.0; basis.n_terms()];
+            let mut row = vec![0.0; basis.n_parents()];
+            for r in 0..n {
+                basis_softmax_row_probs(
+                    basis,
+                    logit_coeffs,
+                    k,
+                    parents,
+                    r,
+                    &mut expanded,
+                    &mut row,
+                    &mut row_probs,
+                )?;
+                let u = if noise[r] > 0.0 && noise[r] < 1.0 { noise[r] } else { 0.5 };
+                output[r] = categorical_draw(support, &row_probs, u);
             }
             Ok(())
         }
@@ -216,6 +249,91 @@ pub fn evaluate_column(
             mechanism.evaluate_column(parents, noise, output, ws)
         }
     }
+}
+
+/// Conditional mean of a [`MechanismSlot::LinearBasis`] at every row.
+///
+/// Shared by evaluation, abduction, log-density and the registry's scoring so
+/// all four read the same surface.
+///
+/// # Errors
+///
+/// Coefficient / parent arity mismatch, or out-of-range parent access.
+pub(crate) fn basis_mean_column(
+    intercept: f64,
+    basis: &ParentBasis,
+    coeffs: &[f64],
+    parents: ParentBatch<'_>,
+    output: &mut [f64],
+) -> Result<(), ModelError> {
+    if basis.n_parents() != parents.n_parents || coeffs.len() != basis.n_terms() {
+        return Err(ModelError::Shape {
+            message: "basis mechanism arity does not match the parent batch".into(),
+        });
+    }
+    let n = parents.n_rows;
+    let mut row = vec![0.0; basis.n_parents()];
+    let mut expanded = vec![0.0; basis.n_terms()];
+    for r in 0..n {
+        for (p, slot) in row.iter_mut().enumerate() {
+            *slot = basis.standardize(p, parents.column(p)?[r]);
+        }
+        basis.expand_standardized(&row, &mut expanded)?;
+        let mut eta = intercept;
+        for (c, x) in coeffs.iter().zip(&expanded) {
+            eta += c * x;
+        }
+        output[r] = eta;
+    }
+    Ok(())
+}
+
+/// Softmax probabilities of a [`MechanismSlot::DiscreteBasis`] at one row.
+#[allow(clippy::too_many_arguments)] // row index plus three reused scratch buffers
+fn basis_softmax_row_probs(
+    basis: &ParentBasis,
+    logits: &[f64],
+    k: usize,
+    parents: ParentBatch<'_>,
+    row_index: usize,
+    expanded: &mut [f64],
+    row: &mut [f64],
+    out: &mut [f64],
+) -> Result<(), ModelError> {
+    let width = 1 + basis.n_terms();
+    if logits.len() != k * width || basis.n_parents() != parents.n_parents {
+        return Err(ModelError::Shape {
+            message: "discrete basis logit_coeffs length mismatch".into(),
+        });
+    }
+    for (p, slot) in row.iter_mut().enumerate() {
+        *slot = basis.standardize(p, parents.column(p)?[row_index]);
+    }
+    basis.expand_standardized(row, expanded)?;
+    let mut max_eta = f64::NEG_INFINITY;
+    let mut etas = vec![0.0; k];
+    for cat in 0..k {
+        let base = cat * width;
+        let mut pred = logits[base];
+        for (t, x) in expanded.iter().enumerate() {
+            pred += logits[base + 1 + t] * x;
+        }
+        etas[cat] = pred;
+        if pred > max_eta {
+            max_eta = pred;
+        }
+    }
+    let mut sum = 0.0;
+    for cat in 0..k {
+        let e = (etas[cat] - max_eta).exp();
+        out[cat] = e;
+        sum += e;
+    }
+    let inv = 1.0 / sum.max(f64::EPSILON);
+    for p in out.iter_mut() {
+        *p *= inv;
+    }
+    Ok(())
 }
 
 /// GP dual-form predictive mean at each row: `Σᵢ αᵢ · variance · exp(-0.5 d(x_row, xᵢ)² / ℓ²)`.
@@ -347,6 +465,16 @@ pub fn infer_noise_column_rng(
             }
             Ok(NoiseInferenceMode::Invertible)
         }
+        MechanismSlot::LinearBasis { intercept, basis, coeffs, .. } => {
+            // Additive disturbance: the expansion moves the conditional mean
+            // only, so the structural residual is recovered exactly.
+            let mut mean = vec![0.0; n];
+            basis_mean_column(*intercept, basis, coeffs, parents, &mut mean)?;
+            for r in 0..n {
+                output[r] = value[r] - mean[r];
+            }
+            Ok(NoiseInferenceMode::Invertible)
+        }
         MechanismSlot::Discrete { support, probs, logit_coeffs } => {
             infer_discrete_posterior_noise(
                 support,
@@ -357,6 +485,29 @@ pub fn infer_noise_column_rng(
                 output,
                 rng,
             )?;
+            Ok(NoiseInferenceMode::Posterior)
+        }
+        MechanismSlot::DiscreteBasis { support, basis, logit_coeffs, .. } => {
+            let k = support.len();
+            if k == 0 {
+                return Err(ModelError::Shape { message: "empty discrete support".into() });
+            }
+            let mut row_probs = vec![0.0; k];
+            let mut expanded = vec![0.0; basis.n_terms()];
+            let mut row = vec![0.0; basis.n_parents()];
+            for r in 0..n {
+                basis_softmax_row_probs(
+                    basis,
+                    logit_coeffs,
+                    k,
+                    parents,
+                    r,
+                    &mut expanded,
+                    &mut row,
+                    &mut row_probs,
+                )?;
+                output[r] = categorical_inverse_cdf_draw(support, &row_probs, value[r], rng)?;
+            }
             Ok(NoiseInferenceMode::Posterior)
         }
         MechanismSlot::ConditionalLinearGaussianStateSpace {
@@ -441,22 +592,35 @@ fn infer_discrete_posterior_noise(
                 softmax_row_probs(logits, k, width, parents, r, &mut row_probs)?;
             }
         }
-        let cat = support.iter().position(|&s| (value[r] - s).abs() < 1e-12).ok_or_else(|| {
-            ModelError::Unsupported {
-                message: format!("discrete value {} not in support", value[r]),
-            }
-        })?;
-        let mut lo = 0.0;
-        for i in 0..cat {
-            lo += row_probs[i];
-        }
-        let hi = (lo + row_probs[cat]).min(1.0);
-        let lo = lo.clamp(0.0, 1.0 - f64::EPSILON);
-        let hi = hi.max(lo + f64::EPSILON).min(1.0 - f64::EPSILON / 2.0);
-        let u = lo + (hi - lo) * rng.next_f64();
-        output[r] = u.clamp(f64::EPSILON, 1.0 - f64::EPSILON);
+        output[r] = categorical_inverse_cdf_draw(support, &row_probs, value[r], rng)?;
     }
     Ok(())
+}
+
+/// Draw the uniform noise of a categorical mechanism that produced `value`.
+///
+/// The map from `u ~ U(0,1)` to a category is many-to-one, so abduction draws
+/// uniformly from the CDF bin of the observed category — the posterior of the
+/// noise given the value. One owner, shared by the parent-conditional
+/// [`MechanismSlot::Discrete`] and [`MechanismSlot::DiscreteBasis`] paths.
+fn categorical_inverse_cdf_draw(
+    support: &[f64],
+    row_probs: &[f64],
+    value: f64,
+    rng: &mut CausalRng,
+) -> Result<f64, ModelError> {
+    let cat = support.iter().position(|&s| (value - s).abs() < 1e-12).ok_or_else(|| {
+        ModelError::Unsupported { message: format!("discrete value {value} not in support") }
+    })?;
+    let mut lo = 0.0;
+    for i in 0..cat {
+        lo += row_probs[i];
+    }
+    let hi = (lo + row_probs[cat]).min(1.0);
+    let lo = lo.clamp(0.0, 1.0 - f64::EPSILON);
+    let hi = hi.max(lo + f64::EPSILON).min(1.0 - f64::EPSILON / 2.0);
+    let u = lo + (hi - lo) * rng.next_f64();
+    Ok(u.clamp(f64::EPSILON, 1.0 - f64::EPSILON))
 }
 
 /// Log-density of observed values under the mechanism (PCM path).
@@ -540,6 +704,47 @@ pub fn log_prob_column(
                     }
                 };
                 output[r] = lp;
+            }
+            Ok(())
+        }
+        MechanismSlot::LinearBasis { intercept, basis, coeffs, sigma } => {
+            if !(sigma.is_finite() && *sigma > 0.0) {
+                return Err(ModelError::Numerical { message: "sigma must be > 0".into() });
+            }
+            let mut mean = vec![0.0; n];
+            basis_mean_column(*intercept, basis, coeffs, parents, &mut mean)?;
+            let inv_s = 1.0 / sigma;
+            let log_norm = -0.5 * (2.0 * std::f64::consts::PI).ln() - sigma.ln();
+            for r in 0..n {
+                let z = (values[r] - mean[r]) * inv_s;
+                output[r] = log_norm - 0.5 * z * z;
+            }
+            Ok(())
+        }
+        MechanismSlot::DiscreteBasis { support, basis, logit_coeffs, .. } => {
+            let k = support.len();
+            let mut row_probs = vec![0.0; k];
+            let mut expanded = vec![0.0; basis.n_terms()];
+            let mut row = vec![0.0; basis.n_parents()];
+            for r in 0..n {
+                basis_softmax_row_probs(
+                    basis,
+                    logit_coeffs,
+                    k,
+                    parents,
+                    r,
+                    &mut expanded,
+                    &mut row,
+                    &mut row_probs,
+                )?;
+                let mut found = f64::NEG_INFINITY;
+                for (i, &s) in support.iter().enumerate() {
+                    if (values[r] - s).abs() < 1e-12 {
+                        found = row_probs[i].max(f64::EPSILON).ln();
+                        break;
+                    }
+                }
+                output[r] = found;
             }
             Ok(())
         }

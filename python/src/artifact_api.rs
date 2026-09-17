@@ -1,5 +1,6 @@
 //! Python bridge for standalone format-0.5 causal wire artifacts.
 
+use antecedent_io::executed_functional_labels;
 use antecedent_io::{
     CausalPayloadWire, CausalQueryWire, CausalResponseWire, InterferenceEstimateWire,
     TransportEffectEstimateWire, TransportIdentificationWire, decode_analysis_result_artifact,
@@ -26,6 +27,8 @@ struct DecodedCausalArtifact {
     variable_names: Vec<String>,
     #[pyo3(get)]
     payload_json: String,
+    #[pyo3(get)]
+    contract_json: Option<String>,
 }
 
 fn serialization_error(error: impl std::fmt::Display) -> PyErr {
@@ -131,6 +134,11 @@ fn decode_causal_artifact(bytes: &[u8]) -> PyResult<DecodedCausalArtifact> {
     let Ok((artifact, header, payload)) = decode_causal_payload_artifact(bytes) else {
         let (artifact, header, payload) =
             decode_analysis_result_artifact(bytes).map_err(serialization_error)?;
+        let contract_json = match antecedent_io::decode_analysis_result_contract(&artifact) {
+            Ok(Some(contract)) => Some(json(&contract)?),
+            Ok(None) => None,
+            Err(err) => return Err(serialization_error(err)),
+        };
         return Ok(DecodedCausalArtifact {
             artifact_id: artifact.manifest.artifact_id,
             format_major: artifact.manifest.format_version.major,
@@ -138,6 +146,7 @@ fn decode_causal_artifact(bytes: &[u8]) -> PyResult<DecodedCausalArtifact> {
             payload_kind: "analysis_result".into(),
             variable_names: header.variable_names,
             payload_json: json(&payload)?,
+            contract_json,
         });
     };
     Ok(DecodedCausalArtifact {
@@ -155,12 +164,51 @@ fn decode_causal_artifact(bytes: &[u8]) -> PyResult<DecodedCausalArtifact> {
         .into(),
         variable_names: header.variable_names,
         payload_json: payload_json(&payload)?,
+        contract_json: None,
     })
+}
+
+#[pyfunction]
+fn accept_analysis_result_contract(
+    bytes: &[u8],
+) -> PyResult<std::collections::HashMap<String, String>> {
+    let consumed = antecedent_io::consume_analysis_result(bytes).map_err(serialization_error)?;
+    let mut out = std::collections::HashMap::new();
+    out.insert("recognized".into(), consumed.acceptance.recognized.to_string());
+    out.insert("verified_references".into(), consumed.acceptance.verified_references.to_string());
+    out.insert(
+        "accepts_as_verified_program".into(),
+        consumed.acceptance.accepts_as_verified_program().to_string(),
+    );
+    if let Some(restriction) = &consumed.acceptance.restriction {
+        out.insert("restriction".into(), restriction.to_string());
+    }
+    out.insert(
+        "unresolved".into(),
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(","),
+    );
+    if let Some(contract) = &consumed.contract {
+        out.insert("program".into(), antecedent_io::digest_hex(&contract.identities.program));
+        out.insert("target".into(), antecedent_io::digest_hex(&contract.identities.target));
+        out.insert("graph_class".into(), contract.graph_class.clone());
+        out.insert("variable_names".into(), contract.target.schema.variable_names().join(","));
+        for (key, value) in executed_functional_labels(&contract.target.query) {
+            out.insert(key, value);
+        }
+    }
+    Ok(out)
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DecodedCausalArtifact>()?;
     m.add_function(wrap_pyfunction!(encode_causal_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(decode_causal_artifact, m)?)?;
+    m.add_function(wrap_pyfunction!(accept_analysis_result_contract, m)?)?;
     Ok(())
 }

@@ -100,8 +100,9 @@ notes = "antecedent-model MechanismRegistry + CompiledCausalModel"
 [[capabilities]]
 id = "bayes.discovery.dag_posterior"
 status = "done"
-evidence_kind = "implementation_exists"
-limitations = "Unit tests exercise enumeration counts, diagnostics, and sampler mechanics, but no independent fixture is consumed for this umbrella capability and no claim of posterior calibration or upstream-package parity is made."
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/dag_posterior"
+limitations = "crates/antecedent-discovery/tests/dag_posterior_conformance.rs runs every engine on known chain, collider and lag-1 SEMs and requires the fixture's minimum posterior mass on the true structure; the collider check runs the CI-screened engine with its MCMC publication gate off, because its screened space leaves one graph and the gate refuses a trace in which no chain moved. No claim of posterior calibration or upstream-package parity is made."
 notes = "ExactDagPosterior + StructureMcmc/OrderMcmc + CiScreenedPosterior + DbnPosterior in antecedent-discovery (§13.7); GraphPosterior → WeightedGraphSamples; facade compose via analyze + Bayesian mixture (python_facade=full)"
 
 [[capabilities]]
@@ -114,7 +115,7 @@ notes = "EB hierarchical linear + HierarchicalGlm (Bernoulli logit); Minnesota B
 id = "bayes.validate.mcmc_diagnostics"
 status = "done"
 evidence_kind = "implementation_exists"
-limitations = "Per-PR evidence is ESS/R-hat/divergence unit tests only. SBC/coverage tests are #[ignore]d and run weekly via gate_calibration.sh; the ArviZ pin in conformance/validate/bayesian_checks is loaded by no test."
+limitations = "Per-PR evidence is ESS/R-hat/divergence unit tests only. SBC/coverage tests are #[ignore]d and run locally via gate_calibration.sh; the ArviZ pin in conformance/validate/bayesian_checks is loaded by no test."
 notes = "Chain ESS / R-hat / divergences via HMC + McmcDiagnosticsCheck; SBC separate"
 
 [[capabilities]]
@@ -130,7 +131,7 @@ id = "bayes.prior_bank.temporal_transfer"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/temporal_prior_transfer"
-notes = "Same-design and mapped prior transfer ride licensed Bayesian Pulse / single-step Sustained / temporal ResponseCurve on explicit TemporalDag via the staged path. Fixture names source cell, target cell, and PriorCatalog.filter_compatible. Incompatible catalogs fail closed (require_compatible / require_usable). Conflict-sensitive weights stay diagnostic. Multi-step Sequence refuses transfer; no new filter. python_facade=full (PreparedAnalysis + antecedent.priors.PriorCatalog)"
+notes = "Same-design and mapped prior transfer ride licensed Bayesian Pulse / single-step Sustained / temporal ResponseCurve on explicit TemporalDag via the staged path. Fixture names source cell, target cell, and PriorCatalog.filter_compatible. Incompatible catalogs fail closed (require_compatible / require_usable). Conflict-sensitive weights stay diagnostic. Multi-step Sequence refuses transfer; no new filter. python_facade=full (PreparedAnalysis + antecedent.priors.PriorCatalog). 1.10 composition: composition_prior_transfer_keeps_identification_and_refuses_mismatch (implementation_exists; does not inherit this known-truth fixture)."
 
 [[capabilities]]
 id = "bayes.prior_bank.catalog"

@@ -15,120 +15,39 @@ estimation.
 The [support matrix](support-matrix.md) is authoritative. A capability present
 in the codebase is not necessarily a licensed `analyze()` combination.
 
-The 1.9 matrix is the 1.8 cells plus calibrated intervals, accepted-Dag
-`Counterfactual`, ADMG `InterventionalDistribution`, Frequentist
-DBN-posterior `TemporalMediationEffect`, and four staged cells at validation
-`none` (Rust `Study` only): `AnomalyAttribution` / `ChangeAttribution` on an
-explicit Dag, `TransportQuery` on an explicit Admg, and `InterferenceQuery`
-on an explicit Dag.
+Antecedent 1.10 composes the existing **341 licensed combinations** into an
+inspectable, reusable execution workflow. Each combination fixes the question,
+graph class, structure source, inference method, and validation level. A
+successful licensed Python analysis retains a study and exports its result.
 
-The 1.6 matrix keeps the 1.5 licensed cells and adds temporal policy
-cells: per-horizon `TemporalMediationEffect`, multi-step and joint `Sequence`
-overlays, observation-adjusted temporal curves (Frequentist IPCW pairs and
-the parametric Bayesian observed-data CAR route), DBN-posterior mixtures on
-the contrasts the handle already runs, and bounded prior transfer on named
-Pulse / Sustained / ResponseCurve cells.
+Use [supported analyses](supported-analyses.md) to find a starting point and
+[capabilities](capabilities.md) for the methods behind each path. The
+[1.10 release notes](release-notes/v1.10.0.md) describe the execution contract;
+older release notes record when individual methods were added.
 
-The 1.5 matrix kept the 1.4 licensed cells and added no new query kinds.
-Prepared iid AllObserved `AverageEffect` plans with explicit AIPW and discrete joint
-`InterventionResponse` plans with cell-AIPW export cross-fitted scores and retarget to a declared covariate population.
-`analyze()` does not always return scores. Linear, ATT/trim/clustered AIPW, matching, IV, and Bayesian plans do not export scores. `outcome_functional`
-covers mean and exceedance, including class-aware ConditionalEffect grids mixed
-across envelope atoms. Discrete joint interventions may use `cell.aipw`.
-`TieredBackground` certifies a tier-closure adjustment set as a fast path.
-CoDetermined joint cells are the `O(p)` treatment-set closure shortcut plus
-`cell.aipw`; Unknown-tier joint stays refused.
-Static Cpdag / Pag Frequentist effect and response aggregates publish joint-IF
-standard errors mixed by frozen completion weights. Scalar Dag
-`InterventionResponse` licenses cheap/full: `cell.aipw` on the cell-versus-control
-contrast; plugin g-comp cheap is overlap only and full is overlap plus sampling-stability of the g-comp level.
-`ResponseCurve` cheap/full stay n/a. Frequentist DBN Pulse/Sustained
-mixtures use shared outer-block replicates; TemporalCpdag/TemporalPag
-class-envelope between-atom variance is licensed in 1.9 (shared
-circular-block mixture SE; unidentified mass retained).
+Some important distinctions when choosing a workflow:
 
-The 1.4 matrix licenses the 1.3 families plus:
+- Static DAG graph-posterior paths include average effects, conditional effects,
+  response curves, and one-coordinate intervention responses. Each has its own
+  inference and validation restrictions.
+- Temporal DAG graph-posterior paths include Pulse and Sustained effects under
+  both inference modes. Temporal mediation supports Bayesian validation
+  `none`/`cheap`/`full` and Frequentist validation `none`.
+- Bayesian envelopes on incomplete `TemporalCpdag` and `TemporalPag` graphs
+  are supported for licensed queries. A caller-supplied `ClassPrior` can provide
+  mixture weights; enumerating completions alone does not assign probabilities.
+- Derivatives on explicit or accepted DAGs support Frequentist and Bayesian
+  inference at validation `none`. Partial-graph derivatives remain refused.
+- ADMG interventional distributions and the licensed anomaly/change attribution
+  paths are available through Rust `Study`. Their Python query types do not
+  imply that `analyze()` can execute them.
+- Licensed transport and interference queries run through both Python `analyze`
+  and Rust `Study`, with their explicit design assumptions.
 
-- `AverageEffect` on explicit or accepted `Cpdag` under Frequentist or
-  Bayesian inference with validation `none` / `cheap` / `full`, as a MEC
-  envelope whose runtime class stays `Cpdag`;
-- `ResponseCurve` / `InterventionResponse` on explicit or accepted `Cpdag` /
-  `Pag` under Frequentist or Bayesian inference with validation `none`, via
-  the same generalized-adjustment envelope (not a licensed MAG/PAG
-  response-identification theory);
-- `ConditionalEffect` on explicit or accepted `Cpdag` / `Pag` under
-  Frequentist or Bayesian inference with all three validation values, after a
-  pre-treatment and augmented backdoor check;
-- Frequentist Pulse / single-step Sustained on explicit or accepted
-  `TemporalCpdag` / `TemporalPag` with all three validation values
-  (`TemporalPag` retains directed/bidirected MAG completions; finite-window
-  equivalence audits cannot confer class-wide point identification);
-- Frequentist graph-posterior `AverageEffect` on DAG atoms, the sibling of
-  the 1.1 Bayesian envelope.
-
-The 1.3 matrix added:
-
-- Frequentist `PointDerivative` / `Elasticity` / `SemiElasticity` /
-  `AverageDerivative` / `DirectionalDerivative` / `ResponseJacobian` on
-  explicit or accepted DAGs at validation `none`;
-- static `MediationEffect` on explicit or accepted DAGs with validation
-  `none` / `cheap` / `full`;
-- `Counterfactual` on an explicit DAG at validation `none`;
-- selected AIPW, marginal KM, and conditional Cox IPCW observation pairs on
-  licensed Frequentist `ResponseCurve` cells, as published in the
-  [observation pair contract](observation-contract.md).
-
-The 1.2 matrix licensed these families (structure and validation qualifiers are
-part of the claim, not implementation detail):
-
-- Frequentist `AverageEffect` on explicit or accepted DAGs, ADMGs, and PAGs,
-  and Bayesian `AverageEffect` on explicit or accepted DAGs and PAGs; all
-  three validation values are licensed for those cells;
-- Bayesian graph-posterior `AverageEffect` over DAG atoms, with validation
-  `none`, `cheap`, or `full`;
-- Frequentist and Bayesian `ConditionalEffect` on explicit or accepted DAGs with all three
-  validation values;
-- Frequentist `PathSpecificEffect` and `InterventionalDistribution` on an
-  explicit or accepted DAG with validation `none`, `cheap`, or `full`;
-- static and temporal `ResponseCurve` / `InterventionResponse` under
-  Frequentist or Bayesian inference, explicit or accepted DAG or TemporalDag
-  structure, and validation
-  `none`;
-- pulse and single-step sustained temporal effects on explicit or accepted
-  `TemporalDag` under Frequentist or Bayesian inference with all three
-  validation values, including Bayesian DBN-posterior cells;
-- multi-step sustained effects on explicit or accepted `TemporalDag` under
-  Frequentist or Bayesian inference, with validation `none` and no split;
-- temporal mediation on explicit or accepted `TemporalDag` under Frequentist
-  or Bayesian inference and validation `none`, `cheap`, or `full`.
-
-The Bayesian additions use the documented Gaussian linear forms. Temporal
-mediation requires one mediator with treatment at lag one and mediator/outcome
-contemporaneous, adjusting for observed baseline parents. Multi-step sustained
-uses sequential g-computation; Bayesian time copies share stationary mechanism
-draws. These restrictions are part of each licensed form; see the
-[1.2 evidence ledger](v1.2-evidence.md),
-[1.3 evidence ledger](v1.3-evidence.md), and
-[1.4 evidence ledger](v1.4-evidence.md),
-[1.5 evidence ledger](v1.5-evidence.md), and
-[1.6 evidence ledger](v1.6-evidence.md).
-
-Graph-posterior support is deliberately narrow. The static envelope is
-`AverageEffect × Dag × graph_posterior` under Bayesian or Frequentist
-inference with validation `none`/`cheap`/`full`, plus DAG graph-posterior
-`ResponseCurve` / one-coordinate `InterventionResponse` (probability atoms
-and mass; function-valued cheap/full stay n/a). Temporal graph-posterior
-support is Pulse and Sustained on `TemporalDag` under Bayesian or
-Frequentist inference, including multi-step Sustained cheap/full that refit
-the window. Frequentist DBN mixtures use shared outer-block replicates.
-DBN-posterior `ResponseCurve` / `InterventionResponse`, TemporalCpdag/Pag
-posterior mixing, and ADMG/CPDAG/PAG posterior ATE atoms stay refused.
-Unidentified atom mass is retained; priors do not upgrade identification.
-
-Derivative query types remain importable at the Python root so unsupported
-requests fail as typed matrix refusals. They are licensed on Frequentist
-explicit or accepted DAGs at validation `none`; Bayesian, partial-graph, and
-validation cheap/full coordinates remain refused.
+Graph-posterior response surfaces on temporal DAGs, posterior mixing over
+`TemporalCpdag`/`TemporalPag` atoms, and ADMG/CPDAG/PAG posterior ATE atoms
+remain refused. These are different requests from incomplete-class envelopes.
+Unidentified structural mass stays visible; priors do not establish identification.
 
 ## What the repository compares externally
 
@@ -218,11 +137,9 @@ The following are current product boundaries or explicit matrix refusals:
 - no R, Julia, or JavaScript bindings;
 - no complete PAG-native ID/IDC;
 - no complete general sID recursion;
-- no temporal graph-posterior response surface or Bayesian response bands over
-  incomplete temporal classes; static DAG graph-posterior responses and
-  Frequentist DBN Pulse/Sustained mixtures are licensed;
+- no temporal graph-posterior response surface; for incomplete-class response
+  uncertainty, use the query-specific contracts in [causal responses](causal-responses.md);
 - no partial-graph derivative cells;
-- no Bayesian envelope on incomplete `TemporalCpdag`/`TemporalPag` (1.7);
 - no exact DAG pseudo-posterior enumeration beyond six nodes;
 - no automatic estimator choice and no prior that can rescue identification.
 

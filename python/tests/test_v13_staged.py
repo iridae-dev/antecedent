@@ -463,7 +463,7 @@ def test_v13_named_refusals():
             inference=ac.Bayesian(),
             refute="none",
         )
-    with pytest.raises(CausalUnsupportedError, match="graph-posterior path and mediation"):
+    with pytest.raises(CausalUnsupportedError, match="graph-posterior structures are refused"):
         ac.analyze(
             data,
             query=med,

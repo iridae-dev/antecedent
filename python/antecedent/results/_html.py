@@ -24,7 +24,9 @@ from __future__ import annotations
 import html
 from typing import TYPE_CHECKING, Any
 
+from .._verdict import describe_status, verdict_tone
 from ._format import fmt_float, fmt_pct, fmt_se
+from ._slots import describe_limitation
 
 if TYPE_CHECKING:
     from ._views import AnalysisResult, PosteriorView, ValidationView
@@ -58,6 +60,7 @@ _STYLE = """<style>
 }
 .antecedent-ar-banner.ar-ok { background: rgba(16, 185, 129, 0.18); }
 .antecedent-ar-banner.ar-bad { background: rgba(239, 68, 68, 0.18); }
+.antecedent-ar-banner.ar-caution { background: rgba(245, 158, 11, 0.22); }
 .antecedent-ar-banner-method { font-weight: 400; opacity: 0.75; font-size: 0.85em; }
 .antecedent-ar-callout {
   background: rgba(245, 158, 11, 0.20);
@@ -145,12 +148,15 @@ def _adjustment_chips_html(adjustment_set: list[str]) -> str:
     return f'<span class="antecedent-ar-chips">{chips}</span>'
 
 
+_BANNER_CLASS = {"identified": "ar-ok", "caution": "ar-caution", "not_identified": "ar-bad"}
+
+
 def _analysis_result_body(result: AnalysisResult) -> str:
     ident = result.identification
-    identified = bool(ident)
-    banner_class = "ar-ok" if identified else "ar-bad"
-    banner_text = "Identified" if identified else "Not identified"
+    banner_class = _BANNER_CLASS[verdict_tone(ident.status)]
+    banner_text = describe_status(ident.status).capitalize()
 
+    limitation = result.rendering_limitation()
     se = (
         result.estimate.se_bootstrap
         if result.estimate.se_bootstrap is not None
@@ -159,7 +165,21 @@ def _analysis_result_body(result: AnalysisResult) -> str:
     se_kind = "bootstrap" if result.estimate.se_bootstrap is not None else "analytic"
     se_text = fmt_se(se)
     interval = result.estimate.mean_interval
-    if interval is not None and result.unit_effects is None:
+    if limitation is not None:
+        answer = result.answer
+        label = "Claim"
+        bounds = (
+            f"identified set [{_esc(fmt_float(answer.bounds[0]))}, "
+            f"{_esc(fmt_float(answer.bounds[1]))}]; "
+            if answer.bounds is not None
+            else ""
+        )
+        value = (
+            f'<span class="antecedent-ar-muted">'
+            f"{bounds}no point mean: {_esc(describe_limitation(limitation))}"
+            f"</span>"
+        )
+    elif interval is not None and result.unit_effects is None:
         from ._views import fmt_probability_interval
 
         label = "Effect"
@@ -180,10 +200,13 @@ def _analysis_result_body(result: AnalysisResult) -> str:
         label = "Effect"
         value = f"{_esc(fmt_float(result.effect))} ± {_esc(se_text)} ({_esc(se_kind)})"
 
-    mass = result.posterior.unidentified_mass if result.posterior is not None else None
-    callout = _unidentified_callout_html(mass)
+    # One precedence rule for the displayed mass, shared with `repr()`: a
+    # result carrying both a structural and a posterior mass must not quote a
+    # different number here than `AnalysisResult.rendering_limitation` read.
+    callout = _unidentified_callout_html(result._display_mass())
     refute_table = _refutation_table_html(result.validation)
     chips = _adjustment_chips_html(ident.adjustment_set)
+    slots = _reasoning_slots_html(result)
 
     return (
         f'<div class="antecedent-ar-card">'
@@ -202,8 +225,47 @@ def _analysis_result_body(result: AnalysisResult) -> str:
         f'<div class="antecedent-ar-row">'
         f'<span class="antecedent-ar-label">Adjustment set</span>{chips}'
         f"</div>"
+        f"{slots}"
+        '<div class="antecedent-ar-row"><span class="antecedent-ar-label">Calibration</span>'
+        f"<span>{_esc(result.calibration.describe())}</span></div>"
         f"{refute_table}"
         f"</div>"
+    )
+
+
+def _reasoning_slots_html(result: AnalysisResult) -> str:
+    slots = result.reasoning
+    if slots is not None:
+        identification = slots.identification.summary
+        support = slots.support.summary
+        uncertainty = slots.uncertainty.summary
+        assumptions = slots.assumptions.summary
+    else:
+        identification = describe_status(result.identification.status)
+        support = "unknown"
+        uncertainty = (
+            "available"
+            if result.estimate.se_analytic is not None or result.estimate.se_bootstrap is not None
+            else "unavailable"
+        )
+        assumptions = "declared" if result.identification else "unavailable"
+    return (
+        '<div class="antecedent-ar-row">'
+        '<span class="antecedent-ar-label">Identification</span>'
+        f'<span class="antecedent-ar-value">{_esc(identification)}</span>'
+        "</div>"
+        '<div class="antecedent-ar-row">'
+        '<span class="antecedent-ar-label">Support</span>'
+        f'<span class="antecedent-ar-value">{_esc(support)}</span>'
+        "</div>"
+        '<div class="antecedent-ar-row">'
+        '<span class="antecedent-ar-label">Uncertainty</span>'
+        f'<span class="antecedent-ar-value">{_esc(uncertainty)}</span>'
+        "</div>"
+        '<div class="antecedent-ar-row">'
+        '<span class="antecedent-ar-label">Assumptions</span>'
+        f'<span class="antecedent-ar-value">{_esc(assumptions)}</span>'
+        "</div>"
     )
 
 
@@ -223,6 +285,14 @@ def _validation_repr_html(self: ValidationView) -> str:
 
 def _posterior_repr_html(self: PosteriorView) -> str:
     try:
+        if self.limitation is not None:
+            message = (
+                f"Posterior mixture over {self.n_draws} draws; no point or interval for "
+                f"the claim: {describe_limitation(self.limitation)}"
+            )
+            callout = _unidentified_callout_html(self.unidentified_mass)
+            body = f'<div class="antecedent-ar-muted">{_esc(message)}</div>'
+            return f'{_STYLE}<div class="antecedent-ar-card">{callout}{body}</div>'
         if self.effect_mean is None:
             message = (
                 f"Posterior computed with {self.n_draws} draws; scalar effect unavailable."

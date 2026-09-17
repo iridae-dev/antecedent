@@ -185,7 +185,16 @@ fn weights_are_constant(weights: &[f64]) -> bool {
     let Some(&first) = weights.first() else {
         return true;
     };
-    weights.iter().all(|&w| (w - first).abs() <= 1e-12)
+    if !first.is_finite() {
+        return false;
+    }
+    weights.iter().all(|&w| w.is_finite() && (w - first).abs() <= 1e-12)
+}
+
+/// Whether `weights` change the target relative to a constant population.
+#[must_use]
+pub fn changes_target(weights: &[f64]) -> bool {
+    !weights_are_constant(weights)
 }
 
 /// Estimate `E_Q[μ_a(X)]` from frozen scores. Does not refit nuisances.

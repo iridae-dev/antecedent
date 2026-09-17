@@ -130,15 +130,31 @@ pub struct EffectEstimate {
     pub monotone_rearranged: bool,
     /// Whether an additive joint path makes the interaction contrast structurally zero.
     pub interaction_structurally_zero: bool,
+    /// Whether the fitted mechanisms on every treatment → outcome path admit no
+    /// effect modification, so the reported per-unit effects are equal by
+    /// construction of the selected mechanism families, not by measurement.
+    pub unit_effects_homogeneous: bool,
     /// Per-row influence for the reported scalar (shared-row joint IF / envelopes).
     pub influence: Option<Arc<[f64]>>,
     /// Point E-value for the reported effect when a named no-latent premise is in force.
     pub evalue: Option<f64>,
+    /// Threshold [`Self::evalue`] was judged against, when it came from an
+    /// E-value refuter that reported a pass/fail verdict. `None` when no refuter
+    /// ran, or when the E-value is an attached premise diagnostic with no gate.
+    pub evalue_threshold: Option<f64>,
     /// Candidate-selection screen recorded on a batch family (artifact payload).
     pub candidate_selection: Option<CandidateSelectionRecord>,
     /// Circular-block geometry of a one-series block-bootstrap SE (the block
     /// length the estimator chose and the lag-aligned rows it resampled).
     pub block_resampling: Option<BlockResampling>,
+    /// Analytic SE formula behind [`Self::se_analytic`], recorded by the
+    /// estimator that computed it. `None` when the SE is not an
+    /// estimator-configured analytic kind (influence-function envelopes,
+    /// bootstrap-only paths, posterior summaries).
+    pub se_kind: Option<crate::se::AnalyticSeKind>,
+    /// Circular-block SE family behind a one-series [`Self::se_bootstrap`],
+    /// recorded by the path that ran the circular-block bootstrap.
+    pub block_family: Option<crate::temporal_block::CircularBlockFamily>,
 }
 
 /// Circular-block geometry an estimator used for its one-series bootstrap SE.
@@ -207,10 +223,14 @@ impl EffectEstimate {
             exceedance_cdf: None,
             monotone_rearranged: false,
             interaction_structurally_zero: false,
+            unit_effects_homogeneous: false,
             influence: None,
             evalue: None,
+            evalue_threshold: None,
             candidate_selection: None,
             block_resampling: None,
+            se_kind: None,
+            block_family: None,
         }
     }
 
@@ -255,10 +275,14 @@ impl EffectEstimate {
             exceedance_cdf: None,
             monotone_rearranged: false,
             interaction_structurally_zero: false,
+            unit_effects_homogeneous: false,
             influence: None,
             evalue: None,
+            evalue_threshold: None,
             candidate_selection: None,
             block_resampling: None,
+            se_kind: None,
+            block_family: None,
         }
     }
 
@@ -320,6 +344,14 @@ impl EffectEstimate {
         self
     }
 
+    /// Mark that the reported per-unit effects are homogeneous by construction of
+    /// the selected mechanism families (no effect modification is representable).
+    #[must_use]
+    pub fn with_unit_effects_homogeneous(mut self, homogeneous: bool) -> Self {
+        self.unit_effects_homogeneous = homogeneous;
+        self
+    }
+
     /// Attach a per-row influence sequence for the reported scalar.
     #[must_use]
     pub fn with_influence(mut self, influence: Option<Arc<[f64]>>) -> Self {
@@ -327,10 +359,31 @@ impl EffectEstimate {
         self
     }
 
+    /// Record the analytic SE formula behind [`Self::se_analytic`].
+    #[must_use]
+    pub fn with_se_kind(mut self, se_kind: crate::se::AnalyticSeKind) -> Self {
+        self.se_kind = Some(se_kind);
+        self
+    }
+
+    /// Record the circular-block SE family behind a one-series [`Self::se_bootstrap`].
+    #[must_use]
+    pub fn with_block_family(mut self, family: crate::temporal_block::CircularBlockFamily) -> Self {
+        self.block_family = Some(family);
+        self
+    }
+
     /// Attach a point E-value for a named no-latent / unmeasured-confounding premise.
     #[must_use]
     pub fn with_evalue(mut self, evalue: Option<f64>) -> Self {
         self.evalue = evalue;
+        self
+    }
+
+    /// Attach the pass threshold the E-value refuter judged [`Self::evalue`] against.
+    #[must_use]
+    pub fn with_evalue_threshold(mut self, threshold: Option<f64>) -> Self {
+        self.evalue_threshold = threshold;
         self
     }
 
@@ -671,6 +724,7 @@ impl LinearAdjustmentAte {
         );
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_se_kind(self.se_kind)
             .with_influence(Some(Arc::from(influence))))
     }
 

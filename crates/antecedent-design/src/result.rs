@@ -19,6 +19,28 @@ pub struct ConstraintViolation {
     pub detail: Arc<str>,
 }
 
+/// How a candidate's score was computed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum ScoreEvaluation {
+    /// The implemented functional evaluated exactly (finite enumeration or closed
+    /// form); `monte_carlo.stderr` is zero.
+    Exact,
+    /// A Monte Carlo estimate of the implemented functional; `monte_carlo` carries
+    /// its standard error.
+    MonteCarlo,
+}
+
+impl ScoreEvaluation {
+    /// Stable lowercase label (`exact` / `monte_carlo`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Exact => "exact",
+            Self::MonteCarlo => "monte_carlo",
+        }
+    }
+}
+
 /// Scored candidate with Monte Carlo uncertainty.
 #[derive(Clone, Debug)]
 pub struct RankedCandidate {
@@ -36,6 +58,8 @@ pub struct RankedCandidate {
     pub rank_uncertain: bool,
     /// Mathematics actually scored (see [`crate::objective::DesignObjective::implemented_functional`]).
     pub implemented_functional: Arc<str>,
+    /// Whether `score` is the exact value of the functional or a Monte Carlo estimate.
+    pub evaluation: ScoreEvaluation,
 }
 
 /// Full ranking output.

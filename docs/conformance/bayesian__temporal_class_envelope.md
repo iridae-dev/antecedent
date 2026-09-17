@@ -13,4 +13,4 @@ The multi-step section pins a two-lag window against last-step collapse.
 
 ## Expected summary
 
-Top-level keys: `assertions, case, class_prior_ordered, columns, cpdag, law, multi_step, n, n_draws, query, schema_version, seed` (12 fields).
+Top-level keys: `assertions, case, class_prior_ordered, columns, cpdag, law, multi_step, n, n_draws, query, schema_version, seed, temporal_pag_mixed_identification` (13 fields).

@@ -236,7 +236,7 @@ def _assert_pinned_block_bands(result: Any) -> None:
     """The seeded run pinned in ``block_band``: every band value to ``band_rtol``.
 
     A determinism pin of the circular-block bootstrap, not a coverage claim
-    (coverage is the weekly ``v19_temporal_response_calibration`` gate).
+    (coverage is the ``v19_temporal_response_calibration`` calibration gate).
     """
     pin = _FIXTURE["contract"]["block_band"]
     rtol = float(_FIXTURE["tolerance"]["band_rtol"])
@@ -337,10 +337,15 @@ def test_temporal_response_bootstrap_publishes_block_bands(bootstrap: int | None
 
     if bootstrap is None:
         # Prepared temporal responses follow the latency tier like Pulse /
-        # Sustained: the default interactive tier publishes no band, standard
-        # runs 199 replicates, the same count as the Study default.
+        # Sustained: interactive publishes no band, standard runs the omitted
+        # replicate count (199), which an omitted tier also uses.
         interactive = PreparedAnalysis.prepare(
-            data, graph=_EDGES, query=_SURFACE_QUERY, refute=False, seed=21
+            data,
+            graph=_EDGES,
+            query=_SURFACE_QUERY,
+            refute=False,
+            seed=21,
+            latency="interactive",
         )
         _assert_band_withheld(interactive.estimate(data, seed=21))
         kwargs = {"latency": "standard"}

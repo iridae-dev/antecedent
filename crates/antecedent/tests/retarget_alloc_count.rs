@@ -116,10 +116,16 @@ fn retarget_10k_by_500_stays_within_allocation_budget() {
         .prepare(&ctx)
         .unwrap();
     let table = prepared.score_table().expect("AIPW prepare must freeze a score table");
+    let score_key = prepared.score_reuse_identity().unwrap().expect("score key");
     let z_id = VariableId::from_raw(2);
     let depends = [z_id];
     let (warmup, _) = retarget(table, &levers[0], &depends, Some(&graph), Some(&t), None).unwrap();
     assert!(warmup.summary.means.iter().all(|m| m.is_finite()));
+    assert_eq!(
+        prepared.score_reuse_identity().unwrap().expect("score key"),
+        score_key,
+        "retarget reuses the frozen score table"
+    );
 
     let before = THREAD_ALLOCATIONS.with(Cell::get);
     for w in &levers {

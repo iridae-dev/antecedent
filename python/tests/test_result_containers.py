@@ -35,25 +35,18 @@ def _refutation(refuter: str, passed: bool) -> RefutationReport:
 # --- IdentificationView.__bool__ -----------------------------------------------------
 
 
-def test_identification_view_bool_strips_whitespace_and_case():
-    assert bool(
-        IdentificationView(
-            status="  NonparametricallyIdentified  ",
+def test_identification_view_bool_is_an_exact_status_lookup():
+    """Padded or re-cased status strings are not native statuses: warn, not identified."""
+    for status in ("  NonparametricallyIdentified  ", "nonparametricallyidentified"):
+        view = IdentificationView(
+            status=status,
             method="m",
             adjustment_set=[],
             assumption_count=0,
             derivation_step_count=0,
         )
-    )
-    assert bool(
-        IdentificationView(
-            status="GCM.PARAMETRIC",
-            method="m",
-            adjustment_set=[],
-            assumption_count=0,
-            derivation_step_count=0,
-        )
-    )
+        with pytest.warns(RuntimeWarning, match="unrecognized identification status"):
+            assert not bool(view)
 
 
 # --- ValidationView -----------------------------------------------------

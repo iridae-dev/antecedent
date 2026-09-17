@@ -56,7 +56,7 @@ jobs:
           done < <(git rev-list --no-merges "$RANGE")
 
       - name: Format
-        run: cargo fmt --all -- --check
+        run: bash scripts/gate_rustfmt.sh
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
@@ -78,8 +78,11 @@ jobs:
   # schema check, the provenance schema check, and the ten feature gates
   # (estimate_ci, bayesian, gcm, pag, context, attribution, design_state,
   # upstream_names, response_calibration, causal_artifacts). Previously none of
-  # these ran on a PR, so numerical parity and the public-repo name check were
-  # unenforced between weekly runs.
+  # these ran on a PR, so numerical parity and the public-repo name check went
+  # unenforced on PRs. Its first step fails the job when a committed coverage
+  # record does not match the code (gate_calibration_attestation.sh): the
+  # statistical measurement is made on a development machine before upload
+  # (scripts/measure_calibration.sh) and never runs here.
   gates:
     name: Domain gates
     runs-on: ubuntu-latest
@@ -87,6 +90,16 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The calibration attestation diffs against each record's
+          # calibration_sha, which a shallow clone does not contain.
+          fetch-depth: 0
+
+      # Seconds, and before any build: an upload whose coverage records owe a
+      # re-measurement fails here with the drifted facets, their paths and the
+      # local command that measures them.
+      - name: Calibration attestation (coverage records match the code)
+        run: bash scripts/gate_calibration_attestation.sh
 
       - name: Install Rust 1.85
         uses: dtolnay/rust-toolchain@b0480e2d44a72e89a62650e223ba831cbca8d2be # 1.85
@@ -95,6 +108,17 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Sync Python for composition smoke
+        working-directory: python
+        run: uv sync --group dev
+
+      - name: Build native extension
+        working-directory: python
+        run: uv run maturin develop
 
       - name: Release gate
         run: bash scripts/gate_release.sh

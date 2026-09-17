@@ -43,6 +43,7 @@ pub(super) enum AnalysisRoute {
     UnitChange,
     TemporalEffect,
     PanelTemporalEffect,
+    PanelTemporalResponse,
     MultiEnvTemporalEffect,
     Transport,
     Interference,
@@ -98,6 +99,9 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
             AnalysisRoute::TemporalEffect
         }
         (DataModality::Panel, CausalQuery::TemporalEffect(_)) => AnalysisRoute::PanelTemporalEffect,
+        (DataModality::Panel, CausalQuery::Response(q)) if q.is_temporal() => {
+            AnalysisRoute::PanelTemporalResponse
+        }
         (DataModality::MultiEnv, CausalQuery::TemporalEffect(_)) => {
             AnalysisRoute::MultiEnvTemporalEffect
         }
@@ -366,6 +370,19 @@ pub(super) fn report_subsampled_out_mass(
     }
 }
 
+/// Structured identification-mass fields carried beside an envelope message.
+///
+/// The reasoning slot reads these; `identified` is absent when the emitter
+/// knows only the unidentified share.
+pub(crate) fn mass_fields(identified: Option<f64>, unidentified: f64) -> Vec<(Arc<str>, Arc<str>)> {
+    let mut fields: Vec<(Arc<str>, Arc<str>)> = Vec::with_capacity(2);
+    if let Some(identified) = identified {
+        fields.push((Arc::from("identified_mass"), Arc::from(identified.to_string())));
+    }
+    fields.push((Arc::from("unidentified_mass"), Arc::from(unidentified.to_string())));
+    fields
+}
+
 /// Envelope mass summary for a Bayesian graph envelope: unidentified mass and,
 /// when the Interactive tier skipped atoms, their subsampled-out mass as a
 /// separate field (the message is unchanged when nothing was skipped).
@@ -382,6 +399,7 @@ pub(super) fn envelope_mass_diagnostic(
         format!("unidentified_mass={}", posterior.unidentified_mass)
     };
     Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message)
+        .with_fields(mass_fields(None, posterior.unidentified_mass))
 }
 
 /// Resolve the shared envelope prior from a prepared Bayesian problem.
@@ -481,10 +499,7 @@ impl super::Study {
 }
 
 pub(super) fn is_multi_step_sustained(query: &TemporalEffectQuery) -> bool {
-    matches!(
-        query.policy,
-        antecedent_core::TemporalPolicy::Sustained { from, until } if from != until
-    )
+    query.is_multi_step_sustained()
 }
 
 pub(super) fn identified_envelope_keys(
@@ -1285,7 +1300,8 @@ pub(super) fn run_envelope_effect_refuters(
 /// `Expectation`/`Distribution` leaf (not `CausalExprArena::backdoor_ate`'s `Product`/`SumOut`
 /// shape) so it is inert if a future caller ever tries to mechanically re-evaluate
 /// `functional` via the arena's generic evaluator — there is no adjustment-set
-/// marginalization here to (mis)compute.
+/// marginalization here to (mis)compute. Licensed transport and interference
+/// routes do not call this; they stamp `transport.sid` / `interference.design`.
 pub(crate) fn parametric_scm_identification(
     query: CausalQuery,
     treatment: VariableId,
@@ -1382,13 +1398,202 @@ pub(super) fn binary_cf_interventions(
     Ok((*variable, active, control))
 }
 
+/// The identified set of a scalar functional, in the coordinate-free shape the
+/// portable format requires: no grid, one bound. The estimand already says what
+/// the bound means, so no coordinate is invented for it.
+///
+/// Every route that publishes a scalar identified set builds it here: the
+/// portable format accepts `dimension = 0` precisely so a scalar bound is not
+/// dressed up with a `0.0` coordinate that nothing reads.
+pub(super) fn scalar_identified_set(lower: f64, upper: f64) -> antecedent_core::ResponseEnvelope {
+    antecedent_core::ResponseEnvelope {
+        grid: Arc::from([]),
+        dimension: 0,
+        lower: Arc::from([lower]),
+        upper: Arc::from([upper]),
+    }
+}
+
+/// Completion-mass summary of a graph-class envelope: the one body behind every
+/// `identify.*.envelope` diagnostic.
+///
+/// `prefix` names the class in the message (`generalized.adjustment envelope`,
+/// `cpdag.mec envelope`), and each `extra` pair is appended as `, key=value`.
+/// The structured half is [`mass_fields`], which the reasoning slot reads.
+pub(super) fn class_envelope_diagnostic<G>(
+    code: impl Into<Arc<str>>,
+    prefix: &str,
+    envelope: &IdentificationEnvelope<G>,
+    extra: &[(&str, String)],
+) -> Diagnostic {
+    let mut message = format!(
+        "{prefix}: identified_mass={}, unidentified_mass={}, cases={}",
+        envelope.identified_weight.0,
+        envelope.unidentified_weight.0,
+        envelope.cases.len()
+    );
+    for (key, value) in extra {
+        use std::fmt::Write as _;
+        let _ = write!(message, ", {key}={value}");
+    }
+    Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message)
+        .with_fields(mass_fields(
+            Some(envelope.identified_weight.0),
+            envelope.unidentified_weight.0,
+        ))
+}
+
+/// Per-completion outcome of a graph-class (CPDAG/PAG, static or temporal)
+/// envelope arm, in `envelope.cases` order.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) enum ClassAtomOutcome {
+    /// Identified and evaluated: the completion's own point value.
+    Evaluated(f64),
+    /// Identified but left unevaluated by the Interactive latency tier's graph
+    /// budget. Neither unidentified nor a failed estimate.
+    SubsampledOut,
+    /// Not evaluated for any other reason (unidentified completions land here
+    /// too; their status decides which mass they join).
+    #[default]
+    NotEvaluated,
+}
+
+/// What a class mixture says about itself, beside the mixture: facts a caller
+/// needs to decide whether publishing it is right.
+pub(super) struct ClassMixtureFacts {
+    /// Total weight the masses were divided by. Not positive means the
+    /// envelope carried no mass at all and the masses are all zero.
+    pub total_weight: f64,
+    /// All mass identified, a degenerate identified set, and an identified
+    /// envelope status: the mixture restates a point, and publishing it would
+    /// dress a point up as bounds.
+    pub point_identified: bool,
+}
+
+/// Structural uncertainty of a graph-class envelope: every completion with its
+/// weight and status, the evaluated completions' point values, and the
+/// identified set `[min, max]` over them.
+///
+/// The one class-mixture body. `outcomes` is indexed by `envelope.cases`;
+/// `key_fn` supplies each atom's `graph_key` (the case index for a static
+/// class, the completion fingerprint for a temporal one); `weights` overrides
+/// the enumeration weights when the caller carries its own class mass.
+///
+/// Mass is a fraction of the total weight and is kept apart by kind:
+/// identified-and-evaluated, unidentified, identified-but-unevaluable, and
+/// identified-but-subsampled-out. Which cases are identified is
+/// [`identification_status_carries_identified_mass`] — the envelope's own
+/// split — so `identified_mass + unidentified_mass` here agrees with
+/// `envelope.identified_weight` / `unidentified_weight` in the diagnostic
+/// published beside it. `unevaluable_mass` is taken as the remainder, so the
+/// four masses conserve exactly under division.
+pub(super) fn class_structural_mixture<G>(
+    envelope: &IdentificationEnvelope<G>,
+    weight_basis: crate::result::StructuralWeightBasis,
+    key_fn: impl Fn(usize, &antecedent_identify::GraphIdentificationCase<G>) -> u64,
+    weights: Option<&[f64]>,
+    outcomes: &[ClassAtomOutcome],
+) -> (crate::result::StructuralResponseMixture, ClassMixtureFacts) {
+    let mut atoms = Vec::with_capacity(envelope.cases.len());
+    let (mut identified_weight, mut unidentified_weight) = (0.0, 0.0);
+    let (mut unevaluable_weight, mut subsampled_weight) = (0.0, 0.0);
+    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for (index, case) in envelope.cases.iter().enumerate() {
+        let weight = weights.and_then(|w| w.get(index).copied()).unwrap_or(case.weight.0);
+        let outcome = outcomes.get(index).copied().unwrap_or_default();
+        let value = match outcome {
+            ClassAtomOutcome::Evaluated(value) if value.is_finite() => Some(value),
+            _ => None,
+        };
+        if !identification_status_carries_identified_mass(case.result.status) {
+            unidentified_weight += weight;
+        } else if let Some(value) = value {
+            identified_weight += weight;
+            lo = lo.min(value);
+            hi = hi.max(value);
+        } else if matches!(outcome, ClassAtomOutcome::SubsampledOut) {
+            subsampled_weight += weight;
+        } else {
+            unevaluable_weight += weight;
+        }
+        atoms.push(crate::result::StructuralResponseAtom {
+            graph_key: key_fn(index, case),
+            weight,
+            status: case.result.status,
+            value: value.map(antecedent_core::ResponseValue::Scalar),
+            posterior: None,
+            response: None,
+        });
+    }
+    let total = identified_weight + unidentified_weight + unevaluable_weight + subsampled_weight;
+    let positive = total > 0.0;
+    let (identified_mass, unidentified_mass, subsampled_out_mass) = if positive {
+        (identified_weight / total, unidentified_weight / total, subsampled_weight / total)
+    } else {
+        (0.0, 0.0, 0.0)
+    };
+    // The remainder, so the four masses conserve exactly under division.
+    let unevaluable_mass = if positive {
+        (1.0 - identified_mass - unidentified_mass - subsampled_out_mass).max(0.0)
+    } else {
+        0.0
+    };
+    let identified_set = (lo.is_finite() && hi.is_finite()).then(|| scalar_identified_set(lo, hi));
+    // Exact comparisons on purpose: "every completion is identified" and "they
+    // all agree" are exact facts about the mass that was summed and the values
+    // that were compared, not measurements with a tolerance.
+    #[allow(clippy::float_cmp)]
+    let facts = ClassMixtureFacts {
+        total_weight: total,
+        point_identified: identified_mass == 1.0
+            && lo == hi
+            && matches!(
+                envelope.status,
+                IdentificationStatus::NonparametricallyIdentified
+                    | IdentificationStatus::IdentifiedUnderParametricRestrictions
+                    | IdentificationStatus::IdentifiedUnderPriorRestrictions
+            ),
+    };
+    let mixture = crate::result::StructuralResponseMixture {
+        weight_basis,
+        atoms,
+        identified_mass,
+        unidentified_mass,
+        unevaluable_mass,
+        subsampled_out_mass,
+        identified_set,
+        identified_set_interval: None,
+        conditional_on_identified: None,
+        full_mass_scope: envelope.truncated_completions == 0,
+        truncated_atoms: envelope.truncated_completions,
+    };
+    (mixture, facts)
+}
+
+/// Statuses the envelope itself counts as identified mass.
+///
+/// A re-export, not a second list: `antecedent-identify` owns the split —
+/// [`antecedent_identify::carries_identified_mass`] is the same predicate
+/// `IdentificationEnvelope::from_cases` uses to divide `identified_weight`
+/// from `unidentified_weight`, so a mass this crate publishes cannot
+/// contradict the envelope diagnostic beside it.
+///
+/// Wider than [`identification_status_ok_for_case`], which licenses
+/// *estimating* a case: a completion identified only under prior restrictions
+/// carries identified mass and its assumptions, but no frequentist arm
+/// estimates it.
+pub(crate) use antecedent_identify::carries_identified_mass as identification_status_carries_identified_mass;
+
+/// Statuses a frequentist arm may estimate. Narrower than
+/// [`identification_status_carries_identified_mass`]: a completion identified
+/// only under prior restrictions is *not* estimable, but its mass is still
+/// identified mass.
 pub(crate) fn identification_status_ok_for_case(status: IdentificationStatus) -> bool {
     matches!(
         status,
         IdentificationStatus::NonparametricallyIdentified
             | IdentificationStatus::PartiallyIdentified
             | IdentificationStatus::IdentifiedUnderParametricRestrictions
-            | IdentificationStatus::IdentifiedUnderPriorRestrictions
     )
 }
 
@@ -1409,11 +1614,12 @@ pub(super) fn envelope_to_identification_result_for<G>(
     for case in &envelope.cases {
         if identification_status_ok_for_case(case.result.status) {
             estimands.extend(case.result.estimands.iter().cloned());
-            for record in &case.result.required_assumptions.entries {
-                if !assumptions.entries.contains(record) {
-                    assumptions.push(record.clone());
-                }
-            }
+        }
+        // Every case the envelope counts as identified mass carries its
+        // assumptions, including one identified only under prior restrictions:
+        // its mass is reported, so the conditions behind it must be too.
+        if identification_status_carries_identified_mass(case.result.status) {
+            assumptions.extend_unique(&case.result.required_assumptions.entries);
         }
         // Refused and unverified cases explain the missing mass too.
         diagnostics.extend(case.result.diagnostics.iter().cloned());
@@ -1621,87 +1827,109 @@ pub(super) fn bayesian_temporal_gcomp(
     }
 }
 
+fn push_unique_diagnostic(
+    diagnostics: &mut Vec<Diagnostic>,
+    seen: &mut std::collections::HashSet<Arc<str>>,
+    diagnostic: Diagnostic,
+) {
+    if seen.insert(Arc::clone(&diagnostic.code)) {
+        diagnostics.push(diagnostic);
+    }
+}
+
 fn push_aipw_score_kind(
     diagnostics: &mut Vec<Diagnostic>,
+    seen: &mut std::collections::HashSet<Arc<str>>,
     estimator_id: EstimatorId,
     estimate: &EffectEstimate,
 ) {
-    if diagnostics.iter().any(|d| {
-        matches!(
-            d.code.as_ref(),
-            "estimate.aipw.crossfit_scores" | "estimate.aipw.full_sample_residualized"
-        )
-    }) {
+    if seen.contains("estimate.aipw.crossfit_scores")
+        || seen.contains("estimate.aipw.full_sample_residualized")
+    {
         return;
     }
     match estimator_id {
         EstimatorId::CellAipw | EstimatorId::Aipw if estimate.score_table.is_some() => {
-            diagnostics.push(Diagnostic::new(
-                "estimate.aipw.crossfit_scores",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "cross-fitted AIPW scores φᵢ^a; retarget averages this table. A residualized full-sample AIPW fit is a different object",
-            ));
+            push_unique_diagnostic(
+                diagnostics,
+                seen,
+                Diagnostic::new(
+                    "estimate.aipw.crossfit_scores",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "cross-fitted AIPW scores φᵢ^a; retarget averages this table. A residualized full-sample AIPW fit is a different object",
+                ),
+            );
         }
         EstimatorId::Aipw => {
-            diagnostics.push(Diagnostic::new(
-                "estimate.aipw.full_sample_residualized",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                "this AIPW fit is full-sample residualized and has no score table; it is not the cross-fitted φ family that retarget averages. Prepare an AllObserved iid AIPW plan to retarget",
-            ));
+            push_unique_diagnostic(
+                diagnostics,
+                seen,
+                Diagnostic::new(
+                    "estimate.aipw.full_sample_residualized",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "this AIPW fit is full-sample residualized and has no score table; it is not the cross-fitted φ family that retarget averages. Prepare an AllObserved iid AIPW plan to retarget",
+                ),
+            );
         }
         _ => {}
     }
 }
 
-fn push_grid_scalar_cleared(diagnostics: &mut Vec<Diagnostic>, estimate: &EffectEstimate) {
+fn push_grid_scalar_cleared(
+    diagnostics: &mut Vec<Diagnostic>,
+    seen: &mut std::collections::HashSet<Arc<str>>,
+    estimate: &EffectEstimate,
+) {
     if let Some(inf) = estimate.score_inference.as_ref() {
-        if !diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.cdf_inference") {
-            diagnostics.push(Diagnostic::new(
+        push_unique_diagnostic(
+            diagnostics,
+            seen,
+            Diagnostic::new(
                 "estimate.functional.cdf_inference",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
                 "per-arm F_a(c) simultaneous bands describe raw CDF coordinates; rearranged exceedance_cdf values are not mixed with those intervals",
-            ));
+            ),
+        );
+        if inf.threshold_supported.iter().any(|ok| !ok) {
+            push_unique_diagnostic(
+                diagnostics,
+                seen,
+                Diagnostic::new(
+                    "estimate.functional.threshold_tail.unsupported",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Warning,
+                    "at least one threshold tail lacks enough treated/control events for a tail probability; that coordinate's band is non-finite rather than an empty-cell or first-threshold SE",
+                ),
+            );
         }
-        if inf.threshold_supported.iter().any(|ok| !ok)
-            && !diagnostics
-                .iter()
-                .any(|d| d.code.as_ref() == "estimate.functional.threshold_tail.unsupported")
-        {
-            diagnostics.push(Diagnostic::new(
-                "estimate.functional.threshold_tail.unsupported",
+    } else if estimate.score_table.is_none() && estimate.exceedance_cdf.is_some() {
+        push_unique_diagnostic(
+            diagnostics,
+            seen,
+            Diagnostic::new(
+                "estimate.functional.cdf_inference.unavailable",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Warning,
-                "at least one threshold tail lacks enough treated/control events for a tail probability; that coordinate's band is non-finite rather than an empty-cell or first-threshold SE",
-            ));
-        }
-    } else if estimate.score_table.is_none()
-        && estimate.exceedance_cdf.is_some()
-        && !diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "estimate.functional.cdf_inference.unavailable")
-    {
-        diagnostics.push(Diagnostic::new(
-            "estimate.functional.cdf_inference.unavailable",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Warning,
-            "conditional CDF values have no per-arm simultaneous bands or threshold tail-support evidence; joint covariance, when present, describes raw threshold contrasts, not the projected per-arm CDF",
-        ));
-    }
-    if diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.grid_scalar_cleared") {
-        return;
+                "conditional CDF values have no per-arm simultaneous bands or threshold tail-support evidence; joint covariance, when present, describes raw threshold contrasts, not the projected per-arm CDF",
+            ),
+        );
     }
     if estimate.exceedance_cdf.as_ref().is_some_and(|cdf| cdf.len() > 2)
         && !estimate.ate.is_finite()
     {
-        diagnostics.push(Diagnostic::new(
-            "estimate.functional.grid_scalar_cleared",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            "exceedance grids do not publish a first-threshold scalar ATE; use exceedance_cdf and the score table",
-        ));
+        push_unique_diagnostic(
+            diagnostics,
+            seen,
+            Diagnostic::new(
+                "estimate.functional.grid_scalar_cleared",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "exceedance grids do not publish a first-threshold scalar ATE; use exceedance_cdf and the score table",
+            ),
+        );
     }
 }
 
@@ -1746,15 +1974,15 @@ impl super::Study {
             diagnostics.extend(args.extra_diagnostics);
             diagnostics
         };
+        let mut seen: std::collections::HashSet<Arc<str>> =
+            diagnostics.iter().map(|d| Arc::clone(&d.code)).collect();
         // Envelope routes supply their own diagnostic seed, but a prepared
         // envelope still must expose cache reuse just like a single-graph path.
-        if args.identify_cached
-            && diagnostics.iter().all(|d| d.code.as_ref() != "exec.identify.cached")
-        {
-            diagnostics.push(identify_cached_diagnostic());
+        if args.identify_cached {
+            push_unique_diagnostic(&mut diagnostics, &mut seen, identify_cached_diagnostic());
         }
-        push_aipw_score_kind(&mut diagnostics, args.estimator_id, &args.estimate);
-        push_grid_scalar_cleared(&mut diagnostics, &args.estimate);
+        push_aipw_score_kind(&mut diagnostics, &mut seen, args.estimator_id, &args.estimate);
+        push_grid_scalar_cleared(&mut diagnostics, &mut seen, &args.estimate);
         let structural_posteriors = extras
             .structural_response
             .iter()
@@ -1762,8 +1990,27 @@ impl super::Study {
         for diagnostic in
             posterior_note_diagnostics(extras.posterior.iter().chain(structural_posteriors))
         {
-            if diagnostics.iter().all(|d| d.code != diagnostic.code) {
-                diagnostics.push(diagnostic);
+            push_unique_diagnostic(&mut diagnostics, &mut seen, diagnostic);
+        }
+        if let (Some(mode), Some(n)) = (self.latency_mode, extras.n_draws) {
+            let tier = match mode {
+                crate::analysis::latency::LatencyMode::Interactive => {
+                    crate::analysis::latency::INTERACTIVE_N_DRAWS
+                }
+                crate::analysis::latency::LatencyMode::Standard => {
+                    crate::analysis::latency::STANDARD_N_DRAWS
+                }
+                crate::analysis::latency::LatencyMode::Report => {
+                    crate::analysis::latency::REPORT_N_DRAWS
+                }
+            };
+            if usize::try_from(n).ok() != Some(tier) {
+                diagnostics.push(Diagnostic::new(
+                    "latency.explicit_budget_kept",
+                    DiagnosticKind::Execution,
+                    DiagnosticSeverity::Info,
+                    format!("explicit n_draws={n} kept over {} tier default {tier}", mode.as_str()),
+                ));
             }
         }
         let (id_artifact, id_op) = extras.identify_provenance.unwrap_or_else(|| {
@@ -1833,6 +2080,7 @@ impl super::Study {
             n_draws: extras.n_draws,
             cancelled: args.cancelled,
             early_stopped: args.early_stopped,
+            bayesian: matches!(self.inference, InferenceMode::Bayesian(_)),
         });
         result.certificate = certificate.map(|identification| crate::AnalysisIdentification {
             identification,
@@ -1859,8 +2107,15 @@ impl super::Study {
         result.predictive_checks = extras.predictive_checks;
         result.response = extras.response;
         result.structural_response = extras.structural_response;
+        result.rebind_interval(matches!(self.inference, InferenceMode::Bayesian(_)));
         result.support_status = self.support_status;
         result.structure_source = self.structure_source;
+        // A named predicate or custom distribution is a handle; encoding the
+        // executed query (certificates, artifacts) needs its bindings.
+        result.population_registry.clone_from(&self.population_registry);
+        if !is_quantile {
+            super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        }
         if !is_quantile
             && self
                 .tiered

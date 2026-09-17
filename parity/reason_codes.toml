@@ -1,0 +1,235 @@
+# Closed exemption vocabulary. Adding a code or raising max_uses is a
+# reviewed change to this file. Lowering max_uses is free.
+# max_uses is the exact 1.10.0 count; the schema gate's --print-counts
+# reprints the live uses so this file can be tightened, never guessed up.
+
+[[code]]
+id = "no_interval_reported"
+applies_to = ["calibration"]
+meaning = "The cell reports no interval; nothing to calibrate."
+max_uses = 4
+# Eligibility: a licensed cell may cite this code only for these queries,
+# which report a point quantity without a sampling interval.
+queries = ["Counterfactual", "AnomalyAttribution", "ChangeAttribution"]
+
+[[code]]
+id = "boundary_record"
+applies_to = ["calibration"]
+meaning = "The matching coverage record is a named boundary, or missed its nominal band at one of its sample-size grid points; it is not a nominal pass anywhere in its measured range."
+max_uses = 0
+
+[[code]]
+id = "estimator_grid_not_measured"
+applies_to = ["calibration"]
+meaning = "No coverage record measured this construction (query, graph class, structure, inference, estimator, interval method, SE kind, dependence, posterior, functional)."
+max_uses = 46
+
+[[code]]
+id = "interval_level_not_measured"
+applies_to = ["calibration"]
+meaning = "Records measured this construction, but not at the level the execution reported its interval at."
+max_uses = 0
+
+[[code]]
+id = "identification_not_measured"
+applies_to = ["calibration"]
+meaning = "Records measured this construction under the other identification label; a partially identified answer is not covered by a point-identified measurement."
+max_uses = 0
+
+[[code]]
+id = "sample_size_outside_measured_range"
+applies_to = ["calibration"]
+meaning = "The execution's row count lies outside every measured row-count range (the span of a record's sample-size grid points) for this construction; a range is never extrapolated."
+max_uses = 0
+
+[[code]]
+id = "resampling_replicates_below_measured"
+applies_to = ["calibration"]
+meaning = "Fewer resampling replicates succeeded than the record measured."
+max_uses = 0
+
+[[code]]
+id = "posterior_draws_below_measured"
+applies_to = ["calibration"]
+meaning = "Fewer posterior draws than the record measured."
+max_uses = 0
+
+[[code]]
+id = "unidentified_mass_above_measured"
+applies_to = ["calibration"]
+meaning = "More structural mass is not identified than the record measured."
+max_uses = 0
+
+[[code]]
+id = "calibration_basis_missing"
+applies_to = ["calibration"]
+meaning = "The claim carries no calibration match basis to re-derive its slot from."
+max_uses = 0
+
+[[code]]
+id = "data_modality_not_licensed"
+applies_to = ["python_product", "runtime_refusal"]
+meaning = "The query is not licensed on this data modality (tabular, series, event, panel, multi-environment)."
+max_uses = 8
+
+[[code]]
+id = "option_not_applicable"
+applies_to = ["python_product", "runtime_refusal"]
+meaning = "The option has no meaning for the selected route, so it is refused rather than ignored."
+max_uses = 2
+
+[[code]]
+id = "construction_not_licensed"
+applies_to = ["python_product", "runtime_refusal"]
+meaning = "The coordinate is licensed for one named construction (TransportQuery: a mean ResponseCurve transported by Direct or S-admissible trial-to-target IPW; InterferenceQuery: NeighborCount exposure under Bernoulli assignment); another design, exposure mapping, formula or inner functional on that coordinate is refused."
+max_uses = 0
+
+[[code]]
+id = "validators_not_applicable"
+applies_to = ["runtime_refusal"]
+meaning = "Custom validators refute one scalar average effect; this estimand has no such refutation problem."
+max_uses = 0
+
+[[code]]
+id = "population_not_estimable"
+applies_to = ["runtime_refusal"]
+meaning = "The query has no target population to redeclare, or this route estimates the all-observed population only."
+max_uses = 0
+
+[[code]]
+id = "prior_transfer_not_hydrated"
+applies_to = ["runtime_refusal"]
+meaning = "This route fits under the isotropic prior scale and does not hydrate a transferred prior."
+max_uses = 0
+
+[[code]]
+id = "likelihood_not_supported"
+applies_to = ["runtime_refusal"]
+meaning = "The Bayesian route fits a Gaussian identity-link model only, or cannot carry a transferred prior onto a non-Gaussian link; a Bernoulli or Poisson likelihood is refused rather than fitted as Gaussian."
+max_uses = 0
+
+[[code]]
+id = "stage_stream_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "The route fits its point and uncertainty together, or mixes identifications, so it has no progressive stages."
+max_uses = 0
+
+[[code]]
+id = "cancelled_no_claim"
+applies_to = ["runtime_refusal"]
+meaning = "Estimation was cancelled before a claim existed; export is refused."
+max_uses = 0
+
+[[code]]
+id = "not_executed"
+applies_to = ["runtime_refusal", "calibration"]
+meaning = "The study has not been executed; there is no claim or calibration slot."
+max_uses = 0
+
+[[code]]
+id = "row_weights_bound_to_snapshot"
+applies_to = ["runtime_refusal"]
+meaning = "A RowWeights population may re-execute only on its own data snapshot."
+max_uses = 0
+
+[[code]]
+id = "mechanism_fit_not_converged"
+applies_to = ["runtime_refusal"]
+meaning = "A parent-conditional categorical mechanism did not converge even on standardized parent columns; the remaining causes are near-separation or collinear parents, which the caller resolves by dropping or coarsening them."
+max_uses = 0
+
+[[code]]
+id = "attested_not_reverifiable"
+applies_to = ["runtime_refusal", "claim"]
+meaning = "Custom validator results are caller-attested and are not re-verified on load."
+max_uses = 0
+
+[[code]]
+id = "treatment_support_too_discrete"
+applies_to = ["runtime_refusal"]
+meaning = "A local-polynomial response in the treatment needs more distinct treatment values carrying kernel weight at an evaluation point than the treatment has there; a binary or few-level treatment is answered by AverageEffect or InterventionResponse instead."
+max_uses = 0
+
+[[code]]
+id = "estimator_inference_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "The selected estimator does not implement the requested inference mode on this query, so it is refused rather than run under the other mode."
+max_uses = 0
+
+[[code]]
+id = "effect_not_identified"
+applies_to = ["runtime_refusal"]
+meaning = "The question has no identified estimand under the declared structure; the refusal carries the identification status and whether the search was complete or capped."
+max_uses = 0
+
+[[code]]
+id = "score_table_unavailable"
+applies_to = ["runtime_refusal"]
+meaning = "Retargeting reweights a prepared score table, and this study prepared none."
+max_uses = 0
+
+[[code]]
+id = "refutation_not_applicable"
+applies_to = ["runtime_refusal"]
+meaning = "The requested refutation suite has no state to refute for this estimand."
+max_uses = 0
+
+[[code]]
+id = "cell_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "The support-matrix cell is refused: it is neither licensed nor not-applicable."
+max_uses = 0
+
+[[code]]
+id = "cell_not_applicable"
+applies_to = ["runtime_refusal"]
+meaning = "The support-matrix cell does not denote for this query, structure, inference and validation."
+max_uses = 0
+
+[[code]]
+id = "route_not_supported"
+applies_to = ["runtime_refusal"]
+meaning = "No execution route implements this combination of query, structure, data and options."
+max_uses = 0
+
+[[code]]
+id = "unknown_strategy"
+applies_to = ["runtime_refusal"]
+meaning = "The estimator or identifier id is not in the closed strategy table."
+max_uses = 0
+
+[[code]]
+id = "strategy_incompatible"
+applies_to = ["runtime_refusal"]
+meaning = "The identifier and estimator (or query and estimator) do not form a compatible pair."
+max_uses = 0
+
+[[code]]
+id = "required_option_missing"
+applies_to = ["runtime_refusal"]
+meaning = "The selected route needs a companion option the call did not supply."
+max_uses = 0
+
+[[code]]
+id = "unknown_variable"
+applies_to = ["runtime_refusal"]
+meaning = "A named variable is not in the data schema."
+max_uses = 0
+
+[[code]]
+id = "graph_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "The supplied structure is not a valid graph of its class (for example a directed cycle)."
+max_uses = 0
+
+[[code]]
+id = "schema_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "The data do not have the schema the structure or prepared study was built on."
+max_uses = 0
+
+[[code]]
+id = "invalid_argument"
+applies_to = ["runtime_refusal"]
+meaning = "An argument has the wrong type, shape or value for this entry point."
+max_uses = 0

@@ -207,7 +207,8 @@ impl ConditionalLinearAdjustment {
             ));
         }
         if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("population_not_estimable"),
                 "ConditionalLinearAdjustment only supports AllObserved",
             ));
         }

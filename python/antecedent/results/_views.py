@@ -3,14 +3,24 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from .._native import ScoreInferenceSection, ScoreTableSection, ValidationFailureSection
+    from ..interference import InterferenceEstimate
+    from ..transport import TransportOverlapReport
 
+from .._verdict import describe_status, verdict_for
 from ..ids import Refute
+from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct, fmt_se
+from ._slots import (
+    ReasoningSlots,
+    describe_limitation,
+    display_mass,
+    mass_limitation,
+)
 
 __all__ = [
     "IdentificationView",
@@ -33,16 +43,6 @@ __all__ = [
     "AnalysisResult",
 ]
 
-# Every status the native identification strategies are known to emit for an
-# identified estimand, plus the deterministic GCM counterfactual path (which
-# never runs the backdoor/frontdoor/IV search and so has no "identified"
-# substring at all). Anything that looks like a negation (not/un/partial) is
-# treated as not identified; unrecognised statuses default to not identified
-# rather than risk a false "identified" claim on a status this library has
-# not seen yet.
-_IDENTIFIED_STATUSES = frozenset({"nonparametricallyidentified", "gcm.parametric"})
-_NOT_IDENTIFIED_MARKERS = ("not_identified", "notidentified", "not identified", "unidentified")
-
 
 @dataclass(frozen=True)
 class IdentificationView:
@@ -54,23 +54,11 @@ class IdentificationView:
     horizon_adjustment_sets: tuple[tuple[str, ...], ...] | None = None
 
     def __bool__(self) -> bool:
-        """``True`` when the estimand is identified.
-
-        See the module-level status tables above for what counts as
-        identified — this is a judgment call over engine status strings,
-        not an exact spec, so it defaults closed (not identified) on any
-        status it does not recognise.
-        """
-        normalized = self.status.strip().lower()
-        if normalized in _IDENTIFIED_STATUSES:
-            return True
-        negated = _NOT_IDENTIFIED_MARKERS + ("partial",)
-        if any(marker in normalized for marker in negated):
-            return False
-        return "identified" in normalized
+        """``True`` when the single verdict table reports identified."""
+        return verdict_for(self.status) == "identified"
 
     def __repr__(self) -> str:
-        verdict = "identified" if self else "not identified"
+        verdict = describe_status(self.status)
         adjustment = f" adjustment_set={self.adjustment_set!r}" if self.adjustment_set else ""
         return f"<IdentificationView {verdict} method={self.method!r}{adjustment}>"
 
@@ -191,6 +179,15 @@ class EstimateView:
     exceedance_cdf: tuple[float, ...] | None = None
     monotone_rearranged: bool = False
     interaction_structurally_zero: bool | None = None
+    #: Counterfactual disclosure: the mechanisms selected on every treatment to
+    #: outcome path admit no effect modification *and* no family that could have
+    #: modified the effect was fit on those paths (none applied, e.g. a
+    #: single-parent outcome, or every such family failed), so ``unit_effects`` is
+    #: the same number for every unit by construction — not a measured finding.
+    #: When a heterogeneity-capable family was fit and lost on validation score
+    #: this stays ``False``: equal unit effects are then an empirical finding,
+    #: recorded in ``gcm.counterfactual.heterogeneity_rejected``.
+    unit_effects_homogeneous: bool | None = None
     score_table: ScoreTableSection | None = None
     joint_covariance: list[list[float]] | None = None
     score_inference: ScoreInferenceSection | None = None
@@ -202,14 +199,26 @@ class EstimateView:
     family_contrast_interval: tuple[float, float, float] | None = None
     candidate_selection: Any = None
     evalue: float | None = None
+    #: Threshold the ``sensitivity.evalue`` refuter judged :attr:`evalue` against.
+    #: ``None`` (with ``evalue`` ``None``) when that refuter did not run.
+    evalue_threshold: float | None = None
     #: Interventional-distribution atoms, each with its bounded probability
     #: interval (Frequentist) — ``None`` for other queries.
     distribution: tuple[DistributionAtomView, ...] | None = None
     #: Bounded interval for ``ate`` when it is the probability ``P(Y = 1 | do(x))``
     #: of a binary ``{0, 1}`` outcome; ``None`` otherwise.
     mean_interval: ProbabilityIntervalView | None = None
+    #: Rendering-limitation id of the enclosing result (``identified_set``,
+    #: ``unidentified_mass``, ...). When set, ``ate`` is not a point for the
+    #: claim and displays withhold it behind the caveat.
+    limitation: str | None = None
 
     def __repr__(self) -> str:
+        if self.limitation is not None:
+            return (
+                f"<EstimateView {describe_limitation(self.limitation)} "
+                f"estimator={self.estimator_id!r} method={self.method!r}>"
+            )
         if self.mean_interval is not None:
             return (
                 f"<EstimateView ate={fmt_float(self.ate)} "
@@ -219,14 +228,17 @@ class EstimateView:
         se = self.se_bootstrap if self.se_bootstrap is not None else self.se_analytic
         se_text = fmt_se(se)
         label = "mean_ite" if self.estimator_id == "gcm.fit" else "ate"
+        point = f"{label}={fmt_float(self.ate)}"
+        if label == "mean_ite" and self.unit_effects_homogeneous:
+            point = f"{point} (homogeneous mechanism)"
         if se_text is None:
             return (
-                f"<EstimateView {label}={fmt_float(self.ate)} se=unavailable "
+                f"<EstimateView {point} se=unavailable "
                 f"estimator={self.estimator_id!r} method={self.method!r}>"
             )
         se_kind = "bootstrap" if self.se_bootstrap is not None else "analytic"
         return (
-            f"<EstimateView {label}={fmt_float(self.ate)} se={se_text} ({se_kind}) "
+            f"<EstimateView {point} se={se_text} ({se_kind}) "
             f"estimator={self.estimator_id!r} method={self.method!r}>"
         )
 
@@ -261,8 +273,20 @@ class PosteriorView:
     #: envelope subsample. Those atoms were not evaluated, so this is neither
     #: unidentified mass nor part of the published mixture.
     subsampled_out_mass: float = 0.0
+    #: Rendering-limitation id of the enclosing result. When set, the moments
+    #: and quantiles describe a mixture, not an interval for the claim, and
+    #: displays withhold them behind the caveat.
+    limitation: str | None = None
 
     def __repr__(self) -> str:
+        if self.limitation is not None:
+            parts = [describe_limitation(self.limitation), f"n_draws={self.n_draws}"]
+            parts.append(f"backend={self.backend!r}")
+            if self.unidentified_mass is not None and self.unidentified_mass > 0:
+                parts.append(f"unidentified_mass={fmt_pct(self.unidentified_mass)}")
+            if self.subsampled_out_mass > 0:
+                parts.append(f"subsampled_out_mass={fmt_pct(self.subsampled_out_mass)}")
+            return f"<PosteriorView {' '.join(parts)}>"
         if self.effect_mean is None:
             if self.n_draws is not None:
                 return (
@@ -501,6 +525,10 @@ class PerformanceView:
     stage_timings: dict[str, int] | None = None
     bytes_borrowed: int | None = None
 
+    @property
+    def bootstrap_requested(self) -> int | None:
+        return self.bootstrap_replicates_requested
+
     def __repr__(self) -> str:
         bits: list[str] = []
         if self.wall_time_ns is not None:
@@ -559,7 +587,7 @@ class PhysicalPlanView:
 
 
 @dataclass(frozen=True)
-class AnalysisResult:
+class AnalysisResult(ResultAPI):
     """Nested analysis result matching the Rust facade sections."""
 
     identification: IdentificationView
@@ -596,20 +624,62 @@ class AnalysisResult:
     structural_identified_set_interval_truncated: bool | None = None
     _raw: Any = None
     _prepared: Any = None
+    _execution: Any = field(default=None, repr=False, compare=False)
     query: Any = None
     certificate: dict[str, Any] | None = None
     unit_effects: list[float] | None = None
+    #: Per-unit ``(lower, upper)`` intervals aligned with ``unit_effects``, at
+    #: ``unit_effect_intervals_level`` and by ``unit_effect_intervals_method``.
+    #: Bayesian counterfactuals publish the equal-tailed posterior quantiles of
+    #: each unit's ITE draws (``"unit_posterior_quantile"``): a credible interval for
+    #: that observed unit's contrast under the fitted mechanism, carrying
+    #: mechanism-refit uncertainty only. Frequentist counterfactuals have no
+    #: per-unit construction and leave all three ``None``
+    #: (``gcm.counterfactual.uncertainty_unavailable``).
+    unit_effect_intervals: list[tuple[float, float]] | None = None
+    unit_effect_intervals_level: float | None = None
+    unit_effect_intervals_method: str | None = None
+    #: Per-unit flags aligned with ``unit_effects``: ``True`` where the unit's
+    #: prediction into the arm it did not receive leaves that arm's observed
+    #: support (covariate cell or abducted disturbance). Counts are in the
+    #: ``gcm.counterfactual.support`` diagnostic.
+    unit_extrapolative: list[bool] | None = None
     assumptions: list[str] | None = None
     support: list[str] | None = None
+    reasoning: ReasoningSlots | None = None
+    #: Compiled program identity. Distinct from ``claim_id``.
+    program_id: str | None = None
+    #: Execution claim identity. Distinct from ``program_id``.
+    claim_id: str | None = None
+    #: Identity of the data snapshot this execution ran on.
+    data_snapshot_id: str | None = None
+    #: TransportQuery: trial-selection and within-trial treatment overlap,
+    #: reported separately (the transported IPW is ``estimate.ate``).
+    transport_overlap: TransportOverlapReport | None = None
+    #: InterferenceQuery: Horvitz–Thompson / Hájek contrast, conservative
+    #: variance and exposure-probability methods (HT is ``estimate.ate``).
+    interference: InterferenceEstimate | None = None
+
+    def __post_init__(self) -> None:
+        # Nested views carry the claim's rendering limitation so that
+        # ``result.estimate`` / ``result.posterior`` never display a lone
+        # point and interval for a claim that has none.
+        limitation = self.rendering_limitation()
+        if isinstance(self.estimate, EstimateView) and self.estimate.limitation != limitation:
+            object.__setattr__(self, "estimate", replace(self.estimate, limitation=limitation))
+        if isinstance(self.posterior, PosteriorView) and self.posterior.limitation != limitation:
+            object.__setattr__(self, "posterior", replace(self.posterior, limitation=limitation))
 
     @property
     def effect(self) -> float | None:
         """Primary requested contrast, including mediation and mean ITE.
 
         Function-valued results omit a scalar; the response or mediation grid
-        is authoritative.
+        is authoritative. Prefer :attr:`answer` when identification may be
+        partial; this field warns when a point display would misrepresent.
         """
-        return self.estimate.ate
+        self._warn_legacy_scalar("effect")
+        return self._scalar_effect()
 
     @property
     def ate(self) -> float | None:
@@ -619,34 +689,52 @@ class AnalysisResult:
         Prefer :attr:`mean_ite` or :attr:`effect` there. Function-valued
         results omit a scalar rather than publishing NaN.
         """
-        return self.effect
+        self._warn_legacy_scalar("ate")
+        return self._scalar_effect()
 
     @property
     def mean_ite(self) -> float:
         """Mean two-world ITE. Only defined when ``unit_effects`` is present."""
         if self.unit_effects is None:
             raise AttributeError("mean_ite is only defined for counterfactual results")
-        if self.effect is None:
+        value = self._scalar_effect()
+        if value is None:
             raise AttributeError("mean_ite requires a scalar effect")
-        return self.effect
+        return value
 
     def __repr__(self) -> str:
-        verdict = "identified" if self.identification else "not identified"
+        verdict = describe_status(self.identification.status)
+        limitation = self.rendering_limitation()
+        if limitation is not None:
+            answer = self.answer
+            parts = [verdict, f"answer={answer.kind}"]
+            if answer.bounds is not None:
+                parts.append(
+                    f"bounds=[{fmt_float(answer.bounds[0])}, {fmt_float(answer.bounds[1])}]"
+                )
+            parts.append(f"limitation={limitation}")
+            mass = self._display_mass()
+            if mass is not None and mass > 0:
+                parts.append(f"unidentified_mass={fmt_pct(mass)}")
+            return f"<AnalysisResult {' '.join(parts)}>"
         se = (
             self.estimate.se_bootstrap
             if self.estimate.se_bootstrap is not None
             else self.estimate.se_analytic
         )
         se_text = fmt_se(se)
+        effect = self._scalar_effect()
         if self.unit_effects is not None:
-            parts = [verdict, f"mean_ite={fmt_float(self.effect)}"]
+            parts = [verdict, f"mean_ite={fmt_float(effect)}"]
+            if self.estimate.unit_effects_homogeneous:
+                parts.append("(homogeneous mechanism)")
         elif self.estimate.mean_interval is not None:
             interval_text = fmt_probability_interval(self.estimate.mean_interval)
-            parts = [verdict, f"effect={fmt_float(self.effect)} {interval_text}"]
+            parts = [verdict, f"effect={fmt_float(effect)} {interval_text}"]
         elif se_text is None:
-            parts = [verdict, f"effect={fmt_float(self.effect)} se=unavailable"]
+            parts = [verdict, f"effect={fmt_float(effect)} se=unavailable"]
         else:
-            parts = [verdict, f"effect={fmt_float(self.effect)} ±{se_text}"]
+            parts = [verdict, f"effect={fmt_float(effect)} ±{se_text}"]
         if self.validation.ran:
             n = len(self.validation)
             n_passed = n - len(self.validation.failed)
@@ -662,28 +750,28 @@ class AnalysisResult:
         self,
         data: Mapping[str, Any] | Any,
         *,
-        seed: int = 1,
-        threads: int = 1,
+        seed: int | None = None,
+        threads: int | None = None,
     ) -> AnalysisResult:
         """Re-estimate on new data via the retained prepared handle.
 
-        Only results from :meth:`PreparedAnalysis.estimate` / ``refresh`` support
-        this. One-shot :func:`analyze` results raise ``TypeError``.
+        Equivalent to ``result.study.refresh(data)``. The current result remains
+        unchanged; the returned result captures the refreshed execution.
         """
         if self._prepared is None:
             raise TypeError(
                 "AnalysisResult.refresh requires a result from PreparedAnalysis; "
                 "use PreparedAnalysis.prepare(...) then estimate/refresh"
             )
-        return self._prepared.estimate(data, seed=seed, threads=threads)
+        return self._prepared.refresh(data, seed=seed, threads=threads)
 
     def refute(
         self,
         data: Mapping[str, Any] | Any,
         suite: Refute | Literal["placebo", "full", "cheap"] | bool | str = "placebo",
         *,
-        seed: int = 1,
-        threads: int = 1,
+        seed: int | None = None,
+        threads: int | None = None,
         cancel: Any | None = None,
     ) -> AnalysisResult:
         """Second-click refute via the retained prepared handle."""
@@ -694,4 +782,30 @@ class AnalysisResult:
             )
         if isinstance(suite, Refute):
             suite = str(suite)
-        return self._prepared.refute(data, suite, seed=seed, threads=threads, cancel=cancel)
+        # A result's second-click validation belongs to this execution, even
+        # when the reusable study has since estimated or refreshed other data.
+        # The frozen handle keeps the originating study's seed, threads, kind
+        # and controls, so an omitted seed refutes the execution that ran.
+        frozen = self._prepared._frozen(self._execution.snapshot())
+        token = {} if cancel is None else {"cancel": cancel}
+        return frozen.refute(data, suite, seed=seed, threads=threads, **token)
+
+    def rendering_limitation(self) -> str | None:
+        """Stable id when a point-mean display would misrepresent the claim."""
+        if self.reasoning is not None:
+            limit = self.reasoning.rendering_limitation()
+            if limit is not None:
+                return limit
+        mass = self._display_mass()
+        return mass_limitation(mass, identified_set=self.structural_identified_set is not None)
+
+    def _display_mass(self) -> float | None:
+        """The unidentified mass every renderer of this result shows.
+
+        One precedence rule, in :func:`._slots.display_mass`, so ``repr()`` and
+        the notebook callout never quote different numbers for the same result.
+        """
+        return display_mass(
+            self.structural_unidentified_mass,
+            self.posterior.unidentified_mass if self.posterior is not None else None,
+        )

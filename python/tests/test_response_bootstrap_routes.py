@@ -73,12 +73,14 @@ def _refusing_routes() -> list[tuple[str, dict[str, Any], type[Exception], str]]
     tiered = TieredBackground(
         tiers=[["z"], ["t1", "t2"], ["y"]], within_tier=WithinTier.CODETERMINED
     )
-    static_msg = "do not yet expose bootstrap"
+    # One refusal for every non-resampling response route: the uncertainty is
+    # analytic or influence-function, so a requested bootstrap is refused.
+    static_msg = "analytic or influence-function"
     return [
         (
             "dag_response_curve",
             {"data": static, "graph": _STATIC_EDGES, "query": _CURVE},
-            ValueError,
+            CausalUnsupportedError,
             static_msg,
         ),
         (
@@ -88,7 +90,7 @@ def _refusing_routes() -> list[tuple[str, dict[str, Any], type[Exception], str]]
                 "graph": _STATIC_EDGES,
                 "query": antecedent.AverageDerivative("t", "y"),
             },
-            ValueError,
+            CausalUnsupportedError,
             static_msg,
         ),
         (
@@ -98,19 +100,19 @@ def _refusing_routes() -> list[tuple[str, dict[str, Any], type[Exception], str]]
                 "graph": _STATIC_EDGES,
                 "query": antecedent.InterventionResponse("y", intervention=Set("t", 1.0)),
             },
-            ValueError,
+            CausalUnsupportedError,
             static_msg,
         ),
         (
             "cpdag_response_curve",
             {"data": static, "graph": cpdag, "query": _CURVE},
-            ValueError,
+            CausalUnsupportedError,
             static_msg,
         ),
         (
             "admg_response_curve",
             {"data": static, "graph": admg, "query": _CURVE},
-            ValueError,
+            CausalUnsupportedError,
             static_msg,
         ),
         (
@@ -122,13 +124,13 @@ def _refusing_routes() -> list[tuple[str, dict[str, Any], type[Exception], str]]
                 "estimator": "cell.aipw",
             },
             CausalUnsupportedError,
-            "cell.aipw uses analytic influence uncertainty",
+            static_msg,
         ),
         (
             "tiered_background_cell_aipw",
             {"data": binary, "graph": tiered, "query": _JOINT},
             CausalUnsupportedError,
-            "cell.aipw uses analytic influence uncertainty",
+            static_msg,
         ),
         (
             "bayesian_static_curve",

@@ -6,6 +6,30 @@ use std::sync::Arc;
 
 use crate::result::{IdentificationResult, IdentificationStatus, IdentifiedEstimand};
 
+/// Whether a case with this status contributes to an envelope's identified
+/// mass.
+///
+/// The single owner of that list. [`IdentificationEnvelope::from_cases`] splits
+/// `identified_weight` from `unidentified_weight` by exactly this predicate, so
+/// any other reading of "which completion mass is identified" — a class
+/// mixture, a diagnostic, a published mass — must ask here rather than restate
+/// the arms, or it contradicts the envelope it was built from.
+///
+/// It is deliberately wider than "which cases may be estimated": a completion
+/// identified only under prior restrictions carries identified mass and its
+/// assumptions, but no frequentist arm estimates it, so its mass lands in the
+/// unevaluable bucket rather than the unidentified one.
+#[must_use]
+pub const fn carries_identified_mass(status: IdentificationStatus) -> bool {
+    matches!(
+        status,
+        IdentificationStatus::NonparametricallyIdentified
+            | IdentificationStatus::PartiallyIdentified
+            | IdentificationStatus::IdentifiedUnderParametricRestrictions
+            | IdentificationStatus::IdentifiedUnderPriorRestrictions
+    )
+}
+
 /// Probability mass on `[0, 1]` (not necessarily normalized across fields alone).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ProbabilityMass(pub f64);
@@ -79,37 +103,31 @@ impl<G> IdentificationEnvelope<G> {
         let mut invariant: Option<IdentifiedEstimand> = None;
         let mut invariant_conflict = false;
         for c in &cases {
-            match c.result.status {
-                IdentificationStatus::NonparametricallyIdentified
-                | IdentificationStatus::IdentifiedUnderParametricRestrictions
-                | IdentificationStatus::IdentifiedUnderPriorRestrictions
-                | IdentificationStatus::PartiallyIdentified => {
-                    any_id = true;
-                    any_parametric |= matches!(
-                        c.result.status,
-                        IdentificationStatus::IdentifiedUnderParametricRestrictions
-                    );
-                    any_prior_restricted |= matches!(
-                        c.result.status,
-                        IdentificationStatus::IdentifiedUnderPriorRestrictions
-                    );
-                    any_partial |=
-                        matches!(c.result.status, IdentificationStatus::PartiallyIdentified);
-                    identified += c.weight.0;
-                    if let Some(est) = c.result.estimands.first() {
-                        match &invariant {
-                            None => invariant = Some(est.clone()),
-                            Some(prev) if !estimands_agree(prev, est) => {
-                                invariant_conflict = true;
-                            }
-                            _ => {}
+            // `carries_identified_mass` is the list; this is the split it owns.
+            if carries_identified_mass(c.result.status) {
+                any_id = true;
+                any_parametric |= matches!(
+                    c.result.status,
+                    IdentificationStatus::IdentifiedUnderParametricRestrictions
+                );
+                any_prior_restricted |= matches!(
+                    c.result.status,
+                    IdentificationStatus::IdentifiedUnderPriorRestrictions
+                );
+                any_partial |= matches!(c.result.status, IdentificationStatus::PartiallyIdentified);
+                identified += c.weight.0;
+                if let Some(est) = c.result.estimands.first() {
+                    match &invariant {
+                        None => invariant = Some(est.clone()),
+                        Some(prev) if !estimands_agree(prev, est) => {
+                            invariant_conflict = true;
                         }
+                        _ => {}
                     }
                 }
-                IdentificationStatus::NotIdentified | IdentificationStatus::GraphDependent => {
-                    all_id = false;
-                    unidentified += c.weight.0;
-                }
+            } else {
+                all_id = false;
+                unidentified += c.weight.0;
             }
         }
         let status = if cases.is_empty() {
@@ -135,15 +153,7 @@ impl<G> IdentificationEnvelope<G> {
             invariant = None;
         }
         let critical_graph_features = collect_critical_features(&cases, status, unidentified);
-        let truncated_completions = cases
-            .iter()
-            .filter(|c| {
-                c.result.diagnostics.iter().any(|d| {
-                    d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
-                        || d.code.as_ref() == crate::temporal_mag::HISTORY_CAPPED
-                })
-            })
-            .count();
+        let truncated_completions = cases.iter().filter(|c| case_truncated(c)).count();
         Self {
             invariant,
             cases,
@@ -153,6 +163,15 @@ impl<G> IdentificationEnvelope<G> {
             status,
             truncated_completions,
         }
+    }
+
+    /// Weight of cases whose search was truncated before it could determine
+    /// identifiability. This mass is counted in [`Self::unidentified_weight`]
+    /// like any other unidentified case; a caller that must separate "could
+    /// not tell" from "proved impossible" subtracts it.
+    #[must_use]
+    pub fn truncated_weight(&self) -> f64 {
+        self.cases.iter().filter(|case| case_truncated(case)).map(|case| case.weight.0).sum()
     }
 
     /// Merge additional critical features (e.g. source-PAG circle marks) without duplicates.
@@ -167,6 +186,23 @@ impl<G> IdentificationEnvelope<G> {
             }
         }
     }
+}
+
+/// Whether this case's search was truncated before it could decide.
+fn case_truncated<G>(case: &GraphIdentificationCase<G>) -> bool {
+    search_truncated(&case.result)
+}
+
+/// Whether an identification search stopped at a budget (a completion or
+/// history cap) before it could decide, rather than completing.
+///
+/// A truncated `NotIdentified` is not a proof of non-identification.
+#[must_use]
+pub fn search_truncated(result: &crate::IdentificationResult) -> bool {
+    result.diagnostics.iter().any(|d| {
+        d.code.as_ref() == crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE
+            || d.code.as_ref() == crate::temporal_mag::HISTORY_CAPPED
+    })
 }
 
 /// Class-wide invariant estimands must agree on the functional roles, not just the method tag.
@@ -281,6 +317,42 @@ mod tests {
             "features={:?}",
             env.critical_graph_features
         );
+    }
+
+    // An envelope with no capped case truncates exactly zero weight, not
+    // approximately zero: the sum runs over an empty set.
+    #[allow(clippy::float_cmp)]
+    #[test]
+    fn truncated_weight_separates_capped_search_from_proved_non_identification() {
+        let mut capped = dummy_result(IdentificationStatus::NotIdentified);
+        capped.diagnostics.push(antecedent_core::Diagnostic::new(
+            crate::generalized::CAPPED_COMPLETION_DIAGNOSTIC_CODE,
+            antecedent_core::DiagnosticKind::Execution,
+            antecedent_core::DiagnosticSeverity::Warning,
+            "completion enumeration exceeded its budget",
+        ));
+        let env = IdentificationEnvelope::from_cases(vec![
+            GraphIdentificationCase {
+                graph: 0u32,
+                result: dummy_result(IdentificationStatus::NonparametricallyIdentified),
+                weight: ProbabilityMass(0.25),
+            },
+            GraphIdentificationCase {
+                graph: 1u32,
+                result: dummy_result(IdentificationStatus::NotIdentified),
+                weight: ProbabilityMass(0.5),
+            },
+            GraphIdentificationCase { graph: 2u32, result: capped, weight: ProbabilityMass(0.25) },
+        ]);
+        assert_eq!(env.truncated_completions, 1);
+        assert!((env.truncated_weight() - 0.25).abs() < 1e-12);
+        assert!((env.unidentified_weight.0 - 0.75).abs() < 1e-12, "capped mass is not dropped");
+        let complete = IdentificationEnvelope::from_cases(vec![GraphIdentificationCase {
+            graph: 0u32,
+            result: dummy_result(IdentificationStatus::NotIdentified),
+            weight: ProbabilityMass(1.0),
+        }]);
+        assert_eq!(complete.truncated_weight(), 0.0);
     }
 
     #[test]

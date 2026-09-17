@@ -67,7 +67,8 @@ pub mod review;
 pub mod state;
 pub mod strategy_table;
 pub mod support;
-mod support_matrix_data;
+pub use antecedent_io::coverage_records_data;
+pub mod support_matrix_data;
 
 pub mod estimate;
 pub mod graph;
@@ -80,10 +81,12 @@ pub mod validate;
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
-    BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
-    CellFamilyContrast, ComputeBudget, InterferenceSpec, LatencyMode, PreparedBatch, PreparedStudy,
-    RdConfig, RefuteSuite, SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink,
-    Study, StudyBuilder, TransportTrialSpec,
+    BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
+    CandidateSelection, CausalContract, CellFamilyContrast, ComputeBudget, InterferenceSpec,
+    LatencyMode, LicensedNeighbor, NextAction, OperationKind, OperationReadiness, OperationReport,
+    PremiseChange, PreparedBatch, PreparedStudy, RdConfig, RefuteSuite, SemanticApplicability,
+    SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink, Study, StudyBuilder,
+    TransportTrialSpec,
 };
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};
@@ -94,9 +97,13 @@ pub use identify_api::{Identification, identify, identify_dag, identify_with};
 pub use inference::{BayesianConfig, InferenceMode};
 pub use options::FdrControl;
 pub use query::*;
-pub use result::{AnalysisIdentification, StructuralWeightBasis, StudyResult};
+pub use result::{
+    AnalysisIdentification, ExecutedContract, RowWeightsBinding, StructuralWeightBasis, StudyResult,
+};
 pub use support::{
-    CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, classify,
+    CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportRefusal, cell_coordinate,
+    classify, licensed_neighbors, licensed_support_cells, refused_message,
+    support_cell_from_coordinate,
 };
 
 // Strategy helpers and peer APIs: use `antecedent::estimate`, `antecedent::discovery`,
@@ -923,5 +930,21 @@ mod tests {
         let plan = analysis.compile(&ctx).unwrap();
         assert!(plan.temporal_graph().is_some());
         assert_eq!(plan.record.batch_size, Some(250));
+    }
+
+    #[test]
+    fn every_interval_method_has_a_record_or_code() {
+        for method in antecedent_core::IntervalMethod::ALL {
+            let has_record = crate::coverage_records_data::RECORDS
+                .iter()
+                .any(|row| row.interval_method == method.as_str());
+            let listed = crate::coverage_records_data::INTERVAL_METHOD_REASONS
+                .iter()
+                .any(|(item, reason)| *item == method && (has_record || reason.is_some()));
+            assert!(
+                has_record || listed,
+                "IntervalMethod::{method:?} needs a coverage record or INTERVAL_METHOD_REASONS code"
+            );
+        }
     }
 }

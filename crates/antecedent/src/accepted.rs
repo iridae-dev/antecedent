@@ -197,6 +197,12 @@ impl GraphClass {
             Self::TemporalPag => "TemporalPag",
         }
     }
+
+    /// Incomplete temporal class: completions remain explicit, never a supplied DAG.
+    #[must_use]
+    pub const fn is_incomplete_temporal(self) -> bool {
+        matches!(self, Self::TemporalCpdag | Self::TemporalPag)
+    }
 }
 
 /// Internal storage: one owned graph per supported class.
@@ -365,6 +371,18 @@ impl AcceptedGraph {
     #[must_use]
     pub fn algorithm_id(&self) -> Option<&str> {
         self.algorithm_id.as_deref()
+    }
+
+    /// Record the discovery algorithm of a structure accepted from a review
+    /// artifact and held outside this value (for example a language binding's
+    /// accepted-graph handle that re-binds the same structure).
+    ///
+    /// Provenance only: the identification and program digests exclude it
+    /// (ADR 0022), so recording it never changes those identities.
+    #[must_use]
+    pub fn with_discovery_algorithm(mut self, algorithm_id: impl Into<Arc<str>>) -> Self {
+        self.algorithm_id = Some(algorithm_id.into());
+        self
     }
 
     /// Borrow the DAG when [`Self::class`] is [`GraphClass::Dag`].

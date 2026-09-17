@@ -80,6 +80,43 @@ impl EstimatorSpec {
     pub fn is_configured(&self) -> bool {
         !matches!(self, Self::Default(_))
     }
+
+    /// Replicate count a configured estimator carries; `None` for an id-only spec.
+    ///
+    /// The study reports and executes one replicate budget, so it reads this
+    /// rather than keeping a second count beside a configured estimator.
+    #[must_use]
+    pub fn bootstrap_replicates(&self) -> Option<u32> {
+        match self {
+            Self::Default(_) => None,
+            Self::LinearAdjustmentAte(cfg) => Some(cfg.bootstrap_replicates),
+            Self::PropensityWeighting(cfg) => Some(cfg.bootstrap_replicates),
+            Self::PropensityMatching(cfg) => Some(cfg.bootstrap_replicates),
+            Self::PropensityStratification(cfg) => Some(cfg.bootstrap_replicates),
+            Self::DistanceMatching(cfg) => Some(cfg.bootstrap_replicates),
+            Self::Aipw(cfg) => Some(cfg.bootstrap_replicates),
+            Self::GlmAdjustment(cfg) => Some(cfg.bootstrap_replicates),
+            Self::FrontDoorTwoStage(cfg) => Some(cfg.bootstrap_replicates),
+            Self::IvWald(cfg) => Some(cfg.bootstrap_replicates),
+            Self::Iv2Sls(cfg) => Some(cfg.bootstrap_replicates),
+        }
+    }
+
+    /// Overlap policy a configured propensity-score estimator (weighting,
+    /// matching, stratification, distance matching, AIPW) clips and trims
+    /// with; `None` for an id-only spec and for estimators without a
+    /// propensity model.
+    #[must_use]
+    pub fn propensity_overlap(&self) -> Option<antecedent_estimate::OverlapPolicy> {
+        match self {
+            Self::PropensityWeighting(cfg) => Some(cfg.overlap),
+            Self::PropensityMatching(cfg) => Some(cfg.overlap),
+            Self::PropensityStratification(cfg) => Some(cfg.overlap),
+            Self::DistanceMatching(cfg) => Some(cfg.overlap),
+            Self::Aipw(cfg) => Some(cfg.overlap),
+            _ => None,
+        }
+    }
 }
 
 impl From<EstimatorId> for EstimatorSpec {

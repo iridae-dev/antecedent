@@ -235,7 +235,8 @@ impl SharpRegressionDiscontinuity {
             return Err(EstimationError::unsupported("sharp RD does not support effect modifiers"));
         }
         if query.target_population != TargetPopulation::AllObserved {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::refused(
+                antecedent_core::reason_code!("population_not_estimable"),
                 "sharp RD only supports TargetPopulation::AllObserved",
             ));
         }
@@ -382,7 +383,9 @@ impl SharpRegressionDiscontinuity {
             Some(self.bootstrap_se(problem, workspace, ctx)?)
         };
 
-        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap).with_bootstrap(boot))
+        Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_se_kind(self.se_kind)
+            .with_bootstrap(boot))
     }
 
     fn bootstrap_se(
@@ -635,6 +638,6 @@ mod tests {
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
                 .with_target_population(TargetPopulation::Treated);
         let err = est.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(matches!(err, EstimationError::Unsupported { .. }));
+        assert!(matches!(err, EstimationError::Refused { .. }));
     }
 }

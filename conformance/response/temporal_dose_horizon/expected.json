@@ -115,7 +115,7 @@
         241.0,
         240.0
       ],
-      "note": "Determinism pin of the seeded circular-block bootstrap through the public Study API (ExecutionContext seed 21, 60 replicates, serial and bounded-thread contexts agree bit for bit). Not a coverage claim: coverage evidence is the weekly gate crates/antecedent/tests/v19_temporal_response_calibration.rs. The noiseless period-4 DGP makes every estimating score degenerate or negatively dependent, so testing lengthens nothing and the block stays at the rule (16). That length is a multiple of the period: every circular resample stays orthogonal and the band collapses to the point surface (GEMM-scale width). The old |dose|-scaled analytic band vanished only at dose zero; these cells collapse together."
+      "note": "Determinism pin of the seeded circular-block bootstrap through the public Study API (ExecutionContext seed 21, 60 replicates, serial and bounded-thread contexts agree bit for bit). Not a coverage claim: coverage evidence is the calibration gate crates/antecedent/tests/v19_temporal_response_calibration.rs. The noiseless period-4 DGP makes every estimating score degenerate or negatively dependent, so testing lengthens nothing and the block stays at the rule (16). That length is a multiple of the period: every circular resample stays orthogonal and the band collapses to the point surface (GEMM-scale width). The old |dose|-scaled analytic band vanished only at dose zero; these cells collapse together."
     },
     "intervention_paths": {
       "set_1": [

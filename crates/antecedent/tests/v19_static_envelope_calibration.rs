@@ -20,7 +20,9 @@
     clippy::too_many_lines,
     clippy::similar_names,
     clippy::doc_markdown,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::single_match_else,
+    clippy::type_complexity
 )]
 
 mod common;
@@ -33,8 +35,13 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag, TieredBackground, WithinTier};
 
 use common::calibration::{
-    CoverageTally, Z90, gaussian, n_sim, normal_interval, quantile_interval,
+    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, n_sim, normal_interval,
+    quantile_interval,
 };
+use common::calibration_bind::bind_all;
+// The six-variable envelope PAG is measured by the 1.10 Bayesian suite too;
+// one owner, so the two suites cannot enumerate different completions.
+use common::static_dgp::envelope_pag as pag;
 
 const LEVEL: f64 = 0.9;
 const DRAWS: usize = 400;
@@ -51,12 +58,13 @@ fn d(i: u32) -> DenseNodeId {
     DenseNodeId::from_raw(i)
 }
 
+/// This suite's uniform stream: the harness's one LCG, conditioned the way the
+/// recorded coverage of these cells was measured (a golden-ratio multiply
+/// rather than `mix_seed`). The conditioning stays here rather than folding
+/// into `calibration::uniform` because changing it would regenerate every
+/// replicate and move the pinned rates.
 fn uniform(seed: u64) -> impl FnMut() -> f64 {
-    let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
-    move || {
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        (state >> 11) as f64 / (1u64 << 53) as f64
-    }
+    common::calibration::uniform_from_state(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1)
 }
 
 fn frequentist_interval(result: &antecedent::StudyResult) -> Option<(f64, f64)> {
@@ -64,10 +72,35 @@ fn frequentist_interval(result: &antecedent::StudyResult) -> Option<(f64, f64)> 
 }
 
 fn bayes_interval(result: &antecedent::StudyResult) -> Option<(f64, f64)> {
+    bayes_interval_at(result, LEVEL)
+}
+
+fn bayes_interval_at(result: &antecedent::StudyResult, level: f64) -> Option<(f64, f64)> {
     let posterior = result.posterior.as_ref()?;
     let col = posterior.effect_column()?;
     let draws = posterior.draws.column(col).ok()?;
-    quantile_interval(draws, LEVEL)
+    quantile_interval(draws, level)
+}
+
+/// Gated 90% interval and the runtime's reported 95% interval of the same replicate.
+fn intervals(
+    result: &antecedent::StudyResult,
+    bayesian: bool,
+) -> (Option<(f64, f64)>, Option<(f64, f64)>) {
+    if bayesian {
+        (bayes_interval(result), bayes_interval_at(result, REPORTED_LEVEL))
+    } else {
+        (
+            frequentist_interval(result),
+            normal_interval(result.estimate.ate, Some(result.estimate.se_analytic), Z95),
+        )
+    }
+}
+
+/// Record key of a scalar interval: the posterior quantile interval for a
+/// Bayesian run, else the analytic-SE interval (no bootstrap is requested).
+fn scalar_key(test: &'static str, dgp: &'static str, bayesian: bool) -> RecordKey {
+    RecordKey { test, dgp, interval: if bayesian { "posterior_quantile" } else { "analytic_se" } }
 }
 
 fn bayes() -> InferenceMode {
@@ -86,22 +119,22 @@ fn run(
     query: CausalQuery,
     inference: InferenceMode,
     seed: u64,
-) -> Option<antecedent::StudyResult> {
+) -> Option<(Study, antecedent::StudyResult)> {
     let builder = Study::tabular(data);
     let builder = match graph {
         Structure::Dag(g) => builder.graph(g.clone()),
         Structure::Cpdag(g) => builder.graph(g.clone()),
         Structure::Pag(g) => builder.graph(g.clone()),
     };
-    builder
+    let study = builder
         .query(query)
         .inference(inference)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
-        .ok()?
-        .run(&ExecutionContext::for_tests(seed))
-        .ok()
+        .ok()?;
+    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+    Some((study, result))
 }
 
 // ---------------------------------------------------------------- CPDAG ATE
@@ -143,8 +176,11 @@ fn ate_query() -> CausalQuery {
     ))
 }
 
+/// Gated at 90%; the runtime's reported 95% interval is scored on the same
+/// replicates and recorded.
 fn run_ate_coverage(
-    name: &str,
+    test: &'static str,
+    dgp: &'static str,
     graph: &Structure,
     generate: impl Fn(usize, u64) -> TabularData,
     n: usize,
@@ -152,26 +188,33 @@ fn run_ate_coverage(
     bayesian: bool,
     truth: f64,
     seed: u64,
+    measured: [Option<f64>; 3],
 ) {
-    let mut tally = CoverageTally::new(name, LEVEL);
+    let key = scalar_key(test, dgp, bayesian);
+    let mut tally = CoverageTally::for_record(key, LEVEL);
+    let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     for rep in 0..u64::from(n_sim()) {
-        let data = generate(n, seed + rep);
-        let Some(result) = run(data, graph, ate_query(), inference(), seed + rep) else {
+        let data = generate(grid_n(n), seed + rep);
+        let Some((study, result)) = run(data, graph, ate_query(), inference(), seed + rep) else {
             tally.skip();
+            reported.skip();
             continue;
         };
-        let interval =
-            if bayesian { bayes_interval(&result) } else { frequentist_interval(&result) };
+        let (interval, interval_95) = intervals(&result, bayesian);
+        bind_all(&mut [&mut tally, &mut reported], &study, &result);
         tally.record(interval, truth);
+        reported.record(interval_95, truth);
     }
-    tally.assert();
+    tally.assert_boundary_at(measured);
+    reported.emit();
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn static_cpdag_ate_envelope_frequentist_nominal_90_coverage() {
     run_ate_coverage(
-        "static_cpdag_ate_envelope_frequentist",
+        "static_cpdag_ate_envelope_frequentist_nominal_90_coverage",
+        "cpdag_data",
         &Structure::Cpdag(cpdag()),
         cpdag_data,
         400,
@@ -179,6 +222,7 @@ fn static_cpdag_ate_envelope_frequentist_nominal_90_coverage() {
         false,
         CPDAG_TRUTH,
         19_100,
+        [Some(0.880), None, None],
     );
 }
 
@@ -186,7 +230,8 @@ fn static_cpdag_ate_envelope_frequentist_nominal_90_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn static_cpdag_ate_envelope_bayesian_nominal_90_coverage() {
     run_ate_coverage(
-        "static_cpdag_ate_envelope_bayesian",
+        "static_cpdag_ate_envelope_bayesian_nominal_90_coverage",
+        "cpdag_data",
         &Structure::Cpdag(cpdag()),
         cpdag_data,
         400,
@@ -194,6 +239,7 @@ fn static_cpdag_ate_envelope_bayesian_nominal_90_coverage() {
         true,
         CPDAG_TRUTH,
         19_200,
+        [None, None, None],
     );
 }
 
@@ -233,18 +279,6 @@ fn pag_data(n: usize, seed: u64) -> TabularData {
     .unwrap()
 }
 
-fn pag() -> Pag {
-    // t=0 y=1 z=2 m=3 v=4 x=5
-    let mut g = Pag::with_variables(6);
-    g.insert_circle_circle(d(4), d(0)).unwrap();
-    g.insert_circle_circle(d(0), d(2)).unwrap();
-    g.insert_circle_circle(d(2), d(3)).unwrap();
-    g.insert_directed(d(0), d(1)).unwrap();
-    g.insert_directed(d(3), d(1)).unwrap();
-    g.insert_directed(d(5), d(1)).unwrap();
-    g
-}
-
 const PAG_TOTAL_SHIFT: f64 = 0.9 * KAPPA;
 const PAG_TRUTH: f64 = (4.0 * B + 2.0 * (B + PAG_TOTAL_SHIFT)) / 6.0;
 
@@ -252,7 +286,8 @@ const PAG_TRUTH: f64 = (4.0 * B + 2.0 * (B + PAG_TOTAL_SHIFT)) / 6.0;
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn static_pag_ate_envelope_frequentist_nominal_90_coverage() {
     run_ate_coverage(
-        "static_pag_ate_envelope_frequentist",
+        "static_pag_ate_envelope_frequentist_nominal_90_coverage",
+        "pag_data",
         &Structure::Pag(pag()),
         pag_data,
         400,
@@ -260,6 +295,7 @@ fn static_pag_ate_envelope_frequentist_nominal_90_coverage() {
         false,
         PAG_TRUTH,
         19_300,
+        [None, None, None],
     );
 }
 
@@ -267,7 +303,8 @@ fn static_pag_ate_envelope_frequentist_nominal_90_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn static_pag_ate_envelope_bayesian_nominal_90_coverage() {
     run_ate_coverage(
-        "static_pag_ate_envelope_bayesian",
+        "static_pag_ate_envelope_bayesian_nominal_90_coverage",
+        "pag_data",
         &Structure::Pag(pag()),
         pag_data,
         400,
@@ -275,6 +312,7 @@ fn static_pag_ate_envelope_bayesian_nominal_90_coverage() {
         true,
         PAG_TRUTH,
         19_400,
+        [None, None, None],
     );
 }
 
@@ -366,9 +404,12 @@ fn conditional_pag_data(n: usize, seed: u64, p: f64) -> TabularData {
     .unwrap()
 }
 
+/// Gated at 90%; the runtime's reported 95% interval is scored on the same
+/// replicates and recorded.
 #[allow(clippy::too_many_arguments)]
 fn run_conditional_coverage(
-    name: &str,
+    test: &'static str,
+    dgp: &'static str,
     graph: &Structure,
     generate: impl Fn(usize, u64) -> TabularData,
     modifier: u32,
@@ -376,28 +417,36 @@ fn run_conditional_coverage(
     bayesian: bool,
     truth: f64,
     seed: u64,
+    measured: [Option<f64>; 3],
 ) {
-    let mut tally = CoverageTally::new(name, LEVEL);
+    let key = scalar_key(test, dgp, bayesian);
+    let mut tally = CoverageTally::for_record(key, LEVEL);
+    let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     for rep in 0..u64::from(n_sim()) {
-        let data = generate(n, seed + rep);
+        let data = generate(grid_n(n), seed + rep);
         let inference = if bayesian { bayes() } else { InferenceMode::Frequentist };
-        let Some(result) = run(data, graph, conditional_query(modifier), inference, seed + rep)
+        let Some((study, result)) =
+            run(data, graph, conditional_query(modifier), inference, seed + rep)
         else {
             tally.skip();
+            reported.skip();
             continue;
         };
-        let interval =
-            if bayesian { bayes_interval(&result) } else { frequentist_interval(&result) };
+        let (interval, interval_95) = intervals(&result, bayesian);
+        bind_all(&mut [&mut tally, &mut reported], &study, &result);
         tally.record(interval, truth);
+        reported.record(interval_95, truth);
     }
-    tally.assert();
+    tally.assert_boundary_at(measured);
+    reported.emit();
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn conditional_effect_dag_frequentist_nominal_90_coverage() {
     run_conditional_coverage(
-        "conditional_effect_dag_frequentist",
+        "conditional_effect_dag_frequentist_nominal_90_coverage",
+        "conditional_dag_data",
         &Structure::Dag(conditional_dag()),
         |n, s| conditional_dag_data(n, s, 0.5),
         3,
@@ -405,6 +454,7 @@ fn conditional_effect_dag_frequentist_nominal_90_coverage() {
         false,
         B + G * 0.5,
         19_500,
+        [None, None, None],
     );
 }
 
@@ -414,7 +464,8 @@ fn conditional_effect_dag_frequentist_nominal_90_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage() {
     run_conditional_coverage(
-        "conditional_effect_dag_frequentist_small_subgroup",
+        "conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage",
+        "conditional_dag_data",
         &Structure::Dag(conditional_dag()),
         |n, s| conditional_dag_data(n, s, 0.08),
         3,
@@ -422,6 +473,7 @@ fn conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage() {
         false,
         B + G * 0.08,
         19_600,
+        [None, None, None],
     );
 }
 
@@ -429,7 +481,8 @@ fn conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn conditional_effect_dag_bayesian_nominal_90_coverage() {
     run_conditional_coverage(
-        "conditional_effect_dag_bayesian",
+        "conditional_effect_dag_bayesian_nominal_90_coverage",
+        "conditional_dag_data",
         &Structure::Dag(conditional_dag()),
         |n, s| conditional_dag_data(n, s, 0.5),
         3,
@@ -437,6 +490,7 @@ fn conditional_effect_dag_bayesian_nominal_90_coverage() {
         true,
         B + G * 0.5,
         19_700,
+        [None, None, None],
     );
 }
 
@@ -448,7 +502,8 @@ const CONDITIONAL_CPDAG_TRUTH: f64 = B + G * 0.5 + 0.5 * KAPPA;
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn conditional_effect_cpdag_frequentist_nominal_90_coverage() {
     run_conditional_coverage(
-        "conditional_effect_cpdag_frequentist",
+        "conditional_effect_cpdag_frequentist_nominal_90_coverage",
+        "conditional_dag_data",
         &Structure::Cpdag(conditional_cpdag()),
         |n, s| conditional_dag_data(n, s, 0.5),
         3,
@@ -456,6 +511,7 @@ fn conditional_effect_cpdag_frequentist_nominal_90_coverage() {
         false,
         CONDITIONAL_CPDAG_TRUTH,
         19_800,
+        [Some(0.880), None, None],
     );
 }
 
@@ -463,7 +519,8 @@ fn conditional_effect_cpdag_frequentist_nominal_90_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn conditional_effect_cpdag_bayesian_nominal_90_coverage() {
     run_conditional_coverage(
-        "conditional_effect_cpdag_bayesian",
+        "conditional_effect_cpdag_bayesian_nominal_90_coverage",
+        "conditional_dag_data",
         &Structure::Cpdag(conditional_cpdag()),
         |n, s| conditional_dag_data(n, s, 0.5),
         3,
@@ -471,6 +528,7 @@ fn conditional_effect_cpdag_bayesian_nominal_90_coverage() {
         true,
         CONDITIONAL_CPDAG_TRUTH,
         19_900,
+        [None, None, None],
     );
 }
 
@@ -481,7 +539,8 @@ const CONDITIONAL_PAG_TRUTH: f64 = B + G * 0.5 + 2.0 * PAG_TOTAL_SHIFT / 6.0;
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn conditional_effect_pag_frequentist_nominal_90_coverage() {
     run_conditional_coverage(
-        "conditional_effect_pag_frequentist",
+        "conditional_effect_pag_frequentist_nominal_90_coverage",
+        "conditional_pag_data",
         &Structure::Pag(pag()),
         |n, s| conditional_pag_data(n, s, 0.5),
         5,
@@ -489,6 +548,7 @@ fn conditional_effect_pag_frequentist_nominal_90_coverage() {
         false,
         CONDITIONAL_PAG_TRUTH,
         20_000,
+        [None, None, None],
     );
 }
 
@@ -496,7 +556,8 @@ fn conditional_effect_pag_frequentist_nominal_90_coverage() {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn conditional_effect_pag_bayesian_nominal_90_coverage() {
     run_conditional_coverage(
-        "conditional_effect_pag_bayesian",
+        "conditional_effect_pag_bayesian_nominal_90_coverage",
+        "conditional_pag_data",
         &Structure::Pag(pag()),
         |n, s| conditional_pag_data(n, s, 0.5),
         5,
@@ -504,6 +565,7 @@ fn conditional_effect_pag_bayesian_nominal_90_coverage() {
         true,
         CONDITIONAL_PAG_TRUTH,
         20_100,
+        [None, None, None],
     );
 }
 
@@ -537,9 +599,12 @@ fn codetermined_data(n: usize, seed: u64) -> TabularData {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn codetermined_aipw_closure_nominal_90_coverage() {
-    let mut tally = CoverageTally::new("codetermined_aipw_closure", LEVEL);
+    let key =
+        scalar_key("codetermined_aipw_closure_nominal_90_coverage", "codetermined_data", false);
+    let mut tally = CoverageTally::for_record(key, LEVEL);
+    let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     for rep in 0..u64::from(n_sim()) {
-        let data = codetermined_data(600, 20_200 + rep);
+        let data = codetermined_data(grid_n(600), 20_200 + rep);
         let schema = data.schema().clone();
         let background = TieredBackground::from_named(
             &schema,
@@ -549,7 +614,7 @@ fn codetermined_aipw_closure_nominal_90_coverage() {
         .unwrap();
         let query =
             AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
-        let result = Study::tabular(data)
+        let study = Study::tabular(data)
             .tiered_background(background)
             .unwrap()
             .query(query)
@@ -557,14 +622,22 @@ fn codetermined_aipw_closure_nominal_90_coverage() {
             .refute(RefuteSuite::None)
             .bootstrap_replicates(0)
             .build()
-            .unwrap()
-            .run(&ExecutionContext::for_tests(20_200 + rep));
-        match result {
-            Ok(result) => tally.record(frequentist_interval(&result), 2.0),
-            Err(_) => tally.skip(),
+            .unwrap();
+        match study.run(&ExecutionContext::for_tests(20_200 + rep)) {
+            Ok(result) => {
+                let (interval, interval_95) = intervals(&result, false);
+                bind_all(&mut [&mut tally, &mut reported], &study, &result);
+                tally.record(interval, 2.0);
+                reported.record(interval_95, 2.0);
+            }
+            Err(_) => {
+                tally.skip();
+                reported.skip();
+            }
         }
     }
     tally.assert();
+    reported.emit();
 }
 
 /// Same law as `v19_tiered_known_truth::unknown_data`: scenario truths
@@ -598,11 +671,13 @@ fn unknown_data(n: usize, seed: u64) -> TabularData {
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn unknown_two_scenario_joint_band_nominal_95_coverage() {
     const TRUTH: [f64; 2] = [1.0, -1.0];
+    // No record: the runtime keys this execution's interval as `none`; the
+    // scenario max-t band is not a reported primary/identified-set/simultaneous interval.
     let mut tally = CoverageTally::new("unknown_two_scenario_joint_band", 0.95);
     let mut width_sum = 0.0;
     let mut widths = 0u32;
     for rep in 0..u64::from(n_sim()) {
-        let data = unknown_data(400, 20_300 + rep);
+        let data = unknown_data(grid_n(400), 20_300 + rep);
         let schema = data.schema().clone();
         let background = TieredBackground::from_named(
             &schema,
@@ -639,5 +714,5 @@ fn unknown_two_scenario_joint_band_nominal_95_coverage() {
         "calibration unknown_two_scenario_joint_band: mean summed band width={:.4}",
         width_sum / f64::from(widths.max(1))
     );
-    tally.assert();
+    tally.assert_boundary_at([Some(0.940), None, None]);
 }

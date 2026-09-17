@@ -89,26 +89,27 @@ impl WeightedGraphSamples {
         self.weights.iter().sum()
     }
 
-    /// Weight mass on unidentified graphs.
+    /// Weight mass on unidentified graphs; `+0.0` when there are none.
+    ///
+    /// Folds from `+0.0`: `Iterator::sum` over no `f64`s returns `-0.0`, which
+    /// renders as a negative zero mass downstream.
     #[must_use]
     pub fn unidentified_mass(&self) -> f64 {
         self.weights
             .iter()
             .zip(self.identified.iter())
             .filter(|(_, f)| **f == GraphIdentFlag::Unidentified)
-            .map(|(w, _)| *w)
-            .sum()
+            .fold(0.0, |mass, (w, _)| mass + *w)
     }
 
-    /// Weight mass on identified graphs.
+    /// Weight mass on identified graphs; `+0.0` when there are none.
     #[must_use]
     pub fn identified_mass(&self) -> f64 {
         self.weights
             .iter()
             .zip(self.identified.iter())
             .filter(|(_, flag)| **flag == GraphIdentFlag::Identified)
-            .map(|(weight, _)| *weight)
-            .sum()
+            .fold(0.0, |mass, (weight, _)| mass + *weight)
     }
 
     /// Return a copy with weights normalized to sum to 1 (if total > 0).
@@ -206,6 +207,21 @@ mod tests {
         .unwrap();
         assert!((g.unidentified_mass() - 0.3).abs() < 1e-12);
         assert!((g.identified_mass() - 0.7).abs() < 1e-12);
+    }
+
+    #[test]
+    fn empty_mass_is_positive_zero() {
+        let g = WeightedGraphSamples::new(
+            vec![0.5, 0.5],
+            vec![GraphIdentFlag::Identified, GraphIdentFlag::Identified],
+            vec![1, 2],
+        )
+        .unwrap();
+        assert_eq!(g.unidentified_mass().to_bits(), 0.0_f64.to_bits());
+        let none =
+            WeightedGraphSamples::new(vec![1.0], vec![GraphIdentFlag::Unidentified], vec![1])
+                .unwrap();
+        assert_eq!(none.identified_mass().to_bits(), 0.0_f64.to_bits());
     }
 
     #[test]

@@ -201,6 +201,8 @@ impl super::Study {
                 posterior: Some(posterior),
                 n_draws,
                 predictive_checks,
+                // Posterior draws carry the uncertainty; no replicate budget ran.
+                bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             },
         }))
@@ -292,8 +294,14 @@ impl super::Study {
         let mut ws = BayesianGCompWorkspace::default();
         let mut per_graph = Vec::new();
         let mut atoms = Vec::new();
+        // Per-completion outcomes in `envelope.cases` order (keys are `index + 1`),
+        // so the structural mixture can publish the identified set they span.
+        let mut outcomes = vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()];
         for (key, estimand, status) in fit_atoms {
+            // Keys are `case index + 1`, so the outcome slot is `key - 1`.
+            let outcome_slot = usize::try_from(key).unwrap_or(usize::MAX).saturating_sub(1);
             if !keep.contains(&key) {
+                outcomes[outcome_slot] = ClassAtomOutcome::SubsampledOut;
                 continue;
             }
             // Graph-posterior keys may collide (shared adjacency masks). Aggregation
@@ -303,6 +311,8 @@ impl super::Study {
             };
             est.prior = atom_priors.remove(&key).flatten();
             let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
+            outcomes[outcome_slot] =
+                ClassAtomOutcome::Evaluated(effect_from_posterior(&posterior)?.ate);
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
             let weight = identified_weight_for_key(&graphs, key);
             atoms.push(EnvelopeAtomFit {
@@ -414,6 +424,16 @@ impl super::Study {
             &mut refutations,
             &mut diagnostics,
         )?;
+        // Completions that disagree publish the identified set over their
+        // per-completion posterior means; a point-identified envelope stays a
+        // point. The posterior remains the frozen-weight mixture functional's.
+        let structural_response =
+            super::pag_path::static_class_structural_mixture(envelope, &outcomes);
+        if let Some(mixture) = structural_response.as_ref() {
+            diagnostics.extend(super::pag_path::static_class_identified_set_diagnostic(
+                mixture, class_tag,
+            ));
+        }
 
         Ok(self.finish_identified_execute(IdentifiedExecuteFinish {
             physical,
@@ -441,6 +461,7 @@ impl super::Study {
                 posterior: Some(posterior),
                 diagnostics: Some(diagnostics),
                 predictive_checks,
+                structural_response,
                 ..Default::default()
             },
         }))
@@ -1026,15 +1047,21 @@ impl super::Study {
                 ),
             ));
         }
-        diagnostics.push(Diagnostic::new(
-            "estimate.graph_posterior.envelope",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "published effect is E[τ | identified]; identified_mass={total_w}, unidentified_mass={unidentified_mass}, subsampled_out_mass={subsampled_out_mass}, atoms={}",
-                refute_atoms.len()
-            ),
-        ));
+        diagnostics.push(
+            Diagnostic::new(
+                "estimate.graph_posterior.envelope",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "published effect is E[τ | identified]; identified_mass={total_w}, unidentified_mass={unidentified_mass}, subsampled_out_mass={subsampled_out_mass}, atoms={}",
+                    refute_atoms.len()
+                ),
+            )
+            .with_fields(super::mass_fields(
+                Some(total_w),
+                unidentified_mass,
+            )),
+        );
 
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, na_diagnostics) = run_envelope_effect_refuters(
@@ -1198,7 +1225,8 @@ impl super::Study {
             OverlapPolicy::ExplicitOverride,
             None,
             None,
-        );
+        )
+        .with_block_family(antecedent_estimate::CircularBlockFamily::Mixture);
         let refute_atoms = contexts
             .iter()
             .zip(&atom_estimates)
@@ -1261,20 +1289,26 @@ impl super::Study {
                     Some(data.time_index()),
                 )?
             };
-        diagnostics.push(Diagnostic::new(
-            "estimate.dbn_posterior.frequentist",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "{}; bands require two successes and at most half failed attempts",
-                shared_block_mixture_message(
-                    "fixed graph weights",
-                    point_mass,
-                    identified.graphs.unidentified_mass(),
-                    &block,
-                )
-            ),
-        ));
+        diagnostics.push(
+            Diagnostic::new(
+                "estimate.dbn_posterior.frequentist",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "{}; bands require two successes and at most half failed attempts",
+                    shared_block_mixture_message(
+                        "fixed graph weights",
+                        point_mass,
+                        identified.graphs.unidentified_mass(),
+                        &block,
+                    )
+                ),
+            )
+            .with_fields(super::mass_fields(
+                Some(point_mass),
+                identified.graphs.unidentified_mass(),
+            )),
+        );
         if se.is_finite() {
             diagnostics.extend(short_series_warning(
                 block.effective_rows,
@@ -1792,7 +1826,8 @@ impl super::Study {
                             DiagnosticKind::Scientific,
                             DiagnosticSeverity::Warning,
                             "unidentified_mass=1",
-                        ),
+                        )
+                        .with_fields(super::mass_fields(Some(0.0), 1.0)),
                         Diagnostic::new(
                             "estimate.dbn_posterior.atom_demotion",
                             DiagnosticKind::Scientific,

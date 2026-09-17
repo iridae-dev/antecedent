@@ -22,7 +22,7 @@ fn bind_dag(builder: StudyBuilder, dag: Dag, accepted: bool) -> StudyBuilder {
     if accepted { builder.graph(AcceptedGraph::from(dag)) } else { builder.graph(dag) }
 }
 
-fn parse_rd_config<F>(
+pub(crate) fn parse_rd_config<F>(
     estimator: Option<&str>,
     running_variable: Option<&str>,
     cutoff: Option<f64>,
@@ -40,8 +40,11 @@ where
         return Ok(None);
     }
     let (Some(rv), Some(cut), Some(bw)) = (running_variable, cutoff, bandwidth) else {
-        return Err(PyValueError::new_err(
-            "rd.sharp (or any RD kwargs) requires running_variable, cutoff, and bandwidth",
+        return Err(crate::with_reason_code(
+            PyValueError::new_err(
+                "rd.sharp (or any RD kwargs) requires running_variable, cutoff, and bandwidth",
+            ),
+            antecedent_core::reason_code!("required_option_missing"),
         ));
     };
     Ok(Some((resolve_var(rv)?, cut, bw)))
@@ -49,7 +52,7 @@ where
 
 /// `rd.sharp` design from the resolved triple plus the optional configured SE kind
 /// (`None` keeps [`antecedent::RdConfig`]'s HC1 default).
-fn rd_design(
+pub(crate) fn rd_design(
     running_variable: VariableId,
     cutoff: f64,
     bandwidth: f64,
@@ -139,7 +142,7 @@ fn finish_static_ate(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     gil: AteGil,
@@ -241,7 +244,7 @@ fn run_static_ate_from_builder(
     names: &[String],
     mut builder: antecedent::StudyBuilder,
     inference: Option<&str>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
     prior_mapping: Option<antecedent_io::PriorMapping>,
@@ -253,46 +256,16 @@ fn run_static_ate_from_builder(
     include_posterior_artifact: bool,
     bytes_borrowed: Option<u64>,
 ) -> PyResult<AteAnalysisResult> {
-    if let Some(mode) = inference {
-        let mut cfg = match mode.to_ascii_lowercase().as_str() {
-            "bayesian" | "bayesian.laplace" | "laplace" => {
-                BayesianConfig::laplace().n_draws(n_draws).prior_scale(prior_scale)
-            }
-            "bayesian.conjugate" | "conjugate" => {
-                BayesianConfig::conjugate().n_draws(n_draws).prior_scale(prior_scale)
-            }
-            "bayesian.hmc" | "hmc" => {
-                BayesianConfig::hmc().n_draws(n_draws).prior_scale(prior_scale)
-            }
-            "frequentist" => {
-                builder = builder.inference(InferenceMode::Frequentist);
-                let analysis = builder.build().map_err(py_err)?;
-                let ctx = py_execution_context_ext(
-                    seed,
-                    threads,
-                    cancel.clone(),
-                    progress.clone(),
-                    Some(PY_DEFAULT_CACHE_MAX_BYTES),
-                );
-                let mut result = analysis.run(&ctx).map_err(py_err)?;
-                if let Some(n) = bytes_borrowed {
-                    result.performance.bytes_borrowed = Some(n);
-                }
-                return ate_result_from_analysis(names, result, include_posterior_artifact);
-            }
-            other => {
-                return Err(PyValueError::new_err(format!(
-                    "unknown inference mode {other:?}; use frequentist|bayesian|conjugate|hmc"
-                )));
-            }
-        };
-        if let Some(comp) = composed_prior {
-            cfg = crate::prior_bank::apply_owned_composed_prior(cfg, comp)?;
-        } else if let Some(bytes) = prior_artifact {
-            cfg = cfg.prior_from_artifact(bytes.to_vec(), prior_mapping);
-        }
-        builder = builder.inference(InferenceMode::Bayesian(cfg));
-    }
+    builder = crate::temporal_api::apply_temporal_inference_transfer(
+        builder,
+        inference,
+        n_draws,
+        prior_scale,
+        prior_artifact,
+        prior_mapping,
+        composed_prior,
+        antecedent_prob::BayesLikelihood::GaussianIdentity,
+    )?;
     let analysis = builder.build().map_err(py_err)?;
     let ctx =
         py_execution_context_ext(seed, threads, cancel, progress, Some(PY_DEFAULT_CACHE_MAX_BYTES));
@@ -447,8 +420,10 @@ pub(crate) fn panel_multi_dataset_constraints(
     })
 }
 
-// Python batch query: treatment, outcome, control, active, functional specification.
-type PyBatchQuery<'py> = (String, String, f64, f64, Option<Bound<'py, PyDict>>);
+// Python batch query: treatment, outcome, control, active, functional specification,
+// target population specification.
+type PyBatchQuery<'py> =
+    (String, String, f64, f64, Option<Bound<'py, PyDict>>, Option<Bound<'py, PyDict>>);
 
 /// Run standalone discovery over panel data and return a builder already seeded with the
 /// accepted graph via [`Study::panel`] + [`antecedent::StudyBuilder::graph`].
@@ -541,7 +516,9 @@ pub(crate) fn panel_discovery_builder(
 /// Run static ATE: identify → estimate → optional refute .
 ///
 /// Parse optional `target_population` dict from Python (`kind` + fields).
-fn parse_target_population(spec: Option<&Bound<'_, PyDict>>) -> PyResult<Option<TargetPopulation>> {
+pub(crate) fn parse_target_population(
+    spec: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Option<TargetPopulation>> {
     let Some(d) = spec else {
         return Ok(None);
     };
@@ -625,7 +602,7 @@ pub(crate) fn parse_outcome_functional(
 }
 
 /// Build a [`PopulationRegistry`] from optional predicate/distribution dicts.
-fn parse_population_registry(
+pub(crate) fn parse_population_registry(
     predicates: Option<&Bound<'_, PyDict>>,
     distributions: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<Option<PopulationRegistry>> {
@@ -689,7 +666,7 @@ fn parse_population_registry(
     identifier=None,
     estimator=None,
     inference=None,
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     prior_artifact=None,
     prior_mapping=None,
@@ -726,7 +703,7 @@ fn analyze_ate(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     prior_mapping: Option<&Bound<'_, PyDict>>,
@@ -818,7 +795,7 @@ fn analyze_ate(
     identifier=None,
     estimator=None,
     inference=None,
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     prior_artifact=None,
     prior_mapping=None,
@@ -851,7 +828,7 @@ fn analyze_ate_arrow_c(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     prior_mapping: Option<&Bound<'_, PyDict>>,
@@ -927,17 +904,25 @@ fn parse_latency_mode(latency: Option<&str>) -> PyResult<Option<antecedent::Late
     }
 }
 
-type AteBatchQuerySpec = (String, String, f64, f64, Option<antecedent_core::OutcomeFunctional>);
+type AteBatchQuerySpec = (
+    String,
+    String,
+    f64,
+    f64,
+    Option<antecedent_core::OutcomeFunctional>,
+    Option<antecedent_core::TargetPopulation>,
+);
 
 fn parse_ate_batch_query_specs(queries: Vec<PyBatchQuery<'_>>) -> PyResult<Vec<AteBatchQuerySpec>> {
     let mut parsed = Vec::with_capacity(queries.len());
-    for (treatment, outcome, control, active, functional) in queries {
+    for (treatment, outcome, control, active, functional, population) in queries {
         parsed.push((
             treatment,
             outcome,
             control,
             active,
             parse_outcome_functional(functional.as_ref())?,
+            parse_target_population(population.as_ref())?,
         ));
     }
     Ok(parsed)
@@ -948,8 +933,8 @@ fn compile_batch_study(
     edges: Vec<(String, String)>,
     identifier: Option<String>,
     estimator: Option<String>,
-    suite: antecedent::RefuteSuite,
-    bootstrap: u32,
+    suite: Option<antecedent::RefuteSuite>,
+    bootstrap: Option<u32>,
     latency_mode: Option<antecedent::LatencyMode>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
@@ -969,9 +954,13 @@ fn compile_batch_study(
     } else {
         let dag = dag_from_named_edges(data.schema(), &edges)?;
         antecedent::BatchStudy::new(data, dag)
+    };
+    if let Some(replicates) = bootstrap {
+        batch = batch.bootstrap_replicates(replicates);
     }
-    .bootstrap_replicates(bootstrap)
-    .refute(suite);
+    if let Some(suite) = suite {
+        batch = batch.refute(suite);
+    }
     if let Some(mode) = latency_mode {
         batch = batch.latency_mode(mode);
     }
@@ -1001,8 +990,8 @@ fn compile_ate_batch(
     parsed_queries: Vec<AteBatchQuerySpec>,
     identifier: Option<String>,
     estimator: Option<String>,
-    suite: antecedent::RefuteSuite,
-    bootstrap: u32,
+    suite: Option<antecedent::RefuteSuite>,
+    bootstrap: Option<u32>,
     latency_mode: Option<antecedent::LatencyMode>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
@@ -1012,12 +1001,15 @@ fn compile_ate_batch(
     within_tier: Option<String>,
 ) -> PyResult<(antecedent::BatchStudy, Vec<AverageEffectQuery>)> {
     let mut ate_queries = Vec::with_capacity(parsed_queries.len());
-    for (treatment, outcome, control, active, functional) in &parsed_queries {
+    for (treatment, outcome, control, active, functional, population) in &parsed_queries {
         let t_id = data.schema().id_of(treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(outcome).map_err(py_err)?;
         let mut query = AverageEffectQuery::with_levels(t_id, y_id, *control, *active);
         if let Some(functional) = functional.clone() {
             query = query.with_outcome_functional(functional);
+        }
+        if let Some(population) = population.clone() {
+            query = query.with_target_population(population);
         }
         ate_queries.push(query);
     }
@@ -1066,8 +1058,8 @@ fn compile_cell_batch(
     parsed_queries: Vec<CellBatchQuerySpec>,
     identifier: Option<String>,
     estimator: Option<String>,
-    suite: antecedent::RefuteSuite,
-    bootstrap: u32,
+    suite: Option<antecedent::RefuteSuite>,
+    bootstrap: Option<u32>,
     latency_mode: Option<antecedent::LatencyMode>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
@@ -1134,7 +1126,7 @@ fn compile_cell_batch(
     estimator=None,
     refute=None,
     seed=1,
-    bootstrap=199,
+    bootstrap=None,
     threads=1,
     latency=None,
     screen_id=None,
@@ -1154,7 +1146,7 @@ fn analyze_ate_many(
     estimator: Option<String>,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
-    bootstrap: u32,
+    bootstrap: Option<u32>,
     threads: u32,
     latency: Option<String>,
     screen_id: Option<String>,
@@ -1165,7 +1157,7 @@ fn analyze_ate_many(
     within_tier: Option<String>,
 ) -> PyResult<Vec<AteAnalysisResult>> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-    let suite = suite_from_refute(refute.as_ref())?;
+    let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_ate_batch_query_specs(queries)?;
     detach_catch(py, move || {
@@ -1215,7 +1207,7 @@ fn analyze_ate_typed_graph(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -1286,7 +1278,7 @@ fn run_ate_with_graph_input(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     suite: RefuteSuite,
@@ -1382,7 +1374,7 @@ fn run_ate_with_graph_input(
 #[pyo3(signature = (
     names, columns, graph, treatment, outcome, *,
     control_level=0.0, active_level=1.0, identifier=None, estimator=None,
-    inference=None, n_draws=1000, prior_scale=10.0,
+    inference=None, n_draws=None, prior_scale=10.0,
     prior_artifact=None, refute=None, validators=None,
     running_variable=None,
     cutoff=None,
@@ -1404,7 +1396,7 @@ fn analyze_ate_pag(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -1455,7 +1447,7 @@ fn analyze_ate_pag(
 #[pyo3(signature = (
     names, columns, graph, treatment, outcome, *,
     control_level=0.0, active_level=1.0, identifier=None, estimator=None,
-    inference=None, n_draws=1000, prior_scale=10.0,
+    inference=None, n_draws=None, prior_scale=10.0,
     prior_artifact=None, refute=None, validators=None,
     running_variable=None,
     cutoff=None,
@@ -1477,7 +1469,7 @@ fn analyze_ate_cpdag(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -1528,7 +1520,7 @@ fn analyze_ate_cpdag(
 #[pyo3(signature = (
     names, columns, graph, treatment, outcome, *,
     control_level=0.0, active_level=1.0, identifier=None, estimator=None,
-    inference=None, n_draws=1000, prior_scale=10.0,
+    inference=None, n_draws=None, prior_scale=10.0,
     prior_artifact=None, refute=None, validators=None,
     running_variable=None,
     cutoff=None,
@@ -1550,7 +1542,7 @@ fn analyze_ate_admg(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -1603,7 +1595,7 @@ macro_rules! typed_ate_arrow_c {
         #[pyo3(signature = (
                             names, columns, graph, treatment, outcome, *,
                             control_level=0.0, active_level=1.0, identifier=None, estimator=None,
-                            inference=None, n_draws=1000, prior_scale=10.0,
+                            inference=None, n_draws=None, prior_scale=10.0,
                             prior_artifact=None, refute=None, validators=None,
                             running_variable=None,
                             cutoff=None,
@@ -1625,7 +1617,7 @@ macro_rules! typed_ate_arrow_c {
             identifier: Option<String>,
             estimator: Option<String>,
             inference: Option<String>,
-            n_draws: usize,
+            n_draws: Option<usize>,
             prior_scale: f64,
             prior_artifact: Option<Vec<u8>>,
             refute: Option<Bound<'_, PyAny>>,
@@ -1698,7 +1690,7 @@ typed_ate_arrow_c!(analyze_ate_admg_arrow_c, graphs::Admg, Admg, admg);
     identifier=None,
     estimator=None,
     inference=None,
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     prior_artifact=None,
     refute=None,
@@ -1738,7 +1730,7 @@ fn analyze_ate_discover(
     identifier: Option<String>,
     estimator: Option<String>,
     inference: Option<String>,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     refute: Option<Bound<'_, PyAny>>,
@@ -2212,26 +2204,8 @@ pub(crate) fn ate_result_from_analysis(
     } = sections;
     let mediation_slices: &[antecedent_estimate::TemporalMediationSlice] =
         result.mediation_grid.as_ref().map_or(&[], |grid| grid.slices.as_ref());
-    let mediation_uncertainty = |slice: &antecedent_estimate::TemporalMediationSlice| match &slice
-        .uncertainty
-    {
-        antecedent_estimate::TemporalMediationUncertainty::FrequentistPointwise {
-            standard_error,
-        }
-        | antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
-            requested: standard_error,
-            ..
-        } => ("frequentist_pointwise".to_string(), *standard_error, None, None),
-        antecedent_estimate::TemporalMediationUncertainty::BayesianPointwise {
-            requested, ..
-        } => (
-            "bayesian_pointwise".to_string(),
-            Some(requested.standard_deviation),
-            Some(requested.q025),
-            Some(requested.q975),
-        ),
-        _ => ("unavailable".to_string(), None, None, None),
-    };
+    let mediation_uncertainty: Vec<_> =
+        mediation_slices.iter().map(crate::mediation_uncertainty_projection).collect();
 
     Ok(AteAnalysisResult {
         structural_weight_basis,
@@ -2349,6 +2323,26 @@ pub(crate) fn ate_result_from_analysis(
             .map(|d| d.message.to_string())
             .collect(),
         unit_effects: result.counterfactual.as_ref().map(|cf| cf.unit_effects.to_vec()),
+        unit_effect_intervals: result
+            .counterfactual
+            .as_ref()
+            .and_then(|cf| cf.unit_effect_intervals.as_ref())
+            .map(|i| i.lower.iter().copied().zip(i.upper.iter().copied()).collect()),
+        unit_effect_intervals_level: result
+            .counterfactual
+            .as_ref()
+            .and_then(|cf| cf.unit_effect_intervals.as_ref())
+            .map(|i| i.level),
+        unit_effect_intervals_method: result
+            .counterfactual
+            .as_ref()
+            .and_then(|cf| cf.unit_effect_intervals.as_ref())
+            .map(|i| i.method.to_owned()),
+        unit_extrapolative: result
+            .counterfactual
+            .as_ref()
+            .and_then(|cf| cf.unit_extrapolative.as_ref())
+            .map(|flags| flags.to_vec()),
         mediation_total: result.mediation.as_ref().and_then(|m| m.total),
         mediation_direct: result.mediation.as_ref().and_then(|m| m.direct),
         mediation_mediated: result.mediation.as_ref().and_then(|m| m.mediated),
@@ -2377,22 +2371,13 @@ pub(crate) fn ate_result_from_analysis(
                 slice.adjustment.iter().map(|key| (key.variable.raw(), key.offset)).collect()
             })
             .collect(),
-        mediation_uncertainty_kinds: mediation_slices
+        mediation_uncertainty_kinds: mediation_uncertainty
             .iter()
-            .map(|slice| mediation_uncertainty(slice).0)
+            .map(|row| row.0.clone())
             .collect(),
-        mediation_standard_deviations: mediation_slices
-            .iter()
-            .map(|slice| mediation_uncertainty(slice).1)
-            .collect(),
-        mediation_q025: mediation_slices
-            .iter()
-            .map(|slice| mediation_uncertainty(slice).2)
-            .collect(),
-        mediation_q975: mediation_slices
-            .iter()
-            .map(|slice| mediation_uncertainty(slice).3)
-            .collect(),
+        mediation_standard_deviations: mediation_uncertainty.iter().map(|row| row.1).collect(),
+        mediation_q025: mediation_uncertainty.iter().map(|row| row.2).collect(),
+        mediation_q975: mediation_uncertainty.iter().map(|row| row.3).collect(),
         mediation_identified_lower: mediation_slices
             .iter()
             .map(|slice| slice.identified_set.map(|set| set.lower))
@@ -2402,6 +2387,14 @@ pub(crate) fn ate_result_from_analysis(
             .map(|slice| slice.identified_set.map(|set| set.upper))
             .collect(),
         mediation_joint_posterior: result.mediation_grid.as_ref().map(|grid| grid.joint_posterior),
+        transport: result
+            .transport
+            .as_ref()
+            .map(crate::transport_interference_api::TransportSection::from_estimate),
+        interference: result
+            .interference
+            .as_ref()
+            .map(crate::transport_interference_api::InterferenceSection::from_estimate),
         evidence_status,
         allowlist_reason,
         allowlist_parent,
@@ -2884,6 +2877,9 @@ fn identify_structure(
             treatments,
         )?;
         match &mut query {
+            CausalQuery::TemporalEffect(temporal) => {
+                temporal.max_history_lag = max_history_lag;
+            }
             CausalQuery::Response(response) if response.temporal.is_some() => {
                 let temporal = response.temporal.as_mut().expect("temporal response");
                 if let Some(horizons) = horizons {
@@ -2950,6 +2946,7 @@ fn identify_structure(
                 &query,
                 &names,
                 structure.class().as_str(),
+                None,
             )?)
         } else {
             None
@@ -2974,7 +2971,7 @@ fn identify_structure(
     control_level=0.0,
     active_level=1.0,
     inference="conjugate",
-    n_draws=1000,
+    n_draws=None,
     prior_scale=10.0,
     refute=None,
     seed=1,
@@ -2993,7 +2990,7 @@ fn analyze_ate_graph_posterior(
     control_level: f64,
     active_level: f64,
     inference: &str,
-    n_draws: usize,
+    n_draws: Option<usize>,
     prior_scale: f64,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
@@ -3252,7 +3249,7 @@ impl PyPreparedBatch {
     estimator=None,
     refute=None,
     seed=1,
-    bootstrap=199,
+    bootstrap=None,
     threads=1,
     latency=None,
     screen_id=None,
@@ -3272,7 +3269,7 @@ fn prepare_ate_batch(
     estimator: Option<String>,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
-    bootstrap: u32,
+    bootstrap: Option<u32>,
     threads: u32,
     latency: Option<String>,
     screen_id: Option<String>,
@@ -3283,7 +3280,7 @@ fn prepare_ate_batch(
     within_tier: Option<String>,
 ) -> PyResult<PyPreparedBatch> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-    let suite = suite_from_refute(refute.as_ref())?;
+    let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_ate_batch_query_specs(queries)?;
     detach_catch(py, move || {
@@ -3320,7 +3317,7 @@ fn prepare_ate_batch(
     estimator=None,
     refute=None,
     seed=1,
-    bootstrap=199,
+    bootstrap=None,
     threads=1,
     latency=None,
     screen_id=None,
@@ -3341,7 +3338,7 @@ fn prepare_cells_batch(
     estimator: Option<String>,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
-    bootstrap: u32,
+    bootstrap: Option<u32>,
     threads: u32,
     latency: Option<String>,
     screen_id: Option<String>,
@@ -3353,7 +3350,7 @@ fn prepare_cells_batch(
     family_contrast: Option<&str>,
 ) -> PyResult<PyPreparedBatch> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
-    let suite = suite_from_refute(refute.as_ref())?;
+    let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_cell_batch_query_specs(queries)?;
     let family_contrast = family_contrast.map(str::to_owned);

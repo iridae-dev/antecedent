@@ -242,8 +242,7 @@ fn fit_local_quadratic(
             "local response window has too little effective weight for a local quadratic".into(),
         ));
     }
-    let inverse = inverse_3x3(gram)
-        .ok_or_else(|| StatsError::Backend("singular local response design".into()))?;
+    let inverse = inverse_3x3(gram).ok_or(StatsError::SingularLocalDesign { order: 2 })?;
     let beta = matvec(inverse, rhs);
     let mut influences = Vec::with_capacity(workspace.weights.len());
     let mut first_derivative_influence_ss = 0.0;
@@ -416,9 +415,7 @@ fn robust_local_polynomial<const N: usize>(
             N - 1
         )));
     }
-    let inverse = inverse_small(gram).ok_or_else(|| {
-        StatsError::Backend(format!("singular local response design of order {}", N - 1))
-    })?;
+    let inverse = inverse_small(gram).ok_or(StatsError::SingularLocalDesign { order: N - 1 })?;
     let gamma: [f64; N] = std::array::from_fn(|j| (0..N).map(|k| inverse[j][k] * rhs[k]).sum());
     let mut influence_ss = [0.0; N];
     for &(w, row, yi) in &rows {
@@ -513,6 +510,24 @@ mod tests {
         assert!((fit.first_derivative - 4.4).abs() < 1e-10);
         assert!((fit.second_derivative - 6.0).abs() < 1e-10);
         assert!(fit.local_ess > 20.0);
+    }
+
+    #[test]
+    fn two_point_regressor_is_a_typed_singular_local_design() {
+        // A binary regressor gives the local quadratic two support points for
+        // three coefficients, at every evaluation point and every bandwidth.
+        let x: Vec<f64> = (0..200).map(|i| f64::from(i % 2)).collect();
+        let y: Vec<f64> = x.iter().map(|v| 1.0 + 1.5 * v).collect();
+        for at in [0.0, 0.5, 1.0] {
+            assert_eq!(
+                gaussian_local_quadratic(&x, &y, at, 0.4).unwrap_err(),
+                StatsError::SingularLocalDesign { order: 2 }
+            );
+            assert_eq!(
+                gaussian_local_quadratic_bias_corrected(&x, &y, at, 0.4, None).unwrap_err(),
+                StatsError::SingularLocalDesign { order: 3 }
+            );
+        }
     }
 
     #[test]

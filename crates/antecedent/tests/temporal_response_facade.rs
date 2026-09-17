@@ -824,11 +824,14 @@ fn target_population_other_than_all_observed_refuses_end_to_end() {
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(22))
         .unwrap_err();
     let msg = err.to_string();
     assert!(msg.contains("AllObserved"), "unexpected error content: {msg}");
+    assert_eq!(
+        antecedent_core::reason_code::split_prefix(&msg).map(|(code, _)| code),
+        Some("population_not_estimable"),
+        "{msg}"
+    );
 }
 
 fn joint_ab_series() -> (TimeSeriesData, TemporalDag) {
@@ -1075,7 +1078,7 @@ fn assert_close_rel(actual: &[f64], expected: &[f64], rtol: f64, label: &str) {
 /// simultaneous edges, critical value, block length, dispersion and
 /// kernel-bias factors) as a determinism guard — on this noiseless period-4
 /// DGP the rule block is a multiple of the period, so the band collapses to
-/// the point surface; coverage is the weekly gate.
+/// the point surface; coverage is the calibration gate.
 #[test]
 fn temporal_dose_horizon_point_and_block_bands_match_fixture() {
     use antecedent_core::ResponseUncertainty;

@@ -172,12 +172,7 @@ def econml(
         assumption_count=0,
         derivation_step_count=0,
     )
-    if (
-        "partial" in status.lower()
-        or "graphdependent" in status.lower()
-        or "graph-dependent" in status.lower()
-        or not view
-    ):
+    if not view:
         raise CausalUnsupportedError(
             f"EconML handoff requires point identification; got status {status!r}"
         )

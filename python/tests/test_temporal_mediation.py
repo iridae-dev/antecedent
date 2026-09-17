@@ -42,9 +42,7 @@ def test_temporal_mediation_decomposition():
 
 
 def test_handle_temporal_mediation_bayesian_uses_staged_estimator():
-    """Leftover handler must not TypeError licensed Bayesian TemporalMediationEffect."""
-    from antecedent._analyze import handle_temporal_mediation
-
+    """analyze is prepare().estimate(); Bayesian TemporalMediationEffect stays licensed."""
     n = 80
     t = np.zeros(n)
     m = np.zeros(n)
@@ -58,11 +56,10 @@ def test_handle_temporal_mediation_bayesian_uses_staged_estimator():
         ["t", "m", "y"],
         [("t", 1, "m", 0), ("m", 0, "y", 0)],
     )
-    result = handle_temporal_mediation(
+    result = antecedent.analyze(
         data,
-        antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated"),
+        query=antecedent.TemporalMediationEffect("t", "m", "y", contrast="mediated"),
         graph=graph,
-        discovery=None,
         inference=antecedent.Bayesian(backend="conjugate", n_draws=256),
         refute=False,
         seed=1,

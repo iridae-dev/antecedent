@@ -54,3 +54,4 @@ htmlcov/
 # Local scratch — iterate here, do not commit
 TODO.md
 ISSUES.md
+IMPLEMENTATION.md

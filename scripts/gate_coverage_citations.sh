@@ -14,10 +14,21 @@
 # matches no test. It extends scripts/gate_evidence_reachability.sh, which
 # checks the evidence_test / evidence_assertion columns but not the prose.
 #
+# It then requires every coverage figure in the prose to be attributed
+# (scripts/coverage_citations.py): a figure either cites the coverage record whose
+# observed value it states, or says it is not a registry value (a probe or an
+# earlier measurement the registry does not carry). Known-truth values, standard
+# errors and pinned values are not coverage figures and are never rejected.
+#
 # Run directly, or via scripts/gate_release.sh (CI's `gates` job, every PR).
+# --self-test: broken citations must fail this gate (scripts/selftest_cases.py).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+if [[ "${1:-}" == "--self-test" ]]; then
+  exec python3 "$ROOT/scripts/selftest_cases.py" citations
+fi
 
 python3 - <<'PY'
 import fnmatch
@@ -52,7 +63,7 @@ fns_cache = {}
 # `v19_static_calibration::name`, `crates/antecedent/tests/v19_x.rs::name`, and the
 # shorthand `::name` that continues the last-named module inside one citation.
 CITE_RE = re.compile(
-    r"(?:crates/antecedent/tests/)?(v19_[a-z0-9_]+)(?:\.rs)?::([A-Za-z0-9_{},*]+)"
+    r"(?:crates/antecedent/tests/)?(v1(?:9|10)_[a-z0-9_]+)(?:\.rs)?::([A-Za-z0-9_{},*]+)"
     r"((?:,\s*::[A-Za-z0-9_{},*]+)*)"
 )
 CONT_RE = re.compile(r"::([A-Za-z0-9_{},*]+)")
@@ -93,3 +104,5 @@ if fail:
 
 print(f"Coverage citations OK ({checked} citations across {len(fns_cache)} test modules resolve to existing test fns)")
 PY
+
+python3 scripts/coverage_citations.py check

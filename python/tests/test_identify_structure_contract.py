@@ -57,3 +57,7 @@ def test_native_certificate_keeps_temporal_coordinates_and_derivation():
     assert case["indexer"]["history"] >= 1
     assert case["identification"]["derivation"]
     assert case["identification"]["required_assumptions"]
+    assert identified.statement.startswith("PulseEffect of y from t is identified")
+    assert identified.assumption_statements
+    assert identified.derivation_statements
+    assert identified.to_dict()["assumption_statements"] == list(identified.assumption_statements)

@@ -1,19 +1,20 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "oracle": {
     "project": "clean-room brute-force expected-utility enumeration",
-    "algorithm": "enumerate action/outcome utility and constraint matrices; maximize expected utility over feasible actions only",
-    "pin": "fixture-algorithm-v1",
-    "python": "3.12.7",
-    "command": "python3 /tmp/antecedent_design_oracle.py",
+    "algorithm": "enumerate action/outcome utility and constraint matrices in exact rational arithmetic; choose the Bayes action over admissible actions only; regret is the expected opportunity loss of the Bayes action against perfect information over admissible actions (EVPI)",
+    "pin": "fixture-algorithm-v2",
+    "python": "3.11.5",
+    "command": "python3 antecedent_design_oracle_v2.py",
     "generation_location": "temporary external harness; deleted after artifact import",
-    "dependencies": "Python standard library only"
+    "dependencies": "Python standard library only (fractions, json)"
   },
   "normalization": {
     "tie_break": "lowest action index",
-    "feasible": "minimum constraint satisfaction plus 1e-12 is at least chance_threshold",
-    "empty_action_set": "no chosen action, zero expected utility, zero regret",
-    "empty_outcomes": "recorded separately as an undocumented native boundary; excluded from validation"
+    "admissible": "minimum constraint satisfaction plus 1e-12 is at least chance_threshold",
+    "regret": "mean over outcomes of (max admissible utility minus utility of the Bayes action)",
+    "no_admissible_action": "typed refusal (DesignError::NoAdmissibleAction); no expected utility or regret is reported",
+    "empty_outcomes": "typed refusal (DesignError::Shape); excluded from this fixture"
   },
   "cases": [
     {
@@ -36,7 +37,7 @@
       "threshold": 0.75,
       "chosen_action": 0,
       "expected_utility": 1.5,
-      "regret": 1.5
+      "regret": 0.0
     },
     {
       "name": "all_actions_infeasible",
@@ -45,9 +46,7 @@
       "utility": "action_times_outcome",
       "satisfaction": [0.5, 0.25],
       "threshold": 0.75,
-      "chosen_action": null,
-      "expected_utility": 0.0,
-      "regret": 3.0
+      "refusal": "no_admissible_action"
     },
     {
       "name": "utility_tie",
@@ -59,6 +58,28 @@
       "chosen_action": 0,
       "expected_utility": 3.0,
       "regret": 0.0
+    },
+    {
+      "name": "unconstrained_regret_is_evpi",
+      "actions": [1.0, 2.0],
+      "outcomes": [-1.0, 3.0],
+      "utility": "action_times_outcome",
+      "satisfaction": [1.0, 1.0],
+      "threshold": 1.0,
+      "chosen_action": 1,
+      "expected_utility": 2.0,
+      "regret": 0.5
+    },
+    {
+      "name": "inadmissible_action_excluded_from_perfect_information",
+      "actions": [1.0, 2.0, 3.0],
+      "outcomes": [-1.0, 3.0],
+      "utility": "action_times_outcome",
+      "satisfaction": [1.0, 1.0, 0.5],
+      "threshold": 0.75,
+      "chosen_action": 1,
+      "expected_utility": 2.0,
+      "regret": 0.5
     }
   ]
 }

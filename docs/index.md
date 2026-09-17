@@ -1,111 +1,40 @@
 # Antecedent
 
-Antecedent is an identification-first causal inference engine for **Python** and
-**Rust**. It takes an analysis from causal structure through estimation,
-diagnostics, interventions, and counterfactuals — including continuous causal
-responses, not only binary contrasts — without silently treating discovered
-graphs as ground truth.
+Antecedent helps you estimate causal effects in Python and Rust. Supply data,
+a causal question, and a graph or discovery method. It checks whether the
+question can be answered under the stated assumptions, then estimates the
+effect or explains why it cannot.
 
-Rules enforced throughout:
+Results keep the assumptions, uncertainty, and diagnostics alongside the answer.
+When several causal structures remain plausible, that uncertainty stays visible.
 
-* identification is evaluated before estimation;
-* priors and parametric assumptions do not upgrade nonparametric identification;
-* uncertainty about causal structure is retained rather than silently resolved;
-* observation mechanisms do not imply their identifying assumptions;
-* unsupported transport is `NotCertified`, not a false non-transportability claim.
+## Start here
 
-## What you would use it for
+These docs describe **Antecedent 1.10**. The Python quickstart begins with
+installation from PyPI.
 
-* **Estimate an effect you can defend.** `analyze()` checks identification
-  first, reports the strategy and adjustment set it used, and runs refuters
-  against the estimate by default.
-* **Estimate a response, not only a contrast.** Licensed mean curves keep
-  structural identification, empirical support, and uncertainty kind as separate
-  axes. Derivative, elasticity, and Jacobian queries are licensed on
-  explicit/accepted Frequentist DAGs; see the [1.3 evidence ledger](v1.3-evidence.md).
-  Class-aware `ResponseCurve` / `InterventionResponse` on `Cpdag` / `Pag` use
-  generalized adjustment and, in 1.5, complete-then-ID for supported response
-  atoms; see the [1.5 evidence ledger](v1.5-evidence.md).
-* **Declare how the outcome was observed.** Complete, censored, truncated, and
-  selected mechanisms live in `antecedent.observation`; assumptions are never
-  inferred from column presence.
-* **Work with discovered structure honestly.** Discovery returns equivalence
-  classes and graph posteriors, not a single guessed DAG. A supplied `Cpdag`
-  stays a `Cpdag`: licensed ATE, response, and `ConditionalEffect` estimate a
-  MEC envelope rather than collapsing to a guessed DAG. Estimation refuses to
-  run on an unreviewed partial graph; the Bayesian path reports how much
-  posterior mass sits on structures where the effect is unidentified.
-* **Transport and interference as stage contracts.** Selection-diagram transport
-  and randomized interference change what identifies the estimand; they stay in
-  `antecedent.transport` / `antecedent.interference`, not ordinary `analyze` flags.
-* **Analyze temporal systems.** Temporal graphs with lagged edges, PCMCI-family
-  discovery, pulse and sustained interventions — including Frequentist
-  envelopes that keep incomplete `TemporalCpdag` / `TemporalPag` as those
-  classes — temporal mediation, and incremental `CausalState` for online
-  workflows.
-* **Go past effect estimates.** Interventional sampling, counterfactuals,
-  root-cause and distribution-change attribution, sensitivity analysis, and
-  experimental-design ranking, all in the same engine.
+| What you want to do | Start with |
+|---|---|
+| Run your first Python analysis | [Python quickstart](python-workflow.md) |
+| Use Rust | [Rust quickstart](rust-quickstart.md) |
+| Learn from a worked example | [Examples](examples.md) |
+| Check whether your analysis is supported | [Supported analyses](supported-analyses.md) |
+| Look up a Python method | [Python API](python-api.md) |
 
-## Getting started
+## Explore a question
 
-`pip install antecedent`, then start from the runnable examples in the
-[project README](https://github.com/iridae-dev/antecedent#readme) — notebooks
-for attribution, prior transfer, experiment design, continuous response, and
-observation-aware pricing. The Rust entry point is
-`Study::tabular()` (or `::series` / `::series_multi` / `::panel` / `::events`) in the
-[`antecedent` crate](https://docs.rs/antecedent).
+- **How does an effect change with dose?** Read [causal responses](causal-responses.md).
+- **Does it differ across populations or outcomes?** Read [local, distributional, and joint effects](local-distributional-joint.md).
+- **Was the outcome censored or selected?** Read the [observation contract](observation-contract.md).
+- **Can evidence transfer, or do units affect each other?** Read [transport and interference](transport-interference.md).
+- **Can an earlier study inform a new one?** Read about the [prior bank](priors.md).
 
-Package version is **1.9.0**; see
-[ROADMAP.md](https://github.com/iridae-dev/antecedent/blob/main/ROADMAP.md),
-the [1.9.0 notes](release-notes/v1.9.0.md),
-the [1.9 licensed-cell review](v1.9-cell-review.md),
-the [1.8.0 notes](release-notes/v1.8.0.md),
-the [1.8 evidence ledger](v1.8-evidence.md),
-the [1.7.0 notes](release-notes/v1.7.0.md),
-the [1.7 evidence ledger](v1.7-evidence.md),
-the [1.6.0 notes](release-notes/v1.6.0.md),
-the [1.6 evidence ledger](v1.6-evidence.md),
-the [1.5.0 notes](release-notes/v1.5.0.md),
-the [1.4.0 notes](release-notes/v1.4.0.md),
-the [1.3.0 notes](release-notes/v1.3.0.md),
-the [1.2.0 notes](release-notes/v1.2.0.md),
-the [1.1.0 notes](release-notes/v1.1.0.md),
-the [1.0.0 notes](release-notes/v1.0.0.md), the
-[0.9.1 notes](release-notes/v0.9.1.md), the
-[0.9.0 notes](release-notes/v0.9.0.md), the
-[0.7.1 notes](release-notes/v0.7.1.md), the
-[0.7.0 notes](release-notes/v0.7.0.md), and the
-[0.6.0 contract cut](release-notes/v0.6.0.md).
+A supported analysis still depends on its assumptions and on adequate data.
+The [capabilities](capabilities.md) page describes the available methods;
+the [support matrix](support-matrix.md) records which combinations can run.
 
-## Guides
+## Go deeper
 
-| Doc | Contents |
-|-----|----------|
-| [Local, distributional, and joint effects](local-distributional-joint.md) | Runnable 1.5 Python walkthrough: retargeting, CDF bands, joint cells |
-| [Causal responses](causal-responses.md) | Curves, derivatives, support, uncertainty, observation mechanisms |
-| [Transport and interference](transport-interference.md) | Structural transport, trial generalization, randomized network exposure |
-| [Capabilities](capabilities.md) | Full inventory: graphs, discovery, identification, estimation, validation, design |
-| [Support matrix](support-matrix.md) | Licensed / n/a / refused cells |
-| [Comparison](comparison.md) | Antecedent vs. DoWhy, EconML, Tigramite, causal-learn — and when to use each |
-| [Architecture](architecture.md) | Invariants, crates, analysis pipeline, execution model |
-| [Development](development.md) | CI vs local gates, tests, performance rules, versions |
-| [Artifacts](artifacts.md) | Wire format, migration, graph interchange |
-| [Prior bank](priors.md) | External prior catalog, compose, conflict, transport |
-| [API naming](api_naming.md) | Rust ↔ Python capability dictionary |
-| [Hot paths](hot_paths.md) | Benches, baselines, allocation contracts |
-| [Conformance](conformance/README.md) | Generated from `conformance/` fixtures |
-| [Security review](security_review.md) | Unsafe, deps, licensing evidence |
-
-## API reference
-
-- **Python:** [Python API](python-api.md) on this site (`/python/` via pdoc; no download)
-- **Rust:** [docs.rs/antecedent](https://docs.rs/antecedent); locally `cargo doc -p antecedent --open`
-
-Decisions: see `adr/` in the repository.
-
-Regenerate conformance pages:
-
-```bash
-python3 scripts/generate_conformance_docs.py
-```
+Read the [architecture](architecture.md), [evidence and conformance](conformance/README.md),
+or [development guide](development.md). For changes in this version, see the
+[1.10 release notes](release-notes/v1.10.0.md).

@@ -685,12 +685,15 @@ pub(crate) fn response_result(
                 .unwrap_or_else(|| envelope.lower.to_vec())
         };
         let scalar = if legacy_values.len() == 1 { Some(legacy_values[0]) } else { None };
-        (
-            envelope.grid.chunks(envelope.dimension).map(<[f64]>::to_vec).collect(),
-            legacy_values.into_iter().map(|value| vec![value]).collect(),
-            scalar,
-            None,
-        )
+        // A coordinate-free identified set (a scalar functional's bound) has no
+        // grid: give each bound the same placeholder coordinate a scalar
+        // response carries, so every row still has one point.
+        let points = if envelope.dimension == 0 {
+            vec![vec![0.0]; envelope.lower.len()]
+        } else {
+            envelope.grid.chunks(envelope.dimension).map(<[f64]>::to_vec).collect()
+        };
+        (points, legacy_values.into_iter().map(|value| vec![value]).collect(), scalar, None)
     } else {
         match response.estimate {
             ResponseIdentification::PointIdentified(value)
@@ -773,7 +776,7 @@ pub(crate) fn response_result(
             .support
             .warnings
             .iter()
-            .map(|warning| warning.message.to_string())
+            .map(|warning| format!("{}: {}", warning.code, warning.message))
             .collect(),
         identification: format!("{:?}", response.identification_status),
         adjustment_set: crate::public_adjustment_set(

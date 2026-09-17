@@ -20,6 +20,7 @@ pub mod candidate;
 pub mod decision;
 pub mod error;
 pub mod objective;
+pub mod preposterior;
 pub mod ranker;
 pub mod result;
 
@@ -27,14 +28,17 @@ pub use candidate::{
     CandidateDesign, DesignCost, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan,
 };
 pub use decision::{
-    DecisionConstraint, DecisionEvaluation, DecisionProblem, DecisionProblemId, Utility,
-    evaluate_decision,
+    AffineUtility, DecisionConstraint, DecisionEvaluation, DecisionProblem, DecisionProblemId,
+    Utility, evaluate_decision,
 };
 pub use error::DesignError;
 pub use objective::DesignObjective;
+pub use preposterior::{
+    BinomialSignal, DecisionPrior, DecisionSignal, GaussianMeanSignal, PreposteriorAnalysis,
+};
 pub use ranker::{
     DecisionRegistry, DesignConstraints, DesignEvaluationContext, DesignRankConfig, DesignRanker,
     EffectWidthContext, EnvironmentGramSpec, InterventionDesignEffect, MeasureColumnSpec,
     ModelLoglikDraws,
 };
-pub use result::{ConstraintViolation, DesignRanking, RankedCandidate};
+pub use result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};

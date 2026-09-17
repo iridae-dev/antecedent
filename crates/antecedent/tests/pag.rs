@@ -4,6 +4,7 @@
 
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -22,7 +23,8 @@ use antecedent_data::{
 };
 use antecedent_discovery::{DiscoveryConstraints, DiscoveryWorkspace, TemporalConstraints};
 use antecedent_graph::{
-    CompletionSampler, Dag, DenseNodeId, Pag, latent_project, projection_preserves_msep_sample,
+    CompletionSampler, Dag, DenseNodeId, Endpoint, NodeRef, Pag, latent_project,
+    projection_preserves_msep_sample,
 };
 use serde_json::Value as JsonValue;
 
@@ -81,6 +83,9 @@ fn tiny_series(n: usize) -> (TimeSeriesData, Vec<VariableId>) {
     (data, vec![VariableId::from_raw(0), VariableId::from_raw(1)])
 }
 
+/// Shape checks only (algorithm id, retained graph, orientation-rule vocabulary) on an
+/// in-test deterministic series; parity with the recorded upstream reference run on the
+/// fixture's data is `lpcmci_chain_matches_upstream_reference_links_and_marks`.
 #[test]
 fn lpcmci_chain() {
     let expected = load_expected("lpcmci_chain");
@@ -126,6 +131,129 @@ fn lpcmci_chain() {
             assert!(ok, "missing true link {forward:?} in {recovered:?}");
         }
     }
+}
+
+/// `data.csv` of the `lpcmci_chain` fixture as a two-variable series (`x`, `y`).
+fn chain_fixture_series(expected_rows: usize) -> (TimeSeriesData, Vec<VariableId>) {
+    let csv = fs::read_to_string(fixture_dir("lpcmci_chain").join("data.csv")).expect("data.csv");
+    let mut lines = csv.lines();
+    assert_eq!(lines.next(), Some("x,y"), "lpcmci_chain data.csv header");
+    let (mut x, mut y) = (Vec::new(), Vec::new());
+    for line in lines {
+        let (a, b) = line.split_once(',').expect("two columns");
+        x.push(a.parse::<f64>().unwrap());
+        y.push(b.parse::<f64>().unwrap());
+    }
+    let n = x.len();
+    assert_eq!(n, expected_rows, "data.csv rows vs expected n");
+    let mut b = CausalSchemaBuilder::new();
+    for name in ["x", "y"] {
+        b.add_variable(
+            name,
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+    }
+    let schema = b.build().unwrap();
+    let cols = [x, y]
+        .into_iter()
+        .enumerate()
+        .map(|(i, values)| {
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(i as u32),
+                    Arc::from(values),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            )
+        })
+        .collect();
+    let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+    let data = TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap();
+    (data, vec![VariableId::from_raw(0), VariableId::from_raw(1)])
+}
+
+fn endpoint_symbol(mark: Endpoint) -> char {
+    match mark {
+        Endpoint::Tail => '-',
+        Endpoint::Arrow => '>',
+        Endpoint::Circle => 'o',
+        Endpoint::Conflict => 'x',
+    }
+}
+
+/// Frozen external oracle: LPCMCI on the fixture's own `data.csv`, at the recorded
+/// upstream-reference `alpha` and `max_lag`, must return the reference's links with its
+/// endpoint marks. Links are keyed `(source, lag, target)` from the earlier node
+/// (contemporaneous links once, the smaller variable name as source); the mark is
+/// `<source end>-<target end>` (`o-o`, `o->`, `-->` ...).
+#[test]
+fn lpcmci_chain_matches_upstream_reference_links_and_marks() {
+    let expected = load_expected("lpcmci_chain");
+    let reference = &expected["reference"];
+    assert_eq!(
+        Some(reference["project"].as_str().expect("reference.project")),
+        std::path::Path::new(expected["generation"]["baseline_pin"].as_str().unwrap())
+            .file_stem()
+            .and_then(|s| s.to_str()),
+        "the reference is the pinned baseline's run"
+    );
+    assert_eq!(reference["available"].as_bool(), Some(true));
+    let outputs = &reference["outputs"];
+    let (data, vars) = chain_fixture_series(expected["n"].as_u64().unwrap() as usize);
+    let alg = Lpcmci::new().with_fdr(false).with_constraints(DiscoveryConstraints {
+        temporal: TemporalConstraints {
+            max_lag: Lag::from_raw(outputs["max_lag"].as_u64().unwrap() as u32),
+            min_lag: Lag::CONTEMPORANEOUS,
+        },
+        alpha: outputs["alpha"].as_f64().unwrap(),
+        max_cond_size: 3,
+        ..DiscoveryConstraints::default()
+    });
+    let mut ws = DiscoveryWorkspace::default();
+    let result = alg.run(&data, &vars, &mut ws, &ExecutionContext::for_tests(3)).unwrap();
+    let names = ["x", "y"];
+    let graph = &result.evidence.graph;
+    let mut native = BTreeMap::new();
+    for edge in graph.edges() {
+        let (NodeRef::Lagged { variable: av, lag: al }, NodeRef::Lagged { variable: bv, lag: bl }) =
+            (graph.nodes()[edge.a.raw() as usize], graph.nodes()[edge.b.raw() as usize])
+        else {
+            unreachable!("temporal PAG nodes are lagged")
+        };
+        let a_first = al.raw() > bl.raw()
+            || (al == bl && names[av.raw() as usize] <= names[bv.raw() as usize]);
+        let (src, src_mark, lag, tgt, tgt_mark) = if a_first {
+            (av, edge.at_a, al.raw() - bl.raw(), bv, edge.at_b)
+        } else {
+            (bv, edge.at_b, bl.raw() - al.raw(), av, edge.at_a)
+        };
+        native.insert(
+            (names[src.raw() as usize].to_owned(), lag, names[tgt.raw() as usize].to_owned()),
+            format!("{}-{}", endpoint_symbol(src_mark), endpoint_symbol(tgt_mark)),
+        );
+    }
+    let mut upstream = BTreeMap::new();
+    for link in outputs["links"].as_array().unwrap() {
+        let (source, target) = (link["source"].as_str().unwrap(), link["target"].as_str().unwrap());
+        let lag = link["lag"].as_u64().unwrap() as u32;
+        // The reference lists a contemporaneous link from both ends; keep the canonical one.
+        if lag == 0 && source > target {
+            continue;
+        }
+        let mark = link["mark"].as_str().unwrap().to_owned();
+        upstream.insert((source.to_owned(), lag, target.to_owned()), mark);
+    }
+    assert_eq!(native, upstream, "LPCMCI links and marks vs the pinned upstream reference");
 }
 
 #[test]

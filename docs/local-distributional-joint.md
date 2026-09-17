@@ -1,7 +1,7 @@
 # Local targets, outcome distributions, and joint interventions
 
-This walkthrough uses the 1.5.0 Python API. Version 1.5.0 is in release
-preparation; run it against the built 1.5 checkout until that release is published.
+This walkthrough uses Antecedent 1.10. Install it with
+`python -m pip install antecedent`; see the [example setup](https://github.com/iridae-dev/antecedent/blob/v1.10.0/examples/README.md#python-environment).
 Run the Python blocks below in order in one interpreter. They use NumPy and
 Antecedent, with no optional causal-learning package.
 
@@ -14,7 +14,6 @@ for adjustment; data alone do not establish that assumption.
 ```python
 import numpy as np
 import antecedent
-from antecedent.estimation import PreparedAnalysis
 from antecedent.intervention import Set
 from antecedent.query import ExceedanceGrid, InterventionResponse, Quantile
 
@@ -28,7 +27,7 @@ data = {"z": z, "t": t, "y": y}
 graph = antecedent.Dag.from_edges(
     ["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")]
 )
-plan = PreparedAnalysis.prepare(
+study = antecedent.prepare(
     data,
     graph=graph,
     query=antecedent.AverageEffect("t", "y"),
@@ -37,8 +36,8 @@ plan = PreparedAnalysis.prepare(
     bootstrap=0,
 )
 weights = np.exp(-0.5 * ((z - 0.5) / 0.8) ** 2)
-all_observed = plan.retarget(np.ones(n), depends_on=[])
-local = plan.retarget(weights, depends_on=["z"])
+all_observed = study.retarget(np.ones(n), depends_on=[])
+local = study.retarget(weights, depends_on=["z"])
 print("AllObserved ATE:", all_observed.estimate.ate)
 print("Weighted ATE:", local.estimate.ate)
 print("Weighted analytic SE:", local.estimate.se_analytic)
@@ -54,10 +53,20 @@ nuisance convergence rates. `refute="none"` keeps this example focused on the
 estimator; it does not establish that the causal assumptions hold.
 
 Weights must align with the retained score rows. Here all rows are complete. If
-rows were dropped, inspect `plan.estimate(data).estimate.score_table.row_index`
+rows were dropped, inspect `study.estimate().estimate.score_table.row_index`
 and align weights to those original row indices. `estimate(new_data)` refits on
 new data under the prepared identification contract; `refresh(new_data)` also
-replaces retained data and scores after success.
+replaces retained data and scores after success. A one-call `antecedent.analyze(...)`
+result offers the same handle as `result.study`.
+
+A nonconstant-weight retarget exports under a `RowWeights` target whose
+`target_weights` identity binds the weight bits, row count, data snapshot, score
+table and `depends_on`; the weights travel in the artifact and consume re-derives
+the identity. Re-executing those weights on a different snapshot raises
+`row_weights_bound_to_snapshot` (`PreparedAnalysis.reexecute_retarget`, Rust
+`PreparedStudy::reexecute_retarget`); the prepared plan itself keeps
+re-estimating, since the binding belongs to the retargeted result.
+Calibration availability is explicit in that report.
 
 ## Read a CDF and its supported bands
 
@@ -66,7 +75,7 @@ It does not reduce several thresholds to one scalar ATE. The last threshold belo
 is deliberately beyond all observed outcomes to demonstrate unsupported tails.
 
 ```python
-cdf_plan = PreparedAnalysis.prepare(
+cdf_study = antecedent.prepare(
     data,
     graph=graph,
     query=antecedent.AverageEffect(
@@ -76,9 +85,9 @@ cdf_plan = PreparedAnalysis.prepare(
     refute="none",
     bootstrap=0,
 )
-cdf_result = cdf_plan.retarget(weights, depends_on=["z"])
+cdf_result = cdf_study.retarget(weights, depends_on=["z"])
 estimate = cdf_result.estimate
-assert np.isnan(estimate.ate)
+assert cdf_result.answer.value is None  # a CDF grid is not one scalar effect
 assert estimate.score_table is not None
 assert estimate.score_inference is not None
 assert estimate.exceedance_cdf is not None
@@ -205,6 +214,6 @@ CoDetermined tier backgrounds also license joint cells when their closure is
 certified; Unknown tiers do not. `continuous_cell` does not license a point
 intervention on a continuous mediator.
 
-See the [release notes](release-notes/v1.5.0.md) for the full scope,
+See the [support matrix](support-matrix.md) for the current scope,
 [artifact guide](artifacts.md#package-15-payloads) for saved payload semantics,
 and [evidence ledger](v1.5-evidence.md) for the consuming numerical tests.

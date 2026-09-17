@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Sequential Bayes: batch A posterior → batch B prior.
+"""Use the first batch of results as prior evidence for a second batch.
 
-Requires a built antecedent extension (`maturin develop` in python/).
+We estimate an average effect on batch A, save its posterior, and pass it to
+Bayesian(prior_from=...) for an independent batch B. Both batches use the
+same graph and model design, so their coefficient positions match.
 
-Fits Bayesian ATE on batch A, encodes the posterior artifact, then re-analyzes
-an independent batch B with ``Bayesian(prior_from=artifact)`` on the same
-graph/design (index-aligned coefficient hydrate).
-"""
+Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 
@@ -33,21 +32,23 @@ def main() -> None:
         graph=edges,
         query=query,
         inference=Bayesian(n_draws=128),
-        refute=False,
+        refute="none",
         seed=11,
-        return_posterior_artifact=True,
     )
     assert batch_a.posterior is not None
-    artifact = bytes(batch_a.posterior.artifact)
+    # Prior hydration needs the posterior payload; batch_a.export() saves the full execution.
+    artifact = batch_a.study.export_artifact()
 
     batch_b = analyze(
         data_b,
         graph=edges,
         query=query,
         inference=Bayesian(n_draws=128, prior_from=artifact),
-        refute=False,
+        refute="none",
         seed=12,
     )
+    print("Calibration:", batch_b.calibration.status)
+    assert batch_b.study.estimate().posterior is not None
     assert batch_b.posterior is not None
     assert np.isfinite(batch_b.posterior.effect_mean)
     assert batch_b.identification.assumption_count >= 1

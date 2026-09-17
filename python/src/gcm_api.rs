@@ -268,6 +268,9 @@ pub struct RankedDesign {
     pub rank_uncertain: bool,
     #[pyo3(get)]
     pub implemented_functional: String,
+    /// `exact` (closed form or finite enumeration) or `monte_carlo` (see `stderr`).
+    #[pyo3(get)]
+    pub evaluation: String,
 }
 
 #[pymethods]
@@ -339,17 +342,19 @@ impl DesignRanking {
 pub struct DecisionEvaluation {
     #[pyo3(get)]
     pub expected_utility: f64,
+    /// Expected regret of the Bayes action against perfect information (EVPI).
     #[pyo3(get)]
     pub posterior_regret: f64,
+    /// Index of the Bayes action.
     #[pyo3(get)]
-    pub chosen_action: Option<usize>,
+    pub chosen_action: usize,
 }
 
 #[pymethods]
 impl DecisionEvaluation {
     fn __repr__(&self) -> String {
         format!(
-            "DecisionEvaluation(expected_utility={}, posterior_regret={}, chosen_action={:?})",
+            "DecisionEvaluation(expected_utility={}, posterior_regret={}, chosen_action={})",
             self.expected_utility, self.posterior_regret, self.chosen_action
         )
     }

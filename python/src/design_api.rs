@@ -5,10 +5,12 @@
 use std::sync::Arc;
 
 use antecedent::design::{
-    CandidateDesign, DesignConstraints, DesignCost, DesignEvaluationContext, DesignObjective,
-    DesignRankConfig, DesignRanker, EffectWidthContext, EnvironmentGramSpec, EnvironmentPlan,
-    ExperimentPlan, InterventionDesignEffect, MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws,
-    SamplingPlan, rank_designs as facade_rank_designs,
+    AffineUtility, BinomialSignal, CandidateDesign, DecisionPrior, DecisionProblem,
+    DecisionRegistry, DecisionSignal, DesignConstraints, DesignCost, DesignEvaluationContext,
+    DesignObjective, DesignRankConfig, DesignRanker, EffectWidthContext, EnvironmentGramSpec,
+    EnvironmentPlan, ExperimentPlan, GaussianMeanSignal, InterventionDesignEffect,
+    MeasureColumnSpec, MeasurementPlan, ModelLoglikDraws, SamplingPlan,
+    rank_designs as facade_rank_designs,
 };
 use antecedent_core::{EnvironmentId, ModelId, QueryId, VariableId};
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
@@ -16,6 +18,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyDict, PyList, PyModule};
 
+use crate::callbacks::PyUtility;
 use crate::gcm_api::{DesignConstraintViolation, DesignRanking, RankedDesign};
 use crate::{catch_ffi, py_err, py_execution_context, py_msg};
 
@@ -355,6 +358,101 @@ fn parse_model_loglik(raw: Option<Bound<'_, PyAny>>) -> PyResult<Option<ModelLog
     }))
 }
 
+/// Decision model for `reduce_decision_regret`: the utility decides the action type.
+enum PyDecision {
+    /// Python utility callback over float actions.
+    Callback(DecisionRegistry<f64, f64>),
+    /// Declared affine utility over action indices.
+    Affine(DecisionRegistry<usize, f64>),
+}
+
+fn required<'py>(d: &Bound<'py, PyDict>, key: &str, owner: &str) -> PyResult<Bound<'py, PyAny>> {
+    d.get_item(key)?.ok_or_else(|| PyValueError::new_err(format!("{owner} requires '{key}'")))
+}
+
+fn parse_decision_prior(raw: &Bound<'_, PyAny>) -> PyResult<DecisionPrior<f64>> {
+    let d = raw
+        .cast::<PyDict>()
+        .map_err(|_| PyValueError::new_err("decision prior must be a dict with a 'kind' field"))?;
+    let kind: String = required(d, "kind", "decision prior")?.extract()?;
+    match kind.as_str() {
+        "draws" => {
+            let draws: Vec<f64> = required(d, "draws", "draws prior")?.extract()?;
+            Ok(DecisionPrior::Draws(draws))
+        }
+        "normal" => Ok(DecisionPrior::Normal {
+            mean: required(d, "mean", "normal prior")?.extract()?,
+            variance: required(d, "variance", "normal prior")?.extract()?,
+        }),
+        other => Err(PyValueError::new_err(format!(
+            "unknown decision prior kind `{other}` (expected draws|normal)"
+        ))),
+    }
+}
+
+fn parse_decision_signal(raw: &Bound<'_, PyAny>) -> PyResult<Arc<dyn DecisionSignal<f64>>> {
+    let d = raw
+        .cast::<PyDict>()
+        .map_err(|_| PyValueError::new_err("decision signal must be a dict with a 'kind' field"))?;
+    let kind: String = required(d, "kind", "decision signal")?.extract()?;
+    match kind.as_str() {
+        "gaussian_mean" => {
+            let noise_variance: f64 =
+                required(d, "noise_variance", "gaussian_mean signal")?.extract()?;
+            Ok(Arc::new(GaussianMeanSignal::new(noise_variance).map_err(py_err)?))
+        }
+        "binomial" => Ok(Arc::new(BinomialSignal)),
+        other => Err(PyValueError::new_err(format!(
+            "unknown decision signal kind `{other}` (expected gaussian_mean|binomial)"
+        ))),
+    }
+}
+
+/// Parse `decision={"utility": ..., "prior": ..., "signal": ..., "actions": ...}`.
+///
+/// `utility` is either a callable `utility(actions, outcomes) -> flat float64 array`
+/// (then `actions` is required) or `{"intercepts": [...], "slopes": [...]}` declaring
+/// `U(a, θ) = intercepts[a] + slopes[a]·θ` over action indices (then `actions` must be
+/// omitted). The problem is registered as decision id 0.
+fn parse_decision(raw: Option<Bound<'_, PyAny>>) -> PyResult<Option<PyDecision>> {
+    let Some(raw) = raw else {
+        return Ok(None);
+    };
+    let d = raw.cast::<PyDict>().map_err(|_| PyValueError::new_err("decision must be a dict"))?;
+    let prior = parse_decision_prior(&required(d, "prior", "decision")?)?;
+    let signal = parse_decision_signal(&required(d, "signal", "decision")?)?;
+    let utility = required(d, "utility", "decision")?;
+    let actions = d.get_item("actions")?;
+    if utility.is_callable() {
+        let actions: Vec<f64> = actions
+            .ok_or_else(|| PyValueError::new_err("a callable decision utility requires 'actions'"))?
+            .extract()?;
+        let problem =
+            DecisionProblem::new(actions, Arc::new(PyUtility::new(utility.unbind())), Vec::new());
+        return Ok(Some(PyDecision::Callback(DecisionRegistry {
+            problems: vec![Some(problem)],
+            prior,
+            signal,
+        })));
+    }
+    if actions.is_some() {
+        return Err(PyValueError::new_err(
+            "an affine decision utility's actions are its coefficient indices; omit 'actions'",
+        ));
+    }
+    let table = utility.cast::<PyDict>().map_err(|_| {
+        PyValueError::new_err(
+            "decision utility must be callable or a dict with 'intercepts' and 'slopes'",
+        )
+    })?;
+    let intercepts: Vec<f64> = required(table, "intercepts", "affine utility")?.extract()?;
+    let slopes: Vec<f64> = required(table, "slopes", "affine utility")?.extract()?;
+    let affine = AffineUtility::new(intercepts, slopes).map_err(py_err)?;
+    let problem =
+        DecisionProblem::new((0..affine.intercepts.len()).collect(), Arc::new(affine), Vec::new());
+    Ok(Some(PyDecision::Affine(DecisionRegistry { problems: vec![Some(problem)], prior, signal })))
+}
+
 fn candidate_kind(c: &CandidateDesign) -> String {
     match c {
         CandidateDesign::Measure(_) => "measure".into(),
@@ -365,6 +463,10 @@ fn candidate_kind(c: &CandidateDesign) -> String {
 }
 
 /// Rank candidate designs under a full [`DesignRanker`] objective / context.
+///
+/// `reduce_decision_regret` scores each candidate's preposterior expected value of
+/// sample information and needs `decision` (see [`parse_decision`]) with
+/// `decision_id=0`.
 #[pyfunction]
 #[pyo3(signature = (
     graph_weights,
@@ -382,6 +484,7 @@ fn candidate_kind(c: &CandidateDesign) -> String {
     graph_features=None,
     effect_width=None,
     model_loglik=None,
+    decision=None,
     max_cost=None,
     max_sample_budget=None,
     min_batches=2,
@@ -407,6 +510,7 @@ pub(crate) fn rank_designs(
     graph_features: Option<Vec<u32>>,
     effect_width: Option<Bound<'_, PyAny>>,
     model_loglik: Option<Bound<'_, PyAny>>,
+    decision: Option<Bound<'_, PyAny>>,
     max_cost: Option<f64>,
     max_sample_budget: Option<u64>,
     min_batches: u32,
@@ -437,6 +541,7 @@ pub(crate) fn rank_designs(
         let unlock_envs = parse_unlock_envs(env_id_unlock)?;
         let effect_width = parse_effect_width(effect_width)?;
         let model_loglik = parse_model_loglik(model_loglik)?;
+        let decision = parse_decision(decision)?;
         let intervene_flags: Option<Vec<GraphIdentFlag>> =
             identified_under_intervention.map(|v| {
                 v.into_iter()
@@ -463,18 +568,33 @@ pub(crate) fn rank_designs(
         let unlock_env_slice = unlock_envs.as_deref();
         let intervene_slice = intervene_flags.as_deref();
         let features_slice = graph_features.as_deref();
-        let eval = DesignEvaluationContext::<(), ()> {
-            graphs: &graphs,
-            effect_width: effect_width.as_ref(),
-            model_loglik: model_loglik.as_ref(),
-            decisions: None,
-            query_id_unlock: unlock_var_slice,
-            env_id_unlock: unlock_env_slice,
-            identified_under_intervention: intervene_slice,
-            graph_features: features_slice,
-        };
-        let ranking =
-            facade_rank_designs(&ranker, &objective, &parsed, &eval, &ctx).map_err(py_err)?;
+        macro_rules! eval_with {
+            ($decisions:expr) => {
+                DesignEvaluationContext {
+                    graphs: &graphs,
+                    effect_width: effect_width.as_ref(),
+                    model_loglik: model_loglik.as_ref(),
+                    decisions: $decisions,
+                    query_id_unlock: unlock_var_slice,
+                    env_id_unlock: unlock_env_slice,
+                    identified_under_intervention: intervene_slice,
+                    graph_features: features_slice,
+                }
+            };
+        }
+        let ranking = match &decision {
+            None => {
+                let eval: DesignEvaluationContext<'_, (), ()> = eval_with!(None);
+                facade_rank_designs(&ranker, &objective, &parsed, &eval, &ctx)
+            }
+            Some(PyDecision::Callback(registry)) => {
+                facade_rank_designs(&ranker, &objective, &parsed, &eval_with!(Some(registry)), &ctx)
+            }
+            Some(PyDecision::Affine(registry)) => {
+                facade_rank_designs(&ranker, &objective, &parsed, &eval_with!(Some(registry)), &ctx)
+            }
+        }
+        .map_err(py_err)?;
         let scores: Vec<f64> = ranking.ranked.iter().map(|r| r.score).collect();
         let best = ranking.ranked.first().map_or(0, |r| r.candidate_index);
         let ranked: Vec<RankedDesign> = ranking
@@ -489,6 +609,7 @@ pub(crate) fn rank_designs(
                 rank: r.rank,
                 rank_uncertain: r.rank_uncertain,
                 implemented_functional: r.implemented_functional.to_string(),
+                evaluation: r.evaluation.as_str().to_owned(),
             })
             .collect();
         let violations: Vec<DesignConstraintViolation> = ranking

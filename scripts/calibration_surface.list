@@ -1,0 +1,247 @@
+# The statistical surface: every path whose contents can move a number in
+# parity/coverage_records.toml, and the facet each belongs to.
+#
+# A record stands until the surface it measured changes. It is attested while
+# no path in a facet it depends on differs between the commit it was measured
+# at (its calibration_sha) and HEAD; scripts/calibration_facets.py derives
+# each record's facets from the record itself and computes the drift.
+#
+#   <facet> <path>     A path ending in "/" covers everything under it. A file
+#                      belongs to the facet of the longest line that covers it.
+#   core               Shared code. On the list so an unmapped file cannot
+#                      look harmless. Records do not carry it.
+#   estimator.*        One estimator implementation. A change invalidates
+#                      only records whose `estimator` field matches.
+#   identity.*         One identification path. A change invalidates only
+#                      records whose query/estimator field matches.
+#   other facets       A change invalidates only the records carrying the facet.
+#   key <facet> <field> <pattern>...
+#                      Records whose field matches a pattern carry the facet.
+#   allow <facet> <path> <name>...
+#                      A reviewed reference from a file outside the facet to
+#                      the facet's items, which cannot run the facet's code for
+#                      records that do not carry it. Any other reference, and
+#                      any stale name here, fails `calibration_facets.py check`.
+#
+# Cargo.toml / Cargo.lock are compared with workspace version numbers removed:
+# a release bump is not interval theory, but a feature, profile or external
+# dependency change is.
+
+# ---- estimator implementations (longer path wins over core src/) -----------
+estimator.linear_adjustment crates/antecedent-estimate/src/adjustment.rs
+key estimator.linear_adjustment estimator linear.adjustment.*
+estimator.aipw crates/antecedent-estimate/src/aipw.rs
+estimator.aipw crates/antecedent-estimate/src/crossfit_aipw.rs
+key estimator.aipw estimator aipw
+estimator.cell_aipw crates/antecedent-estimate/src/cell_aipw.rs
+key estimator.cell_aipw estimator cell.aipw
+estimator.bayesian crates/antecedent-estimate/src/bayesian.rs
+estimator.bayesian crates/antecedent-estimate/src/temporal_observed_bayes.rs
+key estimator.bayesian estimator bayesian.*
+key estimator.bayesian estimator conditional.bayesian
+key estimator.bayesian estimator response.bayesian
+key estimator.bayesian estimator response.temporal.bayesian
+estimator.bayesian_mediation crates/antecedent-estimate/src/bayesian_mediation.rs
+key estimator.bayesian_mediation estimator temporal.mediation.bayesian
+estimator.conditional crates/antecedent-estimate/src/conditional.rs
+key estimator.conditional estimator conditional.linear.*
+estimator.frontdoor crates/antecedent-estimate/src/frontdoor.rs
+key estimator.frontdoor estimator frontdoor.*
+estimator.functional crates/antecedent-estimate/src/functional_distribution.rs
+key estimator.functional estimator functional.*
+estimator.glm crates/antecedent-estimate/src/glm_adjustment.rs
+key estimator.glm estimator glm.*
+estimator.iv crates/antecedent-estimate/src/iv.rs
+key estimator.iv estimator iv.*
+estimator.mediation crates/antecedent-estimate/src/static_mediation.rs
+key estimator.mediation estimator mediation.*
+estimator.propensity_weighting crates/antecedent-estimate/src/propensity/weighting.rs
+key estimator.propensity_weighting estimator propensity.weighting
+estimator.propensity_matching crates/antecedent-estimate/src/propensity/matching.rs
+key estimator.propensity_matching estimator propensity.matching
+estimator.rd crates/antecedent-estimate/src/rd.rs
+key estimator.rd estimator rd.*
+estimator.response crates/antecedent-estimate/src/response/
+key estimator.response estimator response.kennedy_dr
+key estimator.response estimator response.gam_derivative
+key estimator.response estimator response.riesz_ade
+key estimator.response estimator response.intervention_gcomp
+estimator.temporal_adjustment crates/antecedent-estimate/src/temporal_adjustment.rs
+key estimator.temporal_adjustment estimator temporal.linear.adjustment
+estimator.temporal_response crates/antecedent-estimate/src/temporal_response.rs
+estimator.temporal_response crates/antecedent-estimate/src/temporal_response_dispersion.rs
+key estimator.temporal_response estimator temporal.response.gcomp
+estimator.temporal_sequential crates/antecedent-estimate/src/temporal_sequential.rs
+estimator.temporal_sequential crates/antecedent-estimate/src/temporal_sequential_tuples.rs
+key estimator.temporal_sequential estimator temporal.sequential.gcomp
+estimator.temporal_mediation crates/antecedent-estimate/src/temporal_mediation.rs
+estimator.temporal_mediation crates/antecedent-estimate/src/temporal_mediation/shared.rs
+key estimator.temporal_mediation estimator temporal.mediation
+estimator.interference crates/antecedent-estimate/src/interference.rs
+estimator.interference crates/antecedent-stats/src/interference.rs
+key estimator.interference estimator interference.*
+estimator.transport crates/antecedent-estimate/src/transport.rs
+key estimator.transport estimator transport.*
+
+# ---- identification paths --------------------------------------------------
+identity.backdoor crates/antecedent-identify/src/backdoor.rs
+identity.backdoor crates/antecedent-identify/src/generalized.rs
+key identity.backdoor estimator linear.adjustment.*
+key identity.backdoor estimator aipw
+key identity.backdoor estimator cell.aipw
+key identity.backdoor estimator bayesian.gcomp
+key identity.backdoor estimator conditional.linear.*
+key identity.backdoor estimator conditional.bayesian
+key identity.backdoor estimator propensity.weighting
+key identity.backdoor estimator propensity.matching
+key identity.backdoor estimator glm.*
+identity.frontdoor crates/antecedent-identify/src/frontdoor.rs
+key identity.frontdoor estimator frontdoor.*
+identity.temporal crates/antecedent-identify/src/temporal_backdoor.rs
+identity.temporal crates/antecedent-identify/src/temporal_generalized.rs
+identity.temporal crates/antecedent-identify/src/temporal_mag.rs
+key identity.temporal query PulseEffect
+key identity.temporal query SustainedEffect
+identity.temporal_mediation crates/antecedent-identify/src/temporal_mediation.rs
+key identity.temporal_mediation query TemporalMediationEffect
+identity.path crates/antecedent-identify/src/path_specific.rs
+key identity.path query PathSpecificEffect
+identity.response crates/antecedent-identify/src/response.rs
+identity.response crates/antecedent-identify/src/response_id.rs
+identity.response crates/antecedent-identify/src/joint_response.rs
+key identity.response query ResponseCurve
+key identity.response query InterventionResponse
+key identity.response query PointDerivative
+key identity.response query ResponseJacobian
+key identity.response query SemiElasticity
+key identity.response query DirectionalDerivative
+key identity.response query Elasticity
+key identity.response query AverageDerivative
+identity.iv crates/antecedent-identify/src/iv.rs
+key identity.iv estimator iv.*
+identity.rd crates/antecedent-identify/src/rd.rs
+key identity.rd estimator rd.*
+identity.envelope crates/antecedent-identify/src/envelope.rs
+key identity.envelope graph_class Cpdag
+key identity.envelope graph_class Pag
+key identity.envelope graph_class TemporalCpdag
+key identity.envelope graph_class TemporalPag
+identity.tiered crates/antecedent-identify/src/tiered.rs
+key identity.tiered graph_class CoDetermined
+
+# ---- core: toolchain, manifests, shared libraries, the harness -------------
+core Cargo.toml
+core Cargo.lock
+core rust-toolchain.toml
+core crates/antecedent/Cargo.toml
+core crates/antecedent-attribution/Cargo.toml
+core crates/antecedent-core/Cargo.toml
+core crates/antecedent-counterfactual/Cargo.toml
+core crates/antecedent-data/Cargo.toml
+core crates/antecedent-design/Cargo.toml
+core crates/antecedent-discovery/Cargo.toml
+core crates/antecedent-estimate/Cargo.toml
+core crates/antecedent-expr/Cargo.toml
+core crates/antecedent-graph/Cargo.toml
+core crates/antecedent-identify/Cargo.toml
+core crates/antecedent-io/Cargo.toml
+core crates/antecedent-kernels/Cargo.toml
+core crates/antecedent-model/Cargo.toml
+core crates/antecedent-prob/Cargo.toml
+core crates/antecedent-state/Cargo.toml
+core crates/antecedent-stats/Cargo.toml
+core crates/antecedent-validate/Cargo.toml
+core crates/antecedent/src/
+core crates/antecedent-core/src/
+core crates/antecedent-data/src/
+core crates/antecedent-discovery/src/
+core crates/antecedent-estimate/src/
+core crates/antecedent-expr/src/
+core crates/antecedent-graph/src/
+core crates/antecedent-identify/src/
+core crates/antecedent-io/src/
+core crates/antecedent-kernels/src/
+core crates/antecedent-prob/src/
+core crates/antecedent-state/src/
+core crates/antecedent-stats/src/
+core crates/antecedent-validate/src/
+core crates/antecedent/tests/common/
+core scripts/gate_calibration.sh
+core scripts/gate_response_calibration.sh
+
+# ---- mechanism: fitted structural causal models (GCM) ----------------------
+# Reached only by the queries the dispatch routes to attribution_path.rs.
+mechanism crates/antecedent-model/src/
+mechanism crates/antecedent-counterfactual/src/
+mechanism crates/antecedent-attribution/src/
+mechanism crates/antecedent/src/gcm.rs
+mechanism crates/antecedent/src/analysis/execute/attribution_path.rs
+mechanism crates/antecedent-io/src/mechanism_wire.rs
+mechanism crates/antecedent-io/src/model_bundle.rs
+key mechanism query Counterfactual AnomalyAttribution ChangeAttribution MechanismChange UnitChange
+key mechanism estimator gcm.*
+# The five dispatch arms of AnalysisRoute::{Counterfactual, Anomaly,
+# ChangeAttribution, MechanismChange, UnitChange}: exactly the `key` queries.
+allow mechanism crates/antecedent/src/analysis/execute/dispatch.rs ChangeAttribution execute_anomaly execute_change_attribution execute_counterfactual execute_mechanism_change execute_unit_change
+# Sibling re-exports of the gcm entry points; every caller is checked by name.
+allow mechanism crates/antecedent/src/analysis/execute/mod.rs anomaly_attribution attribute_distribution_change attribute_unit_change attribution_path counterfactual_ite fit_gcm fit_gcm_counterfactual gcm map_mechanism_fit mechanism_change_detection
+# Result slots and payload enum variants holding the facet's outputs (types only).
+allow mechanism crates/antecedent/src/analysis/execute/execute_helpers.rs AnomalyScores ChangeAttribution ChangeAttributionResult IteResult MechanismChangeDetection UnitChangeResult antecedent_attribution gcm unit_change
+allow mechanism crates/antecedent/src/analysis/helpers.rs AnomalyScores ChangeAttributionResult IteResult MechanismChangeDetection UnitChangeResult antecedent_attribution gcm unit_change
+allow mechanism crates/antecedent/src/result.rs AnomalyScores ChangeAttributionResult IteResult MechanismChangeDetection UnitChangeResult antecedent_attribution gcm unit_change
+# CausalQuery::ChangeAttribution / a `unit_change` field: core names the facet shares.
+allow mechanism crates/antecedent/src/analysis/prepared.rs ChangeAttribution unit_change
+allow mechanism crates/antecedent/src/support.rs ChangeAttribution
+# `From` conversions of the facet crates' error types.
+allow mechanism crates/antecedent/src/error.rs AttributionError CounterfactualError ModelError antecedent_attribution antecedent_counterfactual antecedent_model
+# `pub mod gcm;`.
+allow mechanism crates/antecedent/src/lib.rs gcm
+# Model-bundle byte encode / decode API: runs only when a caller saves or loads
+# a fitted model, never inside a Study execution.
+allow mechanism crates/antecedent/src/io.rs ModelBundle ModelBundleEncode decode_model_bundle encode_model_bundle
+allow mechanism crates/antecedent-io/src/lib.rs MechanismSlotWire MechanismStoreWire ModelBundle ModelBundleEncode ModelBundleHeaderWire ModelKindWire decode_model_bundle encode_model_bundle mechanism_wire mechanisms_from_wire mechanisms_to_wire model_bundle
+# ArtifactKind::ModelBundle: an enum variant the facet shares by name.
+allow mechanism crates/antecedent-io/src/wire.rs ModelBundle
+
+# ---- design: experiment / measurement design ranking -----------------------
+design crates/antecedent-design/src/
+design crates/antecedent/src/design.rs
+# CausalContract::{preview_rank_designs, rank_designs, rank_designs_bound}: the
+# public design-ranking API, never called by a Study execution.
+allow design crates/antecedent/src/analysis/contract.rs CandidateDesign DesignEvaluationContext DesignObjective DesignRankPreview DesignRanker DesignRanking design preview_design_rank rank_designs rank_designs_bound
+allow design crates/antecedent/src/error.rs DesignError antecedent_design
+allow design crates/antecedent/src/lib.rs design
+
+# ---- registry mirrors: generated from parity/*.toml, never measured ---------
+# Tables of record rows and reason-code strings. They decide how a result is
+# labelled and matched, not any number a coverage test counts.
+registry_mirror crates/antecedent-io/src/coverage_records_data.rs
+registry_mirror crates/antecedent-core/src/reason_codes_data.rs
+allow registry_mirror crates/antecedent-core/src/reason_code.rs REASON_CODES RUNTIME_REFUSAL_CODES
+allow registry_mirror crates/antecedent-io/src/calibration.rs CoverageGridPoint CoverageRecord REASON_CODES RECORDS coverage_records_data
+allow registry_mirror crates/antecedent-io/src/contract_section.rs CoverageRecord coverage_records_data
+allow registry_mirror crates/antecedent-io/src/lib.rs coverage_records_data
+allow registry_mirror crates/antecedent/src/lib.rs INTERVAL_METHOD_REASONS RECORDS coverage_records_data
+
+# ---- suites: a suite's own code only reaches the records it emits ----------
+suite.calibration_coverage crates/antecedent-estimate/src/calibration_coverage.rs
+suite.v19_calibration crates/antecedent/tests/v19_calibration.rs
+suite.v19_temporal_class_calibration crates/antecedent/tests/v19_temporal_class_calibration.rs
+suite.v19_static_mixture_calibration crates/antecedent/tests/v19_static_mixture_calibration.rs
+suite.v19_static_envelope_calibration crates/antecedent/tests/v19_static_envelope_calibration.rs
+suite.v19_static_calibration crates/antecedent/tests/v19_static_calibration.rs
+suite.v19_derivative_calibration crates/antecedent/tests/v19_derivative_calibration.rs
+suite.v19_temporal_response_calibration crates/antecedent/tests/v19_temporal_response_calibration.rs
+suite.v19_bayesian_temporal crates/antecedent/tests/v19_bayesian_temporal.rs
+suite.v19_temporal_frequentist crates/antecedent/tests/v19_temporal_frequentist.rs
+suite.v19_tiered_known_truth crates/antecedent/tests/v19_tiered_known_truth.rs
+suite.v19_short_series_measurement crates/antecedent/tests/v19_short_series_measurement.rs
+suite.v19_bayesian_prior_in_force crates/antecedent/tests/v19_bayesian_prior_in_force.rs
+suite.v110_panel_calibration crates/antecedent/tests/v110_panel_calibration.rs
+suite.v110_calibration_response crates/antecedent/tests/v110_calibration_response.rs
+suite.v110_calibration_admg crates/antecedent/tests/v110_calibration_admg.rs
+suite.v110_calibration_design crates/antecedent/tests/v110_calibration_design.rs
+suite.v110_calibration_estimate crates/antecedent/tests/v110_calibration_estimate.rs
+suite.v110_calibration_temporal crates/antecedent/tests/v110_calibration_temporal.rs
+suite.v110_calibration_bayesian_static crates/antecedent/tests/v110_calibration_bayesian_static.rs
+suite.v110_calibration_counterfactual crates/antecedent/tests/v110_calibration_counterfactual.rs

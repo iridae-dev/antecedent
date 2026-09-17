@@ -294,11 +294,13 @@ pub(crate) fn build_graph_posterior_identification_cache(
                     {
                         return Ok(None);
                     }
-                    let estimand =
-                        select_estimand(&identification, EstimatorId::LinearAdjustmentAte)
-                            .or_else(|_| {
-                                select_estimand(&identification, EstimatorId::BayesianGcomp)
-                            })?;
+                    let Ok(estimand) =
+                        select_estimand(&identification, EstimatorId::LinearAdjustmentAte).or_else(
+                            |_| select_estimand(&identification, EstimatorId::BayesianGcomp),
+                        )
+                    else {
+                        return Ok(None);
+                    };
                     Ok(Some((estimand, identification)))
                 })()?;
             by_mask.insert(mask, value.clone());
@@ -577,10 +579,7 @@ fn dbn_temporal_effect_estimator(
     query: &TemporalEffectQuery,
 ) -> crate::strategy_table::EstimatorId {
     use crate::strategy_table::EstimatorId;
-    if matches!(
-        query.policy,
-        antecedent_core::TemporalPolicy::Sustained { from, until } if from != until
-    ) {
+    if query.is_multi_step_sustained() {
         EstimatorId::TemporalSequentialGcomp
     } else {
         EstimatorId::TemporalLinearAdjustment
@@ -670,6 +669,9 @@ enum PreparedModality {
     Series,
     /// Multi-unit panel: [`PreparedStudy::estimate_panel`] / [`PreparedStudy::refresh_panel`].
     Panel,
+    /// Multi-environment series: [`PreparedStudy::estimate_multi_env`] /
+    /// [`PreparedStudy::refresh_multi_env`].
+    MultiEnv,
 }
 
 impl PreparedModality {
@@ -678,6 +680,7 @@ impl PreparedModality {
             Self::Tabular => "tabular",
             Self::Series => "series",
             Self::Panel => "panel",
+            Self::MultiEnv => "multi_env",
         }
     }
 
@@ -686,6 +689,7 @@ impl PreparedModality {
             Self::Tabular => "estimate",
             Self::Series => "estimate_series",
             Self::Panel => "estimate_panel",
+            Self::MultiEnv => "estimate_multi_env",
         }
     }
 }
@@ -713,8 +717,12 @@ impl PreparedModality {
 /// prepare → estimate.
 #[derive(Clone, Debug)]
 pub struct PreparedStudy {
-    /// Frozen analysis config (data slot replaced on each estimate).
+    /// Frozen analysis config (data slot replaced on each estimate). Read
+    /// through [`Self::study`]; mutate only through [`Self::study_mut`], which
+    /// drops the compiled program identities.
     analysis: Study,
+    /// Data-independent contract layers, compiled once per handle state.
+    program_cache: std::sync::OnceLock<Arc<super::contract::ProgramPayloads>>,
     /// Ready physical plan from the prepare-time compile (never recompiled on refresh).
     plan: PhysicalExecutionPlan,
     /// Schema fingerprint from prepare-time data.
@@ -733,6 +741,134 @@ impl PreparedStudy {
     #[must_use]
     pub fn query(&self) -> &CausalQuery {
         &self.analysis.query
+    }
+
+    /// Crate-visible frozen study.
+    pub(crate) fn study(&self) -> &Study {
+        &self.analysis
+    }
+
+    /// Mutable frozen study. Drops the compiled program identities so the
+    /// next contract or estimate recompiles them from the changed study.
+    pub(crate) fn study_mut(&mut self) -> &mut Study {
+        self.program_cache = std::sync::OnceLock::new();
+        &mut self.analysis
+    }
+
+    /// Replace the frozen study after a successful refresh.
+    fn replace_study(&mut self, study: Study) {
+        *self.study_mut() = study;
+    }
+
+    pub(crate) fn program_cache(
+        &self,
+    ) -> &std::sync::OnceLock<Arc<super::contract::ProgramPayloads>> {
+        &self.program_cache
+    }
+
+    /// Series data in the variant this handle was prepared with (event
+    /// studies keep the event modality through estimate and refresh).
+    fn series_input(&self, data: TimeSeriesData) -> DataInput {
+        match self.analysis.data {
+            DataInput::Event(_) => DataInput::Event(data),
+            _ => DataInput::Temporal(data),
+        }
+    }
+
+    /// Stamp the contract `result` was executed under on `data`.
+    fn stamp(&self, data: &DataInput, mut result: StudyResult) -> Result<StudyResult, CausalError> {
+        super::execute::push_gaussian_likelihood_disclosure(
+            &mut result,
+            &self.analysis.inference,
+            data,
+        );
+        result.executed_contract =
+            Some(self.executed_contract(data, self.analysis.refute, None)?);
+        Ok(result)
+    }
+
+    /// Replace custom validators. Incoming names must match the prepare-time set.
+    ///
+    /// # Errors
+    ///
+    /// Name mismatch.
+    pub fn rebind_custom_validators(
+        &mut self,
+        validators: Vec<std::sync::Arc<dyn antecedent_validate::CustomEffectValidator>>,
+    ) -> Result<(), CausalError> {
+        let expected: std::collections::BTreeSet<&str> =
+            self.analysis.custom_validators.iter().map(|v| v.name()).collect();
+        let incoming: std::collections::BTreeSet<&str> =
+            validators.iter().map(|v| v.name()).collect();
+        if expected != incoming {
+            return Err(crate::unsupported_reason!(
+                "attested_not_reverifiable",
+                "rebind_validators names must match attested names"
+            ));
+        }
+        self.analysis.custom_validators = validators;
+        Ok(())
+    }
+
+    /// Population bindings frozen at prepare, when the query names a predicate
+    /// or a custom target distribution.
+    #[must_use]
+    pub fn population_registry(&self) -> Option<&antecedent_core::PopulationRegistry> {
+        self.analysis.population_registry.as_ref()
+    }
+
+    /// Names of the caller custom validators frozen at prepare, in order.
+    ///
+    /// These are the names a claim attests and the names
+    /// [`Self::rebind_custom_validators`] requires.
+    #[must_use]
+    pub fn custom_validator_names(&self) -> Vec<&str> {
+        self.analysis.custom_validators.iter().map(|validator| validator.name()).collect()
+    }
+
+    /// Stream progressive stages from later estimates of this handle.
+    ///
+    /// `None` stops streaming. The sink is an in-process execution control: it
+    /// is not part of the contract, program, or claim identity.
+    pub fn set_stage_sink(&mut self, sink: Option<Arc<dyn super::stage::StageResultSink>>) {
+        self.analysis.stage_sink = sink;
+    }
+
+    /// Whether estimates of this handle stream identify → estimate_point →
+    /// uncertainty → validate stage payloads.
+    ///
+    /// Stages describe one identification and one scalar effect estimate. They
+    /// stream from the single-estimand static executors: a supplied or DAG-coerced
+    /// DAG average effect (Frequentist or Bayesian, excluding `rd.sharp` and the
+    /// general-ID functional plug-in) and the Bayesian DAG conditional effect.
+    #[must_use]
+    pub fn streams_stages(&self) -> bool {
+        let analysis = &self.analysis;
+        if analysis.graph_posterior.is_some()
+            || analysis.tiered.is_some()
+            || !matches!(analysis.data, DataInput::Tabular(_))
+        {
+            return false;
+        }
+        let dag_like = match analysis.graph.class() {
+            GraphClass::Dag => true,
+            GraphClass::Admg => analysis
+                .graph
+                .as_admg()
+                .is_some_and(|admg| !super::execute::admg_has_bidirected(admg)),
+            _ => false,
+        };
+        let estimator = self.plan.logical.record.estimator.as_deref();
+        match &analysis.query {
+            CausalQuery::AverageEffect(_) => {
+                dag_like && !matches!(estimator, Some("rd.sharp" | "functional.effect"))
+            }
+            CausalQuery::ConditionalEffect(_) => {
+                analysis.graph.class() == GraphClass::Dag
+                    && matches!(analysis.inference, InferenceMode::Bayesian(_))
+            }
+            _ => false,
+        }
     }
 
     /// Frozen horizon-specific identification and its exact unfolded variable namespace.
@@ -777,6 +913,44 @@ impl PreparedStudy {
         self.analysis.shared_batch_design.as_deref()
     }
 
+    /// The prepared score table a retarget reweights.
+    ///
+    /// # Errors
+    ///
+    /// `score_table_unavailable` when prepare built none.
+    fn retarget_score_table(&self) -> Result<&antecedent_estimate::ScoreTable, CausalError> {
+        self.score_table.as_ref().ok_or_else(|| {
+            crate::unsupported_reason!(
+                "score_table_unavailable",
+                "retarget requires a prepared score table on AverageEffect or discrete joint \
+                 InterventionResponse"
+            )
+        })
+    }
+
+    /// Whether this handle can perform `intent` at all, before any data or
+    /// weights are supplied.
+    ///
+    /// The one check both [`Self::preview_transform`] and the apply run, so a
+    /// preview never authorizes what the apply refuses. Only retarget depends
+    /// on the handle (it needs a prepared score table); a compatible-data
+    /// refresh is always available, and its schema check needs the new data.
+    /// The remaining intents change the question or structure and are
+    /// performed by preparing a new study, not applied to this handle.
+    ///
+    /// # Errors
+    ///
+    /// The reason-coded refusal the apply raises.
+    pub fn transform_capability(
+        &self,
+        intent: antecedent_core::TransformIntent,
+    ) -> Result<(), CausalError> {
+        match intent {
+            antecedent_core::TransformIntent::Retarget => self.retarget_score_table().map(|_| ()),
+            _ => Ok(()),
+        }
+    }
+
     /// Estimate `E_Q[μ_a(X)]` from frozen scores. Does not refit or re-identify.
     ///
     /// `weights` must align with the score-table complete-case rows.
@@ -795,10 +969,7 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let _ = ctx;
-        let table = self.score_table.as_ref().ok_or(CausalError::Unsupported {
-            message: "retarget requires a prepared score table on AverageEffect or \
-                      discrete joint InterventionResponse",
-        })?;
+        let table = self.retarget_score_table()?;
         let graph: Option<&dyn antecedent_estimate::DirectedAncestry> = self
             .analysis
             .graph
@@ -821,7 +992,7 @@ impl PreparedStudy {
             });
         }
         let inference = table.inference(Some(weights))?;
-        self.retarget_to_result(out, inference, weights)
+        self.retarget_to_result(out, inference, weights, depends_on)
     }
 
     #[allow(clippy::float_cmp)] // Exact membership in binary intervention levels.
@@ -830,6 +1001,7 @@ impl PreparedStudy {
         out: RetargetResult,
         inference: antecedent_estimate::scores::ScoreInference,
         weights: &[f64],
+        depends_on: &[antecedent_core::VariableId],
     ) -> Result<StudyResult, CausalError> {
         let cache =
             self.analysis.identification_cache.as_ref().ok_or(CausalError::Unsupported {
@@ -1007,6 +1179,7 @@ impl PreparedStudy {
             n_draws: None,
             cancelled: false,
             early_stopped: false,
+            bayesian: matches!(self.analysis.inference, InferenceMode::Bayesian(_)),
         });
         result.certificate = Some(crate::result::AnalysisIdentification {
             identification: crate::Identification::Point {
@@ -1025,6 +1198,15 @@ impl PreparedStudy {
             query: self.analysis.query.clone(),
             graph_class: self.analysis.graph.class(),
         });
+        if antecedent_estimate::changes_target(weights) {
+            let binding = self.row_weights_binding(weights, depends_on)?;
+            if let Some(certificate) = &mut result.certificate {
+                if let Some(target) = certificate.query.target_population_mut() {
+                    *target = binding.population();
+                }
+            }
+            result.row_weights = Some(binding);
+        }
         if let CausalQuery::Response(q) = &self.analysis.query {
             result.response = Some(antecedent_core::CausalResponse {
                 estimand: q.functional.clone(),
@@ -1034,8 +1216,10 @@ impl PreparedStudy {
                 ),
                 uncertainty: antecedent_core::ResponseUncertainty::Scalar {
                     standard_error: result.estimate.se_analytic,
-                    lower: result.estimate.ate - 1.96 * result.estimate.se_analytic,
-                    upper: result.estimate.ate + 1.96 * result.estimate.se_analytic,
+                    lower: result.estimate.ate
+                        - crate::result::reported_se_interval_z() * result.estimate.se_analytic,
+                    upper: result.estimate.ate
+                        + crate::result::reported_se_interval_z() * result.estimate.se_analytic,
                     level: 0.95,
                 },
                 support: antecedent_core::SupportReport {
@@ -1054,8 +1238,15 @@ impl PreparedStudy {
                 interaction_structurally_zero: false,
             });
         }
+        result.rebind_interval(matches!(self.analysis.inference, InferenceMode::Bayesian(_)));
         result.support_status = self.analysis.support_status;
         result.structure_source = self.analysis.structure_source;
+        let retargeted = result.retarget_population();
+        result.executed_contract = Some(self.executed_contract(
+            &self.analysis.data,
+            self.analysis.refute,
+            retargeted.as_ref(),
+        )?);
         Ok(result)
     }
 
@@ -1087,15 +1278,26 @@ impl PreparedStudy {
         self.ensure_schema_compatible(data)?;
         let mut click_analysis = self.analysis.clone();
         click_analysis.data = DataInput::Tabular(data.clone());
+        click_analysis.interference =
+            click_analysis.interference.as_ref().map(|spec| spec.bound_to(data)).transpose()?;
         click_analysis.shared_batch_design = shared;
         let mut result = click_analysis.execute_tabular(data, &self.plan, ctx)?;
+        // `execute_tabular` bypasses `Study::execute_on`, which is where fresh runs
+        // record which refutation reports are caller-attested. Without the names,
+        // the claim would drop custom-validator evidence from `attested` and from
+        // the claim identity.
+        result.custom_validator_names = click_analysis
+            .custom_validators
+            .iter()
+            .map(|validator| Arc::from(validator.name()))
+            .collect();
         let click_scores = click_analysis.prepare_score_table(ctx)?;
         overlay_prepared_score_functional(
             &self.analysis.query,
             click_scores.as_ref(),
             &mut result,
         )?;
-        Ok(result)
+        self.stamp(&click_analysis.data, result)
     }
 
     /// Replace retained data and re-estimate (same semantics as [`Self::estimate`]).
@@ -1108,6 +1310,7 @@ impl PreparedStudy {
         data: TabularData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
         self.ensure_schema_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.shared_batch_design = refreshed
@@ -1115,13 +1318,16 @@ impl PreparedStudy {
             .as_ref()
             .map(|s| s.rebind(&data).map(Arc::new))
             .transpose()?;
+        refreshed.interference =
+            refreshed.interference.as_ref().map(|spec| spec.bound_to(&data)).transpose()?;
         refreshed.data = DataInput::Tabular(data);
         let mut result = refreshed.execute(&self.plan, ctx)?;
         let scores = refreshed.prepare_score_table(ctx)?;
         overlay_prepared_score_functional(&refreshed.query, scores.as_ref(), &mut result)?;
-        self.analysis = refreshed;
+        self.replace_study(refreshed);
         self.score_table = scores;
-        Ok(result)
+        let data = self.analysis.data.clone();
+        self.stamp(&data, result)
     }
 
     /// Second-click / background refute: replace validation on a prior estimate.
@@ -1169,7 +1375,7 @@ impl PreparedStudy {
                     ctx,
                 )?
             };
-            return Ok(result);
+            return self.stamp_refuted(prior, data, suite, result);
         }
         let query = match &self.analysis.query {
             CausalQuery::AverageEffect(query) => query.clone(),
@@ -1208,6 +1414,7 @@ impl PreparedStudy {
             let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
             let mut out = prior.clone();
             out.refutations = validated.refutations;
+            super::helpers::mirror_refuted_evalue(&mut out.estimate, &out.refutations);
             out.predictive_checks = validated.predictive_checks;
             out.posterior = validated.posterior;
             out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
@@ -1219,7 +1426,7 @@ impl PreparedStudy {
                 antecedent_core::DiagnosticSeverity::Info,
                 format!("second-click refute suite={}", suite.diagnostic_label()),
             ));
-            return Ok(out);
+            return self.stamp_refuted(prior, data, suite, out);
         }
         let estimator = self.plan.logical.record.estimator.as_deref().unwrap_or(DEFAULT_ESTIMATOR);
 
@@ -1251,6 +1458,7 @@ impl PreparedStudy {
 
         let mut out = prior.clone();
         out.refutations = reports;
+        super::helpers::mirror_refuted_evalue(&mut out.estimate, &out.refutations);
         out.diagnostics.extend(na_diagnostics);
         out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
         out.performance.wall_time_ns =
@@ -1263,6 +1471,32 @@ impl PreparedStudy {
             format!("second-click refute suite={suite_label}"),
         ));
         let _ = clock.wall_time_ns();
+        self.stamp_refuted(prior, data, suite, out)
+    }
+
+    /// Stamp a second-click refute under the refute suite that produced its
+    /// refutations. The estimate and the refutations must come from this
+    /// handle on the same data snapshot; otherwise the result mixes two
+    /// executions and carries no contract stamp (it cannot be exported).
+    fn stamp_refuted(
+        &self,
+        prior: &StudyResult,
+        data: &TabularData,
+        suite: RefuteSuite,
+        mut out: StudyResult,
+    ) -> Result<StudyResult, CausalError> {
+        let input = DataInput::Tabular(data.clone());
+        let retargeted = prior.retarget_population();
+        let population = retargeted.as_ref();
+        let same_execution = match &prior.executed_contract {
+            Some(stamp) => *stamp == self.executed_contract(&input, stamp.refute, population)?,
+            None => false,
+        };
+        out.executed_contract = if same_execution {
+            Some(self.executed_contract(&input, suite, population)?)
+        } else {
+            None
+        };
         Ok(out)
     }
 
@@ -1334,7 +1568,9 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.ensure_series_compatible(data)?;
-        self.analysis.execute_on(&DataInput::Temporal(data.clone()), &self.plan, ctx)
+        let input = self.series_input(data.clone());
+        let result = self.analysis.execute_on(&input, &self.plan, ctx)?;
+        self.stamp(&input, result)
     }
 
     /// Re-estimate a prepared panel Pulse/Sustained analysis (no re-identify).
@@ -1352,7 +1588,9 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.ensure_panel_compatible(data)?;
-        self.analysis.execute_on(&DataInput::Panel(data.clone()), &self.plan, ctx)
+        let input = DataInput::Panel(data.clone());
+        let result = self.analysis.execute_on(&input, &self.plan, ctx)?;
+        self.stamp(&input, result)
     }
 
     /// Replace retained panel data and re-estimate without re-identifying.
@@ -1365,12 +1603,68 @@ impl PreparedStudy {
         data: PanelData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
         self.ensure_panel_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
         refreshed.data = DataInput::Panel(data);
         let result = refreshed.execute(&self.plan, ctx)?;
-        self.analysis = refreshed;
-        Ok(result)
+        self.replace_study(refreshed);
+        let data = self.analysis.data.clone();
+        self.stamp(&data, result)
+    }
+
+    /// Re-estimate a prepared multi-environment temporal analysis (no re-identify).
+    ///
+    /// # Errors
+    ///
+    /// Schema / regularity mismatch, or estimation failures.
+    pub fn estimate_multi_env(
+        &self,
+        data: &antecedent_data::MultiEnvironmentData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.ensure_multi_env_compatible(data)?;
+        let input = DataInput::MultiEnv(data.clone());
+        let result = self.analysis.execute_on(&input, &self.plan, ctx)?;
+        self.stamp(&input, result)
+    }
+
+    /// Replace retained multi-environment data and re-estimate without re-identifying.
+    ///
+    /// # Errors
+    ///
+    /// Same refusals as [`Self::estimate_multi_env`].
+    pub fn refresh_multi_env(
+        &mut self,
+        data: antecedent_data::MultiEnvironmentData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
+        self.ensure_multi_env_compatible(&data)?;
+        let mut refreshed = self.analysis.clone();
+        refreshed.data = DataInput::MultiEnv(data);
+        let result = refreshed.execute(&self.plan, ctx)?;
+        self.replace_study(refreshed);
+        let data = self.analysis.data.clone();
+        self.stamp(&data, result)
+    }
+
+    fn ensure_multi_env_compatible(
+        &self,
+        data: &antecedent_data::MultiEnvironmentData,
+    ) -> Result<(), CausalError> {
+        self.ensure_modality(PreparedModality::MultiEnv)?;
+        if data.schema() != &self.schema {
+            return Err(CausalError::Compile {
+                message: "prepared multi-env analysis requires the same schema \
+                    (variable names, types, and order) as prepare-time data"
+                    .into(),
+            });
+        }
+        for env in data.environments() {
+            self.ensure_regularity(&env.time_index().regularity)?;
+        }
+        Ok(())
     }
 
     fn ensure_panel_compatible(&self, data: &PanelData) -> Result<(), CausalError> {
@@ -1394,6 +1688,22 @@ impl PreparedStudy {
         Ok(())
     }
 
+    /// Estimate using the data retained by preparation or the latest successful refresh.
+    ///
+    /// Uses the existing modality-specific executor and preserves identification caches.
+    ///
+    /// # Errors
+    ///
+    /// Execution failures, or an unsupported retained data modality.
+    pub fn estimate_retained(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
+        match &self.analysis.data {
+            DataInput::Tabular(data) => self.estimate(data, ctx),
+            DataInput::Temporal(data) | DataInput::Event(data) => self.estimate_series(data, ctx),
+            DataInput::Panel(data) => self.estimate_panel(data, ctx),
+            DataInput::MultiEnv(data) => self.estimate_multi_env(data, ctx),
+        }
+    }
+
     /// Replace retained series and re-estimate.
     ///
     /// The handle is updated only when estimation succeeds; a refused or
@@ -1407,12 +1717,14 @@ impl PreparedStudy {
         data: TimeSeriesData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.transform_capability(antecedent_core::TransformIntent::CompatibleDataReplace)?;
         self.ensure_series_compatible(&data)?;
         let mut refreshed = self.analysis.clone();
-        refreshed.data = DataInput::Temporal(data);
+        refreshed.data = self.series_input(data);
         let result = refreshed.execute(&self.plan, ctx)?;
-        self.analysis = refreshed;
-        Ok(result)
+        self.replace_study(refreshed);
+        let data = self.analysis.data.clone();
+        self.stamp(&data, result)
     }
 }
 
@@ -1421,21 +1733,23 @@ impl PreparedStudy {
 /// Refresh requires every unit to match the frozen regularity, so prepare
 /// refuses a panel whose units already disagree rather than freezing one
 /// unit's grid and then refusing the same data on refresh.
-fn panel_regularity(panel: &PanelData) -> Result<antecedent_data::SamplingRegularity, CausalError> {
-    let first = &panel
-        .unit(0)
-        .map_err(|e| CausalError::Compile { message: e.to_string() })?
-        .series
+fn multi_env_regularity(
+    multi: &antecedent_data::MultiEnvironmentData,
+) -> Result<antecedent_data::SamplingRegularity, CausalError> {
+    let first = multi
+        .environment(0)
+        .map_err(|err| CausalError::Compile { message: err.to_string() })?
         .time_index()
-        .regularity;
-    if panel.units().iter().any(|unit| &unit.series.time_index().regularity != first) {
+        .regularity
+        .clone();
+    if multi.environments().iter().any(|env| env.time_index().regularity != first) {
         return Err(CausalError::Compile {
-            message: "PreparedStudy requires every panel unit to share one time-index \
-                      regularity; align the units before preparing"
+            message: "PreparedStudy requires every multi-env series to share one time-index \
+                      regularity; align the environments before preparing"
                 .into(),
         });
     }
-    Ok(first.clone())
+    Ok(first)
 }
 
 impl Study {
@@ -1487,14 +1801,16 @@ impl Study {
                 PreparedModality::Series,
                 Some(data.time_index().regularity.clone()),
             ),
-            DataInput::Panel(panel) => {
-                (panel.schema().clone(), PreparedModality::Panel, Some(panel_regularity(panel)?))
-            }
-            DataInput::MultiEnv(_) => {
-                return Err(CausalError::Unsupported {
-                    message: "PreparedStudy requires tabular, temporal series, or panel data",
-                });
-            }
+            DataInput::Panel(panel) => (
+                panel.schema().clone(),
+                PreparedModality::Panel,
+                Some(super::builder::panel_shared_regularity(panel)?),
+            ),
+            DataInput::MultiEnv(multi) => (
+                multi.schema().clone(),
+                PreparedModality::MultiEnv,
+                Some(multi_env_regularity(multi)?),
+            ),
         };
         let mut analysis = self.clone();
         match (&self.data, &self.query, self.graph_posterior.as_ref()) {
@@ -1566,9 +1882,18 @@ impl Study {
                 analysis.cpdag_identification_cache =
                     self.prepare_cpdag_identification(&plan)?.map(Arc::new);
             }
-            (DataInput::Panel(_), CausalQuery::TemporalEffect(_), None) => {
-                analysis.temporal_identification_cache =
-                    self.prepare_temporal_identification()?.map(Arc::new);
+            (
+                DataInput::Panel(_),
+                CausalQuery::TemporalEffect(_) | CausalQuery::Response(_),
+                None,
+            ) => {
+                if analysis.graph.class().is_incomplete_temporal() {
+                    analysis.temporal_class_identification_cache =
+                        self.prepare_temporal_class_identification()?.map(Arc::new);
+                } else {
+                    analysis.temporal_identification_cache =
+                        self.prepare_temporal_identification()?.map(Arc::new);
+                }
             }
             (_, _, None) => {
                 analysis.temporal_identification_cache =
@@ -1604,7 +1929,15 @@ impl Study {
             super::execute::report_identify_compute(ctx);
         }
         let score_table = analysis.prepare_score_table(ctx)?;
-        Ok(PreparedStudy { analysis, plan, schema, modality, time_regularity, score_table })
+        Ok(PreparedStudy {
+            analysis,
+            program_cache: std::sync::OnceLock::new(),
+            plan,
+            schema,
+            modality,
+            time_regularity,
+            score_table,
+        })
     }
 
     /// Compute the static-path identification once at prepare time.
@@ -1941,12 +2274,12 @@ impl Study {
             }
             CausalQuery::TemporalEffect(query) => {
                 let id_res = TemporalBackdoorIdentifier::new()
+                    .with_parent_adjustment_fallback()
                     .identify_temporal(graph, query)
                     .map_err(CausalError::from)?;
                 let estimand = select_estimand(
                     &id_res.result,
-                    if matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
-                    {
+                    if query.is_multi_step_sustained() {
                         EstimatorId::TemporalSequentialGcomp
                     } else {
                         EstimatorId::TemporalLinearAdjustment
@@ -2099,9 +2432,21 @@ impl Study {
                 if matches!(est.overlap, OverlapPolicy::RequireDiagnostics { trim: Some(_), .. })
                     || est.se_kind != antecedent_estimate::AnalyticSeKind::Homoskedastic
                 {
-                    return Err(CausalError::Unsupported {
-                        message: "prepared AIPW scores require iid inference without propensity trimming",
-                    });
+                    // Frozen cross-fitted scores are untrimmed iid influence
+                    // values. A mean estimate under trimming or a non-iid SE is
+                    // still estimated by the configured AIPW; it keeps no score
+                    // table, so a retarget refuses with `score_table_unavailable`
+                    // instead of reweighting scores of a different construction.
+                    // A quantile or exceedance functional is estimated from the
+                    // scores and has no such fallback.
+                    if query.outcome_functional.is_mean() {
+                        return Ok(None);
+                    }
+                    return Err(crate::unsupported_reason!(
+                        "option_not_applicable",
+                        "prepared AIPW functional scores require iid inference without \
+                         propensity trimming"
+                    ));
                 }
                 let estimand = cache.estimand.clone();
                 let mut problem = est.prepare(data, &estimand, query)?;
@@ -2274,13 +2619,16 @@ fn overlay_prepared_score_functional(
             );
             response.uncertainty = antecedent_core::ResponseUncertainty::Scalar {
                 standard_error: estimate.se_analytic,
-                lower: estimate.ate - 1.96 * estimate.se_analytic,
-                upper: estimate.ate + 1.96 * estimate.se_analytic,
+                lower: estimate.ate
+                    - crate::result::reported_se_interval_z() * estimate.se_analytic,
+                upper: estimate.ate
+                    + crate::result::reported_se_interval_z() * estimate.se_analytic,
                 level: 0.95,
             };
         }
     }
     result.estimate = estimate;
+    result.rebind_interval(result.posterior.is_some());
     result.diagnostics.extend(diagnostics);
     Ok(())
 }
@@ -2417,12 +2765,12 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 DataInput::Temporal(_) | DataInput::Event(_),
                 CausalQuery::TemporalEffect(_) | CausalQuery::Mediation(_),
             ) => Ok(()),
-            _ => Err(CausalError::Support {
-                id: crate::support::SupportRefusal::Refused,
-                message: "graph_posterior on the prepared handle is licensed only for \
-                    tabular AverageEffect/Response/ConditionalEffect and series \
-                    TemporalEffect or TemporalMediationEffect",
-            }),
+            _ => Err(crate::support_reason!(
+                "data_modality_not_licensed",
+                "graph_posterior on the prepared handle is licensed only for tabular \
+                 AverageEffect/Response/ConditionalEffect and series TemporalEffect or \
+                 TemporalMediationEffect"
+            )),
         };
     }
     match (&analysis.data, &analysis.query) {
@@ -2539,26 +2887,45 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 });
             }
         }
-        (DataInput::Panel(_), CausalQuery::TemporalEffect(_)) => {
+        (DataInput::MultiEnv(_), CausalQuery::TemporalEffect(_)) => {
             if analysis.graph.class() != GraphClass::TemporalDag {
-                return Err(CausalError::Unsupported {
-                    message: "PreparedStudy supports panel Pulse/Sustained only on TemporalDag",
-                });
+                return Err(crate::unsupported_reason!(
+                    "data_modality_not_licensed",
+                    "PreparedStudy supports multi-environment TemporalEffect on a TemporalDag"
+                ));
             }
         }
-        (DataInput::Panel(_), CausalQuery::Response(_)) => {
-            return Err(CausalError::Unsupported {
-                message: super::builder::PANEL_RESPONSE_REFUSAL,
-            });
+        (DataInput::Panel(panel), query) => {
+            if !matches!(
+                (query, analysis.graph.class()),
+                (
+                    CausalQuery::TemporalEffect(_) | CausalQuery::Response(_),
+                    GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
+                )
+            ) {
+                return Err(crate::unsupported_reason!(
+                    "data_modality_not_licensed",
+                    "PreparedStudy supports panel Pulse/Sustained and temporal response on \
+                     TemporalDag, TemporalCpdag, or TemporalPag"
+                ));
+            }
+            super::builder::refuse_unlicensed_panel_route(
+                query,
+                analysis.graph.class(),
+                &analysis.inference,
+                panel,
+                analysis.split.as_ref(),
+            )?;
         }
         _ => {
-            return Err(CausalError::Unsupported {
-                message: "PreparedStudy currently supports AverageEffect, ResponseCurve, \
-                    ConditionalEffect, PathSpecific, Distribution, temporal ResponseCurve, \
-                    TemporalEffect (Pulse / single-step Sustained), TemporalMediationEffect, \
-                    panel Pulse/Sustained, Counterfactual, AnomalyAttribution, \
-                    ChangeAttribution, TransportQuery, or InterferenceQuery",
-            });
+            return Err(crate::unsupported_reason!(
+                "data_modality_not_licensed",
+                "PreparedStudy supports AverageEffect, ResponseCurve, ConditionalEffect, \
+                 PathSpecific, Distribution, temporal ResponseCurve, TemporalEffect (Pulse / \
+                 single-step Sustained), TemporalMediationEffect, panel Pulse/Sustained, \
+                 Counterfactual, AnomalyAttribution, ChangeAttribution, TransportQuery, or \
+                 InterferenceQuery"
+            ));
         }
     }
     Ok(())
@@ -2693,14 +3060,23 @@ mod refresh_tests {
             .prepare(&ctx)
             .unwrap();
         assert_eq!(retained_rows(&prepared), 160);
+        let original = xy_series(160);
+        let before = prepared.contract().unwrap().identities;
 
         // Same schema and regularity, so the compatibility gate passes and the
         // failure comes from estimation itself.
         assert!(prepared.refresh_series(xy_series(2), &ctx).is_err());
         assert_eq!(retained_rows(&prepared), 160, "failed refresh must not replace data");
+        assert_eq!(before, prepared.contract().unwrap().identities);
+        let recovered = prepared.estimate_series(&original, &ctx).unwrap();
+        assert!(recovered.effect().is_finite(), "old-data estimate must survive a failed refresh");
+        assert_eq!(before, prepared.contract().unwrap().identities);
 
         prepared.refresh_series(xy_series(140), &ctx).unwrap();
         assert_eq!(retained_rows(&prepared), 140);
+        let after = prepared.contract().unwrap().identities;
+        assert_eq!(before.program, after.program);
+        assert_ne!(before.data_snapshot, after.data_snapshot);
     }
 }
 

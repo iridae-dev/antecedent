@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
-"""Sales spreadsheet E2E: discover → Bayesian ATE → path → ITE + temporal pulse.
+"""Explore several causal questions in a simulated sales analysis.
 
-Mirrors the interactive UX spine (ADR 0011 / backlog Docs):
+Discover and accept a graph, estimate an average effect with Bayesian
+inference, and examine effects along particular paths and for individual
+rows. A separate temporal example estimates the effect of a brief intervention.
 
-  discover once → AcceptedGraph
-    → Bayesian ATE estimate click
-    → path-specific decompose
-    → unit ITE
-  plus a temporal pulse Bayesian block on a held TemporalDag.
-
-Requires a built antecedent extension (`maturin develop` in python/).
-"""
+Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 
@@ -67,11 +62,12 @@ def main() -> None:
     accepted = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="reviewed")
     q = antecedent.AverageEffect(treatment="t", outcome="y")
 
-    bayes = accepted.analyze(
+    bayes = antecedent.analyze(
         data,
+        graph=accepted,
         query=q,
         inference=antecedent.Bayesian(backend="laplace", n_draws=128),
-        refute=False,
+        refute="none",
         seed=3,
         bootstrap=0,
     )
@@ -95,17 +91,19 @@ def main() -> None:
     assert math.isfinite(path.total_change)
     print(f"Path decompose total_change={path.total_change:.4f} paths={len(path.path_breakdown)}")
 
-    ite = antecedent.counterfactual.counterfactual_ite(
-        names, cols, edges, "t", "y", 1.0, 0.0, seed=7
+    ite = antecedent.analyze(
+        data, graph=accepted, query=antecedent.Counterfactual("t", "y"), seed=7
     )
-    assert ite.n_units == len(cols[0])
+    assert len(ite.unit_effects) == len(cols[0])
     assert math.isfinite(ite.mean_ite)
-    print(f"ITE mean={ite.mean_ite:.4f} n={ite.n_units}")
+    print(f"ITE mean={ite.mean_ite:.4f} n={len(ite.unit_effects)}")
 
     # Second estimate click — still no discovery.
-    _ = accepted.analyze(
-        data, query=q, inference=antecedent.Bayesian(n_draws=64), refute=False, seed=4
-    )
+    study = bayes.study
+    second = study.estimate(seed=4)
+    assert second.data_snapshot_id == bayes.data_snapshot_id
+    assert antecedent.load(bayes.export()).acceptance.verified
+    print("Calibration:", bayes.calibration.status)
     assert discovery_calls["n"] == 0, "static estimate clicks must not discover"
     assert accepted.version == 1
 
@@ -115,8 +113,9 @@ def main() -> None:
         ["promo", "returns"], [("promo", 1, "returns", 0)]
     )
     temporal = antecedent.AcceptedGraph.from_graph(tdag, algorithm_id="pcmci")
-    pulse = temporal.analyze(
+    pulse = antecedent.analyze(
         series,
+        graph=temporal,
         query=antecedent.PulseEffect(
             treatment="promo",
             outcome="returns",
@@ -125,7 +124,7 @@ def main() -> None:
             active_level=1.0,
         ),
         inference=antecedent.Bayesian(backend="laplace", n_draws=96),
-        refute=False,
+        refute="none",
         seed=13,
         bootstrap=0,
     )

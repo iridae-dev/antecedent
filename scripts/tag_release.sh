@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Create an annotated release tag from the workspace version (or an explicit semver).
-# Usage:
-#   bash scripts/tag_release.sh           # tag current Cargo.toml version
-#   bash scripts/tag_release.sh X.Y.Z     # set version, then tag (commit the bump first)
+# Usage (tagging runs scripts/gate_release_candidate.sh first):
+#   CI_RUN_ID=<ci run on HEAD> bash scripts/tag_release.sh        # tag Cargo.toml version
+#   ... bash scripts/tag_release.sh X.Y.Z   # set version, then tag (commit the bump first)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -43,6 +43,13 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
   echo "tag already exists: $TAG" >&2
   exit 1
 fi
+
+if [[ -z "${CI_RUN_ID:-}" ]]; then
+  echo "FAIL: tagging requires CI_RUN_ID" >&2
+  echo "  CI_RUN_ID=<ci run on HEAD> $0" >&2
+  exit 1
+fi
+CI_RUN_ID="${CI_RUN_ID}" bash scripts/gate_release_candidate.sh
 
 git tag -a "$TAG" -m "Release $TAG"
 echo "Created annotated tag $TAG."

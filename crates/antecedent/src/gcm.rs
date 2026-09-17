@@ -73,6 +73,45 @@ pub fn fit_gcm(graph: Dag, data: &TabularData) -> Result<FittedGcm, CausalError>
     Ok(FittedGcm { model: compiled.with_mechanisms(store), assignments })
 }
 
+/// Fit the counterfactual path's registry
+/// ([`MechanismRegistry::with_heterogeneity_families`]) to `data` on `graph`.
+///
+/// Differs from [`fit_gcm`] only in the candidate set: the heterogeneity-capable
+/// families compete on validation score beside the standard ones, so a per-unit
+/// effect that does not vary is a finding about the data wherever such a family
+/// could be fit, and a property of the candidate set only where none could.
+///
+/// # Errors
+///
+/// Propagates model fit / assignment failures; a mechanism that does not
+/// converge is refused with reason `mechanism_fit_not_converged`.
+pub fn fit_gcm_counterfactual(graph: Dag, data: &TabularData) -> Result<FittedGcm, CausalError> {
+    let compiled = CompiledCausalModel::compile(graph).map_err(map_model)?;
+    let (store, assignments) = MechanismRegistry::with_heterogeneity_families()
+        .assign_and_fit(&compiled, data, SelectionPolicy::BestScore)
+        .map_err(map_mechanism_fit)?;
+    Ok(FittedGcm { model: compiled.with_mechanisms(store), assignments })
+}
+
+/// Map a mechanism-fit failure, turning non-convergence into a reason-coded
+/// refusal that names the remedy instead of surfacing a raw deviance.
+///
+/// Every parent-conditional categorical fit already runs on standardized parent
+/// columns, so a scale mismatch between parents is not the cause; what remains
+/// is near-separation or collinearity among the parents, which only the caller
+/// can resolve.
+pub(crate) fn map_mechanism_fit(e: ModelError) -> CausalError {
+    match e {
+        ModelError::NotConverged { .. } => crate::unsupported_reason!(
+            "mechanism_fit_not_converged",
+            "a parent-conditional categorical mechanism did not converge even on standardized \
+             parent columns; drop or coarsen parents that nearly separate the categories or \
+             duplicate one another, then re-run"
+        ),
+        other => map_model(other),
+    }
+}
+
 /// Interventional ancestral sample under hard `do` values (batch, one GIL/boundary crossing).
 ///
 /// # Errors
@@ -118,7 +157,14 @@ pub fn counterfactual_ite(
         .map_err(map_cf)?;
     let n = ite.len().max(1) as f64;
     let mean = ite.iter().sum::<f64>() / n;
-    Ok(IteResult { unit_effects: ite, mean_ite: mean, noise_inference: exo.kind, exogenous: exo })
+    Ok(IteResult {
+        unit_effects: ite,
+        mean_ite: mean,
+        noise_inference: exo.kind,
+        exogenous: exo,
+        unit_effect_intervals: None,
+        unit_extrapolative: None,
+    })
 }
 
 /// ITE summary with visible noise-inference kind.
@@ -132,6 +178,27 @@ pub struct IteResult {
     pub noise_inference: NoiseInferenceKind,
     /// Shared exogenous state.
     pub exogenous: ExogenousPosterior,
+    /// Per-unit posterior intervals, when the inference mode produced per-unit
+    /// draws (Bayesian). `None` for Frequentist results, which carry no
+    /// per-unit construction.
+    pub unit_effect_intervals: Option<UnitEffectIntervals>,
+    /// Per-unit extrapolation flags, aligned with [`Self::unit_effects`]: `true`
+    /// when the unit's prediction into the arm it did not receive leaves that
+    /// arm's observed support (see `gcm.counterfactual.support`).
+    pub unit_extrapolative: Option<Arc<[bool]>>,
+}
+
+/// Level-tagged per-unit intervals for [`IteResult::unit_effects`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct UnitEffectIntervals {
+    /// Lower bound per unit, aligned with the unit effects.
+    pub lower: Arc<[f64]>,
+    /// Upper bound per unit.
+    pub upper: Arc<[f64]>,
+    /// Nominal level the bounds were read at.
+    pub level: f64,
+    /// Construction id (`unit_posterior_quantile`, `IntervalMethod::as_str`).
+    pub method: &'static str,
 }
 
 /// Score anomalies for listed outcome variables.
@@ -247,9 +314,10 @@ pub fn sample_interventional_distribution(
 ) -> Result<ValueBatch, CausalError> {
     query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(CausalError::Unsupported {
-            message: "sample_interventional_distribution only supports TargetPopulation::AllObserved",
-        });
+        return Err(crate::unsupported_reason!(
+            "population_not_estimable",
+            "sample_interventional_distribution only supports TargetPopulation::AllObserved"
+        ));
     }
     sample_do(model, &query.interventions, n, rng, ctx)
 }
@@ -269,9 +337,10 @@ pub fn attribute_path_specific(
 ) -> Result<ChangeAttributionResult, CausalError> {
     query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
     if query.target_population != TargetPopulation::AllObserved {
-        return Err(CausalError::Unsupported {
-            message: "attribute_path_specific only supports TargetPopulation::AllObserved",
-        });
+        return Err(crate::unsupported_reason!(
+            "population_not_estimable",
+            "attribute_path_specific only supports TargetPopulation::AllObserved"
+        ));
     }
     let mut result = path_decompose(
         model,
@@ -355,4 +424,30 @@ fn map_cf(e: CounterfactualError) -> CausalError {
 #[allow(clippy::needless_pass_by_value)] // map_err adapters
 fn map_attr(e: AttributionError) -> CausalError {
     CausalError::from(e)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A mechanism that still does not converge is a reason-coded refusal naming
+    /// the remedy, never a raw deviance in a compile error; every other fit
+    /// failure keeps its model error.
+    #[test]
+    fn non_convergence_maps_to_a_registered_refusal_and_nothing_else_does() {
+        let refused = map_mechanism_fit(ModelError::NotConverged {
+            message: "multinomial logit did not converge (iters=50, deviance=4044.85)".into(),
+        });
+        let text = refused.to_string();
+        let (code, message) =
+            antecedent_core::reason_code::split_prefix(&text).expect("reason-coded refusal");
+        assert_eq!(code, "mechanism_fit_not_converged");
+        assert!(antecedent_core::reason_code::is_runtime_refusal(code));
+        assert!(message.contains("standardized parent columns"), "{message}");
+        assert!(!message.contains("deviance"), "{message}");
+        assert!(matches!(refused, CausalError::Unsupported { .. }));
+
+        let numerical = map_mechanism_fit(ModelError::Numerical { message: "sigma".into() });
+        assert!(matches!(numerical, CausalError::Model(ModelError::Numerical { .. })));
+    }
 }

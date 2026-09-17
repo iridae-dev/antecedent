@@ -108,6 +108,23 @@ pub fn effective_nw_lag(requested: usize, max_span: usize) -> usize {
     requested.min(max_span)
 }
 
+/// Few-cluster reference distribution for a mean or a cluster-robust SE over `clusters`
+/// independent clusters: the ratio `t_{G−1}(q) / z(q)` at the two-sided `level`
+/// (`q = (1 + level) / 2`).
+///
+/// A cluster-by-unit (Arellano) variance, or the variance of a mean of `G` iid cluster
+/// estimates, has `G − 1` degrees of freedom; `estimate ± z(q) · ratio · se` is then the
+/// `t_{G−1}` interval (Cameron & Miller 2015, §VI). `NaN` below two clusters or outside
+/// `0 < level < 1`.
+#[must_use]
+pub fn few_cluster_t_ratio(clusters: usize, level: f64) -> f64 {
+    if clusters < 2 || !(level > 0.0 && level < 1.0) {
+        return f64::NAN;
+    }
+    let q = 0.5 * (1.0 + level);
+    crate::special::student_t_ppf(q, (clusters - 1) as f64) / crate::special::normal_ppf(q)
+}
+
 /// Bartlett kernel weight `1 − ℓ/(L_eff+1)` for lag `ℓ ≥ 1`.
 #[must_use]
 pub fn bartlett_weight(lag: usize, l_eff: usize) -> f64 {
@@ -324,6 +341,18 @@ pub fn panel_hac_meat_matrix(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn few_cluster_t_ratio_is_the_t_over_z_critical_value() {
+        // t_{2}(0.975) = 4.302653, t_{29}(0.975) = 2.045230, z(0.975) = 1.959964.
+        assert!((few_cluster_t_ratio(3, 0.95) - 4.302_653 / 1.959_964).abs() < 1e-5);
+        assert!((few_cluster_t_ratio(30, 0.95) - 2.045_230 / 1.959_964).abs() < 1e-5);
+        // t_{1}(0.95) = 6.313752, z(0.95) = 1.644854.
+        assert!((few_cluster_t_ratio(2, 0.90) - 6.313_752 / 1.644_854).abs() < 1e-5);
+        assert!(few_cluster_t_ratio(1, 0.95).is_nan());
+        assert!(few_cluster_t_ratio(5, 1.0).is_nan());
+        assert!((few_cluster_t_ratio(100_000, 0.95) - 1.0).abs() < 1e-4);
+    }
 
     #[test]
     fn effective_nw_lag_and_bartlett_golden_weights() {

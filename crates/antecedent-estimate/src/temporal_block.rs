@@ -124,6 +124,18 @@ impl CircularBlockFamily {
         }
     }
 
+    /// Stable `snake_case` tag, used in the calibration dependence label
+    /// `circular_block:<tag>`.
+    #[must_use]
+    pub const fn tag(self) -> &'static str {
+        match self {
+            Self::SingleWindow => "single_window",
+            Self::Mediation => "mediation",
+            Self::Sequential => "sequential",
+            Self::Mixture => "mixture",
+        }
+    }
+
     /// Whether `effective_rows` (NaN when the score is unavailable) falls short
     /// of [`Self::min_effective_rows`].
     #[must_use]

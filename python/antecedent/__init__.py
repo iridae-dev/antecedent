@@ -8,8 +8,8 @@ Day-1 surface::
         query=antecedent.AverageEffect(treatment="t", outcome="y"),
     )
 
-The root namespace is deliberately small: it holds the three verbs (:func:`analyze`,
-:func:`identify`, :func:`estimate`), the accepted-structure and result types,
+The root namespace is deliberately small: it holds the analysis verbs (:func:`analyze`, :func:`prepare`,
+:func:`identify`, :func:`estimate`) and :func:`load`, the accepted-structure and result types,
 the first-class typed queries, the five graph classes, the inference / identifier /
 estimator selectors, and the two error names most callers catch. The twelve
 root-exported stage modules are:
@@ -34,7 +34,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 
 from __future__ import annotations
 
-from typing import NoReturn
+from typing import NoReturn as _NoReturn
 
 # A debug-profile extension returns bit-identical estimates while running
 # ~50x slower, so nothing downstream would ever notice on its own. The flag
@@ -104,11 +104,13 @@ if getattr(_native_module, "__build_optimized__", True) is False:
         RuntimeWarning,
         stacklevel=2,
     )
+from ._workflow import load, prepare
 from .accepted_graph import AcceptedGraph
 from .errors import CausalError, ReviewRequired
 from .identify import Identification, estimate, identify
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
+from .interference import InterferenceQuery
 from .query import (
     AnomalyAttribution,
     AverageDerivative,
@@ -131,10 +133,13 @@ from .query import (
     TemporalMediationEffect,
 )
 from .results import AnalysisResult
+from .transport import TransportQuery
 
 __all__ = [
     # Verbs
     "analyze",
+    "prepare",
+    "load",
     "identify",
     "estimate",
     # Structure and results
@@ -150,6 +155,7 @@ __all__ = [
     "Counterfactual",
     "DirectionalDerivative",
     "Elasticity",
+    "InterferenceQuery",
     "InterventionalDistribution",
     "InterventionResponse",
     "MediationEffect",
@@ -161,6 +167,7 @@ __all__ = [
     "SemiElasticity",
     "SustainedEffect",
     "TemporalMediationEffect",
+    "TransportQuery",
     # Graphs
     "Dag",
     "Cpdag",
@@ -208,7 +215,7 @@ except ImportError:  # pragma: no cover - extension not built
 
         __version__ = version("antecedent")
     except PackageNotFoundError:
-        __version__ = "1.9.0"
+        __version__ = "1.10.0"
 
 
 # --- Migration signpost for retired 0.4.0 names ------------------------------------
@@ -243,7 +250,7 @@ _RETIRED_DAG_PREFIXES = ("dag_from_", "dag_to_")
 _RETIRED_TARGET_PREFIX = "target_"
 
 
-def __getattr__(name: str) -> NoReturn:
+def __getattr__(name: str) -> _NoReturn:
     if name in _RETIRED_MODULES:
         raise AttributeError(
             f"antecedent.{name} was renamed to antecedent.{_RETIRED_MODULES[name]} in 0.4.0"

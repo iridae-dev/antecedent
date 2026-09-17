@@ -11,8 +11,8 @@ copied_tests = false
 # `H(prior) - H(p(G|y))` over the discrete graph-posterior observation channel. It does NOT
 # cover the other three DesignRankConfig objectives implemented elsewhere in ranker.rs:
 # - effect_width_reduction (Gram-matrix SE reduction) — see design.effect_width_reduction.toml
-# - model_distinguish_score (expected log-lik gap between models) — see design.model_distinguish.toml
-# - decision_regret_reduction (Bayesian decision-regret reduction) — covered by design.decision.toml
+# - model_distinguish_score (reliability-scaled log-lik gap between models) — see design.model_distinguish.toml
+# - ReduceDecisionRegret (preposterior expected value of sample information, preposterior.rs) — covered by design.decision.toml
 papers = [
  { title = "On a Measure of the Information Provided by an Experiment", doi = "10.1214/aoms/1177728069", sections = ["Expected reduction in Shannon entropy from an experiment"] },
 ]

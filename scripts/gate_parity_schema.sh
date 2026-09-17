@@ -17,6 +17,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# --self-test: each broken ledger, applied alone to an overlay of the repo,
+# must fail this gate with the expected message (scripts/selftest_cases.py).
+if [[ "${1:-}" == "--self-test" ]]; then
+  exec python3 "$ROOT/scripts/selftest_cases.py" schema
+fi
+
 python3 - <<'PY'
 from pathlib import Path
 import json
@@ -59,9 +65,8 @@ EXTERNAL_KINDS = {"frozen_external_oracle", "behavioral_parity"}
 
 # An external claim is a three-link evidence contract, not just prose on an
 # inventory row: immutable baseline metadata, a frozen JSON fixture, and an
-# executing test that consumes that fixture.  Keep this stricter than the
-# repository-wide reachability scan, which also accepts package code and gate
-# scripts because it answers the broader question "is this artifact used?".
+# executing test that consumes that fixture (scripts/test_evidence.py, the same
+# reader gate_evidence_reachability.sh uses).
 baseline_versions = {}
 for path in sorted(root.glob("parity/baselines/*.toml")):
     baseline = tomllib.load(open(path, "rb"))
@@ -75,42 +80,17 @@ for path in sorted(root.glob("parity/baselines/*.toml")):
     }
     baseline_versions.setdefault(project, set()).update(versions)
 
-test_sources = set(root.glob("crates/**/tests/**/*.rs"))
-test_sources.update(root.glob("python/tests/**/*.py"))
-# Rust unit/conformance tests commonly live next to the implementation.  They
-# count only when the fixture reference occurs below a cfg(test) marker.
-rust_src = set(root.glob("crates/**/src/**/*.rs"))
-PARSE_MARKERS = re.compile(
-    r"serde_json::from_str|serde_json::Value|from_str::<|json\.loads|json\.load\(|"
-    r"tomllib\.loads|tomllib\.load\(|load_expected"
-)
-ASSERT_MARKERS = re.compile(r"assert(?:_eq|_ne)?!|\bassert\s|pytest\.approx|approx::")
-
-
-def consuming_test_file(text: str) -> bool:
-    # Fixture-loader helpers commonly live at the top of a long conformance
-    # test file while comparisons appear in several tests below. Requiring all
-    # three signals in that same test source avoids accepting a prose mention
-    # or bare existence check without imposing a brittle line-distance rule.
-    return bool(PARSE_MARKERS.search(text) and ASSERT_MARKERS.search(text))
+sys.path.insert(0, str((root / "scripts").resolve()))
+import test_evidence  # noqa: E402  (the one reader of test source for the gates)
 
 
 def has_consuming_test(fixture: str) -> bool:
-    name = Path(fixture).name
-    marker = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])")
-    for path in test_sources:
-        text = path.read_text(errors="ignore")
-        if marker.search(text) and consuming_test_file(text):
-            return True
-    for path in rust_src:
-        text = path.read_text(errors="ignore")
-        hits = list(marker.finditer(text))
-        if path.name == "tests.rs" and hits and consuming_test_file(text):
-            return True
-        for hit in hits:
-            if "#[cfg(test)]" in text[: hit.start()] and consuming_test_file(text):
-                return True
-    return False
+    """An executing test whose own function (with the helpers it calls) names the
+    fixture's `conformance/<category>/<name>` path outside comments, parses it and
+    asserts: not a file that merely mentions the basename and asserts elsewhere."""
+    path = Path(fixture)
+    directory = path.parent if path.suffix == ".json" else path
+    return bool(test_evidence.fixture_consumers(directory.as_posix()))
 
 # Inventory manifests and the extra keys each one requires beyond BASE_REQUIRED.
 # Kept explicit rather than inferred from whichever keys the majority of rows
@@ -129,6 +109,7 @@ MANIFESTS = {
     "parity/design_state.toml": ((), True),
     "parity/release.toml": ((), False),
     "parity/response.toml": ((), True),
+    "parity/compiler.toml": (("group", "description", "owner"), True),
 }
 
 # The parser every feature gate embeds. Reproduced verbatim so this gate checks
@@ -299,6 +280,44 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
                 f"{kind!r} does not claim an external comparison — drop one"
             )
 
+        test_rel = row.get("evidence_test")
+        assertion = row.get("evidence_assertion")
+        if (test_rel is None) != (assertion is None):
+            problems.append(
+                f"{rel}: {label} must set evidence_test and evidence_assertion together"
+            )
+        elif isinstance(test_rel, str) and isinstance(assertion, str):
+            test_path = root / test_rel
+            if not test_path.is_file():
+                problems.append(
+                    f"{rel}: {label} evidence_test {test_rel!r} does not exist"
+                )
+            elif test_path.suffix not in {".rs", ".py"}:
+                problems.append(
+                    f"{rel}: {label} evidence_test must be Rust or Python test code"
+                )
+            else:
+                text_src = test_path.read_text(errors="ignore")
+                if test_path.suffix == ".rs":
+                    test_pattern = re.compile(
+                        rf"#\[test\][^\n]*\n((?:\s*#\[[^\n]*\n)*)\s*fn\s+{re.escape(assertion)}\s*\(",
+                        re.M,
+                    )
+                else:
+                    test_pattern = re.compile(
+                        rf"()^\s*def\s+{re.escape(assertion)}\s*\(", re.M
+                    )
+                match = test_pattern.search(text_src)
+                if not match:
+                    problems.append(
+                        f"{rel}: {label} evidence_assertion {assertion!r} is not "
+                        f"an executing test function in {test_rel}"
+                    )
+                elif re.search(r"#\[\s*ignore\b", match.group(1)):
+                    problems.append(
+                        f"{rel}: {label} evidence_assertion {assertion!r} is #[ignore]d"
+                    )
+
         if isinstance(cid, str) and cid.strip():
             if cid in seen_ids:
                 problems.append(f"{rel}: duplicate id `{cid}`")
@@ -331,4 +350,550 @@ total = sum(
     len(tomllib.loads((root / rel).read_text())["capabilities"]) for rel in MANIFESTS
 )
 print(f"parity manifest schema: ok ({total} rows across {len(MANIFESTS)} manifests)")
+PY
+
+python3 - "$@" <<'PY'
+from pathlib import Path
+import json
+import re
+import subprocess
+import sys
+import tomllib
+
+root = Path(".")
+print_counts = "--print-counts" in sys.argv
+problems = []
+
+# --- reason codes ---
+vocab_path = root / "parity/reason_codes.toml"
+if not vocab_path.is_file():
+    problems.append("parity/reason_codes.toml missing")
+    vocab = {"code": []}
+else:
+    vocab = tomllib.loads(vocab_path.read_text())
+codes = {row["id"]: row for row in vocab.get("code", [])}
+uses = {cid: 0 for cid in codes}
+applies_fields = ("reason", "calibration_reason", "reason_code")
+# support_{closed,n_a,axes} `reason` fields are matrix prose, not vocabulary ids.
+# Do not re-code those pre-existing typed refusals.
+_REASON_PROSE = {
+    "reason_codes.toml",
+    "support_closed.toml",
+    "support_n_a.toml",
+    "support_axes.toml",
+}
+for path in sorted(root.glob("parity/*.toml")):
+    if path.name in _REASON_PROSE:
+        continue
+    text = path.read_text()
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as exc:
+        problems.append(f"{path}: {exc}")
+        continue
+    def walk(obj):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if key in applies_fields and isinstance(value, str) and value.strip():
+                    cid = value.strip()
+                    if cid not in codes:
+                        problems.append(f"{path}: unknown reason {cid!r}")
+                    else:
+                        uses[cid] += 1
+                        obligation = {
+                            "calibration_reason": "calibration",
+                            "reason_code": "runtime_refusal",
+                            "reason": "python_product" if path.name == "python_products.toml" else "claim",
+                        }[key]
+                        if path.name == "support_licensed.toml" and key == "calibration_reason":
+                            obligation = "calibration"
+                        if obligation not in codes[cid].get("applies_to", []):
+                            problems.append(
+                                f"{path}: {cid} does not apply to {obligation}"
+                            )
+                else:
+                    walk(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                walk(item)
+    walk(data)
+
+if print_counts:
+    print("reason-code uses:")
+    for cid, n in uses.items():
+        print(f"  {cid}: {n} (max_uses={codes[cid]['max_uses']})")
+
+for cid, n in uses.items():
+    max_uses = int(codes[cid]["max_uses"])
+    if n > max_uses:
+        problems.append(f"parity/reason_codes.toml: {cid} uses={n} > max_uses={max_uses}")
+
+# --- python_products ---
+pp = root / "parity/python_products.toml"
+if not pp.is_file():
+    problems.append("parity/python_products.toml missing")
+else:
+    products = tomllib.loads(pp.read_text())
+    route_tests = []
+    for i, row in enumerate(products.get("route", []), 1):
+        for key in ("kind", "data", "structure", "test"):
+            if key not in row:
+                problems.append(f"python_products.toml route #{i} missing {key}")
+        if row.get("retains") is not True and not row.get("reason"):
+            problems.append(f"python_products.toml route {row.get('kind')} retains=false without reason")
+        test = row.get("test")
+        if isinstance(test, str) and test not in route_tests:
+            route_tests.append(test)
+
+    def _collects(tests):
+        return subprocess.run(
+            ["uv", "run", "pytest", "--collect-only", "-q", *(t.removeprefix("python/") for t in tests)],
+            cwd=root / "python",
+            capture_output=True,
+            text=True,
+        ).returncode == 0
+
+    # One collection for every route node; only on failure, one per node to
+    # name the uncollectable ones.
+    if route_tests and not _collects(route_tests):
+        for test in route_tests:
+            if not _collects([test]):
+                problems.append(f"python_products.toml route test not collected: {test}")
+    for i, row in enumerate(products.get("parameter", []), 1):
+        for key in ("name", "entry_points", "binding", "test"):
+            if key not in row:
+                problems.append(f"python_products.toml parameter #{i} missing {key}")
+        if row.get("binding") == "contract" and not row.get("contract_key"):
+            problems.append(f"python_products.toml parameter {row.get('name')} missing contract_key")
+        if row.get("binding") == "reason" and not row.get("reason"):
+            problems.append(f"python_products.toml parameter {row.get('name')} missing reason")
+
+# --- coverage records ---
+#
+# Every row must be a real measurement of a construction the runtime reports:
+# emitted by a coverage test through `CoverageTally::for_record`, collected by
+# scripts/collect_coverage_records.py, stamped with the commit it was measured
+# at. The checks below are what a hand-written row cannot pass.
+sys.path.insert(0, str(root / "scripts"))
+import collect_coverage_records as collector  # noqa: E402
+
+
+def _snake(name: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+
+
+def _sanitize(label: str) -> str:
+    return "".join(c.lower() if c.isalnum() else "_" for c in label).strip("_")
+
+
+def _resolves(spec: str) -> bool:
+    """Does `<file>::<item>` name a function that file defines?
+
+    A calibration suite may declare a grid of tests through a `macro_rules!`
+    table, where the test name is an argument rather than a `fn` header. Such a
+    file is allowed to resolve a name that appears in it as a whole word; a file
+    with no macro table must spell the `fn` out.
+    """
+    if "::" not in spec:
+        return False
+    rel, fn = spec.rsplit("::", 1)
+    path = root / rel
+    if not path.is_file():
+        return False
+    text = path.read_text(errors="ignore")
+    if re.search(rf"fn\s+{re.escape(fn)}\s*[(<]", text):
+        return True
+    # A suite that imports its data-generating function from a shared test module
+    # (`use common::static_dgp::{path_data, ..}`) names it through that import: it
+    # resolves when a file compiled into the same test target defines it.
+    if re.search(rf"\buse\b[^;]*\b{re.escape(fn)}\b[^;]*;", text):
+        sys.path.insert(0, str((root / "scripts").resolve()))
+        import test_evidence
+
+        target = test_evidence.target_root(path)
+        if target and any(
+            item.kind == "fn" and item.name == fn
+            for module in test_evidence.target_files(target[0].resolve())
+            for item in test_evidence.rust_items(module)[1]
+        ):
+            return True
+    return "macro_rules!" in text and bool(re.search(rf"\b{re.escape(fn)}\b", text))
+
+
+def _band(nominal: float, replicates: int) -> tuple[float, float, float | None]:
+    mcse = (nominal * (1.0 - nominal) / max(replicates, 1)) ** 0.5
+    floor = nominal - 2.0 * mcse if replicates >= 1000 else None
+    return (max(nominal - 3.0 * mcse, 0.0), min(nominal + 3.0 * mcse, 1.0), floor)
+
+
+cr = root / "parity/coverage_records.toml"
+record_ids = set()
+records = []
+if cr.is_file():
+    records = tomllib.loads(cr.read_text()).get("record", [])
+    # A record's facets decide which surface changes invalidate it, so they
+    # must be exactly what scripts/calibration_facets.py derives from the
+    # record, never a hand-narrowed list.
+    surface = collector.facets.load_surface(root / "scripts/calibration_surface.list")
+    if surface.errors:
+        problems.extend(f"calibration_surface.list: {e}" for e in surface.errors)
+    surface_refs = collector.facets.references(surface)
+    for rec in records:
+        rid = rec.get("id", "")
+        record_ids.add(rid)
+        label = f"coverage_records.toml {rid}"
+        test = str(rec.get("test", ""))
+        missing = [key for key in collector.FIELDS if key not in rec]
+        if missing:
+            problems.append(f"{label}: missing {', '.join(missing)}")
+            continue
+        tagged = rec["facets"]
+        if not isinstance(tagged, list) or not tagged or not all(isinstance(f, str) for f in tagged):
+            problems.append(f"{label}: facets must be a non-empty list of facet names")
+        else:
+            unknown = sorted(set(tagged) - surface.facets)
+            if unknown:
+                problems.append(f"{label}: unknown facets {', '.join(unknown)}")
+            derived = collector.facets.record_facets(rec, surface, surface_refs)
+            if sorted(tagged) != derived:
+                problems.append(
+                    f"{label}: facets {sorted(tagged)} are not the derived {derived}; "
+                    "run python3 scripts/collect_coverage_records.py --retag"
+                )
+        test_fn = test.rsplit("::", 1)[-1]
+        expected = (
+            f"cov.{_snake(rec['query'])}.{_snake(rec['graph_class'])}."
+            f"{str(rec['inference']).lower()}.{rec['interval_method']}."
+            f"l{round(float(rec['nominal']) * 100)}.{test_fn}"
+        )
+        if rid != expected and not rid.startswith(expected + "."):
+            problems.append(f"{label}: id does not match its fields ({expected}[.<label>])")
+        if rid.startswith(expected + ".") and _sanitize(rid[len(expected) + 1 :]) != rid[len(expected) + 1 :]:
+            problems.append(f"{label}: record label is not sanitized")
+        sha = str(rec["calibration_sha"])
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            problems.append(f"{label}: calibration_sha must be 40 lowercase hex")
+        elif set(sha) == {"0"}:
+            problems.append(f"{label}: calibration_sha is the zero SHA; nothing was measured")
+        for field in ("observed", "mcse", "nominal", "unidentified_mass_max"):
+            val = rec[field]
+            if not isinstance(val, (int, float)) or not 0 <= float(val) <= 1:
+                problems.append(f"{label}: {field} not in [0,1]")
+        if int(rec["replicates"]) < 1:
+            problems.append(f"{label}: replicates must be positive")
+        if int(rec["n_min"]) < 1 or int(rec["n_max"]) < int(rec["n_min"]):
+            problems.append(f"{label}: measured row-count range is empty")
+        if not _resolves(test):
+            problems.append(f"{label}: test {test} does not resolve")
+        if not _resolves(str(rec["dgp"])):
+            problems.append(f"{label}: dgp {rec['dgp']} does not resolve")
+        nominal = float(rec["nominal"])
+        role = str(rec["role"])
+        boundary = bool(rec["boundary"])
+
+        def nominal_pass(point: dict) -> bool:
+            lo, hi, floor = _band(nominal, int(point["replicates"]))
+            observed = float(point["observed"])
+            return lo <= observed <= hi and (floor is None or observed >= floor)
+
+        # The measured range is the sample-size grid: every point present, in
+        # order, strictly growing, and the row's summary exactly what
+        # scripts/collect_coverage_records.py::merge_grid derives from it.
+        grid = rec["grid"]
+        if (
+            not isinstance(grid, list)
+            or len(grid) != collector.GRID_POINTS
+            or not all(isinstance(p, dict) for p in grid)
+        ):
+            problems.append(
+                f"{label}: grid must hold one measurement per sample-size grid point "
+                f"({collector.GRID_POINTS}); re-measure with scripts/measure_calibration.sh"
+            )
+            continue
+        if any(sorted(p) != sorted(collector.GRID_ENTRY_FIELDS) for p in grid):
+            problems.append(
+                f"{label}: grid points must carry exactly {', '.join(collector.GRID_ENTRY_FIELDS)}"
+            )
+            continue
+        if [int(p["point"]) for p in grid] != list(range(collector.GRID_POINTS)):
+            problems.append(f"{label}: grid points must be 0..{collector.GRID_POINTS - 1} in order")
+        if any(int(lo["n_max"]) >= int(hi["n_min"]) for lo, hi in zip(grid, grid[1:])):
+            problems.append(f"{label}: grid sample sizes must strictly increase point to point")
+        if (int(rec["n_min"]), int(rec["n_max"])) != (
+            min(int(p["n_min"]) for p in grid),
+            max(int(p["n_max"]) for p in grid),
+        ):
+            problems.append(f"{label}: n_min..n_max must span the grid points")
+        failing = [p for p in grid if p["boundary"]]
+        if boundary != bool(failing):
+            problems.append(f"{label}: boundary must be true exactly when a grid point is")
+        governing = min(failing or grid, key=lambda p: (float(p["observed"]), int(p["point"])))
+        if (rec["observed"], rec["mcse"], rec["replicates"]) != (
+            governing["observed"],
+            governing["mcse"],
+            governing["replicates"],
+        ):
+            problems.append(
+                f"{label}: observed / mcse / replicates must be the governing grid point's "
+                f"(point {governing['point']})"
+            )
+        for point in grid:
+            where = f"{label} grid point {point['point']}"
+            for field in ("observed", "mcse"):
+                val = point[field]
+                if not isinstance(val, (int, float)) or not 0 <= float(val) <= 1:
+                    problems.append(f"{where}: {field} not in [0,1]")
+            if int(point["replicates"]) < 1:
+                problems.append(f"{where}: replicates must be positive")
+            if int(point["n_min"]) < 1 or int(point["n_max"]) < int(point["n_min"]):
+                problems.append(f"{where}: measured row-count range is empty")
+            point_role = str(point["role"])
+            passes = nominal_pass(point)
+            if point_role == "gated":
+                if point["boundary"]:
+                    problems.append(f"{where}: a gated point cannot be a boundary")
+                if not passes:
+                    problems.append(
+                        f"{where}: gated coverage {point['observed']} is outside the {nominal} band"
+                    )
+            elif point_role == "named_boundary":
+                if not point["boundary"]:
+                    problems.append(f"{where}: a named boundary point must be boundary = true")
+            elif point_role == "reported_level":
+                if bool(point["boundary"]) == passes:
+                    problems.append(
+                        f"{where}: boundary must be true exactly when the measured coverage "
+                        f"{point['observed']} misses the {nominal} band"
+                    )
+            else:
+                problems.append(f"{where}: unknown role {point_role}")
+        roles = {str(p["role"]) for p in grid}
+        if len(roles) > 1 and roles != {"gated", "named_boundary"}:
+            problems.append(f"{label}: grid points carry incompatible roles {sorted(roles)}")
+        else:
+            expected_role = "named_boundary" if len(roles) > 1 else next(iter(roles))
+            if role != expected_role:
+                problems.append(f"{label}: role {role} is not the grid points' {expected_role}")
+        if role == "gated":
+            named = re.search(r"nominal_(\d+)_coverage", test_fn)
+            if named and abs(int(named.group(1)) / 100 - nominal) > 1e-9:
+                problems.append(
+                    f"{label}: nominal {nominal} contradicts the test name {test_fn}"
+                )
+        elif role == "named_boundary":
+            # Role comes from assert_boundary / assert_boundary_at. Renaming the
+            # test to include "boundary" would edit the suite and owe remesure.
+            pass
+else:
+    problems.append("parity/coverage_records.toml missing")
+
+if len(record_ids) != len(records):
+    problems.append("parity/coverage_records.toml: duplicate record ids")
+
+by_id = {rec.get("id"): rec for rec in records}
+
+# --- licensed cell calibration obligation ---
+lic = tomllib.loads((root / "parity/support_licensed.toml").read_text()).get("cell", [])
+by_coordinate = {}
+for rid, rec in by_id.items():
+    key = (rec["query"], rec["graph_class"], rec["inference"], rec["structure"])
+    by_coordinate.setdefault(key, []).append(rid)
+for cell in lic:
+    label = f"{cell.get('query')}/{cell.get('graph_class')}/{cell.get('inference')}"
+    has_cal = "calibration" in cell
+    has_reason = bool(cell.get("calibration_reason"))
+    if has_cal == has_reason:
+        problems.append(f"support_licensed.toml {label}: exactly one of calibration / calibration_reason")
+    structure = "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed"
+    expected_ids = sorted(
+        by_coordinate.get(
+            (cell.get("query"), cell.get("graph_class"), cell.get("inference"), structure), []
+        )
+    )
+    if expected_ids:
+        if sorted(cell.get("calibration") or []) != expected_ids:
+            problems.append(
+                f"support_licensed.toml {label}: calibration is not the records measured for this "
+                f"coordinate; re-run scripts/collect_coverage_records.py"
+            )
+    elif has_cal:
+        problems.append(f"support_licensed.toml {label}: cites records that measure another coordinate")
+    for rid in cell.get("calibration") or []:
+        if rid not in record_ids:
+            problems.append(f"support_licensed.toml {label}: unknown record {rid}")
+    # Coverage figures in `limitations` must cite a matching record or say they are
+    # not a registry value: scripts/gate_coverage_citations.sh owns that check, so
+    # known-truth values, SEs and disclosed probe figures stay in the license text.
+    # ---- [gates] reason-code eligibility comes from the registry row ----
+    cited = cell.get("calibration_reason")
+    scope = codes.get(cited, {}).get("queries") if isinstance(cited, str) else None
+    if scope is not None and cell.get("query") not in scope:
+        problems.append(
+            f"support_licensed.toml {label}: {cited} on a {cell.get('query')} cell; "
+            f"reason_codes.toml limits it to {scope}"
+        )
+
+# ---- [gates] registry scopes name real queries ----
+axes_queries = set(tomllib.loads((root / "parity/support_axes.toml").read_text()).get("queries", []))
+for cid, code in codes.items():
+    for query in code.get("queries") or []:
+        if query not in axes_queries:
+            problems.append(f"reason_codes.toml {cid}: queries names unknown query {query!r}")
+
+# ---- [gates] estimator calibration obligation, keyed on group ----
+# Every `group = "estimation"` row states its calibration; calibration fields on
+# any other row would be an obligation no gate enforces.
+est = tomllib.loads((root / "parity/estimate.toml").read_text()).get("capabilities", [])
+for row in est:
+    has_cal = "calibration" in row
+    has_reason = "calibration_reason" in row
+    if row.get("group") == "estimation":
+        if has_cal == bool(row.get("calibration_reason")):
+            problems.append(f"estimate.toml {row.get('id')}: exactly one of calibration / calibration_reason")
+    elif has_cal or has_reason:
+        problems.append(
+            f"estimate.toml {row.get('id')}: calibration fields only on group = \"estimation\" rows"
+        )
+    row_id = row.get("id")
+    if row_id not in collector.ESTIMATOR_ROW_IDS:
+        continue
+    expected_ids = sorted(
+        rid for rid, rec in by_id.items() if rec["estimator"] in collector.ESTIMATOR_ROW_IDS[row_id]
+    )
+    if sorted(row.get("calibration") or []) != expected_ids and expected_ids:
+        problems.append(
+            f"estimate.toml {row_id}: calibration is not the records measured for its estimators; "
+            f"re-run scripts/collect_coverage_records.py"
+        )
+    for rid in row.get("calibration") or []:
+        if rid not in record_ids:
+            problems.append(f"estimate.toml {row_id}: unknown record {rid}")
+
+# ---- [gates] required composition rows ----
+# Deleting a composition row must fail here, not silently shrink what
+# gate_composition.sh executes. Additions are free; removals are a reviewed
+# edit of this list.
+REQUIRED_COMPOSITION_ROWS = {
+    "compiler.inspect_licensed_cells", "compiler.e2e_licensed_cells",
+    "compiler.inspect_does_not_identify", "compiler.metadata_read_no_identify",
+    "compiler.validate_result_bindings", "compiler.claim_handoff",
+    "compiler.request_lifecycle", "compiler.discovery_class",
+    "compiler.prior_transfer_composition", "compiler.prepared_matches_fresh",
+    "compiler.adversarial_boundaries", "compiler.panel_response_cluster_bands",
+    "compiler.panel_class_pulse_completion_masses",
+    "compiler.panel_response_bayesian_unit_surfaces", "compiler.panel_class_pulse_bayesian",
+    "compiler.panel_class_response_surfaces", "compiler.panel_class_multi_step_sustained",
+    "compiler.contract_section", "compiler.request_identity", "compiler.provenance_ancestry",
+    "compiler.v110_contract_file", "compiler.licensed_family", "compiler.prepared_second_shot",
+    "compiler.prepared_family", "compiler.identity_encoding", "compiler.dbn_atom_identity",
+    "compiler.score_reuse_identity", "compiler.state_expected_version",
+    "compiler.series_refresh_atomicity", "compiler.series_state_reuse",
+    "compiler.score_batch_reuse", "compiler.capability_reports", "compiler.support_neighbors",
+    "compiler.capability_prefix", "compiler.claim_core", "compiler.design_rank",
+    "compiler.composition_prefix", "compiler.python_v110_smoke",
+    "compiler.python_stub_conformance",
+}
+compiler_rows = {
+    row.get("id"): row
+    for row in tomllib.loads((root / "parity/compiler.toml").read_text()).get("capabilities", [])
+}
+for rid in sorted(REQUIRED_COMPOSITION_ROWS - compiler_rows.keys()):
+    problems.append(f"compiler.toml: required composition row {rid} missing")
+for rid, row in compiler_rows.items():
+    if not row.get("evidence_test") or not row.get("evidence_assertion"):
+        problems.append(f"compiler.toml {rid}: composition row without evidence_test/evidence_assertion")
+
+# ---- [gates] runtime reason-code list matches the registry ----
+# crates/antecedent-core/src/reason_codes_data.rs is generated from
+# parity/reason_codes.toml; the Rust `unsupported_reason!` / `reason_code!`
+# macros and Python CausalUnsupportedError validate against it.
+data_rs = root / "crates/antecedent-core/src/reason_codes_data.rs"
+if not data_rs.is_file():
+    problems.append(f"{data_rs}: missing; run scripts/generate_support_matrix_docs.py")
+else:
+    generated = data_rs.read_text()
+    def _const(name: str) -> list[str]:
+        m = re.search(rf"pub const {name}: &\[&str\] = &\[(.*?)\];", generated, re.S)
+        return re.findall(r'"([^"]+)"', m.group(1)) if m else []
+    want_all = sorted(codes)
+    want_runtime = sorted(c for c, row in codes.items() if "runtime_refusal" in row.get("applies_to", []))
+    if _const("REASON_CODES") != want_all or _const("RUNTIME_REFUSAL_CODES") != want_runtime:
+        problems.append(
+            "crates/antecedent-core/src/reason_codes_data.rs is stale against "
+            "parity/reason_codes.toml; run scripts/generate_support_matrix_docs.py"
+        )
+# A refusal message that carries a reason code must be built by the checked
+# macro, never typed as a raw `"reason=` literal (comments / doc examples and
+# `#[cfg(test)]` code below the first test marker are not emission sites).
+for path in sorted(root.glob("crates/*/src/**/*.rs")) + sorted(root.glob("python/src/**/*.rs")):
+    source = path.read_text(errors="ignore").split("#[cfg(test)]", 1)[0]
+    for lineno, line in enumerate(source.splitlines(), 1):
+        if line.lstrip().startswith("//"):
+            continue
+        if '"reason=' in line and "concat!" not in line:
+            problems.append(f"{path}:{lineno}: raw \"reason=...\" literal; use antecedent::unsupported_reason!")
+
+# --- release required_jobs ---
+# ---- [gates] job ids from a YAML parse of ci.yml ----
+# scripts/ci_workflow.py is the one reader of both ci.yml and release.toml's
+# `required_jobs`; gate_release_candidate.sh calls the same subcommand.
+listed = subprocess.run(
+    ["uv", "run", "--quiet", "--project", ".", "--only-group", "dev", "python",
+     str((root / "scripts/ci_workflow.py").resolve()), "required-jobs", "--json",
+     "--workflow", str((root / ".github/workflows/ci.yml").resolve()),
+     "--release", str((root / "parity/release.toml").resolve())],
+    cwd=root / "python", capture_output=True, text=True,
+)
+if listed.returncode != 0:
+    problems.append(f"scripts/ci_workflow.py required-jobs failed: {listed.stdout}{listed.stderr}")
+else:
+    problems.extend(json.loads(listed.stdout)["problems"])
+
+# ---- [gates] licensed cells link to the external oracles their routes rest on ----
+# parity/licensed_routes.toml (generated from executed plans) must route exactly
+# the licensed cells, and every `oracle_components` entry must sit on an external
+# oracle row and name a component a licensed cell actually runs
+# (scripts/external_evidence.py; rendered by generate_support_matrix_docs.py).
+import external_evidence  # noqa: E402
+
+problems.extend(f"external evidence: {p}" for p in external_evidence.check())
+
+# ---- [gates] publishing requires calibration attestation ----
+# A tag must not ship calibration labels from a registry that no longer
+# matches the code: both publish workflows attest before any build or upload.
+gating = subprocess.run(
+    ["uv", "run", "--quiet", "--project", ".", "--only-group", "dev", "python",
+     str((root / "scripts/ci_workflow.py").resolve()), "publish-gating",
+     str((root / ".github/workflows/publish-release.yml").resolve()),
+     str((root / ".github/workflows/publish-crates.yml").resolve())],
+    cwd=root / "python", capture_output=True, text=True,
+)
+if gating.returncode != 0:
+    problems.append(f"scripts/ci_workflow.py publish-gating failed: {gating.stdout}{gating.stderr}")
+else:
+    problems.extend(json.loads(gating.stdout)["problems"])
+
+# --- identity / claims files exist ---
+for rel_path in ("parity/identity.toml", "parity/claims.toml"):
+    if not (root / rel_path).is_file():
+        problems.append(f"{rel_path} missing")
+
+# --- every identity row names its layer, its bindings, and what it covers ---
+identity_rows = tomllib.loads((root / "parity/identity.toml").read_text()).get("identity", [])
+adr = (root / "adr/0022-causal-compiler-contract.md").read_text()
+for row in identity_rows:
+    for field in ("domain", "rust", "contract_key", "python", "availability", "naming_row", "covers"):
+        if not row.get(field):
+            problems.append(f"identity.toml {row.get('domain')}: missing {field}")
+    if f"| {row.get('naming_row')} |" not in (root / "docs/api_naming.md").read_text():
+        problems.append(f"identity.toml {row.get('domain')}: naming_row missing from api_naming.md")
+if "antecedent.identity.v2" not in adr:
+    problems.append("adr/0022: identity format tag does not match antecedent-core")
+
+if problems:
+    print("parity close-out schema violations:")
+    for p in problems:
+        print(" -", p)
+    sys.exit(1)
+print("parity close-out schema: ok")
 PY

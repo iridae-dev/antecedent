@@ -1,12 +1,20 @@
 # Python API
 
-The generated reference is published with this site (no download):
+New to Antecedent? Start with the [Python quickstart](python-workflow.md).
+For configuration details, use the [workflow reference](python-options.md).
 
-**[Browse the Python API](https://antecedent.readthedocs.io/en/latest/python/antecedent.html)**
+<!-- pdoc adds this sibling directory after MkDocs builds the narrative. -->
+<strong><a href="../python/antecedent.html">Browse the Python API</a></strong>
 
-It is built with [pdoc](https://pdoc.dev/) from the package on PyPI during the
-Read the Docs build, so it tracks the latest published `antecedent` wheel.
-Branch documentation can therefore describe changes newer than that reference.
+Read the Docs builds this reference from the same source checkout as the guide.
+The link stays within the documentation version you are reading.
 
-- **Rust API:** [docs.rs/antecedent](https://docs.rs/antecedent)
-- Local regenerate: `pip install antecedent pdoc && pdoc antecedent -o site/python`
+To generate a local reference for your installed package, run:
+
+```bash
+python -m pip install antecedent pdoc
+python -m pdoc antecedent -o site/python
+```
+
+For Rust, use `cargo doc -p antecedent --open` for this checkout, or visit the
+[published crate reference](https://docs.rs/antecedent).

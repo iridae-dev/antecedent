@@ -1,8 +1,19 @@
 # Security, licensing, unsafe-code, and dependency review
 
-Date: 2026-09-14
-Scope: workspace crates + `python` extension (package version **1.9.0**)
+Date: 2026-09-15
+Scope: workspace crates + `python` extension (package version **1.10.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
+
+The 1.10.0 source diff (against the 1.9.0 cut) is additive composition of the
+existing licensed matrix: domain-separated identities, portable claims,
+prepared-route study retention, and first-class inspect/contract coordinates.
+Review of this diff found no new `unsafe` block, no new external dependency,
+and no artifact-decoder change. Artifact format remains 0.5 with an optional
+additive `analysis_result.contract` section. The 1.10 composition path adds
+Python smoke to `gate_composition.sh` and requires `uv` there. An offline
+`cargo deny --offline check` against the cached advisory database remains the
+same policy as 1.9.0. This is a source review, not a fresh advisory refresh or
+CodeQL run.
 
 The 1.9.0 source diff (against the 1.8.0 cut) changes estimators, calibration
 tests, the Python facade, and the artifact format (0.5 adds an optional

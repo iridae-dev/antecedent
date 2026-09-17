@@ -31,8 +31,10 @@ fn record(
     result: &IdentificationResult,
     indexer: Option<&TemporalIndexer>,
     names: &[String],
+    registry: Option<&antecedent_core::PopulationRegistry>,
 ) -> PyResult<Value> {
-    let wire = antecedent_io::identification_to_wire(result).map_err(error)?;
+    let wire =
+        antecedent_io::identification_to_wire_with_registry(result, registry).map_err(error)?;
     let adjustments = result
         .estimands
         .iter()
@@ -54,6 +56,7 @@ fn envelope<G>(
     envelope: &IdentificationEnvelope<G>,
     indexers: &[TemporalIndexer],
     names: &[String],
+    registry: Option<&antecedent_core::PopulationRegistry>,
     graph: impl Fn(&G) -> PyResult<Value>,
 ) -> PyResult<Value> {
     let cases = envelope
@@ -61,7 +64,7 @@ fn envelope<G>(
         .iter()
         .enumerate()
         .map(|(i, case)| {
-            let mut value = record(&case.result, indexers.get(i), names)?;
+            let mut value = record(&case.result, indexers.get(i), names, registry)?;
             value["weight"] = json!(case.weight.0);
             value["graph"] = graph(&case.graph)?;
             Ok(value)
@@ -98,6 +101,7 @@ pub(crate) fn analysis_to_json(
         &certificate.query,
         names,
         &format!("{:?}", certificate.graph_class),
+        result.population_registry.as_ref(),
     )
     .map(Some)
 }
@@ -107,23 +111,32 @@ pub(crate) fn to_json(
     query: &CausalQuery,
     names: &[String],
     graph_class: &str,
+    registry: Option<&antecedent_core::PopulationRegistry>,
 ) -> PyResult<String> {
     let mut payload = match identification {
         Identification::Point { result, temporal_indexer, .. } => {
-            let mut point = record(result, temporal_indexer.as_ref(), names)?;
+            let mut point = record(result, temporal_indexer.as_ref(), names, registry)?;
             point["weight"] = json!(1.0);
             json!({"kind":"point", "cases":[point]})
         }
-        Identification::CpdagEnvelope { envelope: e, .. } => envelope(e, &[], names, |g| {
-            let text = antecedent_io::dag_to_json(g, Some(names)).map_err(error)?;
-            serde_json::from_str(&text).map_err(error)
-        })?,
-        Identification::Envelope { envelope: e, .. } => envelope(e, &[], names, |g| {
-            let text = antecedent_io::pag_to_json(g, Some(names)).map_err(error)?;
-            serde_json::from_str(&text).map_err(error)
-        })?,
+        Identification::CpdagEnvelope { envelope: e, .. } => {
+            let mut payload = envelope(e, &[], names, registry, |g| {
+                let text = antecedent_io::dag_to_json(g, Some(names)).map_err(error)?;
+                serde_json::from_str(&text).map_err(error)
+            })?;
+            payload["kind"] = json!("cpdag_envelope");
+            payload
+        }
+        Identification::Envelope { envelope: e, .. } => {
+            let mut payload = envelope(e, &[], names, registry, |g| {
+                let text = antecedent_io::pag_to_json(g, Some(names)).map_err(error)?;
+                serde_json::from_str(&text).map_err(error)
+            })?;
+            payload["kind"] = json!("envelope");
+            payload
+        }
         Identification::TemporalEnvelope { envelope: e, .. } => {
-            let mut payload = envelope(&e.envelope, &e.indexers, names, |g| match g {
+            let mut payload = envelope(&e.envelope, &e.indexers, names, registry, |g| match g {
                 antecedent_identify::TemporalCompletionGraph::Dag(dag) => {
                     serde_json::to_value(antecedent_io::temporal_dag_to_wire(dag).map_err(error)?)
                         .map_err(error)
@@ -157,6 +170,7 @@ pub(crate) fn to_json(
             payload["completion_keys"] = json!(
                 e.envelope.cases.iter().map(|case| case.graph.fingerprint()).collect::<Vec<_>>()
             );
+            payload["kind"] = json!("temporal_envelope");
             payload
         }
         _ => return Err(error("unsupported identification payload")),
@@ -166,9 +180,10 @@ pub(crate) fn to_json(
     payload["graph_class"] = json!(graph_class);
     payload["structure_version"] = json!(identification.structure_version());
     payload["names"] = json!(names);
-    payload["witness_query"] =
-        serde_json::to_value(antecedent_io::causal_query_to_wire(query).map_err(error)?)
-            .map_err(error)?;
+    payload["witness_query"] = serde_json::to_value(
+        antecedent_io::causal_query_to_wire_with_registry(query, registry).map_err(error)?,
+    )
+    .map_err(error)?;
     let (targets, outcome) = match query {
         CausalQuery::AverageEffect(q) => (
             vec![TemporalNodeKey::contemporaneous(q.treatment)],

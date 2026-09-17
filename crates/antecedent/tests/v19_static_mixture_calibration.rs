@@ -43,8 +43,10 @@ use antecedent_data::TabularData;
 use antecedent_discovery::set_edge;
 use antecedent_prob::InferenceDiagnostics;
 use common::calibration::{
-    CoverageTally, Z90, gaussian, n_sim, normal_interval, quantile_interval, stream_seed,
+    CoverageTally, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n, n_sim, normal_interval,
+    quantile_interval, stream_seed,
 };
+use common::calibration_bind::bind_all;
 
 const N: usize = 400;
 const LEVEL: f64 = 0.9;
@@ -53,13 +55,26 @@ const WEIGHTS: [f64; 3] = [0.5, 0.3, 0.2];
 const THETA: [f64; 2] = [3.0, 2.0];
 const TRUTH_GIVEN_IDENTIFIED: f64 = (0.5 * 3.0 + 0.3 * 2.0) / 0.8;
 
+/// Replicate seed of the frequentist and Bayesian sweeps: `BASE + r · STRIDE`.
+/// The stride must stay odd and bigger than 1 — see [`uniform`].
+const SEED_STRIDE: u64 = 7_919;
+const FREQUENTIST_SEED_BASE: u64 = 0x19C0_0000;
+const BAYESIAN_SEED_BASE: u64 = 0x19B0_0000;
+
 /// Deterministic U(0, 1) stream (same LCG family as the harness generator).
+///
+/// This suite's uniform stream: the harness's one LCG, conditioned the way the
+/// recorded coverage of these cells was measured.
+///
+/// `seed | 1` is the unscrambled conditioning `calibration::gaussian` warns
+/// about — two seeds differing only in bit 0 share a stream, which would
+/// silently halve the replicate count. The conditioning stays pinned because
+/// changing it would regenerate every replicate and move the pinned rates;
+/// [`replicate_seeds_stay_distinct_under_the_pinned_conditioning`] checks that
+/// the seeds this suite strides through cannot collide, so the hazard cannot
+/// arrive unnoticed.
 fn uniform(seed: u64) -> impl FnMut() -> f64 {
-    let mut state = seed | 1;
-    move || {
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        (state >> 11) as f64 / (1u64 << 53) as f64
-    }
+    common::calibration::uniform_from_state(seed | 1)
 }
 
 /// Columns `[t, y, z]`, plus `w` when `modifier` is set.
@@ -67,13 +82,14 @@ fn draw_data(seed: u64, modifier: bool) -> TabularData {
     let mut unif = uniform(seed);
     let mut eps_noise = gaussian(stream_seed(seed, 0x5EED_0001));
     let mut w_noise = gaussian(stream_seed(seed, 0x5EED_0002));
+    let rows = grid_n(N);
     let (mut t, mut y, mut z, mut w) = (
-        Vec::with_capacity(N),
-        Vec::with_capacity(N),
-        Vec::with_capacity(N),
-        Vec::with_capacity(N),
+        Vec::with_capacity(rows),
+        Vec::with_capacity(rows),
+        Vec::with_capacity(rows),
+        Vec::with_capacity(rows),
     );
-    for _ in 0..N {
+    for _ in 0..rows {
         let zi = f64::from(u8::from(unif() < 0.5));
         let ti = f64::from(u8::from(unif() < 0.25 + 0.5 * zi));
         let wi = w_noise();
@@ -137,17 +153,17 @@ fn query(conditional: bool) -> CausalQuery {
     }
 }
 
-fn run(conditional: bool, inference: InferenceMode, seed: u64) -> StudyResult {
-    Study::tabular(draw_data(seed, conditional))
+fn run(conditional: bool, inference: InferenceMode, seed: u64) -> (Study, StudyResult) {
+    let study = Study::tabular(draw_data(seed, conditional))
         .graph_posterior(mixture_posterior(conditional))
         .query(query(conditional))
         .inference(inference)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
-        .unwrap()
-        .run(&ExecutionContext::for_tests(seed))
-        .unwrap()
+        .unwrap();
+    let result = study.run(&ExecutionContext::for_tests(seed)).unwrap();
+    (study, result)
 }
 
 fn assert_mixture_shape(result: &StudyResult) {
@@ -166,13 +182,17 @@ fn assert_mixture_shape(result: &StudyResult) {
     assert!(unidentified, "the 0.2 unidentified atom must stay out of the mixture");
 }
 
-fn frequentist_coverage(conditional: bool, name: &str) {
-    let mut tally = CoverageTally::new(name, LEVEL);
+/// Gated at 90%; the runtime's reported 95% interval is scored on the same
+/// replicates and recorded.
+fn frequentist_coverage(conditional: bool, test: &'static str, name: &str) {
+    let key = RecordKey { test, dgp: "draw_data", interval: "analytic_se" };
+    let mut tally = CoverageTally::for_record(key, LEVEL);
+    let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     let mut points = Vec::with_capacity(n_sim() as usize);
     let mut se_sum = 0.0;
     for r in 0..n_sim() {
-        let seed = 0x19C0_0000 + u64::from(r) * 7_919;
-        let result = run(conditional, InferenceMode::Frequentist, seed);
+        let seed = FREQUENTIST_SEED_BASE + u64::from(r) * SEED_STRIDE;
+        let (study, result) = run(conditional, InferenceMode::Frequentist, seed);
         if r == 0 {
             assert_mixture_shape(&result);
             assert!(
@@ -185,8 +205,13 @@ fn frequentist_coverage(conditional: bool, name: &str) {
         }
         points.push(result.estimate.ate);
         se_sum += result.estimate.se_analytic;
+        bind_all(&mut [&mut tally, &mut reported], &study, &result);
         tally.record(
             normal_interval(result.estimate.ate, Some(result.estimate.se_analytic), Z90),
+            TRUTH_GIVEN_IDENTIFIED,
+        );
+        reported.record(
+            normal_interval(result.estimate.ate, Some(result.estimate.se_analytic), Z95),
             TRUTH_GIVEN_IDENTIFIED,
         );
     }
@@ -199,15 +224,20 @@ fn frequentist_coverage(conditional: bool, name: &str) {
         se_sum / reps
     );
     tally.assert();
+    reported.emit();
 }
 
-fn bayesian_coverage(conditional: bool, name: &str) {
-    let mut tally = CoverageTally::new(name, LEVEL);
+/// Gated at 90%; the runtime's reported 95% interval is scored on the same
+/// replicates (against the same drawn graph effect) and recorded.
+fn bayesian_coverage(conditional: bool, test: &'static str) {
+    let key = RecordKey { test, dgp: "draw_data", interval: "posterior_quantile" };
+    let mut tally = CoverageTally::for_record(key, LEVEL);
+    let mut reported = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
     let mut graph_draw = uniform(0xB5A7_0019);
     let identified_mass = WEIGHTS[0] + WEIGHTS[1];
     for r in 0..n_sim() {
-        let seed = 0x19B0_0000 + u64::from(r) * 7_919;
-        let result = run(
+        let seed = BAYESIAN_SEED_BASE + u64::from(r) * SEED_STRIDE;
+        let (study, result) = run(
             conditional,
             InferenceMode::Bayesian(
                 BayesianConfig::conjugate().n_draws(DRAWS).prior_scale(1_000.0),
@@ -218,36 +248,75 @@ fn bayesian_coverage(conditional: bool, name: &str) {
             assert_mixture_shape(&result);
         }
         let truth = if graph_draw() < WEIGHTS[0] / identified_mass { THETA[0] } else { THETA[1] };
-        let interval = result.posterior.as_ref().and_then(|post| {
-            let col = post.effect_column()?;
-            let draws = post.draws.column(col).ok()?;
-            quantile_interval(draws, LEVEL)
-        });
-        tally.record(interval, truth);
+        let interval_at = |level: f64| {
+            result.posterior.as_ref().and_then(|post| {
+                let col = post.effect_column()?;
+                let draws = post.draws.column(col).ok()?;
+                quantile_interval(draws, level)
+            })
+        };
+        bind_all(&mut [&mut tally, &mut reported], &study, &result);
+        tally.record(interval_at(LEVEL), truth);
+        reported.record(interval_at(REPORTED_LEVEL), truth);
     }
     tally.assert();
+    reported.emit();
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage() {
-    frequentist_coverage(false, "static_graph_posterior_frequentist_ate");
+    frequentist_coverage(
+        false,
+        "static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage",
+        "static_graph_posterior_frequentist_ate",
+    );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage() {
-    frequentist_coverage(true, "static_graph_posterior_frequentist_cate");
+    frequentist_coverage(
+        true,
+        "static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage",
+        "static_graph_posterior_frequentist_cate",
+    );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn static_graph_posterior_bayesian_ate_bma_nominal_90_coverage() {
-    bayesian_coverage(false, "static_graph_posterior_bayesian_ate");
+    bayesian_coverage(false, "static_graph_posterior_bayesian_ate_bma_nominal_90_coverage");
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn static_graph_posterior_bayesian_cate_bma_nominal_90_coverage() {
-    bayesian_coverage(true, "static_graph_posterior_bayesian_cate");
+    bayesian_coverage(true, "static_graph_posterior_bayesian_cate_bma_nominal_90_coverage");
+}
+
+/// The pinned `seed | 1` conditioning in [`uniform`] maps the two seeds `2k`
+/// and `2k + 1` onto one stream, so two replicates would silently share a
+/// dataset and the effective replicate count would halve while the gate still
+/// divided by `n_sim()`. The stride keeps that from happening; this asserts it
+/// instead of leaving it to be true by accident.
+///
+/// Not `#[ignore]`: it is the guard on the conditioning, so it runs on every
+/// PR, and it costs nothing — it generates no data.
+#[test]
+fn replicate_seeds_stay_distinct_under_the_pinned_conditioning() {
+    // More than any gate run uses, so the property holds past the current N.
+    const PROBE: u64 = 4_000;
+    assert_eq!(SEED_STRIDE % 2, 1, "an even stride repeats one bit-0 class forever");
+    for base in [FREQUENTIST_SEED_BASE, BAYESIAN_SEED_BASE] {
+        let mut streams = std::collections::HashSet::with_capacity(PROBE as usize);
+        for r in 0..PROBE {
+            let seed = base + r * SEED_STRIDE;
+            assert!(
+                streams.insert(seed | 1),
+                "replicates before {r} already used the stream of seed {seed:#x}: \
+                 `seed | 1` collides, so two replicates share one dataset"
+            );
+        }
+    }
 }

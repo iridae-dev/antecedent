@@ -195,22 +195,23 @@ def test_intervention_response_runs_through_public_analyze_api(spec):
     assert result.provenance["operation_id"] == "estimate.response.intervention_gcomp"
 
 
-def test_response_curve_graph_posterior_is_refused():
+def test_response_curve_graph_posterior_retains():
     n = 80
     z = np.linspace(0.0, 1.0, n, dtype=np.float64)
     t = z + 0.1
     y = 1.0 + 2.0 * t + z
-    # Licensed on the Rust Study API; the Python API has no entry point yet.
-    with pytest.raises(CausalUnsupportedError, match="Rust Study API only"):
-        antecedent.analyze(
-            {"t": t, "y": y, "z": z},
-            discovery=antecedent.discovery.ExactDagPosterior(),
-            query=antecedent.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
-            inference=antecedent.Bayesian(n_draws=32, prior_scale=100.0, backend="conjugate"),
-            refute=False,
-            bootstrap=0,
-            seed=1,
-        )
+    result = antecedent.analyze(
+        {"t": t, "y": y, "z": z},
+        discovery=antecedent.discovery.ExactDagPosterior(),
+        query=antecedent.ResponseCurve("t", "y", grid=[0.0, 0.5, 1.0]),
+        inference=antecedent.Bayesian(n_draws=32, prior_scale=100.0, backend="conjugate"),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert result.study is not None
+    loaded = antecedent.artifacts.loads(result.export())
+    assert loaded.payload_kind == "analysis_result"
 
 
 def test_intervention_response_checks_strategy_and_fails_closed():

@@ -12,17 +12,24 @@
 
 mod batch;
 mod builder;
+mod contract;
+mod contract_identity;
 mod execute;
 mod helpers;
 mod latency;
 mod prepared;
 mod stage;
 
+pub use antecedent_core::{
+    BlockedOperation, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
+    OperationReport, PremiseChange, SemanticApplicability,
+};
 pub use batch::{
     BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
     CellFamilyContrast, PreparedBatch, SharedBatchDesign, SharedCovariateDesign,
 };
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
+pub use contract::CausalContract;
 pub use execute::Study;
 pub use latency::{
     ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS,

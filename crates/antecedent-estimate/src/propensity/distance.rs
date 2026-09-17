@@ -269,6 +269,7 @@ impl DistanceMatching {
         let overlap_report = Some(overlap_report);
 
         Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
+            .with_se_kind(self.se_kind)
             .with_overlap_report(overlap_report)
             .with_retained_memory_bytes(Some(workspace.retained_memory_bytes()))
             .with_bootstrap(boot))
