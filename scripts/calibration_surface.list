@@ -77,6 +77,10 @@ key estimator.temporal_sequential estimator temporal.sequential.gcomp
 estimator.temporal_mediation crates/antecedent-estimate/src/temporal_mediation.rs
 estimator.temporal_mediation crates/antecedent-estimate/src/temporal_mediation/shared.rs
 key estimator.temporal_mediation estimator temporal.mediation
+estimator.interference crates/antecedent-estimate/src/interference.rs
+key estimator.interference estimator interference.*
+estimator.transport crates/antecedent-estimate/src/transport.rs
+key estimator.transport estimator transport.*
 
 # ---- identification paths --------------------------------------------------
 identity.backdoor crates/antecedent-identify/src/backdoor.rs
