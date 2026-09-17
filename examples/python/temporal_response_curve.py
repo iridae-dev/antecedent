@@ -63,13 +63,9 @@ for point, mean_row, lo_row, hi_row in zip(
 # The simultaneous band covers every (dose, horizon) cell at once.
 band = curve_result.simultaneous_band
 assert band is not None
-print(
-    f"simultaneous band: critical={band.critical:.3f} from {band.replicates} replicates"
-)
+print(f"simultaneous band: critical={band.critical:.3f} from {band.replicates} replicates")
 for point, lo_row, hi_row in zip(curve_result.response.points, band.lower, band.upper):
-    print(
-        f"  dose={point[0]:.1f} horizon={point[1]:.0f}  [{lo_row[0]:.4f}, {hi_row[0]:.4f}]"
-    )
+    print(f"  dose={point[0]:.1f} horizon={point[1]:.0f}  [{lo_row[0]:.4f}, {hi_row[0]:.4f}]")
 
 # Next, hold the intervention level fixed and follow its effect over time.
 path = analyze(
