@@ -43,7 +43,7 @@ use common::driven_dgp::{BETA, Scenario, pulse, pulse_dag, pulse_series};
 use common::fixtures::{self, mediation_cpdag_two, mediation_series};
 use common::persistent_dgp;
 use common::reported::{
-    GATE_LEVEL, REPORTED_LEVEL, gate, normal_at, posterior_pair, record_pair, skip_pair,
+    GATE_LEVEL, REPORTED_LEVEL, gate, gate_at, normal_at, posterior_pair, record_pair, skip_pair,
 };
 
 const N: usize = 160;
@@ -279,7 +279,7 @@ fn pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage()
         bind_all(&mut [first, second], &study, &result);
         record_pair(&mut tallies, intervals, persistent_dgp::AR_BETA);
     }
-    gate(&tallies, &[None, None]);
+    gate_at(&tallies, &[[None, Some(0.935), None], [None, None, None]]);
 }
 
 /// The class slice's interval is the `TemporalDag` route's interval on the

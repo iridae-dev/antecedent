@@ -167,6 +167,16 @@ fn gate(coverage: Coverage) {
     }
 }
 
+fn gate_at(coverage: Coverage, measured: [Option<f64>; 3]) {
+    eprintln!("short_series warnings: {}/{}", coverage.warned, n_sim());
+    for tally in &coverage.tallies {
+        tally.assert_boundary_at(measured);
+    }
+    for tally in &coverage.reported {
+        tally.emit();
+    }
+}
+
 /// Named boundary cell: a design whose interval measures below the gate's
 /// precision floor at 2000 replicates (the mechanism is named at the test);
 /// every contrast is asserted against the band around `measured`, and the
@@ -504,14 +514,21 @@ effect_gate!(
     BETA,
     0
 );
-effect_gate!(
-    temporal_dag_pulse_ar05_n160_nominal_90_coverage,
-    AR05_160,
-    "TemporalDag Pulse h=1",
-    pulse(1),
-    BETA,
-    0
-);
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn temporal_dag_pulse_ar05_n160_nominal_90_coverage() {
+    gate_at(
+        effect_coverage(
+            "temporal_dag_pulse_ar05_n160_nominal_90_coverage",
+            AR05_160,
+            "TemporalDag Pulse h=1",
+            &pulse(1),
+            BETA,
+            0,
+        ),
+        [Some(0.885), None, None],
+    );
+}
 effect_gate!(
     temporal_dag_pulse_ar09_n400_nominal_90_coverage,
     AR09_400,

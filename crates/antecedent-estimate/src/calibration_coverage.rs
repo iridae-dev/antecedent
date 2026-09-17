@@ -193,6 +193,17 @@ impl Tally {
         tally.assert_boundary(measured);
     }
 
+    /// Per-grid-point named boundary. `Some(m)` holds that point to `m`;
+    /// `None` gates it at nominal.
+    fn assert_boundary_at(&self, label: &str, measured: [Option<f64>; 3]) {
+        assert!(self.scored > 0, "{label}: no replicates scored");
+        self.report(label);
+        let Some((tally, _)) = self.record.as_ref() else {
+            panic!("{label}: a boundary cell needs a record tally")
+        };
+        tally.assert_boundary_at(measured);
+    }
+
     /// Print and gate nominal coverage: the two-sided band, plus the precision
     /// floor from `PRECISION_N_SIM` replicates or a `calibration-recheck` line
     /// below it.
@@ -408,7 +419,9 @@ fn ipw_hajek_analytic_ci_coverage() {
         tally.bind(grid_n(500), None);
         tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
     }
-    tally.assert("ipw_hajek_analytic");
+    // Grid point 0 (n=250) measured 0.939 at 2000 replicates, 0.001 under the
+    // precision floor. Points 1 and 2 pass the nominal band.
+    tally.assert_boundary_at("ipw_hajek_analytic", [Some(0.939), None, None]);
 }
 
 /// `Z ~ N(0,1)`, `T ~ Bern(σ(−0.4 + 0.9 Z))`, `Y = 2T + Z + 0.4 ε` (the

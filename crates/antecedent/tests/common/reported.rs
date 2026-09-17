@@ -215,3 +215,32 @@ pub fn gate(tallies: &[super::calibration::CoverageTally], measured: &[Option<f6
         .collect();
     assert!(failures.is_empty(), "{}", failures.join("; "));
 }
+
+/// Gate every tally per sample-size grid point.
+///
+/// `measured[i] = [m0, m1, m2]`: `Some(m)` at a point names that tally a
+/// boundary held to `m`; `None` gates it at nominal. A record is a boundary
+/// over its whole range when any point is.
+///
+/// # Panics
+///
+/// When any tally fails its gate.
+pub fn gate_at(
+    tallies: &[super::calibration::CoverageTally],
+    measured: &[[Option<f64>; super::calibration::GRID_POINTS]],
+) {
+    assert_eq!(tallies.len(), measured.len(), "one gate entry per tally");
+    let failures: Vec<String> = tallies
+        .iter()
+        .zip(measured)
+        .filter_map(|(tally, measured)| {
+            std::panic::catch_unwind(|| tally.assert_boundary_at(*measured)).err().map(|e| {
+                e.downcast_ref::<String>()
+                    .cloned()
+                    .or_else(|| e.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+                    .unwrap_or_else(|| "coverage failure".into())
+            })
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("; "));
+}

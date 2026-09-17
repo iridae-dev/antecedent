@@ -60,7 +60,7 @@ use common::calibration::{
 };
 use common::calibration_bind::bind;
 use common::reported::{
-    GATE_LEVEL, REPORTED_LEVEL, gate, n_sim_at_least, posterior_pair, response_band,
+    GATE_LEVEL, REPORTED_LEVEL, gate, gate_at, n_sim_at_least, posterior_pair, response_band,
     response_scalar,
 };
 // The laws this suite shares with `v19_static_calibration` live in one owner:
@@ -172,6 +172,35 @@ fn coverage_over(
         }
     }
     gate(&tallies, measured);
+}
+
+fn coverage_at(
+    test: &'static str,
+    cells: &[Cell],
+    replicate: impl Fn(u64) -> Option<Replicate>,
+    measured: &[[Option<f64>; 3]],
+) {
+    let mut tallies: Vec<CoverageTally> = cells
+        .iter()
+        .flat_map(|&cell| [keyed(test, cell, REPORTED_LEVEL), keyed(test, cell, GATE_LEVEL)])
+        .collect();
+    for rep in 0..u64::from(n_sim()) {
+        match replicate(rep) {
+            Some(scored) => {
+                assert_eq!(scored.pairs.len(), cells.len());
+                let (reported_study, reported_result) = &scored.reported;
+                let (gate_study, gate_result) = scored.at_gate.as_ref().unwrap_or(&scored.reported);
+                for (j, (pair, truth)) in scored.pairs.iter().zip(&scored.truths).enumerate() {
+                    bind(&mut tallies[2 * j], reported_study, reported_result);
+                    bind(&mut tallies[2 * j + 1], gate_study, gate_result);
+                    tallies[2 * j].record(pair[0], *truth);
+                    tallies[2 * j + 1].record(pair[1], *truth);
+                }
+            }
+            None => tallies.iter_mut().for_each(CoverageTally::skip),
+        }
+    }
+    gate_at(&tallies, measured);
 }
 
 /// [`coverage_over`] at the default replicate count.
@@ -654,10 +683,45 @@ fn conditional_case(
     );
 }
 
+fn conditional_case_at(
+    test: &'static str,
+    graph_class: &'static str,
+    dgp: &'static str,
+    family: u64,
+    modifier: u32,
+    truth: f64,
+    sample: fn(usize, u64) -> TabularData,
+    graph: impl Fn() -> Graph,
+    measured: &[[Option<f64>; 3]],
+) {
+    let cell = Cell {
+        query: "ConditionalEffect",
+        graph_class,
+        estimator: "conditional.bayesian",
+        dgp,
+        label: None,
+    };
+    coverage_at(
+        test,
+        &[cell],
+        |rep| {
+            let seed = stream_seed(family, rep);
+            let (study, result) =
+                run(sample(grid_n(400), seed), graph(), conditional_query(modifier), None, seed)?;
+            if rep == 0 {
+                check_estimator(&result, cell);
+            }
+            let pairs = vec![effect_pair(&result)];
+            Some(Replicate::from_one((study, result), pairs, vec![truth]))
+        },
+        measured,
+    );
+}
+
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn conditional_effect_dag_bayesian_default_nominal_coverage() {
-    conditional_case(
+    conditional_case_at(
         "conditional_effect_dag_bayesian_default_nominal_coverage",
         "Dag",
         "conditional_dag_data",
@@ -666,6 +730,7 @@ fn conditional_effect_dag_bayesian_default_nominal_coverage() {
         B + G * 0.5,
         conditional_dag_data,
         || dag(4, &[(2, 0), (2, 1), (0, 1), (3, 1)]).into(),
+        &[[None, None, Some(0.933)], [None, None, None]],
     );
 }
 
@@ -899,14 +964,33 @@ fn path_case(
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn path_specific_chain_bayesian_default_nominal_coverage() {
-    path_case(
+    let cell = Cell {
+        query: "PathSpecificEffect",
+        graph_class: "Dag",
+        estimator: "functional.effect",
+        dgp: "path_data",
+        label: None,
+    };
+    coverage_at(
         "path_specific_chain_bayesian_default_nominal_coverage",
-        "path_data",
-        500,
-        0.2,
-        0x110_050B,
-        path_data,
-        &dag(3, &[(0, 1), (1, 2)]),
+        &[cell],
+        |rep| {
+            let seed = stream_seed(0x110_050B, rep);
+            let query = PathSpecificEffectQuery::binary(v(0), v(2)).with_path_nodes([v(1)]);
+            let (study, result) = run(
+                path_data(grid_n(500), seed),
+                dag(3, &[(0, 1), (1, 2)]),
+                CausalQuery::PathSpecific(query),
+                None,
+                seed,
+            )?;
+            if rep == 0 {
+                check_estimator(&result, cell);
+            }
+            let pairs = vec![effect_pair(&result)];
+            Some(Replicate::from_one((study, result), pairs, vec![0.2]))
+        },
+        &[[None, None, None], [None, None, Some(0.850)]],
     );
 }
 
@@ -1337,23 +1421,45 @@ fn elasticity_bayesian_default_nominal_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn directional_derivative_bayesian_default_nominal_coverage() {
-    derivative_case(
-        "directional_derivative_bayesian_default_nominal_coverage",
+    let functional = F::DirectionalDerivative {
+        outcomes: Arc::from([v(3), v(4)]),
+        treatments: Arc::from([v(0), v(1)]),
+        at: Arc::from(GAM_AT),
+        direction: Arc::from(DIRECTION),
+    };
+    let labels: Vec<String> = (0..DIRECTIONAL_TRUTH.len()).map(|j| format!("{j}")).collect();
+    let cells = response_cells(
         "DirectionalDerivative",
         "response.gam_derivative",
         GAM_DGP,
         None,
-        0x110_0525,
-        &F::DirectionalDerivative {
-            outcomes: Arc::from([v(3), v(4)]),
-            treatments: Arc::from([v(0), v(1)]),
-            at: Arc::from(GAM_AT),
-            direction: Arc::from(DIRECTION),
+        &labels,
+    );
+    let graph = gam_graph();
+    coverage_at(
+        "directional_derivative_bayesian_default_nominal_coverage",
+        &cells,
+        |rep| {
+            let seed = stream_seed(0x110_0525, rep);
+            let data = gam_data(derivative_n(), seed);
+            let (reported, at_gate, pairs) =
+                response_pairs(&data, &graph, &functional, None, seed, DIRECTIONAL_TRUTH.len())?;
+            if rep == 0 {
+                check_estimator(&reported.1, cells[0]);
+            }
+            Some(Replicate {
+                reported,
+                at_gate: Some(at_gate),
+                pairs,
+                truths: DIRECTIONAL_TRUTH.to_vec(),
+            })
         },
-        None,
-        true,
-        &DIRECTIONAL_TRUTH,
-        &[None; 4],
+        &[
+            [None, None, None],
+            [Some(0.886), None, None],
+            [None, None, None],
+            [None, None, None],
+        ],
     );
 }
 

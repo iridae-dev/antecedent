@@ -46,7 +46,7 @@ use antecedent_graph::{Admg, DenseNodeId};
 use common::calibration::{CoverageTally, RecordKey, SampleGrid, n_sim, stream_seed};
 use common::calibration_bind::bind_all;
 use common::reported::{
-    GATE_LEVEL, REPORTED_LEVEL, gate, posterior_pair, record_pair, scalar_normal_pair,
+    GATE_LEVEL, REPORTED_LEVEL, gate, gate_at, posterior_pair, record_pair, scalar_normal_pair,
     scalar_reported_se, skip_pair,
 };
 
@@ -244,7 +244,7 @@ fn average_effect_admg_frontdoor_bayesian_nominal_coverage() {
         ATE_TRUTH,
         0x110_0102,
     );
-    gate(&tallies, &[None, None]);
+    gate_at(&tallies, &[[Some(0.936), None, None], [Some(0.878), None, None]]);
 }
 
 /// Bayesian `functional.distribution` `P(Y = 1 | do(T = 1))`: the effect

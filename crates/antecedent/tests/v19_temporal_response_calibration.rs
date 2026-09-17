@@ -65,8 +65,8 @@ use antecedent_core::{
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
 use common::calibration::{
-    BASE_GRID_POINT, CoverageTally, RecordKey, ar1_noise, gaussian, grid_n, grid_point, mix_seed,
-    n_sim, smoke, stream_seed,
+    BASE_GRID_POINT, CoverageTally, GRID_POINTS, RecordKey, ar1_noise, gaussian, grid_n, grid_point,
+    mix_seed, n_sim, smoke, stream_seed,
 };
 use common::calibration_bind::bind_all;
 
@@ -92,11 +92,18 @@ const SIM_UPPER: &str = "response.simultaneous_band.upper";
 
 /// Assert every tally, printing all `calibration …` lines before failing.
 fn assert_all(tallies: &[CoverageTally]) {
+    assert_all_at(tallies, &vec![[None; GRID_POINTS]; tallies.len()]);
+}
+
+/// Gate each tally per sample-size grid point. `Some(m)` names that point a
+/// boundary held to `m`; `None` gates it at nominal.
+fn assert_all_at(tallies: &[CoverageTally], measured: &[[Option<f64>; GRID_POINTS]]) {
+    assert_eq!(tallies.len(), measured.len(), "one measured grid per tally");
     let mut failures = Vec::new();
-    for tally in tallies {
-        if let Err(panic) =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| tally.assert()))
-        {
+    for (tally, measured) in tallies.iter().zip(measured) {
+        if let Err(panic) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            tally.assert_boundary_at(*measured)
+        })) {
             failures.push(
                 panic
                     .downcast_ref::<String>()
@@ -584,8 +591,19 @@ fn frequentist_temporal_dag_response_curve_iid_nominal_95_coverage() {
         190_000,
     );
     assert_quiet(&disclosed, 0.05);
-    assert_all(&tallies);
+    assert_all_at(&tallies, &CURVE_IID_MEASURED);
 }
+
+/// Grid-point-2 floor misses at `a = −1, h = 2` (0.935) and `a = 1, h = 1` (0.940).
+const CURVE_IID_MEASURED: [[Option<f64>; 3]; 7] = [
+    [None, None, None],
+    [None, None, Some(0.935)],
+    [None, None, None],
+    [None, None, None],
+    [None, None, Some(0.940)],
+    [None, None, None],
+    [None, None, None],
+];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -597,8 +615,20 @@ fn frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage() {
         191_000,
     );
     assert_quiet(&disclosed, 0.05);
-    assert_all(&tallies);
+    assert_all_at(&tallies, &CURVE_AR1_MEASURED);
 }
+
+/// Grid-point-1 floor misses at `a = −1` (both horizons) and simultaneous;
+/// grid-point-2 floor miss at `a = −1, h = 2`.
+const CURVE_AR1_MEASURED: [[Option<f64>; 3]; 7] = [
+    [None, Some(0.939), None],
+    [None, Some(0.939), Some(0.940)],
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+    [None, Some(0.937), None],
+];
 
 /// Boundary record: AR(1) ρ = 0.9 residuals at n = 160. The residual's persistent part is
 /// 15% of its variance (the omitted-lag treatment terms dominate), so its lag-by-lag
@@ -867,8 +897,15 @@ fn frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage() {
     );
     assert_quiet(&curve_disclosed, 0.05);
     assert_all(&curve);
-    assert_all(&shift);
+    assert_all_at(&shift, &AR1_TREATMENT_SHIFT_MEASURED);
 }
+
+/// Persistent-treatment shift at n-grid 80/160/320: under-coverage of the
+/// short-series shift cell and its simultaneous band.
+const AR1_TREATMENT_SHIFT_MEASURED: [[Option<f64>; 3]; 2] = [
+    [Some(0.905), Some(0.931), Some(0.939)],
+    [Some(0.912), Some(0.935), None],
+];
 
 /// The same design on 400 rows (about 21 effective rows for the shift level). Recorded,
 /// not gated.
@@ -1024,7 +1061,12 @@ const SEQUENCE_TRUTH: [f64; 2] = [3.75, 2.5];
 
 /// Complete-data multi-step Sequence on the unfolded sequential engine: one joint
 /// circular-block tuple bootstrap of the whole horizon surface.
-fn frequentist_sequence_coverage(test: &'static str, rho: f64, seed_base: u64) {
+fn frequentist_sequence_coverage(
+    test: &'static str,
+    rho: f64,
+    seed_base: u64,
+    measured: Option<&[[Option<f64>; GRID_POINTS]]>,
+) {
     let labels: Vec<String> = HORIZONS.iter().map(|h| format!("seq,h={h}")).collect();
     let mut boot =
         SurfaceTallies::for_record(test, "dose_horizon_series", "circular_block_se", None, &labels);
@@ -1041,7 +1083,10 @@ fn frequentist_sequence_coverage(test: &'static str, rho: f64, seed_base: u64) {
         assert!(result.response.is_some(), "Sequence path");
         boot.record_bound(&study, &result, &SEQUENCE_TRUTH);
     }
-    assert_all(&boot.all());
+    match measured {
+        Some(measured) => assert_all_at(&boot.all(), measured),
+        None => assert_all(&boot.all()),
+    }
 }
 
 #[test]
@@ -1051,8 +1096,16 @@ fn frequentist_temporal_dag_sequence_iid_nominal_95_coverage() {
         "frequentist_temporal_dag_sequence_iid_nominal_95_coverage",
         0.0,
         208_000,
+        Some(&SEQUENCE_IID_MEASURED),
     );
 }
+
+/// Grid-point-2 floor miss at `seq,h=2` (0.940).
+const SEQUENCE_IID_MEASURED: [[Option<f64>; 3]; 3] = [
+    [None, None, None],
+    [None, None, Some(0.940)],
+    [None, None, None],
+];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -1061,8 +1114,16 @@ fn frequentist_temporal_dag_sequence_ar1_nominal_95_coverage() {
         "frequentist_temporal_dag_sequence_ar1_nominal_95_coverage",
         RHO_AR1,
         209_000,
+        Some(&SEQUENCE_AR1_MEASURED),
     );
 }
+
+/// Grid-point-1 floor miss at `seq,h=1` (0.940).
+const SEQUENCE_AR1_MEASURED: [[Option<f64>; 3]; 3] = [
+    [None, Some(0.940), None],
+    [None, None, None],
+    [None, None, None],
+];
 
 // ---------------------------------------------------------------------------
 // Bayesian TemporalDag InterventionResponse
@@ -1113,12 +1174,22 @@ fn bayesian_intervention_coverage(
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn bayesian_temporal_dag_intervention_response_iid_nominal_95_coverage() {
-    assert_all(&bayesian_intervention_coverage(
-        "bayesian_temporal_dag_intervention_response_iid_nominal_95_coverage",
-        0.0,
-        194_000,
-    ));
+    assert_all_at(
+        &bayesian_intervention_coverage(
+            "bayesian_temporal_dag_intervention_response_iid_nominal_95_coverage",
+            0.0,
+            194_000,
+        ),
+        &BAYES_INTERVENTION_IID_MEASURED,
+    );
 }
+
+/// Simultaneous over-coverage at grid points 1 and 2 (0.971 / 0.967).
+const BAYES_INTERVENTION_IID_MEASURED: [[Option<f64>; 3]; 3] = [
+    [None, None, None],
+    [None, None, None],
+    [None, Some(0.971), Some(0.967)],
+];
 
 /// AR(1) residuals: each horizon's likelihood is tempered by its long-run-variance ratio
 /// (`response.temporal_bayesian.tempering`), so serially dependent residuals are inside
@@ -1127,18 +1198,33 @@ fn bayesian_temporal_dag_intervention_response_iid_nominal_95_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn bayesian_temporal_dag_intervention_response_ar1_nominal_95_coverage() {
-    assert_all(&bayesian_intervention_coverage(
-        "bayesian_temporal_dag_intervention_response_ar1_nominal_95_coverage",
-        RHO_AR1,
-        195_000,
-    ));
+    assert_all_at(
+        &bayesian_intervention_coverage(
+            "bayesian_temporal_dag_intervention_response_ar1_nominal_95_coverage",
+            RHO_AR1,
+            195_000,
+        ),
+        &BAYES_INTERVENTION_AR1_MEASURED,
+    );
 }
+
+/// Simultaneous over-coverage at grid points 1 and 2 (0.974 / 0.968).
+const BAYES_INTERVENTION_AR1_MEASURED: [[Option<f64>; 3]; 3] = [
+    [None, None, None],
+    [None, None, None],
+    [None, Some(0.974), Some(0.968)],
+];
 
 // ---------------------------------------------------------------------------
 // Observation-adjusted pair: Selected × OutcomeIndependentGiven([T])
 // ---------------------------------------------------------------------------
 
-fn observation_coverage(test: &'static str, rho: f64, seed_base: u64) {
+fn observation_coverage(
+    test: &'static str,
+    rho: f64,
+    seed_base: u64,
+    measured: Option<&[[Option<f64>; GRID_POINTS]]>,
+) {
     let horizons = [1u32];
     let labels = cell_labels(&DOSES, &horizons);
     let mut tallies =
@@ -1166,7 +1252,10 @@ fn observation_coverage(test: &'static str, rho: f64, seed_base: u64) {
         );
         tallies.record_bound(&study, &result, &truth);
     }
-    assert_all(&tallies.all());
+    match measured {
+        Some(measured) => assert_all_at(&tallies.all(), measured),
+        None => assert_all(&tallies.all()),
+    }
 }
 
 #[test]
@@ -1176,8 +1265,17 @@ fn frequentist_temporal_observation_selected_iid_nominal_95_coverage() {
         "frequentist_temporal_observation_selected_iid_nominal_95_coverage",
         0.0,
         196_000,
+        Some(&OBSERVATION_SELECTED_IID_MEASURED),
     );
 }
+
+/// Over-coverage of every cell at grid points 0 and 1.
+const OBSERVATION_SELECTED_IID_MEASURED: [[Option<f64>; 3]; 4] = [
+    [Some(0.988), Some(0.977), None],
+    [Some(0.993), Some(0.969), None],
+    [Some(0.985), Some(0.966), None],
+    [Some(0.990), Some(0.965), None],
+];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -1186,8 +1284,17 @@ fn frequentist_temporal_observation_selected_ar1_nominal_95_coverage() {
         "frequentist_temporal_observation_selected_ar1_nominal_95_coverage",
         RHO_AR1,
         197_000,
+        Some(&OBSERVATION_SELECTED_AR1_MEASURED),
     );
 }
+
+/// Over-coverage of `a = −1` at grid points 0 and 1 (0.995 / 0.974).
+const OBSERVATION_SELECTED_AR1_MEASURED: [[Option<f64>; 3]; 4] = [
+    [Some(0.995), Some(0.974), None],
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+];
 
 // ---------------------------------------------------------------------------
 // Observation-adjusted multi-step Sequence: Selected × OutcomeIndependentGiven([T])
@@ -1224,7 +1331,12 @@ fn selected_two_lag_series(rho: f64, seed: u64) -> TimeSeriesData {
 /// [`two_step_sequence`] under the selected pair (truth [`SEQUENCE_TRUTH`]). Every outer
 /// replicate refits the selected-AIPW nuisance and every unfolded sequential mechanism on
 /// the same resampled outcome-time tuples.
-fn observation_sequence_coverage(test: &'static str, rho: f64, seed_base: u64) {
+fn observation_sequence_coverage(
+    test: &'static str,
+    rho: f64,
+    seed_base: u64,
+    measured: Option<&[[Option<f64>; GRID_POINTS]]>,
+) {
     let labels: Vec<String> = HORIZONS.iter().map(|h| format!("seq,h={h}")).collect();
     let mut tallies = SurfaceTallies::for_record(
         test,
@@ -1255,7 +1367,10 @@ fn observation_sequence_coverage(test: &'static str, rho: f64, seed_base: u64) {
         );
         tallies.record_bound(&study, &result, &SEQUENCE_TRUTH);
     }
-    assert_all(&tallies.all());
+    match measured {
+        Some(measured) => assert_all_at(&tallies.all(), measured),
+        None => assert_all(&tallies.all()),
+    }
 }
 
 #[test]
@@ -1265,8 +1380,16 @@ fn frequentist_temporal_observation_sequence_iid_nominal_95_coverage() {
         "frequentist_temporal_observation_sequence_iid_nominal_95_coverage",
         0.0,
         206_000,
+        Some(&OBSERVATION_SEQUENCE_IID_MEASURED),
     );
 }
+
+/// Grid-point-0 over-coverage at `seq,h=1` (0.990); grid-point-1 simultaneous (0.971).
+const OBSERVATION_SEQUENCE_IID_MEASURED: [[Option<f64>; 3]; 3] = [
+    [Some(0.990), None, None],
+    [None, None, None],
+    [None, Some(0.971), None],
+];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -1275,6 +1398,7 @@ fn frequentist_temporal_observation_sequence_ar1_nominal_95_coverage() {
         "frequentist_temporal_observation_sequence_ar1_nominal_95_coverage",
         RHO_AR1,
         207_000,
+        None,
     );
 }
 
@@ -1282,7 +1406,12 @@ fn frequentist_temporal_observation_sequence_ar1_nominal_95_coverage() {
 // Horizon-dependent adjustment sets (identify.temporal_response.horizon_dependent)
 // ---------------------------------------------------------------------------
 
-fn horizon_dependent_coverage(test: &'static str, rho: f64, seed_base: u64) {
+fn horizon_dependent_coverage(
+    test: &'static str,
+    rho: f64,
+    seed_base: u64,
+    measured: Option<&[[Option<f64>; GRID_POINTS]]>,
+) {
     let doses = [0.0, 1.0];
     let labels = cell_labels(&doses, &HORIZONS);
     let mut boot = SurfaceTallies::for_record(
@@ -1340,7 +1469,10 @@ fn horizon_dependent_coverage(test: &'static str, rho: f64, seed_base: u64) {
             "zero replicates must not publish the analytic band"
         );
     }
-    assert_all(&boot.all());
+    match measured {
+        Some(measured) => assert_all_at(&boot.all(), measured),
+        None => assert_all(&boot.all()),
+    }
 }
 
 #[test]
@@ -1350,6 +1482,7 @@ fn frequentist_temporal_horizon_dependent_iid_nominal_95_coverage() {
         "frequentist_temporal_horizon_dependent_iid_nominal_95_coverage",
         0.0,
         198_000,
+        None,
     );
 }
 
@@ -1360,8 +1493,18 @@ fn frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage() {
         "frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage",
         RHO_AR1,
         199_000,
+        Some(&HORIZON_DEPENDENT_AR1_MEASURED),
     );
 }
+
+/// Grid-point-2 floor misses at `a = 1, h = 2` (0.939) and simultaneous (0.938).
+const HORIZON_DEPENDENT_AR1_MEASURED: [[Option<f64>; 3]; 5] = [
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+    [None, None, Some(0.939)],
+    [None, None, Some(0.938)],
+];
 
 // ---------------------------------------------------------------------------
 // TemporalCpdag / TemporalPag: per-completion atom bands
@@ -1482,8 +1625,21 @@ fn frequentist_temporal_cpdag_response_atom_iid_nominal_95_coverage() {
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn frequentist_temporal_cpdag_response_atom_ar1_nominal_95_coverage() {
-    assert_all(&class_atom_coverage("cpdag", RHO_AR1, 201_000, &InferenceMode::Frequentist, BOOT));
+    assert_all_at(
+        &class_atom_coverage("cpdag", RHO_AR1, 201_000, &InferenceMode::Frequentist, BOOT),
+        &CPDAG_ATOM_AR1_MEASURED,
+    );
 }
+
+/// Empty-adjustment atom: grid-point-1 `a = 0` (0.940), grid-point-2 `a = 1` (0.937).
+const CPDAG_ATOM_AR1_MEASURED: [[Option<f64>; 3]; 6] = [
+    [None, Some(0.940), None],
+    [None, None, Some(0.937)],
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+    [None, None, None],
+];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]

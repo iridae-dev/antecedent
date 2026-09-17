@@ -61,7 +61,7 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
 use common::calibration::{CoverageTally, RecordKey, SampleGrid, gaussian, n_sim, stream_seed};
 use common::calibration_bind::bind;
-use common::reported::{GATE_LEVEL, REPORTED_LEVEL, gate, posterior_pair};
+use common::reported::{GATE_LEVEL, REPORTED_LEVEL, gate_at, posterior_pair};
 use common::static_dgp::{bernoulli, sigmoid, table, uniform};
 
 // ---------------------------------------------------------------- designs
@@ -222,7 +222,7 @@ impl AllUnits {
 
 /// Measured coverage of each tally that is a named boundary, in tally order;
 /// `None` gates the nominal band.
-type Measured = [Option<f64>; 4];
+type Measured = [[Option<f64>; 3]; 4];
 
 /// Score one design: per-unit intervals on two designated units and the
 /// mean-ITE interval at the reported and gate levels.
@@ -287,7 +287,7 @@ fn design(
         "calibration-diagnostic {test}: outcome family outside {family:?} in {other_family} of {} replicates",
         n_sim()
     );
-    gate(&tallies, measured);
+    gate_at(&tallies, measured);
 }
 
 // ---------------------------------------------------------------- tests
@@ -323,7 +323,12 @@ fn counterfactual_interaction_bayesian_unit_and_mean_ite_coverage() {
 /// Boundary readings of [`counterfactual_interaction_bayesian_unit_and_mean_ite_coverage`],
 /// in tally order (`unit_b0`, `unit_b1`, mean ITE at 0.95, mean ITE at 0.90);
 /// `None` gates the nominal band.
-const INTERACTION_MEASURED: Measured = [None, None, None, None];
+const INTERACTION_MEASURED: Measured = [
+    [Some(0.868), None, None],
+    [Some(0.882), None, None],
+    [None, None, None],
+    [None, None, None],
+];
 
 /// Spline design at `n = 2500`. Units 0 and 1 of each replicate are the
 /// designated units (each an independent draw of `z`).
@@ -349,4 +354,9 @@ fn counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage() {
 
 /// Boundary readings of [`counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage`],
 /// in tally order (`unit_0`, `unit_1`, mean ITE at 0.95, mean ITE at 0.90).
-const EXP_MODIFIER_MEASURED: Measured = [None, None, None, None];
+const EXP_MODIFIER_MEASURED: Measured = [
+    [Some(0.933), None, Some(0.938)],
+    [Some(0.918), None, None],
+    [None, None, Some(0.936)],
+    [None, None, Some(0.884)],
+];

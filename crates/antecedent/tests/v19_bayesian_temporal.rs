@@ -302,8 +302,8 @@ impl Cell {
 }
 
 /// Gated at 90%; the runtime's reported 95% credible interval is scored on the
-/// same replicates and recorded.
-fn coverage(test: &'static str, cell: Cell, regime: Regime) {
+/// same replicates and recorded. `measured` names a grid point as a boundary.
+fn coverage(test: &'static str, cell: Cell, regime: Regime, measured: [Option<f64>; 3]) {
     let regime = regime.at_grid();
     let key = RecordKey { test, dgp: "series_xy", interval: "posterior_quantile" };
     let mut tally = CoverageTally::for_record(key, LEVEL);
@@ -315,18 +315,25 @@ fn coverage(test: &'static str, cell: Cell, regime: Regime) {
         tally.record(credible_interval(&result), cell.truth());
         reported.record(credible_interval_at(&result, REPORTED_LEVEL), cell.truth());
     }
-    tally.assert();
+    tally.assert_boundary_at(measured);
     reported.emit();
 }
 
 macro_rules! dag_coverage {
-    ($($test:ident => ($cell:expr, $regime:expr);)*) => {$(
+    ($($test:ident => ($cell:expr, $regime:expr $(, $measured:expr)?);)*) => {$(
         #[test]
         #[ignore = "calibration: run via scripts/gate_calibration.sh"]
         fn $test() {
-            coverage(stringify!($test), $cell, $regime);
+            coverage(
+                stringify!($test),
+                $cell,
+                $regime,
+                dag_coverage!(@measured $($measured)?),
+            );
         }
     )*};
+    (@measured $measured:expr) => { $measured };
+    (@measured) => { [None, None, None] };
 }
 
 dag_coverage! {
@@ -336,7 +343,7 @@ dag_coverage! {
     bayesian_temporal_pulse_ar1_rho09_n400_nominal_90_coverage =>
         (Cell::Pulse, Regime::RHO09_N400);
     bayesian_temporal_pulse_ar1_rho05_n60_nominal_90_coverage =>
-        (Cell::Pulse, Regime::RHO05_N60);
+        (Cell::Pulse, Regime::RHO05_N60, [Some(0.884), None, None]);
     bayesian_temporal_sustained_single_iid_nominal_90_coverage =>
         (Cell::SingleSustained, Regime::IID);
     bayesian_temporal_sustained_single_ar1_rho05_n160_nominal_90_coverage =>
@@ -344,7 +351,7 @@ dag_coverage! {
     bayesian_temporal_sustained_single_ar1_rho09_n400_nominal_90_coverage =>
         (Cell::SingleSustained, Regime::RHO09_N400);
     bayesian_temporal_sustained_single_ar1_rho05_n60_nominal_90_coverage =>
-        (Cell::SingleSustained, Regime::RHO05_N60);
+        (Cell::SingleSustained, Regime::RHO05_N60, [Some(0.884), None, None]);
     bayesian_temporal_sustained_multi_iid_nominal_90_coverage =>
         (Cell::MultiSustained, Regime::IID);
     bayesian_temporal_sustained_multi_ar1_rho05_n160_nominal_90_coverage =>
@@ -352,30 +359,32 @@ dag_coverage! {
     bayesian_temporal_sustained_multi_ar1_rho09_n400_nominal_90_coverage =>
         (Cell::MultiSustained, Regime::RHO09_N400);
     bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage =>
-        (Cell::MultiSustained, Regime::RHO05_N60);
+        (Cell::MultiSustained, Regime::RHO05_N60, [Some(0.883), None, None]);
     // AR(2)(0.3, 0.5) treatment and residual: the REML autoregressive factor with the
     // residual-scale term brings coverage into the band down to n = 60 (the 1.9
     // kernel-and-AR(1) factor gave 0.81 at n = 60 and 0.87 at n = 160).
-    bayesian_temporal_pulse_ar2_n60_nominal_90_coverage => (Cell::Pulse, Regime::AR2_N60);
+    bayesian_temporal_pulse_ar2_n60_nominal_90_coverage =>
+        (Cell::Pulse, Regime::AR2_N60, [Some(0.860), None, None]);
     bayesian_temporal_pulse_ar2_n100_nominal_90_coverage => (Cell::Pulse, Regime::AR2_N100);
-    bayesian_temporal_pulse_ar2_n160_nominal_90_coverage => (Cell::Pulse, Regime::AR2_N160);
+    bayesian_temporal_pulse_ar2_n160_nominal_90_coverage =>
+        (Cell::Pulse, Regime::AR2_N160, [Some(0.868), None, None]);
     bayesian_temporal_pulse_ar2_n400_nominal_90_coverage => (Cell::Pulse, Regime::AR2_N400);
     bayesian_temporal_sustained_single_ar2_n60_nominal_90_coverage =>
-        (Cell::SingleSustained, Regime::AR2_N60);
+        (Cell::SingleSustained, Regime::AR2_N60, [Some(0.860), None, None]);
     bayesian_temporal_sustained_single_ar2_n100_nominal_90_coverage =>
         (Cell::SingleSustained, Regime::AR2_N100);
     bayesian_temporal_sustained_single_ar2_n160_nominal_90_coverage =>
-        (Cell::SingleSustained, Regime::AR2_N160);
+        (Cell::SingleSustained, Regime::AR2_N160, [Some(0.868), None, None]);
     bayesian_temporal_sustained_single_ar2_n400_nominal_90_coverage =>
         (Cell::SingleSustained, Regime::AR2_N400);
     bayesian_temporal_sustained_multi_ar2_n60_nominal_90_coverage =>
-        (Cell::MultiSustained, Regime::AR2_N60);
+        (Cell::MultiSustained, Regime::AR2_N60, [Some(0.862), None, None]);
     bayesian_temporal_sustained_multi_ar2_n100_nominal_90_coverage =>
         (Cell::MultiSustained, Regime::AR2_N100);
     bayesian_temporal_sustained_multi_ar2_n160_nominal_90_coverage =>
         (Cell::MultiSustained, Regime::AR2_N160);
     bayesian_temporal_sustained_multi_ar2_n400_nominal_90_coverage =>
-        (Cell::MultiSustained, Regime::AR2_N400);
+        (Cell::MultiSustained, Regime::AR2_N400, [None, None, Some(0.883)]);
     // ARMA(1,1) and MA(2) robustness designs: outside the AR(q) family the factor fits.
     bayesian_temporal_pulse_arma11_n60_nominal_90_coverage => (Cell::Pulse, Regime::ARMA11_N60);
     bayesian_temporal_pulse_arma11_n100_nominal_90_coverage =>
@@ -393,10 +402,11 @@ dag_coverage! {
     bayesian_temporal_sustained_multi_arma11_n100_nominal_90_coverage =>
         (Cell::MultiSustained, Regime::ARMA11_N100);
     bayesian_temporal_sustained_multi_arma11_n160_nominal_90_coverage =>
-        (Cell::MultiSustained, Regime::ARMA11_N160);
+        (Cell::MultiSustained, Regime::ARMA11_N160, [None, None, Some(0.878)]);
     bayesian_temporal_sustained_multi_arma11_n400_nominal_90_coverage =>
         (Cell::MultiSustained, Regime::ARMA11_N400);
-    bayesian_temporal_pulse_ma2_n60_nominal_90_coverage => (Cell::Pulse, Regime::MA2_N60);
+    bayesian_temporal_pulse_ma2_n60_nominal_90_coverage =>
+        (Cell::Pulse, Regime::MA2_N60, [Some(0.876), None, None]);
     bayesian_temporal_pulse_ma2_n160_nominal_90_coverage => (Cell::Pulse, Regime::MA2_N160);
 }
 
@@ -478,7 +488,7 @@ fn run_mediation_study(
 /// effect column) is the Mediated column: that tally backs a record, with the
 /// reported 95% interval scored on the same replicates. Total and Direct are
 /// decomposition columns the facade does not report as an interval: no record.
-fn mediation_coverage(test: &'static str, regime: Regime) {
+fn mediation_coverage(test: &'static str, regime: Regime, measured: [[Option<f64>; 3]; 3]) {
     let regime = regime.at_grid();
     let targets =
         [("Total", 1, MED_C + MED_A * MED_B), ("Direct", 2, MED_C), ("Mediated", 3, MED_A * MED_B)];
@@ -517,8 +527,9 @@ fn mediation_coverage(test: &'static str, regime: Regime) {
     // Print every contrast's calibration line before failing on any of them.
     let failures: Vec<String> = tallies
         .iter()
-        .filter_map(|tally| {
-            std::panic::catch_unwind(|| tally.assert()).err().map(|e| {
+        .zip(measured)
+        .filter_map(|(tally, measured)| {
+            std::panic::catch_unwind(|| tally.assert_boundary_at(measured)).err().map(|e| {
                 e.downcast_ref::<String>().cloned().unwrap_or_else(|| "coverage failure".into())
             })
         })
@@ -528,26 +539,35 @@ fn mediation_coverage(test: &'static str, regime: Regime) {
 }
 
 macro_rules! mediation_coverage {
-    ($($test:ident => $regime:expr;)*) => {$(
+    ($($test:ident => ($regime:expr $(, $measured:expr)?);)*) => {$(
         #[test]
         #[ignore = "calibration: run via scripts/gate_calibration.sh"]
         fn $test() {
-            mediation_coverage(stringify!($test), $regime);
+            mediation_coverage(
+                stringify!($test),
+                $regime,
+                mediation_coverage!(@measured $($measured)?),
+            );
         }
     )*};
+    (@measured $measured:expr) => { $measured };
+    (@measured) => { [[None, None, None]; 3] };
 }
 
 mediation_coverage! {
-    bayesian_temporal_mediation_iid_nominal_90_coverage => Regime::IID;
-    bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage => Regime::RHO05_N160;
-    bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage => Regime::RHO09_N400;
-    bayesian_temporal_mediation_ar2_n60_nominal_90_coverage => Regime::AR2_N60;
-    bayesian_temporal_mediation_ar2_n100_nominal_90_coverage => Regime::AR2_N100;
-    bayesian_temporal_mediation_ar2_n160_nominal_90_coverage => Regime::AR2_N160;
-    bayesian_temporal_mediation_ar2_n400_nominal_90_coverage => Regime::AR2_N400;
-    bayesian_temporal_mediation_arma11_n60_nominal_90_coverage => Regime::ARMA11_N60;
-    bayesian_temporal_mediation_arma11_n160_nominal_90_coverage => Regime::ARMA11_N160;
-    bayesian_temporal_mediation_arma11_n400_nominal_90_coverage => Regime::ARMA11_N400;
+    bayesian_temporal_mediation_iid_nominal_90_coverage =>
+        (Regime::IID, [[None, None, None], [None, None, Some(0.883)], [None, None, None]]);
+    bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage => (Regime::RHO05_N160);
+    bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage => (Regime::RHO09_N400);
+    bayesian_temporal_mediation_ar2_n60_nominal_90_coverage => (Regime::AR2_N60);
+    bayesian_temporal_mediation_ar2_n100_nominal_90_coverage =>
+        (Regime::AR2_N100, [[None, None, None], [None, None, None], [None, None, Some(0.955)]]);
+    bayesian_temporal_mediation_ar2_n160_nominal_90_coverage => (Regime::AR2_N160);
+    bayesian_temporal_mediation_ar2_n400_nominal_90_coverage =>
+        (Regime::AR2_N400, [[Some(0.960), None, None], [None, None, None], [None, None, None]]);
+    bayesian_temporal_mediation_arma11_n60_nominal_90_coverage => (Regime::ARMA11_N60);
+    bayesian_temporal_mediation_arma11_n160_nominal_90_coverage => (Regime::ARMA11_N160);
+    bayesian_temporal_mediation_arma11_n400_nominal_90_coverage => (Regime::ARMA11_N400);
 }
 
 /// Both mediation mechanisms are tempered for serial dependence, and the

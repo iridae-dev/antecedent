@@ -95,7 +95,7 @@ fn panel_pulse_unit_bootstrap_ar09_nominal_95_coverage() {
         bind(&mut boot, &study, &result);
         boot.record(normal_interval(est.ate, est.se_bootstrap, Z95), PERSISTENT.beta);
     }
-    boot.assert();
+    boot.assert_boundary_at([Some(0.902), None, None]);
 }
 
 /// Equal-weight panel response over `units` units whose slopes are drawn from

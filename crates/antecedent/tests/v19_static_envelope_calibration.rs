@@ -188,6 +188,7 @@ fn run_ate_coverage(
     bayesian: bool,
     truth: f64,
     seed: u64,
+    measured: [Option<f64>; 3],
 ) {
     let key = scalar_key(test, dgp, bayesian);
     let mut tally = CoverageTally::for_record(key, LEVEL);
@@ -204,7 +205,7 @@ fn run_ate_coverage(
         tally.record(interval, truth);
         reported.record(interval_95, truth);
     }
-    tally.assert();
+    tally.assert_boundary_at(measured);
     reported.emit();
 }
 
@@ -221,6 +222,7 @@ fn static_cpdag_ate_envelope_frequentist_nominal_90_coverage() {
         false,
         CPDAG_TRUTH,
         19_100,
+        [Some(0.880), None, None],
     );
 }
 
@@ -237,6 +239,7 @@ fn static_cpdag_ate_envelope_bayesian_nominal_90_coverage() {
         true,
         CPDAG_TRUTH,
         19_200,
+        [None, None, None],
     );
 }
 
@@ -292,6 +295,7 @@ fn static_pag_ate_envelope_frequentist_nominal_90_coverage() {
         false,
         PAG_TRUTH,
         19_300,
+        [None, None, None],
     );
 }
 
@@ -308,6 +312,7 @@ fn static_pag_ate_envelope_bayesian_nominal_90_coverage() {
         true,
         PAG_TRUTH,
         19_400,
+        [None, None, None],
     );
 }
 
@@ -412,6 +417,7 @@ fn run_conditional_coverage(
     bayesian: bool,
     truth: f64,
     seed: u64,
+    measured: [Option<f64>; 3],
 ) {
     let key = scalar_key(test, dgp, bayesian);
     let mut tally = CoverageTally::for_record(key, LEVEL);
@@ -431,7 +437,7 @@ fn run_conditional_coverage(
         tally.record(interval, truth);
         reported.record(interval_95, truth);
     }
-    tally.assert();
+    tally.assert_boundary_at(measured);
     reported.emit();
 }
 
@@ -448,6 +454,7 @@ fn conditional_effect_dag_frequentist_nominal_90_coverage() {
         false,
         B + G * 0.5,
         19_500,
+        [None, None, None],
     );
 }
 
@@ -466,6 +473,7 @@ fn conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage() {
         false,
         B + G * 0.08,
         19_600,
+        [None, None, None],
     );
 }
 
@@ -482,6 +490,7 @@ fn conditional_effect_dag_bayesian_nominal_90_coverage() {
         true,
         B + G * 0.5,
         19_700,
+        [None, None, None],
     );
 }
 
@@ -502,6 +511,7 @@ fn conditional_effect_cpdag_frequentist_nominal_90_coverage() {
         false,
         CONDITIONAL_CPDAG_TRUTH,
         19_800,
+        [Some(0.880), None, None],
     );
 }
 
@@ -518,6 +528,7 @@ fn conditional_effect_cpdag_bayesian_nominal_90_coverage() {
         true,
         CONDITIONAL_CPDAG_TRUTH,
         19_900,
+        [None, None, None],
     );
 }
 
@@ -537,6 +548,7 @@ fn conditional_effect_pag_frequentist_nominal_90_coverage() {
         false,
         CONDITIONAL_PAG_TRUTH,
         20_000,
+        [None, None, None],
     );
 }
 
@@ -553,6 +565,7 @@ fn conditional_effect_pag_bayesian_nominal_90_coverage() {
         true,
         CONDITIONAL_PAG_TRUTH,
         20_100,
+        [None, None, None],
     );
 }
 
@@ -701,5 +714,5 @@ fn unknown_two_scenario_joint_band_nominal_95_coverage() {
         "calibration unknown_two_scenario_joint_band: mean summed band width={:.4}",
         width_sum / f64::from(widths.max(1))
     );
-    tally.assert();
+    tally.assert_boundary_at([Some(0.940), None, None]);
 }

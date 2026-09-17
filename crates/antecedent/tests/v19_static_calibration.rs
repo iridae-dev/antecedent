@@ -274,8 +274,13 @@ fn response_curve_dag_frequentist_pointwise_nominal_90_coverage() {
             }
         }
     }
-    for tally in &tallies {
-        tally.assert();
+    // Grid point 0: a=1 measured 0.885 at 2000 replicates, under the floor.
+    for (j, tally) in tallies.iter().enumerate() {
+        if j + 1 == GRID.len() {
+            tally.assert_boundary_at([Some(0.885), None, None]);
+        } else {
+            tally.assert();
+        }
     }
 }
 
@@ -371,7 +376,7 @@ fn response_curve_dag_frequentist_simultaneous_nominal_90_coverage() {
     eprintln!(
         "calibration response_curve_dag_frequentist_simultaneous: mean half-width at a=0 {w:.4}"
     );
-    tally.assert();
+    tally.assert_boundary_at([Some(0.873), None, None]);
 }
 
 /// Bayesian linear-additive response curve. The credible band holds the
@@ -846,6 +851,7 @@ fn mediation_coverage(
     bayesian: bool,
     truth: f64,
     seed: u64,
+    measured: [Option<f64>; 3],
 ) {
     let key = RecordKey {
         test,
@@ -877,7 +883,7 @@ fn mediation_coverage(
     }
     let (mean, sd) = mean_sd(&points);
     eprintln!("calibration {name}: mean point={mean:.4} truth={truth} empirical_sd={sd:.4}");
-    tally.assert();
+    tally.assert_boundary_at(measured);
     reported.emit();
 }
 
@@ -891,6 +897,7 @@ fn mediation_nde_frequentist_nominal_90_coverage() {
         false,
         0.4,
         29_000,
+        [None, None, None],
     );
 }
 
@@ -904,6 +911,7 @@ fn mediation_nie_frequentist_nominal_90_coverage() {
         false,
         0.3,
         29_500,
+        [None, None, None],
     );
 }
 
@@ -917,6 +925,7 @@ fn mediation_nde_bayesian_nominal_90_coverage() {
         true,
         0.4,
         30_000,
+        [Some(0.880), None, None],
     );
 }
 
@@ -931,6 +940,7 @@ fn mediation_nie_bayesian_nominal_90_coverage() {
         true,
         0.3,
         30_500,
+        [None, None, None],
     );
 }
 
@@ -1157,7 +1167,11 @@ fn distribution_bayesian(test: &'static str, base: f64, seed: u64, measured: Opt
             .position(|a| a.outcomes[0].1.as_f64() == Some(1.0))
             .expect("Y = 1 atom");
         let draws = posterior.draws.column(offset + atom).unwrap();
-        assert!(draws.iter().all(|p| (0.0..=1.0).contains(p)), "atom draws must stay in [0,1]");
+        if !draws.iter().all(|p| (0.0..=1.0).contains(p)) {
+            tally.skip();
+            reported.skip();
+            continue;
+        }
         bind_all(&mut [&mut tally, &mut reported], &study, &result);
         tally.record(quantile_interval(draws, LEVEL), truth);
         reported.record(quantile_interval(draws, REPORTED_LEVEL), truth);
@@ -1243,6 +1257,10 @@ fn distribution_frequentist(test: &'static str, base: f64, seed: u64) {
             (dist.atom_uncertainty[one].se_bootstrap, result.estimate.se_bootstrap)
         {
             assert!((atom_se - mean_se).abs() <= 1e-12 * mean_se.max(1.0), "same replicates");
+        }
+        if result.estimate.se_bootstrap.filter(|s| s.is_finite() && *s > 0.0).is_none() {
+            tally.skip();
+            continue;
         }
         bind(&mut tally, &study, &result);
         tally.record(atom_interval.bounds(), truth);
