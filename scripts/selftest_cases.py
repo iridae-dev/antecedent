@@ -314,7 +314,7 @@ grid = [
 {points}]
 dgp = "{suite}::confounded_scm"
 test = "{suite}::linear_adjustment_analytic_ci_coverage"
-facets = ["core", "suite.calibration_coverage"]
+facets = ["estimator.linear_adjustment", "identity.backdoor", "suite.calibration_coverage"]
 calibration_sha = "{"1" * 40}"
 """
 
@@ -486,8 +486,8 @@ def schema_cases() -> list[bool]:
             "record_facets_narrowed_by_hand",
             {
                 "parity/coverage_records.toml": replace(
-                    'facets = ["core", "mechanism", "suite.v19_static_calibration"]',
-                    'facets = ["core", "suite.v19_static_calibration"]',
+                    'facets = ["mechanism", "suite.v19_static_calibration"]',
+                    'facets = ["suite.v19_static_calibration"]',
                 )
             },
             ["are not the derived", "collect_coverage_records.py --retag"],
@@ -531,7 +531,8 @@ def schema_cases() -> list[bool]:
             "record_without_facets",
             {
                 "parity/coverage_records.toml": replace(
-                    'facets = ["core", "suite.v19_temporal_frequentist"]\n', ""
+                    'facets = ["estimator.temporal_adjustment", "identity.temporal", "suite.v19_temporal_frequentist"]\n',
+                    "",
                 )
             },
             ["missing facets"],
