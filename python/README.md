@@ -83,7 +83,12 @@ Every Antecedent analysis retains a reusable study and exports a contracted exec
 Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists.
 Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
 
-## 1.9.0
+## Earlier releases
+
+These summaries describe the releases when they shipped. For current support,
+use the [support matrix](https://github.com/iridae-dev/antecedent/blob/v1.10.0/docs/support-matrix.md).
+
+### 1.9.0
 
 The
 [1.9.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.9.0.md)
@@ -96,7 +101,7 @@ Behaviour changes:
 `rd.sharp` defaults to the HC1 SE, NaN and null float cells are missing
 values, and the default bootstrap count is 199.
 
-## 1.8.0
+### 1.8.0
 
 The
 [1.8.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.8.0.md)
@@ -104,7 +109,7 @@ cover the Bayesian remainder of the staged handle: functional path,
 distribution, and ADMG ATE, static mediation, counterfactuals, derivatives,
 and ConditionalEffect graph-posterior mixtures.
 
-## 1.7.0
+### 1.7.0
 
 The
 [1.7.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.7.0.md)
@@ -113,7 +118,7 @@ The
 [1.6.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.6.0.md)
 cover per-horizon temporal identification, sequential overlays, and
 observation-adjusted temporal curves. The
-[1.5 Python walkthrough](https://github.com/iridae-dev/antecedent/blob/main/docs/local-distributional-joint.md)
+[Python walkthrough for local, distributional, and joint effects](https://github.com/iridae-dev/antecedent/blob/main/docs/local-distributional-joint.md)
 remains the guide for retargeting, CDFs, and joint interventions.
 
 ## Development
@@ -178,7 +183,7 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace contains 56 names on this branch: the 1.9 contract plus
+The root namespace contains 56 names in 1.10: the 1.9 contract plus
 `prepare`, `load`, `TransportQuery` and `InterferenceQuery`. `AnomalyAttribution`
 and `ChangeAttribution` types exist for the query axis; `analyze()` refuses them —
 the licensed cells are Rust `Study` only. `TransportQuery` and `InterferenceQuery`

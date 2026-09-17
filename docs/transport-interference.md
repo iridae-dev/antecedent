@@ -92,7 +92,7 @@ identify a response in the target. It is separate from `antecedent.priors`,
 which transports statistical evidence after the causal quantity is already
 defined.
 
-The 0.5 contract is single-source. A selection diagram contains:
+The 1.10 transport contract is single-source. A selection diagram contains:
 
 - one source and one target population key;
 - a causal ADMG;

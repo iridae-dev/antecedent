@@ -10,9 +10,11 @@ Format 0.4 was the durable-artifact wire freeze for package 1.0.0. A wire
 change advances the format and provides migration from prior stable versions;
 the package-version bump itself does not change artifact bytes.
 
-## Package 1.5 payloads
+<a id="package-15-payloads"></a>
 
-Package 1.5 estimates can carry score tables, per-arm CDF values, raw-score
+## Score tables and distribution payloads
+
+Since 1.5, estimates can carry score tables, per-arm CDF values, raw-score
 inference and covariance, and candidate-selection provenance. These fields have
 separate meanings:
 

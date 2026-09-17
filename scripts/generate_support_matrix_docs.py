@@ -261,7 +261,7 @@ does not close anything — it is the **reason table** for refused cells,
 not a fourth state. 1.10 requires every refused cell to have a named
 reason; a missing rule still refuses at runtime with the shared default
 message. `allowed_unlicensed` is retained as a compatibility wire value,
-but 0.9 has no active allowlist entries.
+but the current matrix has no active allowlist entries.
 
 | Status | Count | How to read it |
 |---|---|---|
@@ -269,7 +269,7 @@ but 0.9 has no active allowlist entries.
 | n/a | {n_a_count} | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
 | Meaningful remainder | {cartesian - n_a_count} | Combinations that could in principle be a claim |
 | Licensed | {len(cells)} | Staged path plus the row's recorded evidence contract and limitations |
-| `allowed_unlicensed` compatibility entries | {allowed_count} | Retained wire value; 0.9 requires this count to remain zero |
+| `allowed_unlicensed` compatibility entries | {allowed_count} | Retained wire value; the release gate requires this count to remain zero |
 | Refused — reason on file | {reason_backed_refused_count} | Same runtime outcome as any other refused cell; documented in legacy-named `support_closed.toml`, including mislabeled-inference laundering |
 | Refused — no reason on file | {unreasoned_refused_count} | Must stay 0; `gate_support_matrix.sh` fails if a refused cell has no `support_closed.toml` rule |
 
@@ -287,7 +287,7 @@ A missing cell is refused, not unspecified. `analyze` is sugar over the
 staged path; a combination that only works inside `analyze` cannot be
 licensed. A cell is exactly one of licensed / n/a / refused.
 `allowed_unlicensed` remains a readable wire value for compatibility with
-older artifacts and clients, but no 0.9 matrix cell can produce it.
+older artifacts and clients, but no current matrix cell can produce it.
 
 ## Axes
 
@@ -322,7 +322,7 @@ row here yet.
 ## `allowed_unlicensed` compatibility entries
 
 The wire value is retained for compatibility with older artifacts and clients.
-The 0.9 gate requires this list to be empty: every active cell is licensed,
+The release gate requires this list to be empty: every active cell is licensed,
 n/a, or refused.
 
 {chr(10).join(allowed_md_lines) if allowed_md_lines else "_None._"}
