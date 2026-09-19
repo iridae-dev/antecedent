@@ -147,6 +147,9 @@ pub struct EffectEstimate {
     /// Circular-block geometry of a one-series block-bootstrap SE (the block
     /// length the estimator chose and the lag-aligned rows it resampled).
     pub block_resampling: Option<BlockResampling>,
+    /// Observations that actually informed the fit (complete-case / trimmed /
+    /// lag-aligned rows). Distinct from the input snapshot row count.
+    pub n_obs: Option<u64>,
     /// Analytic SE formula behind [`Self::se_analytic`], recorded by the
     /// estimator that computed it. `None` when the SE is not an
     /// estimator-configured analytic kind (influence-function envelopes,
@@ -229,9 +232,17 @@ impl EffectEstimate {
             evalue_threshold: None,
             candidate_selection: None,
             block_resampling: None,
+            n_obs: None,
             se_kind: None,
             block_family: None,
         }
+    }
+
+    /// Record the analysis sample size that produced this interval.
+    #[must_use]
+    pub fn with_n_obs(mut self, n_obs: u64) -> Self {
+        self.n_obs = Some(n_obs);
+        self
     }
 
     /// Full constructor (required outside this crate because the type is `#[non_exhaustive]`).
@@ -281,6 +292,7 @@ impl EffectEstimate {
             evalue_threshold: None,
             candidate_selection: None,
             block_resampling: None,
+            n_obs: None,
             se_kind: None,
             block_family: None,
         }
@@ -724,6 +736,7 @@ impl LinearAdjustmentAte {
         );
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_n_obs(u64::try_from(nrows).unwrap_or(u64::MAX))
             .with_se_kind(self.se_kind)
             .with_influence(Some(Arc::from(influence))))
     }
@@ -962,11 +975,11 @@ impl LinearAdjustmentAte {
             0xA7E_u64,
             n,
             || (EstimationWorkspace::default(), vec![0.0; n * p], vec![0.0; n]),
-            |(ws, x_boot, y_boot), idx| {
-                match self.fit_resampled_coefficients(problem, ws, idx, x_boot, y_boot) {
-                    Ok(coefs) => Ok(Some(gcomp_or_coef_ate(problem, &coefs, t_col)?)),
-                    Err(_) => Ok(None),
-                }
+            |(ws, x_boot, y_boot), idx| match self
+                .fit_resampled_coefficients(problem, ws, idx, x_boot, y_boot)
+            {
+                Ok(coefs) => Ok(Some(gcomp_or_coef_ate(problem, &coefs, t_col)?)),
+                Err(_) => Ok(None),
             },
         )
     }

@@ -533,6 +533,76 @@ mod tests {
     }
 
     #[test]
+    fn conjugate_gram_cache_does_not_reuse_stale_xtx_after_realloc() {
+        let n = 32usize;
+        let prior = PriorSet {
+            specs: vec![
+                PriorSpec::GaussianCoefficients(GaussianCoefficientPrior::isotropic(1, 1e6)),
+                PriorSpec::KnownResidualVariance(1.0),
+            ],
+            contrast: None,
+            categorical: Vec::new(),
+            restrictions: Vec::new(),
+        };
+        let y = vec![2.0; n];
+        let opts = BayesFitOptions { n_draws: 8, seed: 1, ..BayesFitOptions::default() };
+        let mut reused = LaplaceWorkspace::default();
+        let first_ptr = {
+            let x = vec![1.0; n];
+            let ptr = x.as_ptr() as usize;
+            let _ = fit_conjugate_gaussian(
+                BayesDesignRef {
+                    x_colmajor: &x,
+                    nrows: n,
+                    ncols: 1,
+                    y: &y,
+                    weights: None,
+                    offsets: None,
+                },
+                &prior,
+                &opts,
+                &mut reused,
+            )
+            .unwrap();
+            ptr
+        };
+        let x2 = vec![2.0; n];
+        let recycled = x2.as_ptr() as usize == first_ptr;
+        let reused_fit = fit_conjugate_gaussian(
+            BayesDesignRef {
+                x_colmajor: &x2,
+                nrows: n,
+                ncols: 1,
+                y: &y,
+                weights: None,
+                offsets: None,
+            },
+            &prior,
+            &opts,
+            &mut reused,
+        )
+        .unwrap();
+        let fresh = fit_conjugate_gaussian(
+            BayesDesignRef {
+                x_colmajor: &x2,
+                nrows: n,
+                ncols: 1,
+                y: &y,
+                weights: None,
+                offsets: None,
+            },
+            &prior,
+            &opts,
+            &mut LaplaceWorkspace::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            reused_fit.map, fresh.map,
+            "fresh/reused MAP must match after a new X allocation (allocator_recycled={recycled})"
+        );
+    }
+
+    #[test]
     fn inv_gamma_moment_matches_mean() {
         // InvGamma(α=5, β=4) has mean β/(α−1) = 1.0
         let mut rng = CausalRng::from_seed(42);

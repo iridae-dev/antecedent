@@ -143,6 +143,64 @@ mod tests {
         assert!(ws.knn.index.is_some());
     }
 
+    #[test]
+    fn knn_rebuilds_when_unsampled_observation_changes() {
+        let n = 30usize;
+        let x: Vec<f64> = (0..n).map(|i| (i as f64).sin()).collect();
+        let mut y: Vec<f64> = (0..n).map(|i| (i as f64 * 0.3).cos()).collect();
+        let z: Vec<f64> = (0..n).map(|i| (i as f64 * 0.1).sin()).collect();
+        let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: 1 }];
+        let z_flat = [2usize];
+        let mut ws = CiWorkspace::default();
+        let ctx = ExecutionContext::for_tests(9);
+        let first = {
+            let cols: [&[f64]; 3] = [&x, &y, &z];
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::Analytic,
+                confidence: ConfidenceMethod::default(),
+            };
+            KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0]
+                .statistic
+        };
+        y[7] = 1000.0;
+        let reused = {
+            let cols: [&[f64]; 3] = [&x, &y, &z];
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::Analytic,
+                confidence: ConfidenceMethod::default(),
+            };
+            KnnDependence::new(3).test_batch_adhoc(&req, &mut ws, &ctx).unwrap().results[0]
+                .statistic
+        };
+        let mut fresh_ws = CiWorkspace::default();
+        let fresh = {
+            let cols: [&[f64]; 3] = [&x, &y, &z];
+            let req = CiBatchRequest {
+                columns: &cols,
+                queries: &queries,
+                z_flat: &z_flat,
+                significance: SignificanceMethod::Analytic,
+                confidence: ConfidenceMethod::default(),
+            };
+            KnnDependence::new(3).test_batch_adhoc(&req, &mut fresh_ws, &ctx).unwrap().results[0]
+                .statistic
+        };
+        assert!(
+            (reused - fresh).abs() < 1e-12,
+            "reused workspace {reused} must match fresh {fresh} after mutating Y[7]"
+        );
+        assert!(
+            (first - reused).abs() > 1.0,
+            "statistic must move when an unsampled row changes; first={first} reused={reused}"
+        );
+    }
+
     /// `ExecutionContext::for_tests` uses `scalar_only`; CI / standardize must honor it
     ///, matching an explicit scalar policy bit-for-bit.
     #[test]

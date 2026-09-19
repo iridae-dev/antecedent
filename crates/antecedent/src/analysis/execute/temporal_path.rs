@@ -678,6 +678,7 @@ impl super::Study {
                 )
             }
         };
+        let estimate = estimate.with_n_obs(u64::try_from(prep.design.nrows).unwrap_or(u64::MAX));
 
         let mut diagnostics = Vec::new();
         if identify_cached {
@@ -1542,7 +1543,8 @@ impl super::Study {
             standard_error,
             response.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
-        );
+        )
+        .with_n_obs(lag_aligned_analysis_rows(data, &aligned));
         let mut diagnostics = Vec::new();
         for entry in &aligned {
             diagnostics.extend(entry.identification.diagnostics.iter().cloned());
@@ -1856,7 +1858,8 @@ impl super::Study {
             standard_error,
             response.assumptions.clone(),
             OverlapPolicy::ExplicitOverride,
-        );
+        )
+        .with_n_obs(lag_aligned_analysis_rows(data, aligned));
         let mut diagnostics = vec![Diagnostic::new(
             "estimate.temporal.sequence_overlay",
             DiagnosticKind::Scientific,
@@ -3715,6 +3718,21 @@ impl<'a> TemporalClassWeights<'a> {
 /// different completion set or order per horizon, so the positional case index
 /// is not a stable identity. Keys are completion fingerprints, the same keys
 /// [`crate::ClassPrior::from_pairs`] accepts.
+fn lag_aligned_analysis_rows(
+    data: &TimeSeriesData,
+    aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
+) -> u64 {
+    let span = aligned
+        .iter()
+        .map(|entry| entry.indexer.history().saturating_add(entry.indexer.horizon()))
+        .max()
+        .unwrap_or(1);
+    u64::try_from(
+        data.row_count().saturating_sub(usize::try_from(span.saturating_sub(1)).unwrap_or(0)),
+    )
+    .unwrap_or(u64::MAX)
+}
+
 fn temporal_class_complete_values(
     atoms: &[crate::result::StructuralResponseAtom],
     horizon_fingerprints: &[Vec<u64>],

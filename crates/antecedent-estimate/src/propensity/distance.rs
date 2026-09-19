@@ -270,6 +270,7 @@ impl DistanceMatching {
 
         Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
             .with_se_kind(self.se_kind)
+            .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
             .with_retained_memory_bytes(Some(workspace.retained_memory_bytes()))
             .with_bootstrap(boot))
@@ -302,58 +303,58 @@ impl DistanceMatching {
                 )
             },
             |(workspace, feat_boot, x_boot, t_boot, y_boot), idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                t_boot[r] = problem.treatment[src];
-                y_boot[r] = problem.outcome[src];
-                for d in 0..dim {
-                    feat_boot[r * dim + d] = features[src * dim + d];
-                }
-                if trim.is_some() {
-                    for c in 0..ncols {
-                        x_boot[c * n + r] = problem.design_matrix[c * n + src];
+                for (r, &src) in idx.iter().enumerate() {
+                    t_boot[r] = problem.treatment[src];
+                    y_boot[r] = problem.outcome[src];
+                    for d in 0..dim {
+                        feat_boot[r * dim + d] = features[src * dim + d];
+                    }
+                    if trim.is_some() {
+                        for c in 0..ncols {
+                            x_boot[c * n + r] = problem.design_matrix[c * n + src];
+                        }
                     }
                 }
-            }
-            let retained = if trim.is_some() {
-                let Ok(fit) = fit_propensity(
-                    x_boot,
-                    n,
-                    ncols,
-                    t_boot,
-                    &self.backend,
-                    &mut workspace.propensity,
-                    &self.glm_options,
-                ) else {
-                    return Ok(None);
+                let retained = if trim.is_some() {
+                    let Ok(fit) = fit_propensity(
+                        x_boot,
+                        n,
+                        ncols,
+                        t_boot,
+                        &self.backend,
+                        &mut workspace.propensity,
+                        &self.glm_options,
+                    ) else {
+                        return Ok(None);
+                    };
+                    match trim_retained_rows(&fit.scores, trim) {
+                        Ok(r) => r,
+                        Err(_) => return Ok(None),
+                    }
+                } else {
+                    None
                 };
-                match trim_retained_rows(&fit.scores, trim) {
-                    Ok(r) => r,
-                    Err(_) => return Ok(None),
+                let (t_used, y_used, mut f_used) =
+                    restrict_to_rows(t_boot, y_boot, feat_boot, dim, retained.as_deref());
+                standardize_rowmajor_inplace(&mut f_used, t_used.len(), dim);
+                match matching_contrast(
+                    &t_used,
+                    &y_used,
+                    &f_used,
+                    dim,
+                    MatchingDistance::Euclidean,
+                    &problem.target_population,
+                    self.caliper,
+                    workspace,
+                    AnalyticSeKind::Homoskedastic,
+                    None,
+                    None,
+                    None,
+                    None,
+                ) {
+                    Ok(m) => Ok(Some(m.ate)),
+                    Err(_) => Ok(None),
                 }
-            } else {
-                None
-            };
-            let (t_used, y_used, mut f_used) =
-                restrict_to_rows(t_boot, y_boot, feat_boot, dim, retained.as_deref());
-            standardize_rowmajor_inplace(&mut f_used, t_used.len(), dim);
-            match matching_contrast(
-                &t_used,
-                &y_used,
-                &f_used,
-                dim,
-                MatchingDistance::Euclidean,
-                &problem.target_population,
-                self.caliper,
-                workspace,
-                AnalyticSeKind::Homoskedastic,
-                None,
-                None,
-                None,
-                None,
-            ) {
-                Ok(m) => Ok(Some(m.ate)),
-                Err(_) => Ok(None),
-            }
             },
         )
     }

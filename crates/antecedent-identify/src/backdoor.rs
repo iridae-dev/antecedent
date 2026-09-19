@@ -13,7 +13,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
+use antecedent_core::{
+    AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
+    VariableId,
+};
 use antecedent_expr::CausalExprArena;
 use antecedent_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId};
 
@@ -28,6 +31,11 @@ use crate::result::{
 pub struct AdjustmentSearchConfig {
     /// Maximum number of adjustment sets to return.
     pub max_results: usize,
+    /// Maximum candidate sets to d-separate (work budget, not an output cap).
+    ///
+    /// Exhaustion is an incomplete search: `NotIdentified` plus an execution
+    /// diagnostic, not a certificate of structural non-identification.
+    pub max_examinations: u64,
     /// Maximum candidate variables for exact subset enumeration (fail closed above).
     ///
     /// Default is 40. Beyond this, search restricts to ancestors of `{T,Y}` first;
@@ -58,6 +66,7 @@ impl Default for AdjustmentSearchConfig {
     fn default() -> Self {
         Self {
             max_results: 64,
+            max_examinations: 1_000_000,
             max_candidates: 40,
             forbidden: Arc::from([]),
             minimal_only: true,
@@ -261,6 +270,7 @@ impl BackdoorIdentifier {
         let mut derivation_notes: Vec<String> = Vec::new();
         let mut examined = 0u64;
         let mut truncated = false;
+        let mut budget_exhausted = false;
 
         // Screen to An({T,Y}) \ forbidden when over the exact-enumeration cap.
         let cap = self.config.max_candidates;
@@ -320,15 +330,6 @@ impl BackdoorIdentifier {
                     if enum_err.is_some() {
                         return true;
                     }
-                    examined += 1;
-                    match is_backdoor_adjustment(&mutilated, t, y, z, &mut workspace.dsep) {
-                        Ok(false) => return false,
-                        Err(e) => {
-                            enum_err = Some(e);
-                            return true;
-                        }
-                        Ok(true) => {}
-                    }
                     if self.config.minimal_only && valid.iter().any(|prev| is_subset(prev, z)) {
                         return false;
                     }
@@ -338,7 +339,25 @@ impl BackdoorIdentifier {
                     {
                         return false;
                     }
+                    if examined >= self.config.max_examinations {
+                        budget_exhausted = true;
+                        early_stop = true;
+                        return true;
+                    }
+                    examined += 1;
+                    match is_backdoor_adjustment(&mutilated, t, y, z, &mut workspace.dsep) {
+                        Ok(false) => return false,
+                        Err(e) => {
+                            enum_err = Some(e);
+                            return true;
+                        }
+                        Ok(true) => {}
+                    }
                     valid.push(z.to_vec());
+                    if self.config.minimal_only && z.is_empty() {
+                        early_stop = true;
+                        return true;
+                    }
                     if valid.len() >= self.config.max_results {
                         truncated = true;
                         early_stop = true;
@@ -387,14 +406,34 @@ impl BackdoorIdentifier {
                 ),
             );
         }
+        if budget_exhausted {
+            derivation.push(
+                "backdoor.enumeration",
+                format!(
+                    "examination budget exhausted after {examined} d-separations \
+                     (max_examinations={}); search is incomplete",
+                    self.config.max_examinations
+                ),
+            );
+        }
 
         if valid.is_empty() {
-            return Ok(IdentificationResult::not_identified(
+            let mut result = IdentificationResult::not_identified(
                 query,
                 derivation,
                 assumptions,
                 IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
-            ));
+            );
+            if budget_exhausted {
+                result.diagnostics.push(Diagnostic::new(
+                    "identify.backdoor.search_bounded",
+                    DiagnosticKind::Execution,
+                    DiagnosticSeverity::Warning,
+                    "backdoor search exhausted max_examinations before a complete enumeration; \
+                     NotIdentified is a search bound, not a certificate of structural non-ID",
+                ));
+            }
+            return Ok(result);
         }
 
         let mut arena = CausalExprArena::new();
@@ -413,7 +452,7 @@ impl BackdoorIdentifier {
             derivation.push("backdoor.adjustment_set", format!("|Z|={}", z.len()));
         }
 
-        Ok(IdentificationResult::identified(
+        let mut result = IdentificationResult::identified(
             query,
             estimands,
             arena,
@@ -423,7 +462,17 @@ impl BackdoorIdentifier {
                 candidates_examined: examined,
                 sets_returned: u64::try_from(valid.len()).unwrap_or(u64::MAX),
             },
-        ))
+        );
+        if budget_exhausted {
+            result.diagnostics.push(Diagnostic::new(
+                "identify.backdoor.search_bounded",
+                DiagnosticKind::Execution,
+                DiagnosticSeverity::Warning,
+                "backdoor search exhausted max_examinations; returned sets are valid but \
+                 the enumeration is incomplete",
+            ));
+        }
+        Ok(result)
     }
 }
 
@@ -542,6 +591,19 @@ impl BackdoorIdentifier {
                 if enum_err.is_some() || stop {
                     return true;
                 }
+                if self.config.minimal_only && accepted.iter().any(|prev| is_subset(prev, z)) {
+                    return false;
+                }
+                if self.config.maximal_only
+                    && !self.config.minimal_only
+                    && accepted.iter().any(|prev| is_subset(z, prev))
+                {
+                    return false;
+                }
+                if examined >= self.config.max_examinations {
+                    stop = true;
+                    return true;
+                }
                 examined += 1;
                 match is_backdoor_adjustment(&mutilated, t, y, z, &mut workspace.dsep) {
                     Ok(false) => return false,
@@ -551,14 +613,20 @@ impl BackdoorIdentifier {
                     }
                     Ok(true) => {}
                 }
-                if self.config.minimal_only && accepted.iter().any(|prev| is_subset(prev, z)) {
-                    return false;
-                }
-                if self.config.maximal_only
-                    && !self.config.minimal_only
-                    && accepted.iter().any(|prev| is_subset(z, prev))
-                {
-                    return false;
+                if self.config.minimal_only && z.is_empty() {
+                    accepted.push(z.to_vec());
+                    let vars: Result<Vec<_>, _> = z.iter().map(|d| dense_to_var(*d, dag)).collect();
+                    match vars {
+                        Ok(vars) => {
+                            let _ = visit(&vars);
+                            stop = true;
+                            return true;
+                        }
+                        Err(e) => {
+                            enum_err = Some(e);
+                            return true;
+                        }
+                    }
                 }
                 accepted.push(z.to_vec());
                 let vars: Result<Vec<_>, _> = z.iter().map(|d| dense_to_var(*d, dag)).collect();
@@ -868,6 +936,52 @@ mod tests {
         let res = id.identify(&prep, &q, &mut ws).unwrap();
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(res.estimands[0].adjustment_set.is_empty());
+        assert_eq!(res.performance.candidates_examined, 1);
+    }
+
+    #[test]
+    fn empty_minimal_set_does_not_enumerate_isolates() {
+        // T → Y plus 16 isolated covariates: only ∅ is inclusion-minimal.
+        let mut g = Dag::with_variables(18);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let id = BackdoorIdentifier::new();
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(res.estimands[0].adjustment_set.is_empty());
+        assert_eq!(res.performance.candidates_examined, 1);
+        assert_eq!(res.estimands.len(), 1);
+    }
+
+    #[test]
+    fn examination_budget_is_incomplete_not_structural() {
+        // U → T, U → Y, T → Y plus isolates: ∅ is invalid; a tiny budget cannot finish.
+        let mut g = Dag::with_variables(12);
+        let t = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let u = DenseNodeId::from_raw(11);
+        g.insert_directed(u, t).unwrap();
+        g.insert_directed(u, y).unwrap();
+        g.insert_directed(t, y).unwrap();
+        let mut id = BackdoorIdentifier::new();
+        id.config.max_examinations = 4;
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NotIdentified);
+        assert!(
+            res.diagnostics.iter().any(|d| d.code.as_ref() == "identify.backdoor.search_bounded")
+        );
+        assert!(res.performance.candidates_examined <= 4);
     }
 
     #[test]

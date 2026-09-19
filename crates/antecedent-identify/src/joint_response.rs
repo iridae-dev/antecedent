@@ -211,6 +211,9 @@ fn identify_joint(
     for size in 0..=candidates.len() {
         let mut error = None;
         crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
+            if examined >= 1_000_000 {
+                return true;
+            }
             examined += 1;
             for (index, &target) in targets.iter().enumerate() {
                 let mut conditioned = z.to_vec();
@@ -517,10 +520,7 @@ mod tests {
         let query =
             joint(VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
         let id = GeneralizedAdjustmentIdentifier {
-            config: crate::GeneralizedAdjustmentConfig {
-                max_candidates: 16,
-                ..Default::default()
-            },
+            config: crate::GeneralizedAdjustmentConfig { max_candidates: 16, ..Default::default() },
         }
         .identify_joint_admg_response(&admg, &query)
         .unwrap();
