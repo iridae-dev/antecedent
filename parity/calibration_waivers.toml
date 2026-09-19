@@ -19,14 +19,16 @@
 
 [[waiver]]
 id = "map-replicates-bayesian-static"
-from = "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6"
-to = "b5396f331651340d929cd1e32fc986d0fce047a5"
+from = "62fb5c57099ce07ac9659f4b6f6a664971e23df7"
+to = "a8e0da286e2773c9d159a46d05661842fa7d914d"
 reviewed_by = "Charles Hinshaw"
 justification = """
 coverage_over in v110_calibration_bayesian_static.rs now maps independent
 seeds through map_replicates. Each seed still builds a serial
 ExecutionContext::for_tests study. Same seed, same interval. The loop
-order of bind/record is seed order. This cannot move a measured number.\
+order of bind/record is seed order. This cannot move a measured number.
+from/to sit on the flattened 1.11 history at the commits that hold the
+same surface bytes.\
 """
 paths = [
   "crates/antecedent/tests/v110_calibration_bayesian_static.rs",
@@ -39,7 +41,7 @@ exercises = [
 ]
 
 [waiver.outcome]
-replayed_at = "b5396f331651340d929cd1e32fc986d0fce047a5"
+replayed_at = "a8e0da286e2773c9d159a46d05661842fa7d914d"
 identical = true
 records = [
   "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage",
@@ -52,13 +54,15 @@ differences = [
 
 [[waiver]]
 id = "gac-cap-40-1bfa436e"
-from = "1bfa436e627cb4c702e3df07a5322420621cd6b1"
-to = "51d8c6156397d97c79bef5d85867c236168f71d2"
+from = "646b79b749a19053497deaaa34a8b7070e43ef54"
+to = "4f16befe58b147f1240578d727267c1e2674466d"
 reviewed_by = "Charles Hinshaw"
 justification = """
 GeneralizedAdjustmentConfig::default max_candidates moved from 16 to 40 to
 match DAG backdoor. The tiered overflow fixture pins an explicit 16.
-Calibration DGPs never hit the cap: same seed, same interval.\
+Calibration DGPs never hit the cap: same seed, same interval. from/to sit
+on the flattened 1.11 history at the commits that hold the same surface
+bytes.\
 """
 paths = [
   "crates/antecedent-identify/src/generalized.rs",
@@ -78,7 +82,7 @@ exercises = [
 ]
 
 [waiver.outcome]
-replayed_at = "51d8c6156397d97c79bef5d85867c236168f71d2"
+replayed_at = "4f16befe58b147f1240578d727267c1e2674466d"
 identical = true
 records = [
   "cov.average_effect.cpdag.frequentist.analytic_se.l90.static_cpdag_ate_envelope_frequentist_nominal_90_coverage",
@@ -93,14 +97,15 @@ differences = [
 
 [[waiver]]
 id = "gac-cap-40-bda2b9b8"
-from = "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6"
-to = "51d8c6156397d97c79bef5d85867c236168f71d2"
+from = "62fb5c57099ce07ac9659f4b6f6a664971e23df7"
+to = "4f16befe58b147f1240578d727267c1e2674466d"
 reviewed_by = "Charles Hinshaw"
 justification = """
 GeneralizedAdjustmentConfig::default max_candidates moved from 16 to 40 to
 match DAG backdoor. Calibration DGPs never hit the cap: same seed, same
 interval. Records that also carry suite.v110_calibration_bayesian_static
-are covered here so both drifted paths are named.\
+are covered here so both drifted paths are named. from/to sit on the
+flattened 1.11 history at the commits that hold the same surface bytes.\
 """
 paths = [
   "crates/antecedent-identify/src/generalized.rs",
@@ -115,7 +120,7 @@ exercises = [
 ]
 
 [waiver.outcome]
-replayed_at = "51d8c6156397d97c79bef5d85867c236168f71d2"
+replayed_at = "4f16befe58b147f1240578d727267c1e2674466d"
 identical = true
 records = [
   "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage",
