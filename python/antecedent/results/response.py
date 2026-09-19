@@ -8,14 +8,16 @@ structural identification are the same status.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
 from math import isfinite, isnan
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, Self
+
+from pydantic import Field, PrivateAttr, model_validator
 
 from .._verdict import describe_status
 from ..errors import CausalValueError
 from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct
+from ._report import ResultModel
 from ._slots import ReasoningSlots, mass_limitation
 from ._views import IdentificationView
 
@@ -23,8 +25,7 @@ SupportStatus = Literal["supported", "weak_overlap", "extrapolative", "outside_e
 UncertaintyKind = Literal["none", "pointwise", "simultaneous", "identified_set", "posterior"]
 
 
-@dataclass(frozen=True, slots=True)
-class ResponseView:
+class ResponseView(ResultModel):
     """A scalar or vector causal response evaluated at explicit intervention points."""
 
     treatments: Sequence[str]
@@ -32,7 +33,8 @@ class ResponseView:
     points: Sequence[Sequence[float]]
     values: Sequence[Sequence[float]]
 
-    def __post_init__(self) -> None:
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
         if not self.treatments or not self.outcomes:
             raise CausalValueError("treatments and outcomes must not be empty")
         if len(self.points) != len(self.values):
@@ -54,9 +56,31 @@ class ResponseView:
                 raise CausalValueError("each response row must have one value per outcome")
             if not all(isfinite(value) for value in row):
                 raise CausalValueError("response values must be finite")
+        return self
 
     def __len__(self) -> int:
         return len(self.points)
+
+    def to_columns(self) -> dict[str, list[Any]]:
+        """Grid as name → column. Twin of dict-in; no frame dep."""
+        data: dict[str, list[Any]] = {}
+        width = len(self.points[0]) if self.points else len(self.treatments)
+        for i in range(width):
+            name = self.treatments[i] if i < len(self.treatments) else f"axis_{i}"
+            data[name] = [point[i] for point in self.points]
+        for i, name in enumerate(self.outcomes):
+            data[name] = [row[i] for row in self.values]
+        return data
+
+    def __arrow_c_stream__(self, requested_schema: Any = None) -> Any:
+        try:
+            import pyarrow as pa
+        except ImportError as exc:
+            raise ImportError(
+                "Arrow stream export requires pyarrow; install it with "
+                "`pip install pyarrow` (or `uv add pyarrow`)"
+            ) from exc
+        return pa.table(self.to_columns()).__arrow_c_stream__(requested_schema)
 
     def __repr__(self) -> str:
         return (
@@ -65,8 +89,7 @@ class ResponseView:
         )
 
 
-@dataclass(frozen=True, slots=True)
-class ResponseEnvelopeView:
+class ResponseEnvelopeView(ResultModel):
     """Function-valued identified envelope over one shared intervention grid."""
 
     treatments: Sequence[str]
@@ -95,7 +118,8 @@ class ResponseEnvelopeView:
     #: estimate, and not mixed into the published value.
     subsampled_out_mass: float = 0.0
 
-    def __post_init__(self) -> None:
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
         if len(self.points) != len(self.lower) or len(self.points) != len(self.upper):
             raise CausalValueError("points, lower, and upper must have the same number of rows")
         if not 0.0 <= self.identified_mass <= 1.0:
@@ -133,13 +157,13 @@ class ResponseEnvelopeView:
                 raise CausalValueError("each envelope row must have one value per outcome")
             if any(a > b for a, b in zip(lo, hi, strict=True)):
                 raise CausalValueError("each envelope lower value must not exceed its upper value")
+        return self
 
     def __len__(self) -> int:
         return len(self.points)
 
 
-@dataclass(frozen=True, slots=True)
-class ResponseValidationCheck:
+class ResponseValidationCheck(ResultModel):
     """One estimand-aware response validation diagnostic."""
 
     id: str
@@ -150,8 +174,7 @@ class ResponseValidationCheck:
     replicates: int = 0
 
 
-@dataclass(frozen=True, slots=True)
-class ResponseValidationView:
+class ResponseValidationView(ResultModel):
     """Curve-legal checks, including explicit scalar-refuter skips."""
 
     checks: Sequence[ResponseValidationCheck] = ()
@@ -165,23 +188,23 @@ class ResponseValidationView:
         return [check for check in self.checks if check.status == "skipped"]
 
 
-@dataclass(frozen=True, slots=True)
-class SupportDiagnostic:
+class SupportDiagnostic(ResultModel):
     """One named empirical overlap/support diagnostic."""
 
     id: str
     values: Sequence[float]
     detail: str
 
-    def __post_init__(self) -> None:
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
         if not self.id.strip():
             raise CausalValueError("diagnostic name must be a non-empty string")
         if not all(isfinite(value) for value in self.values):
             raise CausalValueError("diagnostic values must be finite")
+        return self
 
 
-@dataclass(frozen=True, slots=True)
-class SupportReport:
+class SupportReport(ResultModel):
     """Estimand-aware empirical support, separate from identification status.
 
     ``status`` on a static curve is the worst label over requested points. On a
@@ -190,13 +213,14 @@ class SupportReport:
     labels share the mean-surface layout (dose-major).
     """
 
-    status: SupportStatus
+    status: str
     query_region: Mapping[str, tuple[float, float]]
     diagnostics: Sequence[SupportDiagnostic] = ()
     warnings: Sequence[str] = ()
-    point_status: Sequence[SupportStatus] | None = None
+    point_status: Sequence[str] | None = None
 
-    def __post_init__(self) -> None:
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
         allowed = {
             "supported",
             "weak_overlap",
@@ -217,6 +241,7 @@ class SupportReport:
                 or bounds[0] > bounds[1]
             ):
                 raise CausalValueError(f"invalid support query region for {variable!r}")
+        return self
 
     def __bool__(self) -> bool:
         return self.status == "supported"
@@ -229,11 +254,10 @@ class SupportReport:
         )
 
 
-@dataclass(frozen=True, slots=True)
-class ResponseUncertainty:
+class ResponseUncertainty(ResultModel):
     """Pointwise, simultaneous, set-valued, or posterior response uncertainty."""
 
-    kind: UncertaintyKind
+    kind: str
     lower: Sequence[Sequence[float]] | None = None
     upper: Sequence[Sequence[float]] | None = None
     level: float | None = None
@@ -241,7 +265,8 @@ class ResponseUncertainty:
     replicates: int | None = None
     artifact_id: str | None = None
 
-    def __post_init__(self) -> None:
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
         allowed = {"none", "pointwise", "simultaneous", "identified_set", "posterior"}
         if self.kind not in allowed:
             raise CausalValueError(f"unknown uncertainty kind {self.kind!r}")
@@ -278,6 +303,7 @@ class ResponseUncertainty:
             raise CausalValueError("standard_error must be finite and non-negative")
         if self.replicates is not None and self.replicates < 1:
             raise CausalValueError("replicates must be at least 1")
+        return self
 
     def __repr__(self) -> str:
         level = "" if self.level is None else f" level={fmt_pct(self.level)}"
@@ -290,8 +316,7 @@ SIMULTANEOUS_BAND_UPPER = "response.simultaneous_band.upper"
 SIMULTANEOUS_BAND_CRITICAL = "response.simultaneous_band.critical"
 
 
-@dataclass(frozen=True, slots=True)
-class SimultaneousBand:
+class SimultaneousBand(ResultModel):
     """A band that covers every response cell at once, next to a pointwise band.
 
     Temporal ``ResponseCurve`` / ``InterventionResponse`` surfaces keep their
@@ -314,7 +339,8 @@ class SimultaneousBand:
     upper: Sequence[Sequence[float]]
     detail: str = ""
 
-    def __post_init__(self) -> None:
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
         if not 0.0 < self.level < 1.0:
             raise CausalValueError("level must be strictly between 0 and 1")
         if not isfinite(self.critical) or self.critical < 0.0:
@@ -328,6 +354,7 @@ class SimultaneousBand:
                 lo > hi for lo, hi in zip(lower, upper, strict=True)
             ):
                 raise CausalValueError("simultaneous band rows must be ordered and aligned")
+        return self
 
     @classmethod
     def from_support(cls, support: SupportReport) -> SimultaneousBand | None:
@@ -358,8 +385,7 @@ class SimultaneousBand:
         )
 
 
-@dataclass(frozen=True, slots=True)
-class CausalResponseView(ResultAPI):
+class CausalResponseView(ResultModel, ResultAPI):
     """Top-level result projection shared by response-family estimands."""
 
     _function_valued: ClassVar[bool] = True
@@ -371,7 +397,7 @@ class CausalResponseView(ResultAPI):
     support: SupportReport
     identification: IdentificationView
     assumptions: Sequence[str] = ()
-    provenance: Mapping[str, Any] = field(default_factory=dict)
+    provenance: Mapping[str, Any] = Field(default_factory=dict)
     envelope: ResponseEnvelopeView | None = None
     validation: ResponseValidationView | None = None
     evidence_status: str | None = None
@@ -386,8 +412,8 @@ class CausalResponseView(ResultAPI):
     claim_id: str | None = None
     #: Identity of the data snapshot this execution ran on.
     data_snapshot_id: str | None = None
-    _prepared: Any = field(default=None, repr=False, compare=False)
-    _execution: Any = field(default=None, repr=False, compare=False)
+    _prepared: Any = PrivateAttr(default=None)
+    _execution: Any = PrivateAttr(default=None)
 
     @property
     def simultaneous_band(self) -> SimultaneousBand | None:

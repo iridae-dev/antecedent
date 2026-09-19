@@ -12,6 +12,7 @@ from antecedent._native import analyze_response_pag
 from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.results import (
     CausalResponseView,
+    IdentificationView,
     ResponseUncertainty,
     ResponseView,
     SupportDiagnostic,
@@ -101,7 +102,13 @@ def test_response_result_views_validate_shape_and_report_orthogonal_axes():
         estimate=None,
         uncertainty=uncertainty,
         support=support,
-        identification="identified",
+        identification=IdentificationView(
+            status="NonparametricallyIdentified",
+            method="response.backdoor",
+            adjustment_set=[],
+            assumption_count=0,
+            derivation_step_count=0,
+        ),
     )
     assert len(response) == 2
     assert not support
@@ -473,17 +480,45 @@ def test_response_refuses_ignored_threads():
         )
 
 
-def test_response_refuses_admg_with_explicit_error():
-    admg = antecedent.Admg.from_edges(["a", "y"], directed=[("a", "y")], bidirected=[])
-    with pytest.raises(
-        CausalUnsupportedError,
-        match="refused: Admg response has no functional plug-in",
-    ):
-        antecedent.analyze(
-            {"a": np.arange(30.0), "y": np.arange(30.0)},
-            query=antecedent.ResponseCurve("a", "y", grid=[1.0, 2.0]),
-            graph=admg,
-        )
+def test_response_admg_intervention_cheap_runs_plugin_level():
+    from pathlib import Path
+
+    from _repo_text import load_json
+
+    pin = load_json(
+        Path(__file__).resolve().parents[2]
+        / "conformance"
+        / "estimate"
+        / "admg_frontdoor_functional"
+        / "expected.json"
+    )
+    values = {name: [] for name in pin["columns"]}
+    for cell in pin["contingency_table"]:
+        count = int(cell["count"])
+        for name in pin["columns"]:
+            values[name].extend([float(cell[name])] * count)
+    data = {name: np.asarray(column, dtype=np.float64) for name, column in values.items()}
+    spec = pin["graph"]
+    admg = antecedent.Admg.from_edges(
+        pin["columns"],
+        [tuple(edge) for edge in spec["directed_edges"]],
+        bidirected=[tuple(edge) for edge in spec["bidirected_edges"]],
+    )
+    result = antecedent.analyze(
+        data,
+        query=antecedent.InterventionResponse(
+            "y", intervention=antecedent.intervention.Set("t", 1.0)
+        ),
+        graph=admg,
+        refute="cheap",
+        bootstrap=0,
+        seed=1,
+    )
+    assert result.evidence_status == "licensed"
+    assert any(
+        "refute.evalue.not_a_contrast" in diagnostic and "overlap" in diagnostic
+        for diagnostic in result.diagnostics
+    )
 
 
 def test_response_cpdag_mean_curve_is_licensed():

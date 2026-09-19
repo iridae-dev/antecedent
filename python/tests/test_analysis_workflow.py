@@ -177,20 +177,22 @@ def test_failed_refresh_retains_previous_binding_and_error_context():
 def test_partial_and_missing_evidence_are_not_scalar_success():
     from dataclasses import replace
 
+    from antecedent.results._report import copy_model
+
     result = ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
     ident = replace(
         result.reasoning.identification,
         payload={**result.reasoning.identification.payload, "unevaluable_mass": 0.25},
     )
-    partial = replace(result, reasoning=replace(result.reasoning, identification=ident))
+    partial = copy_model(result, reasoning=replace(result.reasoning, identification=ident))
     assert partial.answer.kind == "partial"
     assert partial.answer.value is None
     assert "partial" in repr(partial)
     assert "unevaluable_mass" in partial._repr_html_()
-    empty = replace(
+    empty = copy_model(
         result,
         reasoning=None,
-        estimate=replace(result.estimate, se_analytic=float("nan")),
+        estimate=copy_model(result.estimate, se_analytic=float("nan")),
         assumptions=None,
     )
     assert not empty.inspect().uncertainty.available

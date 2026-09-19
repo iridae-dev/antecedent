@@ -1,13 +1,11 @@
 """Container dunders on the views that are conceptually collections.
 
-Covers ``ValidationView`` (len/iter/getitem/.failed/.to_pandas),
+Covers ``ValidationView`` (len/iter/getitem/.failed/.to_columns),
 ``PosteriorView`` (__array__/.interval), and ``IdentificationView.__bool__``
 edge cases beyond the happy path already covered in test_result_repr.py.
 """
 
 from __future__ import annotations
-
-import sys
 
 import numpy as np
 import pytest
@@ -93,22 +91,14 @@ def test_validation_view_failed_property_all_passed():
     assert view.failed == []
 
 
-def test_validation_view_to_pandas_happy_path():
-    pd = pytest.importorskip("pandas")
+def test_validation_view_to_columns():
     reports = [_refutation("placebo", True), _refutation("bootstrap", False)]
     view = ValidationView(passed=False, ran=True, count=2, reports=reports)
-    frame = view.to_pandas()
-    assert isinstance(frame, pd.DataFrame)
-    assert len(frame) == 2
-    assert list(frame["refuter"]) == ["placebo", "bootstrap"]
-    assert list(frame["passed"]) == [True, False]
-
-
-def test_validation_view_to_pandas_missing_dependency_raises_clear_import_error(monkeypatch):
-    monkeypatch.setitem(sys.modules, "pandas", None)
-    view = ValidationView(passed=True, ran=True, count=0, reports=[])
-    with pytest.raises(ImportError, match="pandas"):
-        view.to_pandas()
+    cols = view.to_columns()
+    assert cols["refuter"] == ["placebo", "bootstrap"]
+    assert cols["passed"] == [True, False]
+    assert not hasattr(view, "to_pandas")
+    assert not hasattr(view, "to_arrow")
 
 
 # --- PosteriorView.__array__ -----------------------------------------------------

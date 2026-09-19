@@ -1,19 +1,21 @@
 """Handoffs to external estimators that consume an adjustment set.
 
 Antecedent identifies. The adapter emits the set and status for estimands that
-actually are adjustment estimands. It does not wrap EconML learners or absorb
-ML CATE.
+actually are adjustment estimands. ``attach`` records a caller-fitted payload
+as attested, not re-verifiable, evidence. It does not wrap EconML learners or
+absorb ML CATE.
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from typing import Any, cast
+from dataclasses import dataclass, field
+from typing import Any, Literal, cast
 
 import numpy as np
 
-from .errors import CausalUnsupportedError, CausalValueError
+from .errors import CausalError, CausalUnsupportedError, CausalValueError
 from .estimation import IdentifyResult
 from .identify import Identification
 from .ids import Identifier
@@ -52,6 +54,7 @@ class EconMLSpec:
     temporal: bool = False
     target_weights: Any | None = None
     outcome_functional: Any | None = None
+    _parent: Any | None = field(default=None, repr=False, compare=False)
 
     @property
     def treatments(self) -> tuple[str, ...]:
@@ -131,6 +134,97 @@ class EconMLSpec:
             cols["origins"] = origins
         return cols
 
+    def attach(
+        self,
+        *,
+        learner: str,
+        learner_config: Mapping[str, Any] | None = None,
+        effect: Any,
+        interval: Any | None = None,
+        data: Mapping[str, Any] | None = None,
+        label: Literal["ate"] | None = None,
+    ) -> ExternalEstimate:
+        """Attach a caller-fitted external estimate as attested, not re-verifiable, evidence.
+
+        Antecedent does not import or wrap the learner. The label, config, and
+        payload are hashed onto ``claim.attested``; calibration stays
+        ``unavailable`` / ``attested_not_reverifiable``.
+        """
+        _require_attachable(self)
+        parent = self._parent
+        if parent is not None:
+            _require_adjustment_parent(parent)
+        identification, snapshot, snapshot_payload = _bind_parent_identities(self, parent, data)
+        effect_arr = np.asarray(effect, dtype=np.float64)
+        scalar: float | None = None
+        if label == "ate":
+            if effect_arr.shape not in ((), (1,)):
+                raise CausalValueError("label='ate' requires a scalar effect")
+            scalar = float(np.reshape(effect_arr, ()))
+        names = _receipt_names(self)
+        from . import artifacts
+        from ._native import encode_external_estimate_claim
+
+        encoded = encode_external_estimate_claim(
+            learner=str(learner),
+            config=_canonical_config(learner_config),
+            payload=_payload_bytes(effect_arr, interval),
+            names=names,
+            treatment=self.treatments[0],
+            outcome=self.outcome,
+            identifier=self.identifier,
+            status=self.status,
+            confounders=list(self.confounders),
+            identification=identification,
+            data_snapshot=snapshot,
+            snapshot_payload=snapshot_payload,
+            scalar_value=scalar,
+        )
+        decoded = artifacts.loads(encoded)
+        if not isinstance(decoded.contract, Mapping):
+            raise CausalValueError("external estimate receipt is missing a contract")
+        return ExternalEstimate(encoded, decoded.contract)
+
+
+@dataclass(frozen=True, slots=True)
+class ExternalEstimate:
+    """Caller-attested external-estimate receipt. Not a native calibrated claim."""
+
+    _bytes: bytes = field(repr=False)
+    _contract: Mapping[str, Any] = field(repr=False)
+
+    @property
+    def claim_id(self) -> str:
+        from .results._slots import _identity_hex
+
+        claim = self._contract.get("claim")
+        raw = claim.get("claim_id") if isinstance(claim, Mapping) else None
+        return _identity_hex(raw) or ""
+
+    @property
+    def calibration(self):
+        from .results._execution import CalibrationInfo
+
+        return CalibrationInfo.from_contract(self._contract)
+
+    def inspect(self):
+        from .results._report import as_inspection
+        from .results._slots import ReasoningSlots
+
+        return as_inspection(
+            ReasoningSlots.from_result_section(self._contract, calibration=self.calibration)
+        )
+
+    def export(self, *, artifact_id: str = "external-estimate") -> bytes:
+        if artifact_id != "external-estimate":
+            raise CausalValueError(
+                "An attested external estimate is immutable; its artifact ID cannot be rewritten."
+            )
+        return self._bytes
+
+    def __repr__(self) -> str:
+        return f"<ExternalEstimate claim_id={self.claim_id[:12]} calibration={self.calibration.status}>"
+
 
 def econml(
     result: AnalysisResult | CausalResponseView | Identification | IdentifyResult,
@@ -151,31 +245,10 @@ def econml(
     partial identification, and graph-posterior mixtures refuse rather than
     pretending they are a single adjustment set.
     """
-    if structure_source == "graph_posterior" or _graph_posterior_result(result):
-        raise CausalUnsupportedError(
-            "EconML handoff refuses graph-posterior mixtures; there is no single "
-            "adjustment set to pass to another estimator"
-        )
-    status, method, adjustment, identifier, treatment, outcome = _unpack(
-        result, treatment=treatment, outcome=outcome
+    status, method, adjustment, identifier, treatment, outcome = _require_adjustment_parent(
+        result, treatment=treatment, outcome=outcome, structure_source=structure_source
     )
     resolved = identifier or method
-    if resolved not in _ADJUSTMENT_IDENTIFIERS:
-        raise CausalUnsupportedError(
-            f"EconML handoff requires a backdoor or generalized-adjustment "
-            f"identifier; got {resolved!r}"
-        )
-    view = IdentificationView(
-        status=status,
-        method=method,
-        adjustment_set=list(adjustment),
-        assumption_count=0,
-        derivation_step_count=0,
-    )
-    if not view:
-        raise CausalUnsupportedError(
-            f"EconML handoff requires point identification; got status {status!r}"
-        )
     query = getattr(result, "query", getattr(result, "estimand", None))
     certificate = getattr(result, "certificate", None)
     temporal = resolved == Identifier.TEMPORAL_BACKDOOR_UNFOLDED or bool(
@@ -239,6 +312,7 @@ def econml(
         temporal=temporal,
         target_weights=None if target_weights is None else np.asarray(target_weights),
         outcome_functional=outcome_functional,
+        _parent=result,
         **kwargs,
     )
 
@@ -257,6 +331,142 @@ def _modifier_set(
     if isinstance(modifiers, str):
         return (modifiers,)
     return tuple(str(name) for name in modifiers)
+
+
+def _require_attachable(spec: EconMLSpec) -> None:
+    if spec._parent is not None:
+        _require_adjustment_parent(spec._parent)
+        return
+    if spec.identifier not in _ADJUSTMENT_IDENTIFIERS:
+        raise CausalUnsupportedError(
+            f"EconML handoff requires a backdoor or generalized-adjustment "
+            f"identifier; got {spec.identifier!r}"
+        )
+    view = IdentificationView(
+        status=spec.status,
+        method=spec.identifier,
+        adjustment_set=list(spec.confounders),
+        assumption_count=0,
+        derivation_step_count=0,
+    )
+    if not view:
+        raise CausalUnsupportedError(
+            f"EconML handoff requires point identification; got status {spec.status!r}"
+        )
+
+
+def _require_adjustment_parent(
+    result: object,
+    *,
+    treatment: str | tuple[str, ...] | None = None,
+    outcome: str | None = None,
+    structure_source: str | None = None,
+) -> tuple[str, str, list[str], str | None, str | tuple[str, ...], str]:
+    if structure_source == "graph_posterior" or _graph_posterior_result(result):
+        raise CausalUnsupportedError(
+            "EconML handoff refuses graph-posterior mixtures; there is no single "
+            "adjustment set to pass to another estimator"
+        )
+    status, method, adjustment, identifier, treatment, outcome = _unpack(
+        result, treatment=treatment, outcome=outcome
+    )
+    resolved = identifier or method
+    if resolved not in _ADJUSTMENT_IDENTIFIERS:
+        raise CausalUnsupportedError(
+            f"EconML handoff requires a backdoor or generalized-adjustment "
+            f"identifier; got {resolved!r}"
+        )
+    view = IdentificationView(
+        status=status,
+        method=method,
+        adjustment_set=list(adjustment),
+        assumption_count=0,
+        derivation_step_count=0,
+    )
+    if not view:
+        raise CausalUnsupportedError(
+            f"EconML handoff requires point identification; got status {status!r}"
+        )
+    return status, method, adjustment, identifier, treatment, outcome
+
+
+def _receipt_names(spec: EconMLSpec) -> list[str]:
+    names: list[str] = []
+    for name in (spec.outcome, *spec.treatments, *spec.confounders, *spec.modifiers):
+        if name not in names:
+            names.append(name)
+    return names
+
+
+def _canonical_config(config: Mapping[str, Any] | None) -> bytes:
+    return json.dumps(
+        {} if config is None else dict(config),
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode()
+
+
+def _payload_bytes(effect: np.ndarray, interval: Any | None) -> bytes:
+    parts = [
+        np.asarray(effect.shape, dtype=np.int64).tobytes(),
+        np.asarray(effect, dtype=np.float64, order="C").tobytes(),
+    ]
+    if interval is not None:
+        arr = np.asarray(interval, dtype=np.float64)
+        parts.extend(
+            [
+                b"interval",
+                np.asarray(arr.shape, dtype=np.int64).tobytes(),
+                np.asarray(arr, dtype=np.float64, order="C").tobytes(),
+            ]
+        )
+    return b"".join(parts)
+
+
+def _snapshot_payload(spec: EconMLSpec, data: Mapping[str, Any]) -> bytes:
+    cols = spec.columns(data)
+    chunks: list[bytes] = []
+    for key in ("Y", "T", "W", "X", "sample_weight"):
+        value = cols.get(key)
+        if value is None:
+            continue
+        arr = np.asarray(value, dtype=np.float64)
+        chunks.append(
+            key.encode()
+            + np.asarray(arr.shape, dtype=np.int64).tobytes()
+            + np.asarray(arr, dtype=np.float64, order="C").tobytes()
+        )
+    return b"".join(chunks)
+
+
+def _bind_parent_identities(
+    spec: EconMLSpec, parent: object, data: Mapping[str, Any] | None
+) -> tuple[str | None, str | None, bytes | None]:
+    from . import artifacts
+    from .results._slots import _identity_hex
+
+    identification = None
+    snapshot = None
+    export = getattr(parent, "export", None)
+    if callable(export):
+        try:
+            decoded = artifacts.loads(export())
+        except (TypeError, ValueError, CausalError):
+            decoded = None
+        if decoded is not None and isinstance(decoded.contract, Mapping):
+            identities = decoded.contract.get("identities")
+            identities = identities if isinstance(identities, Mapping) else {}
+            identification = _identity_hex(identities.get("identification"))
+            snapshot = _identity_hex(identities.get("data_snapshot"))
+    snapshot_payload = (
+        None if snapshot is not None or data is None else _snapshot_payload(spec, data)
+    )
+    if snapshot is None and snapshot_payload is None:
+        raise CausalValueError(
+            "external estimate attach needs a parent data snapshot or data= for spec.columns"
+        )
+    return identification, snapshot, snapshot_payload
 
 
 def _unpack(
@@ -328,4 +538,4 @@ def _graph_posterior_result(result: object) -> bool:
     )
 
 
-__all__ = ["EconMLSpec", "econml"]
+__all__ = ["EconMLSpec", "ExternalEstimate", "econml"]

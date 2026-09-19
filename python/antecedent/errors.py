@@ -23,8 +23,9 @@ same way, through ``build_review_error`` below. A raised review error carries:
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ._native import (
     CausalAttributionError,
@@ -140,6 +141,22 @@ class EffectNotIdentified(CausalUnsupportedError, CausalCompileError):
     search_complete: bool = True
 
 
+_DISPLAY_NODE = re.compile(r"^V(\d+)(?:@(.+))?$")
+
+
+def resolve_display_name(token: str, names: Sequence[str]) -> str:
+    """Map a dense display id (``V3``, ``V3@-1``) onto a schema name."""
+    match = _DISPLAY_NODE.match(token)
+    if match is None:
+        return token
+    index = int(match.group(1))
+    if index < 0 or index >= len(names):
+        return token
+    base = names[index]
+    lag = match.group(2)
+    return f"{base}@{lag}" if lag is not None else base
+
+
 @dataclass(frozen=True, slots=True)
 class PendingEdge:
     """One unreviewed edge from a `ReviewRequired`, with its endpoint marks.
@@ -147,16 +164,21 @@ class PendingEdge:
     ``at_source`` / ``at_target`` are one of ``"tail"``, ``"arrow"``,
     ``"circle"``, or ``"conflict"`` — the same vocabulary ``GraphEdge`` uses
     elsewhere in this package. ``source`` / ``target`` are display identifiers
-    for the endpoints (a dense variable id such as ``"V3"``, or a temporal key
-    such as ``"V3@-1"``) rather than resolved schema names — see
-    ``antecedent::error::PendingEdge`` in the Rust facade for why name
-    resolution is out of scope this close to the graph structures.
+    (``V3``, ``V3@-1``) until :meth:`with_names` maps them onto schema names.
     """
 
     source: str
     target: str
     at_source: str
     at_target: str
+
+    def with_names(self, names: Sequence[str]) -> PendingEdge:
+        """Copy with ``V{i}`` display ids replaced by ``names[i]``."""
+        return replace(
+            self,
+            source=resolve_display_name(self.source, names),
+            target=resolve_display_name(self.target, names),
+        )
 
 
 class ReviewRequired(CausalReviewError):
@@ -246,6 +268,46 @@ def pending_edges(err: BaseException) -> tuple[PendingEdge, ...]:
     return tuple(out)
 
 
+def named_pending_edges(
+    edges: Sequence[PendingEdge], names: Sequence[str]
+) -> tuple[PendingEdge, ...]:
+    """Resolve a pending-edge list against column / graph node names."""
+    return tuple(edge.with_names(names) for edge in edges)
+
+
+def next_action(err: BaseException, edges: Sequence[PendingEdge] = ()) -> str:
+    """Copy-paste next legal call, or why the refusal is terminal."""
+    if isinstance(err, ReviewRequired) or type(err).__name__ == "ReviewRequired":
+        kind = getattr(err, "kind", None) or "review"
+        algorithm = getattr(err, "algorithm", None)
+        via = f"{kind} via {algorithm}" if algorithm else str(kind)
+        pending = edges or pending_edges(err)
+        if pending:
+            mapping = ", ".join(
+                f"({edge.source!r}, {edge.target!r}): ({edge.at_source!r}, {edge.at_target!r})"
+                for edge in pending
+            )
+            return (
+                f"Review required ({via}, {len(pending)} pending). "
+                f"Orient with accepted.review({{{mapping}}}) and re-run analyze."
+            )
+        hint = getattr(err, "hint", None)
+        return f"Review required ({via}). {hint}" if hint else f"Review required ({via})."
+    if isinstance(err, EffectNotIdentified):
+        status = getattr(err, "identification_status", "not_identified")
+        capped = getattr(err, "search_capped", False)
+        search = "capped; not a proof of non-identification" if capped else "complete"
+        return (
+            f"Not identified ({status}; search {search}). "
+            "Change the query or supply a more informative graph."
+        )
+    code = getattr(err, "reason_code", None) or type(err).__name__
+    hint = getattr(err, "hint", None)
+    if hint:
+        return f"{code}: {hint}"
+    return f"{code}: {err}"
+
+
 __all__ = [
     "CausalAttributionError",
     "CausalCancelled",
@@ -272,5 +334,8 @@ __all__ = [
     "PendingEdge",
     "ReviewRequired",
     "build_review_error",
+    "named_pending_edges",
+    "next_action",
     "pending_edges",
+    "resolve_display_name",
 ]

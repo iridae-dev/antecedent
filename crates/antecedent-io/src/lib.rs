@@ -18,6 +18,7 @@ pub mod coverage_records_data;
 pub mod discovery_wire;
 pub mod error;
 pub mod expr_wire;
+pub mod external_estimate;
 pub mod graph_dot;
 pub mod graph_gml;
 pub mod graph_json;
@@ -95,6 +96,10 @@ pub use discovery_wire::{
 };
 pub use error::IoError;
 pub use expr_wire::{ExprArenaWire, ExprNodeWire, expr_arena_from_wire, expr_arena_to_wire};
+pub use external_estimate::{
+    ExternalEstimateAttach, attested_external_estimate, decode_external_estimate_claim,
+    encode_external_estimate_claim, parse_digest_hex,
+};
 pub use graph_dot::{dag_from_dot, dag_to_dot, dag_wire_from_dot, dag_wire_to_dot};
 pub use graph_gml::{dag_from_gml, dag_to_gml, dag_wire_from_gml, dag_wire_to_gml};
 pub use graph_json::{DagJson, dag_from_json, dag_json_from_str, dag_to_json};

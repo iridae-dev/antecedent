@@ -94,7 +94,7 @@ The
 [1.9.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.9.0.md)
 cover the calibration of licensed intervals (a two-sided repeated-sampling
 coverage gate, with boundary records disclosed at runtime), ADMG
-interventional distributions (Rust Study API only), accepted-Dag
+interventional distributions, accepted-Dag
 counterfactuals, Frequentist DBN-posterior mediation, and staged
 attribution / transport / interference cells (Rust Study API only).
 Behaviour changes:
@@ -183,10 +183,10 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace contains 56 names in 1.10: the 1.9 contract plus
-`prepare`, `load`, `TransportQuery` and `InterferenceQuery`. `AnomalyAttribution`
-and `ChangeAttribution` types exist for the query axis; `analyze()` refuses them —
-the licensed cells are Rust `Study` only. `TransportQuery` and `InterferenceQuery`
+The root namespace contains 57 names in 1.10: the 1.9 contract plus
+`prepare`, `load`, `TransportQuery`, `InterferenceQuery`, and `Analysis`. `AnomalyAttribution`
+and `ChangeAttribution` run their licensed Dag cells on `analyze()` and retain
+a study. `TransportQuery` and `InterferenceQuery`
 run their licensed cells on `analyze()` and retain a study like every other
 licensed route; `antecedent.transport` / `antecedent.interference` hold the
 selection diagram, designs, exposure mappings, the transport identification stage,
@@ -205,8 +205,9 @@ Also exposed:
   `TemporalMediationEffect`, `InterventionResponse`, plus the response family
   (`ResponseCurve`, `AverageDerivative`, `PointDerivative`, `Elasticity`,
   `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`), plus
-  `AnomalyAttribution` / `ChangeAttribution` (root types; `analyze()`
-  refuses). Temporal dose × horizon uses the same `ResponseCurve` /
+  `AnomalyAttribution` / `ChangeAttribution` (root types; licensed
+  `analyze(data, graph=Dag, query=...)` at validation `none`). Temporal
+  dose × horizon uses the same `ResponseCurve` /
   `InterventionResponse` types with keyword-only `horizons`, `policy`, and
   `treatment_lag` (see `examples/python/temporal_response_curve.py`).
 - `antecedent.discovery` — PC, GES, LiNGAM, NOTEARS, FCI/RFCI, PCMCI family, Bayesian posteriors

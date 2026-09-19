@@ -359,8 +359,10 @@ class MediationEffect:
 class AnomalyAttribution:
     """GCM anomaly scores on a supplied explicit Dag.
 
-    Licensed only through the Rust ``Study`` API at validation ``none``.
-    ``analyze()`` refuses this query.
+    Licensed ``analyze(data, graph=Dag, query=AnomalyAttribution(...))`` at
+    validation ``none``. Identification is parametric (``gcm.parametric``);
+    estimator ``gcm.fit``. cheap/full, Bayesian, accepted, graph-posterior,
+    and non-Dag graphs remain refused.
     """
 
     targets: Sequence[str]
@@ -380,8 +382,10 @@ class AnomalyAttribution:
 class ChangeAttribution:
     """GCM distribution-change Shapley on a supplied explicit Dag.
 
-    Licensed only through the Rust ``Study`` API at validation ``none``.
-    ``analyze()`` refuses this query.
+    Licensed ``analyze(data, graph=Dag, query=ChangeAttribution(...))`` at
+    validation ``none``. Identification is parametric (``gcm.parametric``);
+    estimator ``gcm.fit``. cheap/full, Bayesian, accepted, graph-posterior,
+    and non-Dag graphs remain refused.
     """
 
     outcome: str

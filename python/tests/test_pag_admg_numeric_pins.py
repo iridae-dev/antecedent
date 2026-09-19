@@ -28,6 +28,7 @@ def _load_pin(name: str) -> dict[str, Any]:
 
 _PAG_PIN = _load_pin("pag_ate_envelope")
 _ADMG_PIN = _load_pin("admg_frontdoor_functional")
+_ADMG_DIST_PIN = _load_pin("admg_frontdoor_distribution")
 
 
 def _expand_contingency(pin: dict[str, Any]) -> dict[str, np.ndarray]:
@@ -274,21 +275,113 @@ def test_numeric_pin_laws_match_their_recorded_functionals() -> None:
     assert functional == pytest.approx(_ADMG_PIN["frequentist"]["expected_ate"], abs=1e-15)
 
 
-def test_admg_interventional_distribution_is_rust_api_only() -> None:
-    """The Python distribution entry points take DAG edges only.
+def _admg_distribution(*, accepted: bool):
+    spec = _ADMG_DIST_PIN["graph"]
+    graph = antecedent.Admg.from_edges(
+        _ADMG_DIST_PIN["columns"],
+        [tuple(edge) for edge in spec["directed_edges"]],
+        bidirected=[tuple(edge) for edge in spec["bidirected_edges"]],
+    )
+    if not accepted:
+        return graph
+    return antecedent.AcceptedGraph.from_graph(graph, algorithm_id="fixture.frontdoor")
 
-    ADMG InterventionalDistribution is licensed on the Rust Study API; the Python
-    facades refuse a bidirected graph with that scope named rather than failing
-    while converting it to DAG edges.
+
+@pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
+def test_admg_interventional_distribution_numeric_pin(accepted: bool) -> None:
+    """Pin licensed ADMG InterventionalDistribution to the front-door SCM truth.
+
+    conformance/estimate/admg_frontdoor_distribution: P(Y=1|do(T=1))=0.625 and
+    P(Y=1|do(T=0))=0.375 on the exact 800-row law.
     """
+    data = _expand_contingency(_ADMG_DIST_PIN)
+    graph = _admg_distribution(accepted=accepted)
+    tolerance = float(_ADMG_DIST_PIN["frequentist"]["absolute_tolerance"])
+    truth = {float(row["t"]): float(row["p_y1"]) for row in _ADMG_DIST_PIN["truth"]}
+    for level, expected in truth.items():
+        query = antecedent.InterventionalDistribution("y", interventions={"t": level})
+        fresh = antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
+        prepared = antecedent.estimation.PreparedAnalysis.prepare(
+            data, graph=graph, query=query, refute=False, bootstrap=0, seed=1
+        )
+        click = prepared.estimate(data, seed=1)
+        assert fresh.ate == pytest.approx(expected, abs=tolerance)
+        assert click.ate == pytest.approx(expected, abs=tolerance)
+        one = next(a for a in fresh.estimate.distribution if a.outcomes[0][1] == 1.0)
+        assert one.probability == pytest.approx(expected, abs=tolerance)
+
+
+@pytest.mark.parametrize("refute", ["cheap", "full"])
+def test_admg_interventional_distribution_refuses_cheap_full(refute: str) -> None:
+    """Cheap/full stay closed on ADMG InterventionalDistribution."""
     from antecedent.errors import CausalUnsupportedError
 
-    data = _expand_contingency(_ADMG_PIN)
-    graph = antecedent.Admg.from_edges(
-        ["t", "m", "y"], directed=[("t", "m"), ("m", "y")], bidirected=[("t", "y")]
-    )
+    data = _expand_contingency(_ADMG_DIST_PIN)
+    graph = _admg_distribution(accepted=False)
     query = antecedent.InterventionalDistribution("y", interventions={"t": 1.0})
-    with pytest.raises(CausalUnsupportedError, match="Rust Study API only"):
-        antecedent.analyze(data, graph=graph, query=query, refute=False)
-    with pytest.raises(CausalUnsupportedError, match="Rust Study API only"):
-        antecedent.estimation.PreparedAnalysis.prepare(data, graph=graph, query=query)
+    with pytest.raises(CausalUnsupportedError):
+        antecedent.analyze(data, graph=graph, query=query, refute=refute)
+
+
+@pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
+def test_admg_response_pins_against_distribution(accepted: bool) -> None:
+    """Licensed ADMG InterventionResponse / ResponseCurve match distribution means."""
+    data = _expand_contingency(_ADMG_PIN)
+    graph = _admg(accepted=accepted)
+    tolerance = float(_ADMG_PIN["frequentist"]["absolute_tolerance"])
+    dist_means = {}
+    for level in (0.0, 1.0):
+        dist = antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.InterventionalDistribution("y", interventions={"t": level}),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
+        ir = antecedent.analyze(
+            data,
+            graph=graph,
+            query=antecedent.InterventionResponse(
+                "y", intervention=antecedent.intervention.Set("t", level)
+            ),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
+        prepared = antecedent.estimation.PreparedAnalysis.prepare(
+            data,
+            graph=graph,
+            query=antecedent.InterventionResponse(
+                "y", intervention=antecedent.intervention.Set("t", level)
+            ),
+            refute=False,
+            bootstrap=0,
+            seed=1,
+        )
+        click = prepared.estimate(data, seed=1)
+        dist_means[level] = float(dist.ate)
+        assert ir.ate == pytest.approx(dist_means[level], abs=tolerance)
+        assert click.ate == pytest.approx(dist_means[level], abs=tolerance)
+        assert ir.response is not None
+    curve = antecedent.analyze(
+        data,
+        graph=graph,
+        query=antecedent.ResponseCurve("t", "y", grid=[0.0, 1.0]),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert curve.response is not None
+    values = list(curve.response.values)
+    assert values[0][0] == pytest.approx(dist_means[0.0], abs=tolerance)
+    assert values[1][0] == pytest.approx(dist_means[1.0], abs=tolerance)
+    ate = antecedent.analyze(
+        data,
+        graph=graph,
+        query=_query(_ADMG_PIN),
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert (dist_means[1.0] - dist_means[0.0]) == pytest.approx(ate.ate, abs=tolerance)

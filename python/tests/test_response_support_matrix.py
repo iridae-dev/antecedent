@@ -5,10 +5,8 @@ Covers two branch-review defects fixed together:
 * The native `analyze_response` (python/src/response_api.rs) now consults the
   generated support matrix itself (`antecedent::support::refuse_if_not_applicable`)
   instead of being enforced only by hand-typed Python literals that could drift
-  from `parity/support_closed.toml`. `test_support_closed.py` already pins the
-  resulting error text end-to-end and must keep passing unchanged; this file adds
-  a drift guard for the one Python literal that intentionally remains (it doubles
-  as a routing gate, not just a refusal message).
+  from `parity/support_closed.toml`. Admg InterventionResponse cheap/full is
+  licensed on the plugin-level suite; this file pins that the closed rule is gone.
 * `AcceptedGraph.analyze(..., query=ResponseCurve(...))` now threads
   `structure_accepted` down to the native call's `accepted=` parameter, so the
   response family is not silently misclassified as `explicit` structure the way
@@ -45,31 +43,17 @@ _ACCEPTED = antecedent.AcceptedGraph.from_graph(_DAG, algorithm_id="hand")
 _CURVE = antecedent.ResponseCurve("t", "y", grid=[0.5, 1.0, 1.5])
 
 
-def test_admg_response_literal_matches_support_closed_toml():
-    """`handle_response`'s Admg refuse is a routing gate and must match the TOML."""
+def test_admg_intervention_cheap_is_not_a_closed_rule():
+    """Admg IR cheap/full is licensed plugin-level; closed rule #3 is gone."""
     rules = load_toml(_SUPPORT_CLOSED_TOML)["closed"]
     matches = [
         rule
         for rule in rules
-        if set(rule.get("queries", [])) == {"ResponseCurve", "InterventionResponse"}
-        and set(rule.get("graph_classes", [])) == {"Admg"}
+        if "InterventionResponse" in set(rule.get("queries", []))
+        and "Admg" in set(rule.get("graph_classes", []))
+        and set(rule.get("validations", [])) == {"cheap", "full"}
     ]
-    assert len(matches) == 1, matches
-    reason = matches[0]["reason"]
-
-    from antecedent.errors import CausalUnsupportedError
-
-    admg = antecedent.Admg.from_edges(["t", "y"], directed=[("t", "y")], bidirected=[])
-    with pytest.raises(CausalUnsupportedError) as ei:
-        antecedent.analyze(
-            _DATA,
-            query=_CURVE,
-            graph=admg,
-            inference=antecedent.Frequentist(),
-            refute=False,
-            seed=1,
-        )
-    assert str(ei.value) == f"refused: {reason}"
+    assert matches == []
 
 
 def test_accepted_graph_analyze_response_curve_threads_accepted():

@@ -13,10 +13,6 @@ _REASON_PATH_DIST = (
     "reason=option_not_applicable: graph-posterior structures are refused: a path, "
     "distribution, or mediation mixture is not a single estimand across posterior atoms"
 )
-_REASON_ADMG_RESPONSE = (
-    "refused: Admg response has no functional plug-in; licensed general-ID ATE does "
-    "not estimate a curve."
-)
 
 
 def _two_node_table(n: int = 48, seed: int = 3):
@@ -45,24 +41,6 @@ _REFUSED = [
         {"discovery": antecedent.discovery.ExactDagPosterior()},
         _REASON_PATH_DIST,
     ),
-    # InterventionResponse × Admg is the Python routing-gate pin for the closed
-    # Admg-response rule. Cpdag/Pag response is now licensed (see
-    # `test_licensed_pag_response_curve_runs`). ConditionalEffect × Cpdag/Pag
-    # is licensed; ConditionalEffect × Admg stays closed.
-    # On the Rust matrix PathSpecificEffect × Admg/Pag, InterventionalDistribution
-    # × Pag, InterventionalDistribution × Admg cheap/full, and
-    # TemporalMediationEffect × TemporalPag remain closed (InterventionalDistribution
-    # × Admg at validation none and TemporalMediationEffect × TemporalCpdag are
-    # licensed). Frequentist graph_posterior is licensed for AverageEffect,
-    # ConditionalEffect and static responses on DAG atoms, and for DBN Pulse /
-    # Sustained and single-horizon TemporalMediationEffect; other Frequentist
-    # graph-posterior queries stay closed.
-    (
-        "intervention_response_admg",
-        antecedent.InterventionResponse("y", intervention=antecedent.intervention.Set("t", 1.0)),
-        {"graph": _ADMG},
-        _REASON_ADMG_RESPONSE,
-    ),
     (
         "conditional_effect_admg",
         antecedent.ConditionalEffect("t", "y", "t"),
@@ -78,14 +56,12 @@ _REFUSED = [
     ids=[row[0] for row in _REFUSED],
 )
 def test_closed_cells_raise_refused(query, kwargs, prefix):
+    options = {"refute": False, "bootstrap": 0, "seed": 1, **kwargs}
     with pytest.raises(CausalUnsupportedError) as ei:
         antecedent.analyze(
             _DATA,
             query=query,
-            refute=False,
-            bootstrap=0,
-            seed=1,
-            **kwargs,
+            **options,
         )
     msg = str(ei.value)
     # Every closed cell names itself: a matrix refusal as `refused:`, a Python

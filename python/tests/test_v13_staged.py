@@ -224,8 +224,6 @@ def test_observation_pair_fixture(kind, accepted):
 
 
 def test_static_mediation_refuter_pin():
-    from dataclasses import asdict
-
     pin = load_json(ROOT / "conformance/estimate/staged_static_kinds/refuters.json")
     data, graph = fixture()
     query = ac.MediationEffect(
@@ -234,7 +232,7 @@ def test_static_mediation_refuter_pin():
     prepared = PreparedAnalysis.prepare(data, graph=graph, query=query, refute="full", bootstrap=0)
     result = prepared.estimate(data, seed=pin["seed"])
     for report, expected in zip(result.validation.reports, pin["reports"], strict=True):
-        actual = asdict(report)
+        actual = report.to_dict()
         for key in ("original_ate", "refuted_ate", "comparison"):
             got = actual.pop(key)
             assert got == pytest.approx(expected[key], abs=pin["atol"])

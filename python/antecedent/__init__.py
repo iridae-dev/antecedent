@@ -28,8 +28,9 @@ Fifteen narrower modules are reachable but deliberately outside ``__all__``:
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
 
-Public analysis results are nested ``AnalysisResult`` views. The native DTOs
-live on ``antecedent._native`` only, which is an advanced FFI surface.
+Public analysis results share :data:`Analysis` (``AnalysisResult`` or
+``CausalResponseView``). Consume ``result.answer`` / ``result.claim()``.
+The native DTOs live on ``antecedent._native`` only.
 """
 
 from __future__ import annotations
@@ -132,7 +133,7 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
-from .results import AnalysisResult
+from .results import Analysis, AnalysisResult
 from .transport import TransportQuery
 
 __all__ = [
@@ -145,6 +146,7 @@ __all__ = [
     # Structure and results
     "AcceptedGraph",
     "Identification",
+    "Analysis",
     "AnalysisResult",
     # Queries
     "AnomalyAttribution",
@@ -215,7 +217,7 @@ except ImportError:  # pragma: no cover - extension not built
 
         __version__ = version("antecedent")
     except PackageNotFoundError:
-        __version__ = "1.10.0"
+        __version__ = "1.10.1"
 
 
 # --- Migration signpost for retired 0.4.0 names ------------------------------------

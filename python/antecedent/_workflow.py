@@ -12,6 +12,7 @@ from .estimation import PreparedAnalysis, _PreparedQuery
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .results._execution import Answer, CalibrationInfo, ResultAPI, answer_from_artifact
+from .results._report import InspectionReport, as_inspection
 from .results._slots import ReasoningSlots
 
 
@@ -115,16 +116,22 @@ class LoadedResult(ResultAPI):
             return Answer("unavailable", detail="semantic_acceptance_unavailable")
         return answer_from_artifact(self.artifact.contract, self.artifact.payload)
 
-    def inspect(self) -> ReasoningSlots:
+    def inspect(self) -> InspectionReport:
         if not self.acceptance.verified:
-            return replace(
-                ReasoningSlots.from_contract({}), answer=self.answer, calibration=self.calibration
+            return as_inspection(
+                replace(
+                    ReasoningSlots.from_contract({}),
+                    answer=self.answer,
+                    calibration=self.calibration,
+                )
             )
-        return ReasoningSlots.from_result_section(
-            self.artifact.contract,
-            self.artifact.payload,
-            answer=self.answer,
-            calibration=self.calibration,
+        return as_inspection(
+            ReasoningSlots.from_result_section(
+                self.artifact.contract,
+                self.artifact.payload,
+                answer=self.answer,
+                calibration=self.calibration,
+            )
         )
 
     def export(self, *, artifact_id: str | None = None) -> bytes:
