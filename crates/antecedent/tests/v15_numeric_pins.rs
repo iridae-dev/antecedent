@@ -3011,11 +3011,11 @@ fn unknown_tier_joint_has_no_single_admg() {
     assert!(batch_err.to_string().contains("no single ADMG"), "{batch_err}");
 }
 
-/// 20 same-tier co-facets. Generic subset search caps at 16 candidates; the
+/// 45 same-tier co-facets. Generic subset search caps at 40 candidates; the
 /// O(p) closure shortcut must still identify with Z = closure minus treatments.
 #[test]
 fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
-    const COFACETS: usize = 20;
+    const COFACETS: usize = 45;
     let mut b = antecedent_core::CausalSchemaBuilder::new();
     b = b.continuous("z").finish().continuous("t1").finish().continuous("t2").finish();
     let mut facets = Vec::new();
