@@ -4,19 +4,18 @@
 
 #![cfg(feature = "arrow")]
 
+use std::sync::Arc;
+
 use antecedent_data::{ArrowCColumn, TableView, tabular_from_arrow_c_columns};
-use arrow_array::ffi::to_ffi;
-use arrow_array::{Array, Float64Array};
+use arrow_array::Float64Array;
 
 #[test]
 fn rust_arrow_cdi_zero_copy_acceptance() {
     let x = Float64Array::from(vec![1.0_f64, 2.0, 3.0, 4.0]);
     let y = Float64Array::from(vec![10.0_f64, 20.0, 30.0, 40.0]);
-    let (x_arr, x_sch) = to_ffi(&x.to_data()).unwrap();
-    let (y_arr, y_sch) = to_ffi(&y.to_data()).unwrap();
     let loaded = tabular_from_arrow_c_columns(vec![
-        ArrowCColumn { name: "x".into(), array: x_arr, schema: x_sch },
-        ArrowCColumn { name: "y".into(), array: y_arr, schema: y_sch },
+        ArrowCColumn::from_arrow_array("x", Arc::new(x)).unwrap(),
+        ArrowCColumn::from_arrow_array("y", Arc::new(y)).unwrap(),
     ])
     .unwrap();
     assert_eq!(loaded.data.row_count(), 4);

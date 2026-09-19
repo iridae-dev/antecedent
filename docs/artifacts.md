@@ -69,7 +69,8 @@ Arrow IPC sections (`application/vnd.apache.arrow.file`) use
 | `EncodedArtifact::read_from` | Full materialization (compat) |
 | `EncodedArtifact::read_selective` | Stream-hash + discard unselected sections; no retained payload |
 | `ArtifactReader::open_seek` | Index section offsets; seek-skip without allocating payloads |
-| `MappedArtifactReader::open_path` | `memmap2` map; `load_section_mapped` for uncompressed views |
+| `MappedArtifactReader::open_path` | owned snapshot of the file; `load_section_mapped` for uncompressed views |
+| `MappedArtifactReader::open_path_mapped` | `unsafe` file-backed `memmap2` map; caller guarantees immutability |
 | `SectionBytes.data: Arc<[u8]>` | Shared logical buffers; Never-compress write avoids clone |
 | `decode_posterior_meta_from_seek` / `_from_path` | Metadata without loading draws |
 

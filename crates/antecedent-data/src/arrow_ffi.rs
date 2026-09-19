@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use antecedent_core::VariableId;
-use arrow_array::ffi::{FFI_ArrowArray, from_ffi};
+use arrow_array::ffi::{FFI_ArrowArray, from_ffi, to_ffi};
 use arrow_array::{Array, ArrayRef, Float64Array};
 use arrow_schema::ffi::FFI_ArrowSchema;
 
@@ -24,24 +24,54 @@ use crate::materialize::{MaterializationReason, materialization_diagnostic};
 struct ArrayOwner(#[allow(dead_code)] ArrayRef);
 
 /// One column imported from the Arrow C Data Interface.
+///
+/// The FFI pair is private so a mismatched array/schema cannot be assembled
+/// with only safe Rust. Construct via [`Self::from_ffi`] at a compliant
+/// exporter boundary, or [`Self::from_arrow_array`] from an owned array.
 pub struct ArrowCColumn {
     /// Column name.
     pub name: String,
-    /// Owned FFI array (moved into [`from_ffi`]).
-    pub array: FFI_ArrowArray,
-    /// Owned FFI schema.
-    pub schema: FFI_ArrowSchema,
+    array: FFI_ArrowArray,
+    schema: FFI_ArrowSchema,
 }
 
 impl ArrowCColumn {
+    /// Wrap a C Data Interface pair produced by a compliant exporter.
+    ///
+    /// # Safety
+    ///
+    /// `array` and `schema` must form a valid Arrow C Data Interface pair.
+    /// The wrapper assumes those layouts agree; later type checks cannot
+    /// establish the original allocation's validity.
+    #[must_use]
+    pub unsafe fn from_ffi(
+        name: impl Into<String>,
+        array: FFI_ArrowArray,
+        schema: FFI_ArrowSchema,
+    ) -> Self {
+        Self { name: name.into(), array, schema }
+    }
+
+    /// Wrap an already-validated owned Arrow array as a CDI column.
+    ///
+    /// # Errors
+    ///
+    /// When Arrow cannot export the array through the C Data Interface.
+    pub fn from_arrow_array(name: impl Into<String>, array: ArrayRef) -> Result<Self, DataError> {
+        let (ffi_array, ffi_schema) = to_ffi(&array.to_data()).map_err(|e| {
+            DataError::InvalidArgument { message: format!("Arrow CDI export failed: {e}") }
+        })?;
+        Ok(Self { name: name.into(), array: ffi_array, schema: ffi_schema })
+    }
+
     /// Import this CDI column into an Arrow array (takes ownership of FFI structs).
     ///
     /// # Errors
     ///
     /// When the CDI pair is malformed or unsupported.
     pub fn into_array(self) -> Result<ArrayRef, DataError> {
-        // SAFETY: ArrowCColumn is only constructed at the FFI boundary with a
-        // compliant CDI pair (see module docs).
+        // SAFETY: only [`Self::from_ffi`] (unsafe) or [`Self::from_arrow_array`]
+        // (exports a consistent pair) can construct this type.
         let Self { array, schema, .. } = self;
         unsafe { import_array(array, &schema) }
     }
