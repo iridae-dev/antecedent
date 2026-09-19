@@ -99,7 +99,9 @@ impl super::Study {
             let lagged = super::temporal_path::lagged_adjustment_from_entry(entry);
             let prepared = require_identified(&entry.identification)
                 .ok()
-                .and_then(|()| est.prepare_shared(data, &entry.estimand, query, &lagged, inner).ok())
+                .and_then(|()| {
+                    est.prepare_shared(data, &entry.estimand, query, &lagged, inner).ok()
+                })
                 .filter(|prepared| prepared.estimate().effect.ate.is_finite());
             Ok::<_, CausalError>(Some((atom, weight, Some(entry), prepared.map(|p| (lagged, p)))))
         })?;

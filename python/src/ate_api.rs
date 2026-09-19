@@ -267,8 +267,13 @@ fn run_static_ate_from_builder(
         antecedent_prob::BayesLikelihood::GaussianIdentity,
     )?;
     let analysis = builder.build().map_err(py_err)?;
-    let ctx =
-        py_execution_context_ext(seed, crate::resolve_user_threads(threads), cancel, progress, Some(PY_DEFAULT_CACHE_MAX_BYTES));
+    let ctx = py_execution_context_ext(
+        seed,
+        crate::resolve_user_threads(threads),
+        cancel,
+        progress,
+        Some(PY_DEFAULT_CACHE_MAX_BYTES),
+    );
     let mut result = analysis.run(&ctx).map_err(py_err)?;
     if let Some(n) = bytes_borrowed {
         result.performance.bytes_borrowed = Some(n);
@@ -3139,7 +3144,9 @@ fn analyze_ate_tiered(
                     .map_err(|e| PyValueError::new_err(e.to_string()))?,
             );
         }
-        let ctx = crate::py_execution_context_ext(seed, crate::resolve_user_threads(threads),
+        let ctx = crate::py_execution_context_ext(
+            seed,
+            crate::resolve_user_threads(threads),
             None,
             None,
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),

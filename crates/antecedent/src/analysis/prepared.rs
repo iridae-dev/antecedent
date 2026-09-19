@@ -383,9 +383,8 @@ pub(crate) fn build_graph_posterior_identification_cache(
             {
                 return Ok(None);
             }
-            let Ok(estimand) =
-                select_estimand(&identification, EstimatorId::LinearAdjustmentAte)
-                    .or_else(|_| select_estimand(&identification, EstimatorId::BayesianGcomp))
+            let Ok(estimand) = select_estimand(&identification, EstimatorId::LinearAdjustmentAte)
+                .or_else(|_| select_estimand(&identification, EstimatorId::BayesianGcomp))
             else {
                 return Ok(None);
             };
@@ -662,9 +661,11 @@ fn build_class_graph_posterior_identification_cache(
                 let Ok(cpdag) = cpdag_from_adjacency_mask(mask, posterior.n_vars) else {
                     return Ok(None);
                 };
-                Ok::<_, CausalError>(identify_cpdag(DEFAULT_PAG_IDENTIFIER_ID, &cpdag, query)
-                    .ok()
-                    .map(|envelope| cache_class_envelope(key, query, envelope)))
+                Ok::<_, CausalError>(
+                    identify_cpdag(DEFAULT_PAG_IDENTIFIER_ID, &cpdag, query)
+                        .ok()
+                        .map(|envelope| cache_class_envelope(key, query, envelope)),
+                )
             }
             antecedent_discovery::GraphPosteriorAtomKind::Pag => {
                 let Ok(pag) = pag_from_adjacency_mask(mask, mark, posterior.n_vars) else {
@@ -945,14 +946,16 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
                 ) else {
                     return Ok(None);
                 };
-                Ok::<_, CausalError>(identify_temporal_cpdag_configured(
-                    DEFAULT_PAG_IDENTIFIER_ID,
-                    &cpdag,
-                    query,
-                    config.clone(),
+                Ok::<_, CausalError>(
+                    identify_temporal_cpdag_configured(
+                        DEFAULT_PAG_IDENTIFIER_ID,
+                        &cpdag,
+                        query,
+                        config.clone(),
+                    )
+                    .ok()
+                    .map(|envelope| cache_temporal_class_atom(key, query, envelope)),
                 )
-                .ok()
-                .map(|envelope| cache_temporal_class_atom(key, query, envelope)))
             }
             antecedent_discovery::GraphPosteriorAtomKind::Pag => {
                 let Ok(pag) = temporal_pag_from_dbn_masks(

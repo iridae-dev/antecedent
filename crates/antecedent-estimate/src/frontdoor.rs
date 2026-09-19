@@ -381,27 +381,27 @@ impl FrontDoorTwoStage {
                 )
             },
             |(ws, t_boot, m_boot, y_boot), idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                t_boot[r] = problem.treatment[src];
-                y_boot[r] = problem.outcome[src];
-                for (j, mcol) in problem.mediators.iter().enumerate() {
-                    m_boot[j][r] = mcol[src];
+                for (r, &src) in idx.iter().enumerate() {
+                    t_boot[r] = problem.treatment[src];
+                    y_boot[r] = problem.outcome[src];
+                    for (j, mcol) in problem.mediators.iter().enumerate() {
+                        m_boot[j][r] = mcol[src];
+                    }
                 }
-            }
-            let mediators: Vec<Arc<[f64]>> =
-                m_boot.iter().map(|m| Arc::<[f64]>::from(m.as_slice())).collect();
-            let Ok(stage2) = self.fit_stage2(t_boot, &mediators, y_boot, ws) else {
-                return Ok(None);
-            };
-            let mut path_sum = 0.0;
-            for (j, m_j) in mediators.iter().enumerate() {
-                let Ok(s1) = self.fit_stage1(t_boot, m_j, ws) else {
+                let mediators: Vec<Arc<[f64]>> =
+                    m_boot.iter().map(|m| Arc::<[f64]>::from(m.as_slice())).collect();
+                let Ok(stage2) = self.fit_stage2(t_boot, &mediators, y_boot, ws) else {
                     return Ok(None);
                 };
-                path_sum += s1.coefficients[STAGE1_TREATMENT_COL]
-                    * stage2.coefficients[STAGE2_FIRST_MEDIATOR_COL + j];
-            }
-            Ok(Some(path_sum * problem.treatment_delta))
+                let mut path_sum = 0.0;
+                for (j, m_j) in mediators.iter().enumerate() {
+                    let Ok(s1) = self.fit_stage1(t_boot, m_j, ws) else {
+                        return Ok(None);
+                    };
+                    path_sum += s1.coefficients[STAGE1_TREATMENT_COL]
+                        * stage2.coefficients[STAGE2_FIRST_MEDIATOR_COL + j];
+                }
+                Ok(Some(path_sum * problem.treatment_delta))
             },
         )
     }

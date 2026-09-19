@@ -183,11 +183,7 @@ pub fn grid_n(base: usize) -> usize {
 /// The grid [`grid_n`] measures a design with base `base` on.
 #[must_use]
 pub fn grid_for(base: usize) -> SampleGrid {
-    if base <= SHORT_SERIES_MAX_BASE {
-        SampleGrid::SHORT_SERIES
-    } else {
-        SampleGrid::STANDARD
-    }
+    if base <= SHORT_SERIES_MAX_BASE { SampleGrid::SHORT_SERIES } else { SampleGrid::STANDARD }
 }
 
 /// Seed salt of this run's grid point: zero at [`BASE_GRID_POINT`] (the data
@@ -654,11 +650,7 @@ impl CoverageTally {
     /// Empirical coverage over scored replicates.
     #[must_use]
     pub fn rate(&self) -> f64 {
-        if self.scored == 0 {
-            f64::NAN
-        } else {
-            f64::from(self.covered) / f64::from(self.scored)
-        }
+        if self.scored == 0 { f64::NAN } else { f64::from(self.covered) / f64::from(self.scored) }
     }
 
     /// Mean interval length over replicates that produced an interval.

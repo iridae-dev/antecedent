@@ -333,7 +333,8 @@ where
                         break;
                     }
                     fill_replicate_idx(&mut idx, indexes, n, r);
-                    *slot = Some(estimate(&mut scratch, &idx).map(|v| v.filter(|ate| ate.is_finite())));
+                    *slot =
+                        Some(estimate(&mut scratch, &idx).map(|v| v.filter(|ate| ate.is_finite())));
                 }
             });
             rest = next;

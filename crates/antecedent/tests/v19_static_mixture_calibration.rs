@@ -54,7 +54,6 @@ const DRAWS: usize = 400;
 const WEIGHTS: [f64; 3] = [0.5, 0.3, 0.2];
 const THETA: [f64; 2] = [3.0, 2.0];
 const TRUTH_SAME_ESTIMAND: f64 = 3.0;
-const TRUTH_GIVEN_IDENTIFIED: f64 = (0.5 * 3.0 + 0.3 * 2.0) / 0.8;
 
 /// Replicate seed of the frequentist and Bayesian sweeps: `BASE + r · STRIDE`.
 /// The stride must stay odd and bigger than 1 — see [`uniform`].

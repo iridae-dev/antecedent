@@ -320,7 +320,14 @@ impl super::Study {
             est.prior = atom_priors.get(key).cloned().flatten();
             let mut ws = BayesianGCompWorkspace::default();
             let posterior = est.fit(prep, *status, &mut ws, inner).map_err(CausalError::from)?;
-            Ok::<_, CausalError>((*key, estimand.clone(), *status, *outcome_slot, posterior, est.prior.clone()))
+            Ok::<_, CausalError>((
+                *key,
+                estimand.clone(),
+                *status,
+                *outcome_slot,
+                posterior,
+                est.prior.clone(),
+            ))
         })?;
         let mut per_graph = Vec::new();
         let mut atoms = Vec::new();

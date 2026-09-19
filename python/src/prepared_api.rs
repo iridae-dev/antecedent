@@ -1004,7 +1004,9 @@ impl PyPreparedAnalysis {
         let inner = Arc::clone(&bound);
         let out_names = self.names.clone();
         let (mapped, result) = detach_catch(py, move || {
-            let ctx = py_execution_context_ext(seed, crate::resolve_user_threads(threads),
+            let ctx = py_execution_context_ext(
+                seed,
+                crate::resolve_user_threads(threads),
                 cancel_token,
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
@@ -3262,7 +3264,9 @@ impl PyPreparedAnalysis {
         let inner = Arc::clone(&bound);
         let out_names = self.names.clone();
         let (mapped, result) = detach_catch(py, move || {
-            let ctx = py_execution_context_ext(seed, crate::resolve_user_threads(threads),
+            let ctx = py_execution_context_ext(
+                seed,
+                crate::resolve_user_threads(threads),
                 None,
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
@@ -3305,7 +3309,9 @@ impl PyPreparedAnalysis {
         let inner = Arc::clone(&bound);
         let out_names = self.names.clone();
         let (mapped, result) = detach_catch(py, move || {
-            let ctx = py_execution_context_ext(seed, crate::resolve_user_threads(threads),
+            let ctx = py_execution_context_ext(
+                seed,
+                crate::resolve_user_threads(threads),
                 None,
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),

@@ -169,12 +169,13 @@ impl super::Study {
         };
         let scalar_intervention = plugin_scalar.is_finite()
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
-        let (refutations, refute_diags) = if matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
-            && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
-            && matches!(self.inference, InferenceMode::Frequentist)
-        {
-            if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
-                diagnostics.push(Diagnostic::new(
+        let (refutations, refute_diags) =
+            if matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
+                && (!matches!(self.refute, RefuteSuite::None) || !self.custom_validators.is_empty())
+                && matches!(self.inference, InferenceMode::Frequentist)
+            {
+                if matches!(self.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+                    diagnostics.push(Diagnostic::new(
                     "refute.evalue.not_a_contrast",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -182,60 +183,60 @@ impl super::Study {
                      cheap runs overlap only and full runs overlap plus sampling-stability of the \
                      g-comp level",
                 ));
-            }
-            if scalar_intervention
-                && matches!(mixed.policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-            {
-                let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
-                let mut refute_ws = EstimationWorkspace::default();
-                let plugin_estimate = EffectEstimate::new(
-                    plugin_scalar,
-                    standard_error,
-                    mixed.response.assumptions.clone(),
-                    OverlapPolicy::ExplicitOverride,
-                );
-                run_plugin_level_refuters(
-                    data,
-                    &mixed.estimand,
-                    &ate_query,
-                    &plugin_estimate,
-                    &mut refute_ws,
-                    ctx,
-                    self.refute,
-                    estimator_id.as_str(),
-                    &self.custom_validators,
-                )?
-            } else {
-                plugin_level_on_class_response_atoms(
-                    data,
-                    &identified,
-                    &evals,
-                    treatment,
-                    outcome,
-                    ctx,
-                    self.refute,
-                    estimator_id.as_str(),
-                    &self.custom_validators,
-                    mixed.policy,
-                )?
-            }
-        } else if !matches!(self.refute, RefuteSuite::None) {
-            diagnostics.push(Diagnostic::new(
-                "refute.response.skipped",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                if matches!(mixed.policy, StructuralAggregationPolicy::GraphDependentAtoms) {
-                    "query-native validation does not compare refuters against a withheld \
-                     aggregate under GraphDependentAtoms"
+                }
+                if scalar_intervention
+                    && matches!(mixed.policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
+                {
+                    let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
+                    let mut refute_ws = EstimationWorkspace::default();
+                    let plugin_estimate = EffectEstimate::new(
+                        plugin_scalar,
+                        standard_error,
+                        mixed.response.assumptions.clone(),
+                        OverlapPolicy::ExplicitOverride,
+                    );
+                    run_plugin_level_refuters(
+                        data,
+                        &mixed.estimand,
+                        &ate_query,
+                        &plugin_estimate,
+                        &mut refute_ws,
+                        ctx,
+                        self.refute,
+                        estimator_id.as_str(),
+                        &self.custom_validators,
+                    )?
                 } else {
-                    "scalar ATE refuters are not applicable to a function-valued or Bayesian \
+                    plugin_level_on_class_response_atoms(
+                        data,
+                        &identified,
+                        &evals,
+                        treatment,
+                        outcome,
+                        ctx,
+                        self.refute,
+                        estimator_id.as_str(),
+                        &self.custom_validators,
+                        mixed.policy,
+                    )?
+                }
+            } else if !matches!(self.refute, RefuteSuite::None) {
+                diagnostics.push(Diagnostic::new(
+                    "refute.response.skipped",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    if matches!(mixed.policy, StructuralAggregationPolicy::GraphDependentAtoms) {
+                        "query-native validation does not compare refuters against a withheld \
+                     aggregate under GraphDependentAtoms"
+                    } else {
+                        "scalar ATE refuters are not applicable to a function-valued or Bayesian \
                      class-posterior response"
-                },
-            ));
-            (Vec::new(), Vec::new())
-        } else {
-            (Vec::new(), Vec::new())
-        };
+                    },
+                ));
+                (Vec::new(), Vec::new())
+            } else {
+                (Vec::new(), Vec::new())
+            };
         diagnostics.extend(refute_diags);
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
@@ -714,7 +715,8 @@ fn plugin_level_on_class_response_atoms(
             };
             let borrowed: Vec<(f64, &antecedent_validate::RefutationReport)> =
                 items.iter().map(|(w, report)| (*w, report)).collect();
-            if let Some(mixed) = antecedent_validate::RefutationReport::mixture_weighted(&borrowed) {
+            if let Some(mixed) = antecedent_validate::RefutationReport::mixture_weighted(&borrowed)
+            {
                 out.push(mixed);
             }
         }
