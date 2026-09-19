@@ -3156,9 +3156,14 @@ fn joint_cap_and_scientific_refuse_are_distinct_on_the_wire() {
             Intervention::set(VariableId::from_raw(1), Value::f64(1.0)),
         ]),
     });
-    let cap = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
-        .identify_joint_admg_response(&capped, &query)
-        .unwrap();
+    let cap = antecedent_identify::GeneralizedAdjustmentIdentifier {
+        config: antecedent_identify::GeneralizedAdjustmentConfig {
+            max_candidates: 16,
+            ..Default::default()
+        },
+    }
+    .identify_joint_admg_response(&capped, &query)
+    .unwrap();
 
     let mut scientific = antecedent_graph::Admg::with_variables(4);
     scientific.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
