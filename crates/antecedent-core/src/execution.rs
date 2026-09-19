@@ -47,7 +47,7 @@ pub const DEFAULT_USER_THREAD_CAP: u32 = 16;
 #[must_use]
 pub fn default_user_threads() -> u32 {
     std::thread::available_parallelism()
-        .map(|n| n.get() as u32)
+        .map(|n| u32::try_from(n.get()).unwrap_or(DEFAULT_USER_THREAD_CAP))
         .unwrap_or(1)
         .clamp(1, DEFAULT_USER_THREAD_CAP)
 }
@@ -514,6 +514,15 @@ impl ExecutionContext {
     /// When `n > 1` and `max_threads > 1`, work is chunked on `thread::scope`
     /// and `f` receives [`Self::serial_inner`] so nested pools stay serial.
     /// When `n <= 1` or the context is already serial, `f` receives `self`.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error produced by `f`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a worker fails to write its assigned slot (a programming error
+    /// in the pool, not in `f`).
     pub fn map_indexed<T, E, F>(&self, n: usize, f: F) -> Result<Vec<T>, E>
     where
         T: Send,

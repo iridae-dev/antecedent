@@ -2191,7 +2191,9 @@ fn analyze_temporal_graph_posterior(
             .bootstrap_replicates(bootstrap);
         builder = apply_temporal_inference(builder, Some(&inference), n_draws, prior_scale, None)?;
         let analysis = builder.build().map_err(py_err)?;
-        let ctx = py_execution_context_ext(seed, crate::resolve_user_threads(threads),
+        let ctx = py_execution_context_ext(
+            seed,
+            crate::resolve_user_threads(threads),
             cancel_token,
             progress,
             Some(PY_DEFAULT_CACHE_MAX_BYTES),
@@ -2286,7 +2288,9 @@ fn analyze_temporal_graph_posterior_mediation(
             .bootstrap_replicates(bootstrap);
         builder = apply_temporal_inference(builder, Some(&inference), n_draws, prior_scale, None)?;
         let analysis = builder.build().map_err(py_err)?;
-        let ctx = py_execution_context_ext(seed, crate::resolve_user_threads(threads),
+        let ctx = py_execution_context_ext(
+            seed,
+            crate::resolve_user_threads(threads),
             cancel_token,
             progress,
             Some(PY_DEFAULT_CACHE_MAX_BYTES),

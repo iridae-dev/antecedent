@@ -264,7 +264,11 @@ fn admg_graph_posterior_response_retains_unidentified_mass() {
     }));
 }
 
-fn assert_plugin_level_ir(result: &antecedent::StudyResult, inference: &InferenceMode, suite: RefuteSuite) {
+fn assert_plugin_level_ir(
+    result: &antecedent::StudyResult,
+    inference: &InferenceMode,
+    suite: RefuteSuite,
+) {
     assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{inference:?} {suite:?}");
     assert!(
         !result.refutations.is_empty(),

@@ -1038,9 +1038,10 @@ mod identify_only_tests {
                         "graph-posterior {suite:?} must retain per-atom refuters when scalar is withheld"
                     );
                     assert!(
-                        click.diagnostics.iter().all(|d| {
-                            d.code.as_ref() != "refute.envelope.effect_mixture"
-                        }),
+                        click
+                            .diagnostics
+                            .iter()
+                            .all(|d| { d.code.as_ref() != "refute.envelope.effect_mixture" }),
                         "outer scalar mix must not run under GraphDependentAtoms"
                     );
                 }

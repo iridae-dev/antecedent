@@ -410,35 +410,35 @@ impl GlmAdjustmentAte {
             n,
             || (GlmAdjustmentWorkspace::default(), vec![0.0; n * p], vec![0.0; n]),
             |(ws, x_boot, y_boot), idx| {
-            crate::util::gather_bootstrap_vector(y_boot, &problem.design.outcome, idx);
-            crate::util::gather_bootstrap_design(x_boot, &problem.design.matrix, n, p, idx);
-            let Ok(fit) = fit_glm(
-                problem.family,
-                GlmDesignRef { x_colmajor: x_boot, nrows: n, ncols: p, y: y_boot },
-                &self.backend,
-                &mut ws.ols,
-                &self.glm_options,
-            ) else {
-                return Ok(None);
-            };
-            if fit.require_ok().is_err() {
-                return Ok(None);
-            };
-            let diffs = gcomp_diffs(
-                problem.family,
-                x_boot,
-                n,
-                p,
-                t_col,
-                &fit.coefficients,
-                problem.active,
-                problem.control,
-            );
-            let t_boot: Vec<f64> = idx.iter().map(|&src| problem.treatment[src]).collect();
-            match average_gcomp_for_target(&diffs, &t_boot, &problem.target_population) {
-                Ok(ate) => Ok(Some(ate)),
-                Err(_) => Ok(None),
-            }
+                crate::util::gather_bootstrap_vector(y_boot, &problem.design.outcome, idx);
+                crate::util::gather_bootstrap_design(x_boot, &problem.design.matrix, n, p, idx);
+                let Ok(fit) = fit_glm(
+                    problem.family,
+                    GlmDesignRef { x_colmajor: x_boot, nrows: n, ncols: p, y: y_boot },
+                    &self.backend,
+                    &mut ws.ols,
+                    &self.glm_options,
+                ) else {
+                    return Ok(None);
+                };
+                if fit.require_ok().is_err() {
+                    return Ok(None);
+                };
+                let diffs = gcomp_diffs(
+                    problem.family,
+                    x_boot,
+                    n,
+                    p,
+                    t_col,
+                    &fit.coefficients,
+                    problem.active,
+                    problem.control,
+                );
+                let t_boot: Vec<f64> = idx.iter().map(|&src| problem.treatment[src]).collect();
+                match average_gcomp_for_target(&diffs, &t_boot, &problem.target_population) {
+                    Ok(ate) => Ok(Some(ate)),
+                    Err(_) => Ok(None),
+                }
             },
         )
     }

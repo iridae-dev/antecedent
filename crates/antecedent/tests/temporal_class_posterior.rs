@@ -169,7 +169,10 @@ fn reconstruct_temporal_class(contemp: u64, lag: u64, n: usize) {
         .expect("TemporalPag reconstructs from DBN masks");
 }
 
-fn fixture_class_posterior(kind: GraphPosteriorAtomKind, pin: &serde_json::Value) -> GraphPosterior {
+fn fixture_class_posterior(
+    kind: GraphPosteriorAtomKind,
+    pin: &serde_json::Value,
+) -> GraphPosterior {
     let weights: Vec<f64> =
         pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
     let identified_c = pin["identified_atom"]["contemporaneous_mask"].as_u64().unwrap();
@@ -391,7 +394,11 @@ fn temporal_class_graph_posterior_cheap_and_full_run() {
     );
     for kind in [GraphPosteriorAtomKind::Cpdag, GraphPosteriorAtomKind::Pag] {
         let (data, gp, queries) = if kind == GraphPosteriorAtomKind::Cpdag {
-            (fixture_series.clone(), fixture_class_posterior(kind, &pin), vec![fixture_pulse(), fixture_sustained()])
+            (
+                fixture_series.clone(),
+                fixture_class_posterior(kind, &pin),
+                vec![fixture_pulse(), fixture_sustained()],
+            )
         } else {
             (
                 series(),
@@ -405,14 +412,8 @@ fn temporal_class_graph_posterior_cheap_and_full_run() {
                 InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8)),
             ] {
                 for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
-                    let result = run_on(
-                        &data,
-                        gp.clone(),
-                        query.clone(),
-                        inference.clone(),
-                        suite,
-                        0,
-                    );
+                    let result =
+                        run_on(&data, gp.clone(), query.clone(), inference.clone(), suite, 0);
                     assert!(
                         result.diagnostics.iter().any(|d| {
                             d.code.as_ref() == "refute.envelope.temporal_class_posterior"
@@ -541,11 +542,7 @@ fn temporal_class_graph_posterior_numeric_pins() {
         let (data, gp, pin_numeric) = if kind == GraphPosteriorAtomKind::Cpdag {
             (fixture_series.clone(), fixture_class_posterior(kind, &pin), true)
         } else {
-            (
-                series(),
-                class_posterior(kind, &[1.0], &[0], &[identified_lag_mask()]),
-                false,
-            )
+            (series(), class_posterior(kind, &[1.0], &[0], &[identified_lag_mask()]), false)
         };
         for query in [fixture_pulse(), fixture_sustained()] {
             for inference in [
@@ -780,14 +777,8 @@ fn temporal_class_graph_posterior_mediation_cheap_and_full_run() {
         InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)),
     ] {
         for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
-            let result = run_mediation(
-                &series,
-                gp.clone(),
-                mediation_query(),
-                inference.clone(),
-                suite,
-                0,
-            );
+            let result =
+                run_mediation(&series, gp.clone(), mediation_query(), inference.clone(), suite, 0);
             assert_eq!(result.support_status.unwrap().as_str(), "licensed");
             assert!(
                 result.diagnostics.iter().any(|d| {

@@ -764,9 +764,10 @@ fn class_posterior_graph_posterior_conditional_effect_runs() {
                     ),
                     RefuteSuite::Cheap | RefuteSuite::Full => {
                         assert!(
-                            result.diagnostics.iter().any(|d| {
-                                d.code.as_ref() == "refute.envelope.class_posterior"
-                            }),
+                            result
+                                .diagnostics
+                                .iter()
+                                .any(|d| { d.code.as_ref() == "refute.envelope.class_posterior" }),
                             "{label} {inference:?} {suite:?}: per-atom class-posterior refuters"
                         );
                         assert!(
@@ -777,8 +778,10 @@ fn class_posterior_graph_posterior_conditional_effect_runs() {
                             d.code.as_ref() == "refute.envelope.class_posterior"
                                 && d.message.contains("pass only if every contributing atom passes")
                         });
-                        if has_policy(&result, StructuralAggregationPolicy::SameEstimandWeightedMean)
-                        {
+                        if has_policy(
+                            &result,
+                            StructuralAggregationPolicy::SameEstimandWeightedMean,
+                        ) {
                             assert!(
                                 mixed,
                                 "{label} {inference:?} {suite:?}: SameEstimandWeightedMean mixes atom reports"
@@ -882,16 +885,16 @@ fn class_posterior_graph_posterior_intervention_response_cheap_and_full_run() {
                 .unwrap()
                 .run(&ExecutionContext::for_tests(1))
                 .unwrap();
-            assert!(
-                result.structural_response.is_some(),
-                "{label} {suite:?}: class IR mixture"
-            );
+            assert!(result.structural_response.is_some(), "{label} {suite:?}: class IR mixture");
             assert!(
                 !result.refutations.is_empty(),
                 "{label} {suite:?} must run plugin-level refuters"
             );
             assert!(
-                result.diagnostics.iter().any(|d| d.code.as_ref() == "refute.evalue.not_a_contrast"),
+                result
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code.as_ref() == "refute.evalue.not_a_contrast"),
                 "{label} {suite:?}: not a contrast-shaped ATE suite"
             );
             assert!(

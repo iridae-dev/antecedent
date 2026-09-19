@@ -79,7 +79,9 @@ pub fn estimate_static_mediation(
         })
         .collect();
     let mut ls_ws = LeastSquaresWorkspace::default();
-    let fit = |rows: &[usize], ls_ws: &mut LeastSquaresWorkspace| -> Result<(f64, f64), EstimationError> {
+    let fit = |rows: &[usize],
+               ls_ws: &mut LeastSquaresWorkspace|
+     -> Result<(f64, f64), EstimationError> {
         let mut total = vec![0.0; graph.node_count()];
         let mut direct = total.clone();
         for &node in &order {

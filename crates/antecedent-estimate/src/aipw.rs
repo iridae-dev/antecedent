@@ -524,88 +524,71 @@ impl AipwAte {
                     Vec::<f64>::new(),
                 )
             },
-            |(
-                workspace,
-                x_boot,
-                t_boot,
-                y_boot,
-                e,
-                design_trim,
-                t_trim,
-                y_trim,
-                e_trim,
-            ),
-             idx| {
-            crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
-            crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
-            crate::util::gather_bootstrap_design(
-                x_boot,
-                &problem.design_matrix,
-                n,
-                ncols,
-                idx,
-            );
-            if antecedent_stats::fit_propensity_in_place(
-                x_boot,
-                n,
-                ncols,
-                t_boot,
-                &self.backend,
-                &mut workspace.propensity,
-                &self.glm_options,
-            )
-            .is_err()
-            {
-                return Ok(None);
-            }
-            let raw = &workspace.propensity.scores[..n];
-            e.copy_from_slice(raw);
-            if let Some(c) = clip {
-                clamp_scores(e, c);
-            }
-            let Ok(retained) = trim_retained_rows(raw, trim) else {
-                return Ok(None);
-            };
-            let (design_used, t_used, y_used, e_used): (&[f64], &[f64], &[f64], &[f64]) =
-                match &retained {
-                    Some(rows) => {
-                        select_rows_colmajor(x_boot, n, ncols, rows, design_trim);
-                        gather_into(t_trim, t_boot, rows);
-                        gather_into(y_trim, y_boot, rows);
-                        gather_into(e_trim, e, rows);
-                        (design_trim, t_trim, y_trim, e_trim)
-                    }
-                    None => (x_boot, t_boot, y_boot, e),
+            |(workspace, x_boot, t_boot, y_boot, e, design_trim, t_trim, y_trim, e_trim), idx| {
+                crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
+                crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
+                crate::util::gather_bootstrap_design(x_boot, &problem.design_matrix, n, ncols, idx);
+                if antecedent_stats::fit_propensity_in_place(
+                    x_boot,
+                    n,
+                    ncols,
+                    t_boot,
+                    &self.backend,
+                    &mut workspace.propensity,
+                    &self.glm_options,
+                )
+                .is_err()
+                {
+                    return Ok(None);
+                }
+                let raw = &workspace.propensity.scores[..n];
+                e.copy_from_slice(raw);
+                if let Some(c) = clip {
+                    clamp_scores(e, c);
+                }
+                let Ok(retained) = trim_retained_rows(raw, trim) else {
+                    return Ok(None);
                 };
-            let nrows = t_used.len();
-            let Ok((beta0, beta1)) = fit_outcome_models(
-                design_used,
-                nrows,
-                ncols,
-                t_used,
-                y_used,
-                self.backend,
-                workspace,
-            ) else {
-                return Ok(None);
-            };
-            predict_colmajor(design_used, nrows, ncols, &beta0, &mut workspace.mu0);
-            predict_colmajor(design_used, nrows, ncols, &beta1, &mut workspace.mu1);
-            if aipw_psi(
-                t_used,
-                y_used,
-                e_used,
-                &workspace.mu0,
-                &workspace.mu1,
-                &problem.target_population,
-                &mut workspace.psi,
-            )
-            .is_err()
-            {
-                return Ok(None);
-            }
-            let m = workspace.psi.len() as f64;
-            Ok(Some(workspace.psi.iter().sum::<f64>() / m))
+                let (design_used, t_used, y_used, e_used): (&[f64], &[f64], &[f64], &[f64]) =
+                    match &retained {
+                        Some(rows) => {
+                            select_rows_colmajor(x_boot, n, ncols, rows, design_trim);
+                            gather_into(t_trim, t_boot, rows);
+                            gather_into(y_trim, y_boot, rows);
+                            gather_into(e_trim, e, rows);
+                            (design_trim, t_trim, y_trim, e_trim)
+                        }
+                        None => (x_boot, t_boot, y_boot, e),
+                    };
+                let nrows = t_used.len();
+                let Ok((beta0, beta1)) = fit_outcome_models(
+                    design_used,
+                    nrows,
+                    ncols,
+                    t_used,
+                    y_used,
+                    self.backend,
+                    workspace,
+                ) else {
+                    return Ok(None);
+                };
+                predict_colmajor(design_used, nrows, ncols, &beta0, &mut workspace.mu0);
+                predict_colmajor(design_used, nrows, ncols, &beta1, &mut workspace.mu1);
+                if aipw_psi(
+                    t_used,
+                    y_used,
+                    e_used,
+                    &workspace.mu0,
+                    &workspace.mu1,
+                    &problem.target_population,
+                    &mut workspace.psi,
+                )
+                .is_err()
+                {
+                    return Ok(None);
+                }
+                let m = workspace.psi.len() as f64;
+                Ok(Some(workspace.psi.iter().sum::<f64>() / m))
             },
         )
     }

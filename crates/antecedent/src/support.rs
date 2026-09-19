@@ -1191,13 +1191,8 @@ mod tests {
             }
             for validation in ["cheap", "full"] {
                 for structure in ["explicit", "accepted"] {
-                    let open = cell(
-                        "InterventionResponse",
-                        "Admg",
-                        structure,
-                        inference,
-                        validation,
-                    );
+                    let open =
+                        cell("InterventionResponse", "Admg", structure, inference, validation);
                     assert_eq!(
                         classify(open),
                         CellStatus::Licensed,

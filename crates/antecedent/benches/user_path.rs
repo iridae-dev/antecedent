@@ -53,12 +53,8 @@ fn columns(n: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
 
 fn tabular(n: usize) -> TabularData {
     let (z, t, y) = columns(n);
-    TabularData::from_f64_columns([
-        ("t", t.as_slice()),
-        ("y", y.as_slice()),
-        ("z", z.as_slice()),
-    ])
-    .unwrap()
+    TabularData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())])
+        .unwrap()
 }
 
 fn dag() -> Dag {
@@ -77,11 +73,8 @@ fn ate_query() -> CausalQuery {
 }
 
 fn report(name: &str, ctx: &ExecutionContext, result: &antecedent::StudyResult) {
-    let identify_hits = result
-        .diagnostics
-        .iter()
-        .filter(|d| d.code.as_ref() == "exec.identify.cached")
-        .count();
+    let identify_hits =
+        result.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count();
     eprintln!(
         "user_path {name}: n={} threads={} wall_ns={:?} copies={} bytes_borrowed={:?} identify_cache_hits={identify_hits} ate={}",
         job_n(),
@@ -99,7 +92,9 @@ fn bench_user_path(c: &mut Criterion) {
     let graph = dag();
     let ctx = ctx();
     if ctx.parallelism.max_threads.get() == 1 {
-        eprintln!("user_path threads=1 (record this; production default is capped available_parallelism)");
+        eprintln!(
+            "user_path threads=1 (record this; production default is capped available_parallelism)"
+        );
     }
     let ate = ate_query();
 
@@ -143,13 +138,14 @@ fn bench_user_path(c: &mut Criterion) {
     });
     report("dag_ate_bayesian_laplace", &ctx, &bayesian.run(&ctx).unwrap());
 
-    let level = CausalQuery::Response(ResponseQuery::new(ResponseFunctional::InterventionResponse {
-        outcome: VariableId::from_raw(1),
-        interventions: std::sync::Arc::from([Intervention::set(
-            VariableId::from_raw(0),
-            Value::f64(1.0),
-        )]),
-    }));
+    let level =
+        CausalQuery::Response(ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(1),
+            interventions: std::sync::Arc::from([Intervention::set(
+                VariableId::from_raw(0),
+                Value::f64(1.0),
+            )]),
+        }));
     let intervention = Study::tabular(data.clone())
         .graph(graph.clone())
         .query(level)
@@ -164,17 +160,12 @@ fn bench_user_path(c: &mut Criterion) {
 
     let kn = n.max(128);
     let ka: Vec<f64> = (0..kn).map(|i| (i as f64 * 0.71).sin()).collect();
-    let ky: Vec<f64> = ka
-        .iter()
-        .enumerate()
-        .map(|(i, a)| 2.0 * a + 0.1 * (i as f64 * 0.13).cos())
-        .collect();
-    let kennedy_data = TabularData::from_f64_columns([("t", ka.as_slice()), ("y", ky.as_slice())])
-        .unwrap();
+    let ky: Vec<f64> =
+        ka.iter().enumerate().map(|(i, a)| 2.0 * a + 0.1 * (i as f64 * 0.13).cos()).collect();
+    let kennedy_data =
+        TabularData::from_f64_columns([("t", ka.as_slice()), ("y", ky.as_slice())]).unwrap();
     let mut kennedy_dag = Dag::with_variables(2);
-    kennedy_dag
-        .insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-        .unwrap();
+    kennedy_dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let kennedy = CausalQuery::Response(ResponseQuery::new(ResponseFunctional::MeanCurve {
         outcome: VariableId::from_raw(1),
         treatment: ContinuousDomain::new(
@@ -229,15 +220,15 @@ fn bench_user_path(c: &mut Criterion) {
         x[t] = 0.2 * ((t as f64) * 0.07).sin();
         y[t] = 0.8 * x[t - 1];
     }
-    let series = TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1)
-        .unwrap();
+    let series =
+        TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1).unwrap();
     let pulse = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
         .with_policy(TemporalPolicy::pulse(-1))
         .with_horizon_steps(1);
     let mut temporal_dag = TemporalDag::empty();
     let x1 = ensure_lagged(&mut temporal_dag, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
-    let y0 = ensure_lagged(&mut temporal_dag, VariableId::from_raw(1), Lag::CONTEMPORANEOUS)
-        .unwrap();
+    let y0 =
+        ensure_lagged(&mut temporal_dag, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     temporal_dag.insert_directed(x1, y0).unwrap();
     let temporal = Study::series(series)
         .graph(temporal_dag)

@@ -288,8 +288,10 @@ impl super::Study {
                     "refute.response.skipped",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    if matches!(aggregation_policy, StructuralAggregationPolicy::GraphDependentAtoms)
-                    {
+                    if matches!(
+                        aggregation_policy,
+                        StructuralAggregationPolicy::GraphDependentAtoms
+                    ) {
                         "query-native validation does not compare refuters against a withheld \
                          aggregate under GraphDependentAtoms"
                     } else {
@@ -501,4 +503,3 @@ fn admg_response_at_level(
     };
     level_query
 }
-
