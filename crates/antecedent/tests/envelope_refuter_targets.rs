@@ -181,9 +181,22 @@ fn graph_posterior_heterogeneous_atoms_pass_data_subset_against_own_estimates() 
         .unwrap()
         .run(&ExecutionContext::for_tests(7))
         .unwrap();
-    assert!((result.estimate.ate - 2.625).abs() < 1e-8);
-    // Atom effects 3 and 2 at contributing weights 0.5 / 0.3: 2.625 is the
-    // mass-weighted mean of what the atoms were compared against, even though
-    // neither atom was compared with 2.625 itself.
-    assert_atom_targeted_mixture(&result, "data.subset", 2.625, 1e-8);
+    assert!(
+        !result.estimate.ate.is_finite(),
+        "disagreeing atoms must withhold the scalar mixture ATE"
+    );
+    assert!(
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "refute.envelope.class_posterior"),
+        "per-atom refuters must run when scalar mix is withheld"
+    );
+    let subset = report(&result, "data.subset");
+    assert!(
+        subset.passed,
+        "stable atoms must pass data.subset against their own estimates: {subset:?}"
+    );
+    assert!(
+        (subset.original_ate - 3.0).abs() < 0.15,
+        "first contributing atom targets its own unadjusted effect (~3), got {}",
+        subset.original_ate
+    );
 }

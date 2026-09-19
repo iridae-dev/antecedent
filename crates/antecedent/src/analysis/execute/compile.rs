@@ -96,6 +96,25 @@ impl super::Study {
                     estimator,
                 )
             }
+            (Some(AnalysisRoute::Response), GraphClass::Admg) => {
+                let DataInput::Tabular(data) = &self.data else { unreachable!() };
+                let CausalQuery::Response(q) = &self.query else { unreachable!() };
+                let admg = self.graph.as_admg().expect("class() == Admg implies as_admg() is Some");
+                if admg_has_bidirected(admg) {
+                    compile_logical_admg_response(data, q, self.validation_suite_id(), self)
+                } else {
+                    let dag = admg_to_dag(admg)?;
+                    let (identifier, estimator) = self.resolve_response_pair(q);
+                    compile_logical_static_response(StaticResponseCompileInput {
+                        data,
+                        graph: &dag,
+                        query: q,
+                        validation_suite: self.validation_suite_id(),
+                        identifier,
+                        estimator,
+                    })
+                }
+            }
             (Some(AnalysisRoute::StaticAte), GraphClass::Dag) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
@@ -675,6 +694,15 @@ impl super::Study {
             {
                 self.compile_logical()?.compile_physical(ctx)
             }
+            (Some(AnalysisRoute::Response), GraphClass::Admg) => {
+                let admg = self.graph.as_admg().expect("class() == Admg implies as_admg() is Some");
+                if admg_has_bidirected(admg) {
+                    self.compile_logical()?.compile_physical(ctx)
+                } else {
+                    let dag = admg_to_dag(admg)?;
+                    self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(dag))
+                }
+            }
             (Some(AnalysisRoute::StaticAte), GraphClass::Admg) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
@@ -855,6 +883,38 @@ impl super::Study {
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         self.compile_logical_temporal_class()?.compile_physical(ctx)
     }
+}
+
+pub(crate) fn compile_logical_admg_response(
+    data: &TabularData,
+    query: &ResponseQuery,
+    validation_suite: Option<Arc<str>>,
+    study: &super::Study,
+) -> Result<LogicalAnalysisPlan, CausalError> {
+    let (identifier, estimator) = study.resolve_admg_pair();
+    validate_static_pair(identifier.parse::<IdentifierId>()?, estimator.parse::<EstimatorId>()?)?;
+    query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
+    let (treatment, outcome) = query.functional.primary_pair().ok_or_else(|| {
+        CausalError::Compile { message: "response query has no treatment/outcome pair".into() }
+    })?;
+    let record = antecedent_core::LogicalAnalysisPlanRecord {
+        plan_id: Arc::from("static_admg_response"),
+        data_classification: antecedent_core::DataClassification::Tabular,
+        discovery_algorithm: None,
+        graph_review_required: false,
+        identifier: Some(identifier),
+        estimator: Some(estimator),
+        validation_suite,
+        query_variables: Arc::from([treatment, outcome]),
+    };
+    let logical = LogicalAnalysisPlan {
+        record,
+        query: CausalQuery::Response(query.clone()),
+        split: None,
+        row_count_hint: data.row_count() as u64,
+    };
+    logical.validate()?;
+    Ok(logical)
 }
 
 fn panel_compile_series(panel: &PanelData) -> Result<&TimeSeriesData, CausalError> {

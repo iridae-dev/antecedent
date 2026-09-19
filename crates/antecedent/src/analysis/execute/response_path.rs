@@ -1581,7 +1581,9 @@ fn shared_completion_uncertainty(
         .then(|| first.uncertainty.clone())
 }
 
-fn response_identified_value(response: &antecedent_core::CausalResponse) -> Option<ResponseValue> {
+pub(super) fn response_identified_value(
+    response: &antecedent_core::CausalResponse,
+) -> Option<ResponseValue> {
     match &response.estimate {
         ResponseIdentification::PointIdentified(value)
         | ResponseIdentification::PartiallyIdentified(value) => Some(value.clone()),
@@ -1591,7 +1593,7 @@ fn response_identified_value(response: &antecedent_core::CausalResponse) -> Opti
     }
 }
 
-fn response_envelope_from_weighted(
+pub(super) fn response_envelope_from_weighted(
     weighted: &[(u64, f64, antecedent_core::CausalResponse)],
 ) -> Option<antecedent_core::ResponseEnvelope> {
     let values = weighted
@@ -1678,7 +1680,7 @@ fn singleton_response_value(
     }
 }
 
-fn mix_class_responses(
+pub(super) fn mix_class_responses(
     weighted: &[(u64, f64, antecedent_core::CausalResponse)],
     envelope_status: IdentificationStatus,
 ) -> Result<antecedent_core::CausalResponse, CausalError> {
@@ -1761,7 +1763,9 @@ fn mix_class_responses(
     })
 }
 
-fn mix_response_values(items: &[(f64, &ResponseValue)]) -> Result<ResponseValue, CausalError> {
+pub(super) fn mix_response_values(
+    items: &[(f64, &ResponseValue)],
+) -> Result<ResponseValue, CausalError> {
     let Some((_, first)) = items.first() else {
         return Err(CausalError::Compile {
             message: "class-aware response mix requires at least one identified case".into(),
@@ -1940,7 +1944,7 @@ fn attach_response_influence(
 /// influence of the atoms on the shared data rows. Each atom's influence is
 /// placed on its own complete-case rows ([`mix_response_influences`]), so atoms
 /// that drop different rows are aligned by row index, not by position.
-fn mixed_response_scalar_se(
+pub(super) fn mixed_response_scalar_se(
     atoms: &[(f64, antecedent_estimate::ResponseInfluence)],
     full_n: usize,
 ) -> Option<f64> {
@@ -2050,7 +2054,7 @@ mod uncertainty_tests {
     }
 }
 
-fn estimate_general_id_response(
+pub(super) fn estimate_general_id_response(
     data: &TabularData,
     query: &ResponseQuery,
     identification: &antecedent_identify::IdentificationResult,

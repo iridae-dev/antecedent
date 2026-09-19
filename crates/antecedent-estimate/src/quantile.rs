@@ -189,7 +189,10 @@ pub fn quantile_arm(
         ));
     }
     let n = table.n_rows;
-    let mass = weights.map_or(n as f64, |w| w.iter().sum());
+    // Only relative weights define the target. Normalize before n*w or W can
+    // overflow; raw means and support were validated above.
+    let weight_scale = weights.map_or(1.0, |w| w.iter().copied().fold(0.0_f64, f64::max));
+    let mass = weights.map_or(n as f64, |w| w.iter().map(|v| v / weight_scale).sum());
     let mut indexes: Vec<_> = table
         .columns
         .iter()
@@ -209,7 +212,7 @@ pub fn quantile_arm(
                 .iter()
                 .enumerate()
                 .map(|(i, v)| {
-                    let scale = weights.map_or(1.0, |w| n as f64 * w[i] / mass);
+                    let scale = weights.map_or(1.0, |w| n as f64 * ((w[i] / weight_scale) / mass));
                     -scale * (v - raw.means[*j])
                 })
                 .collect())
@@ -298,6 +301,44 @@ mod tests {
 #[cfg(test)]
 mod review_tests {
     use super::*;
+    use std::sync::Arc;
+    #[test]
+    fn review_quantile_influence_is_invariant_to_weight_units() {
+        use crate::scores::{ScoreColumn, ScoreTable};
+        let n = 80;
+        let scores: Vec<f64> = [0.75, 0.25]
+            .iter()
+            .flat_map(|mean| (0..n).map(move |i| mean + if i % 2 == 0 { 0.1 } else { -0.1 }))
+            .collect();
+        let table = ScoreTable {
+            observed_arm: vec![0; n].into(),
+            propensities: vec![0.5; 2 * n].into(),
+            observed_outcome: (0..n).map(|i| if i % 2 == 0 { -1.0 } else { 2.0 }).collect(),
+            n_rows: n,
+            row_index: (0..n).map(|i| u32::try_from(i).unwrap()).collect(),
+            fold_ids: (0..n).map(|i| u32::try_from(i % 2).unwrap()).collect(),
+            n_folds: 2,
+            scores: scores.into(),
+            columns: Arc::from([
+                ScoreColumn { arm: 0, threshold: Some(0.0) },
+                ScoreColumn { arm: 0, threshold: Some(1.0) },
+            ]),
+            adjustment_set: Arc::from([]),
+            nuisance_provenance: Arc::from("test"),
+            treatment: antecedent_core::VariableId::from_raw(0),
+            intervened: Arc::from([]),
+        };
+        let expected = quantile_arm(&table, None, 0.5, 0).unwrap();
+        assert!(expected.influence.iter().any(|v| v.abs() > 0.1));
+        for scale in [1e-200, 1e200, 1e308] {
+            let actual = quantile_arm(&table, Some(&vec![scale; n]), 0.5, 0).unwrap();
+            assert!((actual.value - expected.value).abs() < 1e-12);
+            for (a, b) in actual.influence.iter().zip(&expected.influence) {
+                assert!((a - b).abs() < 1e-12);
+            }
+        }
+    }
+
     #[test]
     fn rejects_malformed_cdf_inputs() {
         let phi = vec![vec![0.1; 8]; 3];

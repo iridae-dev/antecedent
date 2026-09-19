@@ -3630,7 +3630,7 @@ impl super::Study {
     }
 }
 
-fn enforce_temporal_response_memory_budget(
+pub(super) fn enforce_temporal_response_memory_budget(
     query: &ResponseQuery,
     temporal: &antecedent_core::TemporalResponseSpec,
     bootstrap_replicates: u32,
@@ -4378,7 +4378,7 @@ pub(super) fn lagged_adjustment_from_entry(
         .into()
 }
 
-fn lagged_column_relative_to_outcome(
+pub(super) fn lagged_column_relative_to_outcome(
     key: antecedent_core::TemporalNodeKey,
     outcome_offset: i32,
 ) -> Option<antecedent_data::LaggedColumn> {
@@ -4412,7 +4412,7 @@ fn mediation_click_adjustment_keys(
     Arc::from(keys)
 }
 
-fn horizon_adjustment_sets_differ(
+pub(super) fn horizon_adjustment_sets_differ(
     entries: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
 ) -> bool {
     let Some(first) = entries.first() else {

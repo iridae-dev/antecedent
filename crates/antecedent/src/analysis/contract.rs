@@ -1542,11 +1542,24 @@ fn dbn_projected_temporal_identification(study: &Study) -> Option<CachedTemporal
 
 /// Project a TemporalCpdag/Pag envelope indexer onto the same namespace owner.
 fn class_projected_temporal_identification(study: &Study) -> Option<CachedTemporalIdentification> {
-    let cache = study.temporal_class_identification_cache.as_ref()?;
-    let (horizon, envelope) = cache.by_horizon.first().map_or_else(
-        || (query_horizon_steps(&study.query), &cache.envelope),
-        |(horizon, envelope)| (*horizon, envelope),
-    );
+    if let Some(cache) = study.temporal_class_identification_cache.as_ref() {
+        let (horizon, envelope) = cache.by_horizon.first().map_or_else(
+            || (query_horizon_steps(&study.query), &cache.envelope),
+            |(horizon, envelope)| (*horizon, envelope),
+        );
+        if let Some(projected) = project_class_envelope(horizon, envelope) {
+            return Some(projected);
+        }
+    }
+    let cache = study.temporal_class_posterior_identification_cache.as_ref()?;
+    let atom = cache.class_atoms.first()?;
+    project_class_envelope(query_horizon_steps(&study.query), &atom.envelope)
+}
+
+fn project_class_envelope(
+    horizon: u32,
+    envelope: &antecedent_identify::TemporalClassEnvelope,
+) -> Option<CachedTemporalIdentification> {
     let indexer = envelope.indexers.first()?.clone();
     let case = envelope.envelope.cases.iter().find(|case| !case.result.estimands.is_empty())?;
     Some(CachedTemporalIdentification {
@@ -1950,6 +1963,8 @@ fn attested_evidence(result: &StudyResult) -> Arc<[AttestedEvidence]> {
             informative: report.informative,
             failure_condition: report.failure_condition.clone(),
             reverifiable: false,
+            config_digest: None,
+            payload_digest: None,
         })
         .collect()
 }
@@ -2102,7 +2117,11 @@ fn identifies_per_execution(study: &Study) -> bool {
 fn matrix_coordinate(study: &Study) -> Option<String> {
     let cell = crate::support::support_cell_named(
         &study.query,
-        crate::support::matrix_graph_class(&study.graph, &study.query, study.tiered.as_ref()),
+        if study.graph_posterior.is_some() {
+            study.graph.class().as_str()
+        } else {
+            crate::support::matrix_graph_class(&study.graph, &study.query, study.tiered.as_ref())
+        },
         study.structure_source,
         &study.inference,
         study.refute,
@@ -2562,6 +2581,8 @@ fn claim_section(claim: &ClaimEnvelope) -> ClaimSectionWire {
                     .as_ref()
                     .map(std::string::ToString::to_string),
                 reverifiable: item.reverifiable,
+                config_digest: item.config_digest.as_ref().map(std::string::ToString::to_string),
+                payload_digest: item.payload_digest.as_ref().map(std::string::ToString::to_string),
             })
             .collect(),
     }
