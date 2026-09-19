@@ -81,7 +81,7 @@ pub struct GeneralizedAdjustmentConfig {
 
 impl Default for GeneralizedAdjustmentConfig {
     fn default() -> Self {
-        Self { max_completions: 32, per_completion_weight: 1.0, max_candidates: 16 }
+        Self { max_completions: 32, per_completion_weight: 1.0, max_candidates: 40 }
     }
 }
 
@@ -965,6 +965,11 @@ mod tests {
     use super::*;
     use crate::result::IdentificationStatus;
     use antecedent_graph::Pag;
+
+    #[test]
+    fn default_max_candidates_matches_dag_backdoor() {
+        assert_eq!(GeneralizedAdjustmentConfig::default().max_candidates, 40);
+    }
 
     #[test]
     fn conditional_modifier_cannot_be_a_mediator() {
