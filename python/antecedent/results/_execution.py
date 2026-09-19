@@ -240,7 +240,7 @@ def _payload(value: Any) -> dict[str, Any]:
                 if field.exclude is not True and name not in skip
             }
     except ImportError:
-        pass
+        pass  # pydantic is optional; fall through to the generic value wrapper
     return {"value": value}
 
 

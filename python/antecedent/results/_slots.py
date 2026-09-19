@@ -218,7 +218,7 @@ def json_value(value: Any) -> Any:
             dumped.update({str(key): json_value(item) for key, item in extra.items()})
             return dumped
     except ImportError:
-        pass
+        pass  # pydantic is optional; continue with mapping / sequence fallbacks
     if isinstance(value, Mapping):
         return {str(k): json_value(v) for k, v in value.items()}
     if isinstance(value, (tuple, list)):
