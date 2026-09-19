@@ -1,0 +1,29 @@
+feature_id = "estimate.functional_effect"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Scalar sibling of estimate.functional_distribution: plug-in evaluation of
+# an already identified scalar functional (ATE / path-specific NE) on
+# empirical discrete tables. Identification is identify.id / path_specific.
+papers = [
+ { title = "A General Identification Condition for Causal Effects", sections = ["ID algorithm"] },
+ { title = "Identification of Conditional Interventional Distributions", doi = "10.48550/arXiv.1206.6876", sections = ["IDC algorithm"] },
+]
+
+implementation_deviations = [
+ "Evaluates an already identified expression using empirical conditional probability tables; it does not itself implement ID or IDC.",
+ "Supports only discrete variables with finite observed support, a maximum of 64 levels per variable, and hard interventions.",
+ "Optional uncertainty is a row bootstrap of the plug-in functional, not an analytic influence-function SE.",
+]
+
+upstream_implementations_observed = [
+ { project = "dowhy", exposure = "black-box comparison only" },
+]
+
+test_sources = [
+ "crates/antecedent-estimate/src/functional_distribution.rs (FunctionalEffect)",
+ "conformance/estimate/admg_frontdoor_functional",
+]

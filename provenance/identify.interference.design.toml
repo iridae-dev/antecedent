@@ -1,0 +1,23 @@
+feature_id = "identify.interference.design"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Estimating average causal effects under general interference, with application to a social network experiment", doi = "10.1214/16-AOAS1005", sections = ["Section 3, definitions 1-2: exposure mappings identify exposure contrasts when assignment probabilities are known"] },
+]
+
+implementation_deviations = [
+ "Identification is design-based: the known assignment mechanism identifies the exposure contrast. The graph is schema-only and is not searched.",
+ "Observational interference (unknown assignment, network-confounded exposure) is outside scope.",
+ "Does not implement the paper's joint-exposure-probability variance estimator; estimation is stats.randomized_interference (Horvitz–Thompson / Hájek).",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/src/analysis/execute/transport_interference_path.rs",
+ "crates/antecedent/tests/staged_attribution_transport_interference.rs",
+]

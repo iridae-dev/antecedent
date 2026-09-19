@@ -1,0 +1,27 @@
+feature_id = "estimate.graph_posterior.joint_if"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Linear combination of observation-level influence functions with frozen
+# graph weights. The functional delta method is textbook; the graph-posterior
+# application (weights are modeling choices, not estimated probabilities in
+# the IF) is original scoped engineering.
+papers = [
+ { title = "Asymptotic Statistics", doi = "10.1017/CBO9780511802256", sections = ["Chapter 20: the functional delta method; influence functions of linear functionals"] },
+]
+
+implementation_deviations = [
+ "Graph weights are treated as frozen. The reported SE is for the weighted aggregate given those weights, not a sampling distribution over graph-posterior uncertainty.",
+ "Requires atom influences to align on the same rows. A multi-atom curve, or unaligned influences, withholds the SE (estimate.response.graph_posterior.uncertainty_withheld) rather than publishing a misspecified covariance.",
+ "Does not estimate, regularize, or cross-fit the weights. Failed-estimation mass is unevaluable, not unidentified, and makes the result GraphDependent.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/joint_if.rs",
+ "crates/antecedent/tests/class_posterior_ate.rs",
+]

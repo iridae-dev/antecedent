@@ -1,0 +1,26 @@
+feature_id = "estimate.identified_set"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Confidence Intervals for Partially Identified Parameters", doi = "10.1111/j.1468-0262.2004.00555.x", sections = ["Lemma 2.1 and the modified CI that covers the true parameter, not the whole identification region"] },
+ { title = "Inference for Parameters Defined by Moment Inequalities Using Generalized Moment Selection", doi = "10.3982/ECTA7502", sections = ["BIC-type moment-selection threshold used when the estimated set width is not treated as superefficient at zero"] },
+]
+
+implementation_deviations = [
+ "Critical value c solves Φ(c + Δ̃ / max_g σ_g) − Φ(−c) = level with per-completion endpoints from shared resamples, not Imbens–Manski's original single-pair bound estimators.",
+ "Δ̃ is the estimated set width, replaced by zero unless it exceeds κ · σ_Δ with κ = sqrt(ln n) (Andrews–Soares BIC-type). This is a repository-chosen threshold, not their GMS procedure.",
+ "Frequentist SDs come from shared circular-block replicates with fixed-b scaling. The paper's i.i.d. sampling model is not assumed.",
+ "The Bayesian product-posterior envelope uses independent completion draws and IM tail probabilities 1 − Φ(c). It is not a Frequentist IM interval and inherits no IM coverage theorem.",
+ "When completion enumeration is capped, the interval covers retained completions only and is flagged truncated.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/identified_set.rs",
+ "crates/antecedent/src/result.rs (StructuralResponseMixture identified-set interval)",
+]
