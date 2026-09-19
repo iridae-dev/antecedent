@@ -470,14 +470,16 @@ def test_response_row_diagnostics_export_is_opt_in():
     assert "grid_len=3" in influence.detail
 
 
-def test_response_refuses_ignored_threads():
-    with pytest.raises(ValueError, match="threads=1"):
-        antecedent.analyze(
-            {"a": np.arange(30.0), "y": np.arange(30.0)},
-            query=antecedent.ResponseCurve("a", "y", grid=[1.0, 2.0]),
-            graph=[("a", "y")],
-            threads=2,
-        )
+def test_response_honors_explicit_threads():
+    result = antecedent.analyze(
+        {"a": np.arange(30.0), "y": np.arange(30.0) * 0.5},
+        query=antecedent.ResponseCurve("a", "y", grid=[1.0, 2.0]),
+        graph=[("a", "y")],
+        threads=2,
+        bootstrap=0,
+        refute="none",
+    )
+    assert result.study is not None
 
 
 def test_response_admg_intervention_cheap_runs_plugin_level():

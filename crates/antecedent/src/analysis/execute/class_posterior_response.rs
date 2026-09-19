@@ -63,23 +63,17 @@ impl super::Study {
             &query.outcome_functional,
         )?;
         let options = self.response_options.clone().unwrap_or_default();
-        let mut evals = Vec::new();
-        match &self.inference {
-            InferenceMode::Frequentist => {
-                for atom in identified.class_atoms.iter() {
-                    evals.push(evaluate_class_atom_response_frequentist(
-                        self, &data_est, query, atom, &options, ctx,
-                    )?);
-                }
+        let evals = ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
+            let atom = &identified.class_atoms[i];
+            match &self.inference {
+                InferenceMode::Frequentist => evaluate_class_atom_response_frequentist(
+                    self, &data_est, query, atom, &options, inner,
+                ),
+                InferenceMode::Bayesian(_) => evaluate_class_atom_response_bayesian(
+                    self, &data_est, query, atom, &options, inner,
+                ),
             }
-            InferenceMode::Bayesian(_) => {
-                for atom in identified.class_atoms.iter() {
-                    evals.push(evaluate_class_atom_response_bayesian(
-                        self, &data_est, query, atom, &options, ctx,
-                    )?);
-                }
-            }
-        }
+        })?;
 
         let unidentified_mass = identified.graphs.unidentified_mass();
         let mixed = mix_class_posterior_responses(

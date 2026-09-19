@@ -438,19 +438,19 @@ fn parse_soft_weight(name: &str) -> PyResult<CiSoftWeight> {
 /// Larger graphs: use `discover_order_mcmc`, `discover_structure_mcmc`, or
 /// `discover_ci_screened_posterior`.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, seed=1, threads=1))]
+#[pyo3(signature = (names, columns, *, seed=1, threads=None))]
 fn discover_exact_dag_posterior(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<PyReadonlyArray1<'_, f64>>,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<PyGraphPosterior> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let post =
             facade_discover_exact(&data, &variables, &bayesian_params(), &ctx).map_err(py_err)?;
         Ok(PyGraphPosterior::from_rust(names, post))
@@ -469,7 +469,7 @@ fn discover_exact_dag_posterior(
     thin=1,
     require_diagnostics_gate=true,
     seed=1,
-    threads=1
+    threads=None
 ))]
 fn discover_order_mcmc(
     py: Python<'_>,
@@ -481,13 +481,13 @@ fn discover_order_mcmc(
     thin: u32,
     require_diagnostics_gate: bool,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<PyGraphPosterior> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
         let post = facade_discover_order_mcmc(
             &data,
@@ -513,7 +513,7 @@ fn discover_order_mcmc(
     n_draws=1000,
     thin=1,
     seed=1,
-    threads=1
+    threads=None
 ))]
 fn discover_structure_mcmc(
     py: Python<'_>,
@@ -524,13 +524,13 @@ fn discover_structure_mcmc(
     n_draws: u32,
     thin: u32,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<PyGraphPosterior> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
         let post =
             facade_discover_structure_mcmc(&data, &variables, &bayesian_params(), &schedule, &ctx)
@@ -555,7 +555,7 @@ fn discover_structure_mcmc(
     n_draws=600,
     thin=1,
     seed=1,
-    threads=1
+    threads=None
 ))]
 fn discover_ci_screened_posterior(
     py: Python<'_>,
@@ -571,7 +571,7 @@ fn discover_ci_screened_posterior(
     n_draws: u32,
     thin: u32,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<PyGraphPosterior> {
     let soft = parse_soft_weight(soft_weight)?;
     let ci_name = ci.unwrap_or_else(|| "parcorr".to_string());
@@ -585,7 +585,7 @@ fn discover_ci_screened_posterior(
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let screen = StaticDiscoverParams {
             alpha,
             max_cond_size,
@@ -622,7 +622,7 @@ fn discover_ci_screened_posterior(
     n_draws=400,
     thin=1,
     seed=1,
-    threads=1
+    threads=None
 ))]
 fn discover_dbn_posterior(
     py: Python<'_>,
@@ -635,14 +635,14 @@ fn discover_dbn_posterior(
     n_draws: u32,
     thin: u32,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<PyGraphPosterior> {
     let _ = thin; // DBN engine schedule has no thin; kept for API symmetry.
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, 1);
         let post = facade_discover_dbn(
             &series,

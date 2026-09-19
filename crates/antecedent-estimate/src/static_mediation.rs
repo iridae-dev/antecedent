@@ -79,7 +79,7 @@ pub fn estimate_static_mediation(
         })
         .collect();
     let mut ls_ws = LeastSquaresWorkspace::default();
-    let mut fit = |rows: &[usize]| -> Result<(f64, f64), EstimationError> {
+    let fit = |rows: &[usize], ls_ws: &mut LeastSquaresWorkspace| -> Result<(f64, f64), EstimationError> {
         let mut total = vec![0.0; graph.node_count()];
         let mut direct = total.clone();
         for &node in &order {
@@ -108,7 +108,7 @@ pub fn estimate_static_mediation(
                 matrix.extend(rows.iter().map(|&r| column[r]));
             }
             let y: Vec<_> = rows.iter().map(|&r| columns[i][r]).collect();
-            let fitted = FaerBackend.least_squares(&matrix, rows.len(), p, &y, &mut ls_ws)?;
+            let fitted = FaerBackend.least_squares(&matrix, rows.len(), p, &y, ls_ws)?;
             if fitted.rank < p {
                 return Err(EstimationError::unsupported("singular static mediation regression"));
             }
@@ -133,22 +133,28 @@ pub fn estimate_static_mediation(
         MediationContrast::Direct | MediationContrast::NaturalDirect => direct,
         MediationContrast::Mediated | MediationContrast::NaturalIndirect => total - direct,
     };
-    let (total, direct) = fit(&rows)?;
+    let (total, direct) = fit(&rows, &mut ls_ws)?;
     // Shared tolerant bootstrap: a singular or under-determined replicate is a
     // soft failure (counted, the loop continues), cancellation aborts, and more
     // than half failed withholds the SE. Replicate accounting is the real count.
-    let mut sample = Vec::with_capacity(rows.len());
-    let boot = crate::util::bootstrap_se(replicates, ctx, 0x1300_1000, rows.len(), |idx| {
-        sample.clear();
-        sample.extend(idx.iter().map(|&i| rows[i]));
-        match fit(&sample) {
-            Ok(fitted) => Ok(Some(contrast(fitted))),
-            Err(_) if ctx.cancellation.is_cancelled() => {
-                Err(EstimationError::unsupported("static mediation cancelled"))
+    let boot = crate::util::bootstrap_se_with_scratch(
+        replicates,
+        ctx,
+        0x1300_1000,
+        rows.len(),
+        || (Vec::with_capacity(rows.len()), LeastSquaresWorkspace::default()),
+        |(sample, ws), idx| {
+            sample.clear();
+            sample.extend(idx.iter().map(|&i| rows[i]));
+            match fit(sample, ws) {
+                Ok(fitted) => Ok(Some(contrast(fitted))),
+                Err(_) if ctx.cancellation.is_cancelled() => {
+                    Err(EstimationError::unsupported("static mediation cancelled"))
+                }
+                Err(_) => Ok(None),
             }
-            Err(_) => Ok(None),
-        }
-    })?;
+        },
+    )?;
     assumptions.push(AssumptionRecord {
         assumption:Assumption::ParametricRestriction(ParametricAssumption {
             id:Arc::from("mediation.additive_linear"),

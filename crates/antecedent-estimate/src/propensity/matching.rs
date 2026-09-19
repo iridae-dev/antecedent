@@ -30,7 +30,7 @@ use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::se::{AnalyticSeKind, influence_se_kind};
-use crate::util::{BootstrapSeResult, bootstrap_se, sample_std, stats_err};
+use crate::util::{BootstrapSeResult, sample_std, stats_err};
 
 /// Scale on which the propensity-score matching distance (and [`PropensityMatching::caliper`])
 /// is computed.
@@ -326,24 +326,35 @@ impl PropensityMatching {
         let clip = clip_of(problem.overlap);
         let n = problem.nrows;
         let ncols = problem.design_ncols;
-        let mut x_boot = vec![0.0; n * ncols];
-        let mut t_boot = vec![0.0; n];
-        let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, ctx, 0x51E7_u64, n, |idx| {
-            crate::util::gather_bootstrap_vector(&mut t_boot, &problem.treatment, idx);
-            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
+        let _ = workspace;
+        crate::util::bootstrap_se_with_scratch(
+            self.bootstrap_replicates,
+            ctx,
+            0x51E7_u64,
+            n,
+            || {
+                (
+                    PropensityEstimationWorkspace::default(),
+                    vec![0.0; n * ncols],
+                    vec![0.0; n],
+                    vec![0.0; n],
+                )
+            },
+            |(workspace, x_boot, t_boot, y_boot), idx| {
+            crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
+            crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
             crate::util::gather_bootstrap_design(
-                &mut x_boot,
+                x_boot,
                 &problem.design_matrix,
                 n,
                 ncols,
                 idx,
             );
             if fit_propensity_in_place(
-                &x_boot,
+                x_boot,
                 n,
                 ncols,
-                &t_boot,
+                t_boot,
                 &self.backend,
                 &mut workspace.propensity,
                 &self.glm_options,
@@ -364,8 +375,8 @@ impl PropensityMatching {
                 return Ok(None);
             };
             let (t_used, y_used, s_used) = restrict_to_rows(
-                &t_boot,
-                &y_boot,
+                t_boot,
+                y_boot,
                 &workspace.clip_scratch[..n],
                 1,
                 retained.as_deref(),
@@ -389,7 +400,8 @@ impl PropensityMatching {
                 Ok(m) => Ok(Some(m.ate)),
                 Err(_) => Ok(None),
             }
-        })
+            },
+        )
     }
 }
 

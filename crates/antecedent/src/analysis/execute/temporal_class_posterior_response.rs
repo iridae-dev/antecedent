@@ -53,7 +53,7 @@ impl super::Study {
         let mut unidentified_mass = 0.0;
         let mut any_partial = false;
         let mut primary = None;
-        for i in 0..gp.n_graphs {
+        let mapped = ctx.map_indexed(gp.n_graphs, |i, inner| {
             let key = u64::try_from(i).map_err(|_| CausalError::Compile {
                 message: "temporal class graph-posterior response: too many atoms".into(),
             })?;
@@ -69,16 +69,7 @@ impl super::Study {
                 &vars,
             );
             let Ok(graph) = reconstructed else {
-                unidentified_mass += weight;
-                atoms.push(StructuralResponseAtom {
-                    posterior: None,
-                    response: None,
-                    graph_key: key,
-                    weight,
-                    status: IdentificationStatus::NotIdentified,
-                    value: None,
-                });
-                continue;
+                return Ok((key, weight, None));
             };
             let mut atom_study = self.clone();
             atom_study.graph_posterior = None;
@@ -87,8 +78,26 @@ impl super::Study {
             atom_study.custom_validators.clear();
             atom_study.temporal_class_identification_cache = None;
             atom_study.temporal_class_posterior_identification_cache = None;
-            match atom_study.execute_temporal_class_response(data, query, physical, ctx) {
-                Ok(result) => {
+            match atom_study.execute_temporal_class_response(data, query, physical, inner) {
+                Ok(result) => Ok((key, weight, Some(Ok(result)))),
+                Err(err @ CausalError::Unsupported { .. }) => Err(err),
+                Err(_) => Ok((key, weight, Some(Err(())))),
+            }
+        })?;
+        for (key, weight, outcome) in mapped {
+            match outcome {
+                None | Some(Err(())) => {
+                    unidentified_mass += weight;
+                    atoms.push(StructuralResponseAtom {
+                        posterior: None,
+                        response: None,
+                        graph_key: key,
+                        weight,
+                        status: IdentificationStatus::NotIdentified,
+                        value: None,
+                    });
+                }
+                Some(Ok(result)) => {
                     let Some(response) = result.response else {
                         failed_mass += weight;
                         atoms.push(StructuralResponseAtom {
@@ -136,20 +145,6 @@ impl super::Study {
                         value: Some(value),
                     });
                     weighted.push((key, weight, response));
-                }
-                Err(CausalError::Unsupported { message }) => {
-                    return Err(CausalError::Unsupported { message });
-                }
-                Err(_) => {
-                    unidentified_mass += weight;
-                    atoms.push(StructuralResponseAtom {
-                        posterior: None,
-                        response: None,
-                        graph_key: key,
-                        weight,
-                        status: IdentificationStatus::NotIdentified,
-                        value: None,
-                    });
                 }
             }
         }

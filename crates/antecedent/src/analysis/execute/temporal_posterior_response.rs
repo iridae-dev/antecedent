@@ -114,11 +114,13 @@ impl super::Study {
         let mut primary = None;
         let mut failed_mass = 0.0;
         let mut conflict_summary = None;
-        for atom in identified.atoms.iter() {
-            let weight = identified_weight_for_key(&identified.graphs, atom.key);
-            if weight <= 0.0 {
-                continue;
-            }
+        let work: Vec<_> = identified
+            .atoms
+            .iter()
+            .filter(|atom| identified_weight_for_key(&identified.graphs, atom.key) > 0.0)
+            .collect();
+        let fitted = ctx.map_indexed(work.len(), |i, inner| {
+            let atom = work[i];
             let horizons = atom.horizons.as_ref().ok_or_else(|| CausalError::Compile {
                 message: "DBN-posterior response atom missing per-horizon identification".into(),
             })?;
@@ -138,37 +140,47 @@ impl super::Study {
                 aligned.iter().map(|entry| (&entry.estimand, &entry.indexer)).collect();
             let mut estimator = TemporalResponseEstimator::new();
             estimator.inner.bootstrap_replicates = self.bootstrap_replicates;
-            let response = if let InferenceMode::Bayesian(cfg) = &self.inference {
-                let mut bayes = bayesian_gcomp(cfg, ctx);
+            let (response, conflict) = if let InferenceMode::Bayesian(cfg) = &self.inference {
+                let mut bayes = bayesian_gcomp(cfg, inner);
                 let (resolved, conflict) = resolve_temporal_response_prior(
-                    cfg, data, temporal, &aligned, treatment, outcome, ctx,
+                    cfg, data, temporal, &aligned, treatment, outcome, inner,
                 )?;
-                if conflict_summary.is_none() {
-                    conflict_summary = conflict;
-                }
                 bayes.prior = resolved;
-                estimator.estimate_bayesian(
-                    data,
-                    &identifications,
-                    query,
-                    aggregate_status,
-                    aggregate_assumptions,
-                    &bayes,
-                    ctx,
+                (
+                    estimator.estimate_bayesian(
+                        data,
+                        &identifications,
+                        query,
+                        aggregate_status,
+                        aggregate_assumptions,
+                        &bayes,
+                        inner,
+                    ),
+                    conflict,
                 )
             } else {
-                estimator.estimate(
-                    data,
-                    &identifications,
-                    query,
-                    aggregate_status,
-                    aggregate_assumptions,
-                    ctx,
+                (
+                    estimator.estimate(
+                        data,
+                        &identifications,
+                        query,
+                        aggregate_status,
+                        aggregate_assumptions,
+                        inner,
+                    ),
+                    None,
                 )
             };
             if let Err(err @ antecedent_estimate::EstimationError::Refused { .. }) = response {
                 return Err(err.into());
             }
+            Ok::<_, CausalError>((atom, response, conflict))
+        })?;
+        for (atom, response, conflict) in fitted {
+            if conflict_summary.is_none() {
+                conflict_summary = conflict;
+            }
+            let weight = identified_weight_for_key(&identified.graphs, atom.key);
             let Ok(response) = response else {
                 failed_mass += weight;
                 for slot in atoms.iter_mut().filter(|candidate| candidate.graph_key == atom.key) {

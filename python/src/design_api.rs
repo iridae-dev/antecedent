@@ -492,7 +492,7 @@ fn candidate_kind(c: &CandidateDesign) -> String {
     batch_size=8,
     rank_uncertainty_threshold=0.05,
     seed=0,
-    threads=1,
+    threads=None,
 ))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn rank_designs(
@@ -518,7 +518,7 @@ pub(crate) fn rank_designs(
     batch_size: u32,
     rank_uncertainty_threshold: f64,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<DesignRanking> {
     catch_ffi(|| {
         let flags: Vec<GraphIdentFlag> = identified
@@ -563,7 +563,7 @@ pub(crate) fn rank_designs(
                 rank_uncertainty_threshold,
             })
             .with_constraints(DesignConstraints { max_cost, max_sample_budget });
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let unlock_var_slice = unlock_vars.as_deref();
         let unlock_env_slice = unlock_envs.as_deref();
         let intervene_slice = intervene_flags.as_deref();

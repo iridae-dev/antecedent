@@ -78,6 +78,7 @@ pub use execution::{
     AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy, CancellationToken,
     CausalRng, Determinism, ExecutionContext, ExecutionReceipt, ExecutionRequestState,
     KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError, NonZeroThreadCount, Parallelism,
+    DEFAULT_USER_THREAD_CAP, default_user_threads,
     ProgressSink, RequestIdentity, RngFactory,
 };
 pub use identification::IdentificationStatus;

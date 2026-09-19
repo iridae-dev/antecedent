@@ -12,8 +12,8 @@ from __future__ import annotations
 import antecedent as ant
 import numpy as np
 import pytest
-from antecedent._defaults import OMITTED, is_temporal_query
-from antecedent._native import omitted_defaults
+from antecedent._defaults import OMITTED, is_temporal_query, resolve_threads
+from antecedent._native import default_user_threads, omitted_defaults
 from antecedent.estimation import PreparedAnalysis
 from antecedent.inference import Bayesian
 
@@ -31,6 +31,12 @@ def _analyze(**kwargs):
     kwargs.setdefault("graph", GRAPH)
     kwargs.setdefault("query", ant.AverageEffect("t", "y"))
     return ant.analyze(_data(), **kwargs)
+
+
+def test_omitted_threads_use_the_machine():
+    assert default_user_threads() >= 1
+    assert resolve_threads(None) == default_user_threads()
+    assert resolve_threads(1) == 1
 
 
 def test_table_is_the_builders_own():

@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.11.0]
 
-The 1.x close-out on the 1.10.0 composition contract. Entries accumulate here
-until the cut.
+The 1.x close-out on the 1.10.0 composition contract. This cut also
+carries the P speed program (default user `threads>1`, in-repo user-path
+benches). Entries accumulate here until the cut.
 
 ### Added
 
@@ -102,6 +103,20 @@ until the cut.
   seed still builds a serial `for_tests` study. The leftover
   `point_derivative` grid was remasured at 2000 replicates on that loop.
 - Generalized adjustment's default candidate cap is 40, matching DAG backdoor.
+- Python `analyze` / `prepare` / prepared clicks default `threads` to
+  `available_parallelism` (capped at 16). `threads=1` remains an explicit pin.
+  Response queries no longer refuse `threads>1`. `for_tests` stays serial.
+- Graph-posterior / class / ADMG / temporal identification and the
+  user-path atom fits run under `ctx.parallelism`. Mixture weights stay
+  a sequential reduce. Nested pools receive `serial_inner`. Bootstrap
+  **replicate evaluation** (not only index fill) is parallel when
+  adaptive early-stop is off.
+- `result.refresh(new_data)` is the five-line second click on an
+  `analyze` result (ATE and response). A second `analyze()` still
+  re-prepares. Product `analyze` runs the published interval once.
+- In-repo user-path bench (`antecedent --bench user_path`) at toy n for
+  CI; 10⁴ / 10⁵ jobs are local. Notes in `benches/baselines/user_path.md`.
+  Not a `hot_paths.md` merge blocker.
 
 ### Removed
 

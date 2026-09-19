@@ -14,7 +14,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
 #[pyfunction]
-#[pyo3(signature = (names, columns, treatment, mediator, outcome, *, seed=1, threads=1))]
+#[pyo3(signature = (names, columns, treatment, mediator, outcome, *, seed=1, threads=None))]
 fn mediation_effects_summary(
     py: Python<'_>,
     names: Vec<String>,
@@ -23,7 +23,7 @@ fn mediation_effects_summary(
     mediator: String,
     outcome: String,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<MediationEffectsSummary> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -37,7 +37,7 @@ fn mediation_effects_summary(
         let functional = arena.frontdoor_ate(t, y, &[m], Value::f64(1.0), Value::f64(0.0));
         let estimand =
             IdentifiedEstimand::frontdoor("temporal_mediation.total", Arc::from([m]), functional);
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let surface = TemporalMediationEstimator::new()
             .effect_surface(&series, &estimand, &q, &ctx)
             .map_err(py_err)?;
@@ -311,7 +311,7 @@ pub(crate) struct AnalysisResult {
     validators=None,
     seed=1,
     bootstrap=0,
-    threads=1
+    threads=None
 ))]
 fn analyze(
     py: Python<'_>,
@@ -332,13 +332,13 @@ fn analyze(
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AnalysisResult> {
     let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     let policy = policy.to_ascii_lowercase();
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
-    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    let threads = if custom_validators.is_empty() { threads } else { Some(1) };
     detach_catch(py, move || {
         let series = series_from_tabular(tabular)?;
 
@@ -370,7 +370,7 @@ fn analyze(
             prior_artifact.as_deref(),
         )?;
         let analysis = builder.build().map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let result = analysis.run(&ctx).map_err(py_err)?;
         analysis_result_from_run(&names, result)
     })
@@ -417,14 +417,14 @@ fn analyze_temporal_class(
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     accepted: bool,
 ) -> PyResult<AnalysisResult> {
     let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     let policy = policy.to_ascii_lowercase();
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
-    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    let threads = if custom_validators.is_empty() { threads } else { Some(1) };
     detach_catch(py, move || {
         let series = series_from_tabular(tabular)?;
         let t_id = schema_var_id(series.schema(), &treatment)?;
@@ -452,7 +452,7 @@ fn analyze_temporal_class(
         builder = apply_class_prior(builder, class_prior_ordered, class_prior_pairs)?;
         builder = apply_max_completions(builder, max_completions);
         let analysis = builder.build().map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let result = analysis.run(&ctx).map_err(py_err)?;
         analysis_result_from_run(&names, result)
     })
@@ -483,7 +483,7 @@ fn analyze_temporal_class(
     validators=None,
     seed=1,
     bootstrap=0,
-    threads=1,
+    threads=None,
     accepted=false,
 ))]
 fn analyze_temporal_cpdag(
@@ -508,7 +508,7 @@ fn analyze_temporal_cpdag(
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     accepted: bool,
 ) -> PyResult<AnalysisResult> {
     analyze_temporal_class(
@@ -562,7 +562,7 @@ fn analyze_temporal_cpdag(
     validators=None,
     seed=1,
     bootstrap=0,
-    threads=1,
+    threads=None,
     accepted=false,
 ))]
 fn analyze_temporal_pag(
@@ -587,7 +587,7 @@ fn analyze_temporal_pag(
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     accepted: bool,
 ) -> PyResult<AnalysisResult> {
     analyze_temporal_class(
@@ -642,7 +642,7 @@ fn analyze_temporal_pag(
     validators=None,
     seed=1,
     bootstrap=0,
-    threads=1,
+    threads=None,
     algorithm=None,
     max_lag=1,
     alpha=0.05,
@@ -677,7 +677,7 @@ fn analyze_events(
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     algorithm: Option<String>,
     max_lag: u32,
     alpha: f64,
@@ -695,7 +695,7 @@ fn analyze_events(
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
-    let threads = if custom_validators.is_empty() && !is_ci_callback { threads } else { 1 };
+    let threads = if custom_validators.is_empty() && !is_ci_callback { threads } else { Some(1) };
     drop(columns);
     let policy = policy.to_string();
     let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
@@ -713,7 +713,7 @@ fn analyze_events(
             horizon_steps,
             active_level,
         )?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let mut builder = if let Some(algo) = algorithm.as_deref() {
             // Discovery needs the aligned series up front; `Study::events` re-runs the
             // same (pure, deterministic) alignment internally so the built `Study` still
@@ -862,7 +862,7 @@ fn analyze_events(
     validators=None,
     seed=1,
     bootstrap=0,
-    threads=1
+    threads=None
 ))]
 fn analyze_panel(
     py: Python<'_>,
@@ -884,7 +884,7 @@ fn analyze_panel(
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AnalysisResult> {
     if unit_columns.is_empty() {
         return Err(PyValueError::new_err("panel needs ≥1 unit"));
@@ -898,7 +898,7 @@ fn analyze_panel(
     }
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
-    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    let threads = if custom_validators.is_empty() { threads } else { Some(1) };
     drop(unit_columns);
     let policy = policy.to_string();
     detach_catch(py, move || {
@@ -933,7 +933,7 @@ fn analyze_panel(
             prior_artifact.as_deref(),
         )?;
         let analysis = builder.build().map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let result = analysis.run(&ctx).map_err(py_err)?;
         analysis_result_from_run(&names, result)
     })
@@ -966,7 +966,7 @@ fn analyze_panel(
     validators=None,
     seed=1,
     bootstrap=0,
-    threads=1,
+    threads=None,
     context_names=None,
     include_space_dummy=true,
     include_time_dummy=false,
@@ -1000,7 +1000,7 @@ fn analyze_panel_discover(
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     context_names: Option<Vec<String>>,
     include_space_dummy: bool,
     include_time_dummy: bool,
@@ -1022,7 +1022,7 @@ fn analyze_panel_discover(
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
     let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
-    let threads = if is_ci_callback || !custom_validators.is_empty() { 1 } else { threads };
+    let threads = if is_ci_callback || !custom_validators.is_empty() { Some(1) } else { threads };
     drop(unit_columns);
     let policy = policy.to_string();
     let time_dummy_encoding = time_dummy_encoding.to_string();
@@ -1055,7 +1055,7 @@ fn analyze_panel_discover(
             time_dummy_ci,
         )?;
         let algo = algorithm.to_ascii_lowercase();
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let builder = panel_discovery_builder(
             panel,
             algo.as_str(),
@@ -1155,9 +1155,9 @@ fn run_temporal_analysis(
     names: &[String],
     analysis: antecedent::Study,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AnalysisResult> {
-    let ctx = py_execution_context(seed, threads);
+    let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
     let result = analysis.run(&ctx).map_err(py_err)?;
     analysis_result_from_run(names, result)
 }
@@ -1187,7 +1187,7 @@ fn temporal_discover_jpcmci_plus(
     bootstrap: u32,
     ci_impl: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AnalysisResult> {
     let mut series_list = Vec::with_capacity(batches.len());
     for batch in batches {
@@ -1215,7 +1215,7 @@ fn temporal_discover_jpcmci_plus(
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
     let vars: Vec<VariableId> = multi.schema().variables().iter().map(|v| v.id).collect();
-    let ctx = py_execution_context(seed, threads);
+    let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
     let params = DiscoverParams {
         max_lag,
         alpha,
@@ -1257,7 +1257,7 @@ fn temporal_discover_rpcmci(
     bootstrap: u32,
     ci_impl: Arc<dyn antecedent_stats::ConditionalIndependence + Send + Sync>,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AnalysisResult> {
     let loaded = tabular_from_record_batch(batch).map_err(py_err)?;
     let tabular = loaded.data;
@@ -1277,7 +1277,7 @@ fn temporal_discover_rpcmci(
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
     let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
-    let ctx = py_execution_context(seed, threads);
+    let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
     let params = DiscoverParams {
         max_lag,
         alpha,
@@ -1324,7 +1324,7 @@ fn temporal_discover_pcmci_family(
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AnalysisResult> {
     let loaded = tabular_from_record_batch(batch).map_err(py_err)?;
     let series = series_from_tabular(loaded.data)?;
@@ -1333,7 +1333,7 @@ fn temporal_discover_pcmci_family(
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
     let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
-    let ctx = py_execution_context(seed, threads);
+    let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
     let params = DiscoverParams {
         max_lag,
         alpha,
@@ -1396,7 +1396,7 @@ fn temporal_discover_dbn_posterior(
     prior_scale: f64,
     prior_artifact: Option<&[u8]>,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AnalysisResult> {
     let loaded = tabular_from_record_batch(batch).map_err(py_err)?;
     let series = series_from_tabular(loaded.data)?;
@@ -1405,7 +1405,7 @@ fn temporal_discover_dbn_posterior(
     let q =
         temporal_query_from_policy(policy, t_id, y_id, treatment_lag, horizon_steps, active_level)?;
     let vars: Vec<VariableId> = series.schema().variables().iter().map(|v| v.id).collect();
-    let ctx = py_execution_context(seed, threads);
+    let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
     let params = antecedent::discovery::BayesianDiscoverParams::default();
     let schedule = antecedent::discovery::GraphMcmcSchedule {
         n_chains,
@@ -1453,7 +1453,7 @@ struct TemporalDiscoverContext {
     prior_scale: f64,
     prior_artifact: Option<Vec<u8>>,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
     context_names: Vec<String>,
     include_space_dummy: bool,
     include_time_dummy: bool,
@@ -1676,7 +1676,7 @@ fn dispatch_temporal_dbn_posterior(
     validators=None,
     seed=1,
     bootstrap=0,
-    threads=1,
+    threads=None,
     env_columns=None,
     regimes=None,
     context_names=None,
@@ -1715,7 +1715,7 @@ fn analyze_temporal_discover(
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     env_columns: Option<Vec<Vec<PyReadonlyArray1<'_, f64>>>>,
     regimes: Option<Vec<u32>>,
     context_names: Option<Vec<String>>,
@@ -1740,7 +1740,7 @@ fn analyze_temporal_discover(
     let time_dummy_encoding = time_dummy_encoding.to_string();
     let time_dummy_ci = time_dummy_ci.to_string();
     let (ci_impl, _ci_name, is_ci_callback) = callbacks::resolve_ci_arg(ci.as_ref(), None)?;
-    let threads = if is_ci_callback { 1 } else { threads };
+    let threads = if is_ci_callback { Some(1) } else { threads };
     dispatch_temporal_discover(
         py,
         algo,
@@ -2054,7 +2054,7 @@ pub(crate) fn apply_temporal_inference_transfer(
     names, columns, edges, treatment, mediator, outcome, *,
     contrast="mediated", control_level=0.0, active_level=1.0,
     horizons=None,
-    seed=1, bootstrap=0, threads=1
+    seed=1, bootstrap=0, threads=None
 ))]
 fn analyze_temporal_mediation(
     py: Python<'_>,
@@ -2070,7 +2070,7 @@ fn analyze_temporal_mediation(
     horizons: Option<Vec<u32>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AnalysisResult> {
     let (tabular, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     let contrast = contrast.to_string();
@@ -2103,7 +2103,7 @@ fn analyze_temporal_mediation(
             .bootstrap_replicates(bootstrap)
             .build()
             .map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let result = analysis.run(&ctx).map_err(py_err)?;
         analysis_result_from_run(&names, result)
     })
@@ -2129,7 +2129,7 @@ fn analyze_temporal_mediation(
     refute=None,
     seed=1,
     bootstrap=0,
-    threads=1,
+    threads=None,
     cancel=None,
     on_progress=None,
 ))]
@@ -2151,7 +2151,7 @@ fn analyze_temporal_graph_posterior(
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     cancel: Option<PyCancellationToken>,
     on_progress: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AnalysisResult> {
@@ -2191,9 +2191,7 @@ fn analyze_temporal_graph_posterior(
             .bootstrap_replicates(bootstrap);
         builder = apply_temporal_inference(builder, Some(&inference), n_draws, prior_scale, None)?;
         let analysis = builder.build().map_err(py_err)?;
-        let ctx = py_execution_context_ext(
-            seed,
-            threads,
+        let ctx = py_execution_context_ext(seed, crate::resolve_user_threads(threads),
             cancel_token,
             progress,
             Some(PY_DEFAULT_CACHE_MAX_BYTES),
@@ -2223,7 +2221,7 @@ fn analyze_temporal_graph_posterior(
     refute=None,
     seed=1,
     bootstrap=0,
-    threads=1,
+    threads=None,
     cancel=None,
     on_progress=None,
 ))]
@@ -2245,7 +2243,7 @@ fn analyze_temporal_graph_posterior_mediation(
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     cancel: Option<PyCancellationToken>,
     on_progress: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AnalysisResult> {
@@ -2288,9 +2286,7 @@ fn analyze_temporal_graph_posterior_mediation(
             .bootstrap_replicates(bootstrap);
         builder = apply_temporal_inference(builder, Some(&inference), n_draws, prior_scale, None)?;
         let analysis = builder.build().map_err(py_err)?;
-        let ctx = py_execution_context_ext(
-            seed,
-            threads,
+        let ctx = py_execution_context_ext(seed, crate::resolve_user_threads(threads),
             cancel_token,
             progress,
             Some(PY_DEFAULT_CACHE_MAX_BYTES),

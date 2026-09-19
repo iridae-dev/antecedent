@@ -90,6 +90,7 @@ def test_cancel_mid_bootstrap_partial():
         bootstrap=requested,
         refute=False,
         seed=3,
+        threads=1,
         cancel=token,
         on_progress=on_progress,
     )

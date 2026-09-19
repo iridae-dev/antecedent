@@ -955,15 +955,20 @@ impl LinearAdjustmentAte {
     ) -> Result<crate::util::BootstrapSeResult, EstimationError> {
         let n = problem.design.nrows;
         let p = problem.design.ncols;
-        let mut x_boot = vec![0.0; n * p];
-        let mut y_boot = vec![0.0; n];
-        crate::util::bootstrap_se(self.bootstrap_replicates, ctx, 0xA7E_u64, n, |idx| {
-            match self.fit_resampled_coefficients(problem, workspace, idx, &mut x_boot, &mut y_boot)
-            {
-                Ok(coefs) => Ok(Some(gcomp_or_coef_ate(problem, &coefs, t_col)?)),
-                Err(_) => Ok(None),
-            }
-        })
+        let _ = workspace;
+        crate::util::bootstrap_se_with_scratch(
+            self.bootstrap_replicates,
+            ctx,
+            0xA7E_u64,
+            n,
+            || (EstimationWorkspace::default(), vec![0.0; n * p], vec![0.0; n]),
+            |(ws, x_boot, y_boot), idx| {
+                match self.fit_resampled_coefficients(problem, ws, idx, x_boot, y_boot) {
+                    Ok(coefs) => Ok(Some(gcomp_or_coef_ate(problem, &coefs, t_col)?)),
+                    Err(_) => Ok(None),
+                }
+            },
+        )
     }
 }
 

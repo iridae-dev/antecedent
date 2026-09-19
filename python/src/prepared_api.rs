@@ -56,10 +56,10 @@ impl ClickControls {
         })
     }
 
-    fn ctx(&self, seed: u64, threads: u32) -> antecedent_core::ExecutionContext {
+    fn ctx(&self, seed: u64, threads: Option<u32>) -> antecedent_core::ExecutionContext {
         py_execution_context_ext(
             seed,
-            threads,
+            crate::resolve_user_threads(threads),
             self.cancel.clone(),
             self.progress.clone(),
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
@@ -907,7 +907,7 @@ impl PyPreparedAnalysis {
         data: FrameInput,
         refresh: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         controls: ClickControls,
         map: fn(&[String], &antecedent::StudyResult) -> PyResult<T>,
     ) -> PyResult<T> {
@@ -932,7 +932,7 @@ impl PyPreparedAnalysis {
         self.last_study = Some(bound);
         self.last = Some(Arc::new(result));
         self.last_seed = seed;
-        self.last_threads = threads;
+        self.last_threads = crate::resolve_user_threads(threads);
         Ok(mapped)
     }
 
@@ -941,7 +941,7 @@ impl PyPreparedAnalysis {
         &mut self,
         py: Python<'_>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         controls: ClickControls,
         map: fn(&[String], &antecedent::StudyResult) -> PyResult<T>,
     ) -> PyResult<T> {
@@ -958,7 +958,7 @@ impl PyPreparedAnalysis {
         self.last_study = Some(Arc::clone(&self.inner));
         self.last = Some(Arc::new(result));
         self.last_seed = seed;
-        self.last_threads = threads;
+        self.last_threads = crate::resolve_user_threads(threads);
         Ok(mapped)
     }
 
@@ -991,7 +991,7 @@ impl PyPreparedAnalysis {
         data: TabularData,
         suite: Bound<'_, PyAny>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<AteAnalysisResult> {
         let prior = self
@@ -1004,9 +1004,7 @@ impl PyPreparedAnalysis {
         let inner = Arc::clone(&bound);
         let out_names = self.names.clone();
         let (mapped, result) = detach_catch(py, move || {
-            let ctx = py_execution_context_ext(
-                seed,
-                threads,
+            let ctx = py_execution_context_ext(seed, crate::resolve_user_threads(threads),
                 cancel_token,
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
@@ -1018,7 +1016,7 @@ impl PyPreparedAnalysis {
         self.last_study = Some(bound);
         self.last = Some(Arc::new(result));
         self.last_seed = seed;
-        self.last_threads = threads;
+        self.last_threads = crate::resolve_user_threads(threads);
         Ok(mapped)
     }
 }
@@ -1093,12 +1091,12 @@ impl PyPreparedAnalysis {
     ///
     /// `cancel` / `on_progress` apply to this click; `on_stage` streams its
     /// stages where the route has them and is refused where it does not.
-    #[pyo3(signature = (*, seed=1, threads=1, cancel=None, on_progress=None, on_stage=None))]
+    #[pyo3(signature = (*, seed=1, threads=None, cancel=None, on_progress=None, on_stage=None))]
     fn estimate_bound(
         &mut self,
         py: Python<'_>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
         on_progress: Option<Bound<'_, PyAny>>,
         on_stage: Option<Bound<'_, PyAny>>,
@@ -1107,12 +1105,12 @@ impl PyPreparedAnalysis {
         self.click_bound(py, seed, threads, controls, map_ate)
     }
 
-    #[pyo3(signature = (*, seed=1, threads=1, cancel=None, on_progress=None, on_stage=None))]
+    #[pyo3(signature = (*, seed=1, threads=None, cancel=None, on_progress=None, on_stage=None))]
     fn estimate_response_bound(
         &mut self,
         py: Python<'_>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
         on_progress: Option<Bound<'_, PyAny>>,
         on_stage: Option<Bound<'_, PyAny>>,
@@ -1126,7 +1124,7 @@ impl PyPreparedAnalysis {
     /// `refresh=True` also replaces the retained data. Returns the ATE-shaped
     /// result, or the response result when `response=True`.
     #[pyo3(signature = (
-        names, columns, frame, *, response=false, refresh=false, seed=1, threads=1,
+        names, columns, frame, *, response=false, refresh=false, seed=1, threads=None,
         cancel=None, on_progress=None, on_stage=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -1139,7 +1137,7 @@ impl PyPreparedAnalysis {
         response: bool,
         refresh: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
         on_progress: Option<Bound<'_, PyAny>>,
         on_stage: Option<Bound<'_, PyAny>>,
@@ -1204,7 +1202,7 @@ impl PyPreparedAnalysis {
         bandwidth=None,
         accepted=false,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -1226,7 +1224,7 @@ impl PyPreparedAnalysis {
         bandwidth: Option<f64>,
         accepted: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -1317,7 +1315,7 @@ impl PyPreparedAnalysis {
         estimator_config=None,
         outcome_functional=None,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -1335,7 +1333,7 @@ impl PyPreparedAnalysis {
         estimator_config: Option<&Bound<'_, PyDict>>,
         outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -1385,7 +1383,7 @@ impl PyPreparedAnalysis {
         outcome_functional=None,
         accepted=false,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -1404,7 +1402,7 @@ impl PyPreparedAnalysis {
         outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
         accepted: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -1453,7 +1451,7 @@ impl PyPreparedAnalysis {
         response_options=None,
         accepted=false,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -1473,7 +1471,7 @@ impl PyPreparedAnalysis {
         response_options: Option<Bound<'_, PyDict>>,
         accepted: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -1585,7 +1583,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, kind, treatment, outcome, *, mediators=Vec::new(),
         contrast="mediated", control_level=0.0, active_level=1.0, accepted=false, seed=1,
-        threads=1, options=None))]
+        threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_static_kind(
         py: Python<'_>,
@@ -1601,7 +1599,7 @@ impl PyPreparedAnalysis {
         active_level: f64,
         accepted: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -1642,7 +1640,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, kind, treatments, outcomes, *, at=None,
         direction=None, order=1, scale="identity", weighting="observed", response_options=None,
-        accepted=false, seed=1, threads=1, options=None))]
+        accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_derivative(
         py: Python<'_>,
@@ -1660,7 +1658,7 @@ impl PyPreparedAnalysis {
         response_options: Option<Bound<'_, PyDict>>,
         accepted: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -1702,7 +1700,7 @@ impl PyPreparedAnalysis {
         accepted=false,
         response_options=None,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -1719,7 +1717,7 @@ impl PyPreparedAnalysis {
         accepted: bool,
         response_options: Option<Bound<'_, PyDict>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -1793,7 +1791,7 @@ impl PyPreparedAnalysis {
         structural_model=None,
         frame=None,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -1830,7 +1828,7 @@ impl PyPreparedAnalysis {
         structural_model: Option<String>,
         frame: Option<Bound<'_, PyDict>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -1938,7 +1936,7 @@ impl PyPreparedAnalysis {
         max_completions=None,
         frame=None,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -1963,7 +1961,7 @@ impl PyPreparedAnalysis {
         max_completions: Option<usize>,
         frame: Option<Bound<'_, PyDict>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -2036,7 +2034,7 @@ impl PyPreparedAnalysis {
         max_completions=None,
         frame=None,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2059,7 +2057,7 @@ impl PyPreparedAnalysis {
         max_completions: Option<usize>,
         frame: Option<Bound<'_, PyDict>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -2119,7 +2117,7 @@ impl PyPreparedAnalysis {
         estimator_config=None,
         posterior=None,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2134,7 +2132,7 @@ impl PyPreparedAnalysis {
         estimator_config: Option<&Bound<'_, PyDict>>,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let opts = PrepareOptions::parse(options.as_ref())?;
@@ -2170,7 +2168,7 @@ impl PyPreparedAnalysis {
         outcome_functional=None,
         posterior=None,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2186,7 +2184,7 @@ impl PyPreparedAnalysis {
         outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let opts = PrepareOptions::parse(options.as_ref())?;
@@ -2222,7 +2220,7 @@ impl PyPreparedAnalysis {
         response_options=None,
         posterior=None,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2236,7 +2234,7 @@ impl PyPreparedAnalysis {
         response_options: Option<Bound<'_, PyDict>>,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let opts = PrepareOptions::parse(options.as_ref())?;
@@ -2280,7 +2278,7 @@ impl PyPreparedAnalysis {
         *,
         posterior=None,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2294,7 +2292,7 @@ impl PyPreparedAnalysis {
         intervention_parameters: Vec<Vec<f64>>,
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let opts = PrepareOptions::parse(options.as_ref())?;
@@ -2349,7 +2347,7 @@ impl PyPreparedAnalysis {
         posterior=None,
         frame=None,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2374,7 +2372,7 @@ impl PyPreparedAnalysis {
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
         frame: Option<Bound<'_, PyDict>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let opts = PrepareOptions::parse(options.as_ref())?;
@@ -2449,7 +2447,7 @@ impl PyPreparedAnalysis {
         posterior=None,
         frame=None,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2472,7 +2470,7 @@ impl PyPreparedAnalysis {
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
         frame: Option<Bound<'_, PyDict>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let opts = PrepareOptions::parse(options.as_ref())?;
@@ -2544,7 +2542,7 @@ impl PyPreparedAnalysis {
         posterior=None,
         frame=None,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2570,7 +2568,7 @@ impl PyPreparedAnalysis {
         posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
         frame: Option<Bound<'_, PyDict>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let opts = PrepareOptions::parse(options.as_ref())?;
@@ -2659,7 +2657,7 @@ impl PyPreparedAnalysis {
         outcome_functional=None,
         accepted=false,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2677,7 +2675,7 @@ impl PyPreparedAnalysis {
         outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
         accepted: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -2726,7 +2724,7 @@ impl PyPreparedAnalysis {
         *,
         outcome_functional=None,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2742,7 +2740,7 @@ impl PyPreparedAnalysis {
         intervention_parameters: Vec<Vec<f64>>,
         outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -2797,7 +2795,7 @@ impl PyPreparedAnalysis {
         outcome_functional=None,
         accepted=false,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2817,7 +2815,7 @@ impl PyPreparedAnalysis {
         outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
         accepted: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -2873,7 +2871,7 @@ impl PyPreparedAnalysis {
         max_len=16,
         accepted=false,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2891,7 +2889,7 @@ impl PyPreparedAnalysis {
         max_len: usize,
         accepted: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -2941,7 +2939,7 @@ impl PyPreparedAnalysis {
         conditioning=None,
         accepted=false,
         seed=1,
-        threads=1,
+        threads=None,
         options=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -2956,7 +2954,7 @@ impl PyPreparedAnalysis {
         conditioning: Option<Vec<String>>,
         accepted: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -3011,7 +3009,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, graph, selections, source_population, target_population,
         source_experiments, kind, treatments, outcomes, trial, selection_probability,
         treatment_probability, *, grid=None, at=None, direction=None, order=1, scale="identity",
-        weighting="observed", accepted=false, seed=1, threads=1, options=None))]
+        weighting="observed", accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_transport(
         py: Python<'_>,
@@ -3036,7 +3034,7 @@ impl PyPreparedAnalysis {
         weighting: &str,
         accepted: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -3090,7 +3088,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, outcome, network, realized_assignment,
         assignment_kind, assignment_probabilities, treated, clusters, treated_clusters, exposure,
-        from_level, to_level, *, probability_draws=10_000, accepted=false, seed=1, threads=1,
+        from_level, to_level, *, probability_draws=10_000, accepted=false, seed=1, threads=None,
         options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_interference(
@@ -3112,7 +3110,7 @@ impl PyPreparedAnalysis {
         probability_draws: u32,
         accepted: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -3168,7 +3166,7 @@ impl PyPreparedAnalysis {
     /// estimator here.
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, targets, max_units, *, accepted=false, seed=1,
-        threads=1, options=None))]
+        threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_anomaly_attribution(
         py: Python<'_>,
@@ -3179,7 +3177,7 @@ impl PyPreparedAnalysis {
         max_units: usize,
         accepted: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -3208,7 +3206,7 @@ impl PyPreparedAnalysis {
     /// estimator here.
     #[staticmethod]
     #[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end,
-        comparison_start, comparison_end, *, accepted=false, seed=1, threads=1, options=None))]
+        comparison_start, comparison_end, *, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_change_attribution(
         py: Python<'_>,
@@ -3222,7 +3220,7 @@ impl PyPreparedAnalysis {
         comparison_end: usize,
         accepted: bool,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
@@ -3247,14 +3245,14 @@ impl PyPreparedAnalysis {
     }
 
     /// Weighted-mean retarget from the frozen score table. Does not refit.
-    #[pyo3(signature = (weights, depends_on, *, seed=1, threads=1))]
+    #[pyo3(signature = (weights, depends_on, *, seed=1, threads=None))]
     fn retarget(
         &mut self,
         py: Python<'_>,
         weights: Vec<f64>,
         depends_on: Vec<String>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<AteAnalysisResult> {
         self.refuse_design_retarget()?;
         // Retarget the scores of the execution this call follows: after
@@ -3264,9 +3262,7 @@ impl PyPreparedAnalysis {
         let inner = Arc::clone(&bound);
         let out_names = self.names.clone();
         let (mapped, result) = detach_catch(py, move || {
-            let ctx = py_execution_context_ext(
-                seed,
-                threads,
+            let ctx = py_execution_context_ext(seed, crate::resolve_user_threads(threads),
                 None,
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
@@ -3288,7 +3284,7 @@ impl PyPreparedAnalysis {
         self.last_study = Some(bound);
         self.last = Some(Arc::new(result));
         self.last_seed = seed;
-        self.last_threads = threads;
+        self.last_threads = crate::resolve_user_threads(threads);
         Ok(mapped)
     }
 
@@ -3296,22 +3292,20 @@ impl PyPreparedAnalysis {
     ///
     /// Refuses with `row_weights_bound_to_snapshot` unless this handle holds
     /// the data snapshot and score table the weights were bound to.
-    #[pyo3(signature = (artifact, *, seed=1, threads=1))]
+    #[pyo3(signature = (artifact, *, seed=1, threads=None))]
     fn reexecute_retarget(
         &mut self,
         py: Python<'_>,
         artifact: Vec<u8>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<AteAnalysisResult> {
         self.refuse_design_retarget()?;
         let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
         let inner = Arc::clone(&bound);
         let out_names = self.names.clone();
         let (mapped, result) = detach_catch(py, move || {
-            let ctx = py_execution_context_ext(
-                seed,
-                threads,
+            let ctx = py_execution_context_ext(seed, crate::resolve_user_threads(threads),
                 None,
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
@@ -3330,12 +3324,12 @@ impl PyPreparedAnalysis {
         self.last_study = Some(bound);
         self.last = Some(Arc::new(result));
         self.last_seed = seed;
-        self.last_threads = threads;
+        self.last_threads = crate::resolve_user_threads(threads);
         Ok(mapped)
     }
 
     /// Re-estimate on new columns (same schema) without recompiling.
-    #[pyo3(signature = (names, columns, *, seed=1, threads=1, cancel=None, on_progress=None, on_stage=None))]
+    #[pyo3(signature = (names, columns, *, seed=1, threads=None, cancel=None, on_progress=None, on_stage=None))]
     #[allow(clippy::too_many_arguments)]
     fn estimate(
         &mut self,
@@ -3343,7 +3337,7 @@ impl PyPreparedAnalysis {
         names: Vec<String>,
         columns: Vec<Bound<'_, PyAny>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
         on_progress: Option<Bound<'_, PyAny>>,
         on_stage: Option<Bound<'_, PyAny>>,
@@ -3355,7 +3349,7 @@ impl PyPreparedAnalysis {
     }
 
     /// Re-estimate a prepared response (same schema) without recompiling.
-    #[pyo3(signature = (names, columns, *, seed=1, threads=1, cancel=None, on_progress=None, on_stage=None))]
+    #[pyo3(signature = (names, columns, *, seed=1, threads=None, cancel=None, on_progress=None, on_stage=None))]
     #[allow(clippy::too_many_arguments)]
     fn estimate_response(
         &mut self,
@@ -3363,7 +3357,7 @@ impl PyPreparedAnalysis {
         names: Vec<String>,
         columns: Vec<Bound<'_, PyAny>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
         on_progress: Option<Bound<'_, PyAny>>,
         on_stage: Option<Bound<'_, PyAny>>,
@@ -3375,7 +3369,7 @@ impl PyPreparedAnalysis {
     }
 
     /// Replace retained data and re-estimate (same schema).
-    #[pyo3(signature = (names, columns, *, seed=1, threads=1, cancel=None, on_progress=None, on_stage=None))]
+    #[pyo3(signature = (names, columns, *, seed=1, threads=None, cancel=None, on_progress=None, on_stage=None))]
     #[allow(clippy::too_many_arguments)]
     fn refresh(
         &mut self,
@@ -3383,7 +3377,7 @@ impl PyPreparedAnalysis {
         names: Vec<String>,
         columns: Vec<Bound<'_, PyAny>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
         on_progress: Option<Bound<'_, PyAny>>,
         on_stage: Option<Bound<'_, PyAny>>,
@@ -3395,7 +3389,7 @@ impl PyPreparedAnalysis {
     }
 
     /// Replace retained data and re-estimate a prepared response.
-    #[pyo3(signature = (names, columns, *, seed=1, threads=1, cancel=None, on_progress=None, on_stage=None))]
+    #[pyo3(signature = (names, columns, *, seed=1, threads=None, cancel=None, on_progress=None, on_stage=None))]
     #[allow(clippy::too_many_arguments)]
     fn refresh_response(
         &mut self,
@@ -3403,7 +3397,7 @@ impl PyPreparedAnalysis {
         names: Vec<String>,
         columns: Vec<Bound<'_, PyAny>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
         on_progress: Option<Bound<'_, PyAny>>,
         on_stage: Option<Bound<'_, PyAny>>,
@@ -3588,7 +3582,7 @@ impl PyPreparedAnalysis {
     }
 
     /// Second-click refute against the last estimate (same schema data).
-    #[pyo3(signature = (names, columns, suite, *, seed=1, threads=1, cancel=None))]
+    #[pyo3(signature = (names, columns, suite, *, seed=1, threads=None, cancel=None))]
     fn refute(
         &mut self,
         py: Python<'_>,
@@ -3596,7 +3590,7 @@ impl PyPreparedAnalysis {
         columns: Vec<PyReadonlyArray1<'_, f64>>,
         suite: Bound<'_, PyAny>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<AteAnalysisResult> {
         require_prepared_names(&self.names, &names, "refute")?;
@@ -3605,7 +3599,7 @@ impl PyPreparedAnalysis {
         self.finish_ate_refute(py, data, suite, seed, threads, cancel)
     }
 
-    #[pyo3(signature = (names, columns, suite, *, seed=1, threads=1, cancel=None))]
+    #[pyo3(signature = (names, columns, suite, *, seed=1, threads=None, cancel=None))]
     fn refute_arrow_c(
         &mut self,
         py: Python<'_>,
@@ -3613,7 +3607,7 @@ impl PyPreparedAnalysis {
         columns: Vec<Bound<'_, PyAny>>,
         suite: Bound<'_, PyAny>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<AteAnalysisResult> {
         require_prepared_names(&self.names, &names, "refute")?;

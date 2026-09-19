@@ -2,10 +2,11 @@
 
 Last updated: 2026-09-19.
 
-This is the roadmap for 2.0. **Transport is the scientific program.** Two
-other workstreams sit beside it so 2.0 is still Antecedent: the same engine,
-the same four slots, used the way a person would use it, and fast enough that
-they will.
+**1.11 carries P** (fast while correct). **2.0 is transport plus S**
+(practitioner scenarios and the leftover list). Transport is the scientific
+program for 2.0. S sits beside it so 2.0 is still Antecedent: the same
+engine, the same four slots, used the way a person would use it. P lands
+on the 1.11 cut so they have a machine that is fast enough.
 
 | Workstream | Job | What it is not |
 | --- | --- | --- |
@@ -20,20 +21,20 @@ them. File references name existing owners, not a requirement for parallel
 implementations. Follow-on workstreams are dependency-ordered proposals, not
 assigned minor versions. A breaking extension requires a later major.
 
-S and P do not wait for T5. They start from the accepted 1.x close-out.
-That close-out is **1.11.0**, not a 1.10.1 patch: this branch's work (parallel
-seeds, leftover rows, licensed GP cells, GAC 40) plus the non-transport 1.x
-leftovers on this roadmap, then a flat history at the cut. Keep committing
-on top until that cut. Transport consumes their leftovers and their speed
-work; it does not replace them.
+S does not wait for T5. P does not wait for a tagged 1.11.0 or for S.
+The 1.x close-out is **1.11.0**, not a 1.10.1 patch: this branch's work
+(parallel seeds, leftover rows, licensed GP cells, GAC 40), the
+non-transport 1.x leftovers, and the P speed program, then a flat history
+at the cut. Keep committing on top until that cut. Transport consumes
+their leftovers and their speed work; it does not replace them.
 
 ## S — Practitioner scenarios and 1.x leftovers
 
 **Question:** When someone who is not us uses Antecedent on a problem they
 actually have, does the library do the thing they asked, refuse the thing they
 must not get, and say so in the four slots? **Depends on:** accepted 1.11.0.
-**Feeds:** the 2.0 leftover list; T10 practitioner acceptance; P's user-sized
-benches.
+**Feeds:** the 2.0 leftover list; T10 practitioner acceptance; later
+scientific assertions on P's in-repo user-sized jobs.
 
 In-repo tests prove licensed cells, fixtures, and gates. They do not prove a
 first-hour analysis, a messy sheet, a second click, or the question a user
@@ -111,9 +112,11 @@ open `bug`, `silent_refuse`, `inspect_execute_drift`, or `docs_lie`.
 ## P — Fast while correct
 
 **Question:** How do we make Antecedent fast enough to use, without changing
-what a licensed cell means? **Depends on:** accepted 1.11.0; S's user-sized
-jobs. **Feeds:** T4/T6 evaluation budgets; T10 performance gate; every later
-2.x path that reuses estimate/identify/expr.
+what a licensed cell means? **Depends on:** the accepted 1.11 close-out
+work (already on this branch), not a tagged release and not S. **Feeds:**
+T4/T6 evaluation budgets; T10 performance gate; every later 2.x path that
+reuses estimate/identify/expr. User-sized benches live in this tree. S
+still owns later scientific assertions on those jobs.
 
 1.x already has the knobs: `ExecutionContext` owns threads, kernels, cache,
 and adaptive effort; scalar kernels are the conformance reference; `faer`
@@ -138,54 +141,54 @@ owe remasure; flipping kernels, stopping rules, or draw counts does.
 Hot-path benches are merge blockers for kernels and workspaces. They are
 not a latency budget for `analyze` on a 50k-row sheet.
 
-- [ ] Add user-sized benches beside S scenarios: n = 10⁴ and 10⁵ Dag ATE
+- [x] Add user-sized benches in this tree: n = 10⁴ and 10⁵ Dag ATE
       (Frequentist default and Bayesian Laplace), intervention level,
       Kennedy curve, graph-posterior mixture (few atoms), temporal pulse
       on a series a person would keep. Record wall time, peak RSS,
       allocations, `bytes_borrowed`, identify-cache hits, and whether
-      `max_threads` was greater than 1.
-- [ ] Profile before betting. The likely 1.x poles, from the benches and
+      `max_threads` was greater than 1. Toy-n `--test` smoke;
+      10⁴ / 10⁵ are local (`USER_PATH_N`).
+- [x] Profile before betting. The likely 1.x poles, from the benches and
       from the 1.10.1 leftover cell: Kennedy-DR + local-quadratic
       derivative, Laplace GLM, default 199-replicate bootstrap, Laplace
       posterior draws, graph-posterior per-atom refit, GAC candidate
       search, temporal block-length + Politis–White when replicates
       run, Python pandas ingest vs Arrow CDI.
-- [ ] Keep Criterion smoke as the regression gate. User-sized benches
-      set 2.0 budgets; they do not replace `hot_paths.md`.
+- [x] Keep Criterion smoke as the regression gate. User-sized benches
+      set 1.11 budgets; they do not replace `hot_paths.md`.
 
 ### P2 — Use the machine on the default path
 
-- [ ] Python prepared clicks default `threads=1` even though
+- [x] Python prepared clicks default `threads=1` even though
       `py_execution_context` builds `ExecutionContext::production`.
       Default to `available_parallelism` (capped), keep `threads=1` as
       an explicit pin. Same for Rust `analyze` if it serializes by habit.
       Independent atoms (graph-posterior completions, bootstrap
       replicates, batch queries) already have pools; they idle when
       the context says 1.
-- [ ] Do not flip `ExecutionContext::for_tests` to production kernels.
+- [x] Do not flip `ExecutionContext::for_tests` to production kernels.
       Tests stay serial + scalar so calibration means what it measured.
       The 1.10.1 coverage harness now parallelizes *seeds*
       (`map_replicates`); that is a test-harness change, not a product
       default. Product speed is `production()` + a real thread count.
-- [ ] Graph-posterior atoms are independent given the data. Fit them
+- [x] Graph-posterior atoms are independent given the data. Fit them
       under `ctx.parallelism`. Mixture weights and unidentified mass
       stay a sequential reduce in atom order.
-- [ ] Inspect, capability, and metadata-only artifact reads must stay
+- [x] Inspect, capability, and metadata-only artifact reads must stay
       cheaper than a fit. They already must not clone datasets or
-      re-identify (`hot_paths.md` 1.3). S will catch the ones that still
-      do.
+      re-identify (`hot_paths.md` 1.3). The user-path bench pins
+      inspect < fit.
 
 ### P3 — Stop paying twice
 
-- [ ] A user who asked for one level should not fit twice. Calibration
+- [x] A user who asked for one level should not fit twice. Calibration
       still scores 0.95 and 0.90 as two studies (`response_pairs`); that
-      is a gate cost, not a product cost. Product `analyze` should run
+      is a gate cost, not a product cost. Product `analyze` runs
       the published level once.
-- [ ] Prepared reuse is already the second-click contract (identify-once,
-      temporal `I(h)` cache, refute-second-click freezes ATE). Make that
-      the path the five-line API actually hits after the first call, not
-      a handle only tests use.
-- [ ] Adaptive bootstrap and adaptive draws exist and are opt-in. Both
+- [x] Prepared reuse is already the second-click contract (identify-once,
+      temporal `I(h)` cache, refute-second-click freezes ATE). The
+      five-line second click is `result = analyze(...); result.refresh(new_data)`.
+- [x] Adaptive bootstrap and adaptive draws exist and are opt-in. Both
       `production()` and `for_tests` evaluate the full request so
       calibration certifies the count. 2.0 may license adaptive effort
       as a *named* interval method with its own coverage row. It must
@@ -193,25 +196,28 @@ not a latency budget for `analyze` on a 50k-row sheet.
 
 ### P4 — Allocation, kernels, search
 
-- [ ] Workspaces already exist (Laplace, gather, ParCorr, mechanism,
+- [x] Workspaces already exist (Laplace, gather, ParCorr, mechanism,
       posterior eval, propensity bootstrap). Hunt the 1.x leftovers that
       still clone `TabularData` or rebuild a plan per replicate on the
       user path. Arrow CDI borrow stays the ingest win; pandas/dict
-      `as_columns` stays the explicit copy.
-- [ ] `KernelPolicy::default_policy` is production; `scalar_only` is the
+      `as_columns` stays the explicit copy. Notes in
+      `benches/baselines/user_path.md`.
+- [x] `KernelPolicy::default_policy` is production; `scalar_only` is the
       test reference. There is no `simd-runtime` feature, so
       `allow_arch_simd` still selects portable kernels. A SIMD/BLAS
       path that matches scalar tests may ship; one that changes a
       licensed number may not. GPU remains optional and behind
       `KernelPolicy` — not a 2.0 requirement.
-- [ ] Identification search (GAC, adjustment enumeration) already has
+- [x] Identification search (GAC, adjustment enumeration) already has
       budgets and a candidate cap. Profile user graphs, not only the
-      calibration DGPs that never hit the cap. Memoize on complete
-      subproblem identity. Inspect must not search.
-- [ ] Cache policy is on in Python production and off in `for_tests`.
+      calibration DGPs that never hit the cap. Ordinary ID already memos
+      `SubproblemKey`. Inspect must not search. User graphs that never
+      hit the cap of 40 do not pay a GAC candidate-memo miss.
+- [x] Cache policy is on in Python production and off in `for_tests`.
       Confirm the default cache bound (`PY_DEFAULT_CACHE_MAX_BYTES`)
       is a hit on prepared second clicks and a refuse — not an OOM —
-      on Shapley / design paths.
+      on Shapley / design paths. `CacheBudget` refuses
+      (`cache_budget_refuses_oversized_insert`).
 
 ### P5 — What 2.0 will not do for speed
 
@@ -220,16 +226,16 @@ not a latency budget for `analyze` on a 50k-row sheet.
       without a new licensed method and a coverage record.
 - [ ] Will not remasure the 585 because seeds now run in parallel or
       because Python defaulted to more than one thread.
-- [ ] Will not start a GPU or WASM rewrite as a 2.0 speed program
+- [ ] Will not start a GPU or WASM rewrite as a 1.11 speed program
       (those stay independent tracks).
 - [ ] Will not treat a `max_uses` bump, a closed-rule edit, or a
       thinner interval as a performance win.
 
-**Done when:** S's 10⁴–10⁵ jobs finish on an M-series laptop in a sitting,
-not overnight; `threads>1` is the default user path; inspect is metadata;
-the five-line API reuses preparation on the second click; every speed
-change that can move a number has a coverage row or a recorded waiver;
-scalar conformance still gates kernels.
+**Done when:** the in-repo 10⁴–10⁵ jobs finish on an M-series laptop in a
+sitting, not overnight; `threads>1` is the default user path; inspect is
+metadata; the five-line API reuses preparation on the second click; every
+speed change that can move a number has a coverage row or a recorded
+waiver; scalar conformance still gates kernels.
 
 ## The outcome we are building toward
 
@@ -274,7 +280,8 @@ licensed evaluator is an identification result; it is not a completed analysis.
 ## Release contract and invariants
 
 **Required for 2.0:** S leftover list closed (`bug` / `silent_refuse` /
-`inspect_execute_drift` / `docs_lie`); P user-path speed on the public API;
+`inspect_execute_drift` / `docs_lie`); P user-path speed (a 1.11
+obligation that 2.0 inherits);
 explicit evidence catalogs; complete classical single-source
 identification in its declared setting; checked positive derivations and genuine
 negative witnesses; recursive finite-discrete execution; a scoped complementary
@@ -359,7 +366,8 @@ Concrete gaps already visible:
 
 | Milestone | Depends on | Exit artifact |
 | --- | --- | --- |
-| S/P: leftover truth and speed | Accepted 1.11.0 | Out-of-repo suite; leftover list empty or closed; user-path benches and default `threads>1` |
+| S: leftover truth | Accepted 1.11.0 (including P) | Out-of-repo suite; leftover list empty or closed |
+| P: user-path speed | 1.11 close-out work (this branch) | In-repo user-path benches; default `threads>1` |
 | M0: contracts | Accepted 1.10, T0–T1 | ADR, evidence schema, exact theorem scopes and support coordinates |
 | M1: single-source exact path | M0, T2–T4 | Checked recursion executing against exact SCM tables, including negative witnesses |
 | M2: reusable statistical path | M1, T5–T6 | Prepared execution with licensed intervals and source-level diagnostics |

@@ -505,32 +505,51 @@ impl AipwAte {
         let trim = trim_of(problem.overlap);
         let n = problem.nrows;
         let ncols = problem.design_ncols;
-        let mut x_boot = vec![0.0; n * ncols];
-        let mut t_boot = vec![0.0; n];
-        let mut y_boot = vec![0.0; n];
-        // Replicate-invariant scratch (grow-only, per the workspace contract
-        // above): clipped scores plus trim-path gather buffers. The no-trim
-        // default borrows the bootstrap buffers instead of cloning them.
-        let mut e = vec![0.0; n];
-        let mut design_trim: Vec<f64> = Vec::new();
-        let mut t_trim: Vec<f64> = Vec::new();
-        let mut y_trim: Vec<f64> = Vec::new();
-        let mut e_trim: Vec<f64> = Vec::new();
-        bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D0_u64, n, |idx| {
-            crate::util::gather_bootstrap_vector(&mut t_boot, &problem.treatment, idx);
-            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
+        let _ = workspace;
+        crate::util::bootstrap_se_with_scratch(
+            self.bootstrap_replicates,
+            ctx,
+            0xA1D0_u64,
+            n,
+            || {
+                (
+                    AipwWorkspace::default(),
+                    vec![0.0; n * ncols],
+                    vec![0.0; n],
+                    vec![0.0; n],
+                    vec![0.0; n],
+                    Vec::<f64>::new(),
+                    Vec::<f64>::new(),
+                    Vec::<f64>::new(),
+                    Vec::<f64>::new(),
+                )
+            },
+            |(
+                workspace,
+                x_boot,
+                t_boot,
+                y_boot,
+                e,
+                design_trim,
+                t_trim,
+                y_trim,
+                e_trim,
+            ),
+             idx| {
+            crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
+            crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
             crate::util::gather_bootstrap_design(
-                &mut x_boot,
+                x_boot,
                 &problem.design_matrix,
                 n,
                 ncols,
                 idx,
             );
             if antecedent_stats::fit_propensity_in_place(
-                &x_boot,
+                x_boot,
                 n,
                 ncols,
-                &t_boot,
+                t_boot,
                 &self.backend,
                 &mut workspace.propensity,
                 &self.glm_options,
@@ -542,7 +561,7 @@ impl AipwAte {
             let raw = &workspace.propensity.scores[..n];
             e.copy_from_slice(raw);
             if let Some(c) = clip {
-                clamp_scores(&mut e, c);
+                clamp_scores(e, c);
             }
             let Ok(retained) = trim_retained_rows(raw, trim) else {
                 return Ok(None);
@@ -550,13 +569,13 @@ impl AipwAte {
             let (design_used, t_used, y_used, e_used): (&[f64], &[f64], &[f64], &[f64]) =
                 match &retained {
                     Some(rows) => {
-                        select_rows_colmajor(&x_boot, n, ncols, rows, &mut design_trim);
-                        gather_into(&mut t_trim, &t_boot, rows);
-                        gather_into(&mut y_trim, &y_boot, rows);
-                        gather_into(&mut e_trim, &e, rows);
-                        (&design_trim, &t_trim, &y_trim, &e_trim)
+                        select_rows_colmajor(x_boot, n, ncols, rows, design_trim);
+                        gather_into(t_trim, t_boot, rows);
+                        gather_into(y_trim, y_boot, rows);
+                        gather_into(e_trim, e, rows);
+                        (design_trim, t_trim, y_trim, e_trim)
                     }
-                    None => (&x_boot, &t_boot, &y_boot, &e),
+                    None => (x_boot, t_boot, y_boot, e),
                 };
             let nrows = t_used.len();
             let Ok((beta0, beta1)) = fit_outcome_models(
@@ -587,7 +606,8 @@ impl AipwAte {
             }
             let m = workspace.psi.len() as f64;
             Ok(Some(workspace.psi.iter().sum::<f64>() / m))
-        })
+            },
+        )
     }
 }
 

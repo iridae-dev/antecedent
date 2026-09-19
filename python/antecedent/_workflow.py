@@ -29,7 +29,7 @@ def prepare(
     refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
     seed: int = 1,
     bootstrap: int | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     latency: Latency | Literal["interactive", "standard", "report"] | None = None,
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,

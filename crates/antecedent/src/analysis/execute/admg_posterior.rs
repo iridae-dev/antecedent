@@ -60,14 +60,14 @@ impl super::Study {
             });
         }
 
-        let mut evals = Vec::new();
-        for atom in identified.atoms.iter() {
+        let evals = ctx.map_indexed(identified.atoms.len(), |i, inner| {
+            let atom = &identified.atoms[i];
             let (estimate, posterior) = self.estimate_functional_effect(
                 data,
                 &atom.estimand,
                 &atom.identification,
                 &[query.treatment, query.outcome],
-                ctx,
+                inner,
             )?;
             let weight = identified_weight_for_key(&identified.graphs, atom.key);
             let refute_atoms = if estimate.ate.is_finite() {
@@ -81,15 +81,15 @@ impl super::Study {
             } else {
                 Vec::new()
             };
-            evals.push(AdmgAtomEval {
+            Ok::<_, CausalError>(AdmgAtomEval {
                 key: atom.key,
                 status: atom.identification.status,
                 estimand: atom.estimand.clone(),
                 estimate,
                 posterior,
                 refute_atoms,
-            });
-        }
+            })
+        })?;
 
         let unidentified_mass = identified.graphs.unidentified_mass();
         let mixed = mix_admg_posterior_evals(&identified, &evals, unidentified_mass)?;
