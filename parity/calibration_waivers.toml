@@ -16,3 +16,112 @@
 # than this header are not kept (the justification is the prose).
 # `scripts/gate_calibration_attestation.sh` validates every waiver and reports
 # the records it covers as `attested_by_replay (waiver <id>)`.
+
+[[waiver]]
+id = "map-replicates-bayesian-static"
+from = "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6"
+to = "b5396f331651340d929cd1e32fc986d0fce047a5"
+reviewed_by = "Charles Hinshaw"
+justification = """
+coverage_over in v110_calibration_bayesian_static.rs now maps independent
+seeds through map_replicates. Each seed still builds a serial
+ExecutionContext::for_tests study. Same seed, same interval. The loop
+order of bind/record is seed order. This cannot move a measured number.\
+"""
+paths = [
+  "crates/antecedent/tests/v110_calibration_bayesian_static.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage"
+exercises = [
+  "crates/antecedent/tests/v110_calibration_bayesian_static.rs",
+]
+
+[waiver.outcome]
+replayed_at = "b5396f331651340d929cd1e32fc986d0fce047a5"
+identical = true
+records = [
+  "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage" = "ad5ab214b07e803415275844c9fefa0607161fc907cf8324f988d5aec5e000b3"
+
+[[waiver]]
+id = "gac-cap-40-1bfa436e"
+from = "1bfa436e627cb4c702e3df07a5322420621cd6b1"
+to = "51d8c6156397d97c79bef5d85867c236168f71d2"
+reviewed_by = "Charles Hinshaw"
+justification = """
+GeneralizedAdjustmentConfig::default max_candidates moved from 16 to 40 to
+match DAG backdoor. The tiered overflow fixture pins an explicit 16.
+Calibration DGPs never hit the cap: same seed, same interval.\
+"""
+paths = [
+  "crates/antecedent-identify/src/generalized.rs",
+  "crates/antecedent-identify/src/tiered.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.cpdag.frequentist.analytic_se.l90.static_cpdag_ate_envelope_frequentist_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-identify/src/generalized.rs",
+]
+
+[[waiver.replay]]
+record = "cov.intervention_response.co_determined.frequentist.analytic_se.l90.intervention_response_codetermined_frequentist_nominal_coverage"
+exercises = [
+  "crates/antecedent-identify/src/tiered.rs",
+]
+
+[waiver.outcome]
+replayed_at = "51d8c6156397d97c79bef5d85867c236168f71d2"
+identical = true
+records = [
+  "cov.average_effect.cpdag.frequentist.analytic_se.l90.static_cpdag_ate_envelope_frequentist_nominal_90_coverage",
+  "cov.intervention_response.co_determined.frequentist.analytic_se.l90.intervention_response_codetermined_frequentist_nominal_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.cpdag.frequentist.analytic_se.l90.static_cpdag_ate_envelope_frequentist_nominal_90_coverage" = "28bfd40ff81cc5cd62b98a7f322adee745976e540b2ce10c1aa128ce3b77237f"
+"cov.intervention_response.co_determined.frequentist.analytic_se.l90.intervention_response_codetermined_frequentist_nominal_coverage" = "a987448f900e6d4df45930c9b313ef830de254e6f97bc4e037795b32c6035fa4"
+
+[[waiver]]
+id = "gac-cap-40-bda2b9b8"
+from = "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6"
+to = "51d8c6156397d97c79bef5d85867c236168f71d2"
+reviewed_by = "Charles Hinshaw"
+justification = """
+GeneralizedAdjustmentConfig::default max_candidates moved from 16 to 40 to
+match DAG backdoor. Calibration DGPs never hit the cap: same seed, same
+interval. Records that also carry suite.v110_calibration_bayesian_static
+are covered here so both drifted paths are named.\
+"""
+paths = [
+  "crates/antecedent-identify/src/generalized.rs",
+  "crates/antecedent/tests/v110_calibration_bayesian_static.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage"
+exercises = [
+  "crates/antecedent-identify/src/generalized.rs",
+  "crates/antecedent/tests/v110_calibration_bayesian_static.rs",
+]
+
+[waiver.outcome]
+replayed_at = "51d8c6156397d97c79bef5d85867c236168f71d2"
+identical = true
+records = [
+  "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage" = "ad5ab214b07e803415275844c9fefa0607161fc907cf8324f988d5aec5e000b3"

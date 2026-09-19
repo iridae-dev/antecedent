@@ -245,3 +245,4 @@ suite.v110_calibration_estimate crates/antecedent/tests/v110_calibration_estimat
 suite.v110_calibration_temporal crates/antecedent/tests/v110_calibration_temporal.rs
 suite.v110_calibration_bayesian_static crates/antecedent/tests/v110_calibration_bayesian_static.rs
 suite.v110_calibration_counterfactual crates/antecedent/tests/v110_calibration_counterfactual.rs
+suite.v110_class_posterior_calibration crates/antecedent/tests/v110_class_posterior_calibration.rs
