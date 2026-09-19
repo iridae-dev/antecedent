@@ -23,11 +23,6 @@ reason = "Derivatives require a supplied static Dag."
 
 
 [[closed]]
-queries = ["ResponseCurve", "InterventionResponse"]
-graph_classes = ["Admg"]
-reason = "Admg response has no functional plug-in; licensed general-ID ATE does not estimate a curve."
-
-[[closed]]
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
 graph_classes = ["Dag", "Admg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]
@@ -163,13 +158,6 @@ graph_classes = ["TemporalPag"]
 reason = "Latent-confounded TemporalPag natural mediation is outside the existing cross-world identification theory; DAG-completion engineering cannot license it."
 
 [[closed]]
-queries = ["TemporalMediationEffect"]
-graph_classes = ["TemporalCpdag"]
-structures = ["graph_posterior"]
-inferences = ["Bayesian"]
-reason = "execute_dbn_posterior_bayesian is TemporalDag-shaped; TemporalCpdag posterior atoms are not mixed into a mediation envelope."
-
-[[closed]]
 queries = [
   "AverageDerivative",
   "Counterfactual",
@@ -190,33 +178,11 @@ inferences = ["Frequentist"]
 reason = "Frequentist graph-posterior mixing on DAG atoms is licensed for AverageEffect, ConditionalEffect, and static ResponseCurve/one-coordinate InterventionResponse. The listed static families remain unsupported."
 
 [[closed]]
-queries = ["AverageEffect"]
-graph_classes = ["Admg", "Cpdag", "Pag"]
-structures = ["graph_posterior"]
-inferences = ["Frequentist"]
-reason = "Frequentist graph-posterior mixing is licensed only for DAG atoms. ADMG/CPDAG/PAG posterior atoms remain refused."
-
-[[closed]]
-queries = ["ResponseCurve", "InterventionResponse"]
-graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
-structures = ["graph_posterior"]
-inferences = ["Frequentist"]
-reason = "Frequentist DBN-posterior Pulse/Sustained effects and single-horizon TemporalMediationEffect are licensed. Temporal response mixtures still require their query-specific composite evaluators."
-
-[[closed]]
 queries = ["TemporalMediationEffect"]
-graph_classes = ["TemporalCpdag", "TemporalPag"]
+graph_classes = ["TemporalPag"]
 structures = ["graph_posterior"]
-inferences = ["Frequentist"]
-reason = "Frequentist DBN-posterior mediation is licensed for TemporalDag atoms. TemporalCpdag/TemporalPag posterior atoms need a class-aware combiner that retains unidentified class mass."
-
-[[closed]]
-queries = ["TemporalMediationEffect"]
-graph_classes = ["TemporalDag"]
-structures = ["graph_posterior"]
-inferences = ["Frequentist"]
-validations = ["cheap", "full"]
-reason = "Frequentist DBN-posterior TemporalMediationEffect is licensed at validation none. Mediation refuters are not run per atom against that atom's own contrast and mixed by graph weight on this path (the Bayesian DBN mediation cells do this), so cheap/full stay refused."
+inferences = ["Frequentist", "Bayesian"]
+reason = "Latent-confounded TemporalPag natural mediation is outside the existing cross-world identification theory; TemporalPag graph-posterior atoms are not mixed into a mediation envelope."
 
 # -- 2026-08-19 audit. The following reasons cover cells probed end-to-end
 # (Study::build/run) and confirmed either to refuse at compile (an
@@ -224,19 +190,7 @@ reason = "Frequentist DBN-posterior TemporalMediationEffect is licensed at valid
 # the claimed inference mode. Former running exceptions were fully disposed in
 # 0.9; parity/support_allowlist.toml is now required to remain empty.
 
-[[closed]]
-queries = ["ConditionalEffect"]
-graph_classes = ["Cpdag", "Pag"]
-structures = ["graph_posterior"]
-reason = "ConditionalEffect graph-posterior mixing is licensed only for DAG atoms. Cpdag/Pag posterior atoms remain refused."
-
 # -- 0.9.0: n/a re-file (contract / identifier gap, not typed impossibility).
-
-[[closed]]
-queries = ["ResponseCurve", "InterventionResponse"]
-graph_classes = ["Admg", "Cpdag", "Pag", "TemporalDag", "TemporalCpdag", "TemporalPag"]
-structures = ["graph_posterior"]
-reason = "Graph-posterior response currently executes only static DAG atoms; ADMG/CPDAG/PAG and temporal posterior atoms require their class-specific evaluators."
 
 # -- 0.9.0: named reasons for refused families that previously had no reason row.
 
@@ -245,27 +199,6 @@ queries = ["PathSpecificEffect", "InterventionalDistribution"]
 graph_classes = ["Cpdag"]
 structures = ["explicit"]
 reason = "Path-specific queries execute only on a supplied static Dag and distribution queries only on a supplied static Dag or Admg; a directly supplied Cpdag hits that requirement (Admg/Pag explicit already named above)."
-
-[[closed]]
-queries = ["AverageEffect"]
-graph_classes = ["Admg", "Cpdag", "Pag"]
-structures = ["graph_posterior"]
-inferences = ["Bayesian"]
-reason = "execute_graph_posterior_bayesian is Dag-shaped; Admg/Cpdag/Pag posterior atoms are not mixed into an ATE envelope."
-
-[[closed]]
-queries = ["PulseEffect", "SustainedEffect"]
-graph_classes = ["TemporalCpdag", "TemporalPag"]
-structures = ["graph_posterior"]
-inferences = ["Bayesian"]
-reason = "execute_dbn_posterior_bayesian is TemporalDag-shaped; TemporalCpdag/TemporalPag posterior atoms are not mixed into a temporal envelope."
-
-[[closed]]
-queries = ["PulseEffect", "SustainedEffect"]
-graph_classes = ["TemporalCpdag", "TemporalPag"]
-structures = ["graph_posterior"]
-inferences = ["Frequentist"]
-reason = "Frequentist DBN-posterior Pulse/Sustained mixing is licensed for TemporalDag atoms. TemporalCpdag/TemporalPag posterior atoms need a class-aware combiner that retains unidentified class mass; completion enumeration is not posterior probability."
 
 [[closed]]
 queries = ["PathSpecificEffect", "InterventionalDistribution"]
@@ -308,3 +241,21 @@ queries = ["Counterfactual"]
 graph_classes = ["Dag"]
 validations = ["cheap", "full"]
 reason = "Counterfactual cheap/full are not licensed; there is no native ITE refuter suite and ATE refuters do not apply."
+
+# -- 1.10.1: named remaining graph-posterior response refusals. These stay
+# refused; the rows are reasons, not licenses.
+
+[[closed]]
+queries = ["ResponseCurve"]
+graph_classes = ["Admg", "Cpdag", "Pag"]
+structures = ["graph_posterior"]
+validations = ["cheap", "full"]
+reason = "Graph-posterior ResponseCurve on Admg/Cpdag/Pag is licensed at validation none. cheap/full name the ATE-shaped scalar refuter suite; the curve remains function-valued or atom-mixed with no licensed scalar-refuter state."
+
+[[closed]]
+queries = ["InterventionResponse"]
+graph_classes = ["Cpdag", "Pag"]
+structures = ["graph_posterior"]
+inferences = ["Bayesian"]
+validations = ["cheap", "full"]
+reason = "Bayesian graph-posterior InterventionResponse on Cpdag/Pag is licensed at validation none. cheap/full attach the Frequentist plugin-level suite; there is no Bayesian class-IR refuter path on a static Cpdag/Pag posterior."
