@@ -121,6 +121,8 @@ impl ScoreTable {
             || summary.covariance.values.len()
                 != coefficients.len().saturating_mul(coefficients.len())
             || coefficients.iter().any(|v| !v.is_finite())
+            || summary.means.iter().any(|v| !v.is_finite())
+            || summary.covariance.values.iter().any(|v| !v.is_finite())
         {
             return Err(EstimationError::data_msg("contrast length must match score columns"));
         }
@@ -130,10 +132,19 @@ impl ScoreTable {
         }
         let dim = summary.covariance.dim;
         let mut var = 0.0;
+        let mut absolute_terms = 0.0;
         for j in 0..dim {
             for i in 0..dim {
-                var += coefficients[i] * coefficients[j] * summary.covariance.get(i, j);
+                let term = coefficients[i] * coefficients[j] * summary.covariance.get(i, j);
+                var += term;
+                absolute_terms += term.abs();
             }
+        }
+        if !value.is_finite() || !var.is_finite() || !absolute_terms.is_finite() {
+            return Err(EstimationError::data_msg("contrast value or variance is non-finite"));
+        }
+        if var < -1e-12 * absolute_terms {
+            return Err(EstimationError::data_msg("contrast variance is negative"));
         }
         Ok(LinearContrast { value, se: var.max(0.0).sqrt() })
     }
@@ -203,6 +214,10 @@ fn kish_threshold_support(
     arm: u32,
     threshold: Option<f64>,
 ) -> (f64, f64) {
+    let scale = weights.iter().copied().fold(0.0_f64, f64::max);
+    if scale == 0.0 {
+        return (0.0, 0.0);
+    }
     let mut e_sum = 0.0;
     let mut e_sq = 0.0;
     let mut n_sum = 0.0;
@@ -211,6 +226,7 @@ fn kish_threshold_support(
         if a != arm || !(weight > 0.0 && weight.is_finite()) {
             continue;
         }
+        let weight = weight / scale;
         if threshold.is_none_or(|c| y > c) {
             e_sum += weight;
             e_sq += weight * weight;
@@ -482,6 +498,48 @@ impl ScoreTable {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn review_invalid_contrast_variance_is_not_zero_uncertainty() {
+        let table = ScoreTable {
+            observed_arm: Arc::from([]),
+            propensities: Arc::from([]),
+            observed_outcome: Arc::from([]),
+            n_rows: 0,
+            row_index: Arc::from([]),
+            fold_ids: Arc::from([]),
+            n_folds: 2,
+            scores: Arc::from([]),
+            columns: Arc::from([ScoreColumn { arm: 0, threshold: None }]),
+            adjustment_set: Arc::from([]),
+            nuisance_provenance: Arc::from("test"),
+            treatment: VariableId::from_raw(0),
+            intervened: Arc::from([]),
+        };
+        for variance in [f64::NAN, f64::INFINITY, -1.0, -1e-20] {
+            let summary = ScoreSummary {
+                means: Arc::from([1.0]),
+                covariance: JointCovariance { dim: 1, values: Arc::from([variance]) },
+                n_eff: 10.0,
+            };
+            assert!(table.linear_contrast(&summary, &[1.0]).is_err());
+        }
+    }
+
+    #[test]
+    fn review_threshold_effective_counts_are_weight_scale_invariant() {
+        for scale in [1e-200, 1.0, 1e200] {
+            let (events, non_events) = kish_threshold_support(
+                &[0, 0, 0, 0],
+                &[0.0, 0.0, 1.0, 1.0],
+                &[scale, scale, scale, scale],
+                0,
+                Some(0.5),
+            );
+            assert!((events - 2.0).abs() < 1e-12);
+            assert!((non_events - 2.0).abs() < 1e-12);
+        }
+    }
 
     #[test]
     fn wire_round_trip_preserves_scores() {

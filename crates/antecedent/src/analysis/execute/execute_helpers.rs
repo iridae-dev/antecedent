@@ -886,6 +886,158 @@ fn estimands_agree(left: &IdentifiedEstimand, right: &IdentifiedEstimand) -> boo
         && left.rd_design == right.rd_design
 }
 
+/// Choose how identified structural atoms may be combined.
+///
+/// Disagreeing estimand identities never produce a scalar mixture.
+/// A shared partially identified estimand publishes an identified set.
+pub(super) fn resolve_structural_aggregation(
+    contributing: &[&IdentifiedEstimand],
+    any_partial: bool,
+) -> crate::result::StructuralAggregationPolicy {
+    use crate::result::StructuralAggregationPolicy;
+    let Some(first) = contributing.first() else {
+        return StructuralAggregationPolicy::GraphDependentAtoms;
+    };
+    if contributing[1..].iter().all(|estimand| estimands_agree(first, estimand)) {
+        if any_partial {
+            StructuralAggregationPolicy::IdentifiedSetEnvelope
+        } else {
+            StructuralAggregationPolicy::SameEstimandWeightedMean
+        }
+    } else {
+        StructuralAggregationPolicy::GraphDependentAtoms
+    }
+}
+
+/// One evaluated graph-posterior atom for policy-aware scalar mixing.
+pub(super) struct GraphPosteriorAtomValue {
+    pub key: u64,
+    pub weight: f64,
+    pub status: IdentificationStatus,
+    pub estimand: IdentifiedEstimand,
+    pub value: f64,
+}
+
+/// Policy, scalar, and structural mixture for identified graph-posterior atoms.
+pub(super) struct MixedGraphPosteriorPolicy {
+    pub policy: crate::result::StructuralAggregationPolicy,
+    pub ate: f64,
+    pub mixable_scalar: bool,
+    pub mixture: crate::result::StructuralResponseMixture,
+}
+
+/// Mix identified graph-posterior atoms under [`StructuralAggregationPolicy`].
+///
+/// Disagreeing estimand identities withhold the scalar (`ate = NaN`) and publish
+/// an identified set over atom point values. Unidentified posterior atoms are
+/// appended from `graphs` when absent from `atoms`.
+pub(super) fn mix_graph_posterior_identified_atoms(
+    graphs: &WeightedGraphSamples,
+    atoms: &[GraphPosteriorAtomValue],
+    unidentified_mass: f64,
+    unevaluable_mass: f64,
+    subsampled_out_mass: f64,
+    truncated_atoms: usize,
+) -> MixedGraphPosteriorPolicy {
+    use crate::result::{StructuralAggregationPolicy, StructuralResponseAtom, StructuralWeightBasis};
+    let mut structural_atoms = Vec::with_capacity(atoms.len());
+    let mut identified_weight = 0.0;
+    let mut mixable = 0.0;
+    let mut weighted = 0.0;
+    let mut lo = f64::INFINITY;
+    let mut hi = f64::NEG_INFINITY;
+    let mut contributing: Vec<&IdentifiedEstimand> = Vec::new();
+    for atom in atoms {
+        if atom.value.is_finite() {
+            identified_weight += atom.weight;
+            mixable += atom.weight;
+            weighted += atom.weight * atom.value;
+            lo = lo.min(atom.value);
+            hi = hi.max(atom.value);
+            contributing.push(&atom.estimand);
+        }
+        structural_atoms.push(StructuralResponseAtom {
+            graph_key: atom.key,
+            weight: atom.weight,
+            status: atom.status,
+            value: Some(antecedent_core::ResponseValue::Scalar(atom.value)),
+            posterior: None,
+            response: None,
+        });
+    }
+    for (key, weight, flag) in graphs
+        .graph_keys
+        .iter()
+        .zip(graphs.weights.iter())
+        .zip(graphs.identified.iter())
+        .map(|((k, w), f)| (*k, *w, *f))
+    {
+        if flag != GraphIdentFlag::Unidentified {
+            continue;
+        }
+        if structural_atoms.iter().any(|atom| atom.graph_key == key) {
+            continue;
+        }
+        structural_atoms.push(StructuralResponseAtom {
+            graph_key: key,
+            weight,
+            status: IdentificationStatus::NotIdentified,
+            value: None,
+            posterior: None,
+            response: None,
+        });
+    }
+    let total = graphs.total_weight();
+    let identified_mass = if total > 0.0 { identified_weight / total } else { 0.0 };
+    let policy = resolve_structural_aggregation(&contributing, false);
+    let identified_set = (lo.is_finite() && hi.is_finite()).then(|| scalar_identified_set(lo, hi));
+    let mixable_scalar =
+        matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) && mixable > 0.0;
+    let ate = if mixable_scalar { weighted / mixable } else { f64::NAN };
+    let conditional_on_identified = mixable_scalar.then(|| antecedent_core::ResponseValue::Scalar(ate));
+    let mixture = crate::result::StructuralResponseMixture {
+        weight_basis: StructuralWeightBasis::PosteriorProbability,
+        atoms: structural_atoms,
+        identified_mass,
+        unidentified_mass,
+        unevaluable_mass,
+        subsampled_out_mass,
+        identified_set,
+        identified_set_interval: None,
+        conditional_on_identified,
+        full_mass_scope: true,
+        truncated_atoms,
+    };
+    MixedGraphPosteriorPolicy { policy, ate, mixable_scalar, mixture }
+}
+
+/// Publish which [`crate::result::StructuralAggregationPolicy`] governs a
+/// graph-posterior mixture.
+pub(super) fn push_graph_posterior_structural_aggregation_diagnostic(
+    diagnostics: &mut Vec<Diagnostic>,
+    policy: crate::result::StructuralAggregationPolicy,
+    identified_mass: f64,
+    unidentified_mass: f64,
+    unevaluable_mass: f64,
+    subsampled_out_mass: f64,
+) {
+    diagnostics.push(
+        Diagnostic::new(
+            "estimate.graph_posterior.structural_aggregation",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "policy={}; weight_basis=posterior_probability; identified_mass={}; \
+                 unidentified_mass={unidentified_mass}; unevaluable_mass={unevaluable_mass}; \
+                 subsampled_out_mass={subsampled_out_mass}",
+                policy.as_str(),
+                identified_mass,
+            ),
+        )
+        .with_fields(mass_fields(Some(identified_mass), unidentified_mass)),
+    );
+}
+
 /// Fail-closed rank: larger means less identified. Never used to upgrade a status.
 fn identification_closedness(status: IdentificationStatus) -> u8 {
     match status {

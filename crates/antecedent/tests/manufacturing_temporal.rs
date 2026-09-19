@@ -11,17 +11,19 @@ use std::sync::Arc;
 use antecedent::AcceptedGraph;
 use antecedent::discovery::GraphPosterior;
 use antecedent::io::{decode_causal_posterior_bytes, encode_causal_posterior_bytes};
-use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
+use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, StructuralAggregationPolicy, Study};
 use antecedent_core::{
-    CausalQuery, CausalSchemaBuilder, ExecutionContext, IdentificationStatus, Lag, MeasurementSpec,
-    MediationContrast, MediationQuery, RoleHint, SmallRoleSet, TemporalEffectQuery, TemporalPolicy,
-    ValueType, VariableId,
+    CausalQuery, CausalSchemaBuilder, ContinuousDomain, ExecutionContext, GridSpec,
+    IdentificationStatus, Intervention, Lag, MeasurementSpec, MediationContrast, MediationQuery,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue, RoleHint,
+    SmallRoleSet, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, ValueType,
+    VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
     TimeSeriesData, ValidityBitmap,
 };
-use antecedent_discovery::{mask_is_dag, temporal_dag_from_dbn_masks};
+use antecedent_discovery::{mask_is_dag, set_edge, temporal_dag_from_dbn_masks};
 use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::{
     IdentificationError, TemporalBackdoorIdentifier, TemporalMediationIdentifier,
@@ -53,6 +55,16 @@ fn identify_computations(sink: &RecordingProgress) -> usize {
 
 fn cached_count(result: &antecedent::StudyResult) -> usize {
     result.diagnostics.iter().filter(|d| d.code.as_ref() == "exec.identify.cached").count()
+}
+
+fn has_structural_aggregation_policy(
+    result: &antecedent::StudyResult,
+    policy: StructuralAggregationPolicy,
+) -> bool {
+    result.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code.as_ref() == "estimate.graph_posterior.structural_aggregation"
+            && diagnostic.message.contains(policy.as_str())
+    })
 }
 
 fn manufacturing_series(n: usize) -> (TimeSeriesData, TemporalDag, TemporalEffectQuery) {
@@ -704,6 +716,10 @@ fn assert_dbn_mediation_known_truth_mixture(suite: RefuteSuite) {
             .iter()
             .any(|d| d.code.as_ref() == "identify.dbn_posterior.per_atom_horizon")
     );
+    assert!(has_structural_aggregation_policy(
+        &fresh,
+        StructuralAggregationPolicy::SameEstimandWeightedMean,
+    ));
     let mediation = fresh.mediation.as_ref().expect("mediation envelope");
     assert!((mediation.effect.ate - fresh.estimate.ate).abs() < 1e-12);
     if suite != RefuteSuite::None {
@@ -777,6 +793,10 @@ fn manufacturing_dbn_posterior_frequentist_mediation_envelope() {
     assert_eq!(fresh.identification.status, IdentificationStatus::GraphDependent);
     assert_eq!(fresh.logical_plan.identifier.as_deref(), Some("temporal.mediation"));
     assert_eq!(fresh.logical_plan.estimator.as_deref(), Some("temporal.mediation"));
+    assert!(has_structural_aggregation_policy(
+        &fresh,
+        StructuralAggregationPolicy::SameEstimandWeightedMean,
+    ));
 
     // Dependence-honest SE from the shared circular-block replicates.
     let se = fresh.estimate.se_bootstrap.expect("Frequentist DBN mediation SE");
@@ -869,6 +889,70 @@ fn manufacturing_dbn_posterior_frequentist_mediation_withholds_se_without_replic
     ));
 }
 
+/// Cheap/full run mediation refuters on every contributing atom against that
+/// atom's own contrast and mix by frozen graph weight. This cell was refused
+/// before the query-native Frequentist path.
+#[test]
+fn manufacturing_dbn_posterior_frequentist_mediation_cheap_and_full_mix_atom_refuters() {
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let pin = &expected["temporal_mediation"];
+    let n = usize::try_from(pin["n"].as_u64().unwrap()).unwrap();
+    let weights: Vec<f64> =
+        pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let effect_truth = pin["expected_effect_given_identified"].as_f64().unwrap();
+    let tolerance = pin["effect_abs_tolerance"].as_f64().unwrap();
+    let (series, q) = mediation_series(n);
+    let gp = known_truth_dbn_mediation_posterior(pin, &weights);
+    for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+        let result = Study::series(series.clone())
+            .graph_posterior(gp.clone())
+            .query(CausalQuery::Mediation(q.clone()))
+            .inference(InferenceMode::Frequentist)
+            .refute(suite)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(43))
+            .unwrap();
+        assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+        assert!(!result.refutations.is_empty(), "{suite:?} must emit mixed atom refuters");
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_ref() == "refute.envelope.effect_mixture")
+        );
+        assert!(
+            result.refutations.iter().any(|r| r.refuter.as_ref() == "mediation.placebo_mediator"),
+            "{suite:?}: placebo-mediator"
+        );
+        assert!(
+            result
+                .refutations
+                .iter()
+                .any(|r| r.refuter.as_ref() == "mediation.random_common_cause"),
+            "{suite:?}: RCC"
+        );
+        if suite == RefuteSuite::Full {
+            assert!(
+                result
+                    .refutations
+                    .iter()
+                    .any(|r| r.refuter.as_ref() == "mediation.contiguous_window"),
+                "full: contiguous window"
+            );
+        }
+        assert!(
+            (result.estimate.ate - effect_truth).abs() < tolerance,
+            "{suite:?}: {} vs {effect_truth}",
+            result.estimate.ate
+        );
+    }
+}
+
 /// Two identified DBN atoms (the known-truth atom and a variant adding the
 /// lagged mediator edge `M_{t-1} → Y_t`) plus the unidentified atom: the
 /// published contrasts are the fixed-weight means of the atom fits, and one
@@ -918,6 +1002,10 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
         .run(&ExecutionContext::for_tests(pin["seed"].as_u64().unwrap()))
         .unwrap();
     let structural = result.structural_response.as_ref().expect("structured posterior mass");
+    assert!(has_structural_aggregation_policy(
+        &result,
+        StructuralAggregationPolicy::GraphDependentAtoms,
+    ));
     assert!((structural.identified_mass - 0.8).abs() < 1e-12, "{structural:?}");
     assert!((structural.unidentified_mass - 0.2).abs() < 1e-12);
     assert!(structural.unevaluable_mass.abs() < 1e-15);
@@ -1023,39 +1111,327 @@ fn manufacturing_dbn_posterior_mediation_retains_multiple_horizons() {
     assert!(result.mediation.is_none());
 }
 
+fn temporal_mean_curve(query: &TemporalEffectQuery) -> ResponseQuery {
+    ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: query.outcome,
+        treatment: ContinuousDomain::new(query.treatment, GridSpec::Values(Arc::from([0.0, 1.0]))),
+    })
+    .with_temporal(
+        TemporalResponseSpec::new(
+            vec![query.horizon_steps],
+            query.policy.clone(),
+            query.max_history_lag,
+        )
+        .unwrap(),
+    )
+}
+
+fn temporal_intervention_response(query: &TemporalEffectQuery) -> ResponseQuery {
+    ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: query.outcome,
+        interventions: Arc::from([Intervention::set(query.treatment, Value::f64(1.0))]),
+    })
+    .with_temporal(
+        TemporalResponseSpec::new(
+            vec![query.horizon_steps],
+            query.policy.clone(),
+            query.max_history_lag,
+        )
+        .unwrap(),
+    )
+}
+
+fn response_values(result: &antecedent::StudyResult) -> Vec<f64> {
+    if let Some(mixture) = result.structural_response.as_ref() {
+        if let Some(value) = mixture.conditional_on_identified.as_ref() {
+            return response_value_points(value);
+        }
+    }
+    let response = result.response.as_ref().expect("response");
+    match &response.estimate {
+        ResponseIdentification::PointIdentified(value)
+        | ResponseIdentification::PartiallyIdentified(value) => response_value_points(value),
+        ResponseIdentification::GraphDependent(atoms) => {
+            response_value_points(&atoms.first().expect("graph-dependent atom").1)
+        }
+        other => panic!("unexpected response estimate {other:?}"),
+    }
+}
+
+fn response_value_points(value: &ResponseValue) -> Vec<f64> {
+    match value {
+        ResponseValue::Surface { mean, .. } => mean.to_vec(),
+        ResponseValue::Scalar(value) => vec![*value],
+        other => panic!("unexpected response value {other:?}"),
+    }
+}
+
+fn run_explicit_temporal_response(
+    series: &TimeSeriesData,
+    graph: TemporalDag,
+    query: ResponseQuery,
+    inference: InferenceMode,
+) -> antecedent::StudyResult {
+    Study::series(series.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .inference(inference)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(11))
+        .unwrap()
+}
+
 #[test]
-fn dbn_posterior_response_curve_stays_refused() {
-    let (series, _g, q) = white_noise_pulse_series(64, 1);
+fn dbn_posterior_response_curve_matches_identified_atom() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/bayesian/known_truth_mixtures/expected.json"
     ))
     .unwrap();
-    let weights = vec![0.7, 0.3];
-    let gp = known_truth_dbn_posterior(&pin["temporal_effect"], &weights, &q);
-    let response =
-        antecedent_core::ResponseQuery::new(antecedent_core::ResponseFunctional::MeanCurve {
-            outcome: q.outcome,
-            treatment: antecedent_core::ContinuousDomain::new(
-                q.treatment,
-                antecedent_core::GridSpec::Values(Arc::from([0.0, 1.0])),
-            ),
-        })
-        .with_temporal(
-            antecedent_core::TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None)
-                .unwrap(),
-        );
-    let err = Study::series(series)
+    let temporal = &pin["temporal_effect"];
+    let n = usize::try_from(temporal["n"].as_u64().unwrap()).unwrap();
+    let seed = temporal["seed"].as_u64().unwrap();
+    let weights: Vec<f64> = temporal["posterior_weights"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    let unidentified_truth = temporal["expected_unidentified_mass"].as_f64().unwrap();
+    let (series, graph, q) = white_noise_pulse_series(n, seed);
+    let gp = known_truth_dbn_posterior(temporal, &weights, &q);
+    let response = temporal_mean_curve(&q);
+    let inference = InferenceMode::Frequentist;
+    let (ctx, sink) = recording_ctx(11);
+    let study = Study::series(series.clone())
+        .graph_posterior(gp)
+        .query(CausalQuery::Response(response.clone()))
+        .inference(inference.clone())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let fresh = study.clone().run(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 1);
+    let mut prepared = study.prepare(&ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 2);
+    let click = prepared.estimate_series(&series, &ctx).unwrap();
+    let refreshed = prepared.refresh_series(series.clone(), &ctx).unwrap();
+    assert_eq!(identify_computations(&sink), 2);
+    assert_eq!(click.support_status.unwrap().as_str(), "licensed");
+    assert_eq!(fresh.identification.status, IdentificationStatus::GraphDependent);
+    assert!(has_structural_aggregation_policy(
+        &fresh,
+        StructuralAggregationPolicy::SameEstimandWeightedMean,
+    ));
+    let mixture = fresh.structural_response.as_ref().unwrap();
+    assert!((mixture.unidentified_mass - unidentified_truth).abs() < 1e-12);
+    assert_eq!(cached_count(&fresh), 0);
+    assert_eq!(cached_count(&click), 1);
+    assert_eq!(cached_count(&refreshed), 1);
+
+    let explicit = run_explicit_temporal_response(&series, graph, response, inference);
+    let mixed = response_values(&fresh);
+    let atom = response_values(&explicit);
+    assert_eq!(mixed.len(), atom.len());
+    for (got, want) in mixed.iter().zip(atom.iter()) {
+        assert!((got - want).abs() < 1e-8, "GP mix {got} != identified atom {want}");
+    }
+    assert!((response_values(&click)[0] - mixed[0]).abs() < 1e-12);
+
+    let bayes = Study::series(series)
+        .graph_posterior(known_truth_dbn_posterior(temporal, &weights, &q))
+        .query(CausalQuery::Response(temporal_mean_curve(&q)))
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::conjugate().n_draws(64).prior_scale(1_000_000.0),
+        ))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(11))
+        .unwrap();
+    assert_eq!(bayes.support_status.unwrap().as_str(), "licensed");
+    assert!(
+        (bayes.structural_response.as_ref().unwrap().unidentified_mass - unidentified_truth).abs()
+            < 1e-12
+    );
+}
+
+#[test]
+fn dbn_posterior_intervention_response_matches_identified_atom() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let temporal = &pin["temporal_effect"];
+    let n = usize::try_from(temporal["n"].as_u64().unwrap()).unwrap();
+    let seed = temporal["seed"].as_u64().unwrap();
+    let weights: Vec<f64> = temporal["posterior_weights"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    let (series, graph, q) = white_noise_pulse_series(n, seed);
+    let response = temporal_intervention_response(&q);
+    for inference in [
+        InferenceMode::Frequentist,
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64).prior_scale(1_000_000.0)),
+    ] {
+        let gp = known_truth_dbn_posterior(temporal, &weights, &q);
+        let result = Study::series(series.clone())
+            .graph_posterior(gp)
+            .query(CausalQuery::Response(response.clone()))
+            .inference(inference.clone())
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(11))
+            .unwrap();
+        assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+        assert!(has_structural_aggregation_policy(
+            &result,
+            StructuralAggregationPolicy::SameEstimandWeightedMean,
+        ));
+        let explicit =
+            run_explicit_temporal_response(&series, graph.clone(), response.clone(), inference);
+        let mixed = response_values(&result);
+        let atom = response_values(&explicit);
+        assert_eq!(mixed.len(), atom.len());
+        for (got, want) in mixed.iter().zip(atom.iter()) {
+            assert!((got - want).abs() < 1e-6, "IR mix {got} != identified atom {want}");
+        }
+    }
+}
+
+/// Numeric pins for TemporalDag graph_posterior InterventionResponse and
+/// TemporalMediationEffect: frozen-weight surfaces/contrasts and the published
+/// [`StructuralAggregationPolicy`] diagnostic.
+#[test]
+fn dbn_posterior_graph_posterior_numeric_pins() {
+    dbn_posterior_response_curve_matches_identified_atom();
+    dbn_posterior_intervention_response_matches_identified_atom();
+    manufacturing_dbn_posterior_frequentist_mediation_envelope();
+    manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicate();
+    dbn_posterior_response_agrees_with_independent_atom_mix();
+}
+
+#[test]
+fn dbn_posterior_intervention_response_cheap_and_full_mix_atom_refuters() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
+    .unwrap();
+    let temporal = &pin["temporal_effect"];
+    let n = usize::try_from(temporal["n"].as_u64().unwrap()).unwrap();
+    let seed = temporal["seed"].as_u64().unwrap();
+    let weights: Vec<f64> = temporal["posterior_weights"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .collect();
+    let (series, _graph, q) = white_noise_pulse_series(n, seed);
+    let response = temporal_intervention_response(&q);
+    for inference in [
+        InferenceMode::Frequentist,
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32).prior_scale(1_000_000.0)),
+    ] {
+        for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+            let result = Study::series(series.clone())
+                .graph_posterior(known_truth_dbn_posterior(temporal, &weights, &q))
+                .query(CausalQuery::Response(response.clone()))
+                .inference(inference.clone())
+                .refute(suite)
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap()
+                .run(&ExecutionContext::for_tests(11))
+                .unwrap();
+            assert_eq!(result.support_status.unwrap().as_str(), "licensed");
+            assert!(
+                !result.refutations.is_empty(),
+                "{inference:?} {suite:?} must mix Pulse-native atom reports"
+            );
+            assert!(
+                result
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code.as_ref() == "refute.envelope.effect_mixture"
+                        || d.code.as_ref() == "refute.dbn_posterior.intervention_pulse_suite"),
+                "{inference:?} {suite:?} missing mixture diagnostic: {:?}",
+                result.diagnostics.iter().map(|d| d.code.as_ref()).collect::<Vec<_>>()
+            );
+        }
+    }
+}
+
+#[test]
+fn dbn_posterior_response_agrees_with_independent_atom_mix() {
+    let (series, graph_a, q) = white_noise_pulse_series(80, 7);
+    let mut graph_b = graph_a.clone();
+    let p0 = ensure_lagged(&mut graph_b, VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let d0 = ensure_lagged(&mut graph_b, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    graph_b.insert_directed(p0, d0).unwrap();
+    let response = temporal_mean_curve(&q);
+    let inference = InferenceMode::Frequentist;
+    let a = run_explicit_temporal_response(&series, graph_a, response.clone(), inference.clone());
+    let b = run_explicit_temporal_response(&series, graph_b, response.clone(), inference.clone());
+    let values_a = response_values(&a);
+    let values_b = response_values(&b);
+    assert_eq!(values_a.len(), values_b.len());
+    let w_a = 0.55;
+    let w_b = 0.45;
+    let expected: Vec<f64> = values_a
+        .iter()
+        .zip(values_b.iter())
+        .map(|(left, right)| (w_a * left + w_b * right) / (w_a + w_b))
+        .collect();
+
+    let contemporaneous_a = 0u64;
+    let contemporaneous_b = set_edge(0, 2, 0, 1, true);
+    let lag = 2u64;
+    let gp = GraphPosterior::new(
+        2,
+        vec![w_a, w_b],
+        vec![contemporaneous_a, contemporaneous_b],
+        vec![0.0; 4],
+        vec![0.0; 4],
+        1.0,
+        InferenceDiagnostics::analytic("independent_response_mix"),
+        0,
+    )
+    .unwrap()
+    .with_lagged_marginals(1, vec![1.0, 0.0, 0.0, 0.0])
+    .unwrap()
+    .with_lag_masks(vec![lag, lag])
+    .unwrap();
+    let mixed = Study::series(series)
         .graph_posterior(gp)
         .query(CausalQuery::Response(response))
-        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(16)))
+        .inference(inference)
         .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
         .build()
-        .unwrap_err();
-    assert!(
-        matches!(err, antecedent::CausalError::Support { .. })
-            || err.to_string().contains("response"),
-        "{err}"
-    );
+        .unwrap()
+        .run(&ExecutionContext::for_tests(11))
+        .unwrap();
+    assert_eq!(mixed.support_status.unwrap().as_str(), "licensed");
+    // Both atoms share the same horizon estimand identity even though the DAGs
+    // differ; the functional mix is still a frozen-weight mean.
+    assert!(has_structural_aggregation_policy(
+        &mixed,
+        StructuralAggregationPolicy::SameEstimandWeightedMean,
+    ));
+    let got = response_values(&mixed);
+    assert_eq!(got.len(), expected.len());
+    for (value, want) in got.iter().zip(expected.iter()) {
+        assert!((value - want).abs() < 1e-8, "independent mix {value} != {want}");
+    }
 }
 
 #[test]

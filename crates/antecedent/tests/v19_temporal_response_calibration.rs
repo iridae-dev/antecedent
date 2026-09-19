@@ -65,8 +65,8 @@ use antecedent_core::{
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
 use common::calibration::{
-    BASE_GRID_POINT, CoverageTally, GRID_POINTS, RecordKey, ar1_noise, gaussian, grid_n, grid_point,
-    mix_seed, n_sim, smoke, stream_seed,
+    BASE_GRID_POINT, CoverageTally, GRID_POINTS, RecordKey, ar1_noise, gaussian, grid_n,
+    grid_point, mix_seed, n_sim, smoke, stream_seed,
 };
 use common::calibration_bind::bind_all;
 
@@ -903,10 +903,8 @@ fn frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage() {
 
 /// Persistent-treatment shift at n-grid 80/160/320: under-coverage of the
 /// short-series shift cell and its simultaneous band.
-const AR1_TREATMENT_SHIFT_MEASURED: [[Option<f64>; 3]; 2] = [
-    [Some(0.905), Some(0.931), Some(0.939)],
-    [Some(0.897), Some(0.935), None],
-];
+const AR1_TREATMENT_SHIFT_MEASURED: [[Option<f64>; 3]; 2] =
+    [[Some(0.905), Some(0.931), Some(0.939)], [Some(0.897), Some(0.935), None]];
 
 /// The same design on 400 rows (about 21 effective rows for the shift level). Recorded,
 /// not gated.
@@ -1023,11 +1021,8 @@ fn frequentist_temporal_dag_intervention_response_iid_nominal_95_coverage() {
 }
 
 /// Grid-point-0 floor equality at `h = 2` (0.940; 1880/2000).
-const INTERVENTION_IID_MEASURED: [[Option<f64>; 3]; 3] = [
-    [None, None, None],
-    [Some(0.940), None, None],
-    [None, None, None],
-];
+const INTERVENTION_IID_MEASURED: [[Option<f64>; 3]; 3] =
+    [[None, None, None], [Some(0.940), None, None], [None, None, None]];
 
 /// Pointwise 95% coverage of the shift response under AR(1) residuals, measured
 /// at 2000 replicates: 0.940 (1880/2000) at h = 1 and 0.936 (1871/2000) at
@@ -1113,11 +1108,8 @@ fn frequentist_temporal_dag_sequence_iid_nominal_95_coverage() {
 }
 
 /// Grid-point-2 floor miss at `seq,h=2` (0.940).
-const SEQUENCE_IID_MEASURED: [[Option<f64>; 3]; 3] = [
-    [None, None, None],
-    [None, None, Some(0.940)],
-    [None, None, None],
-];
+const SEQUENCE_IID_MEASURED: [[Option<f64>; 3]; 3] =
+    [[None, None, None], [None, None, Some(0.940)], [None, None, None]];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -1131,11 +1123,8 @@ fn frequentist_temporal_dag_sequence_ar1_nominal_95_coverage() {
 }
 
 /// Grid-point-1 floor miss at `seq,h=1` (0.940).
-const SEQUENCE_AR1_MEASURED: [[Option<f64>; 3]; 3] = [
-    [None, Some(0.940), None],
-    [Some(0.968), None, None],
-    [None, None, None],
-];
+const SEQUENCE_AR1_MEASURED: [[Option<f64>; 3]; 3] =
+    [[None, Some(0.940), None], [Some(0.968), None, None], [None, None, None]];
 
 // ---------------------------------------------------------------------------
 // Bayesian TemporalDag InterventionResponse
@@ -1197,11 +1186,8 @@ fn bayesian_temporal_dag_intervention_response_iid_nominal_95_coverage() {
 }
 
 /// Simultaneous over-coverage at grid points 1 and 2 (0.971 / 0.967).
-const BAYES_INTERVENTION_IID_MEASURED: [[Option<f64>; 3]; 3] = [
-    [None, None, None],
-    [None, None, None],
-    [None, Some(0.971), Some(0.967)],
-];
+const BAYES_INTERVENTION_IID_MEASURED: [[Option<f64>; 3]; 3] =
+    [[None, None, None], [None, None, None], [None, Some(0.971), Some(0.967)]];
 
 /// AR(1) residuals: each horizon's likelihood is tempered by its long-run-variance ratio
 /// (`response.temporal_bayesian.tempering`), so serially dependent residuals are inside
@@ -1221,11 +1207,8 @@ fn bayesian_temporal_dag_intervention_response_ar1_nominal_95_coverage() {
 }
 
 /// Simultaneous over-coverage at grid points 1 and 2 (0.974 / 0.968).
-const BAYES_INTERVENTION_AR1_MEASURED: [[Option<f64>; 3]; 3] = [
-    [None, None, None],
-    [None, None, None],
-    [Some(0.965), Some(0.974), Some(0.968)],
-];
+const BAYES_INTERVENTION_AR1_MEASURED: [[Option<f64>; 3]; 3] =
+    [[None, None, None], [None, None, None], [Some(0.965), Some(0.974), Some(0.968)]];
 
 // ---------------------------------------------------------------------------
 // Observation-adjusted pair: Selected × OutcomeIndependentGiven([T])
@@ -1397,11 +1380,8 @@ fn frequentist_temporal_observation_sequence_iid_nominal_95_coverage() {
 }
 
 /// Grid-point-0 over-coverage at `seq,h=1` (0.990); grid-point-1 simultaneous (0.971).
-const OBSERVATION_SEQUENCE_IID_MEASURED: [[Option<f64>; 3]; 3] = [
-    [Some(0.990), None, None],
-    [Some(0.975), None, None],
-    [Some(0.980), Some(0.971), None],
-];
+const OBSERVATION_SEQUENCE_IID_MEASURED: [[Option<f64>; 3]; 3] =
+    [[Some(0.990), None, None], [Some(0.975), None, None], [Some(0.980), Some(0.971), None]];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -1415,11 +1395,8 @@ fn frequentist_temporal_observation_sequence_ar1_nominal_95_coverage() {
 }
 
 /// Over-coverage at grid point 0: `seq,h=1` 0.978, `seq,h=2` 0.983, simultaneous 0.979.
-const OBSERVATION_SEQUENCE_AR1_MEASURED: [[Option<f64>; 3]; 3] = [
-    [Some(0.978), None, None],
-    [Some(0.983), None, None],
-    [Some(0.979), None, None],
-];
+const OBSERVATION_SEQUENCE_AR1_MEASURED: [[Option<f64>; 3]; 3] =
+    [[Some(0.978), None, None], [Some(0.983), None, None], [Some(0.979), None, None]];
 
 // ---------------------------------------------------------------------------
 // Horizon-dependent adjustment sets (identify.temporal_response.horizon_dependent)
@@ -1670,11 +1647,8 @@ fn frequentist_temporal_pag_response_atom_iid_nominal_95_coverage() {
 }
 
 /// `{Z@-1}` pointwise over-coverage at grid point 0 (0.966 / 0.966).
-const PAG_ATOM_IID_MEASURED: [[Option<f64>; 3]; 3] = [
-    [Some(0.966), None, None],
-    [Some(0.966), None, None],
-    [None, None, None],
-];
+const PAG_ATOM_IID_MEASURED: [[Option<f64>; 3]; 3] =
+    [[Some(0.966), None, None], [Some(0.966), None, None], [None, None, None]];
 
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]

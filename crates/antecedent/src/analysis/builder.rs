@@ -24,7 +24,9 @@ use antecedent_data::{
 };
 use antecedent_discovery::GraphPosterior;
 use antecedent_estimate::{ContinuousResponseOptions, OverlapPolicy};
-use antecedent_graph::{Admg, Cpdag, Dag, Pag, TemporalDag};
+use antecedent_graph::{
+    Admg, Cpdag, Dag, DenseNodeId, Pag, TemporalCpdag, TemporalDag, TemporalPag,
+};
 use antecedent_validate::CustomEffectValidator;
 
 use crate::accepted::{AcceptedGraph, GraphClass};
@@ -321,17 +323,54 @@ impl RdConfig {
 /// identification — identification runs per-graph, against the real posterior atoms,
 /// inside `execute()`. `n_vars` comes from the supplied [`GraphPosterior`], not from
 /// re-inspecting `data`, so it always matches the ensemble the caller discovered.
-fn stub_accepted_graph_for(data: &DataInput, n_vars: usize) -> Result<AcceptedGraph, CausalError> {
+fn stub_accepted_graph_for(
+    data: &DataInput,
+    n_vars: usize,
+    atom_kind: antecedent_discovery::GraphPosteriorAtomKind,
+) -> Result<AcceptedGraph, CausalError> {
     match data {
         DataInput::Tabular(_) => {
             let n = u32::try_from(n_vars).map_err(|_| CausalError::Compile {
                 message: "too many variables for graph-posterior stub graph".into(),
             })?;
-            Ok(AcceptedGraph::dag(Dag::with_variables(n)))
+            match atom_kind {
+                antecedent_discovery::GraphPosteriorAtomKind::Dag => {
+                    Ok(AcceptedGraph::dag(Dag::with_variables(n)))
+                }
+                antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
+                    AcceptedGraph::cpdag(Cpdag::with_variables(n))
+                }
+                antecedent_discovery::GraphPosteriorAtomKind::Pag => {
+                    Ok(AcceptedGraph::pag(Pag::with_variables(n)))
+                }
+                antecedent_discovery::GraphPosteriorAtomKind::Admg => {
+                    let mut admg = Admg::with_variables(n);
+                    if n >= 2 {
+                        admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
+                            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                    }
+                    Ok(AcceptedGraph::admg(admg))
+                }
+                _ => Err(CausalError::Unsupported {
+                    message: "graph-posterior stub supports only static Dag, Cpdag, Pag, or Admg atoms",
+                }),
+            }
         }
-        DataInput::Temporal(_) | DataInput::Event(_) => {
-            Ok(AcceptedGraph::temporal_dag(TemporalDag::empty()))
-        }
+        DataInput::Temporal(_) | DataInput::Event(_) => match atom_kind {
+            antecedent_discovery::GraphPosteriorAtomKind::Dag => {
+                Ok(AcceptedGraph::temporal_dag(TemporalDag::empty()))
+            }
+            antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
+                AcceptedGraph::temporal_cpdag(TemporalCpdag::empty())
+            }
+            antecedent_discovery::GraphPosteriorAtomKind::Pag => {
+                Ok(AcceptedGraph::temporal_pag(TemporalPag::empty()))
+            }
+            _ => Err(CausalError::Unsupported {
+                message: "graph-posterior stub supports only TemporalDag, TemporalCpdag, or \
+                          TemporalPag atoms on temporal/event data",
+            }),
+        },
         DataInput::MultiEnv(_) | DataInput::Panel(_) => Err(CausalError::Unsupported {
             message: "graph-posterior analysis supports tabular or temporal/event data only",
         }),
@@ -1285,7 +1324,7 @@ impl StudyBuilder {
                 (g, None)
             }
             (None, Some(gp)) => {
-                let stub = stub_accepted_graph_for(&data, gp.n_vars)?;
+                let stub = stub_accepted_graph_for(&data, gp.n_vars, gp.atom_kind)?;
                 (stub, Some(gp))
             }
             (None, None) => return Err(CausalError::Missing { field: "graph" }),
@@ -1386,8 +1425,19 @@ impl StudyBuilder {
         } else {
             self.structure_source.unwrap_or(crate::support::StructureSource::Explicit)
         };
-        let graph_class = crate::support::effective_graph_class(&graph, &query);
-        let matrix_class = crate::support::matrix_graph_class(&graph, &query, self.tiered.as_ref());
+        // Graph-posterior stubs are empty bookkeeping graphs. Collapse based on
+        // stub edges (an empty Admg looks like a DAG) would relabel licensed
+        // Admg posterior cells. Trust the atom-kind stub class instead.
+        let graph_class = if graph_posterior.is_some() {
+            graph.class()
+        } else {
+            crate::support::effective_graph_class(&graph, &query)
+        };
+        let matrix_class = if graph_posterior.is_some() {
+            graph.class().as_str()
+        } else {
+            crate::support::matrix_graph_class(&graph, &query, self.tiered.as_ref())
+        };
         let selected = self.estimator_spec.as_ref().map(crate::estimator_spec::EstimatorSpec::id);
         let functional = match &query {
             CausalQuery::AverageEffect(q) => Some(&q.outcome_functional),
@@ -1615,7 +1665,19 @@ impl StudyBuilder {
                                     antecedent_core::ResponseFunctional::InterventionResponse { .. }
                                 )
                     );
-                if spec.id() != expected && !cell_aipw_ok {
+                let admg_functional_ok = spec.id() == EstimatorId::FunctionalEffect
+                    && graph_class == GraphClass::Admg
+                    && matches!(
+                        &query,
+                        CausalQuery::Response(q)
+                            if q.temporal.is_none()
+                                && matches!(
+                                    q.functional,
+                                    antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                                        | antecedent_core::ResponseFunctional::MeanCurve { .. }
+                                )
+                    );
+                if spec.id() != expected && !cell_aipw_ok && !admg_functional_ok {
                     return Err(crate::compile_reason!(
                         "strategy_incompatible",
                         "query and inference require estimator {}; got {}",
@@ -1813,6 +1875,7 @@ impl StudyBuilder {
             temporal_class_identification_cache: None,
             graph_posterior_identification_cache: None,
             dbn_posterior_identification_cache: None,
+            temporal_class_posterior_identification_cache: None,
             tiered: self.tiered,
             continuous_cell: self.continuous_cell,
             shared_batch_design: None,

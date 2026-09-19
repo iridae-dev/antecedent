@@ -174,6 +174,35 @@ impl IdIdentifier {
         response: &antecedent_core::ResponseQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
+        if let antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } =
+            &response.functional
+        {
+            let levels = treatment.grid.values().map_err(|_| {
+                IdentificationError::unsupported(
+                    "MeanCurve general ID requires a finite evaluation grid",
+                )
+            })?;
+            let Some(&level) = levels.first() else {
+                return Err(IdentificationError::unsupported(
+                    "MeanCurve general ID requires a finite evaluation grid",
+                ));
+            };
+            let mut level_query = response.clone();
+            level_query.functional = antecedent_core::ResponseFunctional::InterventionResponse {
+                outcome: *outcome,
+                interventions: Arc::from([Intervention::set(
+                    treatment.variable,
+                    Value::f64(level),
+                )]),
+            };
+            let mut result = self.identify_response(prepared, &level_query, workspace)?;
+            result.query = CausalQuery::Response(response.clone());
+            result.derivation.push(
+                "identify.response.general_id",
+                "MeanCurve is the identified intervention mean on the requested grid",
+            );
+            return Ok(result);
+        }
         let antecedent_core::ResponseFunctional::InterventionResponse { outcome, interventions } =
             &response.functional
         else {

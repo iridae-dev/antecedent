@@ -6,8 +6,14 @@
 
 use std::sync::Arc;
 
-use antecedent::{AcceptedGraph, PreparedStudy, RefuteSuite, Study};
-use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
+use antecedent::{
+    AcceptedGraph, EstimatorId, IdentifierId, InferenceMode, PreparedStudy, RefuteSuite, Study,
+};
+use antecedent_core::{
+    AverageEffectQuery, CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
+    InterventionalDistributionQuery, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseValue, Value, VariableId,
+};
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag};
 use antecedent_validate::PredictiveCheckKind;
@@ -259,4 +265,153 @@ fn admg_frontdoor_functional_effect_numeric_pin() {
             assert_prepared_reuse(&fresh, &click, &refreshed, expected, tolerance);
         }
     }
+}
+
+fn response_mean(result: &antecedent::StudyResult) -> f64 {
+    match result.response.as_ref().and_then(|r| match &r.estimate {
+        ResponseIdentification::PointIdentified(ResponseValue::Scalar(v)) => Some(*v),
+        ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
+            mean.first().copied()
+        }
+        _ => None,
+    }) {
+        Some(v) if v.is_finite() => v,
+        _ => result.estimate.ate,
+    }
+}
+
+fn surface_means(result: &antecedent::StudyResult) -> Vec<f64> {
+    match result.response.as_ref().and_then(|r| match &r.estimate {
+        ResponseIdentification::PointIdentified(ResponseValue::Surface { mean, .. }) => {
+            Some(mean.to_vec())
+        }
+        _ => None,
+    }) {
+        Some(v) => v,
+        None => vec![result.estimate.ate],
+    }
+}
+
+/// Bidirected front-door ADMG: InterventionResponse / ResponseCurve means at
+/// do(T=0) and do(T=1) match the licensed InterventionalDistribution / ATE
+/// functional on the same graph.
+#[test]
+fn admg_frontdoor_response_pins_against_distribution() {
+    let pin = admg_pin();
+    let data = expand_contingency(&pin);
+    let admg = admg_from_pin(&pin);
+    let query = query_from_pin(&pin);
+    let expected_ate = pin["frequentist"]["expected_ate"].as_f64().unwrap();
+    let tolerance = pin["frequentist"]["absolute_tolerance"].as_f64().unwrap();
+    let ctx = ExecutionContext::for_tests(1);
+    let t = query.treatment;
+    let y = query.outcome;
+
+    let ate = Study::tabular(data.clone())
+        .graph(admg.clone())
+        .query(query.clone())
+        .identifier(IdentifierId::GeneralId)
+        .estimator(EstimatorId::FunctionalEffect)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    assert!((ate.estimate.ate - expected_ate).abs() < tolerance);
+
+    let mut dist_means = Vec::new();
+    let mut ir_means = Vec::new();
+    for level in [0.0, 1.0] {
+        let dist_query =
+            InterventionalDistributionQuery::new(y, [Intervention::set(t, Value::f64(level))]);
+        let dist = Study::tabular(data.clone())
+            .graph(admg.clone())
+            .query(CausalQuery::Distribution(dist_query))
+            .identifier(IdentifierId::GeneralId)
+            .estimator(EstimatorId::FunctionalDistribution)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx)
+            .unwrap();
+        let dist_mean = dist.distribution.as_ref().expect("distribution").mean;
+        dist_means.push(dist_mean);
+
+        let ir = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: y,
+            interventions: Arc::from([Intervention::set(t, Value::f64(level))]),
+        });
+        for accepted in [false, true] {
+            for bayesian in [false, true] {
+                let mut builder = Study::tabular(data.clone());
+                builder = if accepted {
+                    builder.graph(AcceptedGraph::from(admg.clone()))
+                } else {
+                    builder.graph(admg.clone())
+                };
+                let study = builder
+                    .query(CausalQuery::Response(ir.clone()))
+                    .identifier(IdentifierId::GeneralId)
+                    .estimator(EstimatorId::FunctionalEffect)
+                    .inference(if bayesian {
+                        InferenceMode::Bayesian(antecedent::BayesianConfig::conjugate().n_draws(64))
+                    } else {
+                        InferenceMode::Frequentist
+                    })
+                    .refute(RefuteSuite::None)
+                    .bootstrap_replicates(0)
+                    .build()
+                    .unwrap();
+                let (fresh, click, _) = run_prepared(
+                    &study,
+                    &data,
+                    1,
+                    IdentifierId::GeneralId.as_str(),
+                    EstimatorId::FunctionalEffect.as_str(),
+                );
+                for result in [&fresh, &click] {
+                    assert!(
+                        result
+                            .diagnostics
+                            .iter()
+                            .any(|d| d.code.as_ref() == "identify.response.general_id"),
+                        "accepted={accepted} bayesian={bayesian} level={level}"
+                    );
+                    let mean = response_mean(result);
+                    let bound = if bayesian { 0.05 } else { 1e-9 };
+                    assert!(
+                        (mean - dist_mean).abs() < bound,
+                        "IR mean {mean} != dist {dist_mean} at do(T={level}) accepted={accepted} bayesian={bayesian}"
+                    );
+                }
+                if !bayesian && !accepted {
+                    ir_means.push(response_mean(&fresh));
+                }
+            }
+        }
+    }
+    assert!(((ir_means[1] - ir_means[0]) - expected_ate).abs() < tolerance);
+    assert!(((dist_means[1] - dist_means[0]) - expected_ate).abs() < tolerance);
+
+    let curve = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: y,
+        treatment: ContinuousDomain::new(t, GridSpec::Values(Arc::from([0.0, 1.0]))),
+    });
+    let curve_result = Study::tabular(data.clone())
+        .graph(admg.clone())
+        .query(CausalQuery::Response(curve))
+        .identifier(IdentifierId::GeneralId)
+        .estimator(EstimatorId::FunctionalEffect)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    let means = surface_means(&curve_result);
+    assert_eq!(means.len(), 2);
+    assert!((means[0] - dist_means[0]).abs() < 1e-9);
+    assert!((means[1] - dist_means[1]).abs() < 1e-9);
 }

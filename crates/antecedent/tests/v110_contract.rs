@@ -1256,7 +1256,18 @@ fn licensed_family_conditional_graph_posterior_preserves_mass() {
         &ctx,
     );
     assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
-    assert!((result.effect() - 2.0).abs() < 0.15);
+    assert!(result.effect().is_nan(), "graph-dependent estimands withhold a scalar");
+    let structural = result.structural_response.as_ref().unwrap();
+    let values: Vec<_> = structural
+        .atoms
+        .iter()
+        .filter_map(|atom| match atom.value {
+            Some(antecedent_core::ResponseValue::Scalar(value)) => Some(value),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(values.len(), 2);
+    assert!(values.iter().all(|value| (value - 2.0).abs() < 0.15));
     let slot = consumed
         .contract
         .as_ref()
@@ -1272,7 +1283,7 @@ fn licensed_family_conditional_graph_posterior_preserves_mass() {
         }
         other => panic!("graph-posterior mass must remain available, got {other:?}"),
     }
-    assert_eq!(claim.kind, ClaimKind::Mixture);
+    assert_eq!(claim.kind, ClaimKind::Bounds);
 }
 
 #[test]
@@ -1654,7 +1665,7 @@ fn composition_two_programs_compare_only_on_shared_data() {
 
     let left = dag_result.claim(&dag_contract, &ctx).unwrap();
     let right = mixture_result.claim(&mixture_contract, &ctx).unwrap();
-    assert_eq!(right.kind, ClaimKind::Mixture);
+    assert_eq!(right.kind, ClaimKind::Bounds);
     match &right.reasoning.identification {
         SlotAvailability::Available(slot) => {
             assert!((slot.unidentified_mass - 0.2).abs() < 1e-9);
@@ -5823,10 +5834,18 @@ fn graph_posterior_weights_and_atoms_enter_identification() {
     assert_ne!(a.program, b.program);
     let first = base.estimate(&data, &ctx).unwrap();
     let second = reweighted.estimate(&data, &ctx).unwrap();
-    assert!(
-        (first.effect() - second.effect()).abs() > 1e-6,
-        "the reweighted mixture is a different number"
-    );
+    assert!(first.effect().is_nan() && second.effect().is_nan());
+    let weights = |result: &StudyResult| {
+        result
+            .structural_response
+            .as_ref()
+            .unwrap()
+            .atoms
+            .iter()
+            .map(|atom| (atom.graph_key, atom.weight))
+            .collect::<Vec<_>>()
+    };
+    assert_ne!(weights(&first), weights(&second), "reweighting changes the structural result");
     let claim_id = |prepared: &antecedent::PreparedStudy, result: &StudyResult| {
         let consumed = consume_analysis_result(
             &prepared.encode_contracted_result(result, "mix", &ctx).unwrap(),
@@ -5876,7 +5895,7 @@ fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
     let section = antecedent_io::decode_analysis_result_contract(&decoded).unwrap().unwrap();
     let edits: [fn(&mut antecedent_io::AnalysisResultWire); 3] = [
         |body| body.standard_error = Some(body.standard_error.unwrap_or(1.0) / 100.0),
-        |body| body.estimate = body.estimate.map(|value| value + 1.0),
+        |body| body.estimate = Some(body.estimate.unwrap_or(0.0) + 1.0),
         // Search effort is execution detail the product excludes; only the
         // result digest inside the claim id covers it.
         |body| body.identification.candidates_examined += 1,
