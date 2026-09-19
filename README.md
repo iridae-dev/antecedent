@@ -113,18 +113,18 @@ Install their Python dependencies using the
 
 | Notebook | What it keeps visible |
 | --- | --- |
-| [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb) — a dashboard can credit paid search for demand that would have existed anyway. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v1.10.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb) |
-| [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb) — reuse a previous campaign’s evidence without assuming the new campaign is identical. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v1.10.0/examples/notebooks/sales_campaign_prior_transfer.ipynb) |
-| [Experiment design](examples/notebooks/marketing_experiment_design.ipynb) — rank a holdout, better intent data, and more CRM records under a £40,000 budget. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v1.10.0/examples/notebooks/marketing_experiment_design.ipynb) |
-| [Continuous causal response](examples/notebooks/continuous_causal_response.ipynb) — a nonlinear dose–response, with identification, support, and uncertainty as separate axes. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v1.10.0/examples/notebooks/continuous_causal_response.ipynb) |
-| [Pricing, availability, and latent demand](examples/notebooks/pricing_availability_latent_demand.ipynb) — observed sales are not demand; the observation-aware route fails closed. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v1.10.0/examples/notebooks/pricing_availability_latent_demand.ipynb) |
+| [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb) — a dashboard can credit paid search for demand that would have existed anyway. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.1/examples/notebooks/marketing_channel_structural_uncertainty.ipynb) |
+| [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb) — reuse a previous campaign’s evidence without assuming the new campaign is identical. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.1/examples/notebooks/sales_campaign_prior_transfer.ipynb) |
+| [Experiment design](examples/notebooks/marketing_experiment_design.ipynb) — rank a holdout, better intent data, and more CRM records under a £40,000 budget. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.1/examples/notebooks/marketing_experiment_design.ipynb) |
+| [Continuous causal response](examples/notebooks/continuous_causal_response.ipynb) — a nonlinear dose–response, with identification, support, and uncertainty as separate axes. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.1/examples/notebooks/continuous_causal_response.ipynb) |
+| [Pricing, availability, and latent demand](examples/notebooks/pricing_availability_latent_demand.ipynb) — observed sales are not demand; the observation-aware route fails closed. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.10.1/examples/notebooks/pricing_availability_latent_demand.ipynb) |
 
 Paired Python and Rust scripts for the same workflows live in
 [examples](examples/README.md).
 
-## 1.10.0
+## 1.10.1
 
-The current package version is **1.10.0**.
+The current package version is **1.10.1**.
 1.10 is a composition release of the existing 341 licensed cells (1423
 meaningful combinations). Every licensed cell has a first-class
 inspect/contract coordinate and completes the Rust compiler path
