@@ -225,7 +225,7 @@ def docs_cases() -> list[bool]:
         case(
             g,
             "readme_version_deferral",
-            {"README.md": append("Weighted exports land in 1.11.")},
+            {"README.md": append("Weighted exports land in 1.12.")},
             ["README.md: forbidden"],
         ),
         case(

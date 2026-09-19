@@ -1,11 +1,11 @@
 # Security, licensing, unsafe-code, and dependency review
 
-Date: 2026-09-15
-Scope: workspace crates + `python` extension (package version **1.10.1**)
+Date: 2026-09-19
+Scope: workspace crates + `python` extension (package version **1.11.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
-1.10.1 opens as a patch on the 1.10.0 reviewed tree. This stamp covers the
-version and notes cut. Re-review the source diff before the patch is tagged
+1.11.0 is the 1.x close-out on the 1.10.0 reviewed tree. This stamp covers the
+version and notes cut. Re-review the source diff before the cut is tagged
 if it adds `unsafe`, dependencies, artifact decode, or workflow permissions.
 
 The 1.10.0 source diff (against the 1.9.0 cut) is additive composition of the

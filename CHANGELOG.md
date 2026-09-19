@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0]
+
+The 1.x close-out on the 1.10.0 composition contract. Entries accumulate here
+until the cut.
+
 ### Added
 
 - `result.claim()`, `result.as_point()`, and `result.as_response()` on the
@@ -18,17 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Arrow interchange on the way in (`__arrow_c_stream__` for Polars / DuckDB /
   PyArrow tables). Tabular views export `to_columns()` (dict-in twin) and
   speak `__arrow_c_stream__` when pyarrow is present. `py.typed` ships.
-
-### Removed
-
-- `ValidationView.to_pandas()`. No vendor frame converters.
-
-## [1.10.1]
-
-A 1.x patch on the 1.10.0 composition contract. Entries accumulate here until
-the cut.
-
-### Added
 
 - `ResponseCurve` and `InterventionResponse` on a supplied or accepted `Admg`
   (Frequentist and Bayesian, validation none) identify `P(Y|do(X=x))` with
@@ -101,9 +95,17 @@ the cut.
   `CausalResponseView` models. Nested views are frozen Pydantic too.
   `to_dict()` is a JSON-safe walk (nonfinite floats stay explicit). Rust
   remains the scientific source of truth.
-- Example notebooks install `antecedent>=1.10.0,<1.11` from PyPI when the
+- Example notebooks install `antecedent>=1.11.0,<1.12` from PyPI when the
   package is missing, so Google Colab **Runtime → Run all** works. The
   previous 1.10 notebooks only documented `%pip` in markdown, then imported.
+- Coverage seeds in the leftover Bayesian static suite run in parallel. Each
+  seed still builds a serial `for_tests` study. The leftover
+  `point_derivative` grid was remasured at 2000 replicates on that loop.
+- Generalized adjustment's default candidate cap is 40, matching DAG backdoor.
+
+### Removed
+
+- `ValidationView.to_pandas()`. No vendor frame converters.
 
 ### Fixed
 
@@ -2599,7 +2601,7 @@ First crates.io-oriented release of the Rust library graph.
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
 [Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.10.0...HEAD
-[1.10.1]: https://github.com/iridae-dev/antecedent/compare/v1.10.0...HEAD
+[1.11.0]: https://github.com/iridae-dev/antecedent/compare/v1.10.0...HEAD
 [1.10.0]: https://github.com/iridae-dev/antecedent/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/iridae-dev/antecedent/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/iridae-dev/antecedent/compare/v1.7.0...v1.8.0
