@@ -13,13 +13,9 @@ Download an example notebook and open it with `jupyter lab`. If you have the
 repository locally, run `jupyter lab examples/notebooks` from its root.
 Choose the kernel for the Python environment where you installed Antecedent.
 
-For Google Colab, run this in a setup cell:
-
-```python
-%pip install antecedent pandas matplotlib
-```
-
-If you upgrade Antecedent after importing it, restart the kernel or Colab session.
+For Google Colab, **Runtime → Run all**. The first code cell installs
+`antecedent>=1.10.0,<1.11` from PyPI when the package is missing. If you
+upgrade after importing it, restart the kernel or Colab session.
 
 ## Start with one analysis
 
