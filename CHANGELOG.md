@@ -7,6 +7,122 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `result.claim()`, `result.as_point()`, and `result.as_response()` on the
+  shared `Analysis` type (`AnalysisResult | CausalResponseView`).
+- Notebook HTML for `Identification`, graphs, `CausalResponseView`, and
+  `ReviewRequired`.
+- `error.report.next` (copy-paste next legal call) and `PendingEdge.with_names`
+  so review edges resolve from `V3` to column names when the call has them.
+- Arrow interchange on the way in (`__arrow_c_stream__` for Polars / DuckDB /
+  PyArrow tables). Tabular views export `to_columns()` (dict-in twin) and
+  speak `__arrow_c_stream__` when pyarrow is present. `py.typed` ships.
+
+### Removed
+
+- `ValidationView.to_pandas()`. No vendor frame converters.
+
+## [1.10.1]
+
+A 1.x patch on the 1.10.0 composition contract. Entries accumulate here until
+the cut.
+
+### Added
+
+- `ResponseCurve` and `InterventionResponse` on a supplied or accepted `Admg`
+  (Frequentist and Bayesian, validation none) identify `P(Y|do(X=x))` with
+  `general.id` and evaluate the existing functional plug-in on the requested
+  grid or Set levels. Bidirected edges stay bidirected; this is not
+  g-computation and not transport. ADMG graph-posterior response surfaces are
+  licensed separately (InterventionResponse none/cheap/full; ResponseCurve none).
+- Class graph-posterior `ConditionalEffect` on Cpdag/Pag (Frequentist and
+  Bayesian, none/cheap/full), `ResponseCurve` (none), and Frequentist
+  `InterventionResponse` (none/cheap/full) evaluate each class atom with the
+  existing envelope and mix via `StructuralAggregationPolicy`.
+- `TemporalMediationEffect` on TemporalCpdag graph-posterior atoms (Frequentist
+  and Bayesian, none/cheap/full) mixes class-atom mediation envelopes by frozen
+  posterior weight. TemporalPag graph-posterior mediation stays closed.
+- `PulseEffect` and `SustainedEffect` on TemporalCpdag/TemporalPag graph-posterior
+  atoms (Frequentist and Bayesian, validation none/cheap/full) evaluate each atom
+  with the existing temporal class envelope and mix identified atoms by frozen
+  posterior weight via `StructuralAggregationPolicy`. Unidentified class mass is
+  retained; completion enumeration is not posterior probability; cheap/full run
+  TemporalDag Pulse/Sustained refuters per contributing atom, then mix those
+  reports by posterior weight.
+- `ResponseCurve` (none) and one-coordinate `InterventionResponse` (none/cheap/full)
+  on TemporalDag graph-posterior atoms evaluate each DBN atom with the existing
+  temporal response estimator and mix by frozen posterior weight. Unidentified
+  mass is retained. InterventionResponse cheap/full mix Pulse-native atom reports;
+  ResponseCurve cheap/full stay n/a.
+- `ResponseCurve` (none) and one-coordinate `InterventionResponse` (none/cheap/full)
+  on TemporalCpdag/TemporalPag graph-posterior atoms reconstruct each class atom
+  and evaluate it with the existing temporal class response envelope, then mix by
+  frozen posterior weight via `StructuralAggregationPolicy`. Unidentified class
+  mass is retained. InterventionResponse cheap/full mix Pulse-native atom reports;
+  ResponseCurve cheap/full stay n/a. Sequence overlays remain refused.
+- Frequentist DBN-posterior `TemporalMediationEffect` cheap/full run mediation
+  refuters per contributing atom against that atom's own contrast and mix by
+  fixed graph weight; the mixed check passes only if every atom passes.
+- Python `analyze`/`prepare` run licensed `InterventionalDistribution` × `Admg`
+  cells at validation `none` (explicit/accepted × Frequentist/Bayesian).
+- Python `analyze`/`prepare` run licensed `AnomalyAttribution` and
+  `ChangeAttribution` × `Dag` × explicit × Frequentist × validation `none`.
+- Python `GraphPosterior.from_atoms`/`from_graphs` carry `atom_kind` and PAG
+  `mark_masks`, so class and ADMG graph-posterior cells compile. Temporal
+  `ResponseCurve` / one-coordinate `InterventionResponse` × graph_posterior
+  run on `analyze`/`prepare` (series or event).
+- `antecedent.handoff.econml(...).attach(...)` records a caller-fitted external
+  estimate as attested, not re-verifiable, evidence (`kind=external_estimate`).
+  Identification stays Antecedent-certified; calibration is `unavailable` with
+  `attested_not_reverifiable`. The adapter does not wrap EconML or set
+  `contract.estimator` to an EconML id.
+- `AverageEffect` on CPDAG and PAG graph-posterior atoms (Frequentist and
+  Bayesian, validation none) evaluates each atom with the existing class ATE
+  envelope and combines them with `StructuralAggregationPolicy`. Unidentified
+  mass is retained; completion enumeration is not posterior probability;
+  disagreeing estimands publish an identified set / `GraphDependent` result
+  rather than a scalar mixture.
+- CPDAG/PAG graph-posterior `AverageEffect` cheap/full run class-atom ATE
+  refuters per completion, then mix those atom reports by frozen posterior
+  weight; the mixed check passes only if every contributing atom passes.
+  Disagreeing estimands skip the outer scalar mix.
+- `AverageEffect` on ADMG graph-posterior atoms (Frequentist and Bayesian,
+  validation none/cheap/full) identifies each atom with `general.id` and
+  estimates `functional.effect`, then mixes with `StructuralAggregationPolicy`.
+  Unidentified mass is retained; ADMG atoms are single graphs, not MEC
+  completions; bidirected edges are not coerced to DAG.
+- DAG graph-posterior ATE uses the same aggregation contract as class GP:
+  disagreeing estimands withhold `estimate.ate` and publish the identified set.
+- `inspect()` returns a Pydantic `InspectionReport`. `to_dict()` is
+  `model_dump(mode="json")`. Identification and calibration still come from
+  the Rust contract.
+- `analyze()` / `estimate()` return Pydantic `AnalysisResult` and
+  `CausalResponseView` models. Nested views are frozen Pydantic too.
+  `to_dict()` is a JSON-safe walk (nonfinite floats stay explicit). Rust
+  remains the scientific source of truth.
+- Example notebooks install `antecedent>=1.10.0,<1.11` from PyPI when the
+  package is missing, so Google Colab **Runtime → Run all** works. The
+  previous 1.10 notebooks only documented `%pip` in markdown, then imported.
+
+### Fixed
+
+- Relative target weights are rescaled before sums, squares, and mixtures so
+  overflow or underflow cannot invent a zero mixture or drop uncertainty.
+- Retarget contrasts use arm identity (0 vs 1), not column order; tiny
+  nonconstant weights still change the target.
+- Identified-set intervals refuse non-finite completion points instead of
+  omitting them from the extrema.
+- Contrast summaries refuse non-finite or materially negative variance instead
+  of reporting a zero SE.
+- Bayesian static graph-posterior validation retains per-atom targets when
+  `StructuralAggregationPolicy` withholds the scalar, matching Frequentist.
+- `publish-release.yml` publishes PyPI independently of GitHub Release asset
+  uploads, so a GitHub unicorn cannot skip trusted publishing.
+- Read the Docs installs a published `antecedent` wheel for pdoc instead of
+  compiling the crate, and compiles the checkout only when that version is
+  not on PyPI.
+
 ## [1.10.0] — 2026-09-15
 
 ### Added
@@ -2483,6 +2599,7 @@ First crates.io-oriented release of the Rust library graph.
   getters; prefer constructors (`::new` / `::from_parts`) for cross-crate builds.
 
 [Unreleased]: https://github.com/iridae-dev/antecedent/compare/v1.10.0...HEAD
+[1.10.1]: https://github.com/iridae-dev/antecedent/compare/v1.10.0...HEAD
 [1.10.0]: https://github.com/iridae-dev/antecedent/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/iridae-dev/antecedent/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/iridae-dev/antecedent/compare/v1.7.0...v1.8.0

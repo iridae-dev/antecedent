@@ -1,9 +1,17 @@
-# Antecedent 2.x — Causal transport and evidence synthesis
+# Antecedent 2.x — Transport, leftover truth, and speed
 
-Last updated: 2026-09-15.
+Last updated: 2026-09-19.
 
-This is the roadmap for 2.0 and the subsequent transport
-program. 
+This is the roadmap for 2.0. **Transport is the scientific program.** Two
+other workstreams sit beside it so 2.0 is still Antecedent: the same engine,
+the same four slots, used the way a person would use it, and fast enough that
+they will.
+
+| Workstream | Job | What it is not |
+| --- | --- | --- |
+| **T — Transport** | Executable, auditable transport across the studies we actually have | A new library, a second workflow engine, or a reason to drop 1.x cells |
+| **S — Practitioner scenarios** | An out-of-repo suite that uses only the public API, then a 1.x leftover fix-list that 2.0 ships | A second test harness inside this tree, or a wishlist of new graph types |
+| **P — Fast while correct** | Make the 1.x engine use the machine without moving a licensed number | `PreferFast` as the default interval, a GPU rewrite, or remasuring 585 records to flip a thread count |
 
 Every checkbox below is an open implementation or evidence obligation, **not a
 claim of shipped support**. Proposed record and test names specify contracts;
@@ -11,6 +19,217 @@ settle their exact public spelling in the architecture decision before freezing
 them. File references name existing owners, not a requirement for parallel
 implementations. Follow-on workstreams are dependency-ordered proposals, not
 assigned minor versions. A breaking extension requires a later major.
+
+S and P do not wait for T5. They start from the accepted 1.x close-out.
+That close-out is **1.11.0**, not a 1.10.1 patch: this branch's work (parallel
+seeds, leftover rows, licensed GP cells, GAC 40) plus the non-transport 1.x
+leftovers on this roadmap, then a flat history at the cut. Keep committing
+on top until that cut. Transport consumes their leftovers and their speed
+work; it does not replace them.
+
+## S — Practitioner scenarios and 1.x leftovers
+
+**Question:** When someone who is not us uses Antecedent on a problem they
+actually have, does the library do the thing they asked, refuse the thing they
+must not get, and say so in the four slots? **Depends on:** accepted 1.11.0.
+**Feeds:** the 2.0 leftover list; T10 practitioner acceptance; P's user-sized
+benches.
+
+In-repo tests prove licensed cells, fixtures, and gates. They do not prove a
+first-hour analysis, a messy sheet, a second click, or the question a user
+will type after reading the five-line API. Those gaps are 1.x leftovers, not
+2.x inventions. 2.0 ships the leftover list. It does not abandon the
+composition contract to start transport.
+
+### S1 — Out-of-repo suite
+
+The suite lives **outside this repository**. It may only use published Rust
+and Python surfaces (`antecedent` / `analyze` / prepared handle / artifacts).
+It must not `use` crate internals, read `parity/`, or import `tests/common`.
+A failure here is a user failure. A pass that needs an internal helper is
+not a pass.
+
+- [ ] Stand up a sibling repo (or an isolated package that `gate_release.sh`
+      does not own). Pin `antecedent` the way a user pins it. No path
+      dependency on this tree except an optional local override for
+      pre-release checks.
+- [ ] Write scenarios as jobs, not cell coordinates. Each scenario has: the
+      question in the user's words, the data they would have, the graph they
+      would draw, the call they would make, and the scientific outcome
+      (a number with a named interval, or a named refusal). Inspect and
+      execute must agree. An exported artifact must mean the same thing
+      when loaded in a fresh process.
+- [ ] Cover the jobs 1.x already claims, at user shape:
+      first-hour Python (CSV / pandas / Arrow, claim sentence, named
+      refusal); static ATE / CATE / intervention level / curve on Dag and
+      front-door Admg; class-posterior Cpdag / Pag; derivatives and
+      elasticities; temporal pulse / sustained / mediation; unit and mean
+      ITE; prepare → replace data → refresh → export; graph-posterior
+      plus validation, not each in isolation.
+- [ ] Cover the jobs users will try and 1.x will honestly refuse: wrong
+      treatment coding, missing columns, a cyclic “DAG”, unidentified
+      queries, cheap/full surprises, inspect-open / execute-refuse,
+      continuous point interventions they expected to bin, joint `do(A,B)`
+      inferred from separate regimes. A silent success is a leftover.
+      A precise refusal is not.
+- [ ] Cover scale the calibration suite does not: n a practitioner would
+      actually have (10⁴–10⁵), mixed types, unused columns, short and
+      irregular series, two studies in one notebook. These are also P's
+      benches; S owns the scientific assertion, P owns the wall-clock.
+- [ ] Do not reimplement transport scenarios here. When T5 lands, add
+      transport jobs to this suite the same way — public API only.
+
+**Done when:** a stranger can clone the suite, `pip install antecedent`,
+and see green for every job 1.10 licensed, red for every job 1.10 must
+refuse, and a leftover file for everything else.
+
+### S2 — Leftover list that 2.0 ships
+
+Every suite failure becomes a leftover record, not a chat note.
+
+- [ ] Record: symptom, public route, owner crate, class
+      (`bug` / `silent_refuse` / `inspect_execute_drift` / `docs_lie` /
+      `missing_pin` / `unusable_default` / `too_slow_to_be_true`).
+      Cite the scenario. Cite the 1.x row or doc sentence that made the
+      user try it.
+- [ ] Promotion rule: a leftover enters 2.0 when it has a consuming
+      in-repo test and, if it opened or closed a cell, a support-matrix
+      and calibration obligation under the 1.10 extension rules. Research
+      interest is not promotion.
+- [ ] Out of this list: new graph types, observational interference,
+      PAG-native full ID, transport, ML CATE competition. Those stay
+      unscheduled or T/X. S exists so 2.0 does not leave 1.x half-true.
+- [ ] Close-out of 1.11.0 (licensed cells that must earn, GAC 40,
+      inspect/execute pins, non-transport 1.x leftovers) is not this
+      list. S starts after that cut is true. Anything still false
+      after the cut is the first leftover.
+
+**Done when:** 2.0's leftover list is empty or every remaining item is
+closed with a named reason. Transport M4 cannot accept while S has an
+open `bug`, `silent_refuse`, `inspect_execute_drift`, or `docs_lie`.
+
+## P — Fast while correct
+
+**Question:** How do we make Antecedent fast enough to use, without changing
+what a licensed cell means? **Depends on:** accepted 1.11.0; S's user-sized
+jobs. **Feeds:** T4/T6 evaluation budgets; T10 performance gate; every later
+2.x path that reuses estimate/identify/expr.
+
+1.x already has the knobs: `ExecutionContext` owns threads, kernels, cache,
+and adaptive effort; scalar kernels are the conformance reference; `faer`
+and portable kernels are on; Criterion benches exist for designated hot
+paths; Python `analyze` builds `production()`; prepared studies skip
+re-identify; Arrow can borrow; batch queries and bootstrap fills already
+honor `max_threads`. The hole is that the default user path often does not
+use them, and the certified path was measured one core at a time.
+
+Correctness is the estimand, the interval method, the refusal, and the
+claim. Speed may not change those. A faster reduction that is not
+bit-identical under `Determinism::Strict` is a new inference identity and
+needs its own license. `PreferFast` is never the default licensed interval.
+
+The 585 attested records stay. A change that cannot move a number is a
+waiver, not a remasure. A change that can move a number owes the groups
+behind its records. Flipping a thread count on independent seeds does not
+owe remasure; flipping kernels, stopping rules, or draw counts does.
+
+### P1 — Measure the path a user hits
+
+Hot-path benches are merge blockers for kernels and workspaces. They are
+not a latency budget for `analyze` on a 50k-row sheet.
+
+- [ ] Add user-sized benches beside S scenarios: n = 10⁴ and 10⁵ Dag ATE
+      (Frequentist default and Bayesian Laplace), intervention level,
+      Kennedy curve, graph-posterior mixture (few atoms), temporal pulse
+      on a series a person would keep. Record wall time, peak RSS,
+      allocations, `bytes_borrowed`, identify-cache hits, and whether
+      `max_threads` was greater than 1.
+- [ ] Profile before betting. The likely 1.x poles, from the benches and
+      from the 1.10.1 leftover cell: Kennedy-DR + local-quadratic
+      derivative, Laplace GLM, default 199-replicate bootstrap, Laplace
+      posterior draws, graph-posterior per-atom refit, GAC candidate
+      search, temporal block-length + Politis–White when replicates
+      run, Python pandas ingest vs Arrow CDI.
+- [ ] Keep Criterion smoke as the regression gate. User-sized benches
+      set 2.0 budgets; they do not replace `hot_paths.md`.
+
+### P2 — Use the machine on the default path
+
+- [ ] Python prepared clicks default `threads=1` even though
+      `py_execution_context` builds `ExecutionContext::production`.
+      Default to `available_parallelism` (capped), keep `threads=1` as
+      an explicit pin. Same for Rust `analyze` if it serializes by habit.
+      Independent atoms (graph-posterior completions, bootstrap
+      replicates, batch queries) already have pools; they idle when
+      the context says 1.
+- [ ] Do not flip `ExecutionContext::for_tests` to production kernels.
+      Tests stay serial + scalar so calibration means what it measured.
+      The 1.10.1 coverage harness now parallelizes *seeds*
+      (`map_replicates`); that is a test-harness change, not a product
+      default. Product speed is `production()` + a real thread count.
+- [ ] Graph-posterior atoms are independent given the data. Fit them
+      under `ctx.parallelism`. Mixture weights and unidentified mass
+      stay a sequential reduce in atom order.
+- [ ] Inspect, capability, and metadata-only artifact reads must stay
+      cheaper than a fit. They already must not clone datasets or
+      re-identify (`hot_paths.md` 1.3). S will catch the ones that still
+      do.
+
+### P3 — Stop paying twice
+
+- [ ] A user who asked for one level should not fit twice. Calibration
+      still scores 0.95 and 0.90 as two studies (`response_pairs`); that
+      is a gate cost, not a product cost. Product `analyze` should run
+      the published level once.
+- [ ] Prepared reuse is already the second-click contract (identify-once,
+      temporal `I(h)` cache, refute-second-click freezes ATE). Make that
+      the path the five-line API actually hits after the first call, not
+      a handle only tests use.
+- [ ] Adaptive bootstrap and adaptive draws exist and are opt-in. Both
+      `production()` and `for_tests` evaluate the full request so
+      calibration certifies the count. 2.0 may license adaptive effort
+      as a *named* interval method with its own coverage row. It must
+      not silently early-stop the certified default.
+
+### P4 — Allocation, kernels, search
+
+- [ ] Workspaces already exist (Laplace, gather, ParCorr, mechanism,
+      posterior eval, propensity bootstrap). Hunt the 1.x leftovers that
+      still clone `TabularData` or rebuild a plan per replicate on the
+      user path. Arrow CDI borrow stays the ingest win; pandas/dict
+      `as_columns` stays the explicit copy.
+- [ ] `KernelPolicy::default_policy` is production; `scalar_only` is the
+      test reference. There is no `simd-runtime` feature, so
+      `allow_arch_simd` still selects portable kernels. A SIMD/BLAS
+      path that matches scalar tests may ship; one that changes a
+      licensed number may not. GPU remains optional and behind
+      `KernelPolicy` — not a 2.0 requirement.
+- [ ] Identification search (GAC, adjustment enumeration) already has
+      budgets and a candidate cap. Profile user graphs, not only the
+      calibration DGPs that never hit the cap. Memoize on complete
+      subproblem identity. Inspect must not search.
+- [ ] Cache policy is on in Python production and off in `for_tests`.
+      Confirm the default cache bound (`PY_DEFAULT_CACHE_MAX_BYTES`)
+      is a hit on prepared second clicks and a refuse — not an OOM —
+      on Shapley / design paths.
+
+### P5 — What 2.0 will not do for speed
+
+- [ ] Will not make `Determinism::PreferFast` the licensed default.
+- [ ] Will not drop default bootstrap replicates or posterior draws
+      without a new licensed method and a coverage record.
+- [ ] Will not remasure the 585 because seeds now run in parallel or
+      because Python defaulted to more than one thread.
+- [ ] Will not start a GPU or WASM rewrite as a 2.0 speed program
+      (those stay independent tracks).
+- [ ] Will not treat a `max_uses` bump, a closed-rule edit, or a
+      thinner interval as a performance win.
+
+**Done when:** S's 10⁴–10⁵ jobs finish on an M-series laptop in a sitting,
+not overnight; `threads>1` is the default user path; inspect is metadata;
+the five-line API reuses preparation on the second click; every speed
+change that can move a number has a coverage row or a recorded waiver;
+scalar conformance still gates kernels.
 
 ## The outcome we are building toward
 
@@ -33,6 +252,8 @@ licensed evaluator is an identification result; it is not a completed analysis.
 
 ## Contents
 
+- [S — Practitioner scenarios and 1.x leftovers](#s--practitioner-scenarios-and-1x-leftovers)
+- [P — Fast while correct](#p--fast-while-correct)
 - [Release contract and invariants](#release-contract-and-invariants)
 - [Existing owners and implementation seams](#existing-owners-and-implementation-seams)
 - [2.0 delivery sequence](#20-delivery-sequence)
@@ -52,7 +273,9 @@ licensed evaluator is an identification result; it is not a completed analysis.
 
 ## Release contract and invariants
 
-**Required for 2.0:** explicit evidence catalogs; complete classical single-source
+**Required for 2.0:** S leftover list closed (`bug` / `silent_refuse` /
+`inspect_execute_drift` / `docs_lie`); P user-path speed on the public API;
+explicit evidence catalogs; complete classical single-source
 identification in its declared setting; checked positive derivations and genuine
 negative witnesses; recursive finite-discrete execution; a scoped complementary
 multi-source path; finite treatment grids; prepared reuse; factor-specific
@@ -136,6 +359,7 @@ Concrete gaps already visible:
 
 | Milestone | Depends on | Exit artifact |
 | --- | --- | --- |
+| S/P: leftover truth and speed | Accepted 1.11.0 | Out-of-repo suite; leftover list empty or closed; user-path benches and default `threads>1` |
 | M0: contracts | Accepted 1.10, T0–T1 | ADR, evidence schema, exact theorem scopes and support coordinates |
 | M1: single-source exact path | M0, T2–T4 | Checked recursion executing against exact SCM tables, including negative witnesses |
 | M2: reusable statistical path | M1, T5–T6 | Prepared execution with licensed intervals and source-level diagnostics |
@@ -785,7 +1009,8 @@ Retained from the former TODO and roadmap; no committed 2.x release:
 
 Existing 1.x response, quantile, class-envelope, prior-transfer, and retargeting
 ownership stays in IMPLEMENTATION.md and the accepted release contract. These
-items are not a route for moving unfinished 1.x work into 2.0.
+wishlist items are not a route for moving unfinished research into 2.0.
+User-facing 1.x leftovers belong on workstream S, not here.
 
 ### 3.0 — Changes to graph semantics
 
