@@ -532,9 +532,10 @@ def test_licensed_graph_posterior_prepare_matches_analyze():
     tolerance = float(STATIC["effect_abs_tolerance"])
     assert prepared.evidence_status == "licensed"
     assert click.evidence_status == "licensed"
-    assert click.ate == pytest.approx(expected, abs=tolerance)
-    assert abs(click.ate - fresh.ate) < 1e-12
+    assert click.ate is None and fresh.ate is None
     assert fresh.posterior is not None and click.posterior is not None
+    assert click.posterior.effect_mean == pytest.approx(expected, abs=tolerance)
+    assert abs(click.posterior.effect_mean - fresh.posterior.effect_mean) < 1e-12
     assert click.posterior.unidentified_mass == pytest.approx(
         float(STATIC["expected_unidentified_mass"]), abs=1e-12
     )
@@ -569,11 +570,9 @@ def test_licensed_graph_posterior_frequentist_prepare_matches_analyze():
         latency="interactive",
     )
     click = prepared.estimate(data, seed=1)
-    expected = float(STATIC["expected_effect_given_identified"])
     assert prepared.evidence_status == "licensed"
     assert click.evidence_status == "licensed"
-    assert click.ate == pytest.approx(expected, abs=1e-8)
-    assert abs(click.ate - fresh.ate) < 1e-12
+    assert click.ate is None and fresh.ate is None
     assert fresh.posterior is None and click.posterior is None
     assert any("unidentified_mass=0.2" in diagnostic for diagnostic in fresh.diagnostics)
     assert any(d.startswith("exec.identify.cached") for d in fresh.diagnostics)
@@ -655,7 +654,7 @@ def test_prepared_exact_dag_posterior_discovery_reuses_identification():
     click = prepared.estimate(_ATE_DATA, seed=7)
     assert prepared.evidence_status == "licensed"
     assert click.evidence_status == "licensed"
-    assert abs(click.ate - fresh.ate) < 1e-12
+    assert click.ate is None and fresh.ate is None
     assert fresh.posterior is not None and click.posterior is not None
     assert click.posterior.unidentified_mass == pytest.approx(
         fresh.posterior.unidentified_mass, abs=1e-12

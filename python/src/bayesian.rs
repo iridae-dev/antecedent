@@ -11,7 +11,11 @@ use antecedent::discovery::{
     discover_structure_mcmc as facade_discover_structure_mcmc,
 };
 use antecedent::discovery_defaults::resolve_ci;
-use antecedent_discovery::{has_edge, mask_is_dag, n_directed_edges};
+use antecedent_discovery::{
+    GraphPosteriorAtomKind, adjacency_mask_from_admg, adjacency_mask_from_cpdag,
+    adjacency_masks_from_pag, has_edge, mask_is_dag, n_directed_edges,
+};
+use antecedent_graph::Cpdag as RustCpdag;
 use antecedent_prob::InferenceDiagnostics;
 use antecedent_stats::{FdrAdjustment, PartialCorrelation};
 use numpy::PyReadonlyArray1;
@@ -56,6 +60,12 @@ pub struct PyGraphPosterior {
     /// Structure-learning algorithm that produced the atoms (`None` if untagged).
     #[pyo3(get)]
     algorithm: Option<String>,
+    /// Class of every atom: `Dag`, `Cpdag`, `Pag`, or `Admg`.
+    #[pyo3(get)]
+    atom_kind: String,
+    /// Optional PAG circle-endpoint masks, same length as `adjacency`.
+    #[pyo3(get)]
+    mark_masks: Option<Vec<u64>>,
     /// Backend identifier carried from the producing diagnostics.
     backend_id: String,
 }
@@ -80,6 +90,8 @@ impl PyGraphPosterior {
             max_lag: post.max_lag,
             lag_masks: post.lag_masks.as_ref().map(|v| v.as_ref().to_vec()),
             algorithm: post.algorithm.as_deref().map(str::to_owned),
+            atom_kind: post.atom_kind.as_str().to_owned(),
+            mark_masks: post.mark_masks.as_ref().map(|v| v.as_ref().to_vec()),
             backend_id: post.diagnostics.backend_id.to_string(),
         }
     }
@@ -108,6 +120,10 @@ impl PyGraphPosterior {
         }
         if let Some(lag_masks) = &self.lag_masks {
             post = post.with_lag_masks(lag_masks.clone()).map_err(py_msg)?;
+        }
+        post = post.with_atom_kind(parse_atom_kind(&self.atom_kind)?);
+        if let Some(mark_masks) = &self.mark_masks {
+            post = post.with_mark_masks(mark_masks.clone()).map_err(py_msg)?;
         }
         Ok(match &self.algorithm {
             Some(algorithm) => post.with_algorithm(algorithm.as_str()),
@@ -160,8 +176,8 @@ impl PyGraphPosterior {
 
     fn __repr__(&self) -> String {
         format!(
-            "GraphPosterior(n_vars={}, n_graphs={}, ess={:.3}, converged={})",
-            self.n_vars, self.n_graphs, self.ess, self.converged
+            "GraphPosterior(n_vars={}, n_graphs={}, atom_kind={}, ess={:.3}, converged={})",
+            self.n_vars, self.n_graphs, self.atom_kind, self.ess, self.converged
         )
     }
 
@@ -178,6 +194,8 @@ impl PyGraphPosterior {
         lag_masks=None,
         max_lag=None,
         ess=None,
+        atom_kind="Dag",
+        mark_masks=None,
     ))]
     fn from_atoms(
         _cls: &Bound<'_, pyo3::types::PyType>,
@@ -190,6 +208,8 @@ impl PyGraphPosterior {
         lag_masks: Option<Vec<u64>>,
         max_lag: Option<u32>,
         ess: Option<f64>,
+        atom_kind: &str,
+        mark_masks: Option<Vec<u64>>,
     ) -> PyResult<Self> {
         let n_vars = names.len();
         if adjacency.len() != weights.len() {
@@ -204,13 +224,14 @@ impl PyGraphPosterior {
                 "from_atoms supports at most 8 variables (64-bit adjacency masks)",
             ));
         }
+        let kind = parse_atom_kind(atom_kind)?;
         for (index, mask) in adjacency.iter().enumerate() {
             if edge_bits < MASK_BITS && (mask >> edge_bits) != 0 {
                 return Err(PyValueError::new_err(format!(
                     "adjacency atom {index} sets edge bits beyond {n_vars} variables"
                 )));
             }
-            if !mask_is_dag(*mask, n_vars) {
+            if kind == GraphPosteriorAtomKind::Dag && !mask_is_dag(*mask, n_vars) {
                 return Err(PyValueError::new_err(format!("adjacency atom {index} is not a DAG")));
             }
         }
@@ -281,8 +302,116 @@ impl PyGraphPosterior {
         if let Some(lag_masks) = lag_masks {
             post = post.with_lag_masks(lag_masks).map_err(py_msg)?;
         }
+        post = post.with_atom_kind(kind);
+        if let Some(mark_masks) = mark_masks {
+            post = post.with_mark_masks(mark_masks).map_err(py_msg)?;
+        }
         Ok(Self::from_rust(names, post.with_algorithm("from_atoms")))
     }
+
+    /// Pack typed graphs into a posterior. Every atom must share one class.
+    #[classmethod]
+    #[pyo3(signature = (names, weights, graphs, *, ess=None))]
+    fn from_graphs(
+        _cls: &Bound<'_, pyo3::types::PyType>,
+        names: Vec<String>,
+        weights: Vec<f64>,
+        graphs: Vec<Bound<'_, PyAny>>,
+        ess: Option<f64>,
+    ) -> PyResult<Self> {
+        if graphs.len() != weights.len() {
+            return Err(PyValueError::new_err("graphs/weights length mismatch"));
+        }
+        if graphs.is_empty() {
+            return Err(PyValueError::new_err("from_graphs requires at least one atom"));
+        }
+        let (kind, adjacency, mark_masks) = pack_static_atoms(&names, &graphs)?;
+        Self::from_atoms(
+            _cls,
+            names,
+            weights,
+            adjacency,
+            None,
+            None,
+            None,
+            None,
+            None,
+            ess,
+            kind.as_str(),
+            mark_masks,
+        )
+    }
+}
+
+fn parse_atom_kind(name: &str) -> PyResult<GraphPosteriorAtomKind> {
+    match name {
+        "Dag" | "dag" => Ok(GraphPosteriorAtomKind::Dag),
+        "Cpdag" | "cpdag" => Ok(GraphPosteriorAtomKind::Cpdag),
+        "Pag" | "pag" => Ok(GraphPosteriorAtomKind::Pag),
+        "Admg" | "admg" => Ok(GraphPosteriorAtomKind::Admg),
+        other => Err(PyValueError::new_err(format!(
+            "atom_kind must be Dag, Cpdag, Pag, or Admg; got {other:?}"
+        ))),
+    }
+}
+
+fn require_graph_names(graph_names: &[String], names: &[String], kind: &str) -> PyResult<()> {
+    if graph_names != names {
+        return Err(PyValueError::new_err(format!(
+            "{kind} variable names must match GraphPosterior names and order"
+        )));
+    }
+    Ok(())
+}
+
+fn pack_static_atoms(
+    names: &[String],
+    graphs: &[Bound<'_, PyAny>],
+) -> PyResult<(GraphPosteriorAtomKind, Vec<u64>, Option<Vec<u64>>)> {
+    let first = &graphs[0];
+    if first.extract::<crate::graphs::Dag>().is_ok() {
+        let mut adjacency = Vec::with_capacity(graphs.len());
+        for graph in graphs {
+            let dag = graph.extract::<crate::graphs::Dag>()?;
+            require_graph_names(&dag.names, names, "Dag")?;
+            adjacency
+                .push(adjacency_mask_from_cpdag(&RustCpdag::from_dag(&dag.dag)).map_err(py_msg)?);
+        }
+        return Ok((GraphPosteriorAtomKind::Dag, adjacency, None));
+    }
+    if first.extract::<crate::graphs::Cpdag>().is_ok() {
+        let mut adjacency = Vec::with_capacity(graphs.len());
+        for graph in graphs {
+            let cpdag = graph.extract::<crate::graphs::Cpdag>()?;
+            require_graph_names(&cpdag.names, names, "Cpdag")?;
+            adjacency.push(adjacency_mask_from_cpdag(&cpdag.cpdag).map_err(py_msg)?);
+        }
+        return Ok((GraphPosteriorAtomKind::Cpdag, adjacency, None));
+    }
+    if first.extract::<crate::graphs::Pag>().is_ok() {
+        let mut adjacency = Vec::with_capacity(graphs.len());
+        let mut marks = Vec::with_capacity(graphs.len());
+        for graph in graphs {
+            let pag = graph.extract::<crate::graphs::Pag>()?;
+            require_graph_names(&pag.names, names, "Pag")?;
+            let (adj, mark) = adjacency_masks_from_pag(&pag.pag).map_err(py_msg)?;
+            adjacency.push(adj);
+            marks.push(mark);
+        }
+        return Ok((GraphPosteriorAtomKind::Pag, adjacency, Some(marks)));
+    }
+    if first.extract::<crate::graphs::Admg>().is_ok() {
+        let mut adjacency = Vec::with_capacity(graphs.len());
+        for graph in graphs {
+            let admg = graph.extract::<crate::graphs::Admg>()?;
+            require_graph_names(&admg.names, names, "Admg")?;
+            adjacency.push(adjacency_mask_from_admg(&admg.admg).map_err(py_msg)?);
+        }
+        return Ok((GraphPosteriorAtomKind::Admg, adjacency, None));
+    }
+    Err(PyValueError::new_err(
+        "from_graphs accepts Dag, Cpdag, Pag, or Admg atoms; temporal class atoms use from_atoms",
+    ))
 }
 
 fn bayesian_params() -> BayesianDiscoverParams {

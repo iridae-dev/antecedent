@@ -203,6 +203,8 @@ class AteAnalysisResult:
     mediation_joint_posterior: bool | None
     transport: TransportSection | None
     interference: InterferenceSection | None
+    anomaly: list[AnomalyScores] | None
+    change_attribution: ChangeAttributionResult | None
     evidence_status: str | None
     allowlist_reason: str | None
     allowlist_parent: str | None
@@ -607,6 +609,8 @@ class GraphPosterior:
     max_lag: int | None
     lag_masks: list[int] | None
     algorithm: str | None
+    atom_kind: str
+    mark_masks: list[int] | None
     def to_weighted_samples(self) -> dict[str, object]: ...
     def edge_marginal_matrix(self) -> list[list[float]]: ...
     @classmethod
@@ -621,6 +625,17 @@ class GraphPosterior:
         lagged_edge_marginals: list[float] | None = None,
         lag_masks: list[int] | None = None,
         max_lag: int | None = None,
+        ess: float | None = None,
+        atom_kind: str = "Dag",
+        mark_masks: list[int] | None = None,
+    ) -> GraphPosterior: ...
+    @classmethod
+    def from_graphs(
+        cls,
+        names: list[str],
+        weights: list[float],
+        graphs: Sequence[Any],
+        *,
         ess: float | None = None,
     ) -> GraphPosterior: ...
 
@@ -935,6 +950,32 @@ class PreparedAnalysis:
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
+    def prepare_dbn_posterior_response(
+        names: list[str],
+        columns: Sequence[Any],
+        kind: Any,
+        treatments: list[str],
+        outcomes: list[str],
+        *,
+        grid: list[float] | None = None,
+        intervention_kinds: list[str] | None = None,
+        intervention_parameters: list[list[float]] | None = None,
+        horizons: list[int],
+        policy: str = ...,
+        treatment_lag: int = ...,
+        max_history_lag: int | None = None,
+        max_lag: int = 1,
+        force_mcmc: bool = False,
+        n_chains: int = 2,
+        n_warmup: int = 200,
+        mcmc_draws: int = 400,
+        posterior: GraphPosterior | None = None,
+        frame: dict[str, Any] | None = None,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
     def prepare_derivative(
         names: list[str],
         columns: Sequence[Any],
@@ -962,6 +1003,7 @@ class PreparedAnalysis:
         outcome: Any,
         interventions: dict[str, float],
         *,
+        graph: Any = None,
         conditioning: list[str] | None = None,
         accepted: bool = False,
         seed: int = 1,
@@ -1013,6 +1055,35 @@ class PreparedAnalysis:
         to_level: tuple[float, float],
         *,
         probability_draws: int = 10_000,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_anomaly_attribution(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, str]],
+        targets: list[str],
+        max_units: int,
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int = 1,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_change_attribution(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, str]],
+        outcome: str,
+        baseline_start: int,
+        baseline_end: int,
+        comparison_start: int,
+        comparison_end: int,
+        *,
         accepted: bool = False,
         seed: int = 1,
         threads: int = 1,
@@ -1368,6 +1439,9 @@ class AnomalyScores:
     outcome: str
     mean_score: float
     n_units: int
+    scores: list[float]
+    rows: list[int]
+    top_row: int | None
 
 class MechanismChangeDetection:
     node: str
@@ -3342,6 +3416,22 @@ def encode_causal_artifact(
 ) -> bytes: ...
 def decode_causal_artifact(bytes: bytes) -> DecodedCausalArtifact: ...
 def accept_analysis_result_contract(bytes: bytes) -> dict[str, str]: ...
+def encode_external_estimate_claim(
+    *,
+    learner: str,
+    config: bytes,
+    payload: bytes,
+    names: list[str],
+    treatment: str,
+    outcome: str,
+    identifier: str,
+    status: str,
+    confounders: list[str],
+    identification: str | None = None,
+    data_snapshot: str | None = None,
+    snapshot_payload: bytes | None = None,
+    scalar_value: float | None = None,
+) -> bytes: ...
 def omitted_defaults() -> dict[str, Any]:
     """Budgets the builder applies when a caller omits them (bootstrap, refute, n_draws, ...)."""
 

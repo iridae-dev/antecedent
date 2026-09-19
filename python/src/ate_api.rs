@@ -2395,6 +2395,12 @@ pub(crate) fn ate_result_from_analysis(
             .interference
             .as_ref()
             .map(crate::transport_interference_api::InterferenceSection::from_estimate),
+        anomaly: result
+            .anomaly
+            .map(|scores| crate::gcm_api::anomaly_scores_from_rust(scores, names)),
+        change_attribution: result
+            .change_attribution
+            .map(|change| crate::gcm_api::change_result_from_rust(change, names)),
         evidence_status,
         allowlist_reason,
         allowlist_parent,

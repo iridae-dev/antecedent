@@ -20,7 +20,9 @@ use antecedent::gcm::{
     mechanism_change_detection as facade_mechanism_change_detection,
     rank_root_causes as facade_rank_root_causes, sample_do as facade_sample_do,
 };
-use antecedent_attribution::{CacheStats, ComponentContribution, ComputeBudget};
+use antecedent_attribution::{
+    AnomalyScores as RustAnomalyScores, CacheStats, ComponentContribution, ComputeBudget,
+};
 use antecedent_core::{
     AllocationMethod, AttributionComponents, CausalRng, ChangeAttributionQuery, ComponentId,
     ExecutionContext, Intervention, MechanismChangeQuery, PathSpecificEffectQuery,
@@ -72,6 +74,36 @@ fn contribution_pairs(
         .contributions
         .iter()
         .map(|c| (component_name(names, c.component), c.contribution))
+        .collect()
+}
+
+pub(crate) fn anomaly_scores_from_rust(
+    scores: impl IntoIterator<Item = RustAnomalyScores>,
+    names: &[String],
+) -> Vec<AnomalyScores> {
+    scores
+        .into_iter()
+        .map(|s| {
+            let mean = if s.scores.is_empty() {
+                0.0
+            } else {
+                s.scores.iter().sum::<f64>() / s.scores.len() as f64
+            };
+            let top = s
+                .scores
+                .iter()
+                .enumerate()
+                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal));
+            let top_row = top.map(|(i, _)| s.rows[i]);
+            AnomalyScores {
+                outcome: var_name(names, s.target),
+                mean_score: mean,
+                n_units: s.rows.len(),
+                scores: s.scores.to_vec(),
+                rows: s.rows.to_vec(),
+                top_row,
+            }
+        })
         .collect()
 }
 
@@ -189,14 +221,23 @@ pub struct AnomalyScores {
     pub mean_score: f64,
     #[pyo3(get)]
     pub n_units: usize,
+    /// Per-unit IT scores, aligned with `rows`.
+    #[pyo3(get)]
+    pub scores: Vec<f64>,
+    /// Row indices scored.
+    #[pyo3(get)]
+    pub rows: Vec<usize>,
+    /// Row index of the highest IT score (`None` when no units were scored).
+    #[pyo3(get)]
+    pub top_row: Option<usize>,
 }
 
 #[pymethods]
 impl AnomalyScores {
     fn __repr__(&self) -> String {
         format!(
-            "AnomalyScores(outcome={:?}, mean_score={}, n_units={})",
-            self.outcome, self.mean_score, self.n_units
+            "AnomalyScores(outcome={:?}, mean_score={}, n_units={}, top_row={:?})",
+            self.outcome, self.mean_score, self.n_units, self.top_row
         )
     }
 }
@@ -790,21 +831,7 @@ impl PyFittedGcm {
             let max_u = if max_units == 0 { data.row_count() } else { max_units };
             let scores = facade_anomaly_attribution(&inner.model, &data, outcome_ids, max_u)
                 .map_err(py_err)?;
-            Ok(scores
-                .into_iter()
-                .map(|s| {
-                    let mean = if s.scores.is_empty() {
-                        0.0
-                    } else {
-                        s.scores.iter().sum::<f64>() / s.scores.len() as f64
-                    };
-                    AnomalyScores {
-                        outcome: var_name(&names, s.target),
-                        mean_score: mean,
-                        n_units: s.rows.len(),
-                    }
-                })
-                .collect())
+            Ok(anomaly_scores_from_rust(scores, &names))
         })
     }
 

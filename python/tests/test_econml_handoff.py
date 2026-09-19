@@ -81,6 +81,11 @@ def test_partial_id_refuses() -> None:
     assert result.identification.adjustment_set == []
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="point identification"):
         antecedent.handoff.econml(result, treatment="t", outcome="y")
+    spec = antecedent.handoff.EconMLSpec(
+        "t", "y", (), "backdoor.adjustment", result.identification.status, _parent=result
+    )
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="point identification"):
+        spec.attach(learner="econml.dml.LinearDML", effect=0.0, data=_backdoor_data())
 
 
 def test_frontdoor_refuses() -> None:
@@ -91,6 +96,16 @@ def test_frontdoor_refuses() -> None:
     identified = antecedent.identify(graph=graph, query=query, identifier="frontdoor")
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="frontdoor"):
         antecedent.handoff.econml(identified)
+    spec = antecedent.handoff.EconMLSpec(
+        "t",
+        "y",
+        (),
+        identified.identifier or identified.method,
+        identified.status,
+        _parent=identified,
+    )
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="frontdoor"):
+        spec.attach(learner="econml.dml.LinearDML", effect=0.0, data=_backdoor_data())
 
 
 def test_frequentist_graph_posterior_refuses() -> None:
@@ -110,6 +125,11 @@ def test_frequentist_graph_posterior_refuses() -> None:
     assert result.identification.adjustment_set == []
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="graph-posterior"):
         antecedent.handoff.econml(result, treatment="t", outcome="y")
+    spec = antecedent.handoff.EconMLSpec(
+        "t", "y", (), "backdoor.adjustment", "NonparametricallyIdentified", _parent=result
+    )
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="graph-posterior"):
+        spec.attach(learner="econml.dml.LinearDML", effect=0.0, data=_backdoor_data())
 
 
 def test_graph_posterior_refuses() -> None:
@@ -125,6 +145,11 @@ def test_graph_posterior_refuses() -> None:
     )
     with pytest.raises(antecedent.errors.CausalUnsupportedError, match="graph-posterior"):
         antecedent.handoff.econml(result, treatment="t", outcome="y")
+    spec = antecedent.handoff.EconMLSpec(
+        "t", "y", (), "backdoor.adjustment", "NonparametricallyIdentified", _parent=result
+    )
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="graph-posterior"):
+        spec.attach(learner="econml.dml.LinearDML", effect=0.0, data=_backdoor_data())
 
 
 def test_temporal_dag_pulse_emits_adjustment_set() -> None:
@@ -219,3 +244,70 @@ def test_joint_handoff_retains_both_treatment_columns():
     np.testing.assert_array_equal(cols["W"], data["w"][:, None])
     with pytest.raises(antecedent.errors.CausalValueError, match="every joint treatment"):
         antecedent.handoff.econml(identified, treatment="t")
+
+
+def test_attach_export_load_keeps_attested_external_estimate() -> None:
+    identified = antecedent.identify(
+        graph=_backdoor_graph(), query=antecedent.AverageEffect("t", "y")
+    )
+    spec = antecedent.handoff.econml(identified)
+    data = _backdoor_data()
+    attached = spec.attach(
+        learner="econml.dml.CausalForestDML",
+        learner_config={"n_estimators": 100},
+        effect=np.full(len(data["t"]), 2.0),
+        data=data,
+    )
+    loaded = antecedent.load(attached.export())
+    attested = loaded.artifact.contract["claim"]["attested"]
+    assert attested
+    assert attested[0]["kind"] == "external_estimate"
+    assert attested[0]["reverifiable"] is False
+    assert attested[0]["name"] == "econml.dml.CausalForestDML"
+    assert attested[0]["payload_digest"]
+    assert loaded.calibration.status == "unavailable"
+    assert loaded.calibration.reason == "attested_not_reverifiable"
+    inspect = loaded.inspect()
+    assert inspect.calibration.status == "unavailable"
+    assert inspect.calibration.reason == "attested_not_reverifiable"
+    assert attached.inspect().calibration.status == "unavailable"
+    other = spec.attach(
+        learner="econml.dml.CausalForestDML",
+        learner_config={"n_estimators": 100},
+        effect=np.full(len(data["t"]), 2.1),
+        data=data,
+    )
+    assert attached.claim_id != other.claim_id
+    again = spec.attach(
+        learner="econml.dml.CausalForestDML",
+        learner_config={"n_estimators": 100},
+        effect=np.full(len(data["t"]), 2.0),
+        data=data,
+    )
+    assert again.claim_id == attached.claim_id
+    contract = loaded.artifact.contract
+    assert contract.get("estimator") not in {"econml", "econml.dml.CausalForestDML"}
+    assert contract.get("score_reuse") in (None, {})
+
+
+def test_attach_from_analyzed_parent_does_not_claim_native_calibration() -> None:
+    data = _backdoor_data()
+    result = antecedent.analyze(
+        data,
+        graph=_backdoor_graph(),
+        query=antecedent.AverageEffect("t", "y"),
+        refute=False,
+        bootstrap=0,
+    )
+    attached = antecedent.handoff.econml(result).attach(
+        learner="econml.dml.CausalForestDML",
+        learner_config={"n_estimators": 50},
+        effect=1.5,
+        label="ate",
+    )
+    loaded = antecedent.load(attached.export())
+    assert loaded.calibration.status == "unavailable"
+    assert loaded.calibration.reason == "attested_not_reverifiable"
+    claim = loaded.artifact.contract["claim"]
+    assert claim["kind"] == "point"
+    assert claim["attested"][0]["kind"] == "external_estimate"

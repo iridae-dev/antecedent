@@ -31,7 +31,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .data import EventFrame, MultiEnvFrame, PanelFrame
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError
 
 
 def coerce_data(value: Any) -> tuple[list[str], list[NDArray[np.float64]]]:
@@ -167,14 +167,10 @@ def coerce_query(value: Any) -> Any:
     )
     from .transport import TransportQuery
 
-    if isinstance(value, (AnomalyAttribution, ChangeAttribution)):
-        raise CausalUnsupportedError(
-            "AnomalyAttribution and ChangeAttribution are licensed on the Rust "
-            "Study API only; analyze() does not take them"
-        )
-
     valid = (
+        AnomalyAttribution,
         AverageEffect,
+        ChangeAttribution,
         ConditionalEffect,
         Counterfactual,
         InterventionalDistribution,

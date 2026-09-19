@@ -15,7 +15,9 @@ from antecedent import _coerce
 from antecedent.graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
 from antecedent.ids import Latency, Refute
 from antecedent.query import (
+    AnomalyAttribution,
     AverageEffect,
+    ChangeAttribution,
     ConditionalEffect,
     Counterfactual,
     InterventionalDistribution,
@@ -179,6 +181,8 @@ _QUERY_INSTANCES = [
     MediationEffect("t", "y", mediators=["m"]),
     Counterfactual("t", "y"),
     TemporalMediationEffect("t", "m", "y"),
+    AnomalyAttribution(["y"]),
+    ChangeAttribution("y", baseline_start=0, baseline_end=40, comparison_start=40, comparison_end=80),
 ]
 
 

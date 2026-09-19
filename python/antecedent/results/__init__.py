@@ -1,7 +1,10 @@
 """Result view dataclasses for :mod:`antecedent.estimation`."""
 
+from typing import TypeAlias
+
 from . import _html  # noqa: F401 — side effect: attaches _repr_html_ to the views below
 from ._execution import Answer, CalibrationInfo
+from ._report import InspectionReport
 from ._slots import ReasoningSlots, SlotView
 from ._views import (
     AnalysisResult,
@@ -35,9 +38,15 @@ from .response import (
     SupportReport,
 )
 
+#: Shared analyze() result. Both classes implement :class:`ResultAPI`
+#: (``answer``, ``claim``, ``inspect``, ``as_point``, ``as_response``).
+Analysis: TypeAlias = AnalysisResult | CausalResponseView
+
 __all__ = [
+    "Analysis",
     "Answer",
     "CalibrationInfo",
+    "InspectionReport",
     "ReasoningSlots",
     "SlotView",
     "IdentificationView",

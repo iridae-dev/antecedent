@@ -9,9 +9,10 @@ use antecedent::discovery::{
 };
 use antecedent::{CausalContract, EstimatorId, IdentifierId, PreparedStudy, Study};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, CausalSchema, ConditionalEffectQuery, ContinuousDomain,
-    GridSpec, Intervention, InterventionalDistributionQuery, MediationContrast, MediationQuery,
-    PathSpecificEffectQuery, ResponseFunctional, ResponseQuery, TemporalResponseSpec, Value,
+    AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, CausalSchema, ChangeAttributionQuery,
+    ConditionalEffectQuery, ContinuousDomain, GridSpec, Intervention,
+    InterventionalDistributionQuery, MediationContrast, MediationQuery, PathSpecificEffectQuery,
+    PopulationSelector, ResponseFunctional, ResponseQuery, TemporalResponseSpec, Value,
 };
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use numpy::PyReadonlyArray1;
@@ -842,6 +843,7 @@ fn finish_static_graph_posterior(
 enum SeriesGraphQuery {
     Temporal(antecedent_core::TemporalEffectQuery),
     Mediation(MediationQuery),
+    Response(ResponseQuery),
 }
 
 fn finish_series_graph_posterior(
@@ -857,6 +859,7 @@ fn finish_series_graph_posterior(
     builder = match query {
         SeriesGraphQuery::Temporal(q) => builder.temporal_query(q),
         SeriesGraphQuery::Mediation(q) => builder.query(CausalQuery::Mediation(q)),
+        SeriesGraphQuery::Response(q) => builder.query(CausalQuery::Response(q)),
     };
     let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
     Ok(finished_prepared(analysis.prepare(ctx).map_err(py_err)?, names, true))
@@ -969,6 +972,8 @@ impl PyPreparedAnalysis {
         let route = match self.inner.query() {
             CausalQuery::Transport(_) => "a TransportQuery study",
             CausalQuery::Interference(_) => "an InterferenceQuery study",
+            CausalQuery::AnomalyAttribution(_) => "an AnomalyAttribution study",
+            CausalQuery::ChangeAttribution(_) => "a ChangeAttribution study",
             _ => return Ok(()),
         };
         Err(crate::refusal(
@@ -2514,6 +2519,125 @@ impl PyPreparedAnalysis {
         })
     }
 
+    /// Compile once for licensed temporal ResponseCurve / InterventionResponse
+    /// × DBN or temporal-class graph_posterior.
+    #[staticmethod]
+    #[pyo3(signature = (
+        names,
+        columns,
+        kind,
+        treatments,
+        outcomes,
+        *,
+        grid=None,
+        intervention_kinds=None,
+        intervention_parameters=None,
+        horizons,
+        policy=crate::temporal_license::DEFAULT_POLICY,
+        treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG,
+        max_history_lag=None,
+        max_lag=1,
+        force_mcmc=false,
+        n_chains=2,
+        n_warmup=200,
+        mcmc_draws=400,
+        posterior=None,
+        frame=None,
+        seed=1,
+        threads=1,
+        options=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_dbn_posterior_response(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        kind: String,
+        treatments: Vec<String>,
+        outcomes: Vec<String>,
+        grid: Option<Vec<f64>>,
+        intervention_kinds: Option<Vec<String>>,
+        intervention_parameters: Option<Vec<Vec<f64>>>,
+        horizons: Vec<u32>,
+        policy: &str,
+        treatment_lag: u32,
+        max_history_lag: Option<u32>,
+        max_lag: u32,
+        force_mcmc: bool,
+        n_chains: u32,
+        n_warmup: u32,
+        mcmc_draws: u32,
+        posterior: Option<Bound<'_, crate::bayesian::PyGraphPosterior>>,
+        frame: Option<Bound<'_, PyDict>>,
+        seed: u64,
+        threads: u32,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let opts = PrepareOptions::parse(options.as_ref())?;
+        let supplied = take_supplied_posterior(posterior, &names)?;
+        let input = FrameInput::ingest(py, &names, columns, frame.as_ref())?;
+        let policy = policy.to_ascii_lowercase();
+        detach_catch(py, move || {
+            let series = match input.materialize()? {
+                FrameData::Series(series) => series,
+                FrameData::Events(events, align) => events
+                    .align_to_grid(align)
+                    .map_err(|e| py_msg(format!("event align_to_grid: {e}")))?,
+                _ => {
+                    return Err(crate::refusal(
+                        antecedent_core::reason_code!("data_modality_not_licensed"),
+                        "a DBN graph-posterior mixture is \
+                         licensed on one series or one event stream",
+                    ));
+                }
+            };
+            let schema = series.schema();
+            let treatment_ids: Vec<_> = treatments
+                .iter()
+                .map(|n| schema.id_of(n).map_err(py_err))
+                .collect::<PyResult<_>>()?;
+            let outcome_ids: Vec<_> = outcomes
+                .iter()
+                .map(|n| schema.id_of(n).map_err(py_err))
+                .collect::<PyResult<_>>()?;
+            let functional = build_functional(
+                &kind,
+                &treatment_ids,
+                &outcome_ids,
+                grid,
+                None,
+                None,
+                intervention_kinds,
+                intervention_parameters,
+                1,
+                antecedent_core::DerivativeScale::Identity,
+                antecedent_core::DerivativeWeighting::Observed,
+            )?;
+            let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+            let origin = -i32::try_from(treatment_lag)
+                .map_err(|_| PyValueError::new_err("treatment_lag does not fit in i32"))?;
+            let functional = crate::response_api::wrap_temporal_sequence_steps(functional, origin)?;
+            let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            let mut response = ResponseQuery::new(functional).with_temporal(temporal);
+            if let Some(population) = opts.target_population.clone() {
+                response.target_population = population;
+            }
+            let ctx = opts.ctx(seed, threads);
+            let gp = dbn_posterior(
+                supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
+            )?;
+            finish_series_graph_posterior(
+                series,
+                names,
+                gp,
+                SeriesGraphQuery::Response(response),
+                opts,
+                &ctx,
+            )
+        })
+    }
+
     /// Compile once from tabular columns + DAG edges (static InterventionResponse).
     ///
     /// Reuses `response_api::build_functional`'s `"intervention_response"`
@@ -2803,7 +2927,8 @@ impl PyPreparedAnalysis {
         })
     }
 
-    /// Compile once from tabular columns + DAG edges (static InterventionalDistribution).
+    /// Compile once from tabular columns + DAG edges or a supplied ADMG
+    /// (static InterventionalDistribution).
     #[staticmethod]
     #[pyo3(signature = (
         names,
@@ -2812,6 +2937,7 @@ impl PyPreparedAnalysis {
         outcome,
         interventions,
         *,
+        graph=None,
         conditioning=None,
         accepted=false,
         seed=1,
@@ -2826,6 +2952,7 @@ impl PyPreparedAnalysis {
         edges: Vec<(String, String)>,
         outcome: String,
         interventions: std::collections::HashMap<String, f64>,
+        graph: Option<Bound<'_, PyAny>>,
         conditioning: Option<Vec<String>>,
         accepted: bool,
         seed: u64,
@@ -2834,6 +2961,12 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
         opts.refuse_prior_transfer("an interventional distribution")?;
+        let class = graph.map(|g| StaticClassGraph::extract(&g, &names)).transpose()?;
+        if matches!(&class, Some(g) if !matches!(g, StaticClassGraph::Admg(_))) {
+            return Err(PyValueError::new_err(
+                "prepare_distribution graph must be an Admg; Pag/Cpdag remain refused",
+            ));
+        }
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         detach_catch(py, move || {
             let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
@@ -2853,12 +2986,16 @@ impl PyPreparedAnalysis {
                 }
                 query = query.with_conditioning(z);
             }
-            let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let builder =
+            let builder = if let Some(class) = class {
+                class.bind(Study::tabular(data), accepted, opts.discovery_algorithm())
+            } else {
+                let dag = dag_from_named_edges(data.schema(), &edges)?;
                 with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
-                    .query(CausalQuery::Distribution(query))
-                    .identifier(IdentifierId::GeneralId)
-                    .estimator(EstimatorId::FunctionalDistribution);
+            };
+            let builder = builder
+                .query(CausalQuery::Distribution(query))
+                .identifier(IdentifierId::GeneralId)
+                .estimator(EstimatorId::FunctionalDistribution);
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
             let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
             Ok(finished_prepared(prepared, names, false))
@@ -3019,6 +3156,90 @@ impl PyPreparedAnalysis {
                         network,
                         assignment: Arc::from(realized_assignment),
                     });
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
+    /// Freeze GCM anomaly scores on a supplied explicit Dag.
+    ///
+    /// Compile assigns `gcm.parametric` / `gcm.fit`. Do not set identifier or
+    /// estimator here.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, edges, targets, max_units, *, accepted=false, seed=1,
+        threads=1, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_anomaly_attribution(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        edges: Vec<(String, String)>,
+        targets: Vec<String>,
+        max_units: usize,
+        accepted: bool,
+        seed: u64,
+        threads: u32,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("an anomaly attribution query")?;
+        opts.refuse_population("an anomaly attribution query")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let target_ids = targets
+                .iter()
+                .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
+                .collect::<PyResult<Vec<_>>>()?;
+            let query = AnomalyAttributionQuery::new(target_ids, max_units);
+            let dag = dag_from_named_edges(data.schema(), &edges)?;
+            let builder =
+                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
+                    .query(CausalQuery::AnomalyAttribution(query));
+            let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
+            let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
+            Ok(finished_prepared(prepared, names, false))
+        })
+    }
+
+    /// Freeze GCM distribution-change Shapley on a supplied explicit Dag.
+    ///
+    /// Compile assigns `gcm.parametric` / `gcm.fit`. Do not set identifier or
+    /// estimator here.
+    #[staticmethod]
+    #[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end,
+        comparison_start, comparison_end, *, accepted=false, seed=1, threads=1, options=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_change_attribution(
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<Bound<'_, PyAny>>,
+        edges: Vec<(String, String)>,
+        outcome: String,
+        baseline_start: usize,
+        baseline_end: usize,
+        comparison_start: usize,
+        comparison_end: usize,
+        accepted: bool,
+        seed: u64,
+        threads: u32,
+        options: Option<Bound<'_, PyDict>>,
+    ) -> PyResult<Self> {
+        let mut opts = PrepareOptions::parse(options.as_ref())?;
+        opts.refuse_prior_transfer("a change attribution query")?;
+        opts.refuse_population("a change attribution query")?;
+        let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
+        detach_catch(py, move || {
+            let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            let query = ChangeAttributionQuery::new(
+                outcome_id,
+                PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
+                PopulationSelector::TimeRange { start: comparison_start, end: comparison_end },
+            );
+            let dag = dag_from_named_edges(data.schema(), &edges)?;
+            let builder =
+                with_graph(Study::tabular(data), dag, accepted, opts.discovery_algorithm())
+                    .query(CausalQuery::ChangeAttribution(query));
             let analysis = opts.apply_inference(opts.apply(builder))?.build().map_err(py_err)?;
             let prepared = analysis.prepare(&opts.ctx(seed, threads)).map_err(py_err)?;
             Ok(finished_prepared(prepared, names, false))

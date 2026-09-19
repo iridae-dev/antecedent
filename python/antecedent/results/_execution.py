@@ -12,9 +12,11 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, get_args
 
 if TYPE_CHECKING:
     from ..estimation import PreparedAnalysis
+    from .response import CausalResponseView
 
 from .._api import describe_refusal
 from ..errors import CausalUnsupportedError
+from ._report import InspectionReport, as_inspection
 from ._slots import ReasoningSlots, SlotView
 
 
@@ -225,12 +227,20 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
 
 
 def _payload(value: Any) -> dict[str, Any]:
+    skip = {"artifact", "score_table", "score_inference", "envelope"}
     if is_dataclass(value) and not isinstance(value, type):
-        return {
-            f.name: getattr(value, f.name)
-            for f in fields(value)
-            if f.name not in {"artifact", "score_table", "score_inference", "envelope"}
-        }
+        return {f.name: getattr(value, f.name) for f in fields(value) if f.name not in skip}
+    try:
+        from pydantic import BaseModel
+
+        if isinstance(value, BaseModel):
+            return {
+                name: getattr(value, name)
+                for name, field in type(value).model_fields.items()
+                if field.exclude is not True and name not in skip
+            }
+    except ImportError:
+        pass
     return {"value": value}
 
 
@@ -261,6 +271,18 @@ class ResultAPI:
         if isinstance(getter, (int, float)):
             return float(getter)
         return None
+
+    @property
+    def effect(self) -> float | None:
+        """Historical scalar. Prefer :attr:`answer` / :meth:`as_point`."""
+        self._warn_legacy_scalar("effect")
+        return self._scalar_effect()
+
+    @property
+    def ate(self) -> float | None:
+        """Alias for :attr:`effect`."""
+        self._warn_legacy_scalar("ate")
+        return self._scalar_effect()
 
     def _warn_legacy_scalar(self, name: str) -> None:
         limitation = getattr(self, "rendering_limitation", lambda: None)()
@@ -296,6 +318,43 @@ class ResultAPI:
             return Answer("unavailable", detail="non_finite_effect")
         return Answer("point", value=float(value))
 
+    def claim(self) -> str:
+        """One paragraph: identification, answer, calibration. Same table as HTML."""
+        from .._claim import result_claim
+
+        identification = getattr(self, "identification", None)
+        return result_claim(
+            query=getattr(self, "query", None) or getattr(self, "estimand", None),
+            status=getattr(identification, "status", "NotIdentified"),
+            method=getattr(identification, "method", None),
+            adjustment_set=tuple(getattr(identification, "adjustment_set", ()) or ()),
+            answer=self.answer,
+            calibration=self.calibration.describe(),
+        )
+
+    def as_point(self) -> float:
+        """The scalar when :attr:`answer` is ``point``; refuse any other kind."""
+        answer = self.answer
+        if answer.kind != "point" or answer.value is None:
+            raise CausalUnsupportedError(
+                f"result.as_point() requires answer.kind='point'; got {answer.kind!r}"
+                + (f" ({answer.detail})" if answer.detail else ""),
+                reason_code="invalid_argument",
+            )
+        return float(answer.value)
+
+    def as_response(self) -> CausalResponseView:
+        """This result when it is function-valued; refuse a scalar analysis."""
+        from .response import CausalResponseView
+
+        if isinstance(self, CausalResponseView):
+            return self
+        raise CausalUnsupportedError(
+            "result.as_response() requires a function-valued analysis "
+            f"(answer.kind={self.answer.kind!r})",
+            reason_code="invalid_argument",
+        )
+
     @property
     def calibration(self) -> CalibrationInfo:
         contract = getattr(self, "_contract", None)
@@ -306,7 +365,7 @@ class ResultAPI:
             return CalibrationInfo.from_contract(contract)
         return CalibrationInfo(status="unavailable", reason="not_executed")
 
-    def inspect(self) -> ReasoningSlots:
+    def inspect(self) -> InspectionReport:
         """Inspect this execution, including uncertainty and all available evidence."""
         slots = getattr(self, "reasoning", None)
         if slots is None:
@@ -411,7 +470,7 @@ class ResultAPI:
             ),
             diagnostics=tuple(getattr(self, "diagnostics", ())),
         )
-        return self._with_portable_record(report)
+        return as_inspection(self._with_portable_record(report))
 
     def _with_portable_record(self, report: ReasoningSlots) -> ReasoningSlots:
         """Report the execution through the record its export carries.

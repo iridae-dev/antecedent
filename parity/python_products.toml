@@ -257,6 +257,15 @@ test = "python/tests/test_python_products.py::test_route_intervention_response_e
 
 [[route]]
 kind = "intervention_response"
+data = "event"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_intervention_response_event_graph_posterior"
+
+[[route]]
+kind = "intervention_response"
 data = "panel"
 structure = "accepted"
 options = ""
@@ -290,6 +299,15 @@ options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_intervention_response_series_explicit"
+
+[[route]]
+kind = "intervention_response"
+data = "series"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_intervention_response_series_graph_posterior"
 
 [[route]]
 kind = "intervention_response"
@@ -518,6 +536,15 @@ test = "python/tests/test_python_products.py::test_route_response_curve_event_ex
 
 [[route]]
 kind = "response_curve"
+data = "event"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_curve_event_graph_posterior"
+
+[[route]]
+kind = "response_curve"
 data = "panel"
 structure = "accepted"
 options = ""
@@ -551,6 +578,15 @@ options = ""
 retains = true
 reason = ""
 test = "python/tests/test_python_products.py::test_route_response_curve_series_explicit"
+
+[[route]]
+kind = "response_curve"
+data = "series"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_response_curve_series_graph_posterior"
 
 [[route]]
 kind = "response_curve"

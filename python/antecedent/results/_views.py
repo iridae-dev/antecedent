@@ -3,18 +3,34 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Literal
 
+from pydantic import Field, PrivateAttr
+
 if TYPE_CHECKING:
-    from .._native import ScoreInferenceSection, ScoreTableSection, ValidationFailureSection
+    from .._native import (
+        AnomalyScores,
+        ChangeAttributionResult,
+        ScoreInferenceSection,
+        ScoreTableSection,
+        ValidationFailureSection,
+    )
     from ..interference import InterferenceEstimate
     from ..transport import TransportOverlapReport
+else:
+    AnomalyScores = Any
+    ChangeAttributionResult = Any
+    ScoreInferenceSection = Any
+    ScoreTableSection = Any
+    ValidationFailureSection = Any
+    InterferenceEstimate = Any
+    TransportOverlapReport = Any
 
 from .._verdict import describe_status, verdict_for
 from ..ids import Refute
 from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct, fmt_se
+from ._report import ResultModel
 from ._slots import (
     ReasoningSlots,
     describe_limitation,
@@ -44,8 +60,7 @@ __all__ = [
 ]
 
 
-@dataclass(frozen=True)
-class IdentificationView:
+class IdentificationView(ResultModel):
     status: str
     method: str
     adjustment_set: list[str]
@@ -63,8 +78,7 @@ class IdentificationView:
         return f"<IdentificationView {verdict} method={self.method!r}{adjustment}>"
 
 
-@dataclass(frozen=True)
-class MediationView:
+class MediationView(ResultModel):
     total: float | None
     direct: float | None
     mediated: float | None
@@ -76,8 +90,7 @@ class MediationView:
         )
 
 
-@dataclass(frozen=True)
-class TemporalMediationSliceView:
+class TemporalMediationSliceView(ResultModel):
     """One independently identified temporal mediation horizon."""
 
     horizon: int
@@ -96,8 +109,7 @@ class TemporalMediationSliceView:
     identified_upper: float | None = None
 
 
-@dataclass(frozen=True)
-class TemporalMediationGridView:
+class TemporalMediationGridView(ResultModel):
     """Horizon-indexed decompositions; never an implicit joint posterior."""
 
     slices: tuple[TemporalMediationSliceView, ...]
@@ -110,8 +122,7 @@ class TemporalMediationGridView:
         return iter(self.slices)
 
 
-@dataclass(frozen=True)
-class ProbabilityIntervalView:
+class ProbabilityIntervalView(ResultModel):
     """Bounded interval for one interventional probability.
 
     Frequentist distribution cells publish a logit-scale delta-method interval
@@ -145,8 +156,7 @@ def fmt_probability_interval(interval: ProbabilityIntervalView) -> str:
     return f"ci{round(interval.level * 100)}=[{fmt_float(bounds[0])}, {fmt_float(bounds[1])}]"
 
 
-@dataclass(frozen=True)
-class DistributionAtomView:
+class DistributionAtomView(ResultModel):
     """One interventional-distribution atom ``P(outcomes | do(x)[, conditioning])``."""
 
     outcomes: tuple[tuple[str, float | None], ...]
@@ -165,8 +175,7 @@ class DistributionAtomView:
         return f"<DistributionAtomView {' '.join(parts)}>"
 
 
-@dataclass(frozen=True)
-class EstimateView:
+class EstimateView(ResultModel):
     ate: float | None
     se_analytic: float
     se_bootstrap: float | None
@@ -243,8 +252,7 @@ class EstimateView:
         )
 
 
-@dataclass(frozen=True)
-class ConflictSummaryView:
+class ConflictSummaryView(ResultModel):
     """Applied external-prior alphas after conflict shrink."""
 
     source_ids: list[str]
@@ -256,8 +264,7 @@ class ConflictSummaryView:
         return f"<ConflictSummaryView sources={self.source_ids!r} alphas_applied=[{applied}]>"
 
 
-@dataclass(frozen=True)
-class PosteriorView:
+class PosteriorView(ResultModel):
     effect_mean: float | None
     effect_sd: float | None
     q025: float | None
@@ -265,7 +272,7 @@ class PosteriorView:
     n_draws: int | None
     p_below_zero: float | None
     backend: str | None
-    artifact: bytes | list[int] | None = None
+    artifact: bytes | list[int] | None = Field(default=None, exclude=True)
     unidentified_mass: float | None = None
     envelope: EffectEnvelope | None = None
     conflict: ConflictSummaryView | None = None
@@ -345,8 +352,7 @@ class PosteriorView:
         return (self.q025, self.q975)
 
 
-@dataclass(frozen=True)
-class EffectEnvelope:
+class EffectEnvelope(ResultModel):
     """Mixture effect posterior over weighted graphs (PAG / graph-posterior path)."""
 
     effect_mean: float | None
@@ -374,8 +380,7 @@ class EffectEnvelope:
         )
 
 
-@dataclass(frozen=True)
-class PredictiveCheckReport:
+class PredictiveCheckReport(ResultModel):
     """Prior or posterior predictive check summary."""
 
     kind: str
@@ -393,8 +398,7 @@ class PredictiveCheckReport:
         )
 
 
-@dataclass(frozen=True)
-class PriorSensitivityReport:
+class PriorSensitivityReport(ResultModel):
     """Prior sensitivity grid (Bayesian + ``refute="full"``).
 
     ``family`` names the perturbed prior: ``"isotropic_scale"`` fills ``scales``
@@ -422,8 +426,7 @@ class PriorSensitivityReport:
         return f"<PriorSensitivityReport mode={mode!r} n={len(self.effect_means)}>"
 
 
-@dataclass(frozen=True)
-class RefutationReport:
+class RefutationReport(ResultModel):
     """One refuter's record (name, comparison statistic, pass/fail).
 
     Lets callers name which check ran and read its statistic, rather than only
@@ -448,16 +451,15 @@ class RefutationReport:
         )
 
 
-@dataclass(frozen=True)
-class ValidationView:
+class ValidationView(ResultModel):
     passed: bool
     ran: bool
     count: int
     prior_predictive: PredictiveCheckReport | None = None
     posterior_predictive: PredictiveCheckReport | None = None
     prior_sensitivity: PriorSensitivityReport | None = None
-    reports: list[RefutationReport] = field(default_factory=list)
-    computation_failures: list[ValidationFailureSection] = field(default_factory=list)
+    reports: list[RefutationReport] = Field(default_factory=list)
+    computation_failures: list[ValidationFailureSection] = Field(default_factory=list)
 
     def __repr__(self) -> str:
         if not self.ran:
@@ -484,34 +486,31 @@ class ValidationView:
         """Reports that did not pass (empty when everything passed or nothing ran)."""
         return [r for r in self.reports if not r.passed]
 
-    def to_pandas(self) -> Any:
-        """One row per :class:`RefutationReport`. Requires ``pandas`` (optional dep)."""
+    def to_columns(self) -> dict[str, list[Any]]:
+        """One row per :class:`RefutationReport`, as name → column. No frame dep."""
+        return {
+            "refuter": [r.refuter for r in self.reports],
+            "original_ate": [r.original_ate for r in self.reports],
+            "refuted_ate": [r.refuted_ate for r in self.reports],
+            "comparison": [r.comparison for r in self.reports],
+            "informative": [r.informative for r in self.reports],
+            "passed": [r.passed for r in self.reports],
+            "failure_condition": [r.failure_condition for r in self.reports],
+            "replicates": [r.replicates for r in self.reports],
+        }
+
+    def __arrow_c_stream__(self, requested_schema: Any = None) -> Any:
         try:
-            import pandas as pd
+            import pyarrow as pa
         except ImportError as exc:
             raise ImportError(
-                "ValidationView.to_pandas() requires pandas; install it with "
-                "`pip install pandas` (or `uv add pandas`)"
+                "Arrow stream export requires pyarrow; install it with "
+                "`pip install pyarrow` (or `uv add pyarrow`)"
             ) from exc
-        return pd.DataFrame(
-            [
-                {
-                    "refuter": r.refuter,
-                    "original_ate": r.original_ate,
-                    "refuted_ate": r.refuted_ate,
-                    "comparison": r.comparison,
-                    "informative": r.informative,
-                    "passed": r.passed,
-                    "failure_condition": r.failure_condition,
-                    "replicates": r.replicates,
-                }
-                for r in self.reports
-            ]
-        )
+        return pa.table(self.to_columns()).__arrow_c_stream__(requested_schema)
 
 
-@dataclass(frozen=True)
-class PerformanceView:
+class PerformanceView(ResultModel):
     plan_id: str | None = None
     modality: str | None = None
     peak_memory_bytes: int | None = None
@@ -545,8 +544,7 @@ class PerformanceView:
         return f"<PerformanceView {body}>"
 
 
-@dataclass(frozen=True)
-class PlanView:
+class PlanView(ResultModel):
     """Logical-plan summary (semantics; inspect before/after estimate)."""
 
     plan_id: str
@@ -565,8 +563,7 @@ class PlanView:
         )
 
 
-@dataclass(frozen=True)
-class PhysicalPlanView:
+class PhysicalPlanView(ResultModel):
     """Physical-plan highlights from prepare (layouts / threads / kernels)."""
 
     plan_id: str
@@ -586,8 +583,7 @@ class PhysicalPlanView:
         )
 
 
-@dataclass(frozen=True)
-class AnalysisResult(ResultAPI):
+class AnalysisResult(ResultModel, ResultAPI):
     """Nested analysis result matching the Rust facade sections."""
 
     identification: IdentificationView
@@ -622,9 +618,9 @@ class AnalysisResult(ResultAPI):
     #: ``True`` when the completion enumeration (or its equivalence audit) was
     #: capped: the set spans retained completions only.
     structural_identified_set_interval_truncated: bool | None = None
-    _raw: Any = None
-    _prepared: Any = None
-    _execution: Any = field(default=None, repr=False, compare=False)
+    _raw: Any = PrivateAttr(default=None)
+    _prepared: Any = PrivateAttr(default=None)
+    _execution: Any = PrivateAttr(default=None)
     query: Any = None
     certificate: dict[str, Any] | None = None
     unit_effects: list[float] | None = None
@@ -659,16 +655,27 @@ class AnalysisResult(ResultAPI):
     #: InterferenceQuery: Horvitz–Thompson / Hájek contrast, conservative
     #: variance and exposure-probability methods (HT is ``estimate.ate``).
     interference: InterferenceEstimate | None = None
+    #: AnomalyAttribution: per-target GCM anomaly scores (per-unit IT scores,
+    #: row indices, and the top-scoring row).
+    anomaly: list[AnomalyScores] | None = None
+    #: ChangeAttribution: GCM distribution-change Shapley (``total_change``
+    #: is also ``estimate.ate``).
+    change_attribution: ChangeAttributionResult | None = None
 
-    def __post_init__(self) -> None:
+    def model_post_init(self, __context: Any) -> None:
+        super().model_post_init(__context)
         # Nested views carry the claim's rendering limitation so that
         # ``result.estimate`` / ``result.posterior`` never display a lone
         # point and interval for a claim that has none.
         limitation = self.rendering_limitation()
         if isinstance(self.estimate, EstimateView) and self.estimate.limitation != limitation:
-            object.__setattr__(self, "estimate", replace(self.estimate, limitation=limitation))
+            object.__setattr__(
+                self, "estimate", self.estimate.model_copy(update={"limitation": limitation})
+            )
         if isinstance(self.posterior, PosteriorView) and self.posterior.limitation != limitation:
-            object.__setattr__(self, "posterior", replace(self.posterior, limitation=limitation))
+            object.__setattr__(
+                self, "posterior", self.posterior.model_copy(update={"limitation": limitation})
+            )
 
     @property
     def effect(self) -> float | None:

@@ -1066,6 +1066,12 @@ pub(crate) struct AteAnalysisResult {
     /// Randomized exposure contrast (InterferenceQuery).
     #[pyo3(get)]
     interference: Option<transport_interference_api::InterferenceSection>,
+    /// Per-target GCM anomaly scores (AnomalyAttribution).
+    #[pyo3(get)]
+    anomaly: Option<Vec<gcm_api::AnomalyScores>>,
+    /// GCM distribution-change Shapley (ChangeAttribution).
+    #[pyo3(get)]
+    change_attribution: Option<gcm_api::ChangeAttributionResult>,
     /// Support-matrix evidence contract (`licensed` or `allowed_unlicensed`).
     #[pyo3(get)]
     evidence_status: Option<String>,

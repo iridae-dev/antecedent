@@ -476,21 +476,7 @@ fn anomaly_attribution(
         let max_u = if max_units == 0 { data.row_count() } else { max_units };
         let scores =
             facade_anomaly_attribution(&fitted.model, &data, outcome_ids, max_u).map_err(py_err)?;
-        Ok(scores
-            .into_iter()
-            .map(|s| {
-                let name = names
-                    .get(s.target.as_usize())
-                    .cloned()
-                    .unwrap_or_else(|| format!("var{}", s.target.raw()));
-                let mean = if s.scores.is_empty() {
-                    0.0
-                } else {
-                    s.scores.iter().sum::<f64>() / s.scores.len() as f64
-                };
-                gcm_api::AnomalyScores { outcome: name, mean_score: mean, n_units: s.rows.len() }
-            })
-            .collect())
+        Ok(gcm_api::anomaly_scores_from_rust(scores, &names))
     })
 }
 
