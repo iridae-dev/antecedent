@@ -88,7 +88,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::point_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::ade_bayesian_gaussian_treatment_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_derivative.dag.bayesian.posterior_quantile.l90.average_derivative_bayesian_default_nominal_coverage",
@@ -121,7 +121,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_derivative_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_derivative.dag.bayesian.posterior_quantile.l95.average_derivative_bayesian_default_nominal_coverage",
@@ -154,7 +154,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_derivative_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage",
@@ -187,7 +187,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::point_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::ade_frequentist_gaussian_treatment_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage",
@@ -220,7 +220,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_admg.rs::frontdoor_data",
         test: "crates/antecedent/tests/v110_calibration_admg.rs::average_effect_admg_frontdoor_bayesian_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.admg.bayesian.posterior_quantile.l95.average_effect_admg_frontdoor_bayesian_nominal_coverage",
@@ -253,7 +253,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_admg.rs::frontdoor_data",
         test: "crates/antecedent/tests/v110_calibration_admg.rs::average_effect_admg_frontdoor_bayesian_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_frontdoor_frequentist_nominal_coverage",
@@ -286,7 +286,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_admg.rs::frontdoor_data",
         test: "crates/antecedent/tests/v110_calibration_admg.rs::average_effect_admg_frontdoor_frequentist_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.admg.frequentist.bootstrap_se.l95.average_effect_admg_frontdoor_frequentist_nominal_coverage",
@@ -319,7 +319,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_admg.rs::frontdoor_data",
         test: "crates/antecedent/tests/v110_calibration_admg.rs::average_effect_admg_frontdoor_frequentist_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.co_determined.frequentist.analytic_se.l90.codetermined_aipw_closure_nominal_90_coverage",
@@ -352,7 +352,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::codetermined_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::codetermined_aipw_closure_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.co_determined.frequentist.analytic_se.l95.codetermined_aipw_closure_nominal_90_coverage",
@@ -385,7 +385,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::codetermined_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::codetermined_aipw_closure_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage",
@@ -418,7 +418,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_effect_cpdag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.static_cpdag_ate_envelope_bayesian_nominal_90_coverage",
@@ -451,7 +451,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::cpdag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::static_cpdag_ate_envelope_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.cpdag.bayesian.posterior_quantile.l95.average_effect_cpdag_bayesian_default_nominal_coverage",
@@ -484,7 +484,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_effect_cpdag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.cpdag.bayesian.posterior_quantile.l95.static_cpdag_ate_envelope_bayesian_nominal_90_coverage",
@@ -517,7 +517,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::cpdag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::static_cpdag_ate_envelope_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.cpdag.frequentist.analytic_se.l90.static_cpdag_ate_envelope_frequentist_nominal_90_coverage",
@@ -550,7 +550,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::cpdag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::static_cpdag_ate_envelope_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.cpdag.frequentist.analytic_se.l95.static_cpdag_ate_envelope_frequentist_nominal_90_coverage",
@@ -583,7 +583,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::cpdag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::static_cpdag_ate_envelope_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.bayesian.posterior_quantile.l90.average_effect_dag_bayesian_default_nominal_coverage",
@@ -616,7 +616,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/static_dgp.rs::linear_ate_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_effect_dag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.bayesian.posterior_quantile.l90.average_effect_dag_bayesian_logit_nominal_coverage",
@@ -649,7 +649,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::glm_ate_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_effect_dag_bayesian_logit_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.bayesian.posterior_quantile.l90.average_effect_dag_bayesian_poisson_nominal_coverage",
@@ -682,7 +682,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::glm_ate_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_effect_dag_bayesian_poisson_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.bayesian.posterior_quantile.l90.average_effect_dag_bayesian_probit_nominal_coverage",
@@ -715,7 +715,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::glm_ate_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_effect_dag_bayesian_probit_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.bayesian.posterior_quantile.l90.bayesian_gcomp_misspecification_probe.linear_outcome",
@@ -748,7 +748,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::misspecified_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.bayesian.posterior_quantile.l90.static_graph_posterior_bayesian_ate_bma_nominal_90_coverage",
@@ -781,7 +781,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_mixture_calibration.rs::draw_data",
         test: "crates/antecedent/tests/v19_static_mixture_calibration.rs::static_graph_posterior_bayesian_ate_bma_nominal_90_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.bayesian.posterior_quantile.l95.average_effect_dag_bayesian_default_nominal_coverage",
@@ -814,7 +814,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/static_dgp.rs::linear_ate_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_effect_dag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.bayesian.posterior_quantile.l95.average_effect_dag_bayesian_logit_nominal_coverage",
@@ -847,7 +847,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::glm_ate_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_effect_dag_bayesian_logit_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.bayesian.posterior_quantile.l95.average_effect_dag_bayesian_poisson_nominal_coverage",
@@ -880,7 +880,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::glm_ate_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_effect_dag_bayesian_poisson_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.bayesian.posterior_quantile.l95.average_effect_dag_bayesian_probit_nominal_coverage",
@@ -913,7 +913,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::glm_ate_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_effect_dag_bayesian_probit_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.bayesian.posterior_quantile.l95.bayesian_gcomp_misspecification_probe.linear_outcome",
@@ -946,7 +946,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::misspecified_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.bayesian.posterior_quantile.l95.static_graph_posterior_bayesian_ate_bma_nominal_90_coverage",
@@ -979,7 +979,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_mixture_calibration.rs::draw_data",
         test: "crates/antecedent/tests/v19_static_mixture_calibration.rs::static_graph_posterior_bayesian_ate_bma_nominal_90_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l90.glm_adjustment_binary_outcome_nominal_coverage",
@@ -1012,7 +1012,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_estimate.rs::glm_data",
         test: "crates/antecedent/tests/v110_calibration_estimate.rs::glm_adjustment_binary_outcome_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l90.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage",
@@ -1045,7 +1045,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_mixture_calibration.rs::draw_data",
         test: "crates/antecedent/tests/v19_static_mixture_calibration.rs::static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_analytic_ci_coverage",
@@ -1078,7 +1078,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_analytic_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_atc_hc1_boundary_within_band",
@@ -1111,7 +1111,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::heterogeneous_binary_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_atc_hc1_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_ate_hc1_ci_coverage",
@@ -1144,7 +1144,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::heterogeneous_binary_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_ate_hc1_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_att_cluster_ci_coverage",
@@ -1177,7 +1177,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::heterogeneous_binary_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_att_cluster_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_att_hc1_ci_coverage",
@@ -1210,7 +1210,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::heterogeneous_binary_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_att_hc1_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc0_ci_coverage",
@@ -1243,7 +1243,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_stacked_hc0_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc1_ci_coverage",
@@ -1276,7 +1276,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_stacked_hc1_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.glm_adjustment_binary_outcome_nominal_coverage",
@@ -1309,7 +1309,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_estimate.rs::glm_data",
         test: "crates/antecedent/tests/v110_calibration_estimate.rs::glm_adjustment_binary_outcome_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_ci_coverage",
@@ -1342,7 +1342,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::ipw_hajek_analytic_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.ipw_hajek_analytic_conformance_scm_ci_coverage",
@@ -1375,7 +1375,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::propensity_ipw_conformance_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::ipw_hajek_analytic_conformance_scm_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analytic_ci_coverage",
@@ -1408,7 +1408,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::two_sls_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::iv_2sls_analytic_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_hc1_heteroskedastic_ci_coverage",
@@ -1441,7 +1441,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::two_sls_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::iv_2sls_hc1_heteroskedastic_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.linear_adjustment_analytic_ci_coverage",
@@ -1474,7 +1474,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::linear_adjustment_analytic_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.linear_adjustment_hc1_ci_coverage",
@@ -1507,7 +1507,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::linear_adjustment_hc1_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.matching_homoskedastic_ci_coverage",
@@ -1540,7 +1540,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::matching_homoskedastic_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.rd_sharp_analytic_ci_coverage",
@@ -1573,7 +1573,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::rd_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::rd_sharp_analytic_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.rd_sharp_hc1_heteroskedastic_ci_coverage",
@@ -1606,7 +1606,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::rd_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::rd_sharp_hc1_heteroskedastic_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage",
@@ -1639,7 +1639,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_mixture_calibration.rs::draw_data",
         test: "crates/antecedent/tests/v19_static_mixture_calibration.rs::static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.wald_iv_analytic_ci_coverage",
@@ -1672,7 +1672,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::binary_iv_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::wald_iv_analytic_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.analytic_se.l95.wald_iv_hc1_ci_coverage",
@@ -1705,7 +1705,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::binary_iv_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::wald_iv_hc1_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.bootstrap_se.l90.average_effect_dag_frequentist_default_nominal_coverage",
@@ -1738,7 +1738,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/static_dgp.rs::linear_ate_data",
         test: "crates/antecedent/tests/v110_calibration_estimate.rs::average_effect_dag_frequentist_default_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.bootstrap_se.l90.glm_adjustment_binary_outcome_nominal_coverage",
@@ -1771,7 +1771,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_estimate.rs::glm_data",
         test: "crates/antecedent/tests/v110_calibration_estimate.rs::glm_adjustment_binary_outcome_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.bootstrap_se.l95.average_effect_dag_frequentist_default_nominal_coverage",
@@ -1804,7 +1804,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/static_dgp.rs::linear_ate_data",
         test: "crates/antecedent/tests/v110_calibration_estimate.rs::average_effect_dag_frequentist_default_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.bootstrap_se.l95.glm_adjustment_binary_outcome_nominal_coverage",
@@ -1837,7 +1837,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_estimate.rs::glm_data",
         test: "crates/antecedent/tests/v110_calibration_estimate.rs::glm_adjustment_binary_outcome_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.dag.frequentist.bootstrap_se.l95.ipw_hajek_bootstrap_ci_coverage",
@@ -1870,7 +1870,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm",
         test: "crates/antecedent-estimate/src/calibration_coverage.rs::ipw_hajek_bootstrap_ci_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.pag.bayesian.posterior_quantile.l90.average_effect_pag_bayesian_default_nominal_coverage",
@@ -1903,7 +1903,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_effect_pag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.pag.bayesian.posterior_quantile.l90.static_pag_ate_envelope_bayesian_nominal_90_coverage",
@@ -1936,7 +1936,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::pag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::static_pag_ate_envelope_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.pag.bayesian.posterior_quantile.l95.average_effect_pag_bayesian_default_nominal_coverage",
@@ -1969,7 +1969,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::average_effect_pag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.average_effect.pag.bayesian.posterior_quantile.l95.static_pag_ate_envelope_bayesian_nominal_90_coverage",
@@ -2002,7 +2002,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::pag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::static_pag_ate_envelope_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.pag.frequentist.analytic_se.l90.static_pag_ate_envelope_frequentist_nominal_90_coverage",
@@ -2035,7 +2035,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::pag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::static_pag_ate_envelope_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.average_effect.pag.frequentist.analytic_se.l95.static_pag_ate_envelope_frequentist_nominal_90_coverage",
@@ -2068,7 +2068,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::pag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::static_pag_ate_envelope_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.cpdag.bayesian.posterior_quantile.l90.conditional_effect_cpdag_bayesian_default_nominal_coverage",
@@ -2101,7 +2101,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::conditional_effect_cpdag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.conditional_effect.cpdag.bayesian.posterior_quantile.l90.conditional_effect_cpdag_bayesian_nominal_90_coverage",
@@ -2134,7 +2134,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_cpdag_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.cpdag.bayesian.posterior_quantile.l95.conditional_effect_cpdag_bayesian_default_nominal_coverage",
@@ -2167,7 +2167,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::conditional_effect_cpdag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.conditional_effect.cpdag.bayesian.posterior_quantile.l95.conditional_effect_cpdag_bayesian_nominal_90_coverage",
@@ -2200,7 +2200,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_cpdag_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.cpdag.frequentist.analytic_se.l90.conditional_effect_cpdag_frequentist_nominal_90_coverage",
@@ -2233,7 +2233,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_cpdag_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.cpdag.frequentist.analytic_se.l95.conditional_effect_cpdag_frequentist_nominal_90_coverage",
@@ -2266,7 +2266,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_cpdag_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_default_nominal_coverage",
@@ -2299,7 +2299,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::conditional_effect_dag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage",
@@ -2332,7 +2332,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_dag_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.dag.bayesian.posterior_quantile.l90.static_graph_posterior_bayesian_cate_bma_nominal_90_coverage",
@@ -2365,7 +2365,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_mixture_calibration.rs::draw_data",
         test: "crates/antecedent/tests/v19_static_mixture_calibration.rs::static_graph_posterior_bayesian_cate_bma_nominal_90_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_default_nominal_coverage",
@@ -2398,7 +2398,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::conditional_effect_dag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_nominal_90_coverage",
@@ -2431,7 +2431,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_dag_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.static_graph_posterior_bayesian_cate_bma_nominal_90_coverage",
@@ -2464,7 +2464,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_mixture_calibration.rs::draw_data",
         test: "crates/antecedent/tests/v19_static_mixture_calibration.rs::static_graph_posterior_bayesian_cate_bma_nominal_90_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.conditional_effect.dag.frequentist.analytic_se.l90.conditional_effect_dag_frequentist_nominal_90_coverage",
@@ -2497,7 +2497,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_dag_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.dag.frequentist.analytic_se.l90.conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage",
@@ -2530,7 +2530,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.dag.frequentist.analytic_se.l90.static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage",
@@ -2563,7 +2563,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_mixture_calibration.rs::draw_data",
         test: "crates/antecedent/tests/v19_static_mixture_calibration.rs::static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.conditional_effect.dag.frequentist.analytic_se.l95.conditional_effect_dag_frequentist_nominal_90_coverage",
@@ -2596,7 +2596,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_dag_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.dag.frequentist.analytic_se.l95.conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage",
@@ -2629,7 +2629,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_dag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_dag_frequentist_small_subgroup_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.dag.frequentist.analytic_se.l95.static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage",
@@ -2662,7 +2662,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_mixture_calibration.rs::draw_data",
         test: "crates/antecedent/tests/v19_static_mixture_calibration.rs::static_graph_posterior_frequentist_cate_joint_if_nominal_90_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.conditional_effect.pag.bayesian.posterior_quantile.l90.conditional_effect_pag_bayesian_default_nominal_coverage",
@@ -2695,7 +2695,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::conditional_pag_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::conditional_effect_pag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.conditional_effect.pag.bayesian.posterior_quantile.l90.conditional_effect_pag_bayesian_nominal_90_coverage",
@@ -2728,7 +2728,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_pag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_pag_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.pag.bayesian.posterior_quantile.l95.conditional_effect_pag_bayesian_default_nominal_coverage",
@@ -2761,7 +2761,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::conditional_pag_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::conditional_effect_pag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.conditional_effect.pag.bayesian.posterior_quantile.l95.conditional_effect_pag_bayesian_nominal_90_coverage",
@@ -2794,7 +2794,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_pag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_pag_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.pag.frequentist.analytic_se.l90.conditional_effect_pag_frequentist_nominal_90_coverage",
@@ -2827,7 +2827,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_pag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_pag_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.conditional_effect.pag.frequentist.analytic_se.l95.conditional_effect_pag_frequentist_nominal_90_coverage",
@@ -2860,7 +2860,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_pag_data",
         test: "crates/antecedent/tests/v19_static_envelope_calibration.rs::conditional_effect_pag_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.counterfactual.dag.bayesian.posterior_quantile.l90.counterfactual_bayesian_mean_ite_boundary_within_band",
@@ -2893,7 +2893,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::counterfactual_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::counterfactual_bayesian_mean_ite_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.counterfactual.dag.bayesian.posterior_quantile.l90.counterfactual_bayesian_mean_ite_default_coverage",
@@ -2926,7 +2926,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::counterfactual_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::counterfactual_bayesian_mean_ite_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.counterfactual.dag.bayesian.posterior_quantile.l90.counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage.mean_ite",
@@ -2959,7 +2959,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_counterfactual.rs::exp_modifier_data",
         test: "crates/antecedent/tests/v110_calibration_counterfactual.rs::counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.counterfactual.dag.bayesian.posterior_quantile.l90.counterfactual_interaction_bayesian_unit_and_mean_ite_coverage.mean_ite",
@@ -2992,7 +2992,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_counterfactual.rs::interaction_data",
         test: "crates/antecedent/tests/v110_calibration_counterfactual.rs::counterfactual_interaction_bayesian_unit_and_mean_ite_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.counterfactual.dag.bayesian.posterior_quantile.l95.counterfactual_bayesian_mean_ite_boundary_within_band",
@@ -3025,7 +3025,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::counterfactual_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::counterfactual_bayesian_mean_ite_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.counterfactual.dag.bayesian.posterior_quantile.l95.counterfactual_bayesian_mean_ite_default_coverage",
@@ -3058,7 +3058,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::counterfactual_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::counterfactual_bayesian_mean_ite_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.counterfactual.dag.bayesian.posterior_quantile.l95.counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage.mean_ite",
@@ -3091,7 +3091,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_counterfactual.rs::exp_modifier_data",
         test: "crates/antecedent/tests/v110_calibration_counterfactual.rs::counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.counterfactual.dag.bayesian.posterior_quantile.l95.counterfactual_interaction_bayesian_unit_and_mean_ite_coverage.mean_ite",
@@ -3124,7 +3124,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_counterfactual.rs::interaction_data",
         test: "crates/antecedent/tests/v110_calibration_counterfactual.rs::counterfactual_interaction_bayesian_unit_and_mean_ite_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.counterfactual.dag.bayesian.unit_posterior_quantile.l95.counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage.unit_0",
@@ -3157,7 +3157,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_counterfactual.rs::exp_modifier_data",
         test: "crates/antecedent/tests/v110_calibration_counterfactual.rs::counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.counterfactual.dag.bayesian.unit_posterior_quantile.l95.counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage.unit_1",
@@ -3190,7 +3190,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_counterfactual.rs::exp_modifier_data",
         test: "crates/antecedent/tests/v110_calibration_counterfactual.rs::counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.counterfactual.dag.bayesian.unit_posterior_quantile.l95.counterfactual_interaction_bayesian_unit_and_mean_ite_coverage.unit_b0",
@@ -3223,7 +3223,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_counterfactual.rs::interaction_data",
         test: "crates/antecedent/tests/v110_calibration_counterfactual.rs::counterfactual_interaction_bayesian_unit_and_mean_ite_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.counterfactual.dag.bayesian.unit_posterior_quantile.l95.counterfactual_interaction_bayesian_unit_and_mean_ite_coverage.unit_b1",
@@ -3256,7 +3256,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_counterfactual.rs::interaction_data",
         test: "crates/antecedent/tests/v110_calibration_counterfactual.rs::counterfactual_interaction_bayesian_unit_and_mean_ite_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.directional_derivative.dag.bayesian.posterior_quantile.l90.directional_derivative_bayesian_default_nominal_coverage.0",
@@ -3289,7 +3289,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::gam_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::directional_derivative_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.directional_derivative.dag.bayesian.posterior_quantile.l90.directional_derivative_bayesian_default_nominal_coverage.1",
@@ -3322,7 +3322,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::gam_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::directional_derivative_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.directional_derivative.dag.bayesian.posterior_quantile.l90.directional_derivative_bayesian_nominal_90_coverage.j_0",
@@ -3355,7 +3355,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::gam_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::directional_derivative_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.directional_derivative.dag.bayesian.posterior_quantile.l90.directional_derivative_bayesian_nominal_90_coverage.j_1",
@@ -3388,7 +3388,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::gam_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::directional_derivative_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.directional_derivative.dag.bayesian.posterior_quantile.l95.directional_derivative_bayesian_default_nominal_coverage.0",
@@ -3421,7 +3421,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::gam_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::directional_derivative_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.directional_derivative.dag.bayesian.posterior_quantile.l95.directional_derivative_bayesian_default_nominal_coverage.1",
@@ -3454,7 +3454,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::gam_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::directional_derivative_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.elasticity.dag.bayesian.posterior_quantile.l90.elasticity_bayesian_default_nominal_coverage",
@@ -3487,7 +3487,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::elasticity_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.elasticity.dag.bayesian.posterior_quantile.l90.elasticity_bayesian_nominal_90_coverage",
@@ -3520,7 +3520,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::point_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::elasticity_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.elasticity.dag.bayesian.posterior_quantile.l95.elasticity_bayesian_default_nominal_coverage",
@@ -3553,7 +3553,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::elasticity_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.interference_query.dag.frequentist.analytic_se.l90.interference_dag_bernoulli_neighbor_count_conservative_bound_boundary",
@@ -3586,7 +3586,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_design.rs::run_interference",
         test: "crates/antecedent/tests/v110_calibration_design.rs::interference_dag_bernoulli_neighbor_count_conservative_bound_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.interference_query.dag.frequentist.analytic_se.l95.interference_dag_bernoulli_neighbor_count_conservative_bound_boundary",
@@ -3619,7 +3619,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_design.rs::run_interference",
         test: "crates/antecedent/tests/v110_calibration_design.rs::interference_dag_bernoulli_neighbor_count_conservative_bound_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.intervention_response.co_determined.frequentist.analytic_se.l90.intervention_response_codetermined_frequentist_nominal_coverage",
@@ -3652,7 +3652,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::codetermined_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::intervention_response_codetermined_frequentist_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.intervention_response.co_determined.frequentist.analytic_se.l95.intervention_response_codetermined_frequentist_nominal_coverage",
@@ -3685,7 +3685,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::codetermined_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::intervention_response_codetermined_frequentist_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.intervention_response.cpdag.bayesian.posterior_quantile.l90.intervention_response_cpdag_bayesian_nominal_coverage",
@@ -3718,7 +3718,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::intervention_response_cpdag_bayesian_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.intervention_response.cpdag.bayesian.posterior_quantile.l95.intervention_response_cpdag_bayesian_nominal_coverage",
@@ -3751,7 +3751,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::intervention_response_cpdag_bayesian_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.intervention_response.cpdag.frequentist.analytic_se.l90.class_response_cpdag_intervention_joint_if_nominal_90_coverage",
@@ -3784,7 +3784,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::class_response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::class_response_cpdag_intervention_joint_if_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_default_nominal_coverage",
@@ -3817,7 +3817,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::intervention_response_dag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_nominal_90_coverage",
@@ -3850,7 +3850,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::intervention_response_dag_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.intervention_response.dag.bayesian.posterior_quantile.l95.intervention_response_dag_bayesian_default_nominal_coverage",
@@ -3883,7 +3883,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::intervention_response_dag_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.dag.frequentist.analytic_se.l90.intervention_response_dag_frequentist_nominal_90_coverage",
@@ -3916,7 +3916,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::intervention_response_dag_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.intervention_response.dag.frequentist.analytic_se.l90.intervention_response_dag_graph_posterior_frequentist_nominal_coverage",
@@ -3949,7 +3949,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::intervention_response_dag_graph_posterior_frequentist_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.intervention_response.dag.frequentist.analytic_se.l95.intervention_response_cell_aipw_nominal_95_coverage",
@@ -3982,7 +3982,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::cell_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::intervention_response_cell_aipw_nominal_95_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.intervention_response.dag.frequentist.analytic_se.l95.intervention_response_dag_graph_posterior_frequentist_nominal_coverage",
@@ -4015,7 +4015,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::intervention_response_dag_graph_posterior_frequentist_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.intervention_response.pag.bayesian.posterior_quantile.l90.intervention_response_pag_bayesian_nominal_coverage",
@@ -4048,7 +4048,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::intervention_response_pag_bayesian_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.intervention_response.pag.bayesian.posterior_quantile.l95.intervention_response_pag_bayesian_nominal_coverage",
@@ -4081,7 +4081,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::intervention_response_pag_bayesian_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_intervention_response_ar1_nominal_95_coverage.set_1_h_1",
@@ -4114,7 +4114,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::bayesian_temporal_dag_intervention_response_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_intervention_response_ar1_nominal_95_coverage.set_1_h_2",
@@ -4147,7 +4147,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::bayesian_temporal_dag_intervention_response_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_intervention_response_iid_nominal_95_coverage.set_1_h_1",
@@ -4180,7 +4180,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::bayesian_temporal_dag_intervention_response_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_intervention_response_iid_nominal_95_coverage.set_1_h_2",
@@ -4213,7 +4213,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::bayesian_temporal_dag_intervention_response_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.bayesian.simultaneous_band.l95.bayesian_temporal_dag_intervention_response_ar1_nominal_95_coverage.simultaneous",
@@ -4246,7 +4246,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::bayesian_temporal_dag_intervention_response_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.bayesian.simultaneous_band.l95.bayesian_temporal_dag_intervention_response_iid_nominal_95_coverage.simultaneous",
@@ -4279,7 +4279,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::bayesian_temporal_dag_intervention_response_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_intervention_response_ar1_pointwise_boundary_within_band.shift_0_5_h_1",
@@ -4312,7 +4312,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_intervention_response_ar1_pointwise_boundary_within_band",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_intervention_response_ar1_pointwise_boundary_within_band.shift_0_5_h_2",
@@ -4345,7 +4345,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_intervention_response_ar1_pointwise_boundary_within_band",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_intervention_response_iid_nominal_95_coverage.shift_0_5_h_1",
@@ -4378,7 +4378,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_intervention_response_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_intervention_response_iid_nominal_95_coverage.shift_0_5_h_2",
@@ -4411,7 +4411,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_intervention_response_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_n1000_boundary.shift_shift_0_5_h_1",
@@ -4444,7 +4444,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n1000_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_n100_boundary.shift_shift_0_5_h_1",
@@ -4477,7 +4477,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n100_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_n400_boundary.shift_shift_0_5_h_1",
@@ -4510,7 +4510,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n400_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage.shift_shift_0_5_h_1",
@@ -4543,7 +4543,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_sequence_ar1_nominal_95_coverage.seq_h_1",
@@ -4576,7 +4576,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_sequence_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_sequence_ar1_nominal_95_coverage.seq_h_2",
@@ -4609,7 +4609,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_sequence_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_sequence_iid_nominal_95_coverage.seq_h_1",
@@ -4642,7 +4642,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_sequence_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_sequence_iid_nominal_95_coverage.seq_h_2",
@@ -4675,7 +4675,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_sequence_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_observation_sequence_ar1_nominal_95_coverage.seq_h_1",
@@ -4708,7 +4708,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_two_lag_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_sequence_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_observation_sequence_ar1_nominal_95_coverage.seq_h_2",
@@ -4741,7 +4741,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_two_lag_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_sequence_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_observation_sequence_iid_nominal_95_coverage.seq_h_1",
@@ -4774,7 +4774,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_two_lag_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_sequence_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_observation_sequence_iid_nominal_95_coverage.seq_h_2",
@@ -4807,7 +4807,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_two_lag_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_sequence_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_intervention_response_ar1_pointwise_boundary_within_band.simultaneous",
@@ -4840,7 +4840,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_intervention_response_ar1_pointwise_boundary_within_band",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_intervention_response_iid_nominal_95_coverage.simultaneous",
@@ -4873,7 +4873,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_intervention_response_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_ar1_treatment_n1000_boundary.shift_simultaneous",
@@ -4906,7 +4906,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n1000_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_ar1_treatment_n100_boundary.shift_simultaneous",
@@ -4939,7 +4939,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n100_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_ar1_treatment_n400_boundary.shift_simultaneous",
@@ -4972,7 +4972,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n400_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage.shift_simultaneous",
@@ -5005,7 +5005,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_sequence_ar1_nominal_95_coverage.simultaneous",
@@ -5038,7 +5038,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_sequence_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_sequence_iid_nominal_95_coverage.simultaneous",
@@ -5071,7 +5071,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_sequence_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_observation_sequence_ar1_nominal_95_coverage.simultaneous",
@@ -5104,7 +5104,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_two_lag_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_sequence_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.intervention_response.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_observation_sequence_iid_nominal_95_coverage.simultaneous",
@@ -5137,7 +5137,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_two_lag_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_sequence_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.interventional_distribution.admg.bayesian.posterior_quantile.l90.interventional_distribution_admg_frontdoor_bayesian_nominal_coverage",
@@ -5170,7 +5170,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_admg.rs::frontdoor_data",
         test: "crates/antecedent/tests/v110_calibration_admg.rs::interventional_distribution_admg_frontdoor_bayesian_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.interventional_distribution.admg.bayesian.posterior_quantile.l95.interventional_distribution_admg_frontdoor_bayesian_nominal_coverage",
@@ -5203,7 +5203,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_admg.rs::frontdoor_data",
         test: "crates/antecedent/tests/v110_calibration_admg.rs::interventional_distribution_admg_frontdoor_bayesian_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage",
@@ -5236,7 +5236,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::distribution_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::interventional_distribution_bayesian_near_one_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_zero_boundary_within_band",
@@ -5269,7 +5269,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::distribution_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::interventional_distribution_bayesian_near_zero_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_dag_bayesian_near_one_default_coverage.base_0_95",
@@ -5302,7 +5302,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::distribution_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::interventional_distribution_dag_bayesian_near_one_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_dag_bayesian_near_zero_default_coverage.base_0_02",
@@ -5335,7 +5335,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::distribution_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::interventional_distribution_dag_bayesian_near_zero_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.interventional_distribution.dag.bayesian.posterior_quantile.l95.interventional_distribution_bayesian_near_one_nominal_90_coverage",
@@ -5368,7 +5368,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::distribution_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::interventional_distribution_bayesian_near_one_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.interventional_distribution.dag.bayesian.posterior_quantile.l95.interventional_distribution_bayesian_near_zero_boundary_within_band",
@@ -5401,7 +5401,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::distribution_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::interventional_distribution_bayesian_near_zero_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.interventional_distribution.dag.bayesian.posterior_quantile.l95.interventional_distribution_dag_bayesian_near_one_default_coverage.base_0_95",
@@ -5434,7 +5434,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::distribution_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::interventional_distribution_dag_bayesian_near_one_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.interventional_distribution.dag.bayesian.posterior_quantile.l95.interventional_distribution_dag_bayesian_near_zero_default_coverage.base_0_02",
@@ -5467,7 +5467,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::distribution_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::interventional_distribution_dag_bayesian_near_zero_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.interventional_distribution.dag.frequentist.bootstrap_se.l95.interventional_distribution_frequentist_interior_nominal_95_coverage",
@@ -5500,7 +5500,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::distribution_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::interventional_distribution_frequentist_interior_nominal_95_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.interventional_distribution.dag.frequentist.bootstrap_se.l95.interventional_distribution_frequentist_near_one_nominal_95_coverage",
@@ -5533,7 +5533,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::distribution_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::interventional_distribution_frequentist_near_one_nominal_95_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.interventional_distribution.dag.frequentist.bootstrap_se.l95.interventional_distribution_frequentist_near_zero_nominal_95_coverage",
@@ -5566,7 +5566,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::distribution_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::interventional_distribution_frequentist_near_zero_nominal_95_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nde_bayesian_default_nominal_coverage.nde",
@@ -5599,7 +5599,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::mediation_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::mediation_nde_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nde_bayesian_nominal_90_coverage",
@@ -5632,7 +5632,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::mediation_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::mediation_nde_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nie_bayesian_default_nominal_coverage.nie",
@@ -5665,7 +5665,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::mediation_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::mediation_nie_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nie_bayesian_nominal_90_coverage",
@@ -5698,7 +5698,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::mediation_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::mediation_nie_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_nde_bayesian_default_nominal_coverage.nde",
@@ -5731,7 +5731,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::mediation_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::mediation_nde_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_nde_bayesian_nominal_90_coverage",
@@ -5764,7 +5764,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::mediation_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::mediation_nde_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_nie_bayesian_default_nominal_coverage.nie",
@@ -5797,7 +5797,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::mediation_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::mediation_nie_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_nie_bayesian_nominal_90_coverage",
@@ -5830,7 +5830,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::mediation_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::mediation_nie_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.mediation_effect.dag.frequentist.bootstrap_se.l90.mediation_nde_frequentist_nominal_90_coverage",
@@ -5863,7 +5863,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::mediation_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::mediation_nde_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.mediation_effect.dag.frequentist.bootstrap_se.l90.mediation_nie_frequentist_nominal_90_coverage",
@@ -5896,7 +5896,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::mediation_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::mediation_nie_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.mediation_effect.dag.frequentist.bootstrap_se.l95.mediation_nde_frequentist_nominal_90_coverage",
@@ -5929,7 +5929,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::mediation_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::mediation_nde_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.mediation_effect.dag.frequentist.bootstrap_se.l95.mediation_nie_frequentist_nominal_90_coverage",
@@ -5962,7 +5962,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::mediation_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::mediation_nie_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.path_specific_effect.dag.bayesian.posterior_quantile.l90.path_specific_bayesian_nominal_90_coverage",
@@ -5995,7 +5995,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::path_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::path_specific_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.path_specific_effect.dag.bayesian.posterior_quantile.l90.path_specific_chain_bayesian_default_nominal_coverage",
@@ -6028,7 +6028,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::path_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::path_specific_chain_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.path_specific_effect.dag.bayesian.posterior_quantile.l90.path_specific_two_path_bayesian_default_nominal_coverage",
@@ -6061,7 +6061,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::two_path_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::path_specific_two_path_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.path_specific_effect.dag.bayesian.posterior_quantile.l90.path_specific_two_path_bayesian_nominal_90_coverage",
@@ -6094,7 +6094,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::two_path_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::path_specific_two_path_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.path_specific_effect.dag.bayesian.posterior_quantile.l95.path_specific_bayesian_nominal_90_coverage",
@@ -6127,7 +6127,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::path_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::path_specific_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.path_specific_effect.dag.bayesian.posterior_quantile.l95.path_specific_chain_bayesian_default_nominal_coverage",
@@ -6160,7 +6160,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::path_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::path_specific_chain_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.path_specific_effect.dag.bayesian.posterior_quantile.l95.path_specific_two_path_bayesian_default_nominal_coverage",
@@ -6193,7 +6193,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::two_path_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::path_specific_two_path_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.path_specific_effect.dag.bayesian.posterior_quantile.l95.path_specific_two_path_bayesian_nominal_90_coverage",
@@ -6226,7 +6226,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::two_path_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::path_specific_two_path_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.path_specific_effect.dag.frequentist.bootstrap_se.l90.path_specific_frequentist_nominal_90_coverage",
@@ -6259,7 +6259,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::path_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::path_specific_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.path_specific_effect.dag.frequentist.bootstrap_se.l90.path_specific_two_path_frequentist_nominal_90_coverage",
@@ -6292,7 +6292,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::two_path_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::path_specific_two_path_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.path_specific_effect.dag.frequentist.bootstrap_se.l95.path_specific_frequentist_nominal_90_coverage",
@@ -6325,7 +6325,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::path_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::path_specific_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.path_specific_effect.dag.frequentist.bootstrap_se.l95.path_specific_two_path_frequentist_nominal_90_coverage",
@@ -6358,7 +6358,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::two_path_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::path_specific_two_path_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.point_derivative.dag.bayesian.posterior_quantile.l90.point_derivative_bayesian_curvature_nominal_90_coverage",
@@ -6391,7 +6391,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::point_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::point_derivative_bayesian_curvature_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.point_derivative.dag.bayesian.posterior_quantile.l90.point_derivative_bayesian_default_nominal_coverage",
@@ -6424,7 +6424,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_derivative_bayesian_default_nominal_coverage",
-        calibration_sha: "b5396f331651340d929cd1e32fc986d0fce047a5",
+        calibration_sha: "05e162864d8dbc426bc73d77b20e1da087e4f772",
     },
     CoverageRecord {
         id: "cov.point_derivative.dag.bayesian.posterior_quantile.l90.point_derivative_order_2_bayesian_curvature_nominal_90_coverage",
@@ -6457,7 +6457,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::point_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::point_derivative_order_2_bayesian_curvature_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.point_derivative.dag.bayesian.posterior_quantile.l95.point_derivative_bayesian_default_nominal_coverage",
@@ -6490,7 +6490,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_derivative_bayesian_default_nominal_coverage",
-        calibration_sha: "b5396f331651340d929cd1e32fc986d0fce047a5",
+        calibration_sha: "05e162864d8dbc426bc73d77b20e1da087e4f772",
     },
     CoverageRecord {
         id: "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_frequentist_curvature_nominal_90_coverage",
@@ -6523,7 +6523,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::point_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::point_derivative_frequentist_curvature_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_order_2_frequentist_curvature_nominal_90_coverage",
@@ -6556,7 +6556,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::point_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::point_derivative_order_2_frequentist_curvature_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l90.bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage",
@@ -6589,7 +6589,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_tyz",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l90.bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage",
@@ -6622,7 +6622,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l90.class_prior_mixture_functional_nominal_90_coverage",
@@ -6655,7 +6655,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::class_prior_mixture_functional_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l95.bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage",
@@ -6688,7 +6688,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_tyz",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_cpdag_class_prior_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l95.bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage",
@@ -6721,7 +6721,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_cpdag_pulse_class_prior_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.bayesian.posterior_quantile.l95.class_prior_mixture_functional_nominal_90_coverage",
@@ -6754,7 +6754,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::class_prior_mixture_functional_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage",
@@ -6787,7 +6787,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage",
@@ -6820,7 +6820,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_ar1_rho095_n160_short_series_boundary",
@@ -6853,7 +6853,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_cpdag_pulse_ar1_rho095_n160_short_series_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band",
@@ -6886,7 +6886,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage",
@@ -6919,7 +6919,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage",
@@ -6952,7 +6952,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_cpdag_pulse_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage",
@@ -6985,7 +6985,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_cpdag_pulse_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_pulse_ar1_rho095_n160_short_series_boundary",
@@ -7018,7 +7018,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_cpdag_pulse_ar1_rho095_n160_short_series_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band",
@@ -7051,7 +7051,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_cpdag_pulse_ar1_rho09_n400_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage",
@@ -7084,7 +7084,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_cpdag_pulse_envelope_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_cpdag.frequentist.identified_set.l90.frequentist_temporal_cpdag_identified_set_interval_nominal_90_coverage",
@@ -7117,7 +7117,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_cpdag_identified_set_interval_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_dbn_posterior_pulse_nominal_90_coverage",
@@ -7150,7 +7150,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_dbn_posterior_pulse_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_dag_pulse_staged_nominal_90_coverage",
@@ -7183,7 +7183,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_calibration.rs::noisy_xy",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_pulse_staged_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar1_rho05_n160_nominal_90_coverage",
@@ -7216,7 +7216,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar1_rho05_n60_nominal_90_coverage",
@@ -7249,7 +7249,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar1_rho09_n400_nominal_90_coverage",
@@ -7282,7 +7282,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar1_rho09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar2_n100_nominal_90_coverage",
@@ -7315,7 +7315,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n100_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar2_n160_nominal_90_coverage",
@@ -7348,7 +7348,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar2_n400_nominal_90_coverage",
@@ -7381,7 +7381,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ar2_n60_nominal_90_coverage",
@@ -7414,7 +7414,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_arma11_n100_nominal_90_coverage",
@@ -7447,7 +7447,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n100_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_arma11_n160_nominal_90_coverage",
@@ -7480,7 +7480,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_arma11_n400_nominal_90_coverage",
@@ -7513,7 +7513,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_arma11_n60_nominal_90_coverage",
@@ -7546,7 +7546,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_iid_nominal_90_coverage",
@@ -7579,7 +7579,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_iid_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ma2_n160_nominal_90_coverage",
@@ -7612,7 +7612,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ma2_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_pulse_ma2_n60_nominal_90_coverage",
@@ -7645,7 +7645,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ma2_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.pulse_effect_temporal_dag_bayesian_default_nominal_coverage",
@@ -7678,7 +7678,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v110_calibration_temporal.rs::pulse_effect_temporal_dag_bayesian_default_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_dbn_posterior_pulse_nominal_90_coverage",
@@ -7711,7 +7711,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_dbn_posterior_pulse_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_pulse_staged_nominal_90_coverage",
@@ -7744,7 +7744,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_calibration.rs::noisy_xy",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_pulse_staged_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar1_rho05_n160_nominal_90_coverage",
@@ -7777,7 +7777,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar1_rho05_n60_nominal_90_coverage",
@@ -7810,7 +7810,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar1_rho09_n400_nominal_90_coverage",
@@ -7843,7 +7843,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar1_rho09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar2_n100_nominal_90_coverage",
@@ -7876,7 +7876,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n100_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar2_n160_nominal_90_coverage",
@@ -7909,7 +7909,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar2_n400_nominal_90_coverage",
@@ -7942,7 +7942,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ar2_n60_nominal_90_coverage",
@@ -7975,7 +7975,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ar2_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_arma11_n100_nominal_90_coverage",
@@ -8008,7 +8008,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n100_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_arma11_n160_nominal_90_coverage",
@@ -8041,7 +8041,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_arma11_n400_nominal_90_coverage",
@@ -8074,7 +8074,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_arma11_n60_nominal_90_coverage",
@@ -8107,7 +8107,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_arma11_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_iid_nominal_90_coverage",
@@ -8140,7 +8140,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_iid_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ma2_n160_nominal_90_coverage",
@@ -8173,7 +8173,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ma2_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_pulse_ma2_n60_nominal_90_coverage",
@@ -8206,7 +8206,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_pulse_ma2_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.pulse_effect_temporal_dag_bayesian_default_nominal_coverage",
@@ -8239,7 +8239,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v110_calibration_temporal.rs::pulse_effect_temporal_dag_bayesian_default_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.analytic_se.l95.panel_pulse_cluster_se_ar09_nominal_95_coverage",
@@ -8272,7 +8272,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/panel_dgp.rs::unit_series",
         test: "crates/antecedent/tests/v110_panel_calibration.rs::panel_pulse_cluster_se_ar09_nominal_95_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.bootstrap_se.l95.panel_pulse_unit_bootstrap_ar09_nominal_95_coverage",
@@ -8305,7 +8305,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/panel_dgp.rs::unit_series",
         test: "crates/antecedent/tests/v110_panel_calibration.rs::panel_pulse_unit_bootstrap_ar09_nominal_95_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_ar1_rho05_n160_nominal_90_coverage",
@@ -8338,7 +8338,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_pulse_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_ar1_rho05_n60_nominal_90_coverage",
@@ -8371,7 +8371,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_pulse_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band",
@@ -8404,7 +8404,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_shared_block_nominal_90_coverage",
@@ -8437,7 +8437,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_pulse_shared_block_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage",
@@ -8470,7 +8470,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage",
@@ -8503,7 +8503,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/persistent_dgp.rs::autoregressive_pulse_series",
         test: "crates/antecedent/tests/v110_calibration_temporal.rs::pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_ar05_n160_nominal_90_coverage",
@@ -8536,7 +8536,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_ar05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_ar05_n60_nominal_90_coverage",
@@ -8569,7 +8569,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_ar05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_ar09_n160_nominal_90_coverage",
@@ -8602,7 +8602,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_ar09_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_ar09_n400_nominal_90_coverage",
@@ -8635,7 +8635,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_ar09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_ar09_n60_nominal_90_coverage",
@@ -8668,7 +8668,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_ar09_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary",
@@ -8701,7 +8701,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_h2_ar05_n160_nominal_90_coverage",
@@ -8734,7 +8734,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_h2_ar05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_h2_ar05_n60_boundary_within_band",
@@ -8767,7 +8767,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_h2_ar05_n60_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_h2_ar09_n400_nominal_90_coverage",
@@ -8800,7 +8800,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_h2_ar09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_h2_iid_n160_nominal_90_coverage",
@@ -8833,7 +8833,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_h2_iid_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_pulse_iid_n160_nominal_90_coverage",
@@ -8866,7 +8866,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_iid_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_ar1_rho05_n160_nominal_90_coverage",
@@ -8899,7 +8899,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_pulse_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_ar1_rho05_n60_nominal_90_coverage",
@@ -8932,7 +8932,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_pulse_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band",
@@ -8965,7 +8965,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_shared_block_nominal_90_coverage",
@@ -8998,7 +8998,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_pulse_shared_block_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage",
@@ -9031,7 +9031,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage",
@@ -9064,7 +9064,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/persistent_dgp.rs::autoregressive_pulse_series",
         test: "crates/antecedent/tests/v110_calibration_temporal.rs::pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_ar05_n160_nominal_90_coverage",
@@ -9097,7 +9097,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_ar05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_ar05_n60_nominal_90_coverage",
@@ -9130,7 +9130,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_ar05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_ar09_n160_nominal_90_coverage",
@@ -9163,7 +9163,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_ar09_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_ar09_n400_nominal_90_coverage",
@@ -9196,7 +9196,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_ar09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_ar09_n60_nominal_90_coverage",
@@ -9229,7 +9229,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_ar09_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary",
@@ -9262,7 +9262,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_ar1_treatment_rho09_n60_short_series_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_h2_ar05_n160_nominal_90_coverage",
@@ -9295,7 +9295,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_h2_ar05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_h2_ar05_n60_boundary_within_band",
@@ -9328,7 +9328,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_h2_ar05_n60_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_h2_ar09_n400_nominal_90_coverage",
@@ -9361,7 +9361,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_h2_ar09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_h2_iid_n160_nominal_90_coverage",
@@ -9394,7 +9394,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_h2_iid_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_pulse_iid_n160_nominal_90_coverage",
@@ -9427,7 +9427,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_pulse_iid_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.bayesian.identified_set.l90.bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage",
@@ -9460,7 +9460,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::bayesian_temporal_pag_no_class_prior_identified_set_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l90.bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage",
@@ -9493,7 +9493,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l90.bayesian_temporal_pag_pulse_nominal_90_coverage",
@@ -9526,7 +9526,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_pag_pulse_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l95.bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage",
@@ -9559,7 +9559,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::bayesian_temporal_pag_pulse_class_prior_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l95.bayesian_temporal_pag_pulse_nominal_90_coverage",
@@ -9592,7 +9592,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_pag_pulse_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_multi_completion_pulse_nominal_90_coverage",
@@ -9625,7 +9625,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_multi_completion_pulse_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_pulse_ar1_rho05_n160_nominal_90_coverage",
@@ -9658,7 +9658,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_pulse_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_pulse_ar1_rho05_n60_nominal_90_coverage",
@@ -9691,7 +9691,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_pulse_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_pulse_ar1_rho09_n400_short_series_boundary",
@@ -9724,7 +9724,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_pulse_ar1_rho09_n400_short_series_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_pulse_envelope_nominal_90_coverage",
@@ -9757,7 +9757,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_pag_pulse_envelope_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_multi_completion_pulse_nominal_90_coverage",
@@ -9790,7 +9790,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_multi_completion_pulse_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_pulse_ar1_rho05_n160_nominal_90_coverage",
@@ -9823,7 +9823,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_pulse_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_pulse_ar1_rho05_n60_nominal_90_coverage",
@@ -9856,7 +9856,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_pulse_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_pulse_ar1_rho09_n400_short_series_boundary",
@@ -9889,7 +9889,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_pulse_ar1_rho09_n400_short_series_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_pulse_envelope_nominal_90_coverage",
@@ -9922,7 +9922,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_pag_pulse_envelope_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.frequentist.identified_set.l90.frequentist_temporal_pag_identified_set_interval_nominal_90_coverage",
@@ -9955,7 +9955,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_identified_set_interval_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.pulse_effect.temporal_pag.frequentist.identified_set.l90.frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage",
@@ -9988,7 +9988,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_point_identified_set_interval_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.bayesian.posterior_quantile.l90.response_curve_cpdag_bayesian_pointwise_nominal_coverage.a_0",
@@ -10021,7 +10021,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.bayesian.posterior_quantile.l90.response_curve_cpdag_bayesian_pointwise_nominal_coverage.a_0_5",
@@ -10054,7 +10054,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.bayesian.posterior_quantile.l90.response_curve_cpdag_bayesian_pointwise_nominal_coverage.a_1",
@@ -10087,7 +10087,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.bayesian.posterior_quantile.l90.response_curve_cpdag_bayesian_pointwise_nominal_coverage.a__0_5",
@@ -10120,7 +10120,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.bayesian.posterior_quantile.l90.response_curve_cpdag_bayesian_pointwise_nominal_coverage.a__1",
@@ -10153,7 +10153,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.bayesian.posterior_quantile.l95.response_curve_cpdag_bayesian_pointwise_nominal_coverage.a_0",
@@ -10186,7 +10186,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.bayesian.posterior_quantile.l95.response_curve_cpdag_bayesian_pointwise_nominal_coverage.a_0_5",
@@ -10219,7 +10219,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.bayesian.posterior_quantile.l95.response_curve_cpdag_bayesian_pointwise_nominal_coverage.a_1",
@@ -10252,7 +10252,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.bayesian.posterior_quantile.l95.response_curve_cpdag_bayesian_pointwise_nominal_coverage.a__0_5",
@@ -10285,7 +10285,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.bayesian.posterior_quantile.l95.response_curve_cpdag_bayesian_pointwise_nominal_coverage.a__1",
@@ -10318,7 +10318,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::cpdag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_cpdag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.frequentist.analytic_se.l90.class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage.a_0",
@@ -10351,7 +10351,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::class_response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.frequentist.analytic_se.l90.class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage.a_0_5",
@@ -10384,7 +10384,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::class_response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.frequentist.analytic_se.l90.class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage.a_1",
@@ -10417,7 +10417,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::class_response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.frequentist.analytic_se.l90.class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage.a__0_5",
@@ -10450,7 +10450,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::class_response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.cpdag.frequentist.analytic_se.l90.class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage.a__1",
@@ -10483,7 +10483,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::class_response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::class_response_cpdag_curve_joint_if_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_0",
@@ -10516,7 +10516,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_curve_dag_bayesian_default_pointwise_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_0_5",
@@ -10549,7 +10549,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_curve_dag_bayesian_default_pointwise_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_1",
@@ -10582,7 +10582,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_curve_dag_bayesian_default_pointwise_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a__0_5",
@@ -10615,7 +10615,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_curve_dag_bayesian_default_pointwise_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a__1",
@@ -10648,7 +10648,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_curve_dag_bayesian_default_pointwise_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_0",
@@ -10681,7 +10681,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_bayesian_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_0_5",
@@ -10714,7 +10714,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_bayesian_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a_1",
@@ -10747,7 +10747,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_bayesian_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a__0_5",
@@ -10780,7 +10780,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_bayesian_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.a__1",
@@ -10813,7 +10813,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_bayesian_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_0",
@@ -10846,7 +10846,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_curve_dag_bayesian_default_pointwise_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_0_5",
@@ -10879,7 +10879,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_curve_dag_bayesian_default_pointwise_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a_1",
@@ -10912,7 +10912,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_curve_dag_bayesian_default_pointwise_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a__0_5",
@@ -10945,7 +10945,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_curve_dag_bayesian_default_pointwise_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.a__1",
@@ -10978,7 +10978,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_curve_dag_bayesian_default_pointwise_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_frequentist_pointwise_nominal_90_coverage.a_0",
@@ -11011,7 +11011,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_frequentist_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_frequentist_pointwise_nominal_90_coverage.a_0_5",
@@ -11044,7 +11044,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_frequentist_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_frequentist_pointwise_nominal_90_coverage.a_1",
@@ -11077,7 +11077,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_frequentist_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_frequentist_pointwise_nominal_90_coverage.a__0_5",
@@ -11110,7 +11110,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_frequentist_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_frequentist_pointwise_nominal_90_coverage.a__1",
@@ -11143,7 +11143,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_frequentist_pointwise_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.dag.frequentist.simultaneous_band.l90.response_curve_dag_frequentist_simultaneous_nominal_90_coverage",
@@ -11176,7 +11176,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_static_calibration.rs::response_data",
         test: "crates/antecedent/tests/v19_static_calibration.rs::response_curve_dag_frequentist_simultaneous_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.pag.bayesian.posterior_quantile.l90.response_curve_pag_bayesian_pointwise_nominal_coverage.a_0",
@@ -11209,7 +11209,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_pag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.pag.bayesian.posterior_quantile.l90.response_curve_pag_bayesian_pointwise_nominal_coverage.a_0_5",
@@ -11242,7 +11242,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_pag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.pag.bayesian.posterior_quantile.l90.response_curve_pag_bayesian_pointwise_nominal_coverage.a_1",
@@ -11275,7 +11275,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_pag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.pag.bayesian.posterior_quantile.l90.response_curve_pag_bayesian_pointwise_nominal_coverage.a__0_5",
@@ -11308,7 +11308,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_pag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.pag.bayesian.posterior_quantile.l90.response_curve_pag_bayesian_pointwise_nominal_coverage.a__1",
@@ -11341,7 +11341,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_pag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.pag.bayesian.posterior_quantile.l95.response_curve_pag_bayesian_pointwise_nominal_coverage.a_0",
@@ -11374,7 +11374,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_pag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.pag.bayesian.posterior_quantile.l95.response_curve_pag_bayesian_pointwise_nominal_coverage.a_0_5",
@@ -11407,7 +11407,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_pag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.pag.bayesian.posterior_quantile.l95.response_curve_pag_bayesian_pointwise_nominal_coverage.a_1",
@@ -11440,7 +11440,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_pag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.pag.bayesian.posterior_quantile.l95.response_curve_pag_bayesian_pointwise_nominal_coverage.a__0_5",
@@ -11473,7 +11473,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_pag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.pag.bayesian.posterior_quantile.l95.response_curve_pag_bayesian_pointwise_nominal_coverage.a__1",
@@ -11506,7 +11506,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_response.rs::pag_data",
         test: "crates/antecedent/tests/v110_calibration_response.rs::response_curve_pag_bayesian_pointwise_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_response_curve_pointwise_band_coverage.x_1",
@@ -11539,7 +11539,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_calibration.rs::noisy_xy",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_response_curve_pointwise_band_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.analytic_se.l95.panel_response_between_unit_band_n10_nominal_95_coverage.n_10_dose_0",
@@ -11572,7 +11572,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/panel_dgp.rs::unit_series",
         test: "crates/antecedent/tests/v110_panel_calibration.rs::panel_response_between_unit_band_n10_nominal_95_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.analytic_se.l95.panel_response_between_unit_band_n10_nominal_95_coverage.n_10_dose_1",
@@ -11605,7 +11605,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/panel_dgp.rs::unit_series",
         test: "crates/antecedent/tests/v110_panel_calibration.rs::panel_response_between_unit_band_n10_nominal_95_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.analytic_se.l95.panel_response_between_unit_band_n3_nominal_95_coverage.n_3_dose_0",
@@ -11638,7 +11638,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/panel_dgp.rs::unit_series",
         test: "crates/antecedent/tests/v110_panel_calibration.rs::panel_response_between_unit_band_n3_nominal_95_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.analytic_se.l95.panel_response_between_unit_band_n3_nominal_95_coverage.n_3_dose_1",
@@ -11671,7 +11671,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/panel_dgp.rs::unit_series",
         test: "crates/antecedent/tests/v110_panel_calibration.rs::panel_response_between_unit_band_n3_nominal_95_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_n1000_boundary.curve_a_0_h_1",
@@ -11704,7 +11704,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n1000_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_n1000_boundary.curve_a_1_h_1",
@@ -11737,7 +11737,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n1000_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_n1000_boundary.curve_a__1_h_1",
@@ -11770,7 +11770,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n1000_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_n100_boundary.curve_a_0_h_1",
@@ -11803,7 +11803,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n100_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_n100_boundary.curve_a_1_h_1",
@@ -11836,7 +11836,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n100_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_n100_boundary.curve_a__1_h_1",
@@ -11869,7 +11869,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n100_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_n400_boundary.curve_a_0_h_1",
@@ -11902,7 +11902,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n400_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_n400_boundary.curve_a_1_h_1",
@@ -11935,7 +11935,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n400_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_n400_boundary.curve_a__1_h_1",
@@ -11968,7 +11968,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n400_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage.curve_a_0_h_1",
@@ -12001,7 +12001,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage.curve_a_1_h_1",
@@ -12034,7 +12034,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage.curve_a__1_h_1",
@@ -12067,7 +12067,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage.a_0_h_1",
@@ -12100,7 +12100,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage.a_0_h_2",
@@ -12133,7 +12133,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage.a_1_h_1",
@@ -12166,7 +12166,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage.a_1_h_2",
@@ -12199,7 +12199,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage.a__1_h_1",
@@ -12232,7 +12232,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage.a__1_h_2",
@@ -12265,7 +12265,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_boundary.a_0_h_1",
@@ -12298,7 +12298,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_boundary.a_0_h_2",
@@ -12331,7 +12331,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_boundary.a_1_h_1",
@@ -12364,7 +12364,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_boundary.a_1_h_2",
@@ -12397,7 +12397,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_boundary.a__1_h_1",
@@ -12430,7 +12430,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_boundary.a__1_h_2",
@@ -12463,7 +12463,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary.a_0_h_1",
@@ -12496,7 +12496,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary.a_0_h_2",
@@ -12529,7 +12529,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary.a_1_h_1",
@@ -12562,7 +12562,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary.a_1_h_2",
@@ -12595,7 +12595,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary.a__1_h_1",
@@ -12628,7 +12628,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary.a__1_h_2",
@@ -12661,7 +12661,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary.a_0_h_1",
@@ -12694,7 +12694,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary.a_0_h_2",
@@ -12727,7 +12727,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary.a_1_h_1",
@@ -12760,7 +12760,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary.a_1_h_2",
@@ -12793,7 +12793,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary.a__1_h_1",
@@ -12826,7 +12826,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary.a__1_h_2",
@@ -12859,7 +12859,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary.a_0_h_1",
@@ -12892,7 +12892,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary.a_0_h_2",
@@ -12925,7 +12925,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary.a_1_h_1",
@@ -12958,7 +12958,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary.a_1_h_2",
@@ -12991,7 +12991,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary.a__1_h_1",
@@ -13024,7 +13024,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary.a__1_h_2",
@@ -13057,7 +13057,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_iid_nominal_95_coverage.a_0_h_1",
@@ -13090,7 +13090,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_iid_nominal_95_coverage.a_0_h_2",
@@ -13123,7 +13123,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_iid_nominal_95_coverage.a_1_h_1",
@@ -13156,7 +13156,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_iid_nominal_95_coverage.a_1_h_2",
@@ -13189,7 +13189,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_iid_nominal_95_coverage.a__1_h_1",
@@ -13222,7 +13222,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_response_curve_iid_nominal_95_coverage.a__1_h_2",
@@ -13255,7 +13255,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage.a_0_h_1",
@@ -13288,7 +13288,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::horizon_dependent_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage.a_0_h_2",
@@ -13321,7 +13321,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::horizon_dependent_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage.a_1_h_1",
@@ -13354,7 +13354,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::horizon_dependent_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage.a_1_h_2",
@@ -13387,7 +13387,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::horizon_dependent_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_horizon_dependent_iid_nominal_95_coverage.a_0_h_1",
@@ -13420,7 +13420,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::horizon_dependent_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_horizon_dependent_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_horizon_dependent_iid_nominal_95_coverage.a_0_h_2",
@@ -13453,7 +13453,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::horizon_dependent_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_horizon_dependent_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_horizon_dependent_iid_nominal_95_coverage.a_1_h_1",
@@ -13486,7 +13486,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::horizon_dependent_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_horizon_dependent_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_horizon_dependent_iid_nominal_95_coverage.a_1_h_2",
@@ -13519,7 +13519,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::horizon_dependent_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_horizon_dependent_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_observation_selected_ar1_nominal_95_coverage.a_0_h_1",
@@ -13552,7 +13552,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_selected_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_observation_selected_ar1_nominal_95_coverage.a_1_h_1",
@@ -13585,7 +13585,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_selected_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_observation_selected_ar1_nominal_95_coverage.a__1_h_1",
@@ -13618,7 +13618,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_selected_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_observation_selected_iid_nominal_95_coverage.a_0_h_1",
@@ -13651,7 +13651,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_selected_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_observation_selected_iid_nominal_95_coverage.a_1_h_1",
@@ -13684,7 +13684,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_selected_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_observation_selected_iid_nominal_95_coverage.a__1_h_1",
@@ -13717,7 +13717,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_selected_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_ar1_treatment_n1000_boundary.curve_simultaneous",
@@ -13750,7 +13750,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n1000_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_ar1_treatment_n100_boundary.curve_simultaneous",
@@ -13783,7 +13783,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n100_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_ar1_treatment_n400_boundary.curve_simultaneous",
@@ -13816,7 +13816,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_n400_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage.curve_simultaneous",
@@ -13849,7 +13849,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::persistent_treatment_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_ar1_treatment_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage.simultaneous",
@@ -13882,7 +13882,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_curve_ar1_rho09_boundary.simultaneous",
@@ -13915,7 +13915,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary.simultaneous",
@@ -13948,7 +13948,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n1000_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary.simultaneous",
@@ -13981,7 +13981,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n100_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary.simultaneous",
@@ -14014,7 +14014,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_ar1_rho09_n400_boundary",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_dag_response_curve_iid_nominal_95_coverage.simultaneous",
@@ -14047,7 +14047,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::dose_horizon_series_n",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_dag_response_curve_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage.simultaneous",
@@ -14080,7 +14080,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::horizon_dependent_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_horizon_dependent_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_horizon_dependent_iid_nominal_95_coverage.simultaneous",
@@ -14113,7 +14113,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::horizon_dependent_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_horizon_dependent_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_observation_selected_ar1_nominal_95_coverage.simultaneous",
@@ -14146,7 +14146,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_selected_ar1_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_curve.temporal_dag.frequentist.simultaneous_band.l95.frequentist_temporal_observation_selected_iid_nominal_95_coverage.simultaneous",
@@ -14179,7 +14179,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_temporal_response_calibration.rs::selected_series",
         test: "crates/antecedent/tests/v19_temporal_response_calibration.rs::frequentist_temporal_observation_selected_iid_nominal_95_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_jacobian.dag.bayesian.posterior_quantile.l90.response_jacobian_bayesian_boundary_within_band.j_0",
@@ -14212,7 +14212,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::gam_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::response_jacobian_bayesian_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_jacobian.dag.bayesian.posterior_quantile.l90.response_jacobian_bayesian_boundary_within_band.j_1",
@@ -14245,7 +14245,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::gam_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::response_jacobian_bayesian_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_jacobian.dag.bayesian.posterior_quantile.l90.response_jacobian_bayesian_boundary_within_band.j_2",
@@ -14278,7 +14278,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::gam_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::response_jacobian_bayesian_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_jacobian.dag.bayesian.posterior_quantile.l90.response_jacobian_bayesian_boundary_within_band.j_3",
@@ -14311,7 +14311,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::gam_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::response_jacobian_bayesian_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.response_jacobian.dag.bayesian.posterior_quantile.l90.response_jacobian_bayesian_default_coverage.0",
@@ -14344,7 +14344,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::gam_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_jacobian_bayesian_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_jacobian.dag.bayesian.posterior_quantile.l90.response_jacobian_bayesian_default_coverage.1",
@@ -14377,7 +14377,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::gam_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_jacobian_bayesian_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_jacobian.dag.bayesian.posterior_quantile.l90.response_jacobian_bayesian_default_coverage.2",
@@ -14410,7 +14410,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::gam_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_jacobian_bayesian_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_jacobian.dag.bayesian.posterior_quantile.l90.response_jacobian_bayesian_default_coverage.3",
@@ -14443,7 +14443,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::gam_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_jacobian_bayesian_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_jacobian.dag.bayesian.posterior_quantile.l95.response_jacobian_bayesian_default_coverage.0",
@@ -14476,7 +14476,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::gam_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_jacobian_bayesian_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_jacobian.dag.bayesian.posterior_quantile.l95.response_jacobian_bayesian_default_coverage.1",
@@ -14509,7 +14509,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::gam_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_jacobian_bayesian_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_jacobian.dag.bayesian.posterior_quantile.l95.response_jacobian_bayesian_default_coverage.2",
@@ -14542,7 +14542,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::gam_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_jacobian_bayesian_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.response_jacobian.dag.bayesian.posterior_quantile.l95.response_jacobian_bayesian_default_coverage.3",
@@ -14575,7 +14575,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::gam_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_jacobian_bayesian_default_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.semi_elasticity.dag.bayesian.posterior_quantile.l90.semi_elasticity_log_outcome_bayesian_default_nominal_coverage.log_outcome",
@@ -14608,7 +14608,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::semi_elasticity_log_outcome_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.semi_elasticity.dag.bayesian.posterior_quantile.l90.semi_elasticity_log_outcome_bayesian_nominal_90_coverage",
@@ -14641,7 +14641,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::point_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::semi_elasticity_log_outcome_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.semi_elasticity.dag.bayesian.posterior_quantile.l90.semi_elasticity_log_treatment_bayesian_default_nominal_coverage.log_treatment",
@@ -14674,7 +14674,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::semi_elasticity_log_treatment_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.semi_elasticity.dag.bayesian.posterior_quantile.l90.semi_elasticity_log_treatment_bayesian_nominal_90_coverage",
@@ -14707,7 +14707,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::point_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::semi_elasticity_log_treatment_bayesian_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.semi_elasticity.dag.bayesian.posterior_quantile.l95.semi_elasticity_log_outcome_bayesian_default_nominal_coverage.log_outcome",
@@ -14740,7 +14740,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::semi_elasticity_log_outcome_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.semi_elasticity.dag.bayesian.posterior_quantile.l95.semi_elasticity_log_treatment_bayesian_default_nominal_coverage.log_treatment",
@@ -14773,7 +14773,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::semi_elasticity_log_treatment_bayesian_default_nominal_coverage",
-        calibration_sha: "bda2b9b890816fa0ab6adcbbdd68cfb23721ccc6",
+        calibration_sha: "62fb5c57099ce07ac9659f4b6f6a664971e23df7",
     },
     CoverageRecord {
         id: "cov.semi_elasticity.dag.frequentist.analytic_se.l90.semi_elasticity_log_treatment_frequentist_nominal_90_coverage",
@@ -14806,7 +14806,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_derivative_calibration.rs::point_data",
         test: "crates/antecedent/tests/v19_derivative_calibration.rs::semi_elasticity_log_treatment_frequentist_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l90.bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage",
@@ -14839,7 +14839,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l95.bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage",
@@ -14872,7 +14872,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_cpdag_sustained_class_prior_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage",
@@ -14905,7 +14905,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage",
@@ -14938,7 +14938,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage",
@@ -14971,7 +14971,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage",
@@ -15004,7 +15004,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage",
@@ -15037,7 +15037,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage",
@@ -15070,7 +15070,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_dag_multistep_sustained_nominal_90_coverage",
@@ -15103,7 +15103,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::two_lag_series",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_multistep_sustained_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar1_rho05_n160_nominal_90_coverage",
@@ -15136,7 +15136,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage",
@@ -15169,7 +15169,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar1_rho09_n400_nominal_90_coverage",
@@ -15202,7 +15202,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar1_rho09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n100_nominal_90_coverage",
@@ -15235,7 +15235,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n100_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n160_nominal_90_coverage",
@@ -15268,7 +15268,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n400_nominal_90_coverage",
@@ -15301,7 +15301,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_ar2_n60_nominal_90_coverage",
@@ -15334,7 +15334,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n100_nominal_90_coverage",
@@ -15367,7 +15367,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n100_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n160_nominal_90_coverage",
@@ -15400,7 +15400,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n400_nominal_90_coverage",
@@ -15433,7 +15433,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_arma11_n60_nominal_90_coverage",
@@ -15466,7 +15466,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_multi_iid_nominal_90_coverage",
@@ -15499,7 +15499,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_iid_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_ar1_rho05_n160_nominal_90_coverage",
@@ -15532,7 +15532,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_ar1_rho05_n60_nominal_90_coverage",
@@ -15565,7 +15565,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_ar1_rho09_n400_nominal_90_coverage",
@@ -15598,7 +15598,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar1_rho09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_ar2_n100_nominal_90_coverage",
@@ -15631,7 +15631,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n100_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_ar2_n160_nominal_90_coverage",
@@ -15664,7 +15664,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_ar2_n400_nominal_90_coverage",
@@ -15697,7 +15697,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_ar2_n60_nominal_90_coverage",
@@ -15730,7 +15730,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_arma11_n400_nominal_90_coverage",
@@ -15763,7 +15763,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_arma11_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_arma11_n60_nominal_90_coverage",
@@ -15796,7 +15796,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_arma11_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_sustained_single_iid_nominal_90_coverage",
@@ -15829,7 +15829,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_iid_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_multistep_sustained_nominal_90_coverage",
@@ -15862,7 +15862,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::two_lag_series",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_multistep_sustained_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar1_rho05_n160_nominal_90_coverage",
@@ -15895,7 +15895,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage",
@@ -15928,7 +15928,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar1_rho09_n400_nominal_90_coverage",
@@ -15961,7 +15961,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar1_rho09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n100_nominal_90_coverage",
@@ -15994,7 +15994,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n100_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n160_nominal_90_coverage",
@@ -16027,7 +16027,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n400_nominal_90_coverage",
@@ -16060,7 +16060,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_ar2_n60_nominal_90_coverage",
@@ -16093,7 +16093,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_ar2_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n100_nominal_90_coverage",
@@ -16126,7 +16126,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n100_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n160_nominal_90_coverage",
@@ -16159,7 +16159,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n400_nominal_90_coverage",
@@ -16192,7 +16192,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_arma11_n60_nominal_90_coverage",
@@ -16225,7 +16225,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_arma11_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_multi_iid_nominal_90_coverage",
@@ -16258,7 +16258,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_multi_iid_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_ar1_rho05_n160_nominal_90_coverage",
@@ -16291,7 +16291,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_ar1_rho05_n60_nominal_90_coverage",
@@ -16324,7 +16324,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_ar1_rho09_n400_nominal_90_coverage",
@@ -16357,7 +16357,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar1_rho09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_ar2_n100_nominal_90_coverage",
@@ -16390,7 +16390,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n100_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_ar2_n160_nominal_90_coverage",
@@ -16423,7 +16423,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_ar2_n400_nominal_90_coverage",
@@ -16456,7 +16456,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_ar2_n60_nominal_90_coverage",
@@ -16489,7 +16489,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_ar2_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_arma11_n400_nominal_90_coverage",
@@ -16522,7 +16522,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_arma11_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_arma11_n60_nominal_90_coverage",
@@ -16555,7 +16555,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_arma11_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_sustained_single_iid_nominal_90_coverage",
@@ -16588,7 +16588,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_xy",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_sustained_single_iid_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_ar1_rho05_n160_nominal_90_coverage",
@@ -16621,7 +16621,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_multistep_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_ar1_rho05_n60_nominal_90_coverage",
@@ -16654,7 +16654,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_multistep_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_ar1_rho09_n400_nominal_90_coverage",
@@ -16687,7 +16687,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_multistep_ar1_rho09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage",
@@ -16720,7 +16720,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_sustained_shared_block_nominal_90_coverage",
@@ -16753,7 +16753,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_sustained_shared_block_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage",
@@ -16786,7 +16786,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage",
@@ -16819,7 +16819,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary",
@@ -16852,7 +16852,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/persistent_dgp.rs::sequential_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_sustained_ar05_n160_boundary_within_band",
@@ -16885,7 +16885,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_sustained_ar05_n160_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_sustained_ar05_n60_nominal_90_coverage",
@@ -16918,7 +16918,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_sustained_ar05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_sustained_ar09_n400_nominal_90_coverage",
@@ -16951,7 +16951,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_sustained_ar09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_sustained_iid_n160_nominal_90_coverage",
@@ -16984,7 +16984,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_sustained_iid_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_ar1_rho05_n160_nominal_90_coverage",
@@ -17017,7 +17017,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_multistep_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_ar1_rho05_n60_nominal_90_coverage",
@@ -17050,7 +17050,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_multistep_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_ar1_rho09_n400_nominal_90_coverage",
@@ -17083,7 +17083,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_multistep_ar1_rho09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage",
@@ -17116,7 +17116,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_sustained_shared_block_nominal_90_coverage",
@@ -17149,7 +17149,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_calibration.rs::frequentist_dbn_sustained_shared_block_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage",
@@ -17182,7 +17182,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_multistep_sustained_ar05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage",
@@ -17215,7 +17215,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::confounded_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_multistep_sustained_ar09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary",
@@ -17248,7 +17248,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/persistent_dgp.rs::sequential_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_multistep_sustained_ar1_treatment_rho095_n60_short_series_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_sustained_ar05_n160_boundary_within_band",
@@ -17281,7 +17281,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_sustained_ar05_n160_boundary_within_band",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_sustained_ar05_n60_nominal_90_coverage",
@@ -17314,7 +17314,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_sustained_ar05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_sustained_ar09_n400_nominal_90_coverage",
@@ -17347,7 +17347,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_sustained_ar09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_sustained_iid_n160_nominal_90_coverage",
@@ -17380,7 +17380,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::pulse_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_sustained_iid_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.bayesian.identified_set.l90.bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_coverage",
@@ -17413,7 +17413,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::bayesian_temporal_pag_sustained_no_class_prior_identified_set_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.bayesian.posterior_quantile.l90.bayesian_temporal_pag_sustained_class_prior_ar1_rho05_n160_nominal_90_coverage",
@@ -17446,7 +17446,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::bayesian_temporal_pag_sustained_class_prior_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.bayesian.posterior_quantile.l90.bayesian_temporal_pag_sustained_class_prior_nominal_90_coverage",
@@ -17479,7 +17479,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::bayesian_temporal_pag_sustained_class_prior_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.bayesian.posterior_quantile.l95.bayesian_temporal_pag_sustained_class_prior_ar1_rho05_n160_nominal_90_coverage",
@@ -17512,7 +17512,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::bayesian_temporal_pag_sustained_class_prior_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.bayesian.posterior_quantile.l95.bayesian_temporal_pag_sustained_class_prior_nominal_90_coverage",
@@ -17545,7 +17545,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::bayesian_temporal_pag_sustained_class_prior_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_multistep_sustained_nominal_90_coverage",
@@ -17578,7 +17578,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_multistep_sustained_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_one_completion_sustained_ar1_rho05_n160_nominal_90_coverage",
@@ -17611,7 +17611,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_one_completion_sustained_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_sustained_ar1_rho05_n160_nominal_90_coverage",
@@ -17644,7 +17644,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_sustained_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_sustained_ar1_rho05_n60_nominal_90_coverage",
@@ -17677,7 +17677,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_sustained_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_sustained_ar1_rho09_n400_short_series_boundary",
@@ -17710,7 +17710,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_sustained_ar1_rho09_n400_short_series_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l90.frequentist_temporal_pag_sustained_nominal_90_coverage",
@@ -17743,7 +17743,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_sustained_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_multistep_sustained_nominal_90_coverage",
@@ -17776,7 +17776,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_multistep_sustained_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_one_completion_sustained_ar1_rho05_n160_nominal_90_coverage",
@@ -17809,7 +17809,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::pag_series_ar1",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_one_completion_sustained_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_sustained_ar1_rho05_n160_nominal_90_coverage",
@@ -17842,7 +17842,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_sustained_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_sustained_ar1_rho05_n60_nominal_90_coverage",
@@ -17875,7 +17875,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_sustained_ar1_rho05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_sustained_ar1_rho09_n400_short_series_boundary",
@@ -17908,7 +17908,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_sustained_ar1_rho09_n400_short_series_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.frequentist.circular_block_se.l95.frequentist_temporal_pag_sustained_nominal_90_coverage",
@@ -17941,7 +17941,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_sustained_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.sustained_effect.temporal_pag.frequentist.identified_set.l90.frequentist_temporal_pag_multistep_identified_set_interval_nominal_90_coverage",
@@ -17974,7 +17974,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::chain_pag_series",
         test: "crates/antecedent/tests/v19_temporal_class_calibration.rs::frequentist_temporal_pag_multistep_identified_set_interval_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_cpdag_mediation_frequentist_confounded_nominal_coverage.kappa_med_kappa",
@@ -18007,7 +18007,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_temporal.rs::mediation_series",
         test: "crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_frequentist_confounded_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage.kappa_0",
@@ -18040,7 +18040,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_temporal.rs::mediation_series",
         test: "crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_cpdag_mediation_frequentist_confounded_nominal_coverage.kappa_med_kappa",
@@ -18073,7 +18073,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_temporal.rs::mediation_series",
         test: "crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_frequentist_confounded_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage.kappa_0",
@@ -18106,7 +18106,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_temporal.rs::mediation_series",
         test: "crates/antecedent/tests/v110_calibration_temporal.rs::temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_dag_mediation_confounded_nominal_90_coverage.mediated",
@@ -18139,7 +18139,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::mediation_series",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_mediation_confounded_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage.mediated",
@@ -18172,7 +18172,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage.mediated",
@@ -18205,7 +18205,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n100_nominal_90_coverage.mediated",
@@ -18238,7 +18238,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n100_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n160_nominal_90_coverage.mediated",
@@ -18271,7 +18271,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n400_nominal_90_coverage.mediated",
@@ -18304,7 +18304,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_ar2_n60_nominal_90_coverage.mediated",
@@ -18337,7 +18337,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n160_nominal_90_coverage.mediated",
@@ -18370,7 +18370,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n400_nominal_90_coverage.mediated",
@@ -18403,7 +18403,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.mediated",
@@ -18436,7 +18436,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_mediation_iid_nominal_90_coverage.mediated",
@@ -18469,7 +18469,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_iid_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_mediation_confounded_nominal_90_coverage.mediated",
@@ -18502,7 +18502,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::mediation_series",
         test: "crates/antecedent/tests/v19_calibration.rs::bayesian_temporal_dag_mediation_confounded_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage.mediated",
@@ -18535,7 +18535,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage.mediated",
@@ -18568,7 +18568,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_ar1_rho09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n100_nominal_90_coverage.mediated",
@@ -18601,7 +18601,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n100_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n160_nominal_90_coverage.mediated",
@@ -18634,7 +18634,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n400_nominal_90_coverage.mediated",
@@ -18667,7 +18667,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_ar2_n60_nominal_90_coverage.mediated",
@@ -18700,7 +18700,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_ar2_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_arma11_n160_nominal_90_coverage.mediated",
@@ -18733,7 +18733,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_arma11_n400_nominal_90_coverage.mediated",
@@ -18766,7 +18766,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_arma11_n60_nominal_90_coverage.mediated",
@@ -18799,7 +18799,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_arma11_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_mediation_iid_nominal_90_coverage.mediated",
@@ -18832,7 +18832,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v19_bayesian_temporal.rs::series_mediation",
         test: "crates/antecedent/tests/v19_bayesian_temporal.rs::bayesian_temporal_mediation_iid_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_ar05_n160_nominal_90_coverage",
@@ -18865,7 +18865,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_ar05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_ar05_n60_nominal_90_coverage",
@@ -18898,7 +18898,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_ar05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_ar09_n160_nominal_90_coverage",
@@ -18931,7 +18931,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_ar09_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_ar09_n400_nominal_90_coverage",
@@ -18964,7 +18964,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_ar09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_ar09_n60_nominal_90_coverage",
@@ -18997,7 +18997,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_ar09_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary",
@@ -19030,7 +19030,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/persistent_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage",
@@ -19063,7 +19063,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l90.temporal_dag_mediation_iid_n160_nominal_90_coverage",
@@ -19096,7 +19096,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_iid_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_ar05_n160_nominal_90_coverage",
@@ -19129,7 +19129,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_ar05_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_ar05_n60_nominal_90_coverage",
@@ -19162,7 +19162,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_ar05_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_ar09_n160_nominal_90_coverage",
@@ -19195,7 +19195,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_ar09_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_ar09_n400_nominal_90_coverage",
@@ -19228,7 +19228,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_ar09_n400_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_ar09_n60_nominal_90_coverage",
@@ -19261,7 +19261,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_ar09_n60_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary",
@@ -19294,7 +19294,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/persistent_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_ar1_treatment_rho09_n60_short_series_boundary",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage",
@@ -19327,7 +19327,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/fixtures.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_confounded_iid_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.temporal_mediation_effect.temporal_dag.frequentist.circular_block_se.l95.temporal_dag_mediation_iid_n160_nominal_90_coverage",
@@ -19360,7 +19360,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/common/driven_dgp.rs::mediation_series",
         test: "crates/antecedent/tests/v19_temporal_frequentist.rs::temporal_dag_mediation_iid_n160_nominal_90_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.transport_query.admg.frequentist.analytic_se.l90.transport_admg_trial_ipw_frequentist_nominal_coverage",
@@ -19393,7 +19393,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_design.rs::transport_data",
         test: "crates/antecedent/tests/v110_calibration_design.rs::transport_admg_trial_ipw_frequentist_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     },
     CoverageRecord {
         id: "cov.transport_query.admg.frequentist.analytic_se.l95.transport_admg_trial_ipw_frequentist_nominal_coverage",
@@ -19426,7 +19426,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_design.rs::transport_data",
         test: "crates/antecedent/tests/v110_calibration_design.rs::transport_admg_trial_ipw_frequentist_nominal_coverage",
-        calibration_sha: "1bfa436e627cb4c702e3df07a5322420621cd6b1",
+        calibration_sha: "646b79b749a19053497deaaa34a8b7070e43ef54",
     }
 ];
 
