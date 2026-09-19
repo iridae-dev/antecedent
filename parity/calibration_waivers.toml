@@ -130,3 +130,74 @@ differences = [
 
 [waiver.outcome.fingerprints]
 "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage" = "ad5ab214b07e803415275844c9fefa0607161fc907cf8324f988d5aec5e000b3"
+
+[[waiver]]
+id = "joint-gac-cap-16-646b79b7"
+from = "646b79b749a19053497deaaa34a8b7070e43ef54"
+to = "fec8708dc564ed50338813cee91572a8e9231c25"
+reviewed_by = "Charles Hinshaw"
+justification = """
+The in-crate joint GAC overflow pin now sets max_candidates = 16 explicitly.
+Default is 40. A #[cfg(test)] pin cannot move a measured interval. from/to
+also span the GAC default change so dual-facet records name every drifted
+path.\
+"""
+paths = [
+  "crates/antecedent-identify/src/generalized.rs",
+  "crates/antecedent-identify/src/tiered.rs",
+  "crates/antecedent-identify/src/joint_response.rs",
+]
+
+[[waiver.replay]]
+record = "cov.intervention_response.co_determined.frequentist.analytic_se.l90.intervention_response_codetermined_frequentist_nominal_coverage"
+exercises = [
+  "crates/antecedent-identify/src/generalized.rs",
+  "crates/antecedent-identify/src/tiered.rs",
+  "crates/antecedent-identify/src/joint_response.rs",
+]
+
+[waiver.outcome]
+replayed_at = "fec8708dc564ed50338813cee91572a8e9231c25"
+identical = true
+records = [
+  "cov.intervention_response.co_determined.frequentist.analytic_se.l90.intervention_response_codetermined_frequentist_nominal_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.intervention_response.co_determined.frequentist.analytic_se.l90.intervention_response_codetermined_frequentist_nominal_coverage" = "a987448f900e6d4df45930c9b313ef830de254e6f97bc4e037795b32c6035fa4"
+
+[[waiver]]
+id = "joint-gac-cap-16-62fb5c57"
+from = "62fb5c57099ce07ac9659f4b6f6a664971e23df7"
+to = "fec8708dc564ed50338813cee91572a8e9231c25"
+reviewed_by = "Charles Hinshaw"
+justification = """
+The in-crate joint GAC overflow pin now sets max_candidates = 16 explicitly.
+Default is 40. A #[cfg(test)] pin cannot move a measured interval. from/to
+also span map_replicates so suite.v110 records name every drifted path.\
+"""
+paths = [
+  "crates/antecedent-identify/src/joint_response.rs",
+  "crates/antecedent/tests/v110_calibration_bayesian_static.rs",
+]
+
+[[waiver.replay]]
+record = "cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_default_nominal_coverage"
+exercises = [
+  "crates/antecedent-identify/src/joint_response.rs",
+  "crates/antecedent/tests/v110_calibration_bayesian_static.rs",
+]
+
+[waiver.outcome]
+replayed_at = "fec8708dc564ed50338813cee91572a8e9231c25"
+identical = true
+records = [
+  "cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_default_nominal_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_default_nominal_coverage" = "7b53187a7704e43c91da24c7720c914f3ed942051ebcd92e69c1146bdc41b18d"
