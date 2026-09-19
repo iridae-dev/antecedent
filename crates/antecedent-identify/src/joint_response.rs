@@ -516,9 +516,14 @@ mod tests {
         }
         let query =
             joint(VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
-        let id = GeneralizedAdjustmentIdentifier::new()
-            .identify_joint_admg_response(&admg, &query)
-            .unwrap();
+        let id = GeneralizedAdjustmentIdentifier {
+            config: crate::GeneralizedAdjustmentConfig {
+                max_candidates: 16,
+                ..Default::default()
+            },
+        }
+        .identify_joint_admg_response(&admg, &query)
+        .unwrap();
         assert_eq!(
             id.status,
             IdentificationStatus::NotIdentified,
