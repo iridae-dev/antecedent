@@ -58,8 +58,11 @@
 //! `ANTECEDENT_CALIBRATION_NSIM` overrides the replicate count; the band
 //! widens automatically with fewer replicates, and the precision floor applies
 //! whenever the count reaches [`PRECISION_N_SIM`]. The gate script uses the
-//! default of 400 (the full gate takes about 1.6 h in release at 400; 1000
-//! would take about 4 h before any recheck) and rechecks at 2000.
+//! default of 400 and rechecks at 2000. Independent seeds run across
+//! [`map_replicates`] workers (`std::thread::scope` + `available_parallelism`);
+//! each seed still builds a serial [`antecedent_core::ExecutionContext::for_tests`]
+//! study. Same seed, same interval. The old 1.6 h / overnight figures were
+//! one-core loops.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -180,7 +183,11 @@ pub fn grid_n(base: usize) -> usize {
 /// The grid [`grid_n`] measures a design with base `base` on.
 #[must_use]
 pub fn grid_for(base: usize) -> SampleGrid {
-    if base <= SHORT_SERIES_MAX_BASE { SampleGrid::SHORT_SERIES } else { SampleGrid::STANDARD }
+    if base <= SHORT_SERIES_MAX_BASE {
+        SampleGrid::SHORT_SERIES
+    } else {
+        SampleGrid::STANDARD
+    }
 }
 
 /// Seed salt of this run's grid point: zero at [`BASE_GRID_POINT`] (the data
@@ -223,6 +230,49 @@ pub fn n_sim() -> u32 {
         .and_then(|v| v.parse::<u32>().ok())
         .filter(|&n| n > 0)
         .unwrap_or(DEFAULT_N_SIM)
+}
+
+/// Evaluate `f(0), …, f(n-1)` on `available_parallelism` workers.
+///
+/// Results come back in seed order so `bind` / `record` stay deterministic.
+/// Each call is an independent dataset; `f` must be deterministic in `rep`.
+/// Workers are `std::thread::scope` threads — not `rayon`, and not product
+/// [`antecedent_core::ExecutionContext`] parallelism. A single replicate
+/// still builds its own serial test context.
+pub fn map_replicates<T: Send>(n: u32, f: impl Fn(u64) -> T + Sync) -> Vec<T> {
+    let n_us = usize::try_from(n).expect("replicate count fits usize");
+    if n_us == 0 {
+        return Vec::new();
+    }
+    let threads = std::thread::available_parallelism()
+        .map(std::num::NonZeroUsize::get)
+        .unwrap_or(1)
+        .clamp(1, n_us);
+    if threads == 1 {
+        return (0..n).map(|rep| f(u64::from(rep))).collect();
+    }
+    let mut out: Vec<Option<T>> = (0..n_us).map(|_| None).collect();
+    std::thread::scope(|scope| {
+        let f = &f;
+        let mut rest = out.as_mut_slice();
+        let mut start = 0usize;
+        for t in 0..threads {
+            let take = rest.len().div_ceil(threads - t);
+            let (mine, next) = rest.split_at_mut(take);
+            let begin = start;
+            scope.spawn(move || {
+                for (k, slot) in mine.iter_mut().enumerate() {
+                    *slot = Some(f((begin + k) as u64));
+                }
+            });
+            rest = next;
+            start += take;
+            if rest.is_empty() {
+                break;
+            }
+        }
+    });
+    out.into_iter().map(|slot| slot.expect("every replicate was filled")).collect()
 }
 
 /// Monte Carlo standard error of an empirical coverage rate at the level.
@@ -604,7 +654,11 @@ impl CoverageTally {
     /// Empirical coverage over scored replicates.
     #[must_use]
     pub fn rate(&self) -> f64 {
-        if self.scored == 0 { f64::NAN } else { f64::from(self.covered) / f64::from(self.scored) }
+        if self.scored == 0 {
+            f64::NAN
+        } else {
+            f64::from(self.covered) / f64::from(self.scored)
+        }
     }
 
     /// Mean interval length over replicates that produced an interval.
