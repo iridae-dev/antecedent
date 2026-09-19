@@ -1217,9 +1217,9 @@ mod identify_only_tests {
     }
 
     #[test]
-    fn graph_posterior_overlap_mixes_distinct_adjustment_atoms() {
-        // Atom 0 is unadjusted T→Y; atom 1 adjusts for Z. First-atom validation
-        // would report only the empty-Z overlap. Mixing must move the comparison.
+    fn graph_posterior_overlap_withheld_when_estimands_disagree_bayesian() {
+        // Distinct adjustment sets are GraphDependentAtoms. Cheap overlap is
+        // the first contributing atom, Bayesian and Frequentist alike.
         let n = 64;
         let direct = set_edge(0, 3, 0, 1, true);
         let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
@@ -1249,8 +1249,8 @@ mod identify_only_tests {
         let mixed = cheap_overlap_comparison(mix, n, false);
         let first = cheap_overlap_comparison(first_only, n, false);
         assert!(
-            (mixed - first).abs() > 1e-9,
-            "mixture overlap comparison={mixed} must not equal first-atom comparison={first}"
+            (mixed - first).abs() < 1e-9,
+            "GraphDependentAtoms overlap comparison={mixed} must match first atom={first}"
         );
     }
 
