@@ -75,22 +75,27 @@ pub fn log_phi(x: f64) -> f64 {
     LOG_INV_SQRT_2PI - 0.5 * x * x
 }
 
-/// Numerically stable `log Φ(x)`, with asymptotic left-tail expansion.
+// For t >= 8, the inverse Mills ratio is t + delta, where
+// delta = 1 / (t + 2 / (t + 3 / (...))). Keeping delta separately avoids
+// subtracting nearly equal values when computing the observed curvature.
+fn left_tail_mills(t: f64) -> (f64, f64) {
+    let mut delta = 0.0;
+    for k in (1..=64).rev() {
+        delta = f64::from(k) / (t + delta);
+    }
+    (t + delta, delta)
+}
+
+/// Numerically stable `log Φ(x)`, using a continued fraction in the left tail.
 #[must_use]
 pub fn log_normal_cdf(x: f64) -> f64 {
-    if x >= 8.0 {
-        return 0.0;
+    if x <= -8.0 {
+        return log_phi(x) - left_tail_mills(-x).0.ln();
     }
-    if x > -30.0 {
-        let p = norm_cdf(x);
-        if p > 0.0 {
-            return p.ln();
-        }
+    if x > 0.0 {
+        return (-norm_cdf(-x)).ln_1p();
     }
-    // Deep left tail: log Φ(x) ≈ log φ(x) − log(−x) + log(1 − 1/x² + 3/x⁴ − …)
-    let inv_x2 = 1.0 / (x * x);
-    let expansion = 1.0 - inv_x2 * (1.0 - 3.0 * inv_x2 * (1.0 - 5.0 * inv_x2));
-    log_phi(x) - (-x).ln() + expansion.max(f64::MIN_POSITIVE).ln()
+    norm_cdf(x).ln()
 }
 
 /// Bernoulli probit terms using observed Hessian (Mills-ratio form).
@@ -99,26 +104,20 @@ pub fn log_normal_cdf(x: f64) -> f64 {
 ///
 /// Non-finite Mills ratio / curvature in pathological inputs.
 pub fn probit_terms(y: f64, eta: f64, weight: f64) -> Result<LikelihoodTerms, ProbError> {
-    let lp = log_phi(eta);
-    let terms = if y > 0.5 {
-        let log_cdf = log_normal_cdf(eta);
-        let lambda1 = (lp - log_cdf).exp();
-        // λ₁(λ₁+η) can underflow negative from cancellation in deep left tails; clamp.
-        let curv = (lambda1 * (lambda1 + eta)).max(0.0);
-        LikelihoodTerms {
-            log_value: weight * log_cdf,
-            score_eta: weight * lambda1,
-            neg_hessian_eta: weight * curv,
-        }
+    let sign = if y > 0.5 { 1.0 } else { -1.0 };
+    let x = sign * eta;
+    let log_cdf = log_normal_cdf(x);
+    let (ratio, curvature) = if x <= -8.0 {
+        let (ratio, delta) = left_tail_mills(-x);
+        (ratio, ratio * delta)
     } else {
-        let log_sf = log_normal_cdf(-eta);
-        let lambda0 = (lp - log_sf).exp();
-        let curv = (lambda0 * (lambda0 - eta)).max(0.0);
-        LikelihoodTerms {
-            log_value: weight * log_sf,
-            score_eta: weight * (-lambda0),
-            neg_hessian_eta: weight * curv,
-        }
+        let ratio = (log_phi(x) - log_cdf).exp();
+        (ratio, ratio * (ratio + x))
+    };
+    let terms = LikelihoodTerms {
+        log_value: weight * log_cdf,
+        score_eta: weight * sign * ratio,
+        neg_hessian_eta: weight * curvature,
     };
     if !terms.log_value.is_finite()
         || !terms.score_eta.is_finite()
@@ -240,6 +239,10 @@ pub(crate) fn accumulate_likelihood(
         }
         eta[r] = e;
         let w_obs = design.weights.map_or(1.0, |w| w[r]);
+        if w_obs == 0.0 {
+            work_w[r] = 0.0;
+            continue;
+        }
         let y = design.y[r];
 
         let terms = glm_observation_terms(likelihood, y, e, w_obs, inv_sigma2)?;
@@ -320,6 +323,9 @@ pub(crate) fn log_posterior_value(
         }
         eta[r] = e;
         let w = design.weights.map_or(1.0, |ww| ww[r]);
+        if w == 0.0 {
+            continue;
+        }
         let y = design.y[r];
         ll += glm_observation_terms(likelihood, y, e, w, inv_sigma2)?.log_value;
     }
@@ -346,6 +352,88 @@ fn gaussian_precision(likelihood: BayesLikelihood, variance: f64) -> Result<f64,
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn review_zero_weight_rows_equal_deleted_rows() {
+        for family in [
+            BayesLikelihood::GaussianIdentity,
+            BayesLikelihood::PoissonLog,
+            BayesLikelihood::BernoulliProbit,
+            BayesLikelihood::BernoulliLogit,
+        ] {
+            let y =
+                if family == BayesLikelihood::GaussianIdentity { [1.0, 1e200] } else { [1.0, 0.0] };
+            let full = BayesDesignRef {
+                x_colmajor: &[1.0, 1.0],
+                nrows: 2,
+                ncols: 1,
+                y: &y,
+                weights: Some(&[1.0, 0.0]),
+                offsets: Some(&[0.0, 1000.0]),
+            };
+            let dropped = BayesDesignRef {
+                x_colmajor: &[1.0],
+                nrows: 1,
+                ncols: 1,
+                y: &[1.0],
+                weights: None,
+                offsets: None,
+            };
+            let mut results = Vec::new();
+            for design in [full, dropped] {
+                validate_design(family, design).unwrap();
+                let (mut grad, mut hess, mut eta, mut work) = ([0.0], [0.0], [0.0; 2], [0.0; 2]);
+                let diagnostic = accumulate_likelihood(
+                    family,
+                    design,
+                    &[0.0],
+                    &mut grad,
+                    &mut hess,
+                    &mut eta,
+                    &mut work,
+                    1.0,
+                    true,
+                )
+                .unwrap();
+                let prior = GaussianCoefficientPrior::isotropic(1, 1.0);
+                let value =
+                    log_posterior_value(family, design, &[0.0], &prior, &[1.0], &mut eta, 1.0)
+                        .unwrap();
+                results.push((grad, hess, diagnostic, value));
+            }
+            assert_eq!(results[0], results[1], "{family:?}");
+        }
+    }
+
+    #[test]
+    fn review_probit_deep_tail_score_and_curvature() {
+        for (y, eta, sign) in [(1.0, -1e8, 1.0), (0.0, 1e8, -1.0)] {
+            let terms = probit_terms(y, eta, 0.25).unwrap();
+            assert!((terms.score_eta / (sign * 0.25e8) - 1.0).abs() < 1e-14);
+            assert!((terms.neg_hessian_eta - 0.25).abs() < 1e-14);
+        }
+        // Independent erfc-based reference at a tail where erfc remains representable.
+        let terms = probit_terms(1.0, -10.0, 1.0).unwrap();
+        assert!((terms.log_value + 53.231_285_150_512_46).abs() < 1e-12);
+        assert!((terms.score_eta - 10.098_093_233_962_42).abs() < 1e-12);
+        assert!((terms.neg_hessian_eta - 0.990_554_622_173_402_5).abs() < 1e-11);
+    }
+
+    #[test]
+    fn review_probit_retains_upper_tail_log_probability() {
+        let lp = log_normal_cdf(8.0);
+        assert!((lp / -6.220_960_574_271_784e-16 - 1.0).abs() < 1e-12);
+        for x in [-10.0, -8.0001, -7.9999, 8.0] {
+            let h = 1e-5;
+            let terms = probit_terms(1.0, x, 1.0).unwrap();
+            let score = (log_normal_cdf(x + h) - log_normal_cdf(x - h)) / (2.0 * h);
+            let curvature = -(probit_terms(1.0, x + h, 1.0).unwrap().score_eta
+                - probit_terms(1.0, x - h, 1.0).unwrap().score_eta)
+                / (2.0 * h);
+            assert!((score / terms.score_eta - 1.0).abs() < 1e-7);
+            assert!((curvature / terms.neg_hessian_eta - 1.0).abs() < 1e-7);
+        }
+    }
+
     #[test]
     fn review_gaussian_likelihood_uses_the_requested_precision() {
         let design = BayesDesignRef {
