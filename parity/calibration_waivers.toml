@@ -201,3 +201,192 @@ differences = [
 
 [waiver.outcome.fingerprints]
 "cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_default_nominal_coverage" = "7b53187a7704e43c91da24c7720c914f3ed942051ebcd92e69c1146bdc41b18d"
+
+[[waiver]]
+id = "bootstrap-eval-62fb5c57"
+from = "62fb5c57099ce07ac9659f4b6f6a664971e23df7"
+to = "6a1a2463c0b9fb7cc805f55613e9e23f1abfa002"
+reviewed_by = "Charles Hinshaw"
+justification = """
+Bootstrap replicate evaluation now maps under ctx.parallelism when
+threads>1 and adaptive early-stop is off. Callers pass a scratch factory
+so the closure is Fn+Sync. Calibration still builds serial for_tests
+studies (threads=1), so the serial path is the measured path. Same seed,
+same interval. This cannot move a measured number. from/to also span the
+GAC default and map_replicates suite edits so dual-facet records name
+every drifted path.\
+"""
+paths = [
+  "crates/antecedent-estimate/src/adjustment.rs",
+  "crates/antecedent-estimate/src/functional_distribution.rs",
+  "crates/antecedent-estimate/src/static_mediation.rs",
+  "crates/antecedent-identify/src/generalized.rs",
+  "crates/antecedent/tests/v110_calibration_bayesian_static.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l90.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/adjustment.rs",
+]
+
+[[waiver.replay]]
+record = "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_dag_bayesian_near_one_default_coverage.base_0_95"
+exercises = [
+  "crates/antecedent-estimate/src/functional_distribution.rs",
+  "crates/antecedent/tests/v110_calibration_bayesian_static.rs",
+]
+
+[[waiver.replay]]
+record = "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nde_bayesian_default_nominal_coverage.nde"
+exercises = [
+  "crates/antecedent-estimate/src/static_mediation.rs",
+  "crates/antecedent/tests/v110_calibration_bayesian_static.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage"
+exercises = [
+  "crates/antecedent-identify/src/generalized.rs",
+  "crates/antecedent/tests/v110_calibration_bayesian_static.rs",
+]
+
+[waiver.outcome]
+replayed_at = "6a1a2463c0b9fb7cc805f55613e9e23f1abfa002"
+identical = true
+records = [
+  "cov.average_effect.dag.frequentist.analytic_se.l90.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage",
+  "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_dag_bayesian_near_one_default_coverage.base_0_95",
+  "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nde_bayesian_default_nominal_coverage.nde",
+  "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_bayesian_default_nominal_coverage" = "ad5ab214b07e803415275844c9fefa0607161fc907cf8324f988d5aec5e000b3"
+"cov.average_effect.dag.frequentist.analytic_se.l90.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage" = "e6e7f0a1f27db778bfdabb9f88ea9205f89ae0b4d18eea521983f66c44e092b2"
+"cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_dag_bayesian_near_one_default_coverage.base_0_95" = "0772bb2728d77e65c3fc76bc50f18b039f27740b7f8761f3d65acbbfcc79e2e0"
+"cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nde_bayesian_default_nominal_coverage.nde" = "3d461183d16eebe8496cad4c61d2fc442d0c6839eb77f73521a54a8ec7f41ead"
+
+[[waiver]]
+id = "bootstrap-eval-646b79b7"
+from = "646b79b749a19053497deaaa34a8b7070e43ef54"
+to = "6a1a2463c0b9fb7cc805f55613e9e23f1abfa002"
+reviewed_by = "Charles Hinshaw"
+justification = """
+Bootstrap replicate evaluation now maps under ctx.parallelism when
+threads>1 and adaptive early-stop is off. Callers pass a scratch factory
+so the closure is Fn+Sync. Calibration still builds serial for_tests
+studies (threads=1), so the serial path is the measured path. Same seed,
+same interval. This cannot move a measured number. from/to also span the
+GAC default change so dual-facet records name every drifted path.\
+"""
+paths = [
+  "crates/antecedent-estimate/src/adjustment.rs",
+  "crates/antecedent-estimate/src/aipw.rs",
+  "crates/antecedent-estimate/src/frontdoor.rs",
+  "crates/antecedent-estimate/src/functional_distribution.rs",
+  "crates/antecedent-estimate/src/glm_adjustment.rs",
+  "crates/antecedent-estimate/src/iv.rs",
+  "crates/antecedent-estimate/src/propensity/matching.rs",
+  "crates/antecedent-estimate/src/propensity/weighting.rs",
+  "crates/antecedent-estimate/src/rd.rs",
+  "crates/antecedent-estimate/src/static_mediation.rs",
+  "crates/antecedent-identify/src/generalized.rs",
+  "crates/antecedent-identify/src/tiered.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.cpdag.frequentist.analytic_se.l90.static_cpdag_ate_envelope_frequentist_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/adjustment.rs",
+  "crates/antecedent-identify/src/generalized.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.co_determined.frequentist.analytic_se.l90.codetermined_aipw_closure_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/aipw.rs",
+  "crates/antecedent-identify/src/generalized.rs",
+  "crates/antecedent-identify/src/tiered.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc0_ci_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/frontdoor.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/functional_distribution.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l90.glm_adjustment_binary_outcome_nominal_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/glm_adjustment.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analytic_ci_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/iv.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.matching_homoskedastic_ci_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/propensity/matching.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.bootstrap_se.l95.ipw_hajek_bootstrap_ci_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/propensity/weighting.rs",
+  "crates/antecedent-identify/src/generalized.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.rd_sharp_analytic_ci_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/rd.rs",
+]
+
+[[waiver.replay]]
+record = "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nde_bayesian_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/static_mediation.rs",
+]
+
+[waiver.outcome]
+replayed_at = "6a1a2463c0b9fb7cc805f55613e9e23f1abfa002"
+identical = true
+records = [
+  "cov.average_effect.cpdag.frequentist.analytic_se.l90.static_cpdag_ate_envelope_frequentist_nominal_90_coverage",
+  "cov.average_effect.co_determined.frequentist.analytic_se.l90.codetermined_aipw_closure_nominal_90_coverage",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc0_ci_coverage",
+  "cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage",
+  "cov.average_effect.dag.frequentist.analytic_se.l90.glm_adjustment_binary_outcome_nominal_coverage",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analytic_ci_coverage",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.matching_homoskedastic_ci_coverage",
+  "cov.average_effect.dag.frequentist.bootstrap_se.l95.ipw_hajek_bootstrap_ci_coverage",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.rd_sharp_analytic_ci_coverage",
+  "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nde_bayesian_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_frontdoor_bayesian_nominal_coverage" = "4e18acb6a328787a42ccc4b343056fdde0b5b5211d2ad867aa0206caf2f827e5"
+"cov.average_effect.co_determined.frequentist.analytic_se.l90.codetermined_aipw_closure_nominal_90_coverage" = "9192c7128a8a097684028998229b8cd033b0c0a840229cefbf3fd24a650015cc"
+"cov.average_effect.cpdag.frequentist.analytic_se.l90.static_cpdag_ate_envelope_frequentist_nominal_90_coverage" = "28bfd40ff81cc5cd62b98a7f322adee745976e540b2ce10c1aa128ce3b77237f"
+"cov.average_effect.dag.frequentist.analytic_se.l90.glm_adjustment_binary_outcome_nominal_coverage" = "1b1ae2133cce2712683c45ab265b614b1104fd9f508126018c7faf263e1bb112"
+"cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc0_ci_coverage" = "b4aa0d5827c57dda729c8dfb8dd2ca3d2e5f0b4bf3eb81a0fe2db13740a6f5a2"
+"cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analytic_ci_coverage" = "ea6e1a2e5eec106195c31373f24a59facadfb986560542e280c355c2392da159"
+"cov.average_effect.dag.frequentist.analytic_se.l95.matching_homoskedastic_ci_coverage" = "49a83b37caf9706f99c22f4d3f30ecfb32bf1776dd37764b981a31775f227948"
+"cov.average_effect.dag.frequentist.analytic_se.l95.rd_sharp_analytic_ci_coverage" = "101451ab57dc8e9b8b129d83a20fdcdb6a4ce1b8f5ff4caebea5449d06db9745"
+"cov.average_effect.dag.frequentist.bootstrap_se.l95.ipw_hajek_bootstrap_ci_coverage" = "6ed8dd8150185d26761a4b15f34b00c1133c8f2c523c8513bb57354d04768d24"
+"cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nde_bayesian_nominal_90_coverage" = "06e32b05e66ce50e09088f3331f6ffd9f97be4615682a25ada58d641f0846c2b"
