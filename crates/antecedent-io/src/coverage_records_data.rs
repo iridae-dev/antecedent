@@ -6424,7 +6424,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_derivative_bayesian_default_nominal_coverage",
-        calibration_sha: "05e162864d8dbc426bc73d77b20e1da087e4f772",
+        calibration_sha: "fec8708dc564ed50338813cee91572a8e9231c25",
     },
     CoverageRecord {
         id: "cov.point_derivative.dag.bayesian.posterior_quantile.l90.point_derivative_order_2_bayesian_curvature_nominal_90_coverage",
@@ -6490,7 +6490,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_data",
         test: "crates/antecedent/tests/v110_calibration_bayesian_static.rs::point_derivative_bayesian_default_nominal_coverage",
-        calibration_sha: "05e162864d8dbc426bc73d77b20e1da087e4f772",
+        calibration_sha: "fec8708dc564ed50338813cee91572a8e9231c25",
     },
     CoverageRecord {
         id: "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_frequentist_curvature_nominal_90_coverage",
