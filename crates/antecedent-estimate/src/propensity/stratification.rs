@@ -189,6 +189,7 @@ impl PropensityStratification {
         let overlap_report = Some(report);
 
         Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
+            .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
             .with_retained_memory_bytes(Some(workspace.retained_memory_bytes()))
             .with_bootstrap(boot))
@@ -220,41 +221,41 @@ impl PropensityStratification {
                 )
             },
             |(workspace, x_boot, t_boot, y_boot), idx| {
-            crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
-            crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
-            crate::util::gather_bootstrap_design(
-                x_boot,
-                &problem.design_matrix,
-                n,
-                ncols,
-                idx,
-            );
-            let Ok(fit) = fit_propensity(
-                x_boot,
-                n,
-                ncols,
-                t_boot,
-                &self.backend,
-                &mut workspace.propensity,
-                &self.glm_options,
-            ) else {
-                return Ok(None);
-            };
-            let raw = fit.scores;
-            let mut scores = raw.clone();
-            if let Some(c) = clip {
-                clamp_scores(&mut scores, c);
-            }
-            let Ok(retained) = trim_retained_rows(&raw, trim) else {
-                return Ok(None);
-            };
-            let (t_used, y_used, s_used) =
-                restrict_to_rows(t_boot, y_boot, &scores, 1, retained.as_deref());
-            let stratum = assign_strata(&s_used, n_strata);
-            match stratified_ate(&t_used, &y_used, &stratum, n_strata, &problem.target_population) {
-                Ok(r) => Ok(Some(r.ate)),
-                Err(_) => Ok(None),
-            }
+                crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
+                crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
+                crate::util::gather_bootstrap_design(x_boot, &problem.design_matrix, n, ncols, idx);
+                let Ok(fit) = fit_propensity(
+                    x_boot,
+                    n,
+                    ncols,
+                    t_boot,
+                    &self.backend,
+                    &mut workspace.propensity,
+                    &self.glm_options,
+                ) else {
+                    return Ok(None);
+                };
+                let raw = fit.scores;
+                let mut scores = raw.clone();
+                if let Some(c) = clip {
+                    clamp_scores(&mut scores, c);
+                }
+                let Ok(retained) = trim_retained_rows(&raw, trim) else {
+                    return Ok(None);
+                };
+                let (t_used, y_used, s_used) =
+                    restrict_to_rows(t_boot, y_boot, &scores, 1, retained.as_deref());
+                let stratum = assign_strata(&s_used, n_strata);
+                match stratified_ate(
+                    &t_used,
+                    &y_used,
+                    &stratum,
+                    n_strata,
+                    &problem.target_population,
+                ) {
+                    Ok(r) => Ok(Some(r.ate)),
+                    Err(_) => Ok(None),
+                }
             },
         )
     }
@@ -284,6 +285,7 @@ pub(crate) struct StratifiedResult {
     /// missing an arm are dropped from the pooled contrast, which redefines the target
     /// population; callers surface this via the overlap report's support figure.
     retained_fraction: f64,
+    n_obs: usize,
 }
 
 pub(crate) fn stratified_ate(
@@ -349,7 +351,12 @@ pub(crate) fn stratified_ate(
         .map(|s| (cnt1[s] + cnt0[s]) as f64)
         .sum();
     let retained_fraction = retained_n / (treatment.len().max(1) as f64);
-    Ok(StratifiedResult { ate, se_analytic: se_var.sqrt(), retained_fraction })
+    Ok(StratifiedResult {
+        ate,
+        se_analytic: se_var.sqrt(),
+        retained_fraction,
+        n_obs: retained_n as usize,
+    })
 }
 
 /// Unbiased sample variance from `Σy²`, the mean, and a count of at least two.

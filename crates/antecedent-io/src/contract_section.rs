@@ -633,7 +633,7 @@ fn calibration_basis_matches_contract(
                 .is_none_or(|resolved| resolved == key.estimator)
     });
     let snapshot_ok = contract.data_snapshot.as_ref().is_some_and(|snapshot| {
-        snapshot.row_count == basis.scope.row_count
+        basis.scope.row_count <= snapshot.row_count
             && snapshot.modality == key.modality
             && match snapshot.modality.as_str() {
                 "panel" => key.dependence == "panel_cluster",

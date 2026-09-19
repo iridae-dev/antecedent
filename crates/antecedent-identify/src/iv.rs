@@ -11,7 +11,7 @@ use antecedent_core::{
     AssumptionStatus, AverageEffectQuery, CausalQuery,
 };
 use antecedent_expr::CausalExprArena;
-use antecedent_graph::{DSeparationWorkspace, Dag, DenseNodeId};
+use antecedent_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId, GraphWorkspace};
 
 use crate::backdoor::{PreparedIdentificationGraph, dense_to_var, remove_outgoing, var_to_dense};
 use crate::error::IdentificationError;
@@ -119,7 +119,7 @@ impl InstrumentalVariableIdentifier {
 
         for &z in &candidates {
             examined += 1;
-            if is_valid_instrument(dag, z, t, y, &mut workspace.dsep)? {
+            if is_valid_instrument(dag, z, t, y, &mut workspace.graph, &mut workspace.dsep)? {
                 valid.push(z);
                 if valid.len() >= self.config.max_results {
                     break;
@@ -136,8 +136,9 @@ impl InstrumentalVariableIdentifier {
         let mut derivation = DerivationTrace::default();
         derivation.push(
             "iv.criterion",
-            "Z relevant to T given ∅ and d-separated from Y in G with T's out-edges cut; \
-             Wald identifies ATE under linearity (or LATE under monotonicity)",
+            "Z is not a descendant of T, is relevant to T given ∅, and is d-separated \
+             from Y in G with T's out-edges cut; Wald identifies ATE under linearity \
+             (or LATE under monotonicity)",
         );
 
         if valid.is_empty() {
@@ -195,9 +196,18 @@ fn is_valid_instrument(
     z: DenseNodeId,
     t: DenseNodeId,
     y: DenseNodeId,
+    graph_ws: &mut GraphWorkspace,
     ws: &mut DSeparationWorkspace,
 ) -> Result<bool, IdentificationError> {
     if z == t || z == y {
+        return Ok(false);
+    }
+
+    // Treatment descendants are not valid unadjusted instruments: cutting
+    // T's outgoing edges would hide the Z–Y dependence through T.
+    let mut desc = BitSet::with_len(dag.node_count());
+    dag.descendants_of(&[t], &mut desc, graph_ws);
+    if desc.contains(z) {
         return Ok(false);
     }
 
@@ -292,6 +302,31 @@ mod tests {
         let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
             VariableId::from_raw(1),
             VariableId::from_raw(2),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = id.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NotIdentified);
+        assert!(res.estimands.is_empty());
+    }
+
+    #[test]
+    fn treatment_descendant_rejects_instrument() {
+        // U → T → Y, U → Y, T → Z: Z is a treatment descendant, not an IV.
+        let mut g = Dag::with_variables(4);
+        let t = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        let u = DenseNodeId::from_raw(2);
+        let z = DenseNodeId::from_raw(3);
+        g.insert_directed(u, t).unwrap();
+        g.insert_directed(u, y).unwrap();
+        g.insert_directed(t, y).unwrap();
+        g.insert_directed(t, z).unwrap();
+
+        let id = InstrumentalVariableIdentifier::new();
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
         ));
         let mut ws = IdentificationWorkspace::default();
         let res = id.identify(&prep, &q, &mut ws).unwrap();

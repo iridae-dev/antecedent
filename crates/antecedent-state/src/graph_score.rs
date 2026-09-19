@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use antecedent_stats::{accumulate_xtx_xty_row, invert_square};
+use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::error::StateError;
 use crate::retention::RetentionPolicy;
@@ -214,39 +214,27 @@ fn gaussian_bic_local(
     }
     let k = parents.len() + 1; // intercept
     let y = data.col(node as usize);
-    let mut xtx = vec![0.0; k * k];
-    let mut xty = vec![0.0; k];
-    let mut row = vec![0.0; k];
-    row[0] = 1.0;
+    let mut x = vec![0.0; n.saturating_mul(k)];
     for r in 0..n {
+        x[r] = 1.0;
         for (j, &p) in parents.iter().enumerate() {
             if p as usize >= data.n_vars {
                 return Err(StateError::Shape(format!("parent {p} out of range")));
             }
-            row[j + 1] = data.col(p as usize)[r];
+            x[(j + 1) * n + r] = data.col(p as usize)[r];
         }
-        accumulate_xtx_xty_row(&row, y[r], &mut xtx, &mut xty);
     }
-    let inv = invert_square(&xtx, k)
-        .ok_or_else(|| StateError::Numerical("singular parent Gram in BIC".into()))?;
-    let mut beta = vec![0.0; k];
-    for i in 0..k {
-        let mut s = 0.0;
-        for j in 0..k {
-            s += inv[i * k + j] * xty[j];
-        }
-        beta[i] = s;
+    let fit = FaerBackend
+        .least_squares(&x, n, k, y, &mut LeastSquaresWorkspace::default())
+        .map_err(|e| StateError::Numerical(format!("Gaussian BIC local fit: {e}")))?;
+    let sse = fit.rss;
+    let sigma2 = sse / n as f64;
+    if !sigma2.is_finite() {
+        return Err(StateError::Numerical("non-finite Gaussian BIC residual variance".into()));
     }
-    let mut sse = 0.0;
-    for r in 0..n {
-        let mut pred = beta[0];
-        for (j, &p) in parents.iter().enumerate() {
-            pred += beta[j + 1] * data.col(p as usize)[r];
-        }
-        let e = y[r] - pred;
-        sse += e * e;
+    if sigma2 <= 0.0 {
+        return Ok(f64::INFINITY);
     }
-    let sigma2 = (sse / n as f64).max(1e-12);
     let n_f = n as f64;
     let k_f = k as f64;
     Ok(-0.5 * n_f * (1.0 + (2.0 * std::f64::consts::PI).ln() + sigma2.ln()) - 0.5 * k_f * n_f.ln())
@@ -392,5 +380,53 @@ mod tests {
         let full = loglik(&[0u32, 1u32]);
         assert!(full >= nested - 1e-9, "log-likelihood fell on nesting: {nested} -> {full}");
         assert!(loglik(&[1u32]) >= loglik(&[]) - 1e-9);
+    }
+
+    #[test]
+    fn gaussian_bic_score_difference_is_invariant_to_outcome_units() {
+        let base = chain_data();
+        let n = base.n_rows;
+        let diff = |scale: f64| {
+            let mut cols = base.columns.to_vec();
+            for i in 0..n {
+                cols[n + i] *= scale;
+            }
+            let data = GraphScoreData::new(n, 3, Arc::from(cols)).unwrap();
+            let edge = gaussian_bic_local(&data, 1, &[0u32]).unwrap();
+            let empty = gaussian_bic_local(&data, 1, &[]).unwrap();
+            edge - empty
+        };
+        let d1 = diff(1.0);
+        for scale in [1e-8, 1e8] {
+            let ds = diff(scale);
+            assert!(
+                (ds - d1).abs() < 1e-6,
+                "score(X→Y)-score(∅) changed under Y*={scale}: {d1} vs {ds}"
+            );
+        }
+    }
+
+    #[test]
+    fn gaussian_bic_score_difference_is_invariant_to_predictor_units() {
+        let base = chain_data();
+        let n = base.n_rows;
+        let diff = |scale: f64| {
+            let mut cols = base.columns.to_vec();
+            for i in 0..n {
+                cols[i] *= scale;
+            }
+            let data = GraphScoreData::new(n, 3, Arc::from(cols)).unwrap();
+            let edge = gaussian_bic_local(&data, 1, &[0u32]).unwrap();
+            let empty = gaussian_bic_local(&data, 1, &[]).unwrap();
+            edge - empty
+        };
+        let d1 = diff(1.0);
+        for scale in [1e-8, 1e8] {
+            let ds = diff(scale);
+            assert!(
+                (ds - d1).abs() < 1e-4,
+                "score(X→Y)-score(∅) changed under X*={scale}: {d1} vs {ds}"
+            );
+        }
     }
 }

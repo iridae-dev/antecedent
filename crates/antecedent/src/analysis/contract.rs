@@ -15,9 +15,9 @@ use antecedent_core::{
     ClaimKind, ContractIdentities, DomainStatus, ExecutionContext, IDENTITY_FORMAT,
     IdentificationSlot, IdentificationStatus, IdentityDomain, IntervalMethod, NextAction,
     ObligationKind, ObligationRecord, ObligationScope, OperationKind, OperationReadiness,
-    OperationReport, ReasoningView, SemanticApplicability, SemanticLayer, SlotAvailability,
-    SupportSlot, TargetPopulation, TransformIntent, TransformationReport, UncertaintyComponent,
-    UncertaintySlot, UncertaintySource, intent_effects,
+    OperationReport, ReasoningView, ResponseUncertainty, SemanticApplicability, SemanticLayer,
+    SlotAvailability, SupportSlot, TargetPopulation, TransformIntent, TransformationReport,
+    UncertaintyComponent, UncertaintySlot, UncertaintySource, intent_effects,
 };
 use antecedent_data::TableView;
 use antecedent_identify::{
@@ -867,7 +867,8 @@ impl StudyResult {
             }
         }
         let body = body_for(&contract.body, self)?;
-        let mut reasoning = result_reasoning(self, &contract.reasoning, &body)?;
+        let mut reasoning =
+            result_reasoning(self, &contract.reasoning, &body, &contract.inference)?;
         if let (SlotAvailability::Available(slot), Some(status)) =
             (&mut reasoning.identification, contract.body.identification_status)
         {
@@ -1666,6 +1667,16 @@ fn population_depends_on(
     }
 }
 
+fn analysis_row_count(result: &StudyResult, contract: &CausalContract) -> u64 {
+    result
+        .estimate
+        .n_obs
+        .or_else(|| result.estimate.influence.as_ref().map(|rows| rows.len() as u64))
+        .or_else(|| result.estimate.score_table.as_ref().map(|table| table.n_rows as u64))
+        .or_else(|| result.estimate.block_resampling.map(|block| block.rows as u64))
+        .unwrap_or(contract.row_count)
+}
+
 fn data_row_count(data: &DataInput) -> u64 {
     match data {
         DataInput::Tabular(data) => data.row_count() as u64,
@@ -1761,7 +1772,7 @@ impl StudyResult {
                     identification: label.to_string(),
                 },
                 scope: CalibrationScopeWire {
-                    row_count: contract.row_count,
+                    row_count: analysis_row_count(self, contract),
                     replicates_ok: binding.replicates_ok,
                     posterior_draws: binding.posterior_draws.or_else(|| {
                         (binding.method == IntervalMethod::PosteriorQuantile)
@@ -2325,6 +2336,7 @@ fn result_reasoning(
     result: &StudyResult,
     prepared: &ReasoningView,
     body: &AnalysisResultWire,
+    inference: &str,
 ) -> Result<ReasoningView, CausalError> {
     let identification = identification_slot_from_result(result)?;
     let mut components = Vec::new();
@@ -2348,6 +2360,30 @@ fn result_reasoning(
             "posterior",
             false,
         ));
+    }
+    // A function-valued posterior can carry its band directly on the response,
+    // without a scalar posterior or SE on StudyResult. Its portable reasoning
+    // must not call that published parameter uncertainty "omitted".
+    if inference == "bayesian" {
+        if let Some(response) = &result.response {
+            let target = match &response.uncertainty {
+                ResponseUncertainty::None => None,
+                ResponseUncertainty::Scalar { .. } => Some("posterior_interval"),
+                ResponseUncertainty::PointwiseBand { .. } => Some("posterior_pointwise_band"),
+                ResponseUncertainty::SimultaneousBand { .. } => Some("posterior_simultaneous_band"),
+                ResponseUncertainty::IdentifiedEnvelopeBand { .. } => {
+                    Some("posterior_envelope_band")
+                }
+                ResponseUncertainty::Posterior { .. } => Some("posterior_artifact"),
+            };
+            if let Some(target) = target {
+                components.push(UncertaintyComponent::new(
+                    UncertaintySource::Parameter,
+                    target,
+                    false,
+                ));
+            }
+        }
     }
     if result.structural_response.is_some()
         || identification.weight_basis.is_some()

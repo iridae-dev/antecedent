@@ -556,13 +556,16 @@ fn constrained_conditional_set(
             if config.maximal_only && found.iter().any(|old| z.iter().all(|v| old.contains(v))) {
                 return false;
             }
+            if examined >= config.max_examinations {
+                return true;
+            }
             examined += 1;
             let mut conditioned = z.to_vec();
             conditioned.extend_from_slice(modifiers);
             match cut.is_m_separated(t, y, &conditioned, &mut ws) {
                 Ok(true) => {
                     found.push(z.to_vec());
-                    found.len() >= config.max_results
+                    config.minimal_only && z.is_empty() || found.len() >= config.max_results
                 }
                 Ok(false) => false,
                 Err(e) => {
@@ -574,7 +577,10 @@ fn constrained_conditional_set(
         if let Some(e) = error {
             return Err(e);
         }
-        if found.len() >= config.max_results {
+        if found.len() >= config.max_results
+            || (config.minimal_only && found.iter().any(Vec::is_empty))
+            || examined >= config.max_examinations
+        {
             break;
         }
     }

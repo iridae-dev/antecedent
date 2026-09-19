@@ -282,6 +282,11 @@ impl WaldIv {
                 "WaldIv requires exactly one instrument; use TwoStageLeastSquares for multiple instruments",
             ));
         }
+        if !problem.adjustment_set.is_empty() {
+            return Err(EstimationError::unsupported(
+                "WaldIv does not support adjustment covariates; use TwoStageLeastSquares",
+            ));
+        }
         let n = problem.nrows;
         let z: Vec<f64> = (0..n).map(|r| problem.instruments_matrix[n + r]).collect();
         if !z.iter().all(|&v| v == 0.0 || v == 1.0) {
@@ -315,6 +320,7 @@ impl WaldIv {
         };
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_n_obs(u64::try_from(n).unwrap_or(u64::MAX))
             .with_first_stage_diagnostics(first_stage_diagnostics)
             .with_se_kind(self.se_kind)
             .with_bootstrap(boot))
@@ -687,6 +693,7 @@ impl TwoStageLeastSquares {
         };
 
         Ok(EffectEstimate::new(ate, se_analytic, assumptions, problem.overlap)
+            .with_n_obs(u64::try_from(problem.nrows).unwrap_or(u64::MAX))
             .with_first_stage_diagnostics(Some(fit.first_stage_diagnostics))
             .with_se_kind(self.se_kind)
             .with_bootstrap(boot))
@@ -717,36 +724,30 @@ impl TwoStageLeastSquares {
                 )
             },
             |(ws, z_boot, x_boot, t_boot, y_boot), idx| {
-            crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
-            crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
-            crate::util::gather_bootstrap_design(
-                z_boot,
-                &problem.instruments_matrix,
-                n,
-                zc,
-                idx,
-            );
-            crate::util::gather_bootstrap_design(
-                x_boot,
-                &problem.exogenous_matrix,
-                n,
-                xc,
-                idx,
-            );
-            match fit_2sls(
-                &z_boot[n..],
-                n,
-                zc - 1,
-                t_boot,
-                x_boot,
-                xc,
-                y_boot,
-                &self.backend,
-                &mut ws.ols,
-            ) {
-                Ok(fit) => Ok(Some(fit.second_stage.coefficients[0] * problem.treatment_delta)),
-                Err(_) => Ok(None),
-            }
+                crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
+                crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
+                crate::util::gather_bootstrap_design(
+                    z_boot,
+                    &problem.instruments_matrix,
+                    n,
+                    zc,
+                    idx,
+                );
+                crate::util::gather_bootstrap_design(x_boot, &problem.exogenous_matrix, n, xc, idx);
+                match fit_2sls(
+                    &z_boot[n..],
+                    n,
+                    zc - 1,
+                    t_boot,
+                    x_boot,
+                    xc,
+                    y_boot,
+                    &self.backend,
+                    &mut ws.ols,
+                ) {
+                    Ok(fit) => Ok(Some(fit.second_stage.coefficients[0] * problem.treatment_delta)),
+                    Err(_) => Ok(None),
+                }
             },
         )
     }
@@ -1110,5 +1111,61 @@ mod tests {
         let prep = est.prepare(&data, &estimand, &query()).unwrap();
         let err = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap_err();
         assert!(matches!(err, EstimationError::Unsupported { .. }));
+    }
+
+    #[test]
+    fn wald_iv_rejects_nonempty_adjustment_set_while_two_sls_recovers() {
+        // T = Z + U, Y = 2T + 3U; Z binary. Unconditional Wald is 3; 2SLS is 2.
+        let z = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
+        let u = [0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0];
+        let t: Vec<f64> = z.iter().zip(u).map(|(zi, ui)| zi + ui).collect();
+        let y: Vec<f64> = t.iter().zip(u).map(|(ti, ui)| 2.0 * ti + 3.0 * ui).collect();
+        let mut b = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("t", RoleHint::TreatmentCandidate),
+            ("y", RoleHint::OutcomeCandidate),
+            ("z", RoleHint::Context),
+            ("u", RoleHint::Context),
+        ] {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        }
+        let cols = [t, y.to_vec(), z.to_vec(), u.to_vec()]
+            .into_iter()
+            .enumerate()
+            .map(|(i, values)| {
+                OwnedColumn::Float64(
+                    Float64Column::new(
+                        VariableId::from_raw(u32::try_from(i).unwrap()),
+                        Arc::from(values),
+                        ValidityBitmap::all_valid(8),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let data = TabularData::new(
+            OwnedColumnarStorage::try_new(b.build().unwrap(), cols, None, None).unwrap(),
+        );
+        let mut estimand = instrumental_estimand();
+        estimand.adjustment_set = Arc::from([VariableId::from_raw(3)]);
+        let q = query();
+        let wald = WaldIv { bootstrap_replicates: 8, ..WaldIv::new() };
+        let wald_prep = wald.prepare(&data, &estimand, &q).unwrap();
+        let err = wald.fit(&wald_prep, &ctx(), AssumptionSet::new()).unwrap_err();
+        assert!(matches!(err, EstimationError::Unsupported { .. }), "{err:?}");
+
+        let tsls = TwoStageLeastSquares::new();
+        let tsls_prep = tsls.prepare(&data, &estimand, &q).unwrap();
+        let mut ws = TwoStageLeastSquaresWorkspace::default();
+        let effect = tsls.fit(&tsls_prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+        assert!((effect.ate - 2.0).abs() < 1e-12, "ate={}", effect.ate);
     }
 }

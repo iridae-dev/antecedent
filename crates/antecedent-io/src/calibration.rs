@@ -140,7 +140,7 @@ pub fn identification_key<'a>(
 /// Execution facts a record's scope is checked against.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct CalibrationScopeWire {
-    /// Data-snapshot rows.
+    /// Analysis-sample rows that informed the interval, not the raw snapshot.
     pub row_count: u64,
     /// Resampling replicates that succeeded, when resampling-based.
     #[serde(default, skip_serializing_if = "Option::is_none")]
