@@ -2,7 +2,7 @@
 
 ## Python environment
 
-These examples use Antecedent 1.10 and Python 3.11 or later.
+These examples use Antecedent 1.11 and Python 3.11 or later.
 Install the package and notebook tools from PyPI:
 
 ```bash
@@ -14,7 +14,7 @@ repository locally, run `jupyter lab examples/notebooks` from its root.
 Choose the kernel for the Python environment where you installed Antecedent.
 
 For Google Colab, **Runtime → Run all**. The first code cell installs
-`antecedent>=1.10.0,<1.11` from PyPI when the package is missing. If you
+`antecedent>=1.11.0,<1.12` from PyPI when the package is missing. If you
 upgrade after importing it, restart the kernel or Colab session.
 
 ## Start with one analysis

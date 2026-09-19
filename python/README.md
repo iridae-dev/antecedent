@@ -71,14 +71,12 @@ examples, the
 for studies, reports and portable executions, and the
 [documentation](https://antecedent.readthedocs.io/) for the full API.
 
-## 1.10.0
+## 1.11.0
 
 The
-[1.10.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.10.0.md)
-cover composition of the existing 341 licensed cells: inspect/contract
-coordinates, the Rust inspect → preview → execute → claim → consume path
-for every licensed cell, retained studies on ordinary prepared routes, and
-portable claims.
+[1.11.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.11.0.md)
+are the 1.x close-out on the 1.10 composition contract: licensed
+graph-posterior cells that now earn, GAC 40, and parallel coverage seeds.
 Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
 Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists.
 Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
@@ -87,6 +85,15 @@ Identities are distinct and stable: every IdentityDomain plus target_weights is 
 
 These summaries describe the releases when they shipped. For current support,
 use the [support matrix](https://github.com/iridae-dev/antecedent/blob/v1.10.0/docs/support-matrix.md).
+
+### 1.10.0
+
+The
+[1.10.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.10.0.md)
+cover composition of the existing 341 licensed cells: inspect/contract
+coordinates, the Rust inspect → preview → execute → claim → consume path
+for every licensed cell, retained studies on ordinary prepared routes, and
+portable claims.
 
 ### 1.9.0
 
