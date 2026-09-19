@@ -222,21 +222,18 @@ Facets and replay waivers keep the cost proportional to the change:
 - a reviewed change that cannot move a number owes nothing, through a waiver;
 - a `core` edit owes nothing (records do not carry `core`).
 
-**How long it takes.** The last full sweep, measured at one sample size per
-design, ran on an M-series laptop with the suites in parallel:
+**How long it takes.** Groups already run side by side (`measure_calibration.sh
+--jobs`). Independent seeds inside a group run across `available_parallelism`
+workers (`map_replicates` in the coverage harness). Each seed still builds a
+serial `ExecutionContext::for_tests` study, so the same seed is the same
+interval.
 
-- most suites finished well under an hour;
-- the Bayesian static suite (`v110_calibration_bayesian_static`) took about 4 h;
-- a single heavy Bayesian derivative cell whose 2000-replicate recheck fires can
-  take several hours on its own. One ran for more than 2 h 50 min.
-
-The grid measures each design at three sample sizes: about 3.5 times the
-single-size work for a design whose cost is linear in `n` (3.0 on the heavy
-grid, 3.75 on the short-series grid). `--dry-run` scales the sweep's suite
-timings by that factor until local per-point timings replace them; with every
-grid point its own parallel job, the wall clock grows less than the total. A
-full re-measurement is therefore an overnight job. A change that drifts one
-suite or facet costs only the groups behind its records.
+A full re-measurement is a few hours on an M-series laptop, not an overnight
+one-core job. A Bayesian derivative 2000-replicate recheck that used to pin one
+core for ~10 h is about 1–1.5 h. A change that drifts one suite or facet costs
+only the groups behind its records. `--dry-run` still scales suite timings by
+the three-point grid factor (about 3.5× for linear-in-`n` designs) until local
+per-point timings replace them.
 
 The collector refuses to stamp HEAD while the surface its records depend on
 differs from HEAD. It keeps a rechecked point's more precise run, rewrites the
@@ -408,7 +405,7 @@ New `unsafe` needs justification in review. Dependency and license policy:
 
 ## Versions
 
-Workspace and Python package version are kept in sync (currently **1.10.0**).
+Workspace and Python package version are kept in sync (currently **1.10.1**).
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
@@ -484,8 +481,14 @@ git push origin v1.10.0
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
-builds the full wheel matrix, attaches wheels + `docs.tar.gz` to the GitHub
-Release, and publishes to public PyPI via trusted publishing (`id-token: write`).
+builds the full wheel matrix, then publishes to public PyPI and the GitHub
+Release as **independent jobs**. Trusted publishing (`id-token: write`) must not
+wait on GitHub asset uploads: a unicorn on `uploads.github.com` skipped PyPI
+for 1.10.0 while crates.io (a separate workflow) succeeded. Release assets are
+uploaded one file at a time with retries. If wheels already exist, dispatch
+with `version` plus `reuse_run_id` set to the Actions run that built them —
+do not rebuild a newer branch and stamp it as an older version.
+
 Configure a pending/trusted publisher on [pypi.org](https://pypi.org) for this
 repo and workflow file `publish-release.yml` (Environment blank unless the job
 sets `environment:`).
