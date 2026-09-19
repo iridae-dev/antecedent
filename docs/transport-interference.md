@@ -1,13 +1,13 @@
 # Structural transport and randomized interference
 
-Antecedent 0.5 adds two causal settings that should not be hidden behind an
-ordinary target-population flag: both change what information identifies the
-estimand, so their design facts are explicit fields of their queries. One cell
-of each is licensed at validation `none`: `TransportQuery` × `Admg` ×
-explicit × Frequentist (Direct / S-admissible sID plus binary trial-to-target
-IPW), and `InterferenceQuery` × `Dag` × explicit × Frequentist (NeighborCount
-under Bernoulli assignment, HT/Hájek, Young variance). The
-[support matrix](support-matrix.md) is the license.
+Transport and interference are licensed causal settings that should not be
+hidden behind an ordinary target-population flag: both change what information
+identifies the estimand, so their design facts are explicit fields of their
+queries. One cell of each is licensed at validation `none`:
+`TransportQuery` × `Admg` × explicit × Frequentist (Direct / S-admissible sID
+plus binary trial-to-target IPW), and `InterferenceQuery` × `Dag` × explicit ×
+Frequentist (NeighborCount under Bernoulli assignment, HT/Hájek, Young
+variance). The [support matrix](support-matrix.md) is the license.
 
 Both run on the ordinary lifecycle and retain a study like every other
 licensed cell:
@@ -63,7 +63,7 @@ fails closed.
 ## Unlicensed utilities
 
 `transport.estimate_trial_effect` and `interference.estimate` are unlicensed
-utilities with their 1.9 behaviour and numbers: augmented IPW via `mu0` /
+utilities that return bare numbers: augmented IPW via `mu0` /
 `mu1`, Bernoulli, complete and cluster randomization, every built-in exposure
 mapping, and `seed` as the exposure-probability Monte Carlo seed. They call the
 same Rust estimators as `analyze` (`trial_to_target_effect`,
@@ -92,7 +92,7 @@ identify a response in the target. It is separate from `antecedent.priors`,
 which transports statistical evidence after the causal quantity is already
 defined.
 
-The 1.10 transport contract is single-source. A selection diagram contains:
+The licensed transport contract is single-source. A selection diagram contains:
 
 - one source and one target population key;
 - a causal ADMG;
@@ -158,7 +158,7 @@ design limit and estimated with deterministic seeded Monte Carlo above it. The
 result retains both Horvitz–Thompson and Hájek estimates; they are not aliases.
 Positivity is checked at the unit/exposure level.
 
-The variance diagnostic in 0.5 is a conservative covariance-free Young bound.
+The licensed variance diagnostic is a conservative covariance-free Young bound.
 It is intentionally not labelled as the exact Aronow–Samii joint-exposure
 variance estimator. The `conservative_variance` field, documentation, and
 provenance record preserve that distinction; no coverage theorem is claimed.
@@ -169,7 +169,7 @@ provenance record preserve that distinction; no coverage theorem is claimed.
   (transport) and NeighborCount under Bernoulli assignment (interference).
   RecursiveFactorization, NotCertified, Aronow–Samii variance, cheap/full,
   Bayesian, accepted, and graph-posterior are refused.
-- Multi-source meta-transport is not part of 0.5.
+- Multi-source meta-transport is not licensed.
 - `NotCertified` is not a non-transportability theorem.
 - The network is treated as fixed and supplied by the caller.
 - Observational network treatment and graph semantics for contagion or

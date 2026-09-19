@@ -1,7 +1,7 @@
 # Your first Python analysis
 
 Estimate an effect, check the answer, and reuse the analysis on new data.
-This guide uses Antecedent 1.10.
+This guide uses Antecedent 1.11.
 
 ## Install
 

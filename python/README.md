@@ -76,7 +76,8 @@ for studies, reports and portable executions, and the
 The
 [1.11.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.11.0.md)
 are the 1.x close-out on the 1.10 composition contract: licensed
-graph-posterior cells that now earn, GAC 40, and parallel coverage seeds.
+graph-posterior cells that now earn, GAC 40, parallel coverage seeds, and
+the [1.11 finding closeout](https://github.com/iridae-dev/antecedent/blob/1.11/docs/reviews/v1.11-finding-closeout.md).
 Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
 Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists.
 Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
@@ -84,7 +85,7 @@ Identities are distinct and stable: every IdentityDomain plus target_weights is 
 ## Earlier releases
 
 These summaries describe the releases when they shipped. For current support,
-use the [support matrix](https://github.com/iridae-dev/antecedent/blob/v1.10.0/docs/support-matrix.md).
+use the [support matrix](https://github.com/iridae-dev/antecedent/blob/1.11/docs/support-matrix.md).
 
 ### 1.10.0
 
@@ -190,15 +191,15 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace contains 57 names in 1.10: the 1.9 contract plus
+The root namespace contains 57 names: the analyze contract plus
 `prepare`, `load`, `TransportQuery`, `InterferenceQuery`, and `Analysis`. `AnomalyAttribution`
 and `ChangeAttribution` run their licensed Dag cells on `analyze()` and retain
 a study. `TransportQuery` and `InterferenceQuery`
 run their licensed cells on `analyze()` and retain a study like every other
 licensed route; `antecedent.transport` / `antecedent.interference` hold the
 selection diagram, designs, exposure mappings, the transport identification stage,
-and the unlicensed `estimate_trial_effect` / `estimate` utilities, which keep their
-1.9 behaviour (bare numbers, no study or license).
+and the unlicensed `estimate_trial_effect` / `estimate` utilities, which return
+bare numbers with no study or license.
 Everything else is reached through a stage module (`antecedent.discovery`, `antecedent.priors`, `antecedent.errors`, …).
 
 Also exposed:

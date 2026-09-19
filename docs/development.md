@@ -44,7 +44,7 @@ bash scripts/gate_upstream_names.sh
 bash scripts/gate_response_calibration.sh
 bash scripts/gate_causal_artifacts.sh
 bash scripts/gate_estimate_reuse.sh
-bash scripts/gate_composition.sh   # 1.10 consuming contract/claim tests must actually run
+bash scripts/gate_composition.sh   # composition consuming contract/claim tests must actually run
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_support_matrix.sh   # public license cells; default refused
@@ -405,7 +405,8 @@ features and never reshape core types.
 ## Unsafe / deps
 
 Reviewed `unsafe` is concentrated in `antecedent-kernels` (SIMD), the
-`antecedent-data` buffer/Arrow FFI adapters, and thin IO mmap.
+`antecedent-data` buffer/Arrow FFI adapters (`unsafe from_ffi`), and IO mmap
+(`unsafe open_path_mapped`; safe `open_path` is an owned snapshot).
 New `unsafe` needs justification in review. Dependency and license policy:
 [security_review.md](security_review.md), ADR 0008.
 
@@ -463,9 +464,10 @@ Before merging the release PR:
 7. Check the changelog, release notes, user examples, refusal/compatibility scope,
    and evidence ledger. Record measured timings separately from test ceilings.
 
-Before tagging, confirm the dated 1.10.0 changelog section is present, Unreleased
-is empty, its comparison link is `v1.10.0...HEAD`, and release-status text matches
-the cut. Tag only the approved, clean commit after these checks pass.
+Before tagging, confirm the dated 1.11.0 changelog section is present, Unreleased
+is empty, its comparison link is `v1.10.0...HEAD` until `v1.11.0` exists, and
+release-status text matches the cut. Coverage records must be attested at
+HEAD. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 
 Tagged releases drive wheel + docs publishing (GitHub Release assets and public
@@ -474,16 +476,16 @@ PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
 
 ```bash
 # Optional: bump and commit on main first
-bash scripts/set_version.sh 1.10.0
+bash scripts/set_version.sh 1.11.0
 cargo update -p antecedent
 git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
   python/antecedent/__init__.py crates/*/Cargo.toml fuzz/Cargo.lock \
   CHANGELOG.md CITATION.cff docs/release-notes/
-git commit -s -m "chore: bump version to 1.10.0"
+git commit -s -m "chore: bump version to 1.11.0"
 
 # Tag current (or just-bumped) version and push
 CI_RUN_ID=<ci run on HEAD> bash scripts/tag_release.sh   # runs gate_release_candidate.sh
-git push origin v1.10.0
+git push origin v1.11.0
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
@@ -537,4 +539,4 @@ Checklist before the first public crate release:
 2. Enable Actions.
 3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
 4. Configure PyPI trusted publisher for `publish-release.yml`.
-5. Tag `v1.10.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).
+5. Tag `v1.11.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).

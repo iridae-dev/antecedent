@@ -8,6 +8,7 @@ Start with the [documentation home](index.md).
 - [Supported analyses](supported-analyses.md): check support and understand refusals.
 - [Python workflow reference](python-options.md): configure or integrate an analysis.
 - [1.11.0 release notes](release-notes/v1.11.0.md): changes in this version.
+- [1.11 finding closeout](reviews/v1.11-finding-closeout.md): review repairs on this tree.
 
 ## How docs are published
 
