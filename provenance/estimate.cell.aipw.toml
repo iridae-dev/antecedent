@@ -1,0 +1,27 @@
+feature_id = "estimate.cell.aipw"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Efficient semiparametric estimation of multi-valued treatment effects under ignorability", doi = "10.1016/j.jeconom.2009.09.023", sections = ["multi-valued treatment AIPW / efficient score under ignorability"] },
+ { title = "Double/debiased machine learning for treatment and structural parameters", doi = "10.1111/ectj.12097", sections = ["cross-fitting of Neyman-orthogonal scores"] },
+]
+
+implementation_deviations = [
+ "Restricted to at most three jointly intervened binary treatments (eight cells). A continuous coordinate is refused; coarsening a continuous factor onto a grid is not treated as do(D=d0).",
+ "Nuisances are a multinomial-logit propensity over the occupied cells and a per-cell GLM outcome, not the arbitrary ML learners the DML analysis admits.",
+ "Cross-fitting uses a fixed five folds. Empty cells required by a requested contrast, or a fold that misses a cell present in the data, refuse rather than impute.",
+ "Licensed contrasts are cell means and cell-minus-control; a named interaction contrast is identified only for the mean functional, not for exceedance grids.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/cell_aipw.rs",
+ "crates/antecedent/tests/v15_numeric_pins.rs (additive interaction recovery, k=3 refuse, cheap/full contrast routing)",
+ "conformance/estimate/v15_cell_aipw_interaction",
+ "crates/antecedent/tests/v19_static_calibration.rs::intervention_response_cell_aipw_nominal_95_coverage",
+]

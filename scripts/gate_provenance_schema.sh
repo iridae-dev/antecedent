@@ -111,6 +111,103 @@ for path in records:
             if not (root / referenced).exists():
                 problems.append(f"{rel}: missing test-source path {referenced}")
 
+# Every closed-set identifier/estimator provenance pointer, and every named
+# CI factory id, must resolve to a record. Family names that are not
+# filenames are explicit aliases — a new closed-set id cannot ship without
+# either a matching file or an alias to one.
+stems = {
+    p.stem
+    for p in (root / "provenance").glob("*.toml")
+    if p.name != "_template.toml"
+}
+ALIAS = {
+    "identify.general_id": "identify.id",
+    "identify.transport.sid": "identify.transport_sid",
+    "estimate.propensity": "estimate.propensity_weighting",
+    "estimate.matching": "estimate.distance_matching",
+    "estimate.glm_adjustment": "estimate.glm",
+    "estimate.frontdoor": "estimate.frontdoor_two_stage",
+    "estimate.iv": "estimate.iv_2sls",
+    "estimate.temporal_linear": "estimate.temporal_linear_adjustment",
+    "estimate.conditional_linear": "estimate.conditional",
+    "estimate.transport.trial_ipw": "estimate.trial_to_target",
+    "estimate.interference.ht_hajek": "stats.randomized_interference",
+}
+FAMILY = {
+    "estimate.propensity": (
+        "estimate.propensity_weighting",
+        "estimate.propensity_matching",
+        "estimate.propensity_stratification",
+    ),
+}
+ids_rs = (root / "crates/antecedent/src/strategy_table/ids.rs").read_text()
+pointers = re.findall(r'provenance:\s*(?:\n\s*)?\(\s*"([^"]+)"', ids_rs)
+for feat in pointers:
+    resolved = ALIAS.get(feat, feat)
+    if resolved not in stems:
+        problems.append(
+            f"strategy-table provenance {feat!r} does not resolve to a "
+            f"provenance record (tried {resolved!r})"
+        )
+    for member in FAMILY.get(feat, ()):
+        if member not in stems:
+            problems.append(
+                f"strategy-table family {feat!r} is missing member record {member!r}"
+            )
+
+CI_CLAIM = {
+    "parcorr": "ci.partial_correlation",
+    "partial_corr": "ci.partial_correlation",
+    "partial_correlation": "ci.partial_correlation",
+    "robust_parcorr": "ci.parcorr_variants",
+    "robust_partial_corr": "ci.parcorr_variants",
+    "weighted_parcorr": "ci.parcorr_variants",
+    "weighted_partial_corr": "ci.parcorr_variants",
+    "multivariate_parcorr": "ci.parcorr_variants",
+    "multivariate_partial_corr": "ci.parcorr_variants",
+    "pairwise_multivariate": "ci.parcorr_variants",
+    "pairwise_mv": "ci.parcorr_variants",
+    "gsquared": "ci.gsquared",
+    "g_squared": "ci.gsquared",
+    "regression": "ci.partial_correlation",
+    "knn_dependence": "ci.knn_dependence",
+    "mixed_knn_dependence": "ci.knn_dependence",
+    "symbolic_cmi": "ci.symbolic_cmi",
+    "gpdc": "ci.gpdc",
+    "bayes_factor": "ci.bayes",
+    "bayes_factor_ci": "ci.bayes",
+    "posterior_dependence": "ci.bayes",
+    "posterior_dependence_ci": "ci.bayes",
+    "posterior_predictive_ci": "ci.bayes",
+    "ppc_ci": "ci.bayes",
+}
+# Oracle CI is a synthetic fixture, not a published algorithm.
+CI_SKIP = {"oracle"}
+factory = (root / "crates/antecedent-stats/src/ci/factory.rs").read_text()
+fn = re.search(r"pub fn ci_from_name\b.*?(?=\n#\[cfg|\nimpl |\Z)", factory, re.S)
+factory_names = set(re.findall(r'"([a-z][a-z0-9_]*)"', fn.group(0) if fn else ""))
+for name in sorted(factory_names):
+    if name in CI_SKIP:
+        continue
+    claim = CI_CLAIM.get(name)
+    if claim is None:
+        problems.append(f"CI factory name {name!r} has no provenance mapping")
+    elif claim not in stems:
+        problems.append(
+            f"CI factory name {name!r} maps to missing provenance record {claim!r}"
+        )
+
+for extra in (
+    "estimate.identified_set",
+    "estimate.graph_posterior.joint_if",
+    "estimate.quantile",
+    "identify.tiered",
+    "ci.knn_dependence",
+    "ci.symbolic_cmi",
+):
+    if extra not in stems:
+        problems.append(f"required provenance record missing: {extra}")
+
 if problems:
     print("provenance schema/path violations:")
     for problem in problems:

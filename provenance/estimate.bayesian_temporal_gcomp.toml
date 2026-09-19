@@ -1,0 +1,27 @@
+feature_id = "estimate.bayesian_temporal_gcomp"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Same single-time-point Bayesian g-computation as estimate.bayesian_gcomp.toml,
+# applied to the lag-aligned design from TemporalLinearAdjustment::prepare.
+# Not Robins's iterated g-formula (that is estimate.temporal_sequential).
+papers = [
+ { title = "Bayesian Data Analysis", doi = "10.1201/b16018", sections = ["Bayesian g-computation / posterior predictive contrasts"] },
+]
+
+implementation_deviations = [
+ "Fitting delegates entirely to BayesianGComputationAte on a lag-aligned temporal adjustment design. It does not implement Robins's iterated g-formula for sustained treatment or treatment-affected confounders.",
+ "Inherits the static estimator's complete-case, main-effects outcome regression and Laplace / conjugate / HMC backends, including the isotropic Gaussian coefficient prior on the Laplace path.",
+ "Serial dependence is handled by the caller (likelihood tempering / block resampling on the staged path), not by this type.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/bayesian.rs (BayesianTemporalGcomp)",
+ "crates/antecedent/tests/bayesian.rs (lag-aligned prepare then BayesianTemporalGcomp::fit)",
+ "conformance/bayesian/temporal_pulse",
+]
