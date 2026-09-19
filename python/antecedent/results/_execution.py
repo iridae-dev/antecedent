@@ -262,6 +262,45 @@ class ResultAPI:
             )
         return prepared
 
+    def refresh(
+        self,
+        data: Mapping[str, Any] | Any,
+        *,
+        seed: int | None = None,
+        threads: int | None = None,
+    ) -> Any:
+        """Re-estimate on new data via the retained prepared handle.
+
+        The five-line second click is ``result = analyze(...); result.refresh(new_data)``.
+        A second ``analyze()`` still re-prepares. Equivalent to ``result.study.refresh``.
+        """
+        return self.study.refresh(data, seed=seed, threads=threads)
+
+    def refute(
+        self,
+        data: Mapping[str, Any] | Any,
+        suite: Any = "placebo",
+        *,
+        seed: int | None = None,
+        threads: int | None = None,
+        cancel: Any | None = None,
+    ) -> Any:
+        """Second-click refute via the retained prepared handle."""
+        from ..ids import Refute
+
+        if isinstance(suite, Refute):
+            suite = str(suite)
+        study = self.study
+        execution = getattr(self, "_execution", None)
+        if execution is None:
+            raise CausalUnsupportedError(
+                "This result has no retained execution snapshot.",
+                reason_code="not_executed",
+            )
+        frozen = study._frozen(execution.snapshot())
+        token = {} if cancel is None else {"cancel": cancel}
+        return frozen.refute(data, suite, seed=seed, threads=threads, **token)
+
     def _scalar_effect(self) -> float | None:
         """Historical scalar without the legacy-field warning."""
         getter = getattr(self, "estimate", None)

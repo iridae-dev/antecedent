@@ -58,7 +58,7 @@ use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;
-use crate::util::{BootstrapSeResult, bootstrap_se, stats_err};
+use crate::util::{BootstrapSeResult, stats_err};
 
 /// Local-linear RD design column count: `[1, T, (R-c), T·(R-c)]`.
 const RD_NCOLS: usize = 4;
@@ -395,16 +395,22 @@ impl SharpRegressionDiscontinuity {
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.nrows;
-        let mut x_boot = vec![0.0; n * RD_NCOLS];
-        let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, ctx, 0x5D0C_u64, n, |idx| {
-            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
-            crate::util::gather_bootstrap_design(&mut x_boot, &problem.matrix, n, RD_NCOLS, idx);
-            match self.backend.least_squares(&x_boot, n, RD_NCOLS, &y_boot, &mut workspace.ols) {
-                Ok(fit) => Ok(Some(fit.coefficients[RD_TREATMENT_COL])),
-                Err(_) => Ok(None),
-            }
-        })
+        let _ = workspace;
+        crate::util::bootstrap_se_with_scratch(
+            self.bootstrap_replicates,
+            ctx,
+            0x5D0C_u64,
+            n,
+            || (RdWorkspace::default(), vec![0.0; n * RD_NCOLS], vec![0.0; n]),
+            |(ws, x_boot, y_boot), idx| {
+                crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
+                crate::util::gather_bootstrap_design(x_boot, &problem.matrix, n, RD_NCOLS, idx);
+                match self.backend.least_squares(x_boot, n, RD_NCOLS, y_boot, &mut ws.ols) {
+                    Ok(fit) => Ok(Some(fit.coefficients[RD_TREATMENT_COL])),
+                    Err(_) => Ok(None),
+                }
+            },
+        )
     }
 }
 

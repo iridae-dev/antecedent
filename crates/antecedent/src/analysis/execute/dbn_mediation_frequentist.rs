@@ -87,24 +87,34 @@ impl super::Study {
         let mut failed_mass = 0.0;
         let mut primary: Option<PrimaryAtom> = None;
         let mut distinct_sets = false;
-        for atom in identified.atoms.iter() {
+        let mapped = ctx.map_indexed(identified.atoms.len(), |i, inner| {
+            let atom = &identified.atoms[i];
             let weight = identified_weight_for_key(&identified.graphs, atom.key);
             if weight <= 0.0 {
-                continue;
+                return Ok(None);
             }
-            let slot = atoms.iter_mut().find(|candidate| candidate.graph_key == atom.key);
             let Some(entry) = atom.horizons.as_ref().and_then(|h| h.get(horizon)) else {
-                failed_mass += weight;
-                continue;
+                return Ok(Some((atom, weight, None, None)));
             };
-            if let Some(slot) = slot {
-                slot.status = entry.identification.status;
-            }
             let lagged = super::temporal_path::lagged_adjustment_from_entry(entry);
             let prepared = require_identified(&entry.identification)
                 .ok()
-                .and_then(|()| est.prepare_shared(data, &entry.estimand, query, &lagged, ctx).ok());
-            let Some(prepared) = prepared.filter(|p| p.estimate().effect.ate.is_finite()) else {
+                .and_then(|()| est.prepare_shared(data, &entry.estimand, query, &lagged, inner).ok())
+                .filter(|prepared| prepared.estimate().effect.ate.is_finite());
+            Ok::<_, CausalError>(Some((atom, weight, Some(entry), prepared.map(|p| (lagged, p)))))
+        })?;
+        for mapped_atom in mapped {
+            let Some((atom, weight, entry, prepared)) = mapped_atom else {
+                continue;
+            };
+            let Some(entry) = entry else {
+                failed_mass += weight;
+                continue;
+            };
+            if let Some(slot) = atoms.iter_mut().find(|candidate| candidate.graph_key == atom.key) {
+                slot.status = entry.identification.status;
+            }
+            let Some((lagged, prepared)) = prepared else {
                 // Identified but not evaluable: the atom keeps its status and
                 // has no value, so its mass is unevaluable.
                 failed_mass += weight;

@@ -51,33 +51,17 @@ impl super::Study {
             });
         }
 
-        let mut evals = Vec::new();
-        match &self.inference {
-            InferenceMode::Frequentist => {
-                for atom in identified.class_atoms.iter() {
-                    evals.push(evaluate_class_atom_frequentist(
-                        self,
-                        data,
-                        query,
-                        atom,
-                        conditional,
-                        ctx,
-                    )?);
+        let evals = ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
+            let atom = &identified.class_atoms[i];
+            match &self.inference {
+                InferenceMode::Frequentist => {
+                    evaluate_class_atom_frequentist(self, data, query, atom, conditional, inner)
+                }
+                InferenceMode::Bayesian(_) => {
+                    evaluate_class_atom_bayesian(self, data, query, atom, conditional, inner)
                 }
             }
-            InferenceMode::Bayesian(_) => {
-                for atom in identified.class_atoms.iter() {
-                    evals.push(evaluate_class_atom_bayesian(
-                        self,
-                        data,
-                        query,
-                        atom,
-                        conditional,
-                        ctx,
-                    )?);
-                }
-            }
-        }
+        })?;
 
         let unidentified_mass = identified.graphs.unidentified_mass();
         let mixed = mix_class_posterior_evals(&identified, &evals, unidentified_mass)?;

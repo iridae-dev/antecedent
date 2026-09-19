@@ -66,63 +66,67 @@ impl super::Study {
         // are aligned on the shared data rows before mixing.
         let mut atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)> = Vec::new();
         let options = self.response_options.clone().unwrap_or_default();
-        for atom in identified.atoms.iter() {
-            // Zero for atoms the interactive subsample dropped.
-            let weight = identified_weight_for_key(&graphs, atom.key);
-            if weight <= 0.0 {
-                continue;
-            }
+        let work: Vec<_> = identified
+            .atoms
+            .iter()
+            .filter(|atom| identified_weight_for_key(&graphs, atom.key) > 0.0)
+            .collect();
+        let fitted = ctx.map_indexed(work.len(), |i, inner| {
+            let atom = work[i];
             let mut estimator =
                 ContinuousResponseEstimator::new(Arc::clone(&atom.estimand.adjustment_set));
             estimator.options = options.clone();
-            let response = if let InferenceMode::Bayesian(cfg) = &self.inference {
-                let mut bayes = bayesian_gcomp(cfg, ctx);
+            let scored = if let InferenceMode::Bayesian(cfg) = &self.inference {
+                let mut bayes = bayesian_gcomp(cfg, inner);
                 bayes.prior.clone_from(&cfg.prior);
-                estimator.estimate_bayesian(
-                    data,
-                    query,
-                    atom.identification.status,
-                    atom.identification.required_assumptions.clone(),
-                    &bayes,
-                    ctx,
-                )
+                estimator
+                    .estimate_bayesian(
+                        data,
+                        query,
+                        atom.identification.status,
+                        atom.identification.required_assumptions.clone(),
+                        &bayes,
+                        inner,
+                    )
+                    .map(|response| (response, None))
             } else {
-                match estimator.estimate_identified_scored(
-                    data,
-                    query,
-                    atom.identification.status,
-                    atom.identification.required_assumptions.clone(),
-                ) {
-                    Ok((response, scores)) => {
-                        if let Some(scores) = scores.filter(|s| !s.columns.is_empty()) {
-                            atom_scores.push((weight, scores));
-                        }
-                        Ok(response)
-                    }
-                    Err(err) => Err(err),
-                }
+                estimator
+                    .estimate_identified_scored(
+                        data,
+                        query,
+                        atom.identification.status,
+                        atom.identification.required_assumptions.clone(),
+                    )
+                    .map(|(response, scores)| (response, scores))
             };
-            // A reason-coded refusal is a property of the data (for example a
-            // treatment too discrete for a local-polynomial response), shared by
-            // every atom; it is the answer, not an unevaluable atom.
-            if let Err(err @ antecedent_estimate::EstimationError::Refused { .. }) = response {
-                return Err(err.into());
-            }
-            let Ok(response) = response else {
-                // Identified but not evaluable: the atom keeps its identification
-                // status and has no value, so its mass is unevaluable.
-                failed_mass += weight;
-                for slot in atoms.iter_mut().filter(|candidate| candidate.graph_key == atom.key) {
-                    slot.status = atom.identification.status;
+            Ok::<_, CausalError>((atom, scored))
+        })?;
+        for (atom, response) in fitted {
+            let weight = identified_weight_for_key(&graphs, atom.key);
+            let response = match response {
+                Err(err @ antecedent_estimate::EstimationError::Refused { .. }) => {
+                    return Err(err.into());
                 }
-                continue;
+                Err(_) => {
+                    failed_mass += weight;
+                    for slot in atoms.iter_mut().filter(|candidate| candidate.graph_key == atom.key)
+                    {
+                        slot.status = atom.identification.status;
+                    }
+                    continue;
+                }
+                Ok((response, scores)) => {
+                    if let Some(scores) = scores.filter(|s| !s.columns.is_empty()) {
+                        atom_scores.push((weight, scores));
+                    }
+                    response
+                }
             };
             let value =
                 response_identified_value(&response).ok_or_else(|| CausalError::Compile {
                     message: "identified graph-posterior response atom had no numerical value"
                         .into(),
                 })?;
-            // A repeated graph is listed once per sample; every listing carries its value.
             for slot in atoms.iter_mut().filter(|candidate| candidate.graph_key == atom.key) {
                 slot.status = atom.identification.status;
                 slot.value = Some(value.clone());

@@ -297,10 +297,10 @@ impl PrepareOptions {
     }
 
     /// Execution context for prepare-time identification.
-    pub(crate) fn ctx(&self, seed: u64, threads: u32) -> antecedent_core::ExecutionContext {
+    pub(crate) fn ctx(&self, seed: u64, threads: Option<u32>) -> antecedent_core::ExecutionContext {
         crate::py_execution_context_ext(
             seed,
-            threads,
+            crate::resolve_user_threads(threads),
             self.cancel.clone(),
             self.progress.clone(),
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),

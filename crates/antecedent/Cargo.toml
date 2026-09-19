@@ -109,3 +109,7 @@ harness = false
 [[bench]]
 name = "temporal_zero_replicates"
 harness = false
+
+[[bench]]
+name = "user_path"
+harness = false

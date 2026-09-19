@@ -172,7 +172,8 @@ report = loaded.inspect().to_dict()
 assert loaded.export() == encoded
 
 # Refreshing the study does not change this execution or its archive.
-updated = result.study.refresh(new_data)
+# The five-line second click is result.refresh; a second analyze() re-prepares.
+updated = result.refresh(new_data)
 assert result.export() == encoded
 ```
 

@@ -13,7 +13,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, treatment, outcome, active, control, *, seed=0, threads=1))]
+#[pyo3(signature = (names, columns, edges, treatment, outcome, active, control, *, seed=0, threads=None))]
 fn counterfactual_ite(
     py: Python<'_>,
     names: Vec<String>,
@@ -24,7 +24,7 @@ fn counterfactual_ite(
     active: f64,
     control: f64,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<GcmIteResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -37,7 +37,7 @@ fn counterfactual_ite(
             let g = dag_from_named_edges(data.schema(), &edges)?;
             let fitted = fit_gcm(g, &data).map_err(py_err)?;
             let n_assignments = fitted.assignments.len();
-            let ctx = py_execution_context(seed, threads);
+            let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
             let ite =
                 facade_counterfactual_ite(fitted.model, &data, t_id, y_id, active, control, &ctx)
                     .map_err(py_err)?;
@@ -64,7 +64,7 @@ fn counterfactual_ite(
 /// `mechanism_wrappers` maps variable name → object with `sample_noise(n)` / `evaluate(parents, noise)`
 /// ( slow path).
 #[pyfunction]
-#[pyo3(name = "sample_do", signature = (names, columns, edges, treatment, do_value, n_draws, *, seed=0, threads=1, mechanism_wrappers=None, shift=false))]
+#[pyo3(name = "sample_do", signature = (names, columns, edges, treatment, do_value, n_draws, *, seed=0, threads=None, mechanism_wrappers=None, shift=false))]
 fn sample_do_py(
     py: Python<'_>,
     names: Vec<String>,
@@ -74,14 +74,14 @@ fn sample_do_py(
     do_value: f64,
     n_draws: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
     mechanism_wrappers: Option<Bound<'_, PyDict>>,
     shift: bool,
 ) -> PyResult<GcmSampleResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
     let wrappers = mechanism_wrappers.map(Bound::unbind);
-    let threads = if wrappers.is_some() { 1 } else { threads };
+    let threads = if wrappers.is_some() { Some(1) } else { threads };
     let (means, n_rows, n_nodes, flat) = detach_catch(py, move || {
         let loaded = tabular_from_record_batch(&batch).map_err(py_err)?;
         let data = loaded.data;
@@ -96,7 +96,7 @@ fn sample_do_py(
         } else {
             fitted.model
         };
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let mut rng = CausalRng::from_seed(seed);
         let iv = if shift {
             Intervention::shift(t_id, Value::f64(do_value))
@@ -123,7 +123,7 @@ fn sample_do_py(
 /// `do_value` is a hard set (`do(treatment := do_value)`) unless `shift=True`, in
 /// which case it is an additive delta (`do(treatment := treatment + do_value)`).
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, treatment, do_value, n_draws, outcome=None, *, seed=0, threads=1, shift=false))]
+#[pyo3(signature = (names, columns, edges, treatment, do_value, n_draws, outcome=None, *, seed=0, threads=None, shift=false))]
 fn sample_interventional_distribution(
     py: Python<'_>,
     names: Vec<String>,
@@ -134,7 +134,7 @@ fn sample_interventional_distribution(
     n_draws: usize,
     outcome: Option<String>,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
     shift: bool,
 ) -> PyResult<GcmSampleResult> {
     let batch = columns_to_batch(&names, &columns)?;
@@ -156,7 +156,7 @@ fn sample_interventional_distribution(
             Intervention::set(t_id, Value::f64(do_value))
         };
         let query = InterventionalDistributionQuery::new(y_id, [iv]);
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let mut rng = CausalRng::from_seed(seed);
         let samples = facade_sample_interventional_distribution(
             &fitted.model,
@@ -181,7 +181,7 @@ fn sample_interventional_distribution(
 
 /// Path-specific contribution via [`PathSpecificEffectQuery`] / `path_decompose`.
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, treatment, outcome, *, path_nodes=None, max_paths=64, max_len=16, seed=0, threads=1))]
+#[pyo3(signature = (names, columns, edges, treatment, outcome, *, path_nodes=None, max_paths=64, max_len=16, seed=0, threads=None))]
 fn attribute_path_specific(
     py: Python<'_>,
     names: Vec<String>,
@@ -193,7 +193,7 @@ fn attribute_path_specific(
     max_paths: usize,
     max_len: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -216,7 +216,7 @@ fn attribute_path_specific(
         if !intermediates.is_empty() {
             query = query.with_path_nodes(intermediates);
         }
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let result = facade_attribute_path_specific(&fitted.model, &query, &ctx).map_err(py_err)?;
         Ok(gcm_api::change_result_from_rust(result, &names))
     })
@@ -236,7 +236,7 @@ fn quantity_wire_name(q: &PosteriorQuantityWire) -> String {
 
 /// Fit GCM and attribute distribution change between two row ranges via Shapley.
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=1))]
+#[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=None))]
 fn attribute_distribution_change(
     py: Python<'_>,
     names: Vec<String>,
@@ -249,7 +249,7 @@ fn attribute_distribution_change(
     comparison_end: usize,
     n_samples: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -268,7 +268,7 @@ fn attribute_distribution_change(
         .with_allocation(AllocationMethod::Shapley {
             approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
         });
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let opts = DistributionChangeOptions {
             measure: DifferenceMeasure::MeanDiff,
             n_samples: n_samples.max(100),
@@ -283,7 +283,7 @@ fn attribute_distribution_change(
 
 /// Structure-change attribution between two edge lists (parent-set Shapley).
 #[pyfunction]
-#[pyo3(signature = (names, columns, baseline_edges, comparison_edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=1))]
+#[pyo3(signature = (names, columns, baseline_edges, comparison_edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=None))]
 fn attribute_structure_change(
     py: Python<'_>,
     names: Vec<String>,
@@ -297,7 +297,7 @@ fn attribute_structure_change(
     comparison_end: usize,
     n_samples: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -318,7 +318,7 @@ fn attribute_structure_change(
         .with_allocation(AllocationMethod::Shapley {
             approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
         });
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let opts = StructureChangeOptions {
             measure: DifferenceMeasure::MeanDiff,
             n_samples: n_samples.max(100),
@@ -482,7 +482,7 @@ fn anomaly_attribution(
 
 /// Unit-level change attribution.
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, outcome, *, max_units=0, seed=0, threads=1))]
+#[pyo3(signature = (names, columns, edges, outcome, *, max_units=0, seed=0, threads=None))]
 fn attribute_unit_change(
     py: Python<'_>,
     names: Vec<String>,
@@ -491,7 +491,7 @@ fn attribute_unit_change(
     outcome: String,
     max_units: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -501,7 +501,7 @@ fn attribute_unit_change(
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let max_u = if max_units == 0 { data.row_count() } else { max_units };
         let query = UnitChangeQuery::new(y_id, max_u);
         let result =
@@ -519,7 +519,7 @@ fn attribute_unit_change(
 
 /// Feature relevance scores for parents of `outcome`.
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, outcome, *, delta=1.0, n_samples=200, seed=0, threads=1))]
+#[pyo3(signature = (names, columns, edges, outcome, *, delta=1.0, n_samples=200, seed=0, threads=None))]
 fn attribute_feature_relevance(
     py: Python<'_>,
     names: Vec<String>,
@@ -529,7 +529,7 @@ fn attribute_feature_relevance(
     delta: f64,
     n_samples: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<Vec<gcm_api::FeatureRelevance>> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -539,7 +539,7 @@ fn attribute_feature_relevance(
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let features: Vec<VariableId> = (0..data.schema().len())
             .map(|i| VariableId::from_raw(u32::try_from(i).unwrap()))
             .filter(|id| *id != y_id)
@@ -570,7 +570,7 @@ fn attribute_feature_relevance(
 
 /// Robust distribution-change attribution between two row ranges.
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=1))]
+#[pyo3(signature = (names, columns, edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=None))]
 fn attribute_distribution_change_robust(
     py: Python<'_>,
     names: Vec<String>,
@@ -583,7 +583,7 @@ fn attribute_distribution_change_robust(
     comparison_end: usize,
     n_samples: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -610,7 +610,7 @@ fn attribute_distribution_change_robust(
         // fields to thread through (unlike `DistributionChangeOptions`), so the fix
         // above (Shapley `ShapleyConfig`) is the only place these two params can flow.
         let opts = antecedent::gcm::RobustChangeOptions::default();
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let result =
             facade_attribute_distribution_change_robust(&fitted.model, &data, &query, &opts, &ctx)
                 .map_err(py_err)?;
@@ -620,7 +620,7 @@ fn attribute_distribution_change_robust(
 
 /// Detect mechanism changes across two row ranges.
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, baseline_start, baseline_end, comparison_start, comparison_end, *, seed=0, threads=1))]
+#[pyo3(signature = (names, columns, edges, baseline_start, baseline_end, comparison_start, comparison_end, *, seed=0, threads=None))]
 fn mechanism_change_detection(
     py: Python<'_>,
     names: Vec<String>,
@@ -631,7 +631,7 @@ fn mechanism_change_detection(
     comparison_start: usize,
     comparison_end: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<Vec<gcm_api::MechanismChangeDetection>> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -640,7 +640,7 @@ fn mechanism_change_detection(
         let data = loaded.data;
         let g = dag_from_named_edges(data.schema(), &edges)?;
         let fitted = fit_gcm(g, &data).map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let targets: Vec<VariableId> = (0..data.schema().len())
             .map(|i| VariableId::from_raw(u32::try_from(i).unwrap()))
             .collect();

@@ -276,6 +276,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "export",
         "inspect",
         "program_id",
+        "refresh",
+        "refute",
         "study",
     },
     # Estimator options: the Bayesian likelihood, the temporal history cap and

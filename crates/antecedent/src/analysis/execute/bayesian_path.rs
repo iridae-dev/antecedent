@@ -229,7 +229,7 @@ impl super::Study {
                 });
             }
         };
-        let mut est = bayesian_gcomp(&cfg, ctx);
+        let est = bayesian_gcomp(&cfg, ctx);
         let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
         let estimator_id =
             if conditional { EstimatorId::BayesianConditional } else { EstimatorId::BayesianGcomp };
@@ -262,7 +262,8 @@ impl super::Study {
         // (1..n); still use entry() so the stash is key-safe.
         let mut prepared = std::collections::HashMap::with_capacity(fit_atoms.len());
         let mut atom_priors = std::collections::HashMap::with_capacity(fit_atoms.len());
-        for (key, estimand, _) in &fit_atoms {
+        let preps = ctx.map_indexed(fit_atoms.len(), |i, inner| {
+            let (key, estimand, _) = &fit_atoms[i];
             let prep = if conditional {
                 let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
                     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
@@ -274,12 +275,15 @@ impl super::Study {
             // Per-completion filter: incompatible catalogs refuse rather than
             // sharing the first atom's prior or falling back to isotropic.
             let (resolved, conflict) =
-                resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(ctx))?;
+                resolve_bayesian_prior_with_conflict(&cfg, &prep, Some(inner))?;
+            Ok::<_, CausalError>((*key, prep, resolved, conflict))
+        })?;
+        for (key, prep, resolved, conflict) in preps {
             if envelope_conflict.is_none() {
                 envelope_conflict = conflict;
             }
-            atom_priors.insert(*key, resolved);
-            prepared.entry(*key).or_insert(prep);
+            atom_priors.insert(key, resolved);
+            prepared.entry(key).or_insert(prep);
         }
         let full_graphs = WeightedGraphSamples::new(weights, flags, keys)
             .map_err(|e| CausalError::Compile { message: e.to_string() })?;
@@ -291,26 +295,39 @@ impl super::Study {
             &mut subsample_notes,
         )?;
         let keep = identified_envelope_keys(&graphs);
-        let mut ws = BayesianGCompWorkspace::default();
-        let mut per_graph = Vec::new();
-        let mut atoms = Vec::new();
-        // Per-completion outcomes in `envelope.cases` order (keys are `index + 1`),
-        // so the structural mixture can publish the identified set they span.
         let mut outcomes = vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()];
+        let mut seen_keys = std::collections::HashSet::new();
+        let mut skipped = Vec::new();
+        let mut kept = Vec::new();
         for (key, estimand, status) in fit_atoms {
-            // Keys are `case index + 1`, so the outcome slot is `key - 1`.
             let outcome_slot = usize::try_from(key).unwrap_or(usize::MAX).saturating_sub(1);
             if !keep.contains(&key) {
-                outcomes[outcome_slot] = ClassAtomOutcome::SubsampledOut;
+                skipped.push(outcome_slot);
                 continue;
             }
-            // Graph-posterior keys may collide (shared adjacency masks). Aggregation
-            // indexes draws by key, so fit each kept key once; later duplicates skip.
+            if !prepared.contains_key(&key) || !seen_keys.insert(key) {
+                continue;
+            }
+            kept.push((key, estimand, status, outcome_slot));
+        }
+        for slot in skipped {
+            outcomes[slot] = ClassAtomOutcome::SubsampledOut;
+        }
+        let fits = ctx.map_indexed(kept.len(), |i, inner| {
+            let (key, estimand, status, outcome_slot) = &kept[i];
+            let prep = prepared.get(key).expect("kept key is prepared");
+            let mut est = est.clone();
+            est.prior = atom_priors.get(key).cloned().flatten();
+            let mut ws = BayesianGCompWorkspace::default();
+            let posterior = est.fit(prep, *status, &mut ws, inner).map_err(CausalError::from)?;
+            Ok::<_, CausalError>((*key, estimand.clone(), *status, *outcome_slot, posterior, est.prior.clone()))
+        })?;
+        let mut per_graph = Vec::new();
+        let mut atoms = Vec::new();
+        for (key, estimand, status, outcome_slot, posterior, prior) in fits {
             let Some(prep) = prepared.remove(&key) else {
                 continue;
             };
-            est.prior = atom_priors.remove(&key).flatten();
-            let posterior = est.fit(&prep, status, &mut ws, ctx).map_err(CausalError::from)?;
             outcomes[outcome_slot] =
                 ClassAtomOutcome::Evaluated(effect_from_posterior(&posterior)?.ate);
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
@@ -323,7 +340,7 @@ impl super::Study {
                 weight,
                 estimand,
                 indexer: None,
-                prior: est.prior.clone(),
+                prior,
             });
         }
         // Completion weights here are a frozen enumeration of an equivalence
@@ -768,7 +785,7 @@ impl super::Study {
                 });
             }
         };
-        let mut est = bayesian_gcomp(&cfg, ctx);
+        let est = bayesian_gcomp(&cfg, ctx);
         let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
 
         let (identified, identify_cached) =
@@ -801,7 +818,8 @@ impl super::Study {
         // so kept atoms are not prepared a second time. Keys may collide when
         // several atoms share an adjacency mask — keep the first prep per key.
         let mut prepared = std::collections::HashMap::with_capacity(fit_atoms.len());
-        for (i, (key, estimand, _)) in fit_atoms.iter().enumerate() {
+        let preps = ctx.map_indexed(fit_atoms.len(), |i, _inner| {
+            let (key, estimand, _) = &fit_atoms[i];
             let prep = if conditional {
                 let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
                     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
@@ -810,12 +828,15 @@ impl super::Study {
                 est.prepare(data, estimand, query)
             }
             .map_err(CausalError::from)?;
+            Ok::<_, CausalError>((*key, prep))
+        })?;
+        for (i, (key, prep)) in preps.into_iter().enumerate() {
             if i == 0 {
                 let (resolved, conflict) = resolve_envelope_prior_anchor(&cfg, &prep, ctx)?;
                 envelope_prior = resolved;
                 envelope_conflict = conflict;
             }
-            prepared.entry(*key).or_insert(prep);
+            prepared.entry(key).or_insert(prep);
         }
         let mut subsample_notes = Vec::new();
         let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
@@ -825,20 +846,35 @@ impl super::Study {
             &mut subsample_notes,
         )?;
         let keep = identified_envelope_keys(&graphs);
-        let mut ws = BayesianGCompWorkspace::default();
+        let mut seen_keys = std::collections::HashSet::new();
+        let kept: Vec<_> = fit_atoms
+            .into_iter()
+            .filter(|(key, _, _)| {
+                keep.contains(key) && prepared.contains_key(key) && seen_keys.insert(*key)
+            })
+            .collect();
+        let fits = ctx.map_indexed(kept.len(), |i, inner| {
+            let (key, estimand, identification) = &kept[i];
+            let prep = prepared.get(key).expect("kept key is prepared");
+            let mut est = est.clone();
+            est.prior.clone_from(&envelope_prior);
+            let mut ws = BayesianGCompWorkspace::default();
+            let posterior =
+                est.fit(prep, identification.status, &mut ws, inner).map_err(CausalError::from)?;
+            Ok::<_, CausalError>((
+                *key,
+                estimand.clone(),
+                identification.clone(),
+                posterior,
+                envelope_prior.clone(),
+            ))
+        })?;
         let mut per_graph = Vec::new();
         let mut atoms = Vec::new();
-        for (key, estimand, identification) in fit_atoms {
-            if !keep.contains(&key) {
-                continue;
-            }
-            // Aggregation indexes draws by key; fit each kept key once.
+        for (key, estimand, identification, posterior, prior) in fits {
             let Some(prep) = prepared.remove(&key) else {
                 continue;
             };
-            est.prior.clone_from(&envelope_prior);
-            let posterior =
-                est.fit(&prep, identification.status, &mut ws, ctx).map_err(CausalError::from)?;
             per_graph.push(envelope_draws_from_posterior(key, &posterior)?);
             if primary_estimand.is_none() {
                 primary_estimand = Some(estimand.clone());
@@ -853,7 +889,7 @@ impl super::Study {
                 weight,
                 estimand,
                 indexer: None,
-                prior: envelope_prior.clone(),
+                prior,
             });
         }
         let mut posterior = aggregate_effect_envelope(
@@ -1115,10 +1151,10 @@ impl super::Study {
         let mut primary_identification = None;
         let mut assumptions = antecedent_core::AssumptionSet::default();
         let mut refute_atoms = Vec::new();
-        for atom in identified.atoms.iter() {
-            if !keep.contains(&atom.key) {
-                continue;
-            }
+        let kept: Vec<_> =
+            identified.atoms.iter().filter(|atom| keep.contains(&atom.key)).collect();
+        let estimates = ctx.map_indexed(kept.len(), |i, inner| {
+            let atom = kept[i];
             let mut case_ws = StaticEstimateWorkspaces::default();
             let case_spec = self
                 .estimator_spec
@@ -1128,8 +1164,8 @@ impl super::Study {
                 let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())
                     .map_err(|e| CausalError::Compile { message: e.to_string() })?;
                 ConditionalLinearAdjustment::new()
-                    .estimate(data, &atom.estimand, &q, ctx)
-                    .map_err(CausalError::from)?
+                    .estimate(data, &atom.estimand, &q, inner)
+                    .map_err(CausalError::from)
             } else {
                 estimate_static_effect(
                     &case_spec,
@@ -1140,10 +1176,13 @@ impl super::Study {
                     self.bootstrap_replicates,
                     self.overlap_policy,
                     self.population_registry.as_ref(),
-                    ctx,
+                    inner,
                     &mut case_ws,
-                )?
-            };
+                )
+            }?;
+            Ok::<_, CausalError>((atom, estimate))
+        })?;
+        for (atom, estimate) in estimates {
             let w = identified_weight_for_key(&graphs, atom.key);
             se_items.push((w, estimate.se_analytic));
             // Every atom is fit on the same rows; embed its IF in the original

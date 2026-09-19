@@ -2342,6 +2342,21 @@ pub(crate) fn tabular_from_py_columns(
 /// (matches attribution bench policy).
 pub(crate) const PY_DEFAULT_CACHE_MAX_BYTES: u64 = 4_000_000;
 
+/// Resolve an omitted or zero `threads=` to [`antecedent_core::default_user_threads`].
+/// An explicit `threads >= 1` is a pin and may exceed the default cap.
+pub(crate) fn resolve_user_threads(threads: Option<u32>) -> u32 {
+    match threads {
+        Some(n) if n >= 1 => n,
+        Some(_) => 1,
+        None => antecedent_core::default_user_threads(),
+    }
+}
+
+#[pyfunction]
+fn default_user_threads() -> u32 {
+    antecedent_core::default_user_threads()
+}
+
 pub(crate) fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext {
     py_execution_context_ext(seed, threads, None, None, Some(PY_DEFAULT_CACHE_MAX_BYTES))
 }
@@ -2498,6 +2513,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(set_unsupported_error_class, m)?)?;
     m.add_function(wrap_pyfunction!(set_not_identified_error_class, m)?)?;
     m.add_function(wrap_pyfunction!(omitted_defaults, m)?)?;
+    m.add_function(wrap_pyfunction!(default_user_threads, m)?)?;
     m.add_function(wrap_pyfunction!(identification_status_names, m)?)?;
     m.add_function(wrap_pyfunction!(runtime_refusal_codes, m)?)?;
     ate_api::register(m)?;

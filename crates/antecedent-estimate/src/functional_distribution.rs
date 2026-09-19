@@ -15,7 +15,7 @@
 )]
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use antecedent_core::{
     AssumptionSet, CausalRng, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
@@ -412,8 +412,8 @@ impl FunctionalDistribution {
             .enumerate()
             .map(|(i, a)| ((Arc::clone(&a.outcomes), Arc::clone(&a.conditioning)), i))
             .collect();
-        let mut atom_replicates: Vec<Vec<f64>> = vec![Vec::new(); out.atoms.len()];
-        let mut aligned = vec![f64::NAN; out.atoms.len()];
+        let atom_replicates = Mutex::new(vec![Vec::new(); out.atoms.len()]);
+        let n_atoms = out.atoms.len();
         let n = prepared.bootstrap_columns.values().next().map_or(0, Vec::len);
         let boot = bootstrap_se(self.bootstrap_replicates, ctx, 0xF01D_u64, n, |idx| {
             let columns = gather_columns(&prepared.bootstrap_columns, idx);
@@ -430,6 +430,7 @@ impl FunctionalDistribution {
             let Ok(est) = self.estimate_point(&prep, conditioning_values, &mut ws) else {
                 return Ok(None);
             };
+            let mut aligned = vec![f64::NAN; n_atoms];
             align_replicate_atoms(&index, &out.atoms, &est.atoms, &mut aligned);
             // The scalar SE tracks the interventional mean exactly as before;
             // tables without a mean let the first defined atom drive the
@@ -442,13 +443,15 @@ impl FunctionalDistribution {
             if !tracked.is_finite() {
                 return Ok(None);
             }
-            for (values, &p) in atom_replicates.iter_mut().zip(aligned.iter()) {
+            let mut reps = atom_replicates.lock().expect("atom replicate lock");
+            for (values, &p) in reps.iter_mut().zip(aligned.iter()) {
                 if p.is_finite() {
                     values.push(p);
                 }
             }
             Ok(Some(tracked))
         })?;
+        let atom_replicates = atom_replicates.into_inner().expect("atom replicate lock");
         let attempted = boot.replicates_ok.saturating_add(boot.replicates_failed);
         let uncertainty: Vec<AtomUncertainty> = out
             .atoms

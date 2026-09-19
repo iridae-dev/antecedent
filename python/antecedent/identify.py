@@ -301,7 +301,7 @@ class Identification:
         refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = False,
         seed: int = 1,
         bootstrap: int | None = None,
-        threads: int = 1,
+        threads: int | None = None,
         latency: Latency | Literal["interactive", "standard", "report"] | None = None,
     ) -> Analysis:
         """Estimate the effect on ``data`` using this identification's strategy.
@@ -337,7 +337,7 @@ class Identification:
         *,
         refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = "cheap",
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> Analysis:
         """Run the refutation/validation suite against this identification.
 
@@ -726,7 +726,7 @@ def estimate(
     refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = False,
     seed: int = 1,
     bootstrap: int | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     latency: Latency | Literal["interactive", "standard", "report"] | None = None,
 ) -> Analysis:
     """Module-level mirror of :meth:`Identification.estimate`.
@@ -757,7 +757,7 @@ def validate(
     *,
     refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = "cheap",
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> Analysis:
     """Module-level mirror of :meth:`Identification.validate`. See :func:`estimate`."""
     return identification.validate(data, refute=refute, seed=seed, threads=threads)

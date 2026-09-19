@@ -16,7 +16,7 @@ use super::prepare::{
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
-use crate::util::{BootstrapSeResult, bootstrap_se};
+use crate::util::BootstrapSeResult;
 
 /// Inverse-probability weighting estimator (ATE/ATT/ATC via `TargetPopulation`).
 ///
@@ -192,29 +192,38 @@ impl PropensityWeighting {
         let clip = clip_of(problem.overlap);
         let n = problem.nrows;
         let ncols = problem.design_ncols;
-        let mut x_boot = vec![0.0; n * ncols];
-        let mut t_boot = vec![0.0; n];
-        let mut y_boot = vec![0.0; n];
-        // Replicate-invariant scratch: scores stay in `workspace.propensity.scores`,
-        // and the clipped / weight buffers are reused across replicates.
-        let mut clipped = vec![0.0; n];
-        let mut w = vec![0.0; n];
         let tw = problem.target_weights.as_deref();
-        bootstrap_se(self.bootstrap_replicates, ctx, 0x9A17_u64, n, |idx| {
-            crate::util::gather_bootstrap_vector(&mut t_boot, &problem.treatment, idx);
-            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
+        let _ = workspace;
+        crate::util::bootstrap_se_with_scratch(
+            self.bootstrap_replicates,
+            ctx,
+            0x9A17_u64,
+            n,
+            || {
+                (
+                    PropensityEstimationWorkspace::default(),
+                    vec![0.0; n * ncols],
+                    vec![0.0; n],
+                    vec![0.0; n],
+                    vec![0.0; n],
+                    vec![0.0; n],
+                )
+            },
+            |(workspace, x_boot, t_boot, y_boot, clipped, w), idx| {
+            crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
+            crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
             crate::util::gather_bootstrap_design(
-                &mut x_boot,
+                x_boot,
                 &problem.design_matrix,
                 n,
                 ncols,
                 idx,
             );
             if antecedent_stats::fit_propensity_in_place(
-                &x_boot,
+                x_boot,
                 n,
                 ncols,
-                &t_boot,
+                t_boot,
                 &self.backend,
                 &mut workspace.propensity,
                 &self.glm_options,
@@ -226,19 +235,20 @@ impl PropensityWeighting {
             let raw = &workspace.propensity.scores[..n];
             clipped.copy_from_slice(raw);
             if let Some(c) = clip {
-                clamp_scores(&mut clipped, c);
+                clamp_scores(clipped, c);
             }
-            compute_ipw_weights_into(&mut w, &t_boot, &clipped, raw, target, trim);
+            compute_ipw_weights_into(w, t_boot, clipped, raw, target, trim);
             if let Some(full_tw) = tw {
                 for (r, &src) in idx.iter().enumerate() {
                     w[r] *= full_tw[src];
                 }
             }
-            match hajek_difference(&t_boot, &y_boot, &w) {
+            match hajek_difference(t_boot, y_boot, w) {
                 Ok(a) => Ok(Some(a)),
                 Err(_) => Ok(None),
             }
-        })
+            },
+        )
     }
 }
 

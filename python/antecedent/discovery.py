@@ -117,7 +117,7 @@ class PC:
             "max_cond_size": self.max_cond_size,
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> DiscoveryResult:
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
         return _discover_pc(
             names,
@@ -135,7 +135,7 @@ class PC:
         data: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -176,7 +176,7 @@ class PCMCI:
         data: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
         names, cols = coerce_data(data)
@@ -198,7 +198,7 @@ class PCMCI:
         data: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -243,7 +243,7 @@ class PCMCIPlus:
         data: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
         names, cols = coerce_data(data)
@@ -265,7 +265,7 @@ class PCMCIPlus:
         data: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -306,7 +306,7 @@ class LPCMCI:
         data: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
         names, cols = coerce_data(data)
@@ -328,7 +328,7 @@ class LPCMCI:
         data: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -382,7 +382,7 @@ class JPCMCIPlus:
         env_columns: Sequence[Sequence[Any]],
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         weights: list[float] | None = None,
     ) -> PcmciDiscoveryResult:
         """Multi-environment discovery: takes ``names``/``env_columns`` directly.
@@ -417,7 +417,7 @@ class JPCMCIPlus:
         data: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -464,7 +464,7 @@ class RPCMCI:
         *,
         regimes: Sequence[int],
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         weights: list[float] | None = None,
     ) -> RpcmciDiscoverySummary:
         """``regimes`` is required (length = series length); no silent half-split.
@@ -492,7 +492,7 @@ class RPCMCI:
         *,
         regimes: Sequence[int] | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate.
@@ -532,7 +532,7 @@ class GES:
             "max_cond_size": self.max_cond_size,
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> DiscoveryResult:
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
         return _discover_ges(
             names,
@@ -552,7 +552,7 @@ class GES:
         data: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -585,7 +585,7 @@ class LiNGAM:
             "ci": "parcorr",
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> DiscoveryResult:
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
         return _discover_lingam(
             names,
@@ -601,7 +601,7 @@ class LiNGAM:
         data: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -638,7 +638,7 @@ class NOTEARS:
             "ci": "parcorr",
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> DiscoveryResult:
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
         return _discover_notears(
             names,
@@ -656,7 +656,7 @@ class NOTEARS:
         data: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -690,7 +690,7 @@ class FCI:
             "max_cond_size": self.max_cond_size,
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> DiscoveryResult:
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
         return _discover_fci(
             names,
@@ -708,7 +708,7 @@ class FCI:
         data: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -742,7 +742,7 @@ class RFCI:
             "max_cond_size": self.max_cond_size,
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> DiscoveryResult:
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> DiscoveryResult:
         names, cols = coerce_data(data)
         return _discover_rfci(
             names,
@@ -760,7 +760,7 @@ class RFCI:
         data: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         accept_discovered: bool = True,
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate."""
@@ -793,7 +793,7 @@ class ExactDagPosterior:
     def _wire(self) -> dict[str, Any]:
         return {"algorithm": "exact_dag_posterior"}
 
-    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> GraphPosterior:
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
         names, cols = coerce_data(data)
         return _discover_exact_dag_posterior(names, cols, seed=seed, threads=threads)
 
@@ -819,7 +819,7 @@ class OrderMcmc:
             "require_diagnostics_gate": self.require_diagnostics_gate,
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> GraphPosterior:
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
         names, cols = coerce_data(data)
         return _discover_order_mcmc(
             names,
@@ -873,7 +873,7 @@ class StructureMcmc:
             "thin": self.thin,
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> GraphPosterior:
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
         names, cols = coerce_data(data)
         return _discover_structure_mcmc(
             names,
@@ -916,7 +916,7 @@ class CiScreenedPosterior:
             "thin": self.thin,
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> GraphPosterior:
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
         names, cols = coerce_data(data)
         return _discover_ci_screened_posterior(
             names,
@@ -968,7 +968,7 @@ class DbnPosterior:
             "mcmc_draws": self.n_draws,
         }
 
-    def run(self, data: Any, *, seed: int = 1, threads: int = 1) -> GraphPosterior:
+    def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
         names, cols = coerce_data(data)
         return _discover_dbn_posterior(
             names,
@@ -1033,7 +1033,7 @@ def run_static_discovery(
     discovery: StaticDiscovery,
     *,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> tuple[DiscoveryResult, str]:
     """Dispatch a static discovery config to its ``run()``.
 
@@ -1051,7 +1051,7 @@ def run_temporal_discovery(
     discovery: TemporalDiscovery,
     *,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> tuple[DiscoveryResult, str]:
     """Dispatch a PCMCI-family discovery config to its ``run()``."""
     if not isinstance(discovery, _TEMPORAL_DISCOVERY_TYPES):

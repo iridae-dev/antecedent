@@ -71,12 +71,17 @@ impl super::Study {
                 )
             };
         let estimator = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
-        let mut evals = Vec::new();
-        for atom in identified.class_atoms.iter() {
-            evals.push(evaluate_temporal_class_mediation_atom_frequentist(
-                self, data, query, horizon, atom, &estimator, ctx,
-            )?);
-        }
+        let evals = ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
+            evaluate_temporal_class_mediation_atom_frequentist(
+                self,
+                data,
+                query,
+                horizon,
+                &identified.class_atoms[i],
+                &estimator,
+                inner,
+            )
+        })?;
         let unidentified_mass = identified.graphs.unidentified_mass();
         let mixed = mix_temporal_class_mediation_posterior(
             &identified,
@@ -291,12 +296,17 @@ impl super::Study {
                     false,
                 )
             };
-        let mut evals = Vec::new();
-        for atom in identified.class_atoms.iter() {
-            evals.push(evaluate_temporal_class_mediation_atom_bayesian(
-                self, data, query, horizon, atom, &cfg, ctx,
-            )?);
-        }
+        let evals = ctx.map_indexed(identified.class_atoms.len(), |i, inner| {
+            evaluate_temporal_class_mediation_atom_bayesian(
+                self,
+                data,
+                query,
+                horizon,
+                &identified.class_atoms[i],
+                &cfg,
+                inner,
+            )
+        })?;
         let unidentified_mass = identified.graphs.unidentified_mass();
         let mixed = mix_temporal_class_mediation_posterior(
             &identified,

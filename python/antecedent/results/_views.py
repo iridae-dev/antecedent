@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
-from typing import TYPE_CHECKING, Any, Literal
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field, PrivateAttr
 
@@ -27,7 +27,6 @@ else:
     TransportOverlapReport = Any
 
 from .._verdict import describe_status, verdict_for
-from ..ids import Refute
 from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct, fmt_se
 from ._report import ResultModel
@@ -753,49 +752,6 @@ class AnalysisResult(ResultModel, ResultAPI):
             parts.append("unlicensed")
         return f"<AnalysisResult {' '.join(parts)}>"
 
-    def refresh(
-        self,
-        data: Mapping[str, Any] | Any,
-        *,
-        seed: int | None = None,
-        threads: int | None = None,
-    ) -> AnalysisResult:
-        """Re-estimate on new data via the retained prepared handle.
-
-        Equivalent to ``result.study.refresh(data)``. The current result remains
-        unchanged; the returned result captures the refreshed execution.
-        """
-        if self._prepared is None:
-            raise TypeError(
-                "AnalysisResult.refresh requires a result from PreparedAnalysis; "
-                "use PreparedAnalysis.prepare(...) then estimate/refresh"
-            )
-        return self._prepared.refresh(data, seed=seed, threads=threads)
-
-    def refute(
-        self,
-        data: Mapping[str, Any] | Any,
-        suite: Refute | Literal["placebo", "full", "cheap"] | bool | str = "placebo",
-        *,
-        seed: int | None = None,
-        threads: int | None = None,
-        cancel: Any | None = None,
-    ) -> AnalysisResult:
-        """Second-click refute via the retained prepared handle."""
-        if self._prepared is None:
-            raise TypeError(
-                "AnalysisResult.refute requires a result from PreparedAnalysis; "
-                "use PreparedAnalysis.prepare(...) then estimate"
-            )
-        if isinstance(suite, Refute):
-            suite = str(suite)
-        # A result's second-click validation belongs to this execution, even
-        # when the reusable study has since estimated or refreshed other data.
-        # The frozen handle keeps the originating study's seed, threads, kind
-        # and controls, so an omitted seed refutes the execution that ran.
-        frozen = self._prepared._frozen(self._execution.snapshot())
-        token = {} if cancel is None else {"cancel": cancel}
-        return frozen.refute(data, suite, seed=seed, threads=threads, **token)
 
     def rendering_limitation(self) -> str | None:
         """Stable id when a point-mean display would misrepresent the claim."""

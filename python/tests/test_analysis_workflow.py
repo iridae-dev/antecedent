@@ -35,6 +35,8 @@ def test_one_call_study_and_frozen_export():
     assert second.data_snapshot_id != first.data_snapshot_id
     assert ant.artifacts.accept(second.export())["accepts_as_verified_program"] == "true"
     assert first.study.estimate().effect == pytest.approx(second.effect)
+    via_result = first.refresh({**data, "y": data["y"] + data["t"]})
+    assert via_result.effect == pytest.approx(second.effect)
 
 
 def test_estimate_other_data_does_not_rebind_study():
@@ -80,6 +82,9 @@ def test_response_retains_study_and_exports_own_execution():
     assert result.answer.kind == "response"
     encoded = result.export()
     result.study.refresh({**data, "y": data["y"] + 1.0})
+    assert result.export() == encoded
+    refreshed = result.refresh({**data, "y": data["y"] + 1.0})
+    assert refreshed.answer.kind == "response"
     assert result.export() == encoded
     assert ant.artifacts.accept(encoded)["accepts_as_verified_program"] == "true"
     loaded = ant.load(encoded)

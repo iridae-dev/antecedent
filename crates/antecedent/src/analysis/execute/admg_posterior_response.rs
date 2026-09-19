@@ -80,11 +80,13 @@ impl super::Study {
         let mut evals = Vec::new();
         let mut primary = None;
         let mut failed_mass = 0.0;
-        for atom in identified.atoms.iter() {
-            let weight = identified_weight_for_key(&identified.graphs, atom.key);
-            if weight <= 0.0 {
-                continue;
-            }
+        let work: Vec<_> = identified
+            .atoms
+            .iter()
+            .filter(|atom| identified_weight_for_key(&identified.graphs, atom.key) > 0.0)
+            .collect();
+        let fitted = ctx.map_indexed(work.len(), |i, inner| {
+            let atom = work[i];
             let mask = mask_for_atom_key(gp, atom.key)?;
             let response = estimate_admg_posterior_atom_response(
                 self,
@@ -94,8 +96,12 @@ impl super::Study {
                 gp.n_vars,
                 &atom.identification,
                 &atom.estimand,
-                ctx,
+                inner,
             );
+            Ok::<_, CausalError>((atom, response))
+        })?;
+        for (atom, response) in fitted {
+            let weight = identified_weight_for_key(&identified.graphs, atom.key);
             let Ok(response) = response else {
                 failed_mass += weight;
                 for slot in atoms.iter_mut().filter(|candidate| candidate.graph_key == atom.key) {

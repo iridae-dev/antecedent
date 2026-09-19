@@ -38,7 +38,7 @@ use crate::error::EstimationError;
 use crate::gcomp::gcomp_diffs;
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;
-use crate::util::{BootstrapSeResult, bootstrap_se, stats_err};
+use crate::util::{BootstrapSeResult, stats_err};
 
 /// Prepared GLM adjustment problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -402,16 +402,21 @@ impl GlmAdjustmentAte {
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.design.nrows;
         let p = problem.design.ncols;
-        let mut x_boot = vec![0.0; n * p];
-        let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, ctx, 0xC17A_u64, n, |idx| {
-            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.design.outcome, idx);
-            crate::util::gather_bootstrap_design(&mut x_boot, &problem.design.matrix, n, p, idx);
+        let _ = workspace;
+        crate::util::bootstrap_se_with_scratch(
+            self.bootstrap_replicates,
+            ctx,
+            0xC17A_u64,
+            n,
+            || (GlmAdjustmentWorkspace::default(), vec![0.0; n * p], vec![0.0; n]),
+            |(ws, x_boot, y_boot), idx| {
+            crate::util::gather_bootstrap_vector(y_boot, &problem.design.outcome, idx);
+            crate::util::gather_bootstrap_design(x_boot, &problem.design.matrix, n, p, idx);
             let Ok(fit) = fit_glm(
                 problem.family,
-                GlmDesignRef { x_colmajor: &x_boot, nrows: n, ncols: p, y: &y_boot },
+                GlmDesignRef { x_colmajor: x_boot, nrows: n, ncols: p, y: y_boot },
                 &self.backend,
-                &mut workspace.ols,
+                &mut ws.ols,
                 &self.glm_options,
             ) else {
                 return Ok(None);
@@ -421,7 +426,7 @@ impl GlmAdjustmentAte {
             };
             let diffs = gcomp_diffs(
                 problem.family,
-                &x_boot,
+                x_boot,
                 n,
                 p,
                 t_col,
@@ -434,7 +439,8 @@ impl GlmAdjustmentAte {
                 Ok(ate) => Ok(Some(ate)),
                 Err(_) => Ok(None),
             }
-        })
+            },
+        )
     }
 }
 

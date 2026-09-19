@@ -713,11 +713,6 @@ def _refuse_admg_response(graph: Any, query: Any) -> None:
         )
 
 
-def _check_response_threads(threads: int) -> None:
-    if threads != 1:
-        raise ValueError("response queries currently require threads=1")
-
-
 def _check_response_strategy(
     query: Any,
     *,
@@ -868,7 +863,7 @@ def analyze_many(
     refute: bool | Literal["full", "placebo", "none", "cheap"] | None = None,
     seed: int = 1,
     bootstrap: int | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     latency: Literal["interactive", "standard", "report"] | None = None,
     candidate_screen: CandidateScreen | None = None,
 ) -> list[AnalysisResult]:
@@ -1057,7 +1052,7 @@ class PreparedBatch:
         refute: bool | Literal["full", "placebo", "none", "cheap"] | None = False,
         seed: int = 1,
         bootstrap: int | None = 0,
-        threads: int = 1,
+        threads: int | None = None,
         latency: Literal["interactive", "standard", "report"] | None = None,
         candidate_screen: CandidateScreen | None = None,
     ) -> PreparedBatch:
@@ -1120,7 +1115,7 @@ class PreparedBatch:
         refute: bool | Literal["full", "placebo", "none", "cheap"] | None = False,
         seed: int = 1,
         bootstrap: int | None = 0,
-        threads: int = 1,
+        threads: int | None = None,
         latency: Literal["interactive", "standard", "report"] | None = None,
         candidate_screen: CandidateScreen | None = None,
         family_contrast: Literal["cell_minus_control", "interaction"] | None = "cell_minus_control",
@@ -1182,7 +1177,7 @@ class PreparedBatch:
         data: Mapping[str, Any] | Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> list[AnalysisResult]:
         names, columns = ingest_columns(data)
         raws = self._native.estimate(names, columns, seed=seed, threads=threads)
@@ -2438,7 +2433,6 @@ class _PrepareRoute:
             return self._class_response(response_options)
         if isinstance(query, InterventionResponse) and isinstance(graph, TieredBackground):
             return self._tiered_response()
-        _check_response_threads(self.threads)
         _check_response_strategy(
             query,
             graph=graph,
@@ -2835,7 +2829,7 @@ class PreparedAnalysis:
         kind: Literal["average", "response_curve", "intervention_response"] = "average",
         query: _PreparedQuery | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         controls: _Controls | None = None,
         deferred_suite: str | None = None,
         snapshot_data: Any = None,
@@ -2894,7 +2888,7 @@ class PreparedAnalysis:
         refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
         seed: int = 1,
         bootstrap: int | None = None,
-        threads: int = 1,
+        threads: int | None = None,
         latency: Latency | Literal["interactive", "standard", "report"] | None = None,
         class_prior: ClassPrior | None = None,
         max_completions: int | None = None,
@@ -3350,7 +3344,7 @@ class PreparedAnalysis:
         depends_on: Sequence[str],
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> AnalysisResult:
         """Estimate a declared target population from frozen scores. No refit.
 
@@ -3375,7 +3369,7 @@ class PreparedAnalysis:
         artifact: bytes,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> AnalysisResult:
         """Re-execute the row-weight retarget an exported contract carries.
 

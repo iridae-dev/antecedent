@@ -93,7 +93,7 @@ def analyze(
     accept_discovered: bool = True,
     seed: int = 1,
     bootstrap: int | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     regimes: Sequence[int] | None = None,
     running_variable: str | None = None,
     cutoff: float | None = None,
@@ -109,6 +109,10 @@ def analyze(
     max_completions: int | None = None,
 ) -> Analysis:
     """Identify then estimate a causal effect.
+
+    Runs the published interval once. The five-line second click reuses
+    identification: ``result = analyze(...); result.refresh(new_data)``.
+    A second ``analyze()`` still re-prepares.
 
     Parameters
     ----------

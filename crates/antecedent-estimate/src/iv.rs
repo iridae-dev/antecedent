@@ -34,7 +34,7 @@ use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::se::{AnalyticSeKind, residual_sandwich_coef_se};
-use crate::util::{BootstrapSeResult, bootstrap_se, stats_err};
+use crate::util::{BootstrapSeResult, stats_err};
 
 /// Prepared IV problem: column-major instrument and exogenous-covariate designs, shared by
 /// [`WaldIv`] and [`TwoStageLeastSquares`].
@@ -327,20 +327,24 @@ impl WaldIv {
         ctx: &ExecutionContext,
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.nrows;
-        let mut z_boot = vec![0.0; n];
-        let mut t_boot = vec![0.0; n];
-        let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, ctx, 0x5A1D_u64, n, |idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                z_boot[r] = z[src];
-                t_boot[r] = problem.treatment[src];
-                y_boot[r] = problem.outcome[src];
-            }
-            match wald_ratio(&z_boot, &t_boot, &y_boot) {
-                Ok(w) => Ok(Some(w.ratio * problem.treatment_delta)),
-                Err(_) => Ok(None),
-            }
-        })
+        crate::util::bootstrap_se_with_scratch(
+            self.bootstrap_replicates,
+            ctx,
+            0x5A1D_u64,
+            n,
+            || (vec![0.0; n], vec![0.0; n], vec![0.0; n]),
+            |(z_boot, t_boot, y_boot), idx| {
+                for (r, &src) in idx.iter().enumerate() {
+                    z_boot[r] = z[src];
+                    t_boot[r] = problem.treatment[src];
+                    y_boot[r] = problem.outcome[src];
+                }
+                match wald_ratio(z_boot, t_boot, y_boot) {
+                    Ok(w) => Ok(Some(w.ratio * problem.treatment_delta)),
+                    Err(_) => Ok(None),
+                }
+            },
+        )
     }
 }
 
@@ -697,22 +701,33 @@ impl TwoStageLeastSquares {
         let n = problem.nrows;
         let zc = problem.z_ncols;
         let xc = problem.x_ncols;
-        let mut z_boot = vec![0.0; n * zc];
-        let mut x_boot = vec![0.0; n * xc];
-        let mut t_boot = vec![0.0; n];
-        let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, ctx, 0x25D5_u64, n, |idx| {
-            crate::util::gather_bootstrap_vector(&mut t_boot, &problem.treatment, idx);
-            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
+        let _ = workspace;
+        crate::util::bootstrap_se_with_scratch(
+            self.bootstrap_replicates,
+            ctx,
+            0x25D5_u64,
+            n,
+            || {
+                (
+                    TwoStageLeastSquaresWorkspace::default(),
+                    vec![0.0; n * zc],
+                    vec![0.0; n * xc],
+                    vec![0.0; n],
+                    vec![0.0; n],
+                )
+            },
+            |(ws, z_boot, x_boot, t_boot, y_boot), idx| {
+            crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
+            crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
             crate::util::gather_bootstrap_design(
-                &mut z_boot,
+                z_boot,
                 &problem.instruments_matrix,
                 n,
                 zc,
                 idx,
             );
             crate::util::gather_bootstrap_design(
-                &mut x_boot,
+                x_boot,
                 &problem.exogenous_matrix,
                 n,
                 xc,
@@ -722,17 +737,18 @@ impl TwoStageLeastSquares {
                 &z_boot[n..],
                 n,
                 zc - 1,
-                &t_boot,
-                &x_boot,
+                t_boot,
+                x_boot,
                 xc,
-                &y_boot,
+                y_boot,
                 &self.backend,
-                &mut workspace.ols,
+                &mut ws.ols,
             ) {
                 Ok(fit) => Ok(Some(fit.second_stage.coefficients[0] * problem.treatment_delta)),
                 Err(_) => Ok(None),
             }
-        })
+            },
+        )
     }
 }
 

@@ -204,7 +204,7 @@ fn analyze_response(
             .bootstrap_replicates(0)
             .build()
             .map_err(py_err)?;
-        let ctx = py_execution_context(1, 1);
+        let ctx = py_execution_context(1, crate::resolve_user_threads(None));
         let prepared = study.prepare(&ctx).map_err(py_err)?;
         let result = prepared.estimate(&data, &ctx).map_err(py_err)?;
         crate::prepared_api::response_from_study(&names, &result)
@@ -1034,7 +1034,7 @@ fn uncertainty_parts(value: ResponseUncertainty) -> UncertaintyParts {
     grid=None, intervention_kinds=None, intervention_parameters=None,
     horizons, policy=crate::temporal_license::DEFAULT_POLICY,
     treatment_lag=crate::temporal_license::DEFAULT_TREATMENT_LAG, max_history_lag=None,
-    seed=1, bootstrap=None, threads=1, accepted=false, refute=None,
+    seed=1, bootstrap=None, threads=None, accepted=false, refute=None,
     observation_kind=None, latent=None, observed=None, censoring=None, event=None,
     lower=None, upper=None, indicator=None, assumption_kind=None,
     assumption_variables=Vec::new(), structural_model=None
@@ -1057,7 +1057,7 @@ fn analyze_temporal_response(
     max_history_lag: Option<u32>,
     seed: u64,
     bootstrap: Option<u32>,
-    threads: u32,
+    threads: Option<u32>,
     accepted: bool,
     refute: Option<Bound<'_, PyAny>>,
     observation_kind: Option<String>,
@@ -1142,7 +1142,7 @@ fn analyze_temporal_response(
             builder = builder.bootstrap_replicates(replicates);
         }
         let analysis = builder.query(causal_query).refute(suite).build().map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let result = analysis.run(&ctx).map_err(py_err)?;
         let response = result.response.ok_or_else(|| {
             PyValueError::new_err("temporal response run did not produce a response payload")

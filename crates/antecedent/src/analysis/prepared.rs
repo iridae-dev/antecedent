@@ -289,6 +289,49 @@ pub(crate) struct CachedTemporalClassPosteriorIdentification {
     pub class_atoms: Arc<[CachedTemporalClassPosteriorAtomIdentification]>,
 }
 
+/// Identify unique adjacency masks under `ctx.parallelism`, then reduce in graph order.
+fn identify_unique_adjacency_masks<T, F>(
+    posterior: &GraphPosterior,
+    ctx: &ExecutionContext,
+    identify: F,
+) -> Result<std::collections::HashMap<u64, T>, CausalError>
+where
+    T: Send,
+    F: Fn(u64, &ExecutionContext) -> Result<T, CausalError> + Sync,
+{
+    let mut unique = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for i in 0..posterior.n_graphs {
+        let mask = posterior.adjacency[i];
+        if seen.insert(mask) {
+            unique.push(mask);
+        }
+    }
+    let values = ctx.map_indexed(unique.len(), |i, inner| identify(unique[i], inner))?;
+    Ok(unique.into_iter().zip(values).collect())
+}
+
+/// One result per posterior position, under `ctx.parallelism`.
+fn map_posterior_graphs<T, F>(
+    posterior: &GraphPosterior,
+    ctx: &ExecutionContext,
+    f: F,
+) -> Result<Vec<T>, CausalError>
+where
+    T: Send,
+    F: Fn(usize, &ExecutionContext) -> Result<T, CausalError> + Sync,
+{
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+    }
+    ctx.map_indexed(posterior.n_graphs, |i, inner| {
+        if inner.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+        }
+        f(i, inner)
+    })
+}
+
 /// Identify every atom in a static graph posterior and retain its original mass.
 ///
 /// This is shared by fresh execution and [`Study::prepare`]. Calling it for a
@@ -327,8 +370,28 @@ pub(crate) fn build_graph_posterior_identification_cache(
     let mut flags = Vec::with_capacity(posterior.n_graphs);
     let mut keys = Vec::with_capacity(posterior.n_graphs);
     let mut atoms = Vec::new();
-    let mut by_mask: HashMap<u64, Option<(IdentifiedEstimand, IdentificationResult)>> =
-        HashMap::new();
+    let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
+        (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
+            let Ok(dag) = dag_from_adjacency_mask(mask, posterior.n_vars) else {
+                return Ok(None);
+            };
+            let Ok(identification) = identify_static(DEFAULT_IDENTIFIER_ID, &dag, query) else {
+                return Ok(None);
+            };
+            if !super::execute::identification_status_ok_for_case(identification.status)
+                || identification.estimands.is_empty()
+            {
+                return Ok(None);
+            }
+            let Ok(estimand) =
+                select_estimand(&identification, EstimatorId::LinearAdjustmentAte)
+                    .or_else(|_| select_estimand(&identification, EstimatorId::BayesianGcomp))
+            else {
+                return Ok(None);
+            };
+            Ok(Some((estimand, identification)))
+        })()
+    })?;
     let mut atom_masks: HashMap<u64, u64> = HashMap::new();
 
     for i in 0..posterior.n_graphs {
@@ -339,42 +402,11 @@ pub(crate) fn build_graph_posterior_identification_cache(
             #[allow(clippy::cast_precision_loss)]
             progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
         }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-        }
         let mask = posterior.adjacency[i];
         let key = posterior.graph_keys[i];
         keys.push(key);
         weights.push(posterior.weights[i]);
-        let resolved = if let Some(hit) = by_mask.get(&mask) {
-            hit.clone()
-        } else {
-            let value =
-                (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
-                    let Ok(dag) = dag_from_adjacency_mask(mask, posterior.n_vars) else {
-                        return Ok(None);
-                    };
-                    let Ok(identification) = identify_static(DEFAULT_IDENTIFIER_ID, &dag, query)
-                    else {
-                        return Ok(None);
-                    };
-                    if !super::execute::identification_status_ok_for_case(identification.status)
-                        || identification.estimands.is_empty()
-                    {
-                        return Ok(None);
-                    }
-                    let Ok(estimand) =
-                        select_estimand(&identification, EstimatorId::LinearAdjustmentAte).or_else(
-                            |_| select_estimand(&identification, EstimatorId::BayesianGcomp),
-                        )
-                    else {
-                        return Ok(None);
-                    };
-                    Ok(Some((estimand, identification)))
-                })()?;
-            by_mask.insert(mask, value.clone());
-            value
-        };
+        let resolved = by_mask.get(&mask).cloned().flatten();
         // A posterior may list the same graph more than once (one entry per
         // sample). Every entry keeps its own weight and flag in `graphs`, but
         // consumers weight an atom by the combined mass of its key, so each
@@ -441,10 +473,30 @@ pub(crate) fn build_admg_graph_posterior_response_identification_cache(
     let mut flags = Vec::with_capacity(posterior.n_graphs);
     let mut keys = Vec::with_capacity(posterior.n_graphs);
     let mut atoms = Vec::new();
-    let mut by_mask: HashMap<u64, Option<(IdentifiedEstimand, IdentificationResult)>> =
-        HashMap::new();
-    let mut atom_masks: HashMap<u64, u64> = HashMap::new();
     let causal_query = CausalQuery::Response(query.clone());
+    let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
+        (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
+            let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars) else {
+                return Ok(None);
+            };
+            let Ok(identification) =
+                identify_admg_query(DEFAULT_ADMG_IDENTIFIER_ID, &admg, &causal_query)
+            else {
+                return Ok(None);
+            };
+            if !super::execute::identification_status_ok_for_case(identification.status)
+                || identification.estimands.is_empty()
+            {
+                return Ok(None);
+            }
+            let Ok(estimand) = select_estimand(&identification, EstimatorId::FunctionalEffect)
+            else {
+                return Ok(None);
+            };
+            Ok(Some((estimand, identification)))
+        })()
+    })?;
+    let mut atom_masks: HashMap<u64, u64> = HashMap::new();
 
     for i in 0..posterior.n_graphs {
         if ctx.cancellation.is_cancelled() {
@@ -454,41 +506,11 @@ pub(crate) fn build_admg_graph_posterior_response_identification_cache(
             #[allow(clippy::cast_precision_loss)]
             progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
         }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-        }
         let mask = posterior.adjacency[i];
         let key = posterior.graph_keys[i];
         keys.push(key);
         weights.push(posterior.weights[i]);
-        let resolved = if let Some(hit) = by_mask.get(&mask) {
-            hit.clone()
-        } else {
-            let value =
-                (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
-                    let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars) else {
-                        return Ok(None);
-                    };
-                    let Ok(identification) =
-                        identify_admg_query(DEFAULT_ADMG_IDENTIFIER_ID, &admg, &causal_query)
-                    else {
-                        return Ok(None);
-                    };
-                    if !super::execute::identification_status_ok_for_case(identification.status)
-                        || identification.estimands.is_empty()
-                    {
-                        return Ok(None);
-                    }
-                    let Ok(estimand) =
-                        select_estimand(&identification, EstimatorId::FunctionalEffect)
-                    else {
-                        return Ok(None);
-                    };
-                    Ok(Some((estimand, identification)))
-                })()?;
-            by_mask.insert(mask, value.clone());
-            value
-        };
+        let resolved = by_mask.get(&mask).cloned().flatten();
         let first_for_key = match atom_masks.entry(key) {
             std::collections::hash_map::Entry::Vacant(slot) => {
                 slot.insert(mask);
@@ -545,8 +567,26 @@ fn build_admg_graph_posterior_identification_cache(
     let mut flags = Vec::with_capacity(posterior.n_graphs);
     let mut keys = Vec::with_capacity(posterior.n_graphs);
     let mut atoms = Vec::new();
-    let mut by_mask: HashMap<u64, Option<(IdentifiedEstimand, IdentificationResult)>> =
-        HashMap::new();
+    let by_mask = identify_unique_adjacency_masks(posterior, ctx, |mask, _inner| {
+        (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
+            let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars) else {
+                return Ok(None);
+            };
+            let Ok(identification) = identify_admg(DEFAULT_ADMG_IDENTIFIER_ID, &admg, query) else {
+                return Ok(None);
+            };
+            if !super::execute::identification_status_ok_for_case(identification.status)
+                || identification.estimands.is_empty()
+            {
+                return Ok(None);
+            }
+            let Ok(estimand) = select_estimand(&identification, EstimatorId::FunctionalEffect)
+            else {
+                return Ok(None);
+            };
+            Ok(Some((estimand, identification)))
+        })()
+    })?;
     let mut atom_masks: HashMap<u64, u64> = HashMap::new();
 
     for i in 0..posterior.n_graphs {
@@ -557,41 +597,11 @@ fn build_admg_graph_posterior_identification_cache(
             #[allow(clippy::cast_precision_loss)]
             progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
         }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-        }
         let mask = posterior.adjacency[i];
         let key = posterior.graph_keys[i];
         keys.push(key);
         weights.push(posterior.weights[i]);
-        let resolved = if let Some(hit) = by_mask.get(&mask) {
-            hit.clone()
-        } else {
-            let value =
-                (|| -> Result<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError> {
-                    let Ok(admg) = admg_from_adjacency_mask(mask, posterior.n_vars) else {
-                        return Ok(None);
-                    };
-                    let Ok(identification) =
-                        identify_admg(DEFAULT_ADMG_IDENTIFIER_ID, &admg, query)
-                    else {
-                        return Ok(None);
-                    };
-                    if !super::execute::identification_status_ok_for_case(identification.status)
-                        || identification.estimands.is_empty()
-                    {
-                        return Ok(None);
-                    }
-                    let Ok(estimand) =
-                        select_estimand(&identification, EstimatorId::FunctionalEffect)
-                    else {
-                        return Ok(None);
-                    };
-                    Ok(Some((estimand, identification)))
-                })()?;
-            by_mask.insert(mask, value.clone());
-            value
-        };
+        let resolved = by_mask.get(&mask).cloned().flatten();
         let first_for_key = match atom_masks.entry(key) {
             std::collections::hash_map::Entry::Vacant(slot) => {
                 slot.insert(mask);
@@ -643,13 +653,38 @@ fn build_class_graph_posterior_identification_cache(
     use antecedent_discovery::{cpdag_from_adjacency_mask, pag_from_adjacency_mask};
 
     super::execute::report_identify_compute(ctx);
+    let resolved = map_posterior_graphs(posterior, ctx, |i, _inner| {
+        let mask = posterior.adjacency[i];
+        let mark = posterior.mark_masks.as_ref().map(|marks| marks[i]).unwrap_or(0);
+        let key = posterior.graph_keys[i];
+        let cached = match posterior.atom_kind {
+            antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
+                let Ok(cpdag) = cpdag_from_adjacency_mask(mask, posterior.n_vars) else {
+                    return Ok(None);
+                };
+                Ok::<_, CausalError>(identify_cpdag(DEFAULT_PAG_IDENTIFIER_ID, &cpdag, query)
+                    .ok()
+                    .map(|envelope| cache_class_envelope(key, query, envelope)))
+            }
+            antecedent_discovery::GraphPosteriorAtomKind::Pag => {
+                let Ok(pag) = pag_from_adjacency_mask(mask, mark, posterior.n_vars) else {
+                    return Ok(None);
+                };
+                Ok(identify_pag(DEFAULT_PAG_IDENTIFIER_ID, &pag, query)
+                    .ok()
+                    .map(|envelope| cache_class_envelope(key, query, envelope)))
+            }
+            _ => Ok(None),
+        }?;
+        Ok(cached)
+    })?;
     let mut weights = Vec::with_capacity(posterior.n_graphs);
     let mut flags = Vec::with_capacity(posterior.n_graphs);
     let mut keys = Vec::with_capacity(posterior.n_graphs);
     let mut class_atoms = Vec::new();
     let mut atom_masks: HashMap<u64, u64> = HashMap::new();
 
-    for i in 0..posterior.n_graphs {
+    for (i, cached) in resolved.into_iter().enumerate() {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
         }
@@ -658,7 +693,6 @@ fn build_class_graph_posterior_identification_cache(
             progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
         }
         let mask = posterior.adjacency[i];
-        let mark = posterior.mark_masks.as_ref().map(|marks| marks[i]).unwrap_or(0);
         let key = posterior.graph_keys[i];
         keys.push(key);
         weights.push(posterior.weights[i]);
@@ -673,30 +707,6 @@ fn build_class_graph_posterior_identification_cache(
                     message: "graph posterior reuses one graph key for different adjacency masks"
                         .into(),
                 });
-            }
-        };
-        let cached = match posterior.atom_kind {
-            antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
-                let Ok(cpdag) = cpdag_from_adjacency_mask(mask, posterior.n_vars) else {
-                    flags.push(GraphIdentFlag::Unidentified);
-                    continue;
-                };
-                identify_cpdag(DEFAULT_PAG_IDENTIFIER_ID, &cpdag, query)
-                    .ok()
-                    .map(|envelope| cache_class_envelope(key, query, envelope))
-            }
-            antecedent_discovery::GraphPosteriorAtomKind::Pag => {
-                let Ok(pag) = pag_from_adjacency_mask(mask, mark, posterior.n_vars) else {
-                    flags.push(GraphIdentFlag::Unidentified);
-                    continue;
-                };
-                identify_pag(DEFAULT_PAG_IDENTIFIER_ID, &pag, query)
-                    .ok()
-                    .map(|envelope| cache_class_envelope(key, query, envelope))
-            }
-            _ => {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
             }
         };
         let Some(cached) = cached else {
@@ -782,23 +792,14 @@ pub(crate) fn build_dbn_posterior_identification_cache(
         .max_lag
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
     super::execute::report_identify_compute(ctx);
-    let mut weights = Vec::with_capacity(posterior.n_graphs);
-    let mut flags = Vec::with_capacity(posterior.n_graphs);
-    let mut keys = Vec::with_capacity(posterior.n_graphs);
-    let mut atoms = Vec::new();
-    let mut identify_demotion = DbnIdentifyDemotion::default();
-
-    for i in 0..posterior.n_graphs {
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-        }
-        if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)]
-            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
-        }
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-        }
+    enum DbnAtomOutcome {
+        InvalidGraph,
+        IdentifyFailed,
+        NotIdentified,
+        NoEstimand,
+        Identified(CachedDbnPosteriorAtomIdentification),
+    }
+    let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
         // A DBN atom is the pair (contemporaneous mask, lag mask), but the
         // public GraphPosterior constructor keys atoms by contemporaneous mask
         // alone. Use posterior position as a collision-free execution key so
@@ -806,8 +807,6 @@ pub(crate) fn build_dbn_posterior_identification_cache(
         // effect envelope. This key is internal and does not alter the public
         // GraphPosterior representation.
         let key = dbn_envelope_key(i)?;
-        keys.push(key);
-        weights.push(posterior.weights[i]);
         let Ok(graph) = temporal_dag_from_dbn_masks(
             posterior.adjacency[i],
             lag_masks[i],
@@ -815,41 +814,70 @@ pub(crate) fn build_dbn_posterior_identification_cache(
             max_lag,
             variables,
         ) else {
-            flags.push(GraphIdentFlag::Unidentified);
-            identify_demotion.invalid_graph += 1;
-            continue;
+            return Ok(DbnAtomOutcome::InvalidGraph);
         };
         let Ok(temporal) = TemporalBackdoorIdentifier::new().identify_temporal(&graph, query)
         else {
-            flags.push(GraphIdentFlag::Unidentified);
-            identify_demotion.identify_failed += 1;
-            continue;
+            return Ok(DbnAtomOutcome::IdentifyFailed);
         };
         let identification = temporal.result;
         if !super::execute::identification_status_ok_for_case(identification.status) {
-            flags.push(GraphIdentFlag::Unidentified);
-            identify_demotion.not_identified += 1;
-            continue;
+            return Ok(DbnAtomOutcome::NotIdentified);
         }
         if identification.estimands.is_empty() {
-            flags.push(GraphIdentFlag::Unidentified);
-            identify_demotion.no_estimand += 1;
-            continue;
+            return Ok(DbnAtomOutcome::NoEstimand);
         }
         let estimator = dbn_temporal_effect_estimator(query);
         let Ok(estimand) = select_estimand(&identification, estimator) else {
-            flags.push(GraphIdentFlag::Unidentified);
-            identify_demotion.no_estimand += 1;
-            continue;
+            return Ok(DbnAtomOutcome::NoEstimand);
         };
-        flags.push(GraphIdentFlag::Identified);
-        atoms.push(CachedDbnPosteriorAtomIdentification {
+        Ok(DbnAtomOutcome::Identified(CachedDbnPosteriorAtomIdentification {
             key,
             estimand,
             identification,
             indexer: temporal.indexer,
             horizons: None,
-        });
+        }))
+    })?;
+    let mut weights = Vec::with_capacity(posterior.n_graphs);
+    let mut flags = Vec::with_capacity(posterior.n_graphs);
+    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut atoms = Vec::new();
+    let mut identify_demotion = DbnIdentifyDemotion::default();
+
+    for (i, outcome) in mapped.into_iter().enumerate() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+        }
+        if let Some(progress) = &ctx.progress {
+            #[allow(clippy::cast_precision_loss)]
+            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+        }
+        let key = dbn_envelope_key(i)?;
+        keys.push(key);
+        weights.push(posterior.weights[i]);
+        match outcome {
+            DbnAtomOutcome::InvalidGraph => {
+                flags.push(GraphIdentFlag::Unidentified);
+                identify_demotion.invalid_graph += 1;
+            }
+            DbnAtomOutcome::IdentifyFailed => {
+                flags.push(GraphIdentFlag::Unidentified);
+                identify_demotion.identify_failed += 1;
+            }
+            DbnAtomOutcome::NotIdentified => {
+                flags.push(GraphIdentFlag::Unidentified);
+                identify_demotion.not_identified += 1;
+            }
+            DbnAtomOutcome::NoEstimand => {
+                flags.push(GraphIdentFlag::Unidentified);
+                identify_demotion.no_estimand += 1;
+            }
+            DbnAtomOutcome::Identified(atom) => {
+                flags.push(GraphIdentFlag::Identified);
+                atoms.push(atom);
+            }
+        }
     }
     if ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
@@ -903,22 +931,8 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
     if let Some(max) = max_completions {
         config.max_completions = max;
     }
-    let mut weights = Vec::with_capacity(posterior.n_graphs);
-    let mut flags = Vec::with_capacity(posterior.n_graphs);
-    let mut keys = Vec::with_capacity(posterior.n_graphs);
-    let mut class_atoms = Vec::new();
-
-    for i in 0..posterior.n_graphs {
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-        }
-        if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)]
-            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
-        }
+    let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
         let key = dbn_envelope_key(i)?;
-        keys.push(key);
-        weights.push(posterior.weights[i]);
         let mark = posterior.mark_masks.as_ref().map(|marks| marks[i]).unwrap_or(0);
         let cached = match posterior.atom_kind {
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
@@ -929,17 +943,16 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
                     max_lag,
                     variables,
                 ) else {
-                    flags.push(GraphIdentFlag::Unidentified);
-                    continue;
+                    return Ok(None);
                 };
-                identify_temporal_cpdag_configured(
+                Ok::<_, CausalError>(identify_temporal_cpdag_configured(
                     DEFAULT_PAG_IDENTIFIER_ID,
                     &cpdag,
                     query,
                     config.clone(),
                 )
                 .ok()
-                .map(|envelope| cache_temporal_class_atom(key, query, envelope))
+                .map(|envelope| cache_temporal_class_atom(key, query, envelope)))
             }
             antecedent_discovery::GraphPosteriorAtomKind::Pag => {
                 let Ok(pag) = temporal_pag_from_dbn_masks(
@@ -950,23 +963,37 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
                     max_lag,
                     variables,
                 ) else {
-                    flags.push(GraphIdentFlag::Unidentified);
-                    continue;
+                    return Ok(None);
                 };
-                identify_temporal_pag_configured(
+                Ok(identify_temporal_pag_configured(
                     DEFAULT_PAG_IDENTIFIER_ID,
                     &pag,
                     query,
                     config.clone(),
                 )
                 .ok()
-                .map(|envelope| cache_temporal_class_atom(key, query, envelope))
+                .map(|envelope| cache_temporal_class_atom(key, query, envelope)))
             }
-            _ => {
-                flags.push(GraphIdentFlag::Unidentified);
-                continue;
-            }
-        };
+            _ => Ok(None),
+        }?;
+        Ok(cached)
+    })?;
+    let mut weights = Vec::with_capacity(posterior.n_graphs);
+    let mut flags = Vec::with_capacity(posterior.n_graphs);
+    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut class_atoms = Vec::new();
+
+    for (i, cached) in mapped.into_iter().enumerate() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+        }
+        if let Some(progress) = &ctx.progress {
+            #[allow(clippy::cast_precision_loss)]
+            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+        }
+        let key = dbn_envelope_key(i)?;
+        keys.push(key);
+        weights.push(posterior.weights[i]);
         let Some(cached) = cached else {
             flags.push(GraphIdentFlag::Unidentified);
             continue;
@@ -1032,23 +1059,15 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
         .max_lag
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
     super::execute::report_identify_compute(ctx);
-    let mut weights = Vec::with_capacity(posterior.n_graphs);
-    let mut flags = Vec::with_capacity(posterior.n_graphs);
-    let mut keys = Vec::with_capacity(posterior.n_graphs);
-    let mut atoms = Vec::new();
-    let mut identify_demotion = DbnIdentifyDemotion::default();
-
-    for i in 0..posterior.n_graphs {
-        if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
-        }
-        if let Some(progress) = &ctx.progress {
-            #[allow(clippy::cast_precision_loss)]
-            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
-        }
+    enum DbnAtomOutcome {
+        InvalidGraph,
+        IdentifyFailed,
+        NotIdentified,
+        NoEstimand,
+        Identified(CachedDbnPosteriorAtomIdentification),
+    }
+    let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
         let key = dbn_envelope_key(i)?;
-        keys.push(key);
-        weights.push(posterior.weights[i]);
         let Ok(graph) = temporal_dag_from_dbn_masks(
             posterior.adjacency[i],
             lag_masks[i],
@@ -1056,9 +1075,7 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
             max_lag,
             variables,
         ) else {
-            flags.push(GraphIdentFlag::Unidentified);
-            identify_demotion.invalid_graph += 1;
-            continue;
+            return Ok(DbnAtomOutcome::InvalidGraph);
         };
         let Ok(horizons) = identify_temporal_response_horizons(
             &graph,
@@ -1069,9 +1086,7 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
             estimator_id,
             None,
         ) else {
-            flags.push(GraphIdentFlag::Unidentified);
-            identify_demotion.identify_failed += 1;
-            continue;
+            return Ok(DbnAtomOutcome::IdentifyFailed);
         };
         if horizons.by_horizon.len() != temporal.horizons.len()
             || horizons.by_horizon.iter().any(|entry| {
@@ -1079,23 +1094,58 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
                     || entry.identification.estimands.is_empty()
             })
         {
-            flags.push(GraphIdentFlag::Unidentified);
-            identify_demotion.not_identified += 1;
-            continue;
+            return Ok(DbnAtomOutcome::NotIdentified);
         }
         let Some(first) = horizons.by_horizon.first() else {
-            flags.push(GraphIdentFlag::Unidentified);
-            identify_demotion.no_estimand += 1;
-            continue;
+            return Ok(DbnAtomOutcome::NoEstimand);
         };
-        flags.push(GraphIdentFlag::Identified);
-        atoms.push(CachedDbnPosteriorAtomIdentification {
+        Ok(DbnAtomOutcome::Identified(CachedDbnPosteriorAtomIdentification {
             key,
             estimand: first.estimand.clone(),
             identification: first.identification.clone(),
             indexer: first.indexer.clone(),
             horizons: Some(horizons),
-        });
+        }))
+    })?;
+    let mut weights = Vec::with_capacity(posterior.n_graphs);
+    let mut flags = Vec::with_capacity(posterior.n_graphs);
+    let mut keys = Vec::with_capacity(posterior.n_graphs);
+    let mut atoms = Vec::new();
+    let mut identify_demotion = DbnIdentifyDemotion::default();
+
+    for (i, outcome) in mapped.into_iter().enumerate() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
+        }
+        if let Some(progress) = &ctx.progress {
+            #[allow(clippy::cast_precision_loss)]
+            progress.report(i as f64 / posterior.n_graphs.max(1) as f64, "envelope.identify");
+        }
+        let key = dbn_envelope_key(i)?;
+        keys.push(key);
+        weights.push(posterior.weights[i]);
+        match outcome {
+            DbnAtomOutcome::InvalidGraph => {
+                flags.push(GraphIdentFlag::Unidentified);
+                identify_demotion.invalid_graph += 1;
+            }
+            DbnAtomOutcome::IdentifyFailed => {
+                flags.push(GraphIdentFlag::Unidentified);
+                identify_demotion.identify_failed += 1;
+            }
+            DbnAtomOutcome::NotIdentified => {
+                flags.push(GraphIdentFlag::Unidentified);
+                identify_demotion.not_identified += 1;
+            }
+            DbnAtomOutcome::NoEstimand => {
+                flags.push(GraphIdentFlag::Unidentified);
+                identify_demotion.no_estimand += 1;
+            }
+            DbnAtomOutcome::Identified(atom) => {
+                flags.push(GraphIdentFlag::Identified);
+                atoms.push(atom);
+            }
+        }
     }
     if ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: super::stage::STAGE_IDENTIFY });
