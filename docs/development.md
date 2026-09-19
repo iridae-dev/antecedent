@@ -121,9 +121,10 @@ and is never re-measured on a timer.
 every path that can move a number (crate sources, manifests, the toolchain, the
 shared harness, each calibration suite) to a facet:
 
-- `core` — shared code (facade, harness, manifests, toolchain). On the list
-  so an unmapped file cannot look harmless. Records do not carry it: a core
-  edit does not owe a re-measurement.
+- `core` — shared numerical and harness code (least-squares, conjugate,
+  bootstrap, RNG, facade dispatch, manifests, toolchain). Every record
+  carries it: a core edit owes a re-measurement unless a reviewed replay
+  waiver covers the change.
 - `estimator.*` / `identity.*` — one estimator or identification
   implementation. A change owes only the records that use that estimator or
   identity.
@@ -135,7 +136,7 @@ shared harness, each calibration suite) to a facet:
 Each record's `facets` are derived from the record itself by
 `scripts/calibration_facets.py`: the suite of its test and DGP file, and every
 `estimator.*` / `identity.*` (or `mechanism` / `design`) a `key` line assigns
-to its fields. Records do not carry `core`. `scripts/gate_parity_schema.sh`
+to its fields. Every record also carries `core`. `scripts/gate_parity_schema.sh`
 rejects a record whose facets are not exactly the derived set. `estimator.*` /
 `identity.*` isolation is the `key` line: a change owes only records whose
 fields match. For `mechanism` / `design`, `check` still fails when a file
@@ -220,7 +221,7 @@ Facets and replay waivers keep the cost proportional to the change:
 - an estimator or identification-path edit owes only the records that use it;
 - a `mechanism` edit owes only the fitted-SCM records;
 - a reviewed change that cannot move a number owes nothing, through a waiver;
-- a `core` edit owes nothing (records do not carry `core`).
+- a `core` edit owes every record, unless a reviewed replay waiver covers it;
 
 **How long it takes.** Groups already run side by side (`measure_calibration.sh
 --jobs`). Independent seeds inside a group run across `available_parallelism`
@@ -289,6 +290,11 @@ command when black-box comparison applies.
 Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
 
 ## Release candidates
+
+For 1.11, the independent [practitioner acceptance suite](practitioner-acceptance.md)
+is an additional cut requirement. Run its Python and Rust jobs and both scale
+sizes against the candidate, and close its leftover ledger. It remains outside
+`gate_release.sh`; passing the commands below alone does not discharge S.
 
 `gate_release.sh` is the PR inventory; a release is cut with
 `scripts/gate_release_candidate.sh` (which `scripts/tag_release.sh` runs before

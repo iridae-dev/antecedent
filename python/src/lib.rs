@@ -2238,7 +2238,8 @@ fn load_float64_arrow_c_columns(
         let mut cdi_cols = Vec::with_capacity(columns.len());
         for (name, obj) in names.into_iter().zip(columns) {
             let (array, schema) = take_arrow_c_array(py, &obj)?;
-            cdi_cols.push(ArrowCColumn { name, array, schema });
+            // SAFETY: capsules were produced by a compliant Arrow CDI exporter.
+            cdi_cols.push(unsafe { ArrowCColumn::from_ffi(name, array, schema) });
         }
         let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
         let column_names: Vec<String> =
@@ -2309,7 +2310,8 @@ pub(crate) fn tabular_from_arrow_c_objs(
     let mut cdi_cols = Vec::with_capacity(columns.len());
     for (name, obj) in names.into_iter().zip(columns) {
         let (array, schema) = take_arrow_c_array(py, &obj)?;
-        cdi_cols.push(ArrowCColumn { name, array, schema });
+        // SAFETY: capsules were produced by a compliant Arrow CDI exporter.
+        cdi_cols.push(unsafe { ArrowCColumn::from_ffi(name, array, schema) });
     }
     let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
     Ok((loaded.data, loaded.bytes_borrowed))

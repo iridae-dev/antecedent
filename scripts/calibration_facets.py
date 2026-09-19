@@ -5,9 +5,10 @@ A coverage record in `parity/coverage_records.toml` stands until the code it
 measured changes. `scripts/calibration_surface.list` is the only owner of that
 surface. It assigns every path to a facet:
 
-* `core` — shared code (facade, harness, manifests, toolchain). It stays on
-  the list so an unmapped file cannot look harmless, but records do not carry
-  it: a core edit does not owe a re-measurement.
+* `core` — shared numerical and harness code (least-squares, conjugate,
+  bootstrap, RNG, facade dispatch, manifests, toolchain). Every record
+  carries it: a core edit owes a re-measurement unless a reviewed replay
+  waiver covers the change.
 * `estimator.*` / `identity.*` — the implementation of one estimator or
   identification path. A change owes only the records whose `estimator` /
   `query` (or other keyed field) names that implementation.
@@ -545,15 +546,15 @@ def load_records(path: Path = RECORDS) -> list[dict]:
 def record_facets(rec: dict, surface: Surface, refs: References | None = None) -> list[str]:
     """Facets a record depends on, derived from its own fields.
 
-    A record carries the suite of its test/DGP and every keyed estimator or
-    identity its fields name. It does not carry `core`.
+    A record carries `core`, the suite of its test/DGP, and every keyed
+    estimator or identity its fields name.
     """
     del refs
-    facets: set[str] = set()
+    facets: set[str] = {CORE}
     for spec in (str(rec.get("test", "")), str(rec.get("dgp", ""))):
         rel = spec.rsplit("::", 1)[0]
         facet = surface.facet_of(rel)
-        if facet and facet != CORE:
+        if facet:
             facets.add(facet)
     for facet, key, patterns in surface.keys:
         value = str(rec.get(key, ""))
@@ -1566,7 +1567,7 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
     import math
 
     start, end, other = "1" * 40, "2" * 40, "3" * 40
-    helpers = "crates/antecedent/src/analysis/helpers.rs"  # core; records do not carry it
+    helpers = "crates/antecedent/src/analysis/helpers.rs"  # core; every record carries it
     compile_rs = "crates/antecedent-model/src/compile.rs"  # mechanism
     stats = "crates/antecedent-stats/src/lib.rs"  # core, not waived
     temporal_adj = "crates/antecedent-estimate/src/temporal_adjustment.rs"
@@ -1636,7 +1637,7 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         return waiver
 
     def diffs(after_to: list[str] | None = None, between: list[str] | None = None) -> FakeRepo:
-        between_paths = [helpers, compile_rs] if between is None else between
+        between_paths = [compile_rs] if between is None else between
         after = after_to or []
         return FakeRepo(
             commits,
@@ -1644,7 +1645,7 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
                 (start, end): between_paths,
                 (start, None): between_paths + after,
                 (end, None): after,
-                (other, None): [helpers],
+                (other, None): [],
             },
         )
 
@@ -2073,18 +2074,18 @@ def self_test() -> int:
     }
     expect(
         set(record_facets(counterfactual, base, refs))
-        >= {"mechanism", "suite.v19_static_calibration"},
-        "a counterfactual record carries mechanism and its suite, not core",
+        >= {CORE, "mechanism", "suite.v19_static_calibration"},
+        "a counterfactual record carries core, mechanism and its suite",
     )
     temporal_facets = record_facets(temporal_rec, base, refs)
     expect(
-        CORE not in temporal_facets
+        CORE in temporal_facets
         and "mechanism" not in temporal_facets
         and "suite.v19_static_calibration" not in temporal_facets
         and "estimator.temporal_adjustment" in temporal_facets
         and "identity.temporal" in temporal_facets
         and "suite.v19_temporal_frequentist" in temporal_facets,
-        "a temporal record carries its estimator, identity and suite; not core or mechanism",
+        "a temporal record carries core, its estimator, identity and suite; not mechanism",
     )
     split = []
     for rec in load_records():
@@ -2120,7 +2121,20 @@ def self_test() -> int:
         "a mechanism change owes a re-measurement of the mechanism records only",
     )
     shared = {"a" * 40: [], "b" * 40: ["crates/antecedent-stats/src/lib.rs"]}
-    expect(owed(shared) == set(), "a core change owes no record")
+    expect(owed(shared) == {"old"}, "a core change owes every record measured at that SHA")
+    for path, label in (
+        ("crates/antecedent-stats/src/faer_backend.rs", "OLS backend"),
+        ("crates/antecedent-prob/src/conjugate.rs", "conjugate"),
+        ("crates/antecedent-kernels/src/rng.rs", "RNG"),
+        ("crates/antecedent-estimate/src/util.rs", "shared estimate util"),
+        ("Cargo.lock", "lockfile"),
+        ("rust-toolchain.toml", "toolchain"),
+    ):
+        mutated = {"a" * 40: [path], "b" * 40: []}
+        expect(
+            owed(mutated) == {"cf", "tp"},
+            f"a {label} change owes every record measured at that SHA",
+        )
     suite = {"a" * 40: ["crates/antecedent/tests/v19_temporal_frequentist.rs"], "b" * 40: []}
     expect(owed(suite) == {"tp"}, "a suite change owes the records that suite emits")
     estimator = {

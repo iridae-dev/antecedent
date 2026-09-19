@@ -48,10 +48,26 @@ pub struct SectionLoadStats {
     pub decompressions: u64,
 }
 
-/// Zero-copy view into an mmap'd uncompressed section.
+/// Immutable artifact bytes: an owned snapshot, or a file-backed map.
+#[derive(Clone, Debug)]
+enum ArtifactBacking {
+    Owned(Arc<[u8]>),
+    Mapped(Arc<Mmap>),
+}
+
+impl ArtifactBacking {
+    fn as_slice(&self) -> &[u8] {
+        match self {
+            Self::Owned(bytes) => bytes.as_ref(),
+            Self::Mapped(mmap) => mmap.as_ref(),
+        }
+    }
+}
+
+/// Zero-copy view into an uncompressed section.
 #[derive(Clone, Debug)]
 pub struct MappedSection {
-    mmap: Arc<Mmap>,
+    backing: ArtifactBacking,
     start: usize,
     len: usize,
     /// Section id.
@@ -62,7 +78,7 @@ impl MappedSection {
     /// Borrow the on-wire (== logical, uncompressed) bytes.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
-        &self.mmap[self.start..self.start + self.len]
+        &self.backing.as_slice()[self.start..self.start + self.len]
     }
 }
 
@@ -237,44 +253,83 @@ impl<R: Read + Seek> ArtifactReader<R> {
     }
 }
 
-/// Memory-mapped artifact reader (zero-copy uncompressed sections).
+/// Artifact reader over an owned snapshot or a file-backed map.
 pub struct MappedArtifactReader {
-    mmap: Arc<Mmap>,
+    backing: ArtifactBacking,
     manifest: ArtifactManifest,
     index: Vec<SectionIndexEntry>,
     by_id: HashMap<String, usize>,
     stats: SectionLoadStats,
-    /// Per-section BLAKE3-verification memo: the mapped file is immutable for
-    /// the reader's lifetime, so a section verified once is not re-hashed on
-    /// every subsequent view.
+    /// Per-section BLAKE3-verification memo. Sound for an owned snapshot
+    /// (immutable bytes) and for a mapped file only while the caller upholds
+    /// the immutability contract of [`Self::open_path_mapped`].
     verified: Vec<bool>,
 }
 
 impl MappedArtifactReader {
-    /// Memory-map `path` and index sections without copying payloads.
+    /// Read `path` into an owned snapshot and index sections.
+    ///
+    /// The snapshot is independent of later writes to the path.
     ///
     /// # Errors
     ///
     /// IO, bad magic, or manifest errors.
     pub fn open_path(path: impl AsRef<Path>) -> Result<Self, IoError> {
-        let file = File::open(path.as_ref()).map_err(|e| IoError::Io(e.to_string()))?;
-        let mmap = Arc::new(map_file_readonly(&file)?);
-        Self::from_mmap(mmap)
+        let bytes = std::fs::read(path.as_ref()).map_err(|e| IoError::Io(e.to_string()))?;
+        Self::from_bytes(Arc::from(bytes))
     }
 
-    /// Index an already-mapped buffer.
+    /// Memory-map `path` without copying payloads.
+    ///
+    /// # Safety
+    ///
+    /// The file at `path` must not be modified or truncated by any process for
+    /// the entire lifetime of the reader and every [`MappedSection`] derived
+    /// from it. Opening one descriptor read-only does not establish that.
+    ///
+    /// # Errors
+    ///
+    /// IO, bad magic, or manifest errors.
+    #[allow(unsafe_code)]
+    pub unsafe fn open_path_mapped(path: impl AsRef<Path>) -> Result<Self, IoError> {
+        let file = File::open(path.as_ref()).map_err(|e| IoError::Io(e.to_string()))?;
+        // SAFETY: caller upholds file immutability for the map lifetime.
+        let mmap = Arc::new(unsafe { map_file_readonly(&file)? });
+        unsafe { Self::from_mmap(mmap) }
+    }
+
+    /// Index an owned byte snapshot.
     ///
     /// # Errors
     ///
     /// Bad magic, version, CBOR, or section framing.
-    pub fn from_mmap(mmap: Arc<Mmap>) -> Result<Self, IoError> {
-        let mut cursor = Cursor::new(mmap.as_ref());
+    pub fn from_bytes(bytes: Arc<[u8]>) -> Result<Self, IoError> {
+        Self::from_backing(ArtifactBacking::Owned(bytes))
+    }
+
+    /// Index an already-mapped buffer.
+    ///
+    /// # Safety
+    ///
+    /// The mapped file must remain unmodified for the lifetime of the reader
+    /// and every view derived from it.
+    ///
+    /// # Errors
+    ///
+    /// Bad magic, version, CBOR, or section framing.
+    #[allow(unsafe_code)]
+    pub unsafe fn from_mmap(mmap: Arc<Mmap>) -> Result<Self, IoError> {
+        Self::from_backing(ArtifactBacking::Mapped(mmap))
+    }
+
+    fn from_backing(backing: ArtifactBacking) -> Result<Self, IoError> {
+        let mut cursor = Cursor::new(backing.as_slice());
         let (manifest, index, mut stats) = index_seekable(&mut cursor)?;
         stats.bytes_skipped = index.iter().map(|e| u64::from(e.on_wire_len)).sum();
         stats.sections_skipped = index.len() as u64;
         let by_id = index_by_id(&index);
         let verified = vec![false; index.len()];
-        Ok(Self { mmap, manifest, index, by_id, stats, verified })
+        Ok(Self { backing, manifest, index, by_id, stats, verified })
     }
 
     /// Manifest.
@@ -309,10 +364,11 @@ impl MappedArtifactReader {
         }
         let start = usize::try_from(entry.file_offset).map_err(|_| IoError::TooLarge)?;
         let len = usize::try_from(entry.on_wire_len).map_err(|_| IoError::TooLarge)?;
-        if start.checked_add(len).is_none_or(|end| end > self.mmap.len()) {
+        let bytes = self.backing.as_slice();
+        if start.checked_add(len).is_none_or(|end| end > bytes.len()) {
             return Err(IoError::Io("mmap section range out of bounds".into()));
         }
-        let on_wire = &self.mmap[start..start + len];
+        let on_wire = &bytes[start..start + len];
         if !self.verified[pos] {
             let hash = blake3::hash(on_wire);
             if hash.as_bytes() != &desc.blake3 {
@@ -332,7 +388,7 @@ impl MappedArtifactReader {
             self.stats.bytes_skipped =
                 self.stats.bytes_skipped.saturating_sub(u64::from(entry.on_wire_len));
         }
-        Ok(MappedSection { mmap: Arc::clone(&self.mmap), start, len, id: id.into() })
+        Ok(MappedSection { backing: self.backing.clone(), start, len, id: id.into() })
     }
 
     /// Load logical bytes (decompress when needed). Copies on-wire into a heap buffer.
@@ -349,7 +405,7 @@ impl MappedArtifactReader {
         }
         let start = usize::try_from(entry.file_offset).map_err(|_| IoError::TooLarge)?;
         let len = usize::try_from(entry.on_wire_len).map_err(|_| IoError::TooLarge)?;
-        let on_wire = &self.mmap[start..start + len];
+        let on_wire = &self.backing.as_slice()[start..start + len];
         if !self.verified[pos] {
             let hash = blake3::hash(on_wire);
             if hash.as_bytes() != &desc.blake3 {
@@ -420,7 +476,7 @@ fn index_seekable<R: Read + Seek>(
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
-    use std::io::Cursor;
+    use std::io::{Cursor, Write};
 
     use antecedent_core::VERSION;
 
@@ -485,6 +541,26 @@ mod tests {
         let again = reader.load_section_mapped("blob").unwrap();
         assert_eq!(again.as_bytes(), mapped.as_bytes());
         assert_eq!(reader.stats().mmap_views, 2);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn open_path_snapshot_survives_file_replacement() {
+        let art = artifact_with_blob();
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("causal-owned-{}.bin", std::process::id()));
+        {
+            let mut f = File::create(&path).unwrap();
+            art.write_to(&mut f).unwrap();
+        }
+        let mut reader = MappedArtifactReader::open_path(&path).unwrap();
+        {
+            let mut f = File::create(&path).unwrap();
+            f.write_all(b"not-an-artifact").unwrap();
+        }
+        let mapped = reader.load_section_mapped("blob").unwrap();
+        assert_eq!(mapped.as_bytes().len(), 48 * 1024);
+        assert_eq!(mapped.as_bytes()[0], 0xEF);
         let _ = std::fs::remove_file(&path);
     }
 
