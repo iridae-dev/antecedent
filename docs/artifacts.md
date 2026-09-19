@@ -2,7 +2,7 @@
 
 Library package version is tracked independently from the durable artifact format.
 The durable format is **`FormatVersion { major: 0, minor: 5 }`**
-(`antecedent_io::STABLE_FORMAT`). Format 0.5 adds the identified-set interval
+(`antecedent_io::STABLE_FORMAT`). Format 0.5 includes the identified-set interval
 on structural-mixture analysis results (below); format 0.4 added temporal
 response-query fields and dose × horizon response surfaces.
 
@@ -14,7 +14,7 @@ the package-version bump itself does not change artifact bytes.
 
 ## Score tables and distribution payloads
 
-Since 1.5, estimates can carry score tables, per-arm CDF values, raw-score
+Estimates can carry score tables, per-arm CDF values, raw-score
 inference and covariance, and candidate-selection provenance. These fields have
 separate meanings:
 
@@ -160,7 +160,7 @@ refuses a 0.5 artifact rather than silently dropping the interval.
 
 ## Exporting prepared results
 
-For the 1.10 Python workflow, export the execution result directly:
+From Python, export the execution result directly:
 
 ```python
 import antecedent as ant
