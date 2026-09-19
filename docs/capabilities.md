@@ -130,18 +130,26 @@ CBOR artifacts.
 * DBN posterior.
 
 Selected posterior graph samples can be propagated into licensed Bayesian
-or Frequentist effect envelopes. Static graph-posterior analysis is limited to
-`AverageEffect` and `ResponseCurve` / one-coordinate `InterventionResponse`
-with DAG atoms. A Frequentist multi-atom aggregate publishes a joint-IF SE only for
+or Frequentist effect envelopes. Static graph-posterior analysis covers
+`AverageEffect` on DAG, CPDAG, and PAG atoms (CPDAG/PAG at validation none)
+and `ResponseCurve` / one-coordinate `InterventionResponse` with DAG atoms.
+CPDAG/PAG posterior atoms are evaluated with the existing class ATE envelope
+and combined by `StructuralAggregationPolicy`: a weighted mean only when
+estimands agree, otherwise an identified set or `GraphDependent` result.
+Completion enumeration is not posterior probability; unidentified mass is
+retained. A Frequentist multi-atom aggregate publishes a joint-IF SE only for
 a scalar (one-coordinate `InterventionResponse`) when atom influences align on
 the shared rows; a multi-atom curve, or unaligned influences, withholds
 uncertainty with `estimate.response.graph_posterior.uncertainty_withheld`. The
 interval is not coverage-calibrated. Failed estimation mass is unevaluable, not
 unidentified, and makes the result `GraphDependent`. Temporal
-graph-posterior analysis is limited to pulse, single- or multi-step sustained
-effects, and single-horizon Frequentist or Bayesian temporal mediation with
-`TemporalDag` atoms. DBN-posterior response surfaces, TemporalCpdag/Pag
-posterior mixing, and ADMG/CPDAG/PAG posterior ATE atoms are refused.
+graph-posterior analysis covers pulse, single- or multi-step sustained
+effects, single-horizon Frequentist or Bayesian temporal mediation, and
+licensed TemporalDag / TemporalCpdag / TemporalPag `ResponseCurve` /
+`InterventionResponse` cells (see the [support matrix](support-matrix.md)).
+ADMG graph-posterior AverageEffect identifies each atom with `general.id` and
+estimates `functional.effect`. TemporalPag graph-posterior mediation stays
+refused.
 
 Panel Pulse/Sustained on an explicit or accepted `TemporalDag` can prepare and
 refresh. Every panel route requires one time-index regularity across units, so
@@ -181,7 +189,8 @@ not completed onto the DAG executor.
 
 Unconditional finite-discrete `InterventionalDistribution` on an explicit or
 accepted ADMG is licensed at validation `none` via general ID (bidirected
-edges stay). Cheap/full and IDC conditionals remain refused.
+edges stay). Python `analyze`/`prepare` reach these cells. Cheap/full and
+IDC conditionals remain refused.
 
 ### Conditional independence tests
 
@@ -283,13 +292,20 @@ the structure before estimating a response.
 The list above is inventory. Derivative cells are licensed on explicit or
 accepted DAGs under Frequentist and Bayesian inference at validation `none`;
 partial-graph derivatives remain refused. `ResponseCurve` and `InterventionResponse` are
-licensed on `Dag` and `TemporalDag` under Frequentist and Bayesian inference
-with validation `none`, and on `Cpdag` / `Pag` under Frequentist and Bayesian
-inference with validation `none` via the same generalized-adjustment envelope
-as ATE (see the [support matrix](support-matrix.md)). Bayesian
-responses require the documented Gaussian additive models and AllObserved population, with pointwise posterior intervals. Static Bayesian response uses complete observations; temporal Bayesian response also supports the five licensed observation pairs through its observed-data SEM backend. Bayesian Cpdag/Pag response
-keeps per-completion posteriors unmixed and publishes the completion identified
-set when completions disagree. `Admg` response remains refused. Frequentist TemporalCpdag/Pag responses retain completion identified sets; DAG-posterior responses retain atom probabilities and unidentified mass.
+licensed on `Dag`, `TemporalDag`, `Admg`, `Cpdag`, and `Pag` under Frequentist
+and Bayesian inference with validation `none` (class graphs via the same
+generalized-adjustment envelope as ATE; see the [support matrix](support-matrix.md)).
+That is not MAG/PAG-native response identification. Graph-posterior
+`ResponseCurve` cheap/full on `Admg` / `Cpdag` / `Pag`, and Bayesian
+graph-posterior `InterventionResponse` cheap/full on `Cpdag` / `Pag`, stay
+refused. Bayesian responses require the documented Gaussian additive models and
+AllObserved population, with pointwise posterior intervals. Static Bayesian
+response uses complete observations; temporal Bayesian response also supports
+the five licensed observation pairs through its observed-data SEM backend.
+Licensed Bayesian `Cpdag` / `Pag` cells keep per-completion posteriors unmixed
+and publish the completion identified set when completions disagree. Frequentist
+TemporalCpdag/Pag cells retain completion identified sets; DAG-posterior cells
+retain atom probabilities and unidentified mass.
 `ConditionalEffect` is licensed on `Dag`, `Cpdag`, and `Pag`. The public
 license is that matrix, not this page.
 
@@ -474,7 +490,7 @@ S-admissible sID plus binary trial-to-target IPW) and `InterferenceQuery` ×
 HT/Hájek, Young variance) run on `analyze` and the Rust `Study` API at
 validation `none`, and retain a study like every other licensed cell. On the
 GCM path, `AnomalyAttribution` / `ChangeAttribution` × `Dag` × explicit ×
-Frequentist are Rust `Study` only.
+Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
 
 * **Observation** (`antecedent.observation`): complete, right/left/interval-
   censored, truncated, and selected mechanisms. Assumptions are declared
@@ -552,8 +568,9 @@ Antecedent can analyze:
 * feature relevance;
 * root-cause rankings.
 
-1.9 licenses `AnomalyAttribution` and `ChangeAttribution` on an explicit Dag
-at Frequentist validation `none` (Rust `Study` only). Mechanism-change,
+`AnomalyAttribution` and `ChangeAttribution` on an explicit Dag
+at Frequentist validation `none` run on `analyze` and the Rust `Study` API.
+Mechanism-change,
 unit-change, cheap/full, Bayesian, accepted, and graph-posterior stay
 refused. The public license is the [support matrix](support-matrix.md).
 
