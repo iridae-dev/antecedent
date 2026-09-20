@@ -994,7 +994,7 @@ pub(super) fn mix_graph_posterior_identified_atoms(
     let mixable_scalar =
         matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) && mixable > 0.0;
     let ate = if mixable_scalar { weighted / mixable } else { f64::NAN };
-    let conditional_on_identified = mixable_scalar.then(|| antecedent_core::ResponseValue::Scalar(ate));
+    let conditional_on_identified = mixable_scalar.then_some(antecedent_core::ResponseValue::Scalar(ate));
     let mixture = crate::result::StructuralResponseMixture {
         weight_basis: StructuralWeightBasis::PosteriorProbability,
         atoms: structural_atoms,

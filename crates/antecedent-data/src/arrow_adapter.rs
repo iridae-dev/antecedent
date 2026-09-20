@@ -360,10 +360,9 @@ mod tests {
         // arrow-rs writes 0.0 under null slots, like most exporters.
         let x = Float64Array::from(vec![Some(1.0), None, Some(3.0)]);
         assert_eq!(x.values()[1], 0.0);
-        let loaded = tabular_from_arrow_c_columns(vec![
-            ArrowCColumn::from_arrow_array("x", Arc::new(x)).unwrap(),
-        ])
-        .unwrap();
+        let loaded =
+            tabular_from_arrow_c_columns(vec![ArrowCColumn::from_arrow_array("x", &x).unwrap()])
+                .unwrap();
         assert_eq!(loaded.bytes_borrowed, 0);
         let c = float_col(&loaded.data, 0);
         assert!(!c.values.is_foreign());
@@ -380,10 +379,9 @@ mod tests {
             ScalarBuffer::from(vec![1.0, f64::NAN, 3.0]),
             Some(NullBuffer::from(vec![true, false, true])),
         );
-        let loaded = tabular_from_arrow_c_columns(vec![
-            ArrowCColumn::from_arrow_array("x", Arc::new(x)).unwrap(),
-        ])
-        .unwrap();
+        let loaded =
+            tabular_from_arrow_c_columns(vec![ArrowCColumn::from_arrow_array("x", &x).unwrap()])
+                .unwrap();
         assert!(loaded.bytes_borrowed > 0);
         let c = float_col(&loaded.data, 0);
         assert!(c.values.is_foreign());
@@ -426,8 +424,8 @@ mod tests {
         let x = Float64Array::from(vec![1.0, 2.0, 3.0]);
         let y = Float64Array::from(vec![4.0, 5.0, 6.0]);
         let loaded = tabular_from_arrow_c_columns(vec![
-            ArrowCColumn::from_arrow_array("x", Arc::new(x)).unwrap(),
-            ArrowCColumn::from_arrow_array("y", Arc::new(y)).unwrap(),
+            ArrowCColumn::from_arrow_array("x", &x).unwrap(),
+            ArrowCColumn::from_arrow_array("y", &y).unwrap(),
         ])
         .unwrap();
         assert!(loaded.bytes_borrowed > 0);

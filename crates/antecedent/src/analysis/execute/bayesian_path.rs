@@ -933,11 +933,11 @@ impl super::Study {
             subsample_drop.mass,
             0,
         );
-        if !mixed.mixable_scalar {
+        if mixed.mixable_scalar {
+            estimate.ate = mixed.ate;
+        } else {
             estimate.ate = f64::NAN;
             estimate.se_analytic = f64::NAN;
-        } else {
-            estimate.ate = mixed.ate;
         }
         let mut identification = primary_identification.ok_or_else(|| CausalError::Compile {
             message: "graph-posterior envelope: no identified graph atoms".into(),

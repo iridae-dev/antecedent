@@ -313,7 +313,7 @@ impl PyGraphPosterior {
     #[classmethod]
     #[pyo3(signature = (names, weights, graphs, *, ess=None))]
     fn from_graphs(
-        _cls: &Bound<'_, pyo3::types::PyType>,
+        cls: &Bound<'_, pyo3::types::PyType>,
         names: Vec<String>,
         weights: Vec<f64>,
         graphs: Vec<Bound<'_, PyAny>>,
@@ -327,7 +327,7 @@ impl PyGraphPosterior {
         }
         let (kind, adjacency, mark_masks) = pack_static_atoms(&names, &graphs)?;
         Self::from_atoms(
-            _cls,
+            cls,
             names,
             weights,
             adjacency,

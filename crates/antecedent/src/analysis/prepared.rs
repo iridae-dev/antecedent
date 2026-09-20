@@ -197,6 +197,14 @@ impl DbnIdentifyDemotion {
     }
 }
 
+enum DbnAtomOutcome {
+    InvalidGraph,
+    IdentifyFailed,
+    NotIdentified,
+    NoEstimand,
+    Identified(CachedDbnPosteriorAtomIdentification),
+}
+
 /// Prepare-time identification for every atom in a DBN graph posterior.
 #[derive(Clone, Debug)]
 pub(crate) struct CachedDbnPosteriorIdentification {
@@ -654,7 +662,7 @@ fn build_class_graph_posterior_identification_cache(
     super::execute::report_identify_compute(ctx);
     let resolved = map_posterior_graphs(posterior, ctx, |i, _inner| {
         let mask = posterior.adjacency[i];
-        let mark = posterior.mark_masks.as_ref().map(|marks| marks[i]).unwrap_or(0);
+        let mark = posterior.mark_masks.as_ref().map_or(0, |marks| marks[i]);
         let key = posterior.graph_keys[i];
         let cached = match posterior.atom_kind {
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
@@ -793,13 +801,6 @@ pub(crate) fn build_dbn_posterior_identification_cache(
         .max_lag
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
     super::execute::report_identify_compute(ctx);
-    enum DbnAtomOutcome {
-        InvalidGraph,
-        IdentifyFailed,
-        NotIdentified,
-        NoEstimand,
-        Identified(CachedDbnPosteriorAtomIdentification),
-    }
     let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
         // A DBN atom is the pair (contemporaneous mask, lag mask), but the
         // public GraphPosterior constructor keys atoms by contemporaneous mask
@@ -934,7 +935,7 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
     }
     let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
         let key = dbn_envelope_key(i)?;
-        let mark = posterior.mark_masks.as_ref().map(|marks| marks[i]).unwrap_or(0);
+        let mark = posterior.mark_masks.as_ref().map_or(0, |marks| marks[i]);
         let cached = match posterior.atom_kind {
             antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
                 let Ok(cpdag) = temporal_cpdag_from_dbn_masks(
@@ -1062,13 +1063,6 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
         .max_lag
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
     super::execute::report_identify_compute(ctx);
-    enum DbnAtomOutcome {
-        InvalidGraph,
-        IdentifyFailed,
-        NotIdentified,
-        NoEstimand,
-        Identified(CachedDbnPosteriorAtomIdentification),
-    }
     let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
         let key = dbn_envelope_key(i)?;
         let Ok(graph) = temporal_dag_from_dbn_masks(

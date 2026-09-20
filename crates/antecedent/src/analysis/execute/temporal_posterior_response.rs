@@ -7,6 +7,12 @@ use super::temporal_path::{
 };
 use super::*;
 
+type PulseWitnessReports = (
+    Vec<antecedent_validate::RefutationReport>,
+    Vec<antecedent_validate::PredictiveCheckReport>,
+    Vec<Diagnostic>,
+);
+
 /// TemporalDag graph-posterior response: complete-observation MeanCurve or
 /// one-coordinate InterventionResponse. Sequence overlays stay on the explicit path.
 pub(crate) fn dbn_posterior_response_supported(query: &ResponseQuery) -> Result<(), CausalError> {
@@ -460,14 +466,7 @@ impl super::Study {
         gp: &GraphPosterior,
         vars: &[VariableId],
         ctx: &ExecutionContext,
-    ) -> Result<
-        (
-            Vec<antecedent_validate::RefutationReport>,
-            Vec<antecedent_validate::PredictiveCheckReport>,
-            Vec<Diagnostic>,
-        ),
-        CausalError,
-    > {
+    ) -> Result<PulseWitnessReports, CausalError> {
         let pulse = response_pulse_witness(query)?;
         let ate_query = AverageEffectQuery::binary_ate(pulse.treatment, pulse.outcome);
         let tabular = TabularData::new(data.storage().clone());
@@ -490,7 +489,7 @@ impl super::Study {
                         .ok_or_else(|| CausalError::Compile {
                             message: "DBN-posterior IR refuter missing contributing atom".into(),
                         })?;
-                    let (estimand, indexer) = pulse_witness_design(atom, pulse.horizon_steps)?;
+                    let (estimand, indexer) = pulse_witness_design(atom, pulse.horizon_steps);
                     let design = TemporalAtomDesign::linear(
                         data,
                         estimand,
@@ -537,7 +536,7 @@ impl super::Study {
                         .ok_or_else(|| CausalError::Compile {
                             message: "DBN-posterior IR refuter missing contributing atom".into(),
                         })?;
-                    let (estimand, indexer) = pulse_witness_design(atom, pulse.horizon_steps)?;
+                    let (estimand, indexer) = pulse_witness_design(atom, pulse.horizon_steps);
                     let mut temporal_est = TemporalLinearAdjustment::new();
                     temporal_est.inner.overlap = OverlapPolicy::ExplicitOverride;
                     let prep = temporal_est
@@ -665,11 +664,11 @@ fn response_pulse_witness(query: &ResponseQuery) -> Result<TemporalEffectQuery, 
 fn pulse_witness_design(
     atom: &crate::analysis::prepared::CachedDbnPosteriorAtomIdentification,
     horizon: u32,
-) -> Result<(&IdentifiedEstimand, &antecedent_data::TemporalIndexer), CausalError> {
+) -> (&IdentifiedEstimand, &antecedent_data::TemporalIndexer) {
     if let Some(horizons) = atom.horizons.as_ref() {
         if let Some(entry) = horizons.get(horizon) {
-            return Ok((&entry.estimand, &entry.indexer));
+            return (&entry.estimand, &entry.indexer);
         }
     }
-    Ok((&atom.estimand, &atom.indexer))
+    (&atom.estimand, &atom.indexer)
 }

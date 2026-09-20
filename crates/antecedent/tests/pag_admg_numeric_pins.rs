@@ -292,8 +292,8 @@ fn surface_means(result: &antecedent::StudyResult) -> Vec<f64> {
     }
 }
 
-/// Bidirected front-door ADMG: InterventionResponse / ResponseCurve means at
-/// do(T=0) and do(T=1) match the licensed InterventionalDistribution / ATE
+/// Bidirected front-door ADMG: `InterventionResponse` / `ResponseCurve` means at
+/// do(T=0) and do(T=1) match the licensed `InterventionalDistribution` / ATE
 /// functional on the same graph.
 #[test]
 fn admg_frontdoor_response_pins_against_distribution() {

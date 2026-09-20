@@ -1144,7 +1144,7 @@ mod tests {
         assert_eq!(back.edges().len(), g.edges().len());
         assert!(
             back.edge_between(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2))
-                .is_some_and(|e| e.is_undirected())
+                .is_some_and(antecedent_graph::MarkedEdge::is_undirected)
         );
     }
 
@@ -1157,11 +1157,11 @@ mod tests {
         let back = pag_from_adjacency_mask(adj, marks, 3).unwrap();
         assert!(
             back.edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
-                .is_some_and(|e| e.is_dag_directed())
+                .is_some_and(antecedent_graph::MarkedEdge::is_dag_directed)
         );
         assert!(
             back.edge_between(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2))
-                .is_some_and(|e| e.is_bidirected())
+                .is_some_and(antecedent_graph::MarkedEdge::is_bidirected)
         );
     }
 

@@ -505,7 +505,7 @@ fn insert_lagged_directed_pag(
 ///
 /// # Errors
 ///
-/// Variable-count mismatch or a graph mutation the TemporalCpdag rejects.
+/// Variable-count mismatch or a graph mutation the `TemporalCpdag` rejects.
 pub fn temporal_cpdag_from_dbn_masks(
     cmask: u64,
     lmask: u64,
@@ -548,7 +548,7 @@ pub fn temporal_cpdag_from_dbn_masks(
 ///
 /// # Errors
 ///
-/// Variable-count mismatch or a graph mutation the TemporalPag rejects.
+/// Variable-count mismatch or a graph mutation the `TemporalPag` rejects.
 pub fn temporal_pag_from_dbn_masks(
     cmask: u64,
     lmask: u64,

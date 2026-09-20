@@ -346,17 +346,10 @@ pub(crate) fn stratified_ate(
     }
     let ate = diffs.iter().zip(&weights).map(|(d, w)| d * w).sum::<f64>() / total_w;
     let se_var = vars.iter().zip(&weights).map(|(v, w)| v * (w / total_w).powi(2)).sum::<f64>();
-    let retained_n: f64 = (0..n_strata)
-        .filter(|&s| cnt1[s] > 0 && cnt0[s] > 0)
-        .map(|s| (cnt1[s] + cnt0[s]) as f64)
-        .sum();
-    let retained_fraction = retained_n / (treatment.len().max(1) as f64);
-    Ok(StratifiedResult {
-        ate,
-        se_analytic: se_var.sqrt(),
-        retained_fraction,
-        n_obs: retained_n as usize,
-    })
+    let retained_n: usize =
+        (0..n_strata).filter(|&s| cnt1[s] > 0 && cnt0[s] > 0).map(|s| cnt1[s] + cnt0[s]).sum();
+    let retained_fraction = retained_n as f64 / (treatment.len().max(1) as f64);
+    Ok(StratifiedResult { ate, se_analytic: se_var.sqrt(), retained_fraction, n_obs: retained_n })
 }
 
 /// Unbiased sample variance from `Σy²`, the mean, and a count of at least two.

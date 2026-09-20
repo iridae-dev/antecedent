@@ -102,8 +102,7 @@ impl super::Study {
                 weights.push(graph_w);
             }
         }
-        let refs: Vec<&antecedent_estimate::PreparedTemporalMediation> =
-            designs.iter().map(|d| *d).collect();
+        let refs: Vec<&antecedent_estimate::PreparedTemporalMediation> = designs.clone();
         let shared = antecedent_estimate::shared_mediation_block_bootstrap(
             &refs,
             &weights,
@@ -737,7 +736,7 @@ fn mix_temporal_class_mediation_posterior(
         matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) && mixable > 0.0;
     let ate = if mixable_scalar { weighted / mixable } else { f64::NAN };
     let conditional_on_identified =
-        mixable_scalar.then(|| antecedent_core::ResponseValue::Scalar(ate));
+        mixable_scalar.then_some(antecedent_core::ResponseValue::Scalar(ate));
     let identified_set = (lo.is_finite() && hi.is_finite()).then(|| scalar_identified_set(lo, hi));
     let mixture = StructuralResponseMixture {
         weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
@@ -812,12 +811,10 @@ fn eval_identification_mediation(
     eval: &TemporalClassMediationAtomEval,
     identified: &CachedTemporalClassPosteriorIdentification,
 ) -> IdentificationResult {
-    identified
-        .class_atoms
-        .iter()
-        .find(|atom| atom.key == eval.key)
-        .map(|atom| atom.identification.clone())
-        .unwrap_or_else(|| identified.class_atoms[0].identification.clone())
+    identified.class_atoms.iter().find(|atom| atom.key == eval.key).map_or_else(
+        || identified.class_atoms[0].identification.clone(),
+        |atom| atom.identification.clone(),
+    )
 }
 
 fn refute_temporal_class_mediation_posterior(

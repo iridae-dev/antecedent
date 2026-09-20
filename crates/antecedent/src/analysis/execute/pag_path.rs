@@ -256,7 +256,7 @@ impl super::Study {
             }
             means.push(mean);
             if extras_posterior.is_none() {
-                extras_posterior = posterior.clone();
+                extras_posterior.clone_from(&posterior);
                 n_draws =
                     posterior.as_ref().map(|p| u32::try_from(p.draws.n_draws).unwrap_or(u32::MAX));
             }

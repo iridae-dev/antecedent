@@ -509,30 +509,7 @@ fn constrained_conditional_set(
     };
     let t = dense(query.treatment)?;
     let y = dense(query.outcome)?;
-    let mut seeds = vec![t, y];
-    seeds.extend_from_slice(modifiers);
-    let ancestors = directed_closure(graph, &seeds, true);
-    let descendants = directed_closure(graph, &[t], false);
-    let candidates: Vec<_> = nodes
-        .iter()
-        .enumerate()
-        .filter_map(|(i, node)| {
-            let antecedent_graph::NodeRef::Static(variable) = node else {
-                return None;
-            };
-            let id = DenseNodeId::from_raw(i as u32);
-            let outside_history = config.max_history_lag.is_some_and(|cap| {
-                config.history_lags.iter().any(|(v, lag)| v == variable && *lag > cap)
-            });
-            (id != y
-                && !descendants.contains(id)
-                && ancestors.contains(id)
-                && !modifiers.contains(&id)
-                && !config.forbidden.contains(variable)
-                && !outside_history)
-                .then_some(id)
-        })
-        .collect();
+    let candidates = gac_conditional_candidates(graph, nodes, t, y, modifiers, config);
     if candidates.len() > config.max_candidates {
         return Ok(ConditionalSearch::Capped(candidates.len()));
     }
@@ -601,6 +578,40 @@ fn constrained_conditional_set(
     } else {
         ConditionalSearch::Found(sets, examined)
     })
+}
+
+fn gac_conditional_candidates(
+    graph: &Admg,
+    nodes: &[antecedent_graph::NodeRef],
+    t: DenseNodeId,
+    y: DenseNodeId,
+    modifiers: &[DenseNodeId],
+    config: &crate::backdoor::AdjustmentSearchConfig,
+) -> Vec<DenseNodeId> {
+    let mut seeds = vec![t, y];
+    seeds.extend_from_slice(modifiers);
+    let ancestors = directed_closure(graph, &seeds, true);
+    let descendants = directed_closure(graph, &[t], false);
+    nodes
+        .iter()
+        .enumerate()
+        .filter_map(|(i, node)| {
+            let antecedent_graph::NodeRef::Static(variable) = node else {
+                return None;
+            };
+            let id = DenseNodeId::from_raw(i as u32);
+            let outside_history = config.max_history_lag.is_some_and(|cap| {
+                config.history_lags.iter().any(|(v, lag)| v == variable && *lag > cap)
+            });
+            (id != y
+                && !descendants.contains(id)
+                && ancestors.contains(id)
+                && !modifiers.contains(&id)
+                && !config.forbidden.contains(variable)
+                && !outside_history)
+                .then_some(id)
+        })
+        .collect()
 }
 
 fn rank_conditional_sets(
