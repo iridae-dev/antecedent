@@ -49,3 +49,38 @@ differences = [
 
 [waiver.outcome.fingerprints]
 "cov.average_effect.dag.frequentist.bootstrap_se.l95.ipw_hajek_bootstrap_ci_coverage" = "6ed8dd8150185d26761a4b15f34b00c1133c8f2c523c8513bb57354d04768d24"
+
+[[waiver]]
+id = "core-test-only-5e13c72b"
+from = "6a41568f5c249aa2ebf707e61248cbd80dc75058"
+to = "5e13c72b78cef4875ceaa7cc2cd140755bd93758"
+reviewed_by = "Charles Hinshaw"
+justification = """
+Two test-only core-path edits after remesure: ArrowCColumn unit tests now
+use from_arrow_array, and the graph-posterior license fixture uses
+non-degenerate columns because Gaussian BIC no longer floors residual
+variance. No production function changed. Same seed, same interval.\
+"""
+paths = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent/src/support.rs",
+]
+
+[[waiver.replay]]
+record = "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent/src/support.rs",
+]
+
+[waiver.outcome]
+replayed_at = "5e13c72b78cef4875ceaa7cc2cd140755bd93758"
+identical = true
+records = [
+  "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage" = "793505c9ce7c98248708ec419d11c70ff66c7149fb5cccb828b5cf49314829b4"
