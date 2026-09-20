@@ -58,9 +58,9 @@ pub struct TransportCertificate {
     pub premises: Arc<[Arc<str>]>,
 }
 
-/// Explicit negative certificate for the conservative identifier.
+/// Inconclusive certificate: no implemented derivation was certified.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct NonTransportableCertificate {
+pub struct NotCertifiedCertificate {
     /// Stable failure id.
     pub reason: Arc<str>,
     /// Variables witnessing the failed criterion.
@@ -69,7 +69,7 @@ pub struct NonTransportableCertificate {
     pub message: Arc<str>,
 }
 
-/// Required available evidence was absent. Distinct from [`NonTransportableCertificate`].
+/// Required available evidence was absent. Distinct from [`NotCertifiedCertificate`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MissingEvidenceCertificate {
     /// Stable reason id.
@@ -91,7 +91,7 @@ pub enum TransportIdentification {
         certificate: TransportCertificate,
     },
     /// No implemented sound rule applies. Historical meaning preserved.
-    NotCertified(NonTransportableCertificate),
+    NotCertified(NotCertifiedCertificate),
     /// A required available source regime is absent.
     MissingEvidence(MissingEvidenceCertificate),
 }
@@ -392,7 +392,7 @@ impl TransportIdentifier {
             });
         }
 
-        Ok(TransportIdentification::NotCertified(NonTransportableCertificate {
+        Ok(TransportIdentification::NotCertified(NotCertifiedCertificate {
             reason: Arc::from("transport.sid.multinode_c_component_not_implemented"),
             witness: relevant_selection.into(),
             message: Arc::from(

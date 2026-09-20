@@ -496,6 +496,38 @@ pub struct EvidenceCatalog {
 }
 
 impl EvidenceCatalog {
+    /// Canonical ordering for new semantic identities. Numeric regime identities
+    /// and physical schema column order are preserved. Historical artifact readers
+    /// deliberately do not call this method before checking their saved digests.
+    ///
+    /// # Errors
+    /// Invalid catalog entries or references.
+    pub fn canonicalized(&self) -> Result<Self, QueryError> {
+        self.validate()?;
+        let mut result = self.clone();
+        let environments = Arc::make_mut(&mut result.environments);
+        environments.sort_by(|a, b| a.identity.cmp(&b.identity));
+        for env in environments {
+            Arc::make_mut(&mut env.variables).sort_by_key(|v| v.variable);
+            Arc::make_mut(&mut env.selection_targets).sort_unstable();
+        }
+        let regimes = Arc::make_mut(&mut result.regimes);
+        regimes.sort_by_key(|r| r.id);
+        for regime in regimes {
+            Arc::make_mut(&mut regime.interventions).sort_unstable();
+            Arc::make_mut(&mut regime.intervention_values).sort_by_key(|a| a.variable);
+            Arc::make_mut(&mut regime.measured).sort_unstable();
+            Arc::make_mut(&mut regime.conditioned_on).sort_unstable();
+            if let DistributionAvailability::SeparateMarginals { variables } =
+                &mut regime.distribution
+            {
+                Arc::make_mut(variables).sort_unstable();
+            }
+        }
+        Arc::make_mut(&mut result.bindings).sort_by_key(|b| b.regime);
+        Ok(result)
+    }
+
     /// Empty catalog: no source experimental evidence.
     #[must_use]
     pub fn empty() -> Self {
