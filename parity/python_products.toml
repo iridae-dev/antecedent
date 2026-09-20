@@ -812,6 +812,10 @@ options = ""
 retains = true
 reason = ""
 test = "python/tests/test_transport_interference_lifecycle.py::test_route_transport_tabular_explicit"
+# T1 catalog identify is not an analyze route. Empty-catalog target-only and
+# typed MissingEvidence vs NotCertified live on transport.identify
+# (python/tests/test_transport_catalog.py). The licensed trial-IPW cell above
+# stays byte-compatible.
 
 [[route]]
 kind = "interference"

@@ -18,6 +18,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional Burn neural-net nuisance (`neural_net`) behind `ml-gpu` /
   `antecedent-learn-burn`. Not in `ml-full`; still emits `Vec<f64>` OOF
   predictions. Estimate never names Burn.
+- Transport T0–T1 contracts: `TheoremScope`, typed `TransportOutcome`, and
+  stage-specific support coordinates (ADR 0024). `NotCertified` keeps its
+  historical meaning; a missing source regime is `MissingEvidence`.
+- Transport evidence catalogs (`Environment`, `EvidenceRegime`,
+  `EvidenceCatalog`) with a `source_experiments` compatibility view. Empty
+  source catalogs permit target-only observational g-formula identification
+  in causally sufficient graphs. Catalogs and regime labels survive Python
+  preparation and durable query serialization.
+- Population/regime-aware expression kernels, checked substitution, durable
+  derivation DAGs, and explicit symbolic intervention markers on the wire.
+- DML/DR held-out nuisance diagnostics, folds and seed in live/saved results;
+  shared prepared OOF predictions and borrowed contiguous provider designs.
+
+### Fixed
+
+- Transport identification no longer invents target experimental evidence from
+  mechanism invariance. Treatment mutilation removes incident bidirected
+  edges, and target formulas omit irrelevant measurement dependencies.
+- Catalog validation preserves exact experiment and measurement availability,
+  domains, projections, assignments, and sampling/weight provenance. Separate
+  experiments and marginal measurements cannot silently become joint laws.
+- Kernel parameters remain free; expectations bind their outcome. Expression
+  reload validates references and preserves symbolic interventions and proof
+  metadata. Optional regime fields remain omitted from legacy payloads.
 
 ## [1.11.0]
 

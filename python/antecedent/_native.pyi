@@ -257,6 +257,7 @@ class ResponseAnalysisResult:
     identifier: str | None
 
 class TransportIdentificationResult:
+    outcome: str
     transportable: bool
     formula_kind: str | None
     rule: str | None
@@ -268,6 +269,13 @@ class TransportIdentificationResult:
     factor_variables: list[list[str]]
     factor_conditioned_on: list[list[str]]
     factor_interventions: list[list[str]]
+    factor_regimes: list[int | None]
+    expr_pretty: str | None
+    expr_latex: str | None
+    leaf_populations: list[str]
+    leaf_regimes: list[int | None]
+    expr_root: int | None
+    expr_wire_json: str | None
 
 class TrialTransportResult:
     rule: str
@@ -420,6 +428,13 @@ class EstimateSection:
     evalue_threshold: float | None
     distribution_atoms: list[DistributionAtomSection] | None
     mean_interval: ProbabilityIntervalSection | None
+
+    cate: list[float] | None
+    learner_provenance: list[tuple[str, str, str]]
+    outcome_oof_r2: float | None
+    treatment_oof_logloss: float | None
+    crossfit_folds: int | None
+    crossfit_seed: int | None
 
 class ProbabilityIntervalSection:
     """Bounded interval for one interventional probability, or why none exists."""
@@ -1036,6 +1051,7 @@ class PreparedAnalysis:
         seed: int = 1,
         threads: int | None = None,
         options: dict[str, Any] | None = None,
+        catalog: object | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
     def prepare_interference(
@@ -2059,7 +2075,12 @@ def identify_transport(
     order: int = 1,
     scale: str = "identity",
     weighting: str = "observed",
+    catalog: object | None = None,
 ) -> TransportIdentificationResult: ...
+def roundtrip_expr_arena(
+    wire_json: str,
+    root: int,
+) -> tuple[str, str, list[str], list[int | None], list[int]]: ...
 def estimate_trial_transport(
     identification: TransportIdentificationResult,
     outcome: NDArray[np.float64],

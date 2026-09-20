@@ -136,6 +136,14 @@ pub struct EffectEstimate {
     pub unit_effects_homogeneous: bool,
     /// Per-row influence for the reported scalar (shared-row joint IF / envelopes).
     pub influence: Option<Arc<[f64]>>,
+    /// Held-out outcome R².
+    pub outcome_oof_r2: Option<f64>,
+    /// Held-out treatment probability log loss.
+    pub treatment_oof_logloss: Option<f64>,
+    /// Number of nuisance cross-fitting folds.
+    pub crossfit_folds: Option<usize>,
+    /// Master seed used for nuisance cross-fitting.
+    pub crossfit_seed: Option<u64>,
     /// Actual fitted learner identities, in fold order (control, treated, propensity
     /// for AIPW; outcome folds then treatment folds for PLR; final CATE fit last).
     pub learner_provenance: Vec<antecedent_learn::LearnerProvenance>,
@@ -233,6 +241,10 @@ impl EffectEstimate {
             interaction_structurally_zero: false,
             unit_effects_homogeneous: false,
             influence: None,
+            outcome_oof_r2: None,
+            treatment_oof_logloss: None,
+            crossfit_folds: None,
+            crossfit_seed: None,
             learner_provenance: Vec::new(),
             evalue: None,
             evalue_threshold: None,
@@ -295,6 +307,10 @@ impl EffectEstimate {
             interaction_structurally_zero: false,
             unit_effects_homogeneous: false,
             influence: None,
+            outcome_oof_r2: None,
+            treatment_oof_logloss: None,
+            crossfit_folds: None,
+            crossfit_seed: None,
             learner_provenance: Vec::new(),
             evalue: None,
             evalue_threshold: None,

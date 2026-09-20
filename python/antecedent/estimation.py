@@ -215,6 +215,10 @@ def _section_estimate(raw: Any) -> Any:
         scenario_effects=getattr(raw, "scenario_effects", None),
         scenario_intervals=getattr(raw, "scenario_intervals", None),
         cate=getattr(raw, "cate", None),
+        outcome_oof_r2=getattr(raw, "outcome_oof_r2", None),
+        treatment_oof_logloss=getattr(raw, "treatment_oof_logloss", None),
+        crossfit_folds=getattr(raw, "crossfit_folds", None),
+        crossfit_seed=getattr(raw, "crossfit_seed", None),
         learner_provenance=tuple(getattr(raw, "learner_provenance", ())),
     )
 
@@ -578,8 +582,14 @@ def _wrap_ate(
             mean_interval=_probability_interval_from_raw(
                 getattr(sec_estimate, "mean_interval", None)
             ),
+            outcome_oof_r2=getattr(sec_estimate, "outcome_oof_r2", None),
+            treatment_oof_logloss=getattr(sec_estimate, "treatment_oof_logloss", None),
+            crossfit_folds=getattr(sec_estimate, "crossfit_folds", None),
+            crossfit_seed=getattr(sec_estimate, "crossfit_seed", None),
             learner_provenance=tuple(getattr(sec_estimate, "learner_provenance", ())),
-            cate=tuple(sec_estimate.cate) if getattr(sec_estimate, "cate", None) is not None else None,
+            cate=tuple(sec_estimate.cate)
+            if getattr(sec_estimate, "cate", None) is not None
+            else None,
         ),
         posterior=posterior,
         unit_effects=getattr(raw, "unit_effects", None),
@@ -2302,6 +2312,7 @@ class _PrepareRoute:
             columns[0],
             columns[1],
             columns[2],
+            catalog=query.catalog,
             grid=response["grid"],
             at=response["at"],
             direction=response["direction"],

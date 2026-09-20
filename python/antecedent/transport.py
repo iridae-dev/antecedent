@@ -6,14 +6,16 @@ from statistical prior/evidence transport in :mod:`antecedent.priors`.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 import numpy as np
 
 from ._native import estimate_trial_transport as _estimate_trial_transport
 from ._native import identify_transport as _identify_transport
+from ._native import roundtrip_expr_arena as _roundtrip_expr_arena
 from .errors import CausalTypeError, CausalValueError
 from .graph import Admg
 from .query import (
@@ -46,6 +48,223 @@ class SelectionDiagram:
             raise CausalValueError("selections must contain variable names")
 
 
+EvidenceKindName = Literal["available", "manipulable", "proposed"]
+RegimeKindName = Literal["observational", "experimental"]
+DistributionAvailabilityName = Literal["joint", "separate_marginals"]
+TargetSamplingName = Literal[
+    "supplied_population_law",
+    "representative_sample",
+    "licensed_weighted_design",
+    "convenience_sample",
+]
+DependenceGroupName = Literal["independent_studies", "linked_units", "unknown_dependence"]
+SamplingDesignName = Literal["independent", "clustered", "unknown"]
+VariableDomainName = Literal["unspecified", "continuous", "binary", "count", "categorical"]
+
+
+@dataclass(frozen=True, slots=True)
+class VariableCoordinate:
+    """Shared variable coordinate used by source and target environments."""
+
+    name: str
+    domain: VariableDomainName = "unspecified"
+    unit: str | None = None
+    cardinality: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            raise CausalValueError("variable coordinate name must be non-empty")
+        if self.domain not in get_args(VariableDomainName):
+            raise CausalValueError(f"unknown variable domain {self.domain!r}")
+        if self.domain != "categorical" and self.cardinality is not None:
+            raise CausalValueError("cardinality only applies to categorical domains")
+        if self.domain == "categorical" and (self.cardinality is None or self.cardinality < 1):
+            raise CausalValueError("categorical domains require a positive cardinality")
+
+
+@dataclass(frozen=True, slots=True)
+class Environment:
+    """One population in a transport problem."""
+
+    identity: str
+    variables: Sequence[VariableCoordinate] = ()
+    selection_targets: Sequence[str] = ()
+
+    def __post_init__(self) -> None:
+        if not self.identity.strip():
+            raise CausalValueError("environment identity must be non-empty")
+        names = [coordinate.name for coordinate in self.variables]
+        if len(set(names)) != len(names):
+            raise CausalValueError("environment variable coordinates must be unique")
+        if len(set(self.selection_targets)) != len(self.selection_targets):
+            raise CausalValueError("selection targets must not contain duplicates")
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceRegime:
+    """One observational or experimental evidence regime.
+
+    ``do(A)`` and ``do(B)`` never imply ``do(A,B)``. Separate marginals never
+    imply a joint measurement. Only ``available`` evidence can satisfy a factor.
+    """
+
+    id: str
+    population: str
+    kind: RegimeKindName = "observational"
+    evidence_kind: EvidenceKindName = "available"
+    interventions: Sequence[str] = ()
+    measured: Sequence[str] = ()
+    distribution: DistributionAvailabilityName = "joint"
+    intervention_values: Mapping[str, float] = field(default_factory=dict)
+    conditioned_on: Sequence[str] = ()
+
+    def __post_init__(self) -> None:
+        if not self.id.strip() or not self.population.strip():
+            raise CausalValueError("regime id and population must be non-empty")
+        if self.kind not in get_args(RegimeKindName):
+            raise CausalValueError(f"unknown regime kind {self.kind!r}")
+        if self.evidence_kind not in get_args(EvidenceKindName):
+            raise CausalValueError(f"unknown evidence kind {self.evidence_kind!r}")
+        if self.distribution not in get_args(DistributionAvailabilityName):
+            raise CausalValueError(f"unknown distribution availability {self.distribution!r}")
+        if len(set(self.interventions)) != len(self.interventions):
+            raise CausalValueError("regime interventions must be unique")
+        if len(set(self.conditioned_on)) != len(self.conditioned_on) or any(
+            v not in self.measured for v in self.conditioned_on
+        ):
+            raise CausalValueError("conditioning coordinates must be distinct measured variables")
+        if self.conditioned_on and self.distribution != "joint":
+            raise CausalValueError("conditioning requires a joint law")
+        if len(set(self.measured)) != len(self.measured):
+            raise CausalValueError("regime measured variables must be unique")
+        if any(
+            v not in self.interventions or not math.isfinite(x)
+            for v, x in self.intervention_values.items()
+        ):
+            raise CausalValueError(
+                "intervention values must be finite and name intervened variables"
+            )
+        if self.kind == "observational" and self.interventions:
+            raise CausalValueError("observational regimes cannot carry hard interventions")
+        if self.kind == "experimental" and not self.interventions:
+            raise CausalValueError("experimental regimes require a non-empty intervention set")
+
+    def available_experiment_on(self, population: str, variables: Sequence[str]) -> bool:
+        return (
+            self.evidence_kind == "available"
+            and self.kind == "experimental"
+            and self.population == population
+            and set(self.interventions) == set(variables)
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class RegimeBinding:
+    """Bind a dataset snapshot to one regime."""
+
+    regime: str
+    snapshot_identity: str
+    schema_names: Sequence[str] = ()
+    sampling: SamplingDesignName = "unknown"
+    dependence: DependenceGroupName = "unknown_dependence"
+    weights_snapshot: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.regime.strip() or not self.snapshot_identity.strip():
+            raise CausalValueError("regime binding requires regime and snapshot identity")
+        if self.weights_snapshot is not None and self.weights_snapshot != self.snapshot_identity:
+            raise CausalValueError("weights must be licensed for the bound snapshot")
+        if self.sampling not in get_args(SamplingDesignName):
+            raise CausalValueError(f"unknown sampling design {self.sampling!r}")
+        if self.dependence not in get_args(DependenceGroupName):
+            raise CausalValueError(f"unknown dependence group {self.dependence!r}")
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceCatalog:
+    """Supplied evidence for one transport query. Multiple sources are first-class."""
+
+    environments: Sequence[Environment] = ()
+    regimes: Sequence[EvidenceRegime] = ()
+    bindings: Sequence[RegimeBinding] = ()
+    target_sampling: TargetSamplingName | None = None
+
+    def __post_init__(self) -> None:
+        identities = [environment.identity for environment in self.environments]
+        if len(set(identities)) != len(identities):
+            raise CausalValueError("catalog environments must have distinct identities")
+        domains: dict[str, tuple[str, str | None, int | None]] = {}
+        for environment in self.environments:
+            for coordinate in environment.variables:
+                existing = domains.get(coordinate.name)
+                if existing is None:
+                    domains[coordinate.name] = (
+                        coordinate.domain,
+                        coordinate.unit,
+                        coordinate.cardinality,
+                    )
+                    continue
+                existing_domain, existing_unit, existing_cardinality = existing
+                if (
+                    existing_domain != "unspecified"
+                    and coordinate.domain != "unspecified"
+                    and (
+                        existing_domain != coordinate.domain
+                        or (
+                            existing_domain == "categorical"
+                            and existing_cardinality != coordinate.cardinality
+                        )
+                    )
+                ):
+                    raise CausalValueError(
+                        "catalog environments declare incompatible domains for the same variable"
+                    )
+                if (
+                    existing_unit is not None
+                    and coordinate.unit is not None
+                    and existing_unit != coordinate.unit
+                ):
+                    raise CausalValueError(
+                        "catalog environments declare incompatible units for the same variable"
+                    )
+                domains[coordinate.name] = (
+                    coordinate.domain if existing_domain == "unspecified" else existing_domain,
+                    existing_unit if existing_unit is not None else coordinate.unit,
+                    coordinate.cardinality
+                    if existing_domain == "unspecified"
+                    else existing_cardinality,
+                )
+        regime_ids = [regime.id for regime in self.regimes]
+        if len(set(regime_ids)) != len(regime_ids):
+            raise CausalValueError("catalog regime ids must be unique")
+        known = set(regime_ids)
+        for binding in self.bindings:
+            if binding.regime not in known:
+                raise CausalValueError("regime binding names an unknown regime")
+        if self.target_sampling is not None and self.target_sampling not in get_args(
+            TargetSamplingName
+        ):
+            raise CausalValueError(f"unknown target sampling {self.target_sampling!r}")
+
+    def source_experiment_variables(self, population: str) -> tuple[str, ...]:
+        variables: list[str] = []
+        for regime in self.regimes:
+            if (
+                regime.evidence_kind == "available"
+                and regime.kind == "experimental"
+                and regime.population == population
+            ):
+                variables.extend(regime.interventions)
+        return tuple(sorted(set(variables), key=variables.index))
+
+    def has_available_experiment(self, population: str, variables: Sequence[str]) -> bool:
+        return any(regime.available_experiment_on(population, variables) for regime in self.regimes)
+
+    @staticmethod
+    def empty() -> EvidenceCatalog:
+        return EvidenceCatalog()
+
+
 @dataclass(frozen=True, slots=True)
 class TransportQuery:
     """Transport a response query under a single-source selection diagram.
@@ -68,6 +287,7 @@ class TransportQuery:
     diagram: SelectionDiagram
     source_experiments: Sequence[str] = ()
     _: KW_ONLY
+    catalog: EvidenceCatalog | None = None
     trial: str | None = None
     selection_probability: str | None = None
     treatment_probability: str | None = None
@@ -80,6 +300,13 @@ class TransportQuery:
             raise CausalValueError("source_experiments must not contain duplicates")
         if any(not value.strip() for value in self.source_experiments):
             raise CausalValueError("source_experiments must contain variable names")
+        if self.catalog is not None:
+            derived = list(self.catalog.source_experiment_variables(self.diagram.source))
+            explicit = list(self.source_experiments)
+            if explicit and set(explicit) != set(derived):
+                raise CausalValueError("source_experiments disagree with the evidence catalog")
+            if not explicit:
+                object.__setattr__(self, "source_experiments", tuple(derived))
         columns = (self.trial, self.selection_probability, self.treatment_probability)
         if any(column is not None for column in columns):
             if any(column is None for column in columns):
@@ -110,6 +337,7 @@ class PopulationFactor:
     variables: Sequence[str]
     conditioned_on: Sequence[str]
     interventions: Sequence[str]
+    regime: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,12 +377,27 @@ class NonTransportableCertificate:
 
 
 @dataclass(frozen=True, slots=True)
+class MissingEvidenceCertificate:
+    """Required available evidence was absent. Distinct from :class:`NonTransportableCertificate`."""
+
+    reason: str
+    missing: Sequence[str]
+    message: str
+
+
+@dataclass(frozen=True, slots=True)
 class TransportIdentification:
     formula: TransportFormula | None
-    certificate: TransportCertificate | NonTransportableCertificate
+    certificate: TransportCertificate | NonTransportableCertificate | MissingEvidenceCertificate
+    outcome: str = "not_certified"
     provenance: Mapping[str, Any] = field(
         default_factory=lambda: {"operation_ids": ["identify.transport_sid"]}
     )
+    pretty: str | None = None
+    latex: str | None = None
+    leaf_bindings: tuple[tuple[str, int | None], ...] = ()
+    expr_root: int | None = None
+    expr_wire_json: str | None = None
     # The native `TransportIdentificationResult` this was built from. `estimate_trial_effect`
     # forwards it to the native estimator so the refusal gate keys off the certificate that was
     # actually produced by `identify(...)`, not off this frozen dataclass's own (re-derivable
@@ -271,23 +514,33 @@ def identify(*, graph: Admg, query: TransportQuery) -> TransportIdentification:
         query.diagram.source,
         query.diagram.target,
         list(query.source_experiments),
+        catalog=query.catalog,
         **_response_args(query.query),
     )
     if not raw.transportable:
         if raw.reason is None or raw.message is None:
             raise RuntimeError("native transport refusal omitted its certificate")
+        if raw.outcome == "missing_evidence":
+            return TransportIdentification(
+                None,
+                MissingEvidenceCertificate(raw.reason, raw.selection_targets, raw.message),
+                outcome=raw.outcome,
+                _native=raw,
+            )
         return TransportIdentification(
             None,
             NonTransportableCertificate(raw.reason, raw.selection_targets, raw.message),
+            outcome=raw.outcome,
             _native=raw,
         )
     factors = [
-        PopulationFactor(population, variables, conditioned_on, interventions)
-        for population, variables, conditioned_on, interventions in zip(
+        PopulationFactor(population, variables, conditioned_on, interventions, regime)
+        for population, variables, conditioned_on, interventions, regime in zip(
             raw.factor_populations,
             raw.factor_variables,
             raw.factor_conditioned_on,
             raw.factor_interventions,
+            raw.factor_regimes,
             strict=True,
         )
     ]
@@ -304,8 +557,28 @@ def identify(*, graph: Admg, query: TransportQuery) -> TransportIdentification:
     return TransportIdentification(
         formula,
         TransportCertificate(raw.rule, raw.selection_targets),
+        outcome=raw.outcome,
+        pretty=raw.expr_pretty,
+        latex=raw.expr_latex,
+        leaf_bindings=tuple(zip(raw.leaf_populations, raw.leaf_regimes, strict=True)),
+        expr_root=raw.expr_root,
+        expr_wire_json=raw.expr_wire_json,
         _native=raw,
     )
+
+
+def reload_lowered_expression(
+    identification: TransportIdentification,
+) -> tuple[str, str, tuple[tuple[str, int | None], ...], tuple[int, ...]]:
+    """Reload a lowered arena from its artifact JSON and return display/bindings."""
+
+    if identification.expr_wire_json is None or identification.expr_root is None:
+        raise CausalValueError("identification has no lowered expression to reload")
+    pretty, latex, populations, regimes, free = _roundtrip_expr_arena(
+        identification.expr_wire_json,
+        identification.expr_root,
+    )
+    return pretty, latex, tuple(zip(populations, regimes, strict=True)), tuple(free)
 
 
 def estimate_trial_effect(
@@ -378,18 +651,32 @@ def estimate_trial_effect(
 
 
 __all__ = [
+    "DependenceGroupName",
     "DirectFormula",
+    "DistributionAvailabilityName",
+    "Environment",
+    "EvidenceCatalog",
+    "EvidenceKindName",
+    "EvidenceRegime",
+    "MissingEvidenceCertificate",
     "NonTransportableCertificate",
     "OverlapDiagnostic",
     "PopulationFactor",
     "RecursiveFactorizationFormula",
+    "reload_lowered_expression",
+    "RegimeBinding",
+    "RegimeKindName",
+    "SamplingDesignName",
     "SelectionDiagram",
     "StandardizationFormula",
+    "TargetSamplingName",
     "TransportCertificate",
     "TransportIdentification",
     "TransportOverlapReport",
     "TransportQuery",
     "TrialTransportEstimate",
+    "VariableCoordinate",
+    "VariableDomainName",
     "estimate_trial_effect",
     "identify",
 ]

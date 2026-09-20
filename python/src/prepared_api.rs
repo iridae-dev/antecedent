@@ -3011,7 +3011,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, graph, selections, source_population, target_population,
         source_experiments, kind, treatments, outcomes, trial, selection_probability,
         treatment_probability, *, grid=None, at=None, direction=None, order=1, scale="identity",
-        weighting="observed", accepted=false, seed=1, threads=None, options=None))]
+        weighting="observed", accepted=false, seed=1, threads=None, options=None, catalog=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_transport(
         py: Python<'_>,
@@ -3038,6 +3038,7 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
+        catalog: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let mut opts = PrepareOptions::parse(options.as_ref())?;
         opts.refuse_prior_transfer("a transport query")?;
@@ -3045,13 +3046,16 @@ impl PyPreparedAnalysis {
             .extract::<graphs::Admg>()
             .map_err(|_| PyValueError::new_err("TransportQuery requires graph=Admg(...)"))?;
         require_named_graph_order(&admg.names, &names, "Admg")?;
+        let catalog = catalog
+            .map(|c| crate::transport_interference_api::parse_catalog(c, &admg))
+            .transpose()?;
         let admg = admg.aligned_to_names(&names)?;
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let (scale, weighting) = (scale.to_owned(), weighting.to_owned());
         detach_catch(py, move || {
             use crate::transport_interference_api::{ResponseArgs, schema_ids, transport_query};
             let schema = data.schema().clone();
-            let query = transport_query(
+            let mut query = transport_query(
                 ResponseArgs {
                     kind,
                     treatments,
@@ -3068,6 +3072,11 @@ impl PyPreparedAnalysis {
                 &source_experiments,
                 |names| schema_ids(&schema, names),
             )?;
+            if let Some(catalog) = catalog {
+                query = query
+                    .with_catalog(catalog)
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            }
             let column = |name: &str| crate::graph_build::schema_var_id(&schema, name);
             let trial_spec = antecedent::TransportTrialSpec {
                 trial: column(&trial)?,
@@ -3923,6 +3932,10 @@ fn composite_result_wire(
         structural_response: None,
         unit_effects: None,
         cate: result.estimate.cate.as_ref().map(|v| v.to_vec()),
+        outcome_oof_r2: result.estimate.outcome_oof_r2,
+        treatment_oof_logloss: result.estimate.treatment_oof_logloss,
+        crossfit_folds: result.estimate.crossfit_folds,
+        crossfit_seed: result.estimate.crossfit_seed,
         learner_provenance: result
             .estimate
             .learner_provenance

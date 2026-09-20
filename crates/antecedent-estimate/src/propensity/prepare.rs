@@ -24,6 +24,8 @@ use crate::util::stats_err;
 /// Built once from `(data, estimand, query)`; reused across point estimate and bootstrap.
 #[derive(Clone, Debug)]
 pub struct PreparedPropensityProblem {
+    /// Shared learner nuisance cache; changing any fit input invalidates reuse.
+    pub(crate) learner_cache: Arc<std::sync::Mutex<Option<crate::learn_nuisance::AipwCacheEntry>>>,
     /// Column-major `[1 | Z…]` design used to fit the propensity model.
     pub design_matrix: Arc<[f64]>,
     /// Number of design columns (`1 + adjustment_set.len()`).
@@ -320,6 +322,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
     }
 
     Ok(PreparedPropensityProblem {
+        learner_cache: Arc::default(),
         design_matrix: Arc::from(design),
         design_ncols: ncols,
         nrows,

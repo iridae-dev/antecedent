@@ -31,6 +31,10 @@ def test_dml_auto_recovers_ate():
     )
     assert result.estimate.estimator_id == "dml"
     assert abs(result.ate - 2.0) < 0.45
+    assert result.estimate.outcome_oof_r2 is not None
+    assert result.estimate.treatment_oof_logloss is not None
+    assert result.estimate.crossfit_folds == 4
+    assert result.estimate.crossfit_seed == 1
     assert len(result.estimate.learner_provenance) == 12
     assert all(len(item) == 3 for item in result.estimate.learner_provenance)
 
@@ -72,7 +76,11 @@ def test_staged_learner_artifact_roundtrip(estimator):
     result = prepared.estimate(data)
     restored = antecedent.load(result.export())
     payload = restored.artifact.payload
-    assert tuple(tuple(p) for p in payload["learner_provenance"]) == result.estimate.learner_provenance
+    assert (
+        tuple(tuple(p) for p in payload["learner_provenance"]) == result.estimate.learner_provenance
+    )
+    for field in ("outcome_oof_r2", "treatment_oof_logloss", "crossfit_folds", "crossfit_seed"):
+        assert payload[field] == getattr(result.estimate, field)
     cate = payload.get("cate")
     assert (tuple(cate) if cate is not None else None) == result.estimate.cate
     assert restored.as_point() == result.as_point()

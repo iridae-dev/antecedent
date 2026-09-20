@@ -233,3 +233,51 @@ id = "invalid_argument"
 applies_to = ["runtime_refusal"]
 meaning = "An argument has the wrong type, shape or value for this entry point."
 max_uses = 0
+
+[[code]]
+id = "transport_missing_evidence"
+applies_to = ["runtime_refusal"]
+meaning = "A required available transport regime or provider input is absent. Distinct from not_certified and from a verified impossibility witness."
+max_uses = 0
+
+[[code]]
+id = "transport_not_certified"
+applies_to = ["runtime_refusal"]
+meaning = "No implemented sound transport rule applies. Historical NotCertified meaning; not a proof of non-transportability."
+max_uses = 1
+
+[[code]]
+id = "transport_proven_non_transportable"
+applies_to = ["runtime_refusal"]
+meaning = "A checked impossibility witness for the named transport theorem family."
+max_uses = 0
+
+[[code]]
+id = "transport_missing_provider"
+applies_to = ["runtime_refusal"]
+meaning = "A statistical provider required by a certified transport factor is absent."
+max_uses = 0
+
+[[code]]
+id = "transport_unsupported_evaluator"
+applies_to = ["runtime_refusal"]
+meaning = "The transport formula is identified but this evaluator does not run it."
+max_uses = 2
+
+[[code]]
+id = "transport_support_failure"
+applies_to = ["runtime_refusal"]
+meaning = "A stage-specific transport support coordinate failed."
+max_uses = 0
+
+[[code]]
+id = "transport_numerical_failure"
+applies_to = ["runtime_refusal"]
+meaning = "Transport evaluation failed numerically after a certified formula."
+max_uses = 0
+
+[[code]]
+id = "transport_budget_cancel"
+applies_to = ["runtime_refusal"]
+meaning = "A transport identify or evaluate budget was exhausted; this is not an impossibility claim."
+max_uses = 0

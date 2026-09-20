@@ -1255,6 +1255,14 @@ pub(crate) struct EstimateSection {
     cate: Option<Vec<f64>>,
     /// Actual fitted learner spec, implementation and version, in fit order.
     #[pyo3(get)]
+    outcome_oof_r2: Option<f64>,
+    #[pyo3(get)]
+    treatment_oof_logloss: Option<f64>,
+    #[pyo3(get)]
+    crossfit_folds: Option<usize>,
+    #[pyo3(get)]
+    crossfit_seed: Option<u64>,
+    #[pyo3(get)]
     learner_provenance: Vec<(String, String, String)>,
 }
 
@@ -1551,6 +1559,10 @@ pub(crate) fn shared_study_sections(
         distribution_atoms,
         mean_interval,
         cate: result.estimate.cate.as_ref().map(|c| c.to_vec()),
+        outcome_oof_r2: result.estimate.outcome_oof_r2,
+        treatment_oof_logloss: result.estimate.treatment_oof_logloss,
+        crossfit_folds: result.estimate.crossfit_folds,
+        crossfit_seed: result.estimate.crossfit_seed,
         learner_provenance: result
             .estimate
             .learner_provenance

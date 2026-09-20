@@ -916,12 +916,7 @@ impl QFactor {
             let conditioned_on = arena.intern_var_set(cond_vars.clone());
             let (intervention, domain) =
                 intervention_for_factor(arena, prepared, &effective_assign, *vi, &cond_vars)?;
-            exprs.push(arena.intern(ExprNode::Distribution {
-                variables: vars,
-                conditioned_on,
-                intervention,
-                domain,
-            }));
+            exprs.push(arena.intern_distribution(vars, conditioned_on, intervention, domain));
         }
         let product = if exprs.len() == 1 {
             exprs[0]
@@ -1048,24 +1043,14 @@ fn q_component_product(
             let conditioned_on = arena.intern_var_set(cond_vars.clone());
             let (intervention, domain) =
                 intervention_for_factor(arena, prepared, &assign, vi, &cond_vars)?;
-            factors.push(arena.intern(ExprNode::Distribution {
-                variables: vars,
-                conditioned_on,
-                intervention,
-                domain,
-            }));
+            factors.push(arena.intern_distribution(vars, conditioned_on, intervention, domain));
         }
         preceding.insert(vi);
     }
     if factors.is_empty() {
         let y = intern_nodes(prepared, s, arena)?;
         let empty = arena.empty_var_set();
-        return Ok(arena.intern(ExprNode::Distribution {
-            variables: y,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        }));
+        return Ok(arena.intern_distribution(y, empty, empty_i, DomainRef::Observational));
     }
     if factors.len() == 1 {
         return Ok(factors[0]);
@@ -1100,21 +1085,11 @@ fn markov_product(
         let conditioned_on = arena.intern_var_set(parents.clone());
         let (intervention, domain) =
             intervention_for_factor(arena, prepared, &assign, vi, &parents)?;
-        factors.push(arena.intern(ExprNode::Distribution {
-            variables: vars,
-            conditioned_on,
-            intervention,
-            domain,
-        }));
+        factors.push(arena.intern_distribution(vars, conditioned_on, intervention, domain));
     }
     if factors.is_empty() {
         let empty = arena.empty_var_set();
-        return Ok(arena.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        }));
+        return Ok(arena.intern_distribution(empty, empty, empty_i, DomainRef::Observational));
     }
     if factors.len() == 1 {
         return Ok(factors[0]);

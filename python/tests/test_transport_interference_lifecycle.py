@@ -459,3 +459,33 @@ def test_root_query_classes_are_the_stage_module_classes():
     assert ant.InterferenceQuery is interference.InterferenceQuery
     assert _transport_query().kind == "transport"
     assert _interference_query([True] * UNITS).kind == "interference"
+
+
+def test_transport_catalog_survives_prepared_execution_and_export() -> None:
+    data = _transport_data(300, 22)
+    catalog = transport.EvidenceCatalog(
+        regimes=[
+            transport.EvidenceRegime(
+                "randomized-a",
+                "trial",
+                kind="experimental",
+                interventions=["a"],
+                measured=["y", "x"],
+            ),
+            transport.EvidenceRegime("target-x", "target", measured=["x"]),
+        ],
+        target_sampling="representative_sample",
+    )
+    result = ant.analyze(
+        data,
+        graph=_transport_graph(),
+        query=_transport_query(catalog=catalog),
+        bootstrap=0,
+        refute="none",
+    )
+    loaded = ant.load(result.export())
+    restored_catalog = loaded.artifact.payload["query"]["transport"]["catalog"]
+    assert [r["label"] for r in restored_catalog["regimes"]] == ["randomized-a", "target-x"]
+    assert restored_catalog["target_sampling"] == "representative_sample"
+    assert restored_catalog["regimes"][0]["interventions"] == [0]
+    assert loaded.as_point() == result.as_point()

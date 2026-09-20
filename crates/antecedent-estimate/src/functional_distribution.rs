@@ -992,6 +992,7 @@ fn collect_observational_factors(
                 stack.push(*numerator);
                 stack.push(*denominator);
             }
+            ExprNode::Kernel { body, .. } => stack.push(*body),
             ExprNode::Expectation { distribution, .. } => stack.push(*distribution),
             ExprNode::Contrast { left, right, .. } => {
                 stack.push(*left);
@@ -1012,7 +1013,7 @@ fn collect_factor_signatures(
     let mut stack = vec![root];
     while let Some(id) = stack.pop() {
         match arena.node(id) {
-            ExprNode::Distribution { variables, conditioned_on, intervention, domain } => {
+            ExprNode::Distribution { variables, conditioned_on, intervention, domain, .. } => {
                 let vars: Arc<[VariableId]> = Arc::from(arena.var_set(*variables).to_vec());
                 let cond: Arc<[VariableId]> = Arc::from(arena.var_set(*conditioned_on).to_vec());
                 let interv: Arc<[InterventionAssignment]> =
@@ -1039,6 +1040,7 @@ fn collect_factor_signatures(
                 stack.push(*numerator);
                 stack.push(*denominator);
             }
+            ExprNode::Kernel { body, .. } => stack.push(*body),
             ExprNode::Expectation { distribution, .. } => stack.push(*distribution),
             ExprNode::Contrast { left, right, .. } => {
                 stack.push(*left);
@@ -1246,6 +1248,8 @@ fn provider_from_columns(
         conditioned_on: &[],
         intervention: &[],
         domain: DomainRef::Observational,
+        population: "",
+        regime: None,
     };
     provider.insert_probability(&empty_spec, &Assignment::from_pairs([]), 1.0).map_err(eval_err)?;
 
@@ -1354,7 +1358,14 @@ fn insert_dirac_intervened(
                     "intervened factor with free variables is unsupported in functional.effect",
                 ));
             };
-            let spec = FactorSpec { variables: vars, conditioned_on: cond, intervention, domain };
+            let spec = FactorSpec {
+                variables: vars,
+                conditioned_on: cond,
+                intervention,
+                domain,
+                population: "",
+                regime: None,
+            };
             provider.insert_probability(&spec, &assign, p).map_err(eval_err)?;
         }
     }
@@ -1444,7 +1455,14 @@ fn insert_cpt(
             let key = var_vals.clone();
             let count = joint.get(&key).copied().unwrap_or(0.0);
             let assign = Assignment::from_pairs(vars.iter().copied().zip(var_vals.iter().cloned()));
-            let spec = FactorSpec { variables: vars, conditioned_on: cond, intervention, domain };
+            let spec = FactorSpec {
+                variables: vars,
+                conditioned_on: cond,
+                intervention,
+                domain,
+                population: "",
+                regime: None,
+            };
             provider.insert_probability(&spec, &assign, count / total).map_err(eval_err)?;
         }
     } else {
@@ -1469,8 +1487,14 @@ fn insert_cpt(
                         .zip(var_vals.iter().cloned())
                         .chain(cond.iter().copied().zip(cond_vals.iter().cloned())),
                 );
-                let spec =
-                    FactorSpec { variables: vars, conditioned_on: cond, intervention, domain };
+                let spec = FactorSpec {
+                    variables: vars,
+                    conditioned_on: cond,
+                    intervention,
+                    domain,
+                    population: "",
+                    regime: None,
+                };
                 provider.insert_probability(&spec, &assign, p).map_err(eval_err)?;
             }
         }
@@ -2010,6 +2034,8 @@ mod tests {
                         conditioned_on: cond,
                         intervention,
                         domain: DomainRef::Observational,
+                        population: "",
+                        regime: None,
                     },
                     &assignment,
                     &EvalContext::default(),
@@ -2029,7 +2055,9 @@ mod tests {
                         variables: &[x, y],
                         conditioned_on: &[],
                         intervention: &[],
-                        domain: DomainRef::Observational
+                        domain: DomainRef::Observational,
+                        population: "",
+                        regime: None
                     },
                     &zero,
                     &EvalContext::default()

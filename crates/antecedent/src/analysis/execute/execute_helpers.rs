@@ -1463,23 +1463,18 @@ pub(crate) fn parametric_scm_identification(
     let y = arena.intern_var_set([outcome]);
     let do_t = arena.intern_intervention_set([treatment]);
     let empty = arena.empty_var_set();
-    let distribution = arena.intern(ExprNode::Distribution {
-        variables: y,
-        conditioned_on: empty,
-        intervention: do_t,
-        domain: DomainRef::Interventional,
-    });
+    let distribution = arena.intern_distribution(y, empty, do_t, DomainRef::Interventional);
     let functional = arena
         .intern(ExprNode::Expectation { function: OutcomeExprId::identity(outcome), distribution });
     arena.set_derivation(
         functional,
-        DerivationMeta {
-            rule: Arc::from("gcm.parametric"),
-            note: Some(Arc::from(format!(
+        DerivationMeta::rule(
+            "gcm.parametric",
+            Some(Arc::from(format!(
                 "parametric SCM: treatment={treatment:?} outcome={outcome:?}; no adjustment \
                  set (GCM does not identify via backdoor covariates)"
             ))),
-        },
+        ),
     );
     let estimand = IdentifiedEstimand::backdoor("gcm.parametric", Arc::from([]), functional);
     let mut assumptions = antecedent_core::AssumptionSet::default();

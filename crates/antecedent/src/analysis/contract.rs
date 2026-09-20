@@ -2485,6 +2485,10 @@ fn body_for(frame: &BodyFrame, result: &StudyResult) -> Result<AnalysisResultWir
         structural_response: None,
         unit_effects: None,
         cate: result.estimate.cate.as_ref().map(|v| v.to_vec()),
+        outcome_oof_r2: result.estimate.outcome_oof_r2,
+        treatment_oof_logloss: result.estimate.treatment_oof_logloss,
+        crossfit_folds: result.estimate.crossfit_folds,
+        crossfit_seed: result.estimate.crossfit_seed,
         learner_provenance: result
             .estimate
             .learner_provenance

@@ -1,0 +1,50 @@
+# Stage contracts supplement the analyze matrix; no statistical calibration is
+# implied by an identification or exact-expression contract.
+version = 1
+default = "closed"
+
+[[routes]]
+route = "antecedent.transport.identify"
+stage = "identify"
+status = "licensed"
+graph = "selection_admg"
+evidence = "legacy_single_variable_experiments_or_supplied_catalog"
+functional = "target_interventional_response"
+observation = "complete_measured_laws"
+guarantee = "sound_incomplete"
+reference = "https://arxiv.org/abs/1312.7485v1"
+limits = "Direct, pretreatment S-admissible standardization, and singleton districts; target-only DAG g-formula; at most 20 standardizer candidates; no complete finite-catalog search or multi-node recursion."
+evidence_test = "python/tests/test_transport_catalog.py"
+evidence_assertion = "test_identifier_preserves_measured_regime_and_sampling_constraints"
+
+[[routes]]
+route = "antecedent.transport.reload_lowered_expression"
+stage = "representation"
+status = "licensed"
+graph = "already_identified"
+evidence = "population_and_regime_tagged_expression"
+functional = "nested_sums_products_ratios_and_kernels"
+guarantee = "identity_and_dependencies_preserved"
+evidence_test = "python/tests/test_transport_t2_functionals.py"
+evidence_assertion = "test_nested_kernel_round_trips_through_artifact"
+
+[[routes]]
+route = "transport.finite_catalog_search"
+stage = "identify"
+status = "closed"
+reason_code = "transport_not_certified"
+notes = "Complete finite-catalog search is outside the implemented T0–T2 subset."
+
+[[routes]]
+route = "transport.exact_table_evaluate"
+stage = "evaluate"
+status = "closed"
+reason_code = "transport_unsupported_evaluator"
+notes = "The statistical table-provider transport route is T4; the expression arena alone does not license it."
+
+[[routes]]
+route = "transport.general_uncertainty"
+stage = "uncertainty"
+status = "closed"
+reason_code = "transport_unsupported_evaluator"
+notes = "General multi-regime uncertainty is T6. The existing trial-IPW cell remains separately licensed in support_licensed.toml."

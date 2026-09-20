@@ -407,12 +407,12 @@ fn edge_g_formula(
             };
             let variables = arena.intern_var_set([prepared.dense_to_var(vi)?]);
             let conditioned_on = arena.intern_var_set(cond);
-            factors.push(arena.intern(ExprNode::Distribution {
+            factors.push(arena.intern_distribution(
                 variables,
                 conditioned_on,
                 intervention,
                 domain,
-            }));
+            ));
         }
         let body = if factors.len() == 1 {
             factors[0]
@@ -444,12 +444,12 @@ fn edge_g_formula(
     let contrast = arena.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
     arena.set_derivation(
         contrast,
-        DerivationMeta {
-            rule: Arc::from("path_specific.edge_gformula"),
-            note: Some(Arc::from(
+        DerivationMeta::rule(
+            "path_specific.edge_gformula",
+            Some(Arc::from(
                 "active level on treatment edges that start a selected path; control elsewhere",
             )),
-        },
+        ),
     );
     let functional =
         arena.simplify(contrast).map_err(|e| IdentificationError::msg(e.to_string()))?;

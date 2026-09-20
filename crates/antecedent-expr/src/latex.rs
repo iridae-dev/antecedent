@@ -8,26 +8,45 @@ use crate::{CausalExprArena, ContrastOp, DomainRef, ExprId, ExprNode, Interventi
 
 pub(crate) fn latex_expr(arena: &CausalExprArena, id: ExprId) -> String {
     match arena.node(id) {
-        ExprNode::Distribution { variables, conditioned_on, intervention, domain } => {
+        ExprNode::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            domain,
+            population,
+            regime,
+        } => {
             let vars = fmt_vars(arena.var_set(*variables));
             let cond = fmt_vars(arena.var_set(*conditioned_on));
             let interv = fmt_assignments(arena.intervention_assignments(*intervention));
+            let head = fmt_p_head(arena, *population);
+            let tail = fmt_regime(*regime);
             match domain {
                 DomainRef::Observational => {
                     if cond.is_empty() {
-                        format!("P({vars})")
+                        format!("{head}({vars}{tail})")
                     } else {
-                        format!("P({vars}\\mid {cond})")
+                        format!("{head}({vars}\\mid {cond}{tail})")
                     }
                 }
                 DomainRef::Interventional => {
                     if cond.is_empty() {
-                        format!("P({vars}\\mid \\mathrm{{do}}({interv}))")
+                        format!("{head}({vars}\\mid \\mathrm{{do}}({interv}){tail})")
                     } else {
-                        format!("P({vars}\\mid {cond},\\mathrm{{do}}({interv}))")
+                        format!("{head}({vars}\\mid {cond},\\mathrm{{do}}({interv}){tail})")
                     }
                 }
             }
+        }
+        ExprNode::Kernel { body, bound, population, regime } => {
+            let pop = arena.population(*population);
+            let pop = if pop.is_empty() { String::new() } else { format!("_{{{pop}}}") };
+            format!(
+                "K{pop}_{{{}}}\\left[{}{}\\right]",
+                fmt_vars(arena.var_set(*bound)),
+                latex_expr(arena, *body),
+                fmt_regime(*regime)
+            )
         }
         ExprNode::Product(list) => {
             let parts: Vec<String> =
@@ -73,6 +92,18 @@ pub(crate) fn latex_expr(arena: &CausalExprArena, id: ExprId) -> String {
                 latex_expr(arena, *right)
             )
         }
+    }
+}
+
+fn fmt_p_head(arena: &CausalExprArena, population: crate::PopulationKeyId) -> String {
+    let name = arena.population(population);
+    if name.is_empty() { "P".into() } else { format!("P_{{{name}}}") }
+}
+
+fn fmt_regime(regime: Option<antecedent_core::RegimeId>) -> String {
+    match regime {
+        Some(regime) => format!(";\\,\\mathrm{{regime}}=R{}", regime.raw()),
+        None => String::new(),
     }
 }
 

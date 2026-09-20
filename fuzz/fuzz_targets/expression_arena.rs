@@ -24,24 +24,14 @@ fuzz_target!(|data: &[u8]| {
         } else {
             DomainRef::Interventional
         };
-        let dist = arena.intern(ExprNode::Distribution {
-            variables: vars,
-            conditioned_on: empty,
-            intervention: empty_do,
-            domain,
-        });
+        let dist = arena.intern_distribution(vars, empty, empty_do, domain);
         let tag = chunk.get(3).copied().unwrap_or(0) % 4;
         let id = match tag {
             0 => arena.intern(ExprNode::SumOut { variables: empty, expr: dist }),
             1 => arena.intern(ExprNode::IntegralOut { variables: empty, expr: dist }),
             2 => {
                 let vars_a = arena.intern_var_set([a]);
-                let other = arena.intern(ExprNode::Distribution {
-                    variables: vars_a,
-                    conditioned_on: empty,
-                    intervention: empty_do,
-                    domain: DomainRef::Observational,
-                });
+                let other = arena.intern_distribution(vars_a, empty, empty_do, DomainRef::Observational);
                 arena.intern(ExprNode::Ratio { numerator: dist, denominator: other })
             }
             _ => {

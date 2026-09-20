@@ -1302,6 +1302,8 @@ mod tests {
                     conditioned_on: &[t0],
                     intervention: &interv,
                     domain: DomainRef::Interventional,
+                    population: "",
+                    regime: None,
                 };
                 let assign =
                     Assignment::from_pairs([(y_out, Value::f64(yval)), (t0, Value::f64(tlev))]);

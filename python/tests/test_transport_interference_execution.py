@@ -24,7 +24,7 @@ def test_graphical_transport_returns_direct_formula_and_certificate() -> None:
     assert result.certificate.rule == "transport.sid.direct"
 
 
-def test_graphical_transport_refuses_a_missing_source_experiment() -> None:
+def test_graphical_transport_empty_catalog_identifies_on_the_target() -> None:
     graph = antecedent.graph.Admg.from_edges(["a", "y"], [("a", "y")])
     query = transport.TransportQuery(
         antecedent.ResponseCurve("a", "y", grid=[0.0, 1.0]),
@@ -33,9 +33,10 @@ def test_graphical_transport_refuses_a_missing_source_experiment() -> None:
 
     result = transport.identify(graph=graph, query=query)
 
-    assert not result.transportable
-    assert isinstance(result.certificate, transport.NonTransportableCertificate)
-    assert result.certificate.reason == "transport.source_experiment_missing"
+    assert result.transportable
+    assert result.outcome == "identified"
+    assert isinstance(result.formula, transport.RecursiveFactorizationFormula)
+    assert all(f.population == "target" and not f.interventions for f in result.formula.factors)
 
 
 def test_transport_refuses_embedded_response_semantics_it_cannot_preserve() -> None:
@@ -87,15 +88,20 @@ def test_trial_transport_keeps_selection_and_treatment_overlap_separate() -> Non
 
 
 def test_trial_transport_refuses_uncertified_identification() -> None:
-    graph = antecedent.graph.Admg.from_edges(["a", "y"], [("a", "y")])
+    graph = antecedent.graph.Admg.from_edges(
+        ["a", "z", "y"],
+        [("a", "y"), ("z", "y")],
+        bidirected=[("z", "y")],
+    )
     query = transport.TransportQuery(
         antecedent.ResponseCurve("a", "y", grid=[0.0, 1.0]),
-        transport.SelectionDiagram("trial", "target", []),
-        # No source_experiments: identify() cannot certify a formula, so this
-        # NotCertified result must not be usable to obtain an estimate.
+        transport.SelectionDiagram("trial", "target", ["z"]),
+        source_experiments=["a"],
     )
     identification = transport.identify(graph=graph, query=query)
     assert not identification.transportable
+    assert identification.outcome == "not_certified"
+    assert isinstance(identification.certificate, transport.NonTransportableCertificate)
 
     with pytest.raises(antecedent.errors.CausalEstimateError):
         transport.estimate_trial_effect(

@@ -18,7 +18,7 @@ contract_key = "identities.identification"
 python = "inspect().identification_id"
 availability = "prepared|loaded"
 naming_row = "Identification premises identity"
-covers = "population-free question, accepted structure (posterior atoms and weights, class prior, transport selection), observation contract, RD premises"
+covers = "population-free question, accepted structure (posterior atoms and weights, class prior, transport selection and full optional evidence catalog including regimes, measurements, assignments, projections, snapshot bindings and target sampling), observation contract, RD premises"
 
 [[identity]]
 domain = "identification_product"

@@ -222,6 +222,10 @@ class EstimateView(ResultModel):
     limitation: str | None = None
     #: Per-row CATE when a heterogeneous-effect estimator produced one.
     cate: tuple[float, ...] | None = None
+    outcome_oof_r2: float | None = None
+    treatment_oof_logloss: float | None = None
+    crossfit_folds: int | None = None
+    crossfit_seed: int | None = None
     learner_provenance: tuple[tuple[str, str, str], ...] = ()
 
     def __repr__(self) -> str:
