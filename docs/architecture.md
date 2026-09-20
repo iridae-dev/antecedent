@@ -29,6 +29,7 @@ antecedent-data          tabular / temporal / panel / multi-env views, sample pl
 antecedent-graph         DAG/ADMG/CPDAG/PAG, separation, overlays, temporal unfold
 antecedent-expr          arena-backed causal-functional IR
 antecedent-stats         regression, covariance, resampling, CI tests, faer LA backend
+antecedent-learn         prediction contract: DesignView, LearnerFactory, FittedPredictor
 antecedent-prob          posteriors, priors, graph samples, inference backends
 antecedent-discovery     PC/FCI/GES/LiNGAM/NOTEARS, PCMCI family, Bayesian DAG engines
 antecedent-identify      adjustment, IV, front-door, mediation, ID/IDC, envelopes
@@ -40,10 +41,13 @@ antecedent-validate      refuters, sensitivity, discovery stability, Bayesian ch
 antecedent-design        EIG / VoI / experiment ranking (computation only)
 antecedent-state         incremental caches, invalidation, sufficient statistics
 antecedent-io            CBOR+Arrow artifacts, graph interchange, migration
-causal               facade: Study planner + re-exports
+antecedent               facade: Study planner + re-exports
 ```
 
-Dependency edges point downward (no cycles). Facade (`causal`) sits on top.
+Dependency edges point downward (no cycles). Facade (`antecedent`) sits on top.
+`antecedent-estimate` will depend on `antecedent-learn` for nuisance
+prediction (milestone G) and never names Forust, SmartCore, or other ML
+providers (ADR 0023).
 Bayesian discovery may use `antecedent-prob` without pulling `antecedent-model`.
 
 ## Analysis pipeline
