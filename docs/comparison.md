@@ -15,15 +15,17 @@ estimation.
 The [support matrix](support-matrix.md) is authoritative. A capability present
 in the codebase is not necessarily a licensed `analyze()` combination.
 
-Antecedent 1.10 composes the existing **341 licensed combinations** into an
-inspectable, reusable execution workflow. Each combination fixes the question,
-graph class, structure source, inference method, and validation level. A
-successful licensed Python analysis retains a study and exports its result.
+Antecedent 1.11 composes **463 licensed combinations** of 1403 meaningful
+cells into an inspectable, reusable execution workflow. Each combination
+fixes the question, graph class, structure source, inference method, and
+validation level. A successful licensed Python analysis retains a study and
+exports its result.
 
 Use [supported analyses](supported-analyses.md) to find a starting point and
 [capabilities](capabilities.md) for the methods behind each path. The
-[1.10 release notes](release-notes/v1.10.0.md) describe the execution contract;
-older release notes record when individual methods were added.
+[1.11 release notes](release-notes/v1.11.0.md) describe this cut; the
+[1.10 release notes](release-notes/v1.10.0.md) remain the composition-contract
+baseline. Older release notes record when individual methods were added.
 
 Some important distinctions when choosing a workflow:
 

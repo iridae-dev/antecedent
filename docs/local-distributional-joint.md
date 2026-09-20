@@ -1,7 +1,7 @@
 # Local targets, outcome distributions, and joint interventions
 
-This walkthrough uses Antecedent 1.10. Install it with
-`python -m pip install antecedent`; see the [example setup](https://github.com/iridae-dev/antecedent/blob/v1.10.0/examples/README.md#python-environment).
+This walkthrough uses Antecedent 1.11. Install it with
+`python -m pip install antecedent`; see the [example setup](https://github.com/iridae-dev/antecedent/blob/1.11/examples/README.md#python-environment).
 Run the Python blocks below in order in one interpreter. They use NumPy and
 Antecedent, with no optional causal-learning package.
 

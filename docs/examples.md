@@ -35,7 +35,7 @@ the same method refuses a demand derivative.
 
 Choose Python or Rust for each workflow.
 
-[The Python analysis workflow](https://github.com/iridae-dev/antecedent/blob/1.11/examples/python/analysis_workflow.py) demonstrates the 1.10 one-call
+[The Python analysis workflow](https://github.com/iridae-dev/antecedent/blob/1.11/examples/python/analysis_workflow.py) demonstrates the one-call
 API, retained study, inspection, refresh, and verified artifact loading.
 
 ```bash

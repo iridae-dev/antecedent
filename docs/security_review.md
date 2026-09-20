@@ -8,6 +8,14 @@ ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-
 version and notes cut. Re-review the source diff before the cut is tagged
 if it adds `unsafe`, dependencies, artifact decode, or workflow permissions.
 
+The 1.11 finding closeout adds no new crate dependency. It makes Arrow C-data
+construction `unsafe from_ffi` (or the safe `from_arrow_array` path) and
+moves zero-copy artifact mmap to `unsafe open_path_mapped` with a documented
+immutability contract; safe `open_path` reads an owned snapshot. A
+`cargo deny check` against a freshly fetched advisory database on 2026-09-19
+passed advisories, bans, licenses, and sources. `RUSTSEC-2024-0436` (`paste`)
+remains ignored in `deny.toml` as a faer/gemm build-time macro.
+
 The 1.10.0 source diff (against the 1.9.0 cut) is additive composition of the
 existing licensed matrix: domain-separated identities, portable claims,
 prepared-route study retention, and first-class inspect/contract coordinates.

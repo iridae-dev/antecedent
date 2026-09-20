@@ -59,6 +59,7 @@ nav:
       - Development: development.md
       - Conformance: conformance/README.md
       - Execution contract walkthrough: v1.10-practitioner-walkthrough.md
+      - 1.11 finding closeout: reviews/v1.11-finding-closeout.md
       - Hot paths: hot_paths.md
       - Security review: security_review.md
   - Release notes:

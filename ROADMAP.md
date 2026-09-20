@@ -12,7 +12,7 @@ on the 1.11 cut so they have a machine that is fast enough.
 | --- | --- | --- |
 | **T — Transport** | Executable, auditable transport across the studies we actually have | A new library, a second workflow engine, or a reason to drop 1.x cells |
 | **S — Practitioner scenarios** | An out-of-repo suite that uses only the public API, then a 1.x leftover fix-list that 2.0 ships | A second test harness inside this tree, or a wishlist of new graph types |
-| **P — Fast while correct** | Make the 1.x engine use the machine without moving a licensed number | `PreferFast` as the default interval, a GPU rewrite, or remasuring 585 records to flip a thread count |
+| **P — Fast while correct** | Make the 1.x engine use the machine without moving a licensed number | `PreferFast` as the default interval, a GPU rewrite, or remasuring 587 records to flip a thread count |
 
 Every checkbox below is an open implementation or evidence obligation, **not a
 claim of shipped support**. Proposed record and test names specify contracts;
@@ -23,10 +23,12 @@ assigned minor versions. A breaking extension requires a later major.
 
 S does not wait for T5. P does not wait for a tagged 1.11.0 or for S.
 The 1.x close-out is **1.11.0**, not a 1.10.1 patch: this branch's work
-(parallel seeds, leftover rows, licensed GP cells, GAC 40), the
-non-transport 1.x leftovers, and the P speed program, then a flat history
-at the cut. Keep committing on top until that cut. Transport consumes
-their leftovers and their speed work; it does not replace them.
+(parallel seeds, leftover rows, licensed GP cells, GAC 40, P speed), the
+[1.11 finding closeout](docs/reviews/v1.11-finding-closeout.md), and a
+flat history at the cut. Finding repairs that touch `core` remasure the
+587 coverage records. Do not treat a green historical attestation gate as
+the cut. Keep committing on top until that cut. Transport consumes their
+leftovers and their speed work; it does not replace them.
 
 ## S — Practitioner scenarios and 1.x leftovers
 

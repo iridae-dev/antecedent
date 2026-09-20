@@ -2,8 +2,8 @@
 
 This page is a readable tour of what exists in Antecedent. The parity manifests
 are the maintained implementation inventory; the [support matrix](support-matrix.md)
-is the public **license** for analysis cells. 1.10 inspect / claim / reuse /
-handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/v1.10.0/parity/compiler.toml)
+is the public **license** for analysis cells. 1.11 inspect / claim / reuse /
+handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/1.11/parity/compiler.toml)
 and are not analysis-matrix coordinates. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).
@@ -31,7 +31,7 @@ verified from the data, intervals are universally calibrated, identification is 
 beyond the named subset, or parametric restrictions disappeared. In particular, priors
 cannot convert a nonidentified estimand into an identified one.
 
-At analysis level, the support matrix is the license. The 1.10 matrix includes
+At analysis level, the support matrix is the license. The licensed matrix includes
 temporal policy cells: per-horizon
 `TemporalMediationEffect`, multi-step and joint `Sequence` overlays,
 observation-adjusted temporal curves (Frequentist IPCW pairs and the
@@ -500,14 +500,14 @@ Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
   diagrams, the `identify` stage, and `TransportQuery`, whose trial-to-target
   IPW reports separate selection and treatment overlap diagnostics
   (`result.transport_overlap`). `transport.estimate_trial_effect` remains an
-  unlicensed IPW/AIPW utility with its 1.9 behaviour. Distinct from Bayesian prior/evidence transfer in
+  unlicensed IPW/AIPW utility that returns bare numbers. Distinct from Bayesian prior/evidence transfer in
   `antecedent.priors`.
 * **Randomized interference** (`antecedent.interference`): assignment design,
   exposure mapping, and exposure-contrast estimands with Horvitz–Thompson and
   Hájek estimates (`result.interference`). The network and realized assignment
   are fixed and supplied by the caller on `InterferenceQuery`.
   `interference.estimate` remains an unlicensed utility over every design and
-  exposure mapping, with its 1.9 behaviour.
+  exposure mapping; it returns bare numbers.
 
 Multi-source meta-transport, cyclic/equilibrium models, and observational
 network interference remain outside the current contract.
@@ -745,7 +745,7 @@ Python interfaces support NumPy, pandas, and Arrow CDI. Rust uses `TableView`.
 
 ## Artifacts
 
-Durable artifact format **0.5** is current; it adds the optional
+Durable artifact format **0.5** is current; it includes the optional
 identified-set interval on structural-mixture analysis results. Format 0.4 was
 the 1.0 wire freeze, and 0.4 artifacts migrate unchanged. Versioned artifacts
 include:
