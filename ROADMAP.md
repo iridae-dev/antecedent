@@ -535,24 +535,24 @@ No version bump until the complete release boundary is accepted.
 **Owner:** core/graph/expression/identify owners plus ADRs and the existing
 support, identity, reason-code, claim, Python-product, and coverage registries.
 
-- [ ] Write the transport ADR: distinguish theoretical evidence availability,
+- [x] Write the transport ADR: distinguish theoretical evidence availability,
       concrete supplied evidence, statistical providers, and physical execution.
       Settle extension points within the common prepared handle and claim model.
-- [ ] Define a theorem-scope record: reference/version, graph assumptions,
+- [x] Define a theorem-scope record: reference/version, graph assumptions,
       observed variables, allowed experiments, required distribution family,
       query scope, outcome guarantees, and implemented computation limits.
-- [ ] Name classical sID separately from finite-catalog search and later
+- [x] Name classical sID separately from finite-catalog search and later
       z-/limited-experiment contracts. Completeness applies only to its stated
       mathematical input family, not to every catalog the API can represent.
-- [ ] Define support coordinates for graph × evidence setting × target
+- [x] Define support coordinates for graph × evidence setting × target
       functional × evaluator × uncertainty method × observation contract.
       Use stage-specific coordinates where necessary; do not fabricate an
       `analyze` capability to fit an existing matrix shape.
-- [ ] Specify stable typed outcomes for identified, proven non-transportable,
+- [x] Specify stable typed outcomes for identified, proven non-transportable,
       not certified, invalid input, missing evidence/provider, unsupported
       evaluator, support failure, numerical failure, and budget/cancel events.
       Attach precise obligations and factor/graph locations where available.
-- [ ] Register new identity inputs, public product paths, defaults, and claim
+- [x] Register new identity inputs, public product paths, defaults, and claim
       vocabulary through the 1.10 registries. Record schema/API breaks and
       migration policy before accepting new durable formats.
 
@@ -565,31 +565,31 @@ experiment and a verified impossibility witness produce different records.
 **Owner:** core transport query and population records; graph selection diagrams;
 data-provider metadata. **Depends on:** T0.
 
-- [ ] Define an environment record referencing the existing population identity,
+- [x] Define an environment record referencing the existing population identity,
       shared variable coordinates, value domains, units, and source-to-target
       selection targets. Reject duplicate identities and incompatible domains.
-- [ ] Define evidence regimes with stable IDs: observational or experimental,
+- [x] Define evidence regimes with stable IDs: observational or experimental,
       intervention set, available intervention values, measured variables,
       population, and distribution availability. Two `do(A)`/`do(B)` regimes
       never imply `do(A,B)`; separate marginals never imply joint measurements.
-- [ ] Separate manipulability and proposed future experiments from evidence
+- [x] Separate manipulability and proposed future experiments from evidence
       whose results exist. An executable factor must cite available evidence.
-- [ ] Keep measurement availability separate from observation mechanisms and
+- [x] Keep measurement availability separate from observation mechanisms and
       study inclusion/selection. A mechanism-selection node is not a sample
       membership indicator. Unsupported measurement recovery fails explicitly.
-- [ ] Define admissible evidence projections: marginalization and conditioning
+- [x] Define admissible evidence projections: marginalization and conditioning
       within a measured regime, with support obligations. Do not remove a hard
       intervention and treat its law as observational without a licensed rule.
-- [ ] Bind datasets/tables to regimes with snapshot identity, schema, sampling
+- [x] Bind datasets/tables to regimes with snapshot identity, schema, sampling
       design, weights if licensed, and unit/cluster/dependence groups. Distinguish
       known independent studies, linked units, and unknown dependence.
-- [ ] Define target-population sampling semantics: supplied population law,
+- [x] Define target-population sampling semantics: supplied population law,
       representative target sample, or explicitly licensed weighted design.
       A convenience target sample is not automatically representative.
-- [ ] Validate hard intervention assignments, target/source IDs, treatment and
+- [x] Validate hard intervention assignments, target/source IDs, treatment and
       outcome coordinates, measured domains, and provider compatibility before
       estimation. Return all relevant unmet factor dependencies in stable order.
-- [ ] Support catalogs with multiple source entries from the start. Do not
+- [x] Support catalogs with multiple source entries from the start. Do not
       assume source-source invariance merely from matching display names or
       transitively compose unrelated source-to-target assumptions.
 
@@ -603,24 +603,24 @@ succeeds with an empty source experiment catalog.
 **Owner:** `antecedent-expr`, with typed graph/evidence references from core.
 **Depends on:** T0–T1.
 
-- [ ] Extend expression leaves to bind population, regime, random variables,
+- [x] Extend expression leaves to bind population, regime, random variables,
       conditioning variables, intervention variables/values, and their domains.
       Keep symbolic treatment placeholders distinct from concrete assignments.
-- [ ] Represent nested sums, products, ratios, and intermediate kernels produced
+- [x] Represent nested sums, products, ratios, and intermediate kernels produced
       by recursion in the existing arena. An intermediate kernel is not an
       invented observational distribution or an extra evidence provider.
-- [ ] Define free/bound-variable checks and scope-preserving substitution.
+- [x] Define free/bound-variable checks and scope-preserving substitution.
       Reject variable capture, conflicting assignments, missing bindings, and
       expressions whose free variables disagree with the certified target.
-- [ ] Preserve population/regime distinctions in interning, hashing,
+- [x] Preserve population/regime distinctions in interning, hashing,
       simplification, compilation, pretty-printing, and artifact serialization.
       Algebraic similarity alone must never merge factors from different studies.
-- [ ] Attach a derivation DAG to the functional: named rule, input/output
+- [x] Attach a derivation DAG to the functional: named rule, input/output
       subproblem, graph operation, premises, evidence dependencies, and parent
       steps. Keep display strings as projections of typed records.
-- [ ] Restrict simplifications to checked local identities with explicit domain
+- [x] Restrict simplifications to checked local identities with explicit domain
       and denominator conditions. Do not promise a general equivalence prover.
-- [ ] Lower existing direct/standardization/singleton formulas into this engine;
+- [x] Lower existing direct/standardization/singleton formulas into this engine;
       retain compatible public views where justified without duplicate evaluation.
 
 **Done when:** one variable rename preserves numerical meaning; a population
@@ -632,29 +632,29 @@ survive Rust/Python/artifact round trips with the same dependencies and value.
 **Owner:** `antecedent-identify/src/transport.rs` and existing ID/graph utilities.
 **Depends on:** T1–T2.
 
-- [ ] Implement the classical single-source sID algorithm against a pinned
+- [x] Implement the classical single-source sID algorithm against a pinned
       theorem and pseudocode, documenting the mapping from every branch to
       code and fixtures. Reuse existing ancestry, district, induced/mutilated
       graph, and ordinary ID operations where their semantics match.
-- [ ] Try target-only ID before demanding source experimental factors. Keep a
+- [x] Try target-only ID before demanding source experimental factors. Keep a
       successful target derivation even if no source evidence is needed.
-- [ ] Cover ancestry restriction, intervention enlargement where licensed,
+- [x] Cover ancestry restriction, intervention enlargement where licensed,
       district decomposition, recursive multi-node districts, source/target
       kernel selection, and the theorem's obstruction branch. Preserve original
       variable coordinates through every induced subproblem.
-- [ ] Separate deriving a formula under the theorem's evidence family from
+- [x] Separate deriving a formula under the theorem's evidence family from
       binding its leaves to a finite supplied catalog. Missing a factor in one
       derivation does not prove that no alternative catalog-supported formula
       exists. Bounded alternative search returns its search scope and status.
-- [ ] Add a derivation checker that verifies recorded rule premises against
+- [x] Add a derivation checker that verifies recorded rule premises against
       immutable inputs. It must validate steps rather than trust a success flag
       or simply rerun the same top-level identifier.
-- [ ] Implement the theorem-specific negative witness and a checker for its
+- [x] Implement the theorem-specific negative witness and a checker for its
       graph and selection conditions. Bind it to the exact query and evidence
       setting; a single-source obstruction cannot negate combined-source evidence.
-- [ ] Replace misleading negative certificate names throughout native results,
+- [x] Replace misleading negative certificate names throughout native results,
       Python, and wire records. Preserve historical `NotCertified` meaning.
-- [ ] Memoize only on complete subproblem identity, including population,
+- [x] Memoize only on complete subproblem identity, including population,
       evidence setting, graph, selection targets, and query coordinates.
       Enforce step, memory, recursion, and cancellation budgets. Budget exhaustion
       returns no impossibility claim, even after several failed branches.
@@ -674,27 +674,27 @@ an arbitrary collection of individual study results.
 **Owner:** expression providers/evaluator, estimate transport entry point.
 **Depends on:** T2–T3.
 
-- [ ] Implement finite-discrete table providers for observational and hard
+- [x] Implement finite-discrete table providers for observational and hard
       intervention regimes. Validate cardinalities, nonnegative finite entries,
       normalization, axis order, and complete assignment domains with declared
       floating-point tolerances. Supplied tables represent exact laws for this
       contract; they are not assumed to have been estimated without error.
-- [ ] Compile certified expressions into evaluation plans with leaf-to-provider
+- [x] Compile certified expressions into evaluation plans with leaf-to-provider
       bindings, scoped marginalizations, ratio checks, and reusable intermediates.
       Verify provider coverage before allocating large joint tables.
-- [ ] Evaluate full target distributions and derive licensed response
+- [x] Evaluate full target distributions and derive licensed response
       functionals from them. Validate normalization and probability bounds;
       report numerical failures rather than silently clipping or renormalizing.
-- [ ] Locate zero denominators and absent support at the factor, conditioning
+- [x] Locate zero denominators and absent support at the factor, conditioning
       assignment, population, regime, and requested intervention value. Handle
       irrelevant zero-mass summands only through an explicitly justified rule;
       never use a blanket `0/0 = 0` convention.
-- [ ] Distinguish structural zeros in a supplied law from cells unobserved in
+- [x] Distinguish structural zeros in a supplied law from cells unobserved in
       a finite sample. Record the support assumptions necessary for each ratio.
-- [ ] Bound intermediate factor sizes and elimination costs before execution.
+- [x] Bound intermediate factor sizes and elimination costs before execution.
       Use deterministic ordering, reusable buffers, and safe common-subexpression
       reuse. Refuse resource exhaustion without publishing a partial scalar.
-- [ ] Retain original functional identity alongside the physical evaluation
+- [x] Retain original functional identity alongside the physical evaluation
       plan. Optimize execution only when it preserves the certified expression.
 
 **Done when:** exact enumeration of small finite SCMs produces the same target
@@ -707,30 +707,30 @@ not just formula labels. Support and budget failures retain precise locations.
 **Owner:** common prepared/contract/execute path and Python transport stage.
 **Depends on:** T0–T4; integrate statistical providers as T6 lands.
 
-- [ ] Offer transport identify → inspect → prepare → estimate on the common
+- [x] Offer transport identify → inspect → prepare → estimate on the common
       retained handle. Keep native certificates authoritative; caller-edited
       Python display objects cannot authorize execution.
-- [ ] Freeze target query, graph, selection assumptions, evidence contract,
+- [x] Freeze target query, graph, selection assumptions, evidence contract,
       derivation, and functional in preparation. Bind physical providers and
       inference settings at their existing identity layers.
-- [ ] Inspect without accessing full data or executing callbacks: show the
+- [x] Inspect without accessing full data or executing callbacks: show the
       target, assumed invariances, theorem scope, formula, required factors,
       available provider bindings, supported operations, and unmet obligations.
-- [ ] Preview changes using the existing transformation/invalidation contract.
+- [x] Preview changes using the existing transformation/invalidation contract.
       A data replacement within the same evidence contract reuses identification
       but refreshes estimates, support, uncertainty, and execution claims.
-- [ ] Changing graph, target, mechanism assumptions, measured regime, or evidence
+- [x] Changing graph, target, mechanism assumptions, measured regime, or evidence
       availability requires re-preparation. A new binding/estimator changes
       inference and affected caches. Reordering equivalent catalog entries must
       not cause arbitrary semantic identity changes.
-- [ ] Expose an actionable diagnostic path: affected factor, why unavailable,
+- [x] Expose an actionable diagnostic path: affected factor, why unavailable,
       required measurement/regime/value, and the distinction between supplying
       existing evidence and proposing a future experiment. No automatic new
       invariance assumption or hidden target restriction to make a run succeed.
-- [ ] Preserve four reasoning slots in repr, dictionaries, retained studies,
+- [x] Preserve four reasoning slots in repr, dictionaries, retained studies,
       estimates, exported claims, and independent consumers. Support per factor
       must remain accessible even when the top-level response is concise.
-- [ ] Retain request identity, budget/cancel handling, explicit refresh, and
+- [x] Retain request identity, budget/cancel handling, explicit refresh, and
       stale-result rejection. Inspect/load must not trigger data fetch or fitting.
 
 **Done when:** a Rust and Python walkthrough performs inspect → prepare →
