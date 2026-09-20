@@ -1342,8 +1342,10 @@ mod tests {
         }
         let schema = b.build().unwrap();
         let n = 10;
-        let t = vec![0.0; n];
-        let y = vec![0.0; n];
+        // Non-degenerate columns: Gaussian BIC no longer floors residual
+        // variance, so an all-zero table scores every DAG as non-finite.
+        let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| 2.0 * (i % 2) as f64 + 0.1 * i as f64).collect();
         let cols = vec![
             OwnedColumn::Float64(
                 Float64Column::new(
