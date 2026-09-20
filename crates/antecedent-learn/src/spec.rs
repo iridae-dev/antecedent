@@ -13,10 +13,16 @@ use crate::ridge::RidgeLearner;
 pub struct LinearSpec {}
 
 /// Ridge options (milestone D).
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RidgeSpec {
-    /// Penalty strength.
+    /// Penalty strength. Zero is ordinary least squares, not a ridge default.
     pub lambda: f64,
+}
+
+impl Default for RidgeSpec {
+    fn default() -> Self {
+        Self { lambda: 1.0 }
+    }
 }
 
 /// Logistic options (milestone D).

@@ -11,7 +11,7 @@ use smartcore::ensemble::random_forest_regressor::{
 };
 use smartcore::linalg::basic::matrix::DenseMatrix;
 
-use crate::dense::{gather_physical, materialize_dense_colmajor};
+use crate::dense::{gather_physical, materialize_dense_colmajor, require_binary_labels};
 use crate::design::{DesignView, TargetView};
 use crate::error::LearnError;
 use crate::learner::{
@@ -65,6 +65,9 @@ impl LearnerFactory for ForestLearner {
         }
         let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
         let gathered_y = gather_physical(y.values(), x, nrows)?;
+        if matches!(self.task, PredictionTask::BinaryProbability) {
+            require_binary_labels(&gathered_y)?;
+        }
         let matrix = dense_row_major(&design, nrows, ncols)?;
         let mut rng = ctx.rng.stream(2);
         let seed = rng.next_u64();
@@ -126,6 +129,8 @@ impl FittedPredictor for FittedForestPredictor {
         }
         match self.task {
             PredictionTask::Regression => out.copy_from_slice(&preds),
+            // Leaf means of a 0/1 outcome estimate E[T|X] = P(T=1|X). This is
+            // not a log-loss classifier; clamp only guards floating error.
             PredictionTask::BinaryProbability => {
                 for (slot, p) in out.iter_mut().zip(preds) {
                     *slot = p.clamp(1e-9, 1.0 - 1e-9);

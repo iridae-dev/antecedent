@@ -9,7 +9,7 @@ use forust_ml::data::Matrix;
 use forust_ml::gradientbooster::GradientBooster;
 use forust_ml::objective::ObjectiveType;
 
-use crate::dense::{gather_physical, materialize_dense_colmajor};
+use crate::dense::{gather_physical, materialize_dense_colmajor, require_binary_labels};
 use crate::design::{DesignView, TargetView};
 use crate::error::LearnError;
 use crate::learner::{
@@ -61,6 +61,9 @@ impl LearnerFactory for GbtLearner {
         }
         let (design, nrows, ncols) = materialize_dense_colmajor(x)?;
         let gathered_y = gather_physical(y.values(), x, nrows)?;
+        if matches!(self.task, PredictionTask::BinaryProbability) {
+            require_binary_labels(&gathered_y)?;
+        }
         let matrix = Matrix::new(&design, nrows, ncols);
         // Forust exposes a global-pool boolean, not a bounded thread lease.
         // Outer folds own the ExecutionContext parallelism budget.

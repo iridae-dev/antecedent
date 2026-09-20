@@ -69,6 +69,25 @@ mod tests {
     }
 
     #[test]
+    fn ridge_default_is_a_positive_penalty() {
+        assert_eq!(RidgeSpec::default().lambda, 1.0);
+        assert_eq!(LearnerSpec::parse("ridge").unwrap(), LearnerSpec::Ridge(RidgeSpec::default()));
+    }
+
+    #[test]
+    fn logistic_refuses_non_binary_labels() {
+        let x = [1.0, 1.0, 0.0, 1.0];
+        let y = [0.2, 0.8];
+        let ctx = ExecutionContext::for_tests(1);
+        let view = DesignView::from_column_major(&x, 2, 2).unwrap();
+        let err = match LogisticLearner.fit(view, TargetView::new(&y), None, &ctx) {
+            Ok(_) => panic!("non-binary labels should fail"),
+            Err(error) => error,
+        };
+        assert!(matches!(err, LearnError::Shape { message } if message.contains("0 or 1")));
+    }
+
+    #[test]
     fn linear_rejects_binary_probability() {
         let err = LinearLearner::for_task(PredictionTask::BinaryProbability).unwrap_err();
         assert!(matches!(
