@@ -126,10 +126,13 @@ Paired Python and Rust scripts for the same workflows live in
 
 The current package version is **1.11.0**.
 1.11 is the 1.x close-out of the existing licensed cells (1403
-meaningful combinations). Every licensed cell has a first-class
+meaningful combinations; 463 licensed). Every licensed cell has a first-class
 inspect/contract coordinate and completes the Rust compiler path
 inspect → preview → execute → claim → consume. That is composition-seam
-evidence, not inherited estimator-oracle truth.
+evidence, not inherited estimator-oracle truth. The
+[1.11 finding closeout](docs/reviews/v1.11-finding-closeout.md) records the
+evidence, identification, numeric, and safety repairs on this tree. Coverage
+records must be attested against it.
 Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
 Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists.
 Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.

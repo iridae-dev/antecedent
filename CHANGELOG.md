@@ -132,6 +132,25 @@ benches). Entries accumulate here until the cut.
   omitting them from the extrema.
 - Contrast summaries refuse non-finite or materially negative variance instead
   of reporting a zero SE.
+- Coverage records always carry the `core` facet. Shared numeric, RNG, and
+  toolchain edits stale every record; replay waivers remain for reviewed
+  non-numeric diffs only.
+- Instrument identification rejects a descendant of treatment. Wald IV
+  refuses a nonempty adjustment set; that ratio is unconditional, so
+  callers use 2SLS.
+- Minimal adjustment search stops when the empty set is valid, skips known
+  supersets, and budgets examinations separately from result caps.
+  Exhaustion is incomplete search, not structural non-identification.
+- Conjugate Gram and kNN CI caches key on column contents, not addresses.
+- Gaussian BIC uses residual variance without a silent floor and is unit
+  invariant under the equilibrated QR local fit.
+- Incremental OLS residual variance uses a stable joint scatter instead of
+  a clipped normal-equation remainder.
+- Calibration scope uses the analysis sample (complete-case, lag-aligned,
+  matched) rather than padded snapshot rows.
+- Arrow C-data columns are built with `unsafe from_ffi` or
+  `from_arrow_array`. Safe artifact `open_path` reads an owned snapshot;
+  mapped I/O is `unsafe` with a lifetime-wide immutability contract.
 - Bayesian static graph-posterior validation retains per-atom targets when
   `StructuralAggregationPolicy` withholds the scalar, matching Frequentist.
 - `publish-release.yml` publishes PyPI independently of GitHub Release asset

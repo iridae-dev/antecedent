@@ -119,9 +119,9 @@ scaled by the response family's fixed-b and HC1 factors (block length
 `max(span, ceil(sqrt(n)))`; see
 [Temporal simultaneous bands](causal-responses.md#temporal-simultaneous-bands)).
 The same joint replicates give a simultaneous band over the whole surface
-(support diagnostics `response.simultaneous_band.*`). The 1.8 Sequence replicate
-reordered the raw series and measured 31–81% coverage for a nominal 95% band; it
-was replaced in 1.9 by the tuple-level refit.
+(support diagnostics `response.simultaneous_band.*`). Sequence replicates
+refit at the intervention-tuple level; reordering the raw series is not the
+licensed band construction.
 Complete-data analytic bands and Bayesian IPCW/KM/Cox bands are not substituted.
 
 
