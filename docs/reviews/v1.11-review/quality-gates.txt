@@ -1,0 +1,83 @@
+FAIL: rustfmt diffs outside measured pin suites:
+crates/antecedent-core/src/lib.rs
+crates/antecedent-estimate/src/adjustment.rs
+crates/antecedent-estimate/src/aipw.rs
+crates/antecedent-estimate/src/frontdoor.rs
+crates/antecedent-estimate/src/glm_adjustment.rs
+crates/antecedent-estimate/src/iv.rs
+crates/antecedent-estimate/src/propensity/distance.rs
+crates/antecedent-estimate/src/propensity/matching.rs
+crates/antecedent-estimate/src/propensity/stratification.rs
+crates/antecedent-estimate/src/propensity/weighting.rs
+crates/antecedent-estimate/src/static_mediation.rs
+crates/antecedent-estimate/src/util.rs
+crates/antecedent-identify/src/joint_response.rs
+crates/antecedent/benches/user_path.rs
+crates/antecedent/src/analysis/execute/admg_posterior_response.rs
+crates/antecedent/src/analysis/execute/bayesian_path.rs
+crates/antecedent/src/analysis/execute/class_posterior_response.rs
+crates/antecedent/src/analysis/execute/dbn_mediation_frequentist.rs
+crates/antecedent/src/analysis/execute/mod.rs
+crates/antecedent/src/analysis/prepared.rs
+crates/antecedent/src/support.rs
+crates/antecedent/tests/admg_posterior_response.rs
+crates/antecedent/tests/class_posterior_ate.rs
+crates/antecedent/tests/common/calibration.rs
+crates/antecedent/tests/temporal_class_posterior.rs
+python/src/ate_api.rs
+python/src/prepared_api.rs
+python/src/temporal_api.rs
+
+STRICT CLIPPY
+    Checking antecedent-core v1.11.0 (/Users/charleshinshaw/Desktop/exp/causal-library/crates/antecedent-core)
+error: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+  --> crates/antecedent-core/src/execution.rs:50:18
+   |
+50 |         .map(|n| n.get() as u32)
+   |                  ^^^^^^^^^^^^^^
+   |
+   = help: if this is intentional allow the lint with `#[allow(clippy::cast_possible_truncation)]` ...
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#cast_possible_truncation
+   = note: `-D clippy::cast-possible-truncation` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::cast_possible_truncation)]`
+help: ... or use `try_from` and handle the error accordingly
+   |
+50 |         .map(|n| u32::try_from(n.get()))
+   |                  ~~~~~~~~~~~~~~~~~~~~~~
+
+error: docs for function which may panic missing `# Panics` section
+   --> crates/antecedent-core/src/execution.rs:517:5
+    |
+517 | /     pub fn map_indexed<T, E, F>(&self, n: usize, f: F) -> Result<Vec<T>, E>
+518 | |     where
+519 | |         T: Send,
+520 | |         E: Send,
+521 | |         F: Fn(usize, &Self) -> Result<T, E> + Sync,
+    | |___________________________________________________^
+    |
+note: first possible panic found here
+   --> crates/antecedent-core/src/execution.rs:553:38
+    |
+553 |         slots.into_iter().map(|slot| slot.expect("every index was filled")).collect()
+    |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#missing_panics_doc
+    = note: `-D clippy::missing-panics-doc` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::missing_panics_doc)]`
+
+error: docs for function returning `Result` missing `# Errors` section
+   --> crates/antecedent-core/src/execution.rs:517:5
+    |
+517 | /     pub fn map_indexed<T, E, F>(&self, n: usize, f: F) -> Result<Vec<T>, E>
+518 | |     where
+519 | |         T: Send,
+520 | |         E: Send,
+521 | |         F: Fn(usize, &Self) -> Result<T, E> + Sync,
+    | |___________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#missing_errors_doc
+    = note: `-D clippy::missing-errors-doc` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::missing_errors_doc)]`
+
+error: could not compile `antecedent-core` (lib) due to 3 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `antecedent-core` (lib test) due to 3 previous errors

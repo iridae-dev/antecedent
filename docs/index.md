@@ -10,7 +10,7 @@ When several causal structures remain plausible, that uncertainty stays visible.
 
 ## Start here
 
-These docs describe **Antecedent 1.10**. The Python quickstart begins with
+These docs describe **Antecedent 1.11**. The Python quickstart begins with
 installation from PyPI.
 
 | What you want to do | Start with |
@@ -37,4 +37,5 @@ the [support matrix](support-matrix.md) records which combinations can run.
 
 Read the [architecture](architecture.md), [evidence and conformance](conformance/README.md),
 or [development guide](development.md). For changes in this version, see the
-[1.10 release notes](release-notes/v1.10.0.md).
+[1.11.0 release notes](release-notes/v1.11.0.md) and the
+[1.11 finding closeout](reviews/v1.11-finding-closeout.md).

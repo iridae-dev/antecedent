@@ -53,7 +53,7 @@ fn with_pcmci_series<F>(
     fdr: bool,
     ci: &str,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
     f: F,
 ) -> PyResult<Py<PyDict>>
 where
@@ -72,7 +72,7 @@ where
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
         let pcmci = pcmci_from_params(max_lag, alpha, fdr, &ci)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         f(&series, &variables, pcmci, &ctx, &names)
     })
 }
@@ -121,7 +121,7 @@ fn discovery_stability_dict(
 #[pyfunction]
 #[pyo3(signature = (
     names, columns, *, max_lag=1, alpha=0.05, fdr=false, ci="parcorr",
-    replicates=20, block_size=20, seed=1, threads=1
+    replicates=20, block_size=20, seed=1, threads=None
 ))]
 fn validate_pcmci_block_bootstrap(
     py: Python<'_>,
@@ -134,7 +134,7 @@ fn validate_pcmci_block_bootstrap(
     replicates: u32,
     block_size: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
     with_pcmci_series(
         py,
@@ -159,7 +159,7 @@ fn validate_pcmci_block_bootstrap(
 #[pyfunction]
 #[pyo3(signature = (
     names, columns, *, max_lag=1, alpha=0.05, fdr=false, ci="parcorr",
-    transform="permute", replicates=20, seed=1, threads=1
+    transform="permute", replicates=20, seed=1, threads=None
 ))]
 fn validate_pcmci_false_positive(
     py: Python<'_>,
@@ -172,7 +172,7 @@ fn validate_pcmci_false_positive(
     transform: &str,
     replicates: u32,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
     let batch = columns_to_batch(&names, &columns)?;
     let ci = ci.to_string();
@@ -192,7 +192,7 @@ fn validate_pcmci_false_positive(
         let pcmci = pcmci_from_params(max_lag, alpha, fdr, &ci)?;
         let checker = FalsePositiveCheck::new(pcmci, null, replicates);
         let mut ws = DiscoveryWorkspace::default();
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let report = checker.run(&series, &variables, &mut ws, &ctx).map_err(py_err)?;
         Python::attach(|py| {
             let d = PyDict::new(py);
@@ -215,7 +215,7 @@ fn validate_pcmci_false_positive(
 /// Alpha-threshold sensitivity grid for PCMCI.
 #[pyfunction]
 #[pyo3(signature = (
-    names, columns, alphas, *, max_lag=1, fdr=false, ci="parcorr", seed=1, threads=1
+    names, columns, alphas, *, max_lag=1, fdr=false, ci="parcorr", seed=1, threads=None
 ))]
 fn validate_pcmci_alpha_sensitivity(
     py: Python<'_>,
@@ -226,7 +226,7 @@ fn validate_pcmci_alpha_sensitivity(
     fdr: bool,
     ci: &str,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
     let base_alpha = alphas.first().copied().unwrap_or(0.05);
     with_pcmci_series(
@@ -251,7 +251,7 @@ fn validate_pcmci_alpha_sensitivity(
 /// Max-lag window sensitivity grid for PCMCI.
 #[pyfunction]
 #[pyo3(signature = (
-    names, columns, max_lags, *, alpha=0.05, fdr=false, ci="parcorr", seed=1, threads=1
+    names, columns, max_lags, *, alpha=0.05, fdr=false, ci="parcorr", seed=1, threads=None
 ))]
 fn validate_pcmci_lag_sensitivity(
     py: Python<'_>,
@@ -262,7 +262,7 @@ fn validate_pcmci_lag_sensitivity(
     fdr: bool,
     ci: &str,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
     let base_lag = max_lags.first().copied().unwrap_or(1);
     with_pcmci_series(
@@ -287,7 +287,7 @@ fn validate_pcmci_lag_sensitivity(
 /// CI-test sensitivity grid for PCMCI.
 #[pyfunction]
 #[pyo3(signature = (
-    names, columns, ci_names, *, max_lag=1, alpha=0.05, fdr=false, seed=1, threads=1
+    names, columns, ci_names, *, max_lag=1, alpha=0.05, fdr=false, seed=1, threads=None
 ))]
 fn validate_pcmci_ci_sensitivity(
     py: Python<'_>,
@@ -298,7 +298,7 @@ fn validate_pcmci_ci_sensitivity(
     alpha: f64,
     fdr: bool,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -310,7 +310,7 @@ fn validate_pcmci_ci_sensitivity(
             Arc::from(ci_names.into_iter().map(Arc::<str>::from).collect::<Vec<_>>());
         let checker = CiTestSensitivity::new(pcmci, names_arc);
         let mut ws = DiscoveryWorkspace::default();
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let report = checker.run(&series, &variables, &mut ws, &ctx).map_err(py_err)?;
         Python::attach(|py| discovery_stability_dict(py, &names, &report))
     })
@@ -320,7 +320,7 @@ fn validate_pcmci_ci_sensitivity(
 #[pyfunction]
 #[pyo3(signature = (
     names, columns, *, max_lag=1, alpha=0.05, fdr=false, ci="parcorr",
-    replicates=20, block_size=20, seed=1, threads=1
+    replicates=20, block_size=20, seed=1, threads=None
 ))]
 fn validate_pcmci_plus_orientation(
     py: Python<'_>,
@@ -333,7 +333,7 @@ fn validate_pcmci_plus_orientation(
     replicates: u32,
     block_size: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
     let batch = columns_to_batch(&names, &columns)?;
     let ci = ci.to_string();
@@ -343,7 +343,7 @@ fn validate_pcmci_plus_orientation(
         let pcmci_plus = pcmci_plus_from_params(max_lag, alpha, fdr, &ci)?;
         let checker = OrientationStability { pcmci_plus, replicates, block_size };
         let mut ws = DiscoveryWorkspace::default();
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let report = checker.run(&series, &variables, &mut ws, &ctx).map_err(py_err)?;
         Python::attach(|py| {
             let d = PyDict::new(py);
@@ -384,7 +384,7 @@ fn validate_pcmci_plus_orientation(
 #[pyfunction]
 #[pyo3(signature = (
     *, max_lag=1, alpha=0.05, fdr=false, ci="parcorr",
-    n_sim=20, n_obs=100, n_vars=3, seed=1, threads=1
+    n_sim=20, n_obs=100, n_vars=3, seed=1, threads=None
 ))]
 fn validate_synthetic_null_calibration(
     py: Python<'_>,
@@ -396,14 +396,14 @@ fn validate_synthetic_null_calibration(
     n_obs: usize,
     n_vars: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
     let ci = ci.to_string();
     detach_catch(py, move || {
         let pcmci = pcmci_from_params(max_lag, alpha, fdr, &ci)?;
         let checker = SyntheticNullCalibration::new(pcmci, alpha, n_sim, n_obs, n_vars);
         let mut ws = DiscoveryWorkspace::default();
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let report = checker.run(&mut ws, &ctx).map_err(py_err)?;
         Python::attach(|py| {
             let d = PyDict::new(py);
@@ -435,7 +435,7 @@ fn multi_env_from_batches(
 #[pyfunction]
 #[pyo3(signature = (
     names, env_columns, *, max_lag=1, alpha=0.05, fdr=false, ci="parcorr",
-    n_discovery=1, seed=1, threads=1
+    n_discovery=1, seed=1, threads=None
 ))]
 fn validate_environment_holdout(
     py: Python<'_>,
@@ -447,7 +447,7 @@ fn validate_environment_holdout(
     ci: &str,
     n_discovery: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
     if env_columns.is_empty() {
         return Err(PyValueError::new_err("env_columns needs ≥1 environment"));
@@ -475,7 +475,7 @@ fn validate_environment_holdout(
         let variables: Vec<VariableId> =
             (0..names.len() as u32).map(VariableId::from_raw).collect();
         let mut ws = DiscoveryWorkspace::default();
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let report = checker.run(&multi, &variables, &mut ws, &ctx).map_err(py_err)?;
         Python::attach(|py| {
             let d = PyDict::new(py);
@@ -502,7 +502,7 @@ fn validate_environment_holdout(
 #[pyfunction]
 #[pyo3(signature = (
     names, columns, regimes, *, max_lag=1, alpha=0.05, fdr=false, ci="parcorr",
-    replicates=10, block_size=20, seed=1, threads=1
+    replicates=10, block_size=20, seed=1, threads=None
 ))]
 fn validate_regime_stability(
     py: Python<'_>,
@@ -516,7 +516,7 @@ fn validate_regime_stability(
     replicates: u32,
     block_size: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
     let batch = columns_to_batch(&names, &columns)?;
     let ci = ci.to_string();
@@ -536,7 +536,7 @@ fn validate_regime_stability(
         checker.replicates = replicates;
         checker.block_size = block_size;
         let mut ws = DiscoveryWorkspace::default();
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let report = checker.run(&series, &variables, &mut ws, &ctx).map_err(py_err)?;
         Python::attach(|py| {
             let d = PyDict::new(py);

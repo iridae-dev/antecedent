@@ -16,3 +16,263 @@
 # than this header are not kept (the justification is the prose).
 # `scripts/gate_calibration_attestation.sh` validates every waiver and reports
 # the records it covers as `attested_by_replay (waiver <id>)`.
+
+[[waiver]]
+id = "arrow-adapter-test-constructors-2dd36a8b"
+from = "6a41568f5c249aa2ebf707e61248cbd80dc75058"
+to = "2dd36a8ba4d64ea35f91cedd03d0072a50abc963"
+reviewed_by = "Charles Hinshaw"
+justification = """
+Unit tests in arrow_adapter.rs now construct ArrowCColumn through
+from_arrow_array because R9 made the FFI pair private. No production
+function in the file changed. Same seed, same interval. This cannot
+move a measured number.\
+"""
+paths = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.bootstrap_se.l95.ipw_hajek_bootstrap_ci_coverage"
+exercises = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+]
+
+[waiver.outcome]
+replayed_at = "2dd36a8ba4d64ea35f91cedd03d0072a50abc963"
+identical = true
+records = [
+  "cov.average_effect.dag.frequentist.bootstrap_se.l95.ipw_hajek_bootstrap_ci_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.dag.frequentist.bootstrap_se.l95.ipw_hajek_bootstrap_ci_coverage" = "6ed8dd8150185d26761a4b15f34b00c1133c8f2c523c8513bb57354d04768d24"
+
+[[waiver]]
+id = "core-test-only-5e13c72b"
+from = "6a41568f5c249aa2ebf707e61248cbd80dc75058"
+to = "5e13c72b78cef4875ceaa7cc2cd140755bd93758"
+reviewed_by = "Charles Hinshaw"
+justification = """
+Two test-only core-path edits after remesure: ArrowCColumn unit tests now
+use from_arrow_array, and the graph-posterior license fixture uses
+non-degenerate columns because Gaussian BIC no longer floors residual
+variance. No production function changed. Same seed, same interval.\
+"""
+paths = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent/src/support.rs",
+]
+
+[[waiver.replay]]
+record = "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent/src/support.rs",
+]
+
+[waiver.outcome]
+replayed_at = "5e13c72b78cef4875ceaa7cc2cd140755bd93758"
+identical = true
+records = [
+  "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage" = "793505c9ce7c98248708ec419d11c70ff66c7149fb5cccb828b5cf49314829b4"
+
+[[waiver]]
+id = "rolling-window-sse-d31f4dcb"
+from = "6a41568f5c249aa2ebf707e61248cbd80dc75058"
+to = "d31f4dcbc45efb8721291bf77d17bf54fa4b7f0b"
+reviewed_by = "Charles Hinshaw"
+justification = """
+Three core-path edits after remesure: ArrowCColumn unit tests now use
+from_arrow_array, the graph-posterior license fixture uses non-degenerate
+columns because Gaussian BIC no longer floors residual variance, and
+RollingMechanismDiagnostics reports window σ² from the residuals it
+already sums (SSE/(n−p)) because IncrementalOLS Welford scatter is
+append-only and left residual_var empty after eviction. Coverage records
+do not execute the rolling diagnostics slot, the Arrow constructor
+tests, or the license fixture. Same seed, same interval.\
+"""
+paths = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent/src/support.rs",
+  "crates/antecedent-state/src/mechanism_diag.rs",
+]
+
+[[waiver.replay]]
+record = "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent/src/support.rs",
+  "crates/antecedent-state/src/mechanism_diag.rs",
+]
+
+[waiver.outcome]
+replayed_at = "d31f4dcbc45efb8721291bf77d17bf54fa4b7f0b"
+identical = true
+records = [
+  "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage" = "793505c9ce7c98248708ec419d11c70ff66c7149fb5cccb828b5cf49314829b4"
+
+[[waiver]]
+id = "facade-reexports-02c06614"
+from = "6a41568f5c249aa2ebf707e61248cbd80dc75058"
+to = "02c0661486599829eccc1b35b36fb027a9a93be7"
+reviewed_by = "Charles Hinshaw"
+justification = """
+Core-path edits after remesure: ArrowCColumn unit tests now use
+from_arrow_array; the graph-posterior license fixture uses non-degenerate
+columns; RollingMechanismDiagnostics reports window σ² from ring SSE;
+and the day-1 crate re-exports response/temporal constructors
+(discovery, estimate, graph, query) so the practitioner suite does not
+depend on component crates. The re-exports add no new dispatch or
+numeric path. Coverage records do not execute the constructor tests,
+license fixture, or rolling diagnostics slot. Same seed, same interval.\
+"""
+paths = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent/src/support.rs",
+  "crates/antecedent-state/src/mechanism_diag.rs",
+  "crates/antecedent/src/discovery.rs",
+  "crates/antecedent/src/estimate.rs",
+  "crates/antecedent/src/graph.rs",
+  "crates/antecedent/src/query.rs",
+]
+
+[[waiver.replay]]
+record = "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent/src/support.rs",
+  "crates/antecedent-state/src/mechanism_diag.rs",
+  "crates/antecedent/src/discovery.rs",
+  "crates/antecedent/src/estimate.rs",
+  "crates/antecedent/src/graph.rs",
+  "crates/antecedent/src/query.rs",
+]
+
+[waiver.outcome]
+replayed_at = "02c0661486599829eccc1b35b36fb027a9a93be7"
+identical = true
+records = [
+  "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage" = "793505c9ce7c98248708ec419d11c70ff66c7149fb5cccb828b5cf49314829b4"
+
+[[waiver]]
+id = "clippy-1.85-da29054e"
+from = "6a41568f5c249aa2ebf707e61248cbd80dc75058"
+to = "da29054ec40eee1079a976e9ac0fafe6fe989708"
+reviewed_by = "Charles Hinshaw"
+justification = """
+Core and estimator/identity-path edits after remesure: ArrowCColumn unit
+tests now use from_arrow_array; the graph-posterior license fixture uses
+non-degenerate columns; RollingMechanismDiagnostics reports window σ²
+from ring SSE; the day-1 crate re-exports response/temporal constructors;
+and rustc 1.85 Clippy -D warnings forced signature, extract, and lint
+rewrites (from_arrow_array takes &dyn Array; GAC candidate scan and
+posterior-atom wire helpers extracted; retained_n counted as usize;
+finite-weight equality via to_bits). No estimator formula changed.
+Coverage records do not execute the constructor tests, license fixture,
+or rolling diagnostics slot. Same seed, same interval.\
+"""
+paths = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent-data/src/arrow_ffi.rs",
+  "crates/antecedent-discovery/src/dbn_posterior.rs",
+  "crates/antecedent-discovery/src/graph_posterior.rs",
+  "crates/antecedent-estimate/src/iv.rs",
+  "crates/antecedent-estimate/src/propensity/stratification.rs",
+  "crates/antecedent-estimate/src/retarget.rs",
+  "crates/antecedent-estimate/src/util.rs",
+  "crates/antecedent-identify/src/generalized.rs",
+  "crates/antecedent-io/src/identity.rs",
+  "crates/antecedent-state/src/mechanism_diag.rs",
+  "crates/antecedent/src/analysis/execute/admg_posterior.rs",
+  "crates/antecedent/src/analysis/execute/bayesian_path.rs",
+  "crates/antecedent/src/analysis/execute/class_posterior.rs",
+  "crates/antecedent/src/analysis/execute/class_posterior_response.rs",
+  "crates/antecedent/src/analysis/execute/execute_helpers.rs",
+  "crates/antecedent/src/analysis/execute/pag_path.rs",
+  "crates/antecedent/src/analysis/execute/response_path.rs",
+  "crates/antecedent/src/analysis/execute/temporal_class_mediation_posterior.rs",
+  "crates/antecedent/src/analysis/execute/temporal_class_posterior.rs",
+  "crates/antecedent/src/analysis/execute/temporal_class_posterior_response.rs",
+  "crates/antecedent/src/analysis/execute/temporal_posterior_response.rs",
+  "crates/antecedent/src/analysis/prepared.rs",
+  "crates/antecedent/src/discovery.rs",
+  "crates/antecedent/src/estimate.rs",
+  "crates/antecedent/src/graph.rs",
+  "crates/antecedent/src/query.rs",
+  "crates/antecedent/src/result.rs",
+  "crates/antecedent/src/support.rs",
+]
+
+[[waiver.replay]]
+record = "cov.intervention_response.dag.frequentist.analytic_se.l95.intervention_response_cell_aipw_nominal_95_coverage"
+exercises = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent-data/src/arrow_ffi.rs",
+  "crates/antecedent-discovery/src/dbn_posterior.rs",
+  "crates/antecedent-discovery/src/graph_posterior.rs",
+  "crates/antecedent-estimate/src/propensity/stratification.rs",
+  "crates/antecedent-estimate/src/retarget.rs",
+  "crates/antecedent-estimate/src/util.rs",
+  "crates/antecedent-identify/src/generalized.rs",
+  "crates/antecedent-io/src/identity.rs",
+  "crates/antecedent-state/src/mechanism_diag.rs",
+  "crates/antecedent/src/analysis/execute/admg_posterior.rs",
+  "crates/antecedent/src/analysis/execute/bayesian_path.rs",
+  "crates/antecedent/src/analysis/execute/class_posterior.rs",
+  "crates/antecedent/src/analysis/execute/class_posterior_response.rs",
+  "crates/antecedent/src/analysis/execute/execute_helpers.rs",
+  "crates/antecedent/src/analysis/execute/pag_path.rs",
+  "crates/antecedent/src/analysis/execute/response_path.rs",
+  "crates/antecedent/src/analysis/execute/temporal_class_mediation_posterior.rs",
+  "crates/antecedent/src/analysis/execute/temporal_class_posterior.rs",
+  "crates/antecedent/src/analysis/execute/temporal_class_posterior_response.rs",
+  "crates/antecedent/src/analysis/execute/temporal_posterior_response.rs",
+  "crates/antecedent/src/analysis/prepared.rs",
+  "crates/antecedent/src/discovery.rs",
+  "crates/antecedent/src/estimate.rs",
+  "crates/antecedent/src/graph.rs",
+  "crates/antecedent/src/query.rs",
+  "crates/antecedent/src/result.rs",
+  "crates/antecedent/src/support.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analytic_ci_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/iv.rs",
+]
+
+[waiver.outcome]
+replayed_at = "da29054ec40eee1079a976e9ac0fafe6fe989708"
+identical = true
+records = [
+  "cov.intervention_response.dag.frequentist.analytic_se.l95.intervention_response_cell_aipw_nominal_95_coverage",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analytic_ci_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analytic_ci_coverage" = "ea6e1a2e5eec106195c31373f24a59facadfb986560542e280c355c2392da159"
+"cov.intervention_response.dag.frequentist.analytic_se.l95.intervention_response_cell_aipw_nominal_95_coverage" = "8823326a2eee097b106b9847002d6a93c0e1e3c5abed02607fca606447335d5c"

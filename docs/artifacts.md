@@ -2,7 +2,7 @@
 
 Library package version is tracked independently from the durable artifact format.
 The durable format is **`FormatVersion { major: 0, minor: 5 }`**
-(`antecedent_io::STABLE_FORMAT`). Format 0.5 adds the identified-set interval
+(`antecedent_io::STABLE_FORMAT`). Format 0.5 includes the identified-set interval
 on structural-mixture analysis results (below); format 0.4 added temporal
 response-query fields and dose × horizon response surfaces.
 
@@ -14,7 +14,7 @@ the package-version bump itself does not change artifact bytes.
 
 ## Score tables and distribution payloads
 
-Since 1.5, estimates can carry score tables, per-arm CDF values, raw-score
+Estimates can carry score tables, per-arm CDF values, raw-score
 inference and covariance, and candidate-selection provenance. These fields have
 separate meanings:
 
@@ -69,7 +69,8 @@ Arrow IPC sections (`application/vnd.apache.arrow.file`) use
 | `EncodedArtifact::read_from` | Full materialization (compat) |
 | `EncodedArtifact::read_selective` | Stream-hash + discard unselected sections; no retained payload |
 | `ArtifactReader::open_seek` | Index section offsets; seek-skip without allocating payloads |
-| `MappedArtifactReader::open_path` | `memmap2` map; `load_section_mapped` for uncompressed views |
+| `MappedArtifactReader::open_path` | owned snapshot of the file; `load_section_mapped` for uncompressed views |
+| `MappedArtifactReader::open_path_mapped` | `unsafe` file-backed `memmap2` map; caller guarantees immutability |
 | `SectionBytes.data: Arc<[u8]>` | Shared logical buffers; Never-compress write avoids clone |
 | `decode_posterior_meta_from_seek` / `_from_path` | Metadata without loading draws |
 
@@ -159,7 +160,7 @@ refuses a 0.5 artifact rather than silently dropping the interval.
 
 ## Exporting prepared results
 
-For the 1.10 Python workflow, export the execution result directly:
+From Python, export the execution result directly:
 
 ```python
 import antecedent as ant
@@ -172,7 +173,8 @@ report = loaded.inspect().to_dict()
 assert loaded.export() == encoded
 
 # Refreshing the study does not change this execution or its archive.
-updated = result.study.refresh(new_data)
+# The five-line second click is result.refresh; a second analyze() re-prepares.
+updated = result.refresh(new_data)
 assert result.export() == encoded
 ```
 

@@ -1,0 +1,26 @@
+feature_id = "identify.tiered"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Not new identification theory. CoDetermined certifies the tier-closure
+# set in O(p) and then applies generalized adjustment (see
+# identify.generalized_adjustment.toml). Unknown returns two canonical
+# sets as an envelope and never collapses to one.
+papers = []
+
+implementation_deviations = [
+ "CoDetermined identification is the O(p) tier closure on the background's own closure ADMG, not a search of a caller-supplied graph. A caller graph set alongside the tier background is a conflict.",
+ "Unknown-tier identification returns two canonical scenarios as an envelope and does not pick a single adjustment set.",
+ "Joint InterventionResponse under Unknown has no single ADMG and is not a cell-AIPW license.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-identify/src/tiered.rs",
+ "crates/antecedent/tests/v19_tiered_known_truth.rs",
+ "crates/antecedent/tests/v15_numeric_pins.rs (codetermined_same_tier_joint_cell_aipw_matches_closure_admg)",
+]

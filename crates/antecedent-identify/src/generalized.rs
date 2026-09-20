@@ -81,7 +81,7 @@ pub struct GeneralizedAdjustmentConfig {
 
 impl Default for GeneralizedAdjustmentConfig {
     fn default() -> Self {
-        Self { max_completions: 32, per_completion_weight: 1.0, max_candidates: 16 }
+        Self { max_completions: 32, per_completion_weight: 1.0, max_candidates: 40 }
     }
 }
 
@@ -509,30 +509,7 @@ fn constrained_conditional_set(
     };
     let t = dense(query.treatment)?;
     let y = dense(query.outcome)?;
-    let mut seeds = vec![t, y];
-    seeds.extend_from_slice(modifiers);
-    let ancestors = directed_closure(graph, &seeds, true);
-    let descendants = directed_closure(graph, &[t], false);
-    let candidates: Vec<_> = nodes
-        .iter()
-        .enumerate()
-        .filter_map(|(i, node)| {
-            let antecedent_graph::NodeRef::Static(variable) = node else {
-                return None;
-            };
-            let id = DenseNodeId::from_raw(i as u32);
-            let outside_history = config.max_history_lag.is_some_and(|cap| {
-                config.history_lags.iter().any(|(v, lag)| v == variable && *lag > cap)
-            });
-            (id != y
-                && !descendants.contains(id)
-                && ancestors.contains(id)
-                && !modifiers.contains(&id)
-                && !config.forbidden.contains(variable)
-                && !outside_history)
-                .then_some(id)
-        })
-        .collect();
+    let candidates = gac_conditional_candidates(graph, nodes, t, y, modifiers, config);
     if candidates.len() > config.max_candidates {
         return Ok(ConditionalSearch::Capped(candidates.len()));
     }
@@ -556,13 +533,16 @@ fn constrained_conditional_set(
             if config.maximal_only && found.iter().any(|old| z.iter().all(|v| old.contains(v))) {
                 return false;
             }
+            if examined >= config.max_examinations {
+                return true;
+            }
             examined += 1;
             let mut conditioned = z.to_vec();
             conditioned.extend_from_slice(modifiers);
             match cut.is_m_separated(t, y, &conditioned, &mut ws) {
                 Ok(true) => {
                     found.push(z.to_vec());
-                    found.len() >= config.max_results
+                    config.minimal_only && z.is_empty() || found.len() >= config.max_results
                 }
                 Ok(false) => false,
                 Err(e) => {
@@ -574,7 +554,10 @@ fn constrained_conditional_set(
         if let Some(e) = error {
             return Err(e);
         }
-        if found.len() >= config.max_results {
+        if found.len() >= config.max_results
+            || (config.minimal_only && found.iter().any(Vec::is_empty))
+            || examined >= config.max_examinations
+        {
             break;
         }
     }
@@ -595,6 +578,40 @@ fn constrained_conditional_set(
     } else {
         ConditionalSearch::Found(sets, examined)
     })
+}
+
+fn gac_conditional_candidates(
+    graph: &Admg,
+    nodes: &[antecedent_graph::NodeRef],
+    t: DenseNodeId,
+    y: DenseNodeId,
+    modifiers: &[DenseNodeId],
+    config: &crate::backdoor::AdjustmentSearchConfig,
+) -> Vec<DenseNodeId> {
+    let mut seeds = vec![t, y];
+    seeds.extend_from_slice(modifiers);
+    let ancestors = directed_closure(graph, &seeds, true);
+    let descendants = directed_closure(graph, &[t], false);
+    nodes
+        .iter()
+        .enumerate()
+        .filter_map(|(i, node)| {
+            let antecedent_graph::NodeRef::Static(variable) = node else {
+                return None;
+            };
+            let id = DenseNodeId::from_raw(i as u32);
+            let outside_history = config.max_history_lag.is_some_and(|cap| {
+                config.history_lags.iter().any(|(v, lag)| v == variable && *lag > cap)
+            });
+            (id != y
+                && !descendants.contains(id)
+                && ancestors.contains(id)
+                && !modifiers.contains(&id)
+                && !config.forbidden.contains(variable)
+                && !outside_history)
+                .then_some(id)
+        })
+        .collect()
 }
 
 fn rank_conditional_sets(
@@ -965,6 +982,11 @@ mod tests {
     use super::*;
     use crate::result::IdentificationStatus;
     use antecedent_graph::Pag;
+
+    #[test]
+    fn default_max_candidates_matches_dag_backdoor() {
+        assert_eq!(GeneralizedAdjustmentConfig::default().max_candidates, 40);
+    }
 
     #[test]
     fn conditional_modifier_cannot_be_a_mediator() {

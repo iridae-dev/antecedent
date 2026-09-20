@@ -1,8 +1,20 @@
 # Security, licensing, unsafe-code, and dependency review
 
-Date: 2026-09-15
-Scope: workspace crates + `python` extension (package version **1.10.0**)
+Date: 2026-09-19
+Scope: workspace crates + `python` extension (package version **1.11.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
+
+1.11.0 is the 1.x close-out on the 1.10.0 reviewed tree. This stamp covers the
+version and notes cut. Re-review the source diff before the cut is tagged
+if it adds `unsafe`, dependencies, artifact decode, or workflow permissions.
+
+The 1.11 finding closeout adds no new crate dependency. It makes Arrow C-data
+construction `unsafe from_ffi` (or the safe `from_arrow_array` path) and
+moves zero-copy artifact mmap to `unsafe open_path_mapped` with a documented
+immutability contract; safe `open_path` reads an owned snapshot. A
+`cargo deny check` against a freshly fetched advisory database on 2026-09-19
+passed advisories, bans, licenses, and sources. `RUSTSEC-2024-0436` (`paste`)
+remains ignored in `deny.toml` as a faer/gemm build-time macro.
 
 The 1.10.0 source diff (against the 1.9.0 cut) is additive composition of the
 existing licensed matrix: domain-separated identities, portable claims,
@@ -121,7 +133,7 @@ mapping; `n_draws < 2` is a typed refuse.
 |-------|--------|-------|
 | Most semantic crates (`antecedent-*` except below / kernels) | `#![forbid(unsafe_code)]` | Verified locally by `scripts/gate_release.sh` |
 | `antecedent-data` | `#![deny(unsafe_code)]` + scoped `allow` | Foreign buffers (`buffer.rs`) and Arrow CDI (`arrow_ffi.rs`) |
-| `antecedent-io` | `#![deny(unsafe_code)]` + scoped `allow` | Thin mmap (`mmap_file.rs`) only |
+| `antecedent-io` | `#![deny(unsafe_code)]` + scoped `allow` | Thin mmap (`mmap_file.rs`); `unsafe` mapped constructors on `MappedArtifactReader` |
 | `antecedent-kernels` | `#![allow(unsafe_code)]` | Only reviewed SIMD / aliasing kernels |
 | `python` / `antecedent-py` | `#![allow(unsafe_code)]` | Required by PyO3 |
 

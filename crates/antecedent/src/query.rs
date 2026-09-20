@@ -4,9 +4,11 @@
 
 pub use antecedent_core::{
     AnomalyAttributionQuery, AssignmentDesign, AverageEffectQuery, CausalQuery,
-    ChangeAttributionQuery, ConditionalEffectQuery, CounterfactualQuery, ExposureLevel,
-    ExposureMapping, InterferenceFunctional, InterferenceQuery, InterventionalDistributionQuery,
+    ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, CounterfactualQuery,
+    DerivativeScale, DerivativeWeighting, ExposureLevel, ExposureMapping, GridSpec,
+    InterferenceFunctional, InterferenceQuery, InterventionalDistributionQuery,
     MechanismChangeQuery, MediationContrast, MediationQuery, OutcomeFunctional,
-    PathSpecificEffectQuery, ResponseFunctional, ResponseQuery, TemporalEffectQuery,
+    PathSpecificEffectQuery, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec,
     TransportQuery, UnitChangeQuery,
 };

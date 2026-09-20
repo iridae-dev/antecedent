@@ -24,6 +24,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, TypedDict
 
+from ._claim import identification_statement
 from ._verdict import describe_status, verdict_for
 from .errors import CausalUnsupportedError, CausalValueError
 from .estimation import IdentifyResult
@@ -48,23 +49,7 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
-from .results import IdentificationView
-
-
-def _query_phrase(query: object) -> str:
-    name = type(query).__name__
-    treatment = getattr(query, "treatment", None)
-    outcome = getattr(query, "outcome", None)
-    if isinstance(treatment, str) and isinstance(outcome, str):
-        mediators = getattr(query, "mediators", None)
-        if mediators:
-            via = ", ".join(str(item) for item in mediators)
-            return f"{name} of {outcome} from {treatment} via {via}"
-        modifier = getattr(query, "modifier", None)
-        if isinstance(modifier, str):
-            return f"{name} of {outcome} from {treatment} given {modifier}"
-        return f"{name} of {outcome} from {treatment}"
-    return name
+from .results import Analysis, IdentificationView
 
 
 def _assumption_line(item: object) -> str | None:
@@ -230,24 +215,14 @@ class Identification:
         """Readable derivation steps retained from the identification certificate."""
         return _derivation_statements(self.certificate)
 
+    def claim(self) -> str:
+        """Same sentence as :attr:`statement` — the claim before estimation."""
+        return self.statement
+
     @property
     def statement(self) -> str:
         """One-sentence identification state. This is data, not a display hook."""
-        query = _query_phrase(self.query)
-        verdict = self.verdict
-        if verdict == "not identified":
-            return f"{query} is not identified."
-        if verdict == "graph-dependent":
-            phrase = f"{query} is graph-dependent, not a single identified effect"
-        else:
-            phrase = f"{query} is {self.qualified_verdict}"
-        method = self.method.strip() if self.method else ""
-        if method and method.lower() not in {"none", "unavailable"}:
-            phrase = f"{phrase} by {method}"
-        if self.adjustment_set:
-            adjusted = ", ".join(self.adjustment_set)
-            phrase = f"{phrase}, adjusting for {adjusted}"
-        return f"{phrase}."
+        return identification_statement(self.query, self.status, self.method, self.adjustment_set)
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-safe identification state, including the human-readable fields."""
@@ -267,6 +242,11 @@ class Identification:
 
     def __repr__(self) -> str:
         return f"<Identification {self.statement}>"
+
+    def _repr_html_(self) -> str:
+        from .results._html import _identification_repr_html
+
+        return _identification_repr_html(self)
 
     def to_identify_result(self) -> IdentifyResult:
         """Convert down to the legacy identify-only result shape.
@@ -319,9 +299,9 @@ class Identification:
         refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = False,
         seed: int = 1,
         bootstrap: int | None = None,
-        threads: int = 1,
+        threads: int | None = None,
         latency: Latency | Literal["interactive", "standard", "report"] | None = None,
-    ) -> Any:
+    ) -> Analysis:
         """Estimate the effect on ``data`` using this identification's strategy.
 
         Dispatches through :func:`antecedent.analyze` with ``identifier=``
@@ -355,8 +335,8 @@ class Identification:
         *,
         refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = "cheap",
         seed: int = 1,
-        threads: int = 1,
-    ) -> Any:
+        threads: int | None = None,
+    ) -> Analysis:
         """Run the refutation/validation suite against this identification.
 
         ``refute`` defaults to the scalar ``"cheap"`` suite. Function-valued
@@ -744,9 +724,9 @@ def estimate(
     refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = False,
     seed: int = 1,
     bootstrap: int | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     latency: Latency | Literal["interactive", "standard", "report"] | None = None,
-) -> Any:
+) -> Analysis:
     """Module-level mirror of :meth:`Identification.estimate`.
 
     The stub this replaces took ``(identification, *, graph, query, names,
@@ -775,8 +755,8 @@ def validate(
     *,
     refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = "cheap",
     seed: int = 1,
-    threads: int = 1,
-) -> Any:
+    threads: int | None = None,
+) -> Analysis:
     """Module-level mirror of :meth:`Identification.validate`. See :func:`estimate`."""
     return identification.validate(data, refute=refute, seed=seed, threads=threads)
 

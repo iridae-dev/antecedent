@@ -105,9 +105,47 @@ fn temporal_cpdag_graph_posterior_stays_refused() {
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(1));
-    // DBN mixer is TemporalDag-shaped; a stub posterior without lag masks refuses
-    // rather than treating completions as posterior atoms.
+    // A stub posterior without lag masks still refuses; completions are not
+    // posterior atoms.
     assert!(err.is_err(), "{err:?}");
+}
+
+#[test]
+fn temporal_cpdag_graph_posterior_with_lag_masks_licenses_pulse() {
+    use antecedent::CellStatus;
+    use antecedent_discovery::{GraphPosteriorAtomKind, set_edge};
+
+    let n = 3;
+    let contemp = set_edge(set_edge(0, n, 0, 2, true), n, 2, 0, true);
+    let lag = (1u64 << 1) | (1u64 << 7);
+    let posterior = GraphPosterior::new(
+        n,
+        [1.0],
+        [contemp],
+        [0.0; 9],
+        [0.0; 9],
+        1.0,
+        InferenceDiagnostics::analytic("class_prior_contract"),
+        0,
+    )
+    .unwrap()
+    .with_atom_kind(GraphPosteriorAtomKind::Cpdag)
+    .with_lagged_marginals(1, vec![0.0; n * n])
+    .unwrap()
+    .with_lag_masks(vec![lag])
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(1);
+    let study = Study::series(class_series())
+        .graph_posterior(posterior)
+        .query(pulse())
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    assert_eq!(study.support_status(), Some(CellStatus::Licensed));
+    let result = study.run(&ctx).unwrap();
+    assert!(result.structural_response.is_some());
 }
 
 /// Three-variable lag-1 series long enough for a class envelope.

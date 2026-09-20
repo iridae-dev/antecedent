@@ -13,9 +13,9 @@
 //! (`ConditionalEffect` adds `W ~ N(0, 1)` and `W + T·W/2` to `Y`, so both CATE
 //! atoms keep the same 3 / 2 targets at `E[W] = 0`).
 //!
-//! * **Frequentist** reports `E[τ | identified] = (0.5·θ_A + 0.3·θ_B) / 0.8 =
-//!   2.625` with a joint influence-function SE on shared rows (frozen graph
-//!   weights). Truth is that population aggregate.
+//! * **Frequentist** on the disagreeing fixture withholds the scalar under
+//!   `GraphDependentAtoms`. Joint-IF SE and scalar calibration use a
+//!   same-estimand two-atom posterior (both unadjusted T→Y, truth 3).
 //! * **Bayesian** reports the identified-atom BMA `P(τ | identified)`: each draw
 //!   first samples a graph by its identified weight, then that graph's effect
 //!   posterior (`aggregate_effect_envelope`). Its interval is a distribution over
@@ -53,7 +53,7 @@ const LEVEL: f64 = 0.9;
 const DRAWS: usize = 400;
 const WEIGHTS: [f64; 3] = [0.5, 0.3, 0.2];
 const THETA: [f64; 2] = [3.0, 2.0];
-const TRUTH_GIVEN_IDENTIFIED: f64 = (0.5 * 3.0 + 0.3 * 2.0) / 0.8;
+const TRUTH_SAME_ESTIMAND: f64 = 3.0;
 
 /// Replicate seed of the frequentist and Bayesian sweeps: `BASE + r · STRIDE`.
 /// The stride must stay odd and bigger than 1 — see [`uniform`].
@@ -121,7 +121,7 @@ fn draw_data(seed: u64, modifier: bool) -> TabularData {
 }
 
 /// Atoms A / B / C over `[t, y, z]` (and `w -> y` in every atom when `modifier`).
-fn mixture_posterior(modifier: bool) -> GraphPosterior {
+fn disagreeing_mixture_posterior(modifier: bool) -> GraphPosterior {
     let n = if modifier { 4 } else { 3 };
     let base = if modifier { set_edge(0, n, 3, 1, true) } else { 0 };
     let direct = set_edge(base, n, 0, 1, true);
@@ -141,6 +141,31 @@ fn mixture_posterior(modifier: bool) -> GraphPosterior {
     .unwrap()
 }
 
+/// Two identified atoms share the empty adjustment set (both estimate 3).
+fn same_estimand_mixture_posterior(modifier: bool) -> GraphPosterior {
+    let n = if modifier { 4 } else { 3 };
+    let base = if modifier { set_edge(0, n, 3, 1, true) } else { 0 };
+    let direct = set_edge(base, n, 0, 1, true);
+    let outcome_parent = set_edge(set_edge(base, n, 0, 1, true), n, 2, 1, true);
+    let unidentified = set_edge(base, n, 1, 0, true);
+    let cells = n * n;
+    GraphPosterior::new(
+        n,
+        WEIGHTS.to_vec(),
+        vec![direct, outcome_parent, unidentified],
+        vec![0.0; cells],
+        vec![0.0; cells],
+        1.0 / WEIGHTS.iter().map(|w| w * w).sum::<f64>(),
+        InferenceDiagnostics::analytic("v19_static_mixture_same_estimand"),
+        0,
+    )
+    .unwrap()
+}
+
+fn mixture_posterior(modifier: bool) -> GraphPosterior {
+    disagreeing_mixture_posterior(modifier)
+}
+
 fn query(conditional: bool) -> CausalQuery {
     let inner = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     if conditional {
@@ -153,9 +178,14 @@ fn query(conditional: bool) -> CausalQuery {
     }
 }
 
-fn run(conditional: bool, inference: InferenceMode, seed: u64) -> (Study, StudyResult) {
+fn run_with_posterior(
+    conditional: bool,
+    inference: InferenceMode,
+    seed: u64,
+    posterior: GraphPosterior,
+) -> (Study, StudyResult) {
     let study = Study::tabular(draw_data(seed, conditional))
-        .graph_posterior(mixture_posterior(conditional))
+        .graph_posterior(posterior)
         .query(query(conditional))
         .inference(inference)
         .refute(RefuteSuite::None)
@@ -164,6 +194,10 @@ fn run(conditional: bool, inference: InferenceMode, seed: u64) -> (Study, StudyR
         .unwrap();
     let result = study.run(&ExecutionContext::for_tests(seed)).unwrap();
     (study, result)
+}
+
+fn run(conditional: bool, inference: InferenceMode, seed: u64) -> (Study, StudyResult) {
+    run_with_posterior(conditional, inference, seed, mixture_posterior(conditional))
 }
 
 fn assert_mixture_shape(result: &StudyResult) {
@@ -192,9 +226,18 @@ fn frequentist_coverage(conditional: bool, test: &'static str, name: &str) {
     let mut se_sum = 0.0;
     for r in 0..n_sim() {
         let seed = FREQUENTIST_SEED_BASE + u64::from(r) * SEED_STRIDE;
-        let (study, result) = run(conditional, InferenceMode::Frequentist, seed);
+        let (study, result) = run_with_posterior(
+            conditional,
+            InferenceMode::Frequentist,
+            seed,
+            same_estimand_mixture_posterior(conditional),
+        );
         if r == 0 {
             assert_mixture_shape(&result);
+            assert!(
+                result.estimate.ate.is_finite(),
+                "{name}: same-estimand fixture must publish a scalar ATE"
+            );
             assert!(
                 result
                     .diagnostics
@@ -208,18 +251,18 @@ fn frequentist_coverage(conditional: bool, test: &'static str, name: &str) {
         bind_all(&mut [&mut tally, &mut reported], &study, &result);
         tally.record(
             normal_interval(result.estimate.ate, Some(result.estimate.se_analytic), Z90),
-            TRUTH_GIVEN_IDENTIFIED,
+            TRUTH_SAME_ESTIMAND,
         );
         reported.record(
             normal_interval(result.estimate.ate, Some(result.estimate.se_analytic), Z95),
-            TRUTH_GIVEN_IDENTIFIED,
+            TRUTH_SAME_ESTIMAND,
         );
     }
     let reps = points.len() as f64;
     let mean = points.iter().sum::<f64>() / reps;
     let sd = (points.iter().map(|p| (p - mean).powi(2)).sum::<f64>() / (reps - 1.0)).sqrt();
     eprintln!(
-        "calibration {name}: mean point={mean:.4} truth={TRUTH_GIVEN_IDENTIFIED} \
+        "calibration {name}: mean point={mean:.4} truth={TRUTH_SAME_ESTIMAND} \
          empirical_sd={sd:.4} mean_se={:.4}",
         se_sum / reps
     );

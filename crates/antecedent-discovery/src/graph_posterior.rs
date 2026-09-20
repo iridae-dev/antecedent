@@ -19,7 +19,7 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::algo::is_dag;
-use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Endpoint, Pag};
 use antecedent_prob::{
     GraphIdentFlag, HessianFactorization, InferenceDiagnostics, WeightedGraphSamples,
     all_chains_moved, max_split_rhat, mcmc_summary,
@@ -96,6 +96,42 @@ impl GraphPrior {
     }
 }
 
+/// Graph class of each [`GraphPosterior`] atom.
+///
+/// DAG is the default constructor shape. CPDAG/PAG/ADMG atoms are packed into
+/// the same adjacency masks (undirected / bidirected = both directed bits) and
+/// optional [`GraphPosterior::mark_masks`] for PAG circle marks. ADMG packing
+/// is bidirected-edge semantics, not PAG circle marks.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum GraphPosteriorAtomKind {
+    /// Directed acyclic atoms. The historical constructor default.
+    #[default]
+    Dag,
+    /// Completed partial DAG atoms. Both directed bits encode an undirected edge.
+    Cpdag,
+    /// Partial ancestral graph atoms. Both directed bits encode a bidirected
+    /// edge; [`GraphPosterior::mark_masks`] flags circle endpoints.
+    Pag,
+    /// Acyclic directed mixed graph atoms. Both directed bits encode a
+    /// bidirected (latent-confounder) edge. Circle marks are unused: this is
+    /// ADMG semantics, not PAG.
+    Admg,
+}
+
+impl GraphPosteriorAtomKind {
+    /// Wire / matrix name.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Dag => "Dag",
+            Self::Cpdag => "Cpdag",
+            Self::Pag => "Pag",
+            Self::Admg => "Admg",
+        }
+    }
+}
+
 /// Columnar graph posterior.
 ///
 /// Edge / orientation marginals are packed length `n_vars * n_vars` (row-major
@@ -130,6 +166,13 @@ pub struct GraphPosterior {
     pub max_lag: Option<u32>,
     /// Optional per-atom lag-edge bitmasks (DBN templates; same length as `adjacency`).
     pub lag_masks: Option<Arc<[u64]>>,
+    /// Class of every atom. [`GraphPosterior::new`] leaves this as
+    /// [`GraphPosteriorAtomKind::Dag`].
+    pub atom_kind: GraphPosteriorAtomKind,
+    /// Optional PAG circle-endpoint masks, same length as [`Self::adjacency`].
+    /// Bit `(from, to)` means the `from` endpoint of that ordered pair is a
+    /// circle. Unused for DAG and CPDAG atoms.
+    pub mark_masks: Option<Arc<[u64]>>,
     /// Which structure-learning algorithm produced this posterior.
     ///
     /// `None` when the producer did not tag it. Carried so downstream plan records and
@@ -202,8 +245,31 @@ impl GraphPosterior {
             lagged_edge_marginals: None,
             max_lag: None,
             lag_masks: None,
+            atom_kind: GraphPosteriorAtomKind::Dag,
+            mark_masks: None,
             algorithm: None,
         })
+    }
+
+    /// Declare that every adjacency mask is a CPDAG, PAG, or ADMG atom, not a DAG.
+    #[must_use]
+    pub fn with_atom_kind(mut self, kind: GraphPosteriorAtomKind) -> Self {
+        self.atom_kind = kind;
+        self
+    }
+
+    /// Attach PAG circle-endpoint masks (same length as [`Self::adjacency`]).
+    ///
+    /// # Errors
+    ///
+    /// Length mismatch.
+    pub fn with_mark_masks(mut self, masks: impl Into<Arc<[u64]>>) -> Result<Self, DiscoveryError> {
+        let masks = masks.into();
+        if masks.len() != self.n_graphs {
+            return Err(DiscoveryError::unsupported("mark_masks/adjacency length mismatch"));
+        }
+        self.mark_masks = Some(masks);
+        Ok(self)
     }
 
     /// Tag this posterior with the algorithm that produced it.
@@ -376,6 +442,244 @@ pub fn dag_from_adjacency_mask(mask: u64, n_vars: usize) -> Result<Dag, Discover
         }
     }
     Ok(dag)
+}
+
+fn require_mask_capacity(n_vars: usize, what: &str) -> Result<(), DiscoveryError> {
+    if n_vars == 0 {
+        return Err(DiscoveryError::data_msg(format!("{what}: n_vars must be > 0")));
+    }
+    if n_directed_edges(n_vars) > 64 {
+        return Err(DiscoveryError::data_msg(format!(
+            "{what}: n_vars={n_vars} exceeds u64 adjacency packing"
+        )));
+    }
+    Ok(())
+}
+
+/// Build a [`Cpdag`] from a packed adjacency bitmask.
+///
+/// Both directed bits of an unordered pair encode an undirected edge.
+///
+/// # Errors
+///
+/// Packing overflow, or an insert the CPDAG rejects.
+pub fn cpdag_from_adjacency_mask(mask: u64, n_vars: usize) -> Result<Cpdag, DiscoveryError> {
+    require_mask_capacity(n_vars, "cpdag_from_adjacency_mask")?;
+    let n_u32 = u32::try_from(n_vars)
+        .map_err(|_| DiscoveryError::data_msg("n_vars too large for DenseNodeId"))?;
+    let mut cpdag = Cpdag::with_variables(n_u32);
+    for i in 0..n_vars {
+        for j in (i + 1)..n_vars {
+            let ij = has_edge(mask, n_vars, i, j);
+            let ji = has_edge(mask, n_vars, j, i);
+            let a = DenseNodeId::from_raw(i as u32);
+            let b = DenseNodeId::from_raw(j as u32);
+            if ij && ji {
+                cpdag.insert_undirected(a, b)?;
+            } else if ij {
+                cpdag.insert_directed(a, b)?;
+            } else if ji {
+                cpdag.insert_directed(b, a)?;
+            }
+        }
+    }
+    Ok(cpdag)
+}
+
+/// Pack a [`Cpdag`] into a directed-edge bitmask (undirected = both bits).
+///
+/// # Errors
+///
+/// Packing overflow.
+pub fn adjacency_mask_from_cpdag(cpdag: &Cpdag) -> Result<u64, DiscoveryError> {
+    let n_vars = cpdag.node_count();
+    require_mask_capacity(n_vars, "adjacency_mask_from_cpdag")?;
+    let mut mask = 0_u64;
+    for edge in cpdag.edges() {
+        let i = edge.a.as_usize();
+        let j = edge.b.as_usize();
+        if edge.is_undirected() {
+            mask = set_edge(mask, n_vars, i, j, true);
+            mask = set_edge(mask, n_vars, j, i, true);
+        } else if edge.at_a == Endpoint::Tail && edge.at_b == Endpoint::Arrow {
+            mask = set_edge(mask, n_vars, i, j, true);
+        } else if edge.at_a == Endpoint::Arrow && edge.at_b == Endpoint::Tail {
+            mask = set_edge(mask, n_vars, j, i, true);
+        }
+    }
+    Ok(mask)
+}
+
+/// Build a [`Pag`] from packed adjacency and optional circle-endpoint masks.
+///
+/// Both directed bits encode a bidirected edge when neither end is circled.
+/// A circle bit on `(from, to)` marks the `from` endpoint as a circle.
+///
+/// # Errors
+///
+/// Packing overflow, or an insert the PAG rejects.
+pub fn pag_from_adjacency_mask(
+    mask: u64,
+    mark_mask: u64,
+    n_vars: usize,
+) -> Result<Pag, DiscoveryError> {
+    require_mask_capacity(n_vars, "pag_from_adjacency_mask")?;
+    let n_u32 = u32::try_from(n_vars)
+        .map_err(|_| DiscoveryError::data_msg("n_vars too large for DenseNodeId"))?;
+    let mut pag = Pag::with_variables(n_u32);
+    for i in 0..n_vars {
+        for j in (i + 1)..n_vars {
+            let ij = has_edge(mask, n_vars, i, j);
+            let ji = has_edge(mask, n_vars, j, i);
+            if !ij && !ji {
+                continue;
+            }
+            let a = DenseNodeId::from_raw(i as u32);
+            let b = DenseNodeId::from_raw(j as u32);
+            let circle_a = has_edge(mark_mask, n_vars, i, j);
+            let circle_b = has_edge(mark_mask, n_vars, j, i);
+            if ij && ji {
+                if circle_a && circle_b {
+                    pag.insert_circle_circle(a, b)?;
+                } else if !circle_a && !circle_b {
+                    pag.insert_bidirected(a, b)?;
+                } else if circle_a {
+                    pag.insert_circle_arrow(a, b)?;
+                } else {
+                    pag.insert_circle_arrow(b, a)?;
+                }
+            } else if ij {
+                if circle_a {
+                    pag.insert_circle_arrow(a, b)?;
+                } else {
+                    pag.insert_directed(a, b)?;
+                }
+            } else if circle_b {
+                pag.insert_circle_arrow(b, a)?;
+            } else {
+                pag.insert_directed(b, a)?;
+            }
+        }
+    }
+    Ok(pag)
+}
+
+/// Pack a [`Pag`] into adjacency and circle-endpoint masks.
+///
+/// # Errors
+///
+/// Packing overflow.
+pub fn adjacency_masks_from_pag(pag: &Pag) -> Result<(u64, u64), DiscoveryError> {
+    let n_vars = pag.node_count();
+    require_mask_capacity(n_vars, "adjacency_masks_from_pag")?;
+    let mut adj = 0_u64;
+    let mut marks = 0_u64;
+    for i in 0..n_vars {
+        for j in (i + 1)..n_vars {
+            let a = DenseNodeId::from_raw(i as u32);
+            let b = DenseNodeId::from_raw(j as u32);
+            let Some(edge) = pag.edge_between(a, b) else {
+                continue;
+            };
+            let (at_i, at_j) = if edge.a.as_usize() == i {
+                (edge.at_a, edge.at_b)
+            } else {
+                (edge.at_b, edge.at_a)
+            };
+            match (at_i, at_j) {
+                (Endpoint::Tail, Endpoint::Arrow) => {
+                    adj = set_edge(adj, n_vars, i, j, true);
+                }
+                (Endpoint::Arrow, Endpoint::Tail) => {
+                    adj = set_edge(adj, n_vars, j, i, true);
+                }
+                (Endpoint::Arrow, Endpoint::Arrow) => {
+                    adj = set_edge(adj, n_vars, i, j, true);
+                    adj = set_edge(adj, n_vars, j, i, true);
+                }
+                (Endpoint::Circle, Endpoint::Arrow) | (Endpoint::Tail, Endpoint::Circle) => {
+                    adj = set_edge(adj, n_vars, i, j, true);
+                    marks = set_edge(marks, n_vars, i, j, true);
+                }
+                (Endpoint::Arrow, Endpoint::Circle) | (Endpoint::Circle, Endpoint::Tail) => {
+                    adj = set_edge(adj, n_vars, j, i, true);
+                    marks = set_edge(marks, n_vars, j, i, true);
+                }
+                (Endpoint::Circle, Endpoint::Circle) => {
+                    adj = set_edge(adj, n_vars, i, j, true);
+                    adj = set_edge(adj, n_vars, j, i, true);
+                    marks = set_edge(marks, n_vars, i, j, true);
+                    marks = set_edge(marks, n_vars, j, i, true);
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok((adj, marks))
+}
+
+/// Build an [`Admg`] from a packed adjacency bitmask.
+///
+/// Both directed bits of an unordered pair encode a bidirected edge. A single
+/// directed bit encodes a directed edge. Circle marks are ignored: this is
+/// ADMG semantics, not PAG.
+///
+/// A pair that is both directed and bidirected cannot be packed into one
+/// bitmask (same limitation as PAG packing). Front-door `T→M→Y` with `T↔Y`
+/// packs cleanly because the bidirected pair is not also directed.
+///
+/// # Errors
+///
+/// Packing overflow, a directed cycle, or an insert the ADMG rejects.
+pub fn admg_from_adjacency_mask(mask: u64, n_vars: usize) -> Result<Admg, DiscoveryError> {
+    require_mask_capacity(n_vars, "admg_from_adjacency_mask")?;
+    let n_u32 = u32::try_from(n_vars)
+        .map_err(|_| DiscoveryError::data_msg("n_vars too large for DenseNodeId"))?;
+    let mut admg = Admg::with_variables(n_u32);
+    for i in 0..n_vars {
+        for j in (i + 1)..n_vars {
+            let ij = has_edge(mask, n_vars, i, j);
+            let ji = has_edge(mask, n_vars, j, i);
+            if !ij && !ji {
+                continue;
+            }
+            let a = DenseNodeId::from_raw(i as u32);
+            let b = DenseNodeId::from_raw(j as u32);
+            if ij && ji {
+                admg.insert_bidirected(a, b)?;
+            } else if ij {
+                admg.insert_directed(a, b)?;
+            } else {
+                admg.insert_directed(b, a)?;
+            }
+        }
+    }
+    Ok(admg)
+}
+
+/// Pack an [`Admg`] into a directed-edge bitmask (bidirected = both bits).
+///
+/// # Errors
+///
+/// Packing overflow.
+pub fn adjacency_mask_from_admg(admg: &Admg) -> Result<u64, DiscoveryError> {
+    let n_vars = admg.node_count();
+    require_mask_capacity(n_vars, "adjacency_mask_from_admg")?;
+    let mut mask = 0_u64;
+    for i in 0..n_vars {
+        let from = DenseNodeId::from_raw(i as u32);
+        for &to in admg.children(from) {
+            mask = set_edge(mask, n_vars, i, to.as_usize(), true);
+        }
+        for &nbr in admg.bidirected_neighbors(from) {
+            let j = nbr.as_usize();
+            if i < j {
+                mask = set_edge(mask, n_vars, i, j, true);
+                mask = set_edge(mask, n_vars, j, i, true);
+            }
+        }
+    }
+    Ok(mask)
 }
 
 /// Contemporaneous `LaggedLink` for dense indices into `variables`.
@@ -827,5 +1131,55 @@ mod tests {
         m = set_edge(m, n, 1, 2, true);
         m = set_edge(m, n, 2, 0, true);
         assert!(!mask_is_dag(m, n));
+    }
+
+    #[test]
+    fn cpdag_mask_roundtrips_undirected_and_directed() {
+        let mut g = Cpdag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_undirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let mask = adjacency_mask_from_cpdag(&g).unwrap();
+        assert!(!mask_is_dag(mask, 3));
+        let back = cpdag_from_adjacency_mask(mask, 3).unwrap();
+        assert_eq!(back.edges().len(), g.edges().len());
+        assert!(
+            back.edge_between(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2))
+                .is_some_and(antecedent_graph::MarkedEdge::is_undirected)
+        );
+    }
+
+    #[test]
+    fn pag_mask_roundtrips_directed_and_bidirected() {
+        let mut g = Pag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let (adj, marks) = adjacency_masks_from_pag(&g).unwrap();
+        let back = pag_from_adjacency_mask(adj, marks, 3).unwrap();
+        assert!(
+            back.edge_between(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
+                .is_some_and(antecedent_graph::MarkedEdge::is_dag_directed)
+        );
+        assert!(
+            back.edge_between(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2))
+                .is_some_and(antecedent_graph::MarkedEdge::is_bidirected)
+        );
+    }
+
+    #[test]
+    fn admg_mask_roundtrips_directed_and_bidirected() {
+        let mut g = Admg::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+        let mask = adjacency_mask_from_admg(&g).unwrap();
+        assert!(!mask_is_dag(mask, 3), "bidirected both-bits must not look like a DAG");
+        assert!(dag_from_adjacency_mask(mask, 3).is_err(), "ADMG bidirected packing is not a Dag");
+        let back = admg_from_adjacency_mask(mask, 3).unwrap();
+        assert!(back.has_bidirected());
+        assert!(back.children(DenseNodeId::from_raw(0)).contains(&DenseNodeId::from_raw(1)));
+        assert!(back.children(DenseNodeId::from_raw(1)).contains(&DenseNodeId::from_raw(2)));
+        assert!(
+            back.bidirected_neighbors(DenseNodeId::from_raw(0)).contains(&DenseNodeId::from_raw(2))
+        );
     }
 }

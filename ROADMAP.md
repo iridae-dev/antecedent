@@ -1,16 +1,6 @@
-# Antecedent 2.x — Causal transport and evidence synthesis
+# Antecedent 2.x — Transport, leftover truth, and speed
 
-Last updated: 2026-09-15.
-
-This is the roadmap for 2.0 and the subsequent transport
-program. 
-
-Every checkbox below is an open implementation or evidence obligation, **not a
-claim of shipped support**. Proposed record and test names specify contracts;
-settle their exact public spelling in the architecture decision before freezing
-them. File references name existing owners, not a requirement for parallel
-implementations. Follow-on workstreams are dependency-ordered proposals, not
-assigned minor versions. A breaking extension requires a later major.
+Last updated: 2026-09-19.
 
 ## The outcome we are building toward
 
@@ -52,7 +42,10 @@ licensed evaluator is an identification result; it is not a completed analysis.
 
 ## Release contract and invariants
 
-**Required for 2.0:** explicit evidence catalogs; complete classical single-source
+**Required for 2.0:** inherited 1.11 S acceptance, with its leftover list closed (`bug` / `silent_refuse` /
+`inspect_execute_drift` / `docs_lie`); P user-path speed (a 1.11
+obligation that 2.0 inherits);
+explicit evidence catalogs; complete classical single-source
 identification in its declared setting; checked positive derivations and genuine
 negative witnesses; recursive finite-discrete execution; a scoped complementary
 multi-source path; finite treatment grids; prepared reuse; factor-specific
@@ -136,6 +129,8 @@ Concrete gaps already visible:
 
 | Milestone | Depends on | Exit artifact |
 | --- | --- | --- |
+| S: leftover truth (ships in 1.11) | Current 1.11 candidate; no tagged-release dependency | Independent Python/Rust suite and scale evidence; leftovers fixed or closed |
+| P: user-path speed | 1.11 close-out work (this branch) | In-repo user-path benches; default `threads>1` |
 | M0: contracts | Accepted 1.10, T0–T1 | ADR, evidence schema, exact theorem scopes and support coordinates |
 | M1: single-source exact path | M0, T2–T4 | Checked recursion executing against exact SCM tables, including negative witnesses |
 | M2: reusable statistical path | M1, T5–T6 | Prepared execution with licensed intervals and source-level diagnostics |
@@ -785,7 +780,8 @@ Retained from the former TODO and roadmap; no committed 2.x release:
 
 Existing 1.x response, quantile, class-envelope, prior-transfer, and retargeting
 ownership stays in IMPLEMENTATION.md and the accepted release contract. These
-items are not a route for moving unfinished 1.x work into 2.0.
+wishlist items are not a route for moving unfinished research into 2.0.
+User-facing 1.x leftovers belong on workstream S, not here.
 
 ### 3.0 — Changes to graph semantics
 

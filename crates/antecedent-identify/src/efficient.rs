@@ -187,11 +187,17 @@ impl EfficientBackdoorIdentifier {
 
         let mut valid: Vec<Vec<DenseNodeId>> = Vec::new();
         let mut truncated = false;
+        let mut budget_exhausted = false;
         'sizes: for size in 0..=m {
             let mut early_stop = false;
             let mut enum_err: Option<IdentificationError> = None;
             crate::enum_masks::for_each_mask_of_size(&candidates, size, |z| {
                 if enum_err.is_some() {
+                    return true;
+                }
+                if examined >= self.config.max_examinations {
+                    budget_exhausted = true;
+                    early_stop = true;
                     return true;
                 }
                 examined += 1;
@@ -228,16 +234,33 @@ impl EfficientBackdoorIdentifier {
             for record in &prepared.declared_assumptions().entries {
                 assumptions.push(record.clone());
             }
-            return Ok(IdentificationResult::not_identified(
+            let mut result = IdentificationResult::not_identified(
                 query,
                 {
                     let mut d = DerivationTrace::default();
-                    d.push("backdoor.efficient", "no valid adjustment set");
+                    d.push(
+                        "backdoor.efficient",
+                        if budget_exhausted {
+                            "examination budget exhausted before a valid set"
+                        } else {
+                            "no valid adjustment set"
+                        },
+                    );
                     d
                 },
                 assumptions,
                 IdentificationPerformanceRecord { candidates_examined: examined, sets_returned: 0 },
-            ));
+            );
+            if budget_exhausted {
+                result.diagnostics.push(antecedent_core::Diagnostic::new(
+                    "identify.backdoor.search_bounded",
+                    antecedent_core::DiagnosticKind::Execution,
+                    antecedent_core::DiagnosticSeverity::Warning,
+                    "efficient backdoor search exhausted max_examinations; \
+                     NotIdentified is a search bound, not structural non-ID",
+                ));
+            }
+            return Ok(result);
         }
 
         let parent_set: BitSet = {

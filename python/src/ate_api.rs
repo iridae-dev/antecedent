@@ -77,7 +77,7 @@ fn parse_prior_mapping(
 struct AteGil {
     custom_validators: Vec<std::sync::Arc<dyn antecedent_validate::CustomEffectValidator>>,
     suite: antecedent::RefuteSuite,
-    threads: u32,
+    threads: Option<u32>,
     prior_mapping: Option<antecedent_io::PriorMapping>,
     composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
     cancel_token: Option<antecedent_core::CancellationToken>,
@@ -95,14 +95,14 @@ fn parse_ate_gil(
     validators: Option<&Bound<'_, PyAny>>,
     estimator_config: Option<&Bound<'_, PyDict>>,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     latency: Option<&str>,
     cancel: Option<PyCancellationToken>,
     on_progress: Option<&Bound<'_, PyAny>>,
     on_stage: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<AteGil> {
     let custom_validators = callbacks::parse_validators(validators)?;
-    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    let threads = if custom_validators.is_empty() { threads } else { Some(1) };
     let latency_mode = match latency {
         None => None,
         Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
@@ -250,7 +250,7 @@ fn run_static_ate_from_builder(
     prior_mapping: Option<antecedent_io::PriorMapping>,
     composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
     cancel: Option<antecedent_core::CancellationToken>,
     progress: Option<std::sync::Arc<dyn antecedent_core::ProgressSink>>,
     include_posterior_artifact: bool,
@@ -267,8 +267,13 @@ fn run_static_ate_from_builder(
         antecedent_prob::BayesLikelihood::GaussianIdentity,
     )?;
     let analysis = builder.build().map_err(py_err)?;
-    let ctx =
-        py_execution_context_ext(seed, threads, cancel, progress, Some(PY_DEFAULT_CACHE_MAX_BYTES));
+    let ctx = py_execution_context_ext(
+        seed,
+        crate::resolve_user_threads(threads),
+        cancel,
+        progress,
+        Some(PY_DEFAULT_CACHE_MAX_BYTES),
+    );
     let mut result = analysis.run(&ctx).map_err(py_err)?;
     if let Some(n) = bytes_borrowed {
         result.performance.bytes_borrowed = Some(n);
@@ -679,7 +684,7 @@ pub(crate) fn parse_population_registry(
     estimator_config=None,
     seed=1,
     bootstrap=199,
-    threads=1,
+    threads=None,
     target_population=None,
     outcome_functional=None,
     population_predicates=None,
@@ -716,7 +721,7 @@ fn analyze_ate(
     estimator_config: Option<Bound<'_, PyDict>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     target_population: Option<Bound<'_, PyDict>>,
     outcome_functional: Option<Bound<'_, PyDict>>,
     population_predicates: Option<Bound<'_, PyDict>>,
@@ -808,7 +813,7 @@ fn analyze_ate(
     estimator_config=None,
     seed=1,
     bootstrap=199,
-    threads=1,
+    threads=None,
     latency=None,
     cancel=None,
     on_progress=None,
@@ -841,7 +846,7 @@ fn analyze_ate_arrow_c(
     estimator_config: Option<Bound<'_, PyDict>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     latency: Option<String>,
     cancel: Option<PyCancellationToken>,
     on_progress: Option<Bound<'_, PyAny>>,
@@ -1127,7 +1132,7 @@ fn compile_cell_batch(
     refute=None,
     seed=1,
     bootstrap=None,
-    threads=1,
+    threads=None,
     latency=None,
     screen_id=None,
     screen_procedure=None,
@@ -1147,7 +1152,7 @@ fn analyze_ate_many(
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: Option<u32>,
-    threads: u32,
+    threads: Option<u32>,
     latency: Option<String>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
@@ -1177,7 +1182,7 @@ fn analyze_ate_many(
             tiers,
             within_tier,
         )?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let results = batch.estimate_many(&ate_queries, &ctx).map_err(py_err)?;
         results.into_iter().map(|r| ate_result_from_analysis(&names, r, false)).collect()
     })
@@ -1219,11 +1224,11 @@ fn analyze_ate_typed_graph(
     latency: Option<String>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AteAnalysisResult> {
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
-    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    let threads = if custom_validators.is_empty() { threads } else { Some(1) };
     let latency_mode = match latency.as_deref() {
         None => None,
         Some(s) => Some(antecedent::LatencyMode::parse(s).ok_or_else(|| {
@@ -1290,7 +1295,7 @@ fn run_ate_with_graph_input(
     latency_mode: Option<antecedent::LatencyMode>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AteAnalysisResult> {
     let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
     let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
@@ -1381,7 +1386,7 @@ fn run_ate_with_graph_input(
     bandwidth=None,
     estimator_config=None,
     latency=None,
-    seed=1, bootstrap=199, threads=1
+    seed=1, bootstrap=199, threads=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_ate_pag(
@@ -1408,7 +1413,7 @@ fn analyze_ate_pag(
     latency: Option<String>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AteAnalysisResult> {
     require_named_graph_order(&graph.names, &names, "Pag")?;
     let data = tabular_from_numpy(&names, &columns)?;
@@ -1454,7 +1459,7 @@ fn analyze_ate_pag(
     bandwidth=None,
     estimator_config=None,
     latency=None,
-    seed=1, bootstrap=199, threads=1
+    seed=1, bootstrap=199, threads=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_ate_cpdag(
@@ -1481,7 +1486,7 @@ fn analyze_ate_cpdag(
     latency: Option<String>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AteAnalysisResult> {
     require_named_graph_order(&graph.names, &names, "Cpdag")?;
     let data = tabular_from_numpy(&names, &columns)?;
@@ -1527,7 +1532,7 @@ fn analyze_ate_cpdag(
     bandwidth=None,
     estimator_config=None,
     latency=None,
-    seed=1, bootstrap=199, threads=1
+    seed=1, bootstrap=199, threads=None
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_ate_admg(
@@ -1554,7 +1559,7 @@ fn analyze_ate_admg(
     latency: Option<String>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AteAnalysisResult> {
     require_named_graph_order(&graph.names, &names, "Admg")?;
     let data = tabular_from_numpy(&names, &columns)?;
@@ -1602,7 +1607,7 @@ macro_rules! typed_ate_arrow_c {
                             bandwidth=None,
                             estimator_config=None,
                             latency=None,
-                            seed=1, bootstrap=199, threads=1
+                            seed=1, bootstrap=199, threads=None
                         ))]
         #[allow(clippy::too_many_arguments)]
         fn $fn_name(
@@ -1629,7 +1634,7 @@ macro_rules! typed_ate_arrow_c {
             latency: Option<String>,
             seed: u64,
             bootstrap: u32,
-            threads: u32,
+            threads: Option<u32>,
         ) -> PyResult<AteAnalysisResult> {
             require_named_graph_order(&graph.names, &names, stringify!($variant))?;
             let (data, bytes_borrowed) = tabular_from_arrow_c_objs(py, names.clone(), columns)?;
@@ -1708,7 +1713,7 @@ typed_ate_arrow_c!(analyze_ate_admg_arrow_c, graphs::Admg, Admg, admg);
     estimator_config=None,
     seed=1,
     bootstrap=199,
-    threads=1
+    threads=None
 ))]
 fn analyze_ate_discover(
     py: Python<'_>,
@@ -1748,7 +1753,7 @@ fn analyze_ate_discover(
     estimator_config: Option<Bound<'_, PyDict>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AteAnalysisResult> {
     let algo = algorithm.to_ascii_lowercase();
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
@@ -1760,14 +1765,14 @@ fn analyze_ate_discover(
         estimator.as_deref(),
         bootstrap,
     )?;
-    let threads = if is_ci_callback || !custom_validators.is_empty() { 1 } else { threads };
+    let threads = if is_ci_callback || !custom_validators.is_empty() { Some(1) } else { threads };
     let soft_weight = soft_weight.to_string();
     detach_catch(py, move || {
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
         let query = AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
         let fdr_ctrl = if fdr { FdrControl::bh() } else { FdrControl::Off };
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
 
         let crate::estimator_config::ParsedEstimatorConfig {
@@ -2039,7 +2044,7 @@ fn analyze_ate_discover(
     conditioning=None,
     refute=None,
     seed=1,
-    threads=1
+    threads=None
 ))]
 fn analyze_distribution(
     py: Python<'_>,
@@ -2051,7 +2056,7 @@ fn analyze_distribution(
     conditioning: Option<Vec<String>>,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AteAnalysisResult> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let suite = suite_from_refute(refute.as_ref())?;
@@ -2079,7 +2084,7 @@ fn analyze_distribution(
             .refute(suite)
             .build()
             .map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let result = analysis.run(&ctx).map_err(py_err)?;
         ate_result_from_analysis(&names, result, false)
     })
@@ -2101,7 +2106,7 @@ fn analyze_distribution(
     max_len=16,
     seed=1,
     bootstrap=199,
-    threads=1,
+    threads=None,
     refute=None
 ))]
 fn analyze_path_specific(
@@ -2118,7 +2123,7 @@ fn analyze_path_specific(
     max_len: usize,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     refute: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AteAnalysisResult> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
@@ -2149,7 +2154,7 @@ fn analyze_path_specific(
             .refute(suite)
             .build()
             .map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let result = analysis.run(&ctx).map_err(py_err)?;
         ate_result_from_analysis(&names, result, false)
     })
@@ -2395,6 +2400,12 @@ pub(crate) fn ate_result_from_analysis(
             .interference
             .as_ref()
             .map(crate::transport_interference_api::InterferenceSection::from_estimate),
+        anomaly: result
+            .anomaly
+            .map(|scores| crate::gcm_api::anomaly_scores_from_rust(scores, names)),
+        change_attribution: result
+            .change_attribution
+            .map(|change| crate::gcm_api::change_result_from_rust(change, names)),
         evidence_status,
         allowlist_reason,
         allowlist_parent,
@@ -2425,7 +2436,7 @@ pub(crate) struct GraphEdge {
 #[pyo3(signature = (
     names, columns, edges, treatment, outcome, modifier, *,
     control_level=0.0, active_level=1.0,
-    refute=None, validators=None, seed=1, bootstrap=199, threads=1, accepted=false,
+    refute=None, validators=None, seed=1, bootstrap=199, threads=None, accepted=false,
     outcome_functional=None,
 ))]
 fn analyze_conditional(
@@ -2442,7 +2453,7 @@ fn analyze_conditional(
     validators: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     accepted: bool,
     outcome_functional: Option<Bound<'_, PyDict>>,
 ) -> PyResult<AteAnalysisResult> {
@@ -2450,7 +2461,7 @@ fn analyze_conditional(
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let custom_validators = callbacks::parse_validators(validators.as_ref())?;
     let suite = suite_from_refute(refute.as_ref())?;
-    let threads = if custom_validators.is_empty() { threads } else { 1 };
+    let threads = if custom_validators.is_empty() { threads } else { Some(1) };
     detach_catch(py, move || {
         let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
         let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
@@ -2470,7 +2481,7 @@ fn analyze_conditional(
             .bootstrap_replicates(bootstrap)
             .build()
             .map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let result = analysis.run(&ctx).map_err(py_err)?;
         ate_result_from_analysis(&names, result, false)
     })
@@ -2481,7 +2492,7 @@ fn analyze_conditional(
 #[pyo3(signature = (
     names, columns, edges, treatment, outcome, mediators, *,
     contrast="mediated", control_level=0.0, active_level=1.0,
-    refute=None, seed=1, bootstrap=0, threads=1
+    refute=None, seed=1, bootstrap=0, threads=None
 ))]
 fn analyze_mediation(
     py: Python<'_>,
@@ -2497,7 +2508,7 @@ fn analyze_mediation(
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<AteAnalysisResult> {
     let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
     let suite = suite_from_refute(refute.as_ref())?;
@@ -2530,7 +2541,7 @@ fn analyze_mediation(
             .bootstrap_replicates(bootstrap)
             .build()
             .map_err(py_err)?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let result = analysis.run(&ctx).map_err(py_err)?;
         ate_result_from_analysis(&names, result, false)
     })
@@ -2976,7 +2987,7 @@ fn identify_structure(
     refute=None,
     seed=1,
     bootstrap=0,
-    threads=1,
+    threads=None,
     cancel=None,
     on_progress=None,
 ))]
@@ -2995,7 +3006,7 @@ fn analyze_ate_graph_posterior(
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     cancel: Option<PyCancellationToken>,
     on_progress: Option<Bound<'_, PyAny>>,
 ) -> PyResult<AteAnalysisResult> {
@@ -3052,7 +3063,7 @@ fn analyze_ate_graph_posterior(
     refute=None,
     seed=1,
     bootstrap=0,
-    threads=1,
+    threads=None,
     outcome_functional=None,
     latency=None,
     identifier=None,
@@ -3074,7 +3085,7 @@ fn analyze_ate_tiered(
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: u32,
-    threads: u32,
+    threads: Option<u32>,
     outcome_functional: Option<Bound<'_, pyo3::types::PyDict>>,
     latency: Option<String>,
     identifier: Option<String>,
@@ -3135,7 +3146,7 @@ fn analyze_ate_tiered(
         }
         let ctx = crate::py_execution_context_ext(
             seed,
-            threads,
+            crate::resolve_user_threads(threads),
             None,
             None,
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
@@ -3214,14 +3225,14 @@ impl PyPreparedBatch {
             .map(|c| c.adjustment_set.iter().map(|v| v.raw()).collect())
     }
 
-    #[pyo3(signature = (names, columns, *, seed=1, threads=1))]
+    #[pyo3(signature = (names, columns, *, seed=1, threads=None))]
     fn estimate(
         &self,
         py: Python<'_>,
         names: Vec<String>,
         columns: Vec<Bound<'_, PyAny>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<Vec<AteAnalysisResult>> {
         if names != self.names {
             return Err(PyValueError::new_err(
@@ -3231,7 +3242,7 @@ impl PyPreparedBatch {
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let inner = std::sync::Arc::clone(&self.inner);
         detach_catch(py, move || {
-            let ctx = py_execution_context(seed, threads);
+            let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
             let results = inner.estimate(&data, &ctx).map_err(py_err)?;
             results.into_iter().map(|r| ate_result_from_analysis(&names, r, false)).collect()
         })
@@ -3250,7 +3261,7 @@ impl PyPreparedBatch {
     refute=None,
     seed=1,
     bootstrap=None,
-    threads=1,
+    threads=None,
     latency=None,
     screen_id=None,
     screen_procedure=None,
@@ -3270,7 +3281,7 @@ fn prepare_ate_batch(
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: Option<u32>,
-    threads: u32,
+    threads: Option<u32>,
     latency: Option<String>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
@@ -3300,7 +3311,7 @@ fn prepare_ate_batch(
             tiers,
             within_tier,
         )?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let prepared = batch.prepare(&ate_queries, &ctx).map_err(py_err)?;
         Ok(PyPreparedBatch { inner: std::sync::Arc::new(prepared), names })
     })
@@ -3318,7 +3329,7 @@ fn prepare_ate_batch(
     refute=None,
     seed=1,
     bootstrap=None,
-    threads=1,
+    threads=None,
     latency=None,
     screen_id=None,
     screen_procedure=None,
@@ -3339,7 +3350,7 @@ fn prepare_cells_batch(
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: Option<u32>,
-    threads: u32,
+    threads: Option<u32>,
     latency: Option<String>,
     screen_id: Option<String>,
     screen_procedure: Option<String>,
@@ -3372,7 +3383,7 @@ fn prepare_cells_batch(
             within_tier,
             family_contrast,
         )?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let prepared = batch.prepare_cells(&cell_queries, &ctx).map_err(py_err)?;
         Ok(PyPreparedBatch { inner: std::sync::Arc::new(prepared), names })
     })

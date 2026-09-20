@@ -30,7 +30,7 @@ use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::se::{AnalyticSeKind, influence_se_kind};
-use crate::util::{BootstrapSeResult, bootstrap_se, sample_std, stats_err};
+use crate::util::{BootstrapSeResult, sample_std, stats_err};
 
 /// Scale on which the propensity-score matching distance (and [`PropensityMatching::caliper`])
 /// is computed.
@@ -311,6 +311,7 @@ impl PropensityMatching {
 
         Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
             .with_se_kind(self.se_kind)
+            .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
             .with_retained_memory_bytes(Some(workspace.retained_memory_bytes()))
             .with_bootstrap(boot))
@@ -326,70 +327,76 @@ impl PropensityMatching {
         let clip = clip_of(problem.overlap);
         let n = problem.nrows;
         let ncols = problem.design_ncols;
-        let mut x_boot = vec![0.0; n * ncols];
-        let mut t_boot = vec![0.0; n];
-        let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, ctx, 0x51E7_u64, n, |idx| {
-            crate::util::gather_bootstrap_vector(&mut t_boot, &problem.treatment, idx);
-            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
-            crate::util::gather_bootstrap_design(
-                &mut x_boot,
-                &problem.design_matrix,
-                n,
-                ncols,
-                idx,
-            );
-            if fit_propensity_in_place(
-                &x_boot,
-                n,
-                ncols,
-                &t_boot,
-                &self.backend,
-                &mut workspace.propensity,
-                &self.glm_options,
-            )
-            .is_err()
-            {
-                return Ok(None);
-            }
-            let raw = &workspace.propensity.scores[..n];
-            if workspace.clip_scratch.len() < n {
-                workspace.clip_scratch.resize(n, 0.0);
-            }
-            workspace.clip_scratch[..n].copy_from_slice(raw);
-            if let Some(c) = clip {
-                clamp_scores(&mut workspace.clip_scratch[..n], c);
-            }
-            let Ok(retained) = trim_retained_rows(raw, trim) else {
-                return Ok(None);
-            };
-            let (t_used, y_used, s_used) = restrict_to_rows(
-                &t_boot,
-                &y_boot,
-                &workspace.clip_scratch[..n],
-                1,
-                retained.as_deref(),
-            );
-            let s_used = apply_caliper_scale(s_used, self.caliper_scale);
-            match matching_contrast(
-                &t_used,
-                &y_used,
-                &s_used,
-                1,
-                MatchingDistance::Absolute,
-                &problem.target_population,
-                self.caliper,
-                workspace,
-                AnalyticSeKind::Homoskedastic,
-                None,
-                None,
-                None,
-                None,
-            ) {
-                Ok(m) => Ok(Some(m.ate)),
-                Err(_) => Ok(None),
-            }
-        })
+        let _ = workspace;
+        crate::util::bootstrap_se_with_scratch(
+            self.bootstrap_replicates,
+            ctx,
+            0x51E7_u64,
+            n,
+            || {
+                (
+                    PropensityEstimationWorkspace::default(),
+                    vec![0.0; n * ncols],
+                    vec![0.0; n],
+                    vec![0.0; n],
+                )
+            },
+            |(workspace, x_boot, t_boot, y_boot), idx| {
+                crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
+                crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
+                crate::util::gather_bootstrap_design(x_boot, &problem.design_matrix, n, ncols, idx);
+                if fit_propensity_in_place(
+                    x_boot,
+                    n,
+                    ncols,
+                    t_boot,
+                    &self.backend,
+                    &mut workspace.propensity,
+                    &self.glm_options,
+                )
+                .is_err()
+                {
+                    return Ok(None);
+                }
+                let raw = &workspace.propensity.scores[..n];
+                if workspace.clip_scratch.len() < n {
+                    workspace.clip_scratch.resize(n, 0.0);
+                }
+                workspace.clip_scratch[..n].copy_from_slice(raw);
+                if let Some(c) = clip {
+                    clamp_scores(&mut workspace.clip_scratch[..n], c);
+                }
+                let Ok(retained) = trim_retained_rows(raw, trim) else {
+                    return Ok(None);
+                };
+                let (t_used, y_used, s_used) = restrict_to_rows(
+                    t_boot,
+                    y_boot,
+                    &workspace.clip_scratch[..n],
+                    1,
+                    retained.as_deref(),
+                );
+                let s_used = apply_caliper_scale(s_used, self.caliper_scale);
+                match matching_contrast(
+                    &t_used,
+                    &y_used,
+                    &s_used,
+                    1,
+                    MatchingDistance::Absolute,
+                    &problem.target_population,
+                    self.caliper,
+                    workspace,
+                    AnalyticSeKind::Homoskedastic,
+                    None,
+                    None,
+                    None,
+                    None,
+                ) {
+                    Ok(m) => Ok(Some(m.ate)),
+                    Err(_) => Ok(None),
+                }
+            },
+        )
     }
 }
 
@@ -471,6 +478,7 @@ pub(crate) struct MatchedEstimate {
     pub(crate) ate: f64,
     pub(crate) se_analytic: f64,
     pub(crate) retained_fraction: f64,
+    pub(crate) n_obs: usize,
 }
 
 /// ATT/ATC/ATE via nearest-neighbor matching on `features` (dim columns, row-major).
@@ -662,7 +670,7 @@ pub(crate) fn matching_contrast(
             )?
         }
     };
-    Ok(MatchedEstimate { ate, se_analytic, retained_fraction })
+    Ok(MatchedEstimate { ate, se_analytic, retained_fraction, n_obs: per_unit_effects.len() })
 }
 
 /// Abadie–Imbens (2006) SE for 1-NN matching with replacement (homoskedastic).

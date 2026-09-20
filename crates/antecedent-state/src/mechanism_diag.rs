@@ -163,9 +163,12 @@ impl RollingMechanismDiagnostics {
             residuals.push(e);
         }
         let n = self.ring.len() as f64;
+        let p = self.ols.ncols as f64;
         self.beta = beta;
         self.residual_sse = sse;
-        self.residual_var = self.ols.residual_variance(&self.beta);
+        // Window σ² is SSE/(n−p) from the same residuals as residual_sse.
+        // IncrementalOLS Welford scatter is append-only and refuses after eviction.
+        self.residual_var = if n > p { Some(sse / (n - p)) } else { None };
         self.mean_abs_residual = mean_abs / n;
         self.max_abs_cusum =
             if residuals.len() >= 4 { Some(max_abs_cusum(&residuals)) } else { None };
@@ -291,6 +294,8 @@ mod tests {
             s
         };
         assert!((roll.residual_sse - sse_b).abs() < 1e-8);
+        let var = roll.residual_var.expect("residual variance after eviction");
+        assert!((var - sse_b / (w as f64 - p as f64)).abs() < 1e-8);
     }
 
     #[test]

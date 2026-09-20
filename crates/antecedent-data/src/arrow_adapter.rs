@@ -264,8 +264,7 @@ pub fn tabular_from_arrow_c_columns(
 #[allow(clippy::float_cmp)] // values are copied bit-for-bit
 mod tests {
     use antecedent_core::VariableId;
-    use arrow_array::ffi::to_ffi;
-    use arrow_array::{Array, Float64Array};
+    use arrow_array::Float64Array;
     use arrow_schema::{DataType, Field, Schema};
 
     use super::*;
@@ -361,13 +360,9 @@ mod tests {
         // arrow-rs writes 0.0 under null slots, like most exporters.
         let x = Float64Array::from(vec![Some(1.0), None, Some(3.0)]);
         assert_eq!(x.values()[1], 0.0);
-        let (arr, sch) = to_ffi(&x.to_data()).unwrap();
-        let loaded = tabular_from_arrow_c_columns(vec![ArrowCColumn {
-            name: "x".into(),
-            array: arr,
-            schema: sch,
-        }])
-        .unwrap();
+        let loaded =
+            tabular_from_arrow_c_columns(vec![ArrowCColumn::from_arrow_array("x", &x).unwrap()])
+                .unwrap();
         assert_eq!(loaded.bytes_borrowed, 0);
         let c = float_col(&loaded.data, 0);
         assert!(!c.values.is_foreign());
@@ -384,13 +379,9 @@ mod tests {
             ScalarBuffer::from(vec![1.0, f64::NAN, 3.0]),
             Some(NullBuffer::from(vec![true, false, true])),
         );
-        let (arr, sch) = to_ffi(&x.to_data()).unwrap();
-        let loaded = tabular_from_arrow_c_columns(vec![ArrowCColumn {
-            name: "x".into(),
-            array: arr,
-            schema: sch,
-        }])
-        .unwrap();
+        let loaded =
+            tabular_from_arrow_c_columns(vec![ArrowCColumn::from_arrow_array("x", &x).unwrap()])
+                .unwrap();
         assert!(loaded.bytes_borrowed > 0);
         let c = float_col(&loaded.data, 0);
         assert!(c.values.is_foreign());
@@ -432,13 +423,9 @@ mod tests {
     fn arrow_cdi_zero_copy_borrows_values() {
         let x = Float64Array::from(vec![1.0, 2.0, 3.0]);
         let y = Float64Array::from(vec![4.0, 5.0, 6.0]);
-        let x_data = x.to_data();
-        let y_data = y.to_data();
-        let (x_arr, x_sch) = to_ffi(&x_data).unwrap();
-        let (y_arr, y_sch) = to_ffi(&y_data).unwrap();
         let loaded = tabular_from_arrow_c_columns(vec![
-            ArrowCColumn { name: "x".into(), array: x_arr, schema: x_sch },
-            ArrowCColumn { name: "y".into(), array: y_arr, schema: y_sch },
+            ArrowCColumn::from_arrow_array("x", &x).unwrap(),
+            ArrowCColumn::from_arrow_array("y", &y).unwrap(),
         ])
         .unwrap();
         assert!(loaded.bytes_borrowed > 0);

@@ -205,6 +205,20 @@ def json_value(value: Any) -> Any:
         return value if isfinite(value) else {"value": None, "representation": str(value)}
     if is_dataclass(value) and not isinstance(value, type):
         return {f.name: json_value(getattr(value, f.name)) for f in fields(value)}
+    try:
+        from pydantic import BaseModel
+
+        if isinstance(value, BaseModel):
+            dumped = {
+                name: json_value(getattr(value, name))
+                for name, field in type(value).model_fields.items()
+                if field.exclude is not True
+            }
+            extra = getattr(value, "model_extra", None) or {}
+            dumped.update({str(key): json_value(item) for key, item in extra.items()})
+            return dumped
+    except ImportError:
+        pass  # pydantic is optional; continue with mapping / sequence fallbacks
     if isinstance(value, Mapping):
         return {str(k): json_value(v) for k, v in value.items()}
     if isinstance(value, (tuple, list)):

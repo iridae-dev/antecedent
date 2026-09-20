@@ -51,8 +51,8 @@ pub(super) use antecedent_prob::{
 };
 pub(super) use antecedent_validate::{
     BayesianSuiteContext, PosteriorPredictiveCheck, PredictiveCheckReport, PriorPredictiveCheck,
-    TemporalRefitContext, ValidationSuite, ValidatorId, stack_panel_tabular, with_conflict_summary,
-    with_prior_sensitivity,
+    QueryRefutationPlan, TemporalRefitContext, ValidationSuite, ValidatorId, stack_panel_tabular,
+    with_conflict_summary, with_prior_sensitivity,
 };
 
 pub(super) use crate::accepted::{AcceptedGraph, GraphClass};
@@ -77,6 +77,7 @@ pub(super) use crate::planner::{
     compile_logical_temporal_effect_classified, compile_logical_temporal_response,
     reject_dag_only_on_pag,
 };
+pub(super) use crate::result::StructuralAggregationPolicy;
 pub(super) use crate::result::StudyResult;
 pub(super) use crate::strategy_table::{
     DEFAULT_ADMG_ESTIMATOR_ID, DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_CONDITIONAL_ESTIMATOR_ID,
@@ -87,8 +88,8 @@ pub(super) use crate::strategy_table::{
     DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_ESTIMATOR_ID, DEFAULT_PATH_IDENTIFIER,
     DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_RESPONSE_ESTIMATOR, DEFAULT_RESPONSE_IDENTIFIER,
     DEFAULT_RESPONSE_IDENTIFIER_ID, EstimatorId, IdentifierId, StaticEstimateWorkspaces,
-    estimate_provenance_step, estimate_static_effect, identify_admg, identify_cpdag, identify_pag,
-    identify_provenance_step, identify_static, identify_static_query,
+    estimate_provenance_step, estimate_static_effect, identify_admg, identify_admg_query,
+    identify_cpdag, identify_pag, identify_provenance_step, identify_static, identify_static_query,
     identify_static_query_with_rd, identify_temporal_cpdag_configured,
     identify_temporal_pag_configured, require_identified, select_estimand, validate_static_pair,
 };
@@ -174,6 +175,9 @@ pub struct Study {
     /// Prepare-time per-atom identification, indexers, and weights for a DBN posterior.
     pub(crate) dbn_posterior_identification_cache:
         Option<Arc<super::prepared::CachedDbnPosteriorIdentification>>,
+    /// Prepare-time TemporalCpdag/Pag graph-posterior class envelopes.
+    pub(crate) temporal_class_posterior_identification_cache:
+        Option<Arc<super::prepared::CachedTemporalClassPosteriorIdentification>>,
     /// Optional tier-rule background for O(p) closure certification.
     pub(crate) tiered: Option<antecedent_graph::TieredBackground>,
     /// Refused: coarsened continuous coordinate is not a point CDE.
@@ -245,6 +249,10 @@ impl std::fmt::Debug for Study {
                 "dbn_posterior_identification_cache_is_some",
                 &self.dbn_posterior_identification_cache.is_some(),
             )
+            .field(
+                "temporal_class_posterior_identification_cache_is_some",
+                &self.temporal_class_posterior_identification_cache.is_some(),
+            )
             .field("shared_batch_design_is_some", &self.shared_batch_design.is_some())
             .field("selection_diagram_is_some", &self.selection_diagram.is_some())
             .field("transport_trial_is_some", &self.transport_trial.is_some())
@@ -257,10 +265,15 @@ impl std::fmt::Debug for Study {
     }
 }
 
+mod admg_posterior;
+mod admg_posterior_response;
 mod attribution_path;
 mod bayesian_path;
 mod class_envelope_se;
+mod class_posterior;
+mod class_posterior_response;
 mod compile;
+pub(super) use compile::compile_logical_admg_response;
 mod dbn_mediation_frequentist;
 mod dispatch;
 mod identified_set_diagnostics;
@@ -269,7 +282,11 @@ mod panel_path;
 mod response_path;
 mod sequential_validation;
 mod static_path;
+mod temporal_class_mediation_posterior;
+mod temporal_class_posterior;
+mod temporal_class_posterior_response;
 mod temporal_path;
+mod temporal_posterior_response;
 mod transport_interference_path;
 mod tuple_bootstrap;
 include!("execute_helpers.rs");
@@ -297,6 +314,7 @@ pub(crate) use transport_interference_path::live_transport_identification;
 pub(crate) use response_path::{
     class_aware_response_supported, graph_posterior_response_supported, response_witness_ate,
 };
+pub(crate) use temporal_posterior_response::dbn_posterior_response_supported;
 
 #[cfg(test)]
 mod block_length_tests;
@@ -838,13 +856,11 @@ mod identify_only_tests {
 
     #[test]
     fn graph_posterior_ate_known_truth_mixture() {
-        // Analytic, independently specified fixture: atom 0 estimates the
-        // unadjusted effect 3, atom 1 adjusts for Z and estimates 2, and atom
-        // 2 is the reverse-causal Y -> T DAG, for which the licensed
-        // backdoor identifier has no admissible adjustment; its 0.2 posterior
-        // weight must remain unidentified.
-        // The envelope contract reports E[tau | identified] while retaining
-        // that 0.2 separately: (0.5*3 + 0.3*2) / 0.8 = 2.625.
+        // Analytic fixture: atom 0 estimates the unadjusted effect 3, atom 1
+        // adjusts for Z and estimates 2, and atom 2 is the reverse-causal
+        // Y -> T DAG with no admissible adjustment (weight 0.2). Disagreeing
+        // estimands withhold the scalar; posterior BMA and structural_response
+        // still publish P(tau | identified) and the identified set [2, 3].
         let expected: serde_json::Value = serde_json::from_str(include_str!(
             "../../../../../conformance/bayesian/known_truth_mixtures/expected.json"
         ))
@@ -930,14 +946,38 @@ mod identify_only_tests {
                 "prepared estimate and refresh clicks must not re-identify"
             );
             assert!(
-                (click.estimate.ate - mixture_truth).abs() < tolerance,
-                "{suite:?} mixture mean={} truth={mixture_truth}",
-                click.estimate.ate
+                !click.estimate.ate.is_finite(),
+                "{suite:?} scalar ate must be withheld when estimands disagree"
             );
-            assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-            assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
+            assert!(!fresh.estimate.ate.is_finite());
+            assert!(!refreshed.estimate.ate.is_finite());
             assert_eq!(click.support_status.unwrap().as_str(), "licensed");
             let click_post = click.posterior.as_ref().expect("prepared graph mixture posterior");
+            let eq = click_post.effect_column().expect("posterior effect column");
+            assert!(
+                (click_post.summaries.mean[eq] - mixture_truth).abs() < tolerance,
+                "BMA mean={} fixture aggregate={mixture_truth}",
+                click_post.summaries.mean[eq]
+            );
+            let structural = click.structural_response.as_ref().expect("structural mixture");
+            assert!(structural.conditional_on_identified.is_none());
+            let identified_set = structural.identified_set.as_ref().expect("identified set");
+            assert!(
+                (identified_set.lower[0] - atom_effects[1]).abs() < tolerance
+                    && (identified_set.upper[0] - atom_effects[0]).abs() < tolerance,
+                "identified set [{}, {}] truth [{}, {}]",
+                identified_set.lower[0],
+                identified_set.upper[0],
+                atom_effects[1],
+                atom_effects[0]
+            );
+            assert!(
+                click.diagnostics.iter().any(|d| {
+                    d.code.as_ref() == "estimate.graph_posterior.structural_aggregation"
+                        && d.message.contains("graph_dependent_atoms")
+                }),
+                "{suite:?} must disclose GraphDependentAtoms"
+            );
             let fresh_post = fresh.posterior.as_ref().expect("fresh graph mixture posterior");
             let refreshed_post =
                 refreshed.posterior.as_ref().expect("refreshed graph mixture posterior");
@@ -960,8 +1000,15 @@ mod identify_only_tests {
             assert_eq!(click.predictive_checks.len(), fresh.predictive_checks.len());
             if matches!(suite, RefuteSuite::Full) {
                 assert!(
-                    click_post.prior_sensitivity.is_some(),
-                    "full validation must attach mixture-weighted prior sensitivity"
+                    click.diagnostics.iter().any(|d| {
+                        d.code.as_ref() == "refute.bayesian.ppc.envelope"
+                            && d.message.contains("prior-sensitivity")
+                    }),
+                    "full validation must run per-atom prior sensitivity"
+                );
+                assert!(
+                    click_post.prior_sensitivity.is_none(),
+                    "GraphDependentAtoms withhold a mixed prior-sensitivity object"
                 );
             } else {
                 assert!(click_post.prior_sensitivity.is_none());
@@ -985,11 +1032,17 @@ mod identify_only_tests {
                         "graph-posterior {suite:?} must attach mixture-weighted posterior PPC"
                     );
                     assert!(
+                        click.diagnostics.iter().any(|d| {
+                            d.code.as_ref() == "refute.envelope.graph_dependent_atoms"
+                        }),
+                        "graph-posterior {suite:?} must retain per-atom refuters when scalar is withheld"
+                    );
+                    assert!(
                         click
                             .diagnostics
                             .iter()
-                            .any(|d| d.code.as_ref() == "refute.envelope.effect_mixture"),
-                        "graph-posterior {suite:?} must mix effect refuters across atoms"
+                            .all(|d| { d.code.as_ref() != "refute.envelope.effect_mixture" }),
+                        "outer scalar mix must not run under GraphDependentAtoms"
                     );
                 }
             }
@@ -1005,9 +1058,9 @@ mod identify_only_tests {
 
     #[test]
     fn graph_posterior_ate_known_truth_mixture_frequentist() {
-        // Same atoms and unidentified-mass rule as the Bayesian pin; the
-        // aggregator is mass-weighted linear.adjustment.ate, so the mixture
-        // hits the analytic 2.625 exactly rather than a posterior mean.
+        // Same disagreeing atoms as the Bayesian pin: scalar ate and SE are
+        // withheld under GraphDependentAtoms; structural_response publishes
+        // the identified set and per-atom values.
         let expected: serde_json::Value = serde_json::from_str(include_str!(
             "../../../../../conformance/bayesian/known_truth_mixtures/expected.json"
         ))
@@ -1020,7 +1073,6 @@ mod identify_only_tests {
             .iter()
             .map(|v| v.as_f64().unwrap())
             .collect();
-        let mixture_truth = pin["expected_effect_given_identified"].as_f64().unwrap();
         let unidentified_truth = pin["expected_unidentified_mass"].as_f64().unwrap();
 
         let direct = set_edge(0, 3, 0, 1, true);
@@ -1067,16 +1119,33 @@ mod identify_only_tests {
                 "prepared estimate and refresh clicks must not re-identify"
             );
             assert!(
-                (click.estimate.ate - mixture_truth).abs() < 1e-8,
-                "{suite:?} mixture mean={} truth={mixture_truth}",
-                click.estimate.ate
+                !click.estimate.ate.is_finite(),
+                "{suite:?} scalar ate must be withheld when estimands disagree"
             );
-            assert!((click.estimate.ate - fresh.estimate.ate).abs() < 1e-12);
-            assert!((refreshed.estimate.ate - click.estimate.ate).abs() < 1e-12);
+            assert!(!click.estimate.se_analytic.is_finite());
+            assert!(!fresh.estimate.ate.is_finite());
+            assert!(!refreshed.estimate.ate.is_finite());
             assert_eq!(click.support_status.unwrap().as_str(), "licensed");
             assert!(click.posterior.is_none(), "Frequentist mixture must not attach a posterior");
             assert_eq!(click.identification.status, IdentificationStatus::GraphDependent);
             assert_eq!(fresh.identification.status, IdentificationStatus::GraphDependent);
+            let structural = click.structural_response.as_ref().expect("structural mixture");
+            assert!(structural.conditional_on_identified.is_none());
+            let identified_set = structural.identified_set.as_ref().expect("identified set");
+            assert!(
+                (identified_set.lower[0] - 2.0).abs() < 1e-8
+                    && (identified_set.upper[0] - 3.0).abs() < 1e-8,
+                "identified set [{}, {}]",
+                identified_set.lower[0],
+                identified_set.upper[0]
+            );
+            assert!(
+                click.diagnostics.iter().any(|d| {
+                    d.code.as_ref() == "estimate.graph_posterior.structural_aggregation"
+                        && d.message.contains("graph_dependent_atoms")
+                }),
+                "{suite:?} must disclose GraphDependentAtoms"
+            );
             assert!(
                 fresh.diagnostics.iter().any(|d| {
                     d.code.as_ref() == "estimate.graph_posterior.envelope"
@@ -1084,27 +1153,12 @@ mod identify_only_tests {
                 }),
                 "fresh Frequentist mixture must retain unidentified mass"
             );
-            // R-11 / C-1: both identified atoms are fit on the same rows, so the
-            // mixture SE comes from their joint influence-function covariance and
-            // nothing is omitted.
-            assert!(
-                fresh.estimate.se_analytic.is_finite() && fresh.estimate.se_analytic > 0.0,
-                "Frequentist mixture SE must use joint IF covariance, got {}",
-                fresh.estimate.se_analytic
-            );
-            assert!((click.estimate.se_analytic - fresh.estimate.se_analytic).abs() < 1e-12);
             assert!(
                 fresh
                     .diagnostics
                     .iter()
-                    .any(|d| d.code.as_ref() == "estimate.graph_posterior.joint_if_se"),
-                "joint-IF SE must be disclosed"
-            );
-            assert!(
-                fresh.diagnostics.iter().all(|d| {
-                    d.code.as_ref() != "estimate.envelope.se_omits_between_atom_variance"
-                }),
-                "nothing is omitted when every atom is IF-aligned"
+                    .all(|d| d.code.as_ref() != "estimate.graph_posterior.joint_if_se"),
+                "joint-IF SE is only published under SameEstimandWeightedMean"
             );
             assert_eq!(cached_count(&fresh), 0);
             assert_eq!(cached_count(&click), 1);
@@ -1120,8 +1174,15 @@ mod identify_only_tests {
                         click
                             .diagnostics
                             .iter()
-                            .any(|d| d.code.as_ref() == "refute.envelope.effect_mixture"),
-                        "Frequentist {suite:?} must mix effect refuters across atoms"
+                            .any(|d| { d.code.as_ref() == "refute.envelope.class_posterior" }),
+                        "Frequentist {suite:?} must retain per-atom refuters when scalar is withheld"
+                    );
+                    assert!(
+                        click
+                            .diagnostics
+                            .iter()
+                            .all(|d| { d.code.as_ref() != "refute.envelope.effect_mixture" }),
+                        "outer scalar mix must not run under GraphDependentAtoms"
                     );
                 }
             }
@@ -1157,9 +1218,9 @@ mod identify_only_tests {
     }
 
     #[test]
-    fn graph_posterior_overlap_mixes_distinct_adjustment_atoms() {
-        // Atom 0 is unadjusted T→Y; atom 1 adjusts for Z. First-atom validation
-        // would report only the empty-Z overlap. Mixing must move the comparison.
+    fn graph_posterior_overlap_withheld_when_estimands_disagree_bayesian() {
+        // Distinct adjustment sets are GraphDependentAtoms. Cheap overlap is
+        // the first contributing atom, Bayesian and Frequentist alike.
         let n = 64;
         let direct = set_edge(0, 3, 0, 1, true);
         let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
@@ -1189,13 +1250,15 @@ mod identify_only_tests {
         let mixed = cheap_overlap_comparison(mix, n, false);
         let first = cheap_overlap_comparison(first_only, n, false);
         assert!(
-            (mixed - first).abs() > 1e-9,
-            "mixture overlap comparison={mixed} must not equal first-atom comparison={first}"
+            (mixed - first).abs() < 1e-9,
+            "GraphDependentAtoms overlap comparison={mixed} must match first atom={first}"
         );
     }
 
     #[test]
-    fn frequentist_graph_posterior_overlap_mixes_distinct_adjustment_atoms() {
+    fn frequentist_graph_posterior_overlap_withheld_when_estimands_disagree() {
+        // Under GraphDependentAtoms the cheap overlap report comes from the
+        // first contributing atom only, not a mass-weighted mix.
         let n = 64;
         let direct = set_edge(0, 3, 0, 1, true);
         let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
@@ -1225,8 +1288,8 @@ mod identify_only_tests {
         let mixed = cheap_overlap_comparison(mix, n, true);
         let first = cheap_overlap_comparison(first_only, n, true);
         assert!(
-            (mixed - first).abs() > 1e-9,
-            "Frequentist mixture overlap comparison={mixed} must not equal first-atom comparison={first}"
+            (mixed - first).abs() < 1e-9,
+            "GraphDependentAtoms overlap comparison={mixed} must match first atom={first}"
         );
     }
 

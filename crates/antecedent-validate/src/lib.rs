@@ -48,6 +48,7 @@ pub use dummy_outcome::DummyOutcome;
 pub use error::ValidationError;
 pub use evalue::{DEFAULT_EVALUE_THRESHOLD, EValue};
 pub use graph_refute::GraphRefuter;
+pub use mediation::QueryRefutationPlan;
 pub use overlap::OverlapRefuter;
 pub use overlap_rule::OverlapRuleRefuter;
 pub use panel_slice::PanelSliceTemplate;

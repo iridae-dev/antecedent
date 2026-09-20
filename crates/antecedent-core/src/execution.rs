@@ -39,6 +39,19 @@ impl NonZeroThreadCount {
     }
 }
 
+/// Cap on the default user thread count. An explicit `threads=` may exceed it.
+pub const DEFAULT_USER_THREAD_CAP: u32 = 16;
+
+/// Default worker count for the product path: `available_parallelism`,
+/// clamped to [`DEFAULT_USER_THREAD_CAP`]. `threads=1` remains an explicit pin.
+#[must_use]
+pub fn default_user_threads() -> u32 {
+    std::thread::available_parallelism()
+        .map(|n| u32::try_from(n.get()).unwrap_or(DEFAULT_USER_THREAD_CAP))
+        .unwrap_or(1)
+        .clamp(1, DEFAULT_USER_THREAD_CAP)
+}
+
 impl Parallelism {
     /// Serial execution.
     #[must_use]
@@ -50,6 +63,15 @@ impl Parallelism {
     #[must_use]
     pub const fn bounded(max_threads: NonZeroThreadCount) -> Self {
         Self { max_threads }
+    }
+
+    /// [`default_user_threads`] as a [`Parallelism`].
+    #[must_use]
+    pub fn default_user() -> Self {
+        Self {
+            max_threads: NonZeroThreadCount::new(default_user_threads())
+                .unwrap_or_else(NonZeroThreadCount::one),
+        }
     }
 }
 
@@ -420,6 +442,7 @@ fn mix_seed(master: u64, stream_id: u64) -> u64 {
 }
 
 /// Full execution context passed into algorithms.
+#[derive(Clone)]
 pub struct ExecutionContext {
     /// Parallelism budget.
     pub parallelism: Parallelism,
@@ -469,6 +492,74 @@ impl ExecutionContext {
             adaptive_bootstrap: AdaptiveBootstrapBudget::disabled(),
             adaptive_draws: AdaptiveDrawBudget::disabled(),
         }
+    }
+
+    /// Production context at [`default_user_threads`].
+    #[must_use]
+    pub fn production_default(seed: u64) -> Self {
+        Self::production(seed, default_user_threads())
+    }
+
+    /// Clone with [`Parallelism::serial`]. Use for inner work when an outer
+    /// map already saturates [`Self::parallelism`].
+    #[must_use]
+    pub fn serial_inner(&self) -> Self {
+        let mut inner = self.clone();
+        inner.parallelism = Parallelism::serial();
+        inner
+    }
+
+    /// `f(0), …, f(n-1)` under this context. Results return in index order.
+    ///
+    /// When `n > 1` and `max_threads > 1`, work is chunked on `thread::scope`
+    /// and `f` receives [`Self::serial_inner`] so nested pools stay serial.
+    /// When `n <= 1` or the context is already serial, `f` receives `self`.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error produced by `f`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a worker fails to write its assigned slot (a programming error
+    /// in the pool, not in `f`).
+    pub fn map_indexed<T, E, F>(&self, n: usize, f: F) -> Result<Vec<T>, E>
+    where
+        T: Send,
+        E: Send,
+        F: Fn(usize, &Self) -> Result<T, E> + Sync,
+    {
+        if n == 0 {
+            return Ok(Vec::new());
+        }
+        let threads = (self.parallelism.max_threads.get() as usize).clamp(1, n);
+        if threads == 1 {
+            return (0..n).map(|i| f(i, self)).collect();
+        }
+        let inner = self.serial_inner();
+        let mut slots: Vec<Option<Result<T, E>>> = (0..n).map(|_| None).collect();
+        std::thread::scope(|scope| {
+            let f = &f;
+            let inner = &inner;
+            let mut rest = slots.as_mut_slice();
+            let mut start = 0usize;
+            for t in 0..threads {
+                let take = rest.len().div_ceil(threads - t);
+                let (mine, next) = rest.split_at_mut(take);
+                let begin = start;
+                scope.spawn(move || {
+                    for (k, slot) in mine.iter_mut().enumerate() {
+                        *slot = Some(f(begin + k, inner));
+                    }
+                });
+                rest = next;
+                start += take;
+                if rest.is_empty() {
+                    break;
+                }
+            }
+        });
+        slots.into_iter().map(|slot| slot.expect("every index was filled")).collect()
     }
 
     /// Production context: optimized kernels allowed, cache enabled, bounded threads.
@@ -678,6 +769,34 @@ mod tests {
         assert!(ExecutionRequestState::Completed.publishes_claim());
         let receipt = ExecutionReceipt::new(first, ExecutionRequestState::Cancelled);
         assert_eq!(receipt.state.as_str(), "cancelled");
+    }
+
+    #[test]
+    fn map_indexed_preserves_order_and_serializes_inner() {
+        let ctx = ExecutionContext::production(1, 4);
+        let out = ctx
+            .map_indexed(8, |i, inner| {
+                assert_eq!(inner.parallelism.max_threads.get(), 1);
+                Ok::<_, ()>(i * 10)
+            })
+            .unwrap();
+        assert_eq!(out, vec![0, 10, 20, 30, 40, 50, 60, 70]);
+        let serial = ExecutionContext::for_tests(1);
+        let inner_threads = serial
+            .map_indexed(1, |_, inner| Ok::<_, ()>(inner.parallelism.max_threads.get()))
+            .unwrap();
+        assert_eq!(inner_threads, vec![1]);
+        assert_eq!(serial.serial_inner().parallelism.max_threads.get(), 1);
+    }
+
+    #[test]
+    fn default_user_threads_is_at_least_one_and_capped() {
+        let n = default_user_threads();
+        assert!(n >= 1);
+        assert!(n <= DEFAULT_USER_THREAD_CAP);
+        let ctx = ExecutionContext::production_default(1);
+        assert_eq!(ctx.parallelism.max_threads.get(), n);
+        assert_ne!(ctx.kernel_policy, KernelPolicy::scalar_only());
     }
 
     #[test]

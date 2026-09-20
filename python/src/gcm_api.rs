@@ -20,7 +20,9 @@ use antecedent::gcm::{
     mechanism_change_detection as facade_mechanism_change_detection,
     rank_root_causes as facade_rank_root_causes, sample_do as facade_sample_do,
 };
-use antecedent_attribution::{CacheStats, ComponentContribution, ComputeBudget};
+use antecedent_attribution::{
+    AnomalyScores as RustAnomalyScores, CacheStats, ComponentContribution, ComputeBudget,
+};
 use antecedent_core::{
     AllocationMethod, AttributionComponents, CausalRng, ChangeAttributionQuery, ComponentId,
     ExecutionContext, Intervention, MechanismChangeQuery, PathSpecificEffectQuery,
@@ -72,6 +74,36 @@ fn contribution_pairs(
         .contributions
         .iter()
         .map(|c| (component_name(names, c.component), c.contribution))
+        .collect()
+}
+
+pub(crate) fn anomaly_scores_from_rust(
+    scores: impl IntoIterator<Item = RustAnomalyScores>,
+    names: &[String],
+) -> Vec<AnomalyScores> {
+    scores
+        .into_iter()
+        .map(|s| {
+            let mean = if s.scores.is_empty() {
+                0.0
+            } else {
+                s.scores.iter().sum::<f64>() / s.scores.len() as f64
+            };
+            let top = s
+                .scores
+                .iter()
+                .enumerate()
+                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal));
+            let top_row = top.map(|(i, _)| s.rows[i]);
+            AnomalyScores {
+                outcome: var_name(names, s.target),
+                mean_score: mean,
+                n_units: s.rows.len(),
+                scores: s.scores.to_vec(),
+                rows: s.rows.to_vec(),
+                top_row,
+            }
+        })
         .collect()
 }
 
@@ -189,14 +221,23 @@ pub struct AnomalyScores {
     pub mean_score: f64,
     #[pyo3(get)]
     pub n_units: usize,
+    /// Per-unit IT scores, aligned with `rows`.
+    #[pyo3(get)]
+    pub scores: Vec<f64>,
+    /// Row indices scored.
+    #[pyo3(get)]
+    pub rows: Vec<usize>,
+    /// Row index of the highest IT score (`None` when no units were scored).
+    #[pyo3(get)]
+    pub top_row: Option<usize>,
 }
 
 #[pymethods]
 impl AnomalyScores {
     fn __repr__(&self) -> String {
         format!(
-            "AnomalyScores(outcome={:?}, mean_score={}, n_units={})",
-            self.outcome, self.mean_score, self.n_units
+            "AnomalyScores(outcome={:?}, mean_score={}, n_units={}, top_row={:?})",
+            self.outcome, self.mean_score, self.n_units, self.top_row
         )
     }
 }
@@ -372,8 +413,8 @@ pub struct PyFittedGcm {
 }
 
 impl PyFittedGcm {
-    fn ctx(seed: u64, threads: u32) -> ExecutionContext {
-        py_execution_context(seed, threads)
+    fn ctx(seed: u64, threads: Option<u32>) -> ExecutionContext {
+        py_execution_context(seed, crate::resolve_user_threads(threads))
     }
 }
 
@@ -413,7 +454,7 @@ impl PyFittedGcm {
     /// a mechanism's sensitivity rather than overriding it outright. A variable
     /// named in both maps is rejected: it cannot be simultaneously pinned and
     /// shifted.
-    #[pyo3(signature = (interventions, n, *, shifts=None, seed=0, threads=1))]
+    #[pyo3(signature = (interventions, n, *, shifts=None, seed=0, threads=None))]
     fn sample_do(
         &self,
         py: Python<'_>,
@@ -421,7 +462,7 @@ impl PyFittedGcm {
         n: usize,
         shifts: Option<HashMap<String, f64>>,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<GcmSampleResult> {
         let inner = Arc::clone(&self.inner);
         let data = Arc::clone(&self.data);
@@ -456,7 +497,7 @@ impl PyFittedGcm {
     }
 
     /// Unit-level ITE under hard interventions on `treatment`.
-    #[pyo3(signature = (treatment, outcome, active, control, *, seed=0, threads=1))]
+    #[pyo3(signature = (treatment, outcome, active, control, *, seed=0, threads=None))]
     fn counterfactual_ite(
         &self,
         py: Python<'_>,
@@ -465,7 +506,7 @@ impl PyFittedGcm {
         active: f64,
         control: f64,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<GcmIteResult> {
         let inner = Arc::clone(&self.inner);
         let data = Arc::clone(&self.data);
@@ -500,7 +541,7 @@ impl PyFittedGcm {
         })
     }
 
-    #[pyo3(signature = (treatment, outcome, *, path_nodes=None, max_paths=64, max_len=16, seed=0, threads=1))]
+    #[pyo3(signature = (treatment, outcome, *, path_nodes=None, max_paths=64, max_len=16, seed=0, threads=None))]
     fn attribute_path_specific(
         &self,
         py: Python<'_>,
@@ -510,7 +551,7 @@ impl PyFittedGcm {
         max_paths: usize,
         max_len: usize,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
         let inner = Arc::clone(&self.inner);
         let data = Arc::clone(&self.data);
@@ -537,7 +578,7 @@ impl PyFittedGcm {
         })
     }
 
-    #[pyo3(signature = (sources, outcome, *, max_paths=64, max_len=16, seed=0, threads=1))]
+    #[pyo3(signature = (sources, outcome, *, max_paths=64, max_len=16, seed=0, threads=None))]
     fn attribute_paths(
         &self,
         py: Python<'_>,
@@ -546,7 +587,7 @@ impl PyFittedGcm {
         max_paths: usize,
         max_len: usize,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
         let inner = Arc::clone(&self.inner);
         let data = Arc::clone(&self.data);
@@ -565,7 +606,7 @@ impl PyFittedGcm {
         })
     }
 
-    #[pyo3(signature = (outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=1))]
+    #[pyo3(signature = (outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=None))]
     fn attribute_distribution_change(
         &self,
         py: Python<'_>,
@@ -576,7 +617,7 @@ impl PyFittedGcm {
         comparison_end: usize,
         n_samples: usize,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
         let inner = Arc::clone(&self.inner);
         let data = Arc::clone(&self.data);
@@ -605,7 +646,7 @@ impl PyFittedGcm {
         })
     }
 
-    #[pyo3(signature = (outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=1))]
+    #[pyo3(signature = (outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=None))]
     fn attribute_distribution_change_robust(
         &self,
         py: Python<'_>,
@@ -616,7 +657,7 @@ impl PyFittedGcm {
         comparison_end: usize,
         n_samples: usize,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
         let _ = n_samples;
         let inner = Arc::clone(&self.inner);
@@ -654,7 +695,7 @@ impl PyFittedGcm {
         })
     }
 
-    #[pyo3(signature = (comparison_edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=1))]
+    #[pyo3(signature = (comparison_edges, outcome, baseline_start, baseline_end, comparison_start, comparison_end, *, n_samples=500, seed=0, threads=None))]
     fn attribute_structure_change(
         &self,
         py: Python<'_>,
@@ -666,7 +707,7 @@ impl PyFittedGcm {
         comparison_end: usize,
         n_samples: usize,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
         let inner = Arc::clone(&self.inner);
         let data = Arc::clone(&self.data);
@@ -704,14 +745,14 @@ impl PyFittedGcm {
         })
     }
 
-    #[pyo3(signature = (outcome, *, max_units=0, seed=0, threads=1))]
+    #[pyo3(signature = (outcome, *, max_units=0, seed=0, threads=None))]
     fn attribute_unit_change(
         &self,
         py: Python<'_>,
         outcome: String,
         max_units: usize,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
         let inner = Arc::clone(&self.inner);
         let data = Arc::clone(&self.data);
@@ -734,7 +775,7 @@ impl PyFittedGcm {
         })
     }
 
-    #[pyo3(signature = (outcome, *, delta=1.0, n_samples=200, seed=0, threads=1))]
+    #[pyo3(signature = (outcome, *, delta=1.0, n_samples=200, seed=0, threads=None))]
     fn attribute_feature_relevance(
         &self,
         py: Python<'_>,
@@ -742,7 +783,7 @@ impl PyFittedGcm {
         delta: f64,
         n_samples: usize,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<Vec<FeatureRelevance>> {
         let inner = Arc::clone(&self.inner);
         let data = Arc::clone(&self.data);
@@ -790,25 +831,11 @@ impl PyFittedGcm {
             let max_u = if max_units == 0 { data.row_count() } else { max_units };
             let scores = facade_anomaly_attribution(&inner.model, &data, outcome_ids, max_u)
                 .map_err(py_err)?;
-            Ok(scores
-                .into_iter()
-                .map(|s| {
-                    let mean = if s.scores.is_empty() {
-                        0.0
-                    } else {
-                        s.scores.iter().sum::<f64>() / s.scores.len() as f64
-                    };
-                    AnomalyScores {
-                        outcome: var_name(&names, s.target),
-                        mean_score: mean,
-                        n_units: s.rows.len(),
-                    }
-                })
-                .collect())
+            Ok(anomaly_scores_from_rust(scores, &names))
         })
     }
 
-    #[pyo3(signature = (baseline_start, baseline_end, comparison_start, comparison_end, *, seed=0, threads=1))]
+    #[pyo3(signature = (baseline_start, baseline_end, comparison_start, comparison_end, *, seed=0, threads=None))]
     fn mechanism_change_detection(
         &self,
         py: Python<'_>,
@@ -817,7 +844,7 @@ impl PyFittedGcm {
         comparison_start: usize,
         comparison_end: usize,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<Vec<MechanismChangeDetection>> {
         let inner = Arc::clone(&self.inner);
         let data = Arc::clone(&self.data);
@@ -855,13 +882,13 @@ impl PyFittedGcm {
         })
     }
 
-    #[pyo3(signature = (attribution, *, seed=0, threads=1))]
+    #[pyo3(signature = (attribution, *, seed=0, threads=None))]
     fn rank_root_causes(
         &self,
         py: Python<'_>,
         attribution: &ChangeAttributionResult,
         seed: u64,
-        threads: u32,
+        threads: Option<u32>,
     ) -> PyResult<Vec<Contribution>> {
         let _ = self;
         rank_root_causes(py, attribution, seed, threads)
@@ -878,13 +905,13 @@ impl PyFittedGcm {
 
 /// Fit a linear-Gaussian GCM; return a reusable [`FittedGcm`].
 #[pyfunction]
-#[pyo3(name = "fit_gcm", signature = (names, columns, edges, *, threads=1))]
+#[pyo3(name = "fit_gcm", signature = (names, columns, edges, *, threads=None))]
 fn fit_gcm_py(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
     edges: Vec<(String, String)>,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<PyFittedGcm> {
     let _ = threads;
     let (data, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
@@ -897,7 +924,7 @@ fn fit_gcm_py(
 
 /// Path decomposition (all paths from `sources` to `outcome`).
 #[pyfunction]
-#[pyo3(signature = (names, columns, edges, sources, outcome, *, max_paths=64, max_len=16, seed=0, threads=1))]
+#[pyo3(signature = (names, columns, edges, sources, outcome, *, max_paths=64, max_len=16, seed=0, threads=None))]
 fn attribute_paths(
     py: Python<'_>,
     names: Vec<String>,
@@ -908,7 +935,7 @@ fn attribute_paths(
     max_paths: usize,
     max_len: usize,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<ChangeAttributionResult> {
     let (data, _) = crate::tabular_from_py_columns(py, names.clone(), columns)?;
     detach_catch(py, move || {
@@ -919,7 +946,7 @@ fn attribute_paths(
             .iter()
             .map(|n| data.schema().id_of(n).map_err(py_err))
             .collect::<PyResult<_>>()?;
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let result =
             facade_attribute_paths(&fitted.model, &src_ids, y_id, max_paths, max_len, &ctx)
                 .map_err(py_err)?;
@@ -929,12 +956,12 @@ fn attribute_paths(
 
 /// Rank root causes from a [`ChangeAttributionResult`].
 #[pyfunction]
-#[pyo3(signature = (attribution, *, seed=0, threads=1))]
+#[pyo3(signature = (attribution, *, seed=0, threads=None))]
 fn rank_root_causes(
     py: Python<'_>,
     attribution: &ChangeAttributionResult,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
 ) -> PyResult<Vec<Contribution>> {
     let rust = attribution.rust.clone();
     let name_map: HashMap<u32, String> = attribution
@@ -945,7 +972,7 @@ fn rank_root_causes(
         .map(|(c, (name, _))| (c.component.raw(), name.clone()))
         .collect();
     detach_catch(py, move || {
-        let ctx = py_execution_context(seed, threads);
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let ranks = facade_rank_root_causes(&rust, &ctx).map_err(py_err)?;
         Ok(ranks
             .into_iter()

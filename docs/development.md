@@ -44,7 +44,7 @@ bash scripts/gate_upstream_names.sh
 bash scripts/gate_response_calibration.sh
 bash scripts/gate_causal_artifacts.sh
 bash scripts/gate_estimate_reuse.sh
-bash scripts/gate_composition.sh   # 1.10 consuming contract/claim tests must actually run
+bash scripts/gate_composition.sh   # composition consuming contract/claim tests must actually run
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_support_matrix.sh   # public license cells; default refused
@@ -121,9 +121,10 @@ and is never re-measured on a timer.
 every path that can move a number (crate sources, manifests, the toolchain, the
 shared harness, each calibration suite) to a facet:
 
-- `core` — shared code (facade, harness, manifests, toolchain). On the list
-  so an unmapped file cannot look harmless. Records do not carry it: a core
-  edit does not owe a re-measurement.
+- `core` — shared numerical and harness code (least-squares, conjugate,
+  bootstrap, RNG, facade dispatch, manifests, toolchain). Every record
+  carries it: a core edit owes a re-measurement unless a reviewed replay
+  waiver covers the change.
 - `estimator.*` / `identity.*` — one estimator or identification
   implementation. A change owes only the records that use that estimator or
   identity.
@@ -135,7 +136,7 @@ shared harness, each calibration suite) to a facet:
 Each record's `facets` are derived from the record itself by
 `scripts/calibration_facets.py`: the suite of its test and DGP file, and every
 `estimator.*` / `identity.*` (or `mechanism` / `design`) a `key` line assigns
-to its fields. Records do not carry `core`. `scripts/gate_parity_schema.sh`
+to its fields. Every record also carries `core`. `scripts/gate_parity_schema.sh`
 rejects a record whose facets are not exactly the derived set. `estimator.*` /
 `identity.*` isolation is the `key` line: a change owes only records whose
 fields match. For `mechanism` / `design`, `check` still fails when a file
@@ -220,23 +221,20 @@ Facets and replay waivers keep the cost proportional to the change:
 - an estimator or identification-path edit owes only the records that use it;
 - a `mechanism` edit owes only the fitted-SCM records;
 - a reviewed change that cannot move a number owes nothing, through a waiver;
-- a `core` edit owes nothing (records do not carry `core`).
+- a `core` edit owes every record, unless a reviewed replay waiver covers it;
 
-**How long it takes.** The last full sweep, measured at one sample size per
-design, ran on an M-series laptop with the suites in parallel:
+**How long it takes.** Groups already run side by side (`measure_calibration.sh
+--jobs`). Independent seeds inside a group run across `available_parallelism`
+workers (`map_replicates` in the coverage harness). Each seed still builds a
+serial `ExecutionContext::for_tests` study, so the same seed is the same
+interval.
 
-- most suites finished well under an hour;
-- the Bayesian static suite (`v110_calibration_bayesian_static`) took about 4 h;
-- a single heavy Bayesian derivative cell whose 2000-replicate recheck fires can
-  take several hours on its own. One ran for more than 2 h 50 min.
-
-The grid measures each design at three sample sizes: about 3.5 times the
-single-size work for a design whose cost is linear in `n` (3.0 on the heavy
-grid, 3.75 on the short-series grid). `--dry-run` scales the sweep's suite
-timings by that factor until local per-point timings replace them; with every
-grid point its own parallel job, the wall clock grows less than the total. A
-full re-measurement is therefore an overnight job. A change that drifts one
-suite or facet costs only the groups behind its records.
+A full re-measurement is a few hours on an M-series laptop, not an overnight
+one-core job. A Bayesian derivative 2000-replicate recheck that used to pin one
+core for ~10 h is about 1–1.5 h. A change that drifts one suite or facet costs
+only the groups behind its records. `--dry-run` still scales suite timings by
+the three-point grid factor (about 3.5× for linear-in-`n` designs) until local
+per-point timings replace them.
 
 The collector refuses to stamp HEAD while the surface its records depend on
 differs from HEAD. It keeps a rechecked point's more precise run, rewrites the
@@ -292,6 +290,11 @@ command when black-box comparison applies.
 Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
 
 ## Release candidates
+
+For 1.11, the independent [practitioner acceptance suite](practitioner-acceptance.md)
+is an additional cut requirement. Run its Python and Rust jobs and both scale
+sizes against the candidate, and close its leftover ledger. It remains outside
+`gate_release.sh`; passing the commands below alone does not discharge S.
 
 `gate_release.sh` is the PR inventory; a release is cut with
 `scripts/gate_release_candidate.sh` (which `scripts/tag_release.sh` runs before
@@ -402,13 +405,14 @@ features and never reshape core types.
 ## Unsafe / deps
 
 Reviewed `unsafe` is concentrated in `antecedent-kernels` (SIMD), the
-`antecedent-data` buffer/Arrow FFI adapters, and thin IO mmap.
+`antecedent-data` buffer/Arrow FFI adapters (`unsafe from_ffi`), and IO mmap
+(`unsafe open_path_mapped`; safe `open_path` is an owned snapshot).
 New `unsafe` needs justification in review. Dependency and license policy:
 [security_review.md](security_review.md), ADR 0008.
 
 ## Versions
 
-Workspace and Python package version are kept in sync (currently **1.10.0**).
+Workspace and Python package version are kept in sync (currently **1.11.0**).
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
@@ -460,9 +464,10 @@ Before merging the release PR:
 7. Check the changelog, release notes, user examples, refusal/compatibility scope,
    and evidence ledger. Record measured timings separately from test ceilings.
 
-Before tagging, confirm the dated 1.10.0 changelog section is present, Unreleased
-is empty, its comparison link is `v1.10.0...HEAD`, and release-status text matches
-the cut. Tag only the approved, clean commit after these checks pass.
+Before tagging, confirm the dated 1.11.0 changelog section is present, Unreleased
+is empty, its comparison link is `v1.10.0...HEAD` until `v1.11.0` exists, and
+release-status text matches the cut. Coverage records must be attested at
+HEAD. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 
 Tagged releases drive wheel + docs publishing (GitHub Release assets and public
@@ -471,21 +476,27 @@ PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
 
 ```bash
 # Optional: bump and commit on main first
-bash scripts/set_version.sh 1.10.0
+bash scripts/set_version.sh 1.11.0
 cargo update -p antecedent
 git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
   python/antecedent/__init__.py crates/*/Cargo.toml fuzz/Cargo.lock \
   CHANGELOG.md CITATION.cff docs/release-notes/
-git commit -s -m "chore: bump version to 1.10.0"
+git commit -s -m "chore: bump version to 1.11.0"
 
 # Tag current (or just-bumped) version and push
 CI_RUN_ID=<ci run on HEAD> bash scripts/tag_release.sh   # runs gate_release_candidate.sh
-git push origin v1.10.0
+git push origin v1.11.0
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
-builds the full wheel matrix, attaches wheels + `docs.tar.gz` to the GitHub
-Release, and publishes to public PyPI via trusted publishing (`id-token: write`).
+builds the full wheel matrix, then publishes to public PyPI and the GitHub
+Release as **independent jobs**. Trusted publishing (`id-token: write`) must not
+wait on GitHub asset uploads: a unicorn on `uploads.github.com` skipped PyPI
+for 1.10.0 while crates.io (a separate workflow) succeeded. Release assets are
+uploaded one file at a time with retries. If wheels already exist, dispatch
+with `version` plus `reuse_run_id` set to the Actions run that built them —
+do not rebuild a newer branch and stamp it as an older version.
+
 Configure a pending/trusted publisher on [pypi.org](https://pypi.org) for this
 repo and workflow file `publish-release.yml` (Environment blank unless the job
 sets `environment:`).
@@ -528,4 +539,4 @@ Checklist before the first public crate release:
 2. Enable Actions.
 3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
 4. Configure PyPI trusted publisher for `publish-release.yml`.
-5. Tag `v1.10.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).
+5. Tag `v1.11.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).

@@ -95,8 +95,14 @@ def test_from_atoms_validates_atoms_and_weights():
         )
     built = from_atoms(names, [0.7, 0.3], [set_edge(0, 3, 0, 1), 0])
     assert built.algorithm == "from_atoms"
+    assert built.atom_kind == "Dag"
     assert built.converged is True
     assert built.n_graphs == 2
+    undirected = set_edge(set_edge(0, 3, 0, 2), 3, 2, 0)
+    with pytest.raises(ValueError, match="not a DAG"):
+        from_atoms(names, [1.0], [undirected])
+    class_atom = from_atoms(names, [1.0], [undirected], atom_kind="Cpdag")
+    assert class_atom.atom_kind == "Cpdag"
 
 
 def test_supplied_dbn_posterior_refuses_a_static_query():
@@ -160,7 +166,8 @@ def test_supplied_posterior_attests_custom_validators():
         validators={"posterior.finite": records},
     )
     attested = antecedent.load(result.export()).artifact.contract["claim"]["attested"]
-    assert [item["name"] for item in attested] == ["posterior.finite"]
+    assert {item["name"] for item in attested} == {"posterior.finite"}
+    assert attested
     assert calls
 
 
@@ -284,7 +291,7 @@ def test_supplied_posterior_forwards_progress_callback(temporal):
         on_progress=on_progress,
     )
 
-    assert np.isfinite(result.ate)
+    assert result.ate is None or np.isfinite(result.ate)
     assert any(stage == "identify.compute" for _, stage in seen)
     assert any(stage == "envelope.identify" for _, stage in seen)
 

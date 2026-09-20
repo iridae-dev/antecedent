@@ -2,7 +2,7 @@
 
 ## Python environment
 
-These examples use Antecedent 1.10 and Python 3.11 or later.
+These examples use Antecedent 1.11 and Python 3.11 or later.
 Install the package and notebook tools from PyPI:
 
 ```bash
@@ -13,13 +13,9 @@ Download an example notebook and open it with `jupyter lab`. If you have the
 repository locally, run `jupyter lab examples/notebooks` from its root.
 Choose the kernel for the Python environment where you installed Antecedent.
 
-For Google Colab, run this in a setup cell:
-
-```python
-%pip install antecedent pandas matplotlib
-```
-
-If you upgrade Antecedent after importing it, restart the kernel or Colab session.
+For Google Colab, **Runtime → Run all**. The first code cell installs
+`antecedent>=1.11.0,<1.12` from PyPI when the package is missing. If you
+upgrade after importing it, restart the kernel or Colab session.
 
 ## Start with one analysis
 
@@ -69,7 +65,7 @@ the same method refuses a demand derivative.
 
 Choose Python or Rust for each workflow.
 
-[The Python analysis workflow](python/analysis_workflow.py) demonstrates the 1.10 one-call
+[The Python analysis workflow](python/analysis_workflow.py) demonstrates the one-call
 API, retained study, inspection, refresh, and verified artifact loading.
 
 ```bash

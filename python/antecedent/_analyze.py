@@ -11,8 +11,10 @@ from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
 from .interference import InterferenceQuery
 from .query import (
+    AnomalyAttribution,
     AverageDerivative,
     AverageEffect,
+    ChangeAttribution,
     ConditionalEffect,
     Counterfactual,
     DirectionalDerivative,
@@ -29,7 +31,7 @@ from .query import (
     SustainedEffect,
     TemporalMediationEffect,
 )
-from .results import AnalysisResult, CausalResponseView
+from .results import Analysis
 from .transport import TransportQuery
 
 
@@ -66,6 +68,8 @@ def analyze(
         | InterventionResponse
         | TransportQuery
         | InterferenceQuery
+        | AnomalyAttribution
+        | ChangeAttribution
     ),
     graph: (
         Dag
@@ -89,7 +93,7 @@ def analyze(
     accept_discovered: bool = True,
     seed: int = 1,
     bootstrap: int | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     regimes: Sequence[int] | None = None,
     running_variable: str | None = None,
     cutoff: float | None = None,
@@ -103,15 +107,21 @@ def analyze(
     return_posterior_artifact: bool = False,
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
-) -> AnalysisResult | CausalResponseView:
+) -> Analysis:
     """Identify then estimate a causal effect.
+
+    Runs the published interval once. The five-line second click reuses
+    identification: ``result = analyze(...); result.refresh(new_data)``.
+    A second ``analyze()`` still re-prepares.
 
     Parameters
     ----------
     data:
         Mapping of column name → 1-d float array, a pandas ``DataFrame``,
-        Arrow CDI exporters (PyArrow columns / table), or a
-        ``antecedent.data`` frame (``EventFrame`` / ``PanelFrame`` / ``MultiEnvFrame``).
+        an Arrow CDI / ``__arrow_c_stream__`` table (PyArrow, Polars, DuckDB),
+        or an ``antecedent.data`` frame (``EventFrame`` / ``PanelFrame`` /
+        ``MultiEnvFrame``). The library does not take a Polars or pandas
+        dependency on the way out; tabular results speak Arrow.
         For ``discovery=JPCMCIPlus(...)``, pass a sequence of environment frames
         or a ``MultiEnvFrame``.
     query:
@@ -120,10 +130,12 @@ def analyze(
         ``MediationEffect``, ``Counterfactual``, ``TemporalMediationEffect``,
         ``TransportQuery`` (on an ``Admg`` selection diagram, with its trial
         columns), ``InterferenceQuery`` (on a ``Dag`` or edge list, with its
-        network and realized assignment), or a response-family query.
-        Response-family queries return
-        :class:`antecedent.results.CausalResponseView`; other queries return
-        :class:`antecedent.AnalysisResult`.
+        network and realized assignment), ``AnomalyAttribution`` /
+        ``ChangeAttribution`` (on a ``Dag`` or edge list; GCM parametric /
+        ``gcm.fit``), or a response-family query.
+        Both families return :data:`antecedent.Analysis`: consume
+        ``result.answer`` / ``result.claim()``. ``as_point()`` / ``as_response()``
+        narrow when the kind must be exact.
     graph:
         ``Dag`` / ``Cpdag`` / ``Pag`` / ``Admg`` / ``TemporalDag`` /
         ``TemporalCpdag`` / ``TemporalPag``, or an edge list. Lagged edges
@@ -224,10 +236,9 @@ def analyze(
     )
     result = prepared.estimate()
     if return_posterior_artifact:
-        from dataclasses import replace
-
         from .errors import CausalUnsupportedError as _Unsupported
         from .results import AnalysisResult
+        from .results._report import copy_model
 
         if not isinstance(result, AnalysisResult) or result.posterior is None:
             raise _Unsupported(
@@ -241,7 +252,8 @@ def analyze(
                 "of a single estimand",
                 reason_code="option_not_applicable",
             )
-        result = replace(
-            result, posterior=replace(result.posterior, artifact=prepared.export_artifact())
+        result = copy_model(
+            result,
+            posterior=copy_model(result.posterior, artifact=prepared.export_artifact()),
         )
     return result

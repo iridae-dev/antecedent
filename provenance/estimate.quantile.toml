@@ -1,0 +1,25 @@
+feature_id = "estimate.quantile"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Inverts an already-estimated interventional CDF. The quantile map and its
+# influence function are the functional delta method, not Firpo's two-step
+# propensity QTE estimator.
+papers = [
+ { title = "Asymptotic Statistics", doi = "10.1017/CBO9780511802256", sections = ["Chapter 20: functional delta method", "Chapter 21: quantile functional of a distribution function; influence φ_Q = −φ_F(q)/f(q)"] },
+]
+
+implementation_deviations = [
+ "Density f(q) is a finite difference of the estimated CDF on the estimation grid, with a hard floor of 1e-3. τ outside the estimated CDF range, or density below the floor, refuses.",
+ "Does not estimate a propensity score or solve Firpo's check-function minimization. The interventional CDF and its influence are supplied by the caller.",
+ "Linear interpolation between bracketing thresholds; no kernel quantile or rearrangement step.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/quantile.rs",
+]

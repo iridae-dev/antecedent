@@ -743,6 +743,25 @@ mod tests {
     }
 
     #[test]
+    fn auto_rejects_treatment_descendant_instrument() {
+        // U → T → Y, U → Y, T → Z: Z is not a valid IV.
+        let mut dag = Dag::with_variables(4);
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap(); // U→T
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap(); // U→Y
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap(); // T→Y
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(3)).unwrap(); // T→Z
+        let auto = AutoIdentifier::new();
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        assert!(!res.estimands.iter().any(|e| e.instruments.as_ref() == [VariableId::from_raw(3)]));
+    }
+
+    #[test]
     fn auto_with_rd_config_identifies_sharp_rd() {
         let mut dag = Dag::with_variables(3);
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();

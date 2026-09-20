@@ -58,6 +58,17 @@ def test_notebooks_exist():
 
 
 @pytest.mark.parametrize("nb", _NOTEBOOKS, ids=lambda p: p.name)
+def test_notebook_first_code_cell_installs_antecedent_when_missing(nb):
+    """Colab has no antecedent; the install must be executable, not markdown."""
+    cells = load_json(nb)["cells"]
+    first = next(c for c in cells if c.get("cell_type") == "code")
+    src = "".join(first["source"])
+    assert 'find_spec("antecedent")' in src
+    assert "pip" in src and "antecedent>=1.11.0,<1.12" in src
+    assert "sys.version_info" in src
+
+
+@pytest.mark.parametrize("nb", _NOTEBOOKS, ids=lambda p: p.name)
 def test_notebook_attribute_paths_resolve(nb):
     src = _code(nb)
     unresolved = []

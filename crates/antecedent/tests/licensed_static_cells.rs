@@ -371,8 +371,9 @@ fn mixture_data(n: usize) -> TabularData {
 /// `Y = 2T + 2Z` (the modifier `z` enters every atom's interaction model); the
 /// reversed atom's mass stays unidentified at
 /// `conformance/bayesian/known_truth_mixtures` `expected_unidentified_mass`
-/// and is not renormalized away. Cheap/full run the refuters on each
-/// contributing atom and mix the reports by graph mass.
+/// and is not renormalized away. Distinct adjustment certificates keep the
+/// results graph-dependent even when these numerical atom effects agree.
+/// Cheap/full retain each contributing atom's refutations without a scalar mix.
 #[test]
 fn conditional_effect_graph_posterior_known_truth_all_inferences_and_suites() {
     let pin =
@@ -410,11 +411,22 @@ fn conditional_effect_graph_posterior_known_truth_all_inferences_and_suites() {
                 }),
                 "{label}"
             );
-            assert!(
-                (result.estimate.ate - 2.0).abs() < tolerance,
-                "{label}: identified-atom mixture {}",
-                result.estimate.ate
-            );
+            assert!(result.estimate.ate.is_nan(), "{label}: scalar aggregate must be withheld");
+            let structural = result.structural_response.as_ref().expect("structural atoms");
+            assert!(structural.conditional_on_identified.is_none(), "{label}");
+            assert!((structural.unidentified_mass - unidentified).abs() < 1e-9, "{label}");
+            let values: Vec<_> = structural
+                .atoms
+                .iter()
+                .filter_map(|atom| match atom.value {
+                    Some(antecedent_core::ResponseValue::Scalar(value)) => Some(value),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(values.len(), 2, "{label}");
+            for value in values {
+                assert!((value - 2.0).abs() < tolerance, "{label}: atom effect {value}");
+            }
             if bayesian {
                 let posterior = result.posterior.as_ref().expect("Bayesian mixture posterior");
                 assert!((posterior.unidentified_mass - unidentified).abs() < 1e-9, "{label}");
@@ -436,7 +448,7 @@ fn conditional_effect_graph_posterior_known_truth_all_inferences_and_suites() {
                 assert!(!mixed, "{label}");
             } else {
                 assert!(!result.refutations.is_empty(), "{label}: refuters must run");
-                assert!(mixed, "{label}: atom refuters must be mixed by graph mass");
+                assert!(!mixed, "{label}: graph-dependent refuters must remain per-atom");
             }
         }
     }

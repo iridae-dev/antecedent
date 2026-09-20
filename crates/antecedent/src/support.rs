@@ -359,12 +359,11 @@ fn naming_class(matrix: &str) -> Option<GraphClass> {
 ///   `(AverageEffect, GraphClass::Admg)` arm and `dispatch.rs`'s
 ///   `GraphClass::Admg` arm both branch on [`Admg::has_bidirected`] and run the
 ///   *static DAG* path when it is false — the Dag cell's license is the
-///   honest claim. `compile.rs` wires no other query against
-///   `GraphClass::Admg` except `CoDetermined` joint cells: a bare ADMG
-///   `CausalQuery::Response` still hits compile.rs's wildcard because
-///   `dispatch.rs` requires Dag/Cpdag/Pag, or a `CoDetermined` tier closure.
-///   The collapse must not fire for a supplied Admg response. `CoDetermined`
-///   / `Unknown` are classification-only matrix extras ([`matrix_graph_class`]),
+///   honest claim. Bidirected `CausalQuery::Response` now compiles through
+///   `general.id` + `functional.effect`; a DAG-coerced ADMG (no bidirected
+///   edges) still falls through to the Dag response path. The collapse must
+///   not fire for a supplied bidirected Admg response. `CoDetermined` /
+///   `Unknown` are classification-only matrix extras ([`matrix_graph_class`]),
 ///   not [`GraphClass`] variants.
 /// - **Cpdag, under `AverageEffect`**: undirected marks are MEC information.
 ///   Completing a CPDAG to a DAG is a `Dag` cell only when the *caller*
@@ -741,13 +740,44 @@ mod tests {
 
     #[test]
     fn response_curve_graph_posterior_is_licensed_only_for_static_dag_atoms() {
-        for graph in ["Dag", "Cpdag", "Pag", "Admg", "TemporalDag"] {
+        for graph in ["Dag", "Cpdag", "Pag", "Admg", "TemporalDag", "TemporalCpdag", "TemporalPag"]
+        {
             let status =
                 classify(cell("ResponseCurve", graph, "graph_posterior", "Frequentist", "none"));
-            if graph == "Dag" {
-                assert_eq!(status, CellStatus::Licensed);
-            } else {
-                assert_eq!(status, CellStatus::Refused, "{graph}: {status:?}");
+            assert_eq!(status, CellStatus::Licensed, "{graph}: {status:?}");
+        }
+        for inference in ["Frequentist", "Bayesian"] {
+            for graph in ["TemporalDag", "TemporalCpdag", "TemporalPag"] {
+                for validation in ["none", "cheap", "full"] {
+                    let status = classify(cell(
+                        "InterventionResponse",
+                        graph,
+                        "graph_posterior",
+                        inference,
+                        validation,
+                    ));
+                    assert_eq!(
+                        status,
+                        CellStatus::Licensed,
+                        "{graph}/{inference}/{validation}: {status:?}"
+                    );
+                }
+                let status =
+                    classify(cell("ResponseCurve", graph, "graph_posterior", inference, "none"));
+                assert_eq!(status, CellStatus::Licensed, "{graph}/{inference}: {status:?}");
+                for validation in ["cheap", "full"] {
+                    let status = classify(cell(
+                        "ResponseCurve",
+                        graph,
+                        "graph_posterior",
+                        inference,
+                        validation,
+                    ));
+                    assert!(
+                        matches!(status, CellStatus::NotApplicable { .. }),
+                        "{graph}/{inference}/{validation}: {status:?}"
+                    );
+                }
             }
         }
     }
@@ -789,12 +819,20 @@ mod tests {
 
     #[test]
     fn function_valued_and_class_response_cheap_are_not_applicable() {
-        for graph in ["TemporalCpdag", "TemporalPag"] {
+        for graph in ["TemporalCpdag", "TemporalPag", "Admg"] {
             let status = classify(cell("ResponseCurve", graph, "explicit", "Frequentist", "cheap"));
             assert!(matches!(status, CellStatus::NotApplicable { .. }), "{graph}: {status:?}");
         }
         let status =
             classify(cell("ResponseCurve", "Dag", "graph_posterior", "Frequentist", "full"));
+        assert!(matches!(status, CellStatus::NotApplicable { .. }), "{status:?}");
+        let status = classify(cell(
+            "ResponseCurve",
+            "TemporalDag",
+            "graph_posterior",
+            "Frequentist",
+            "full",
+        ));
         assert!(matches!(status, CellStatus::NotApplicable { .. }), "{status:?}");
         let status =
             classify(cell("InterventionResponse", "Dag", "graph_posterior", "Bayesian", "cheap"));
@@ -804,7 +842,7 @@ mod tests {
     #[test]
     fn frequentist_dbn_and_cpdag_mediation_suites_are_licensed() {
         for validation in ["cheap", "full"] {
-            for query in ["PulseEffect", "SustainedEffect"] {
+            for query in ["PulseEffect", "SustainedEffect", "TemporalMediationEffect"] {
                 let c = cell(query, "TemporalDag", "graph_posterior", "Frequentist", validation);
                 assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
             }
@@ -822,24 +860,35 @@ mod tests {
                 cell("InterventionResponse", "Dag", "graph_posterior", "Frequentist", validation);
             assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
         }
-        let status = classify(cell(
-            "PulseEffect",
-            "TemporalCpdag",
-            "graph_posterior",
-            "Frequentist",
-            "none",
-        ));
-        assert_eq!(status, CellStatus::Refused);
-        assert!(
-            refusal_reason(cell(
-                "PulseEffect",
+        for graph in ["TemporalCpdag", "TemporalPag"] {
+            for query in ["PulseEffect", "SustainedEffect"] {
+                for inference in ["Frequentist", "Bayesian"] {
+                    for validation in ["none", "cheap", "full"] {
+                        let c = cell(query, graph, "graph_posterior", inference, validation);
+                        assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            classify(cell(
+                "TemporalMediationEffect",
                 "TemporalCpdag",
                 "graph_posterior",
                 "Frequentist",
-                "none"
-            ))
-            .unwrap()
-            .contains("class-aware combiner")
+                "none",
+            )),
+            CellStatus::Licensed
+        );
+        assert_eq!(
+            classify(cell(
+                "TemporalMediationEffect",
+                "TemporalPag",
+                "graph_posterior",
+                "Frequentist",
+                "none",
+            )),
+            CellStatus::Refused
         );
     }
 
@@ -1119,18 +1168,52 @@ mod tests {
 
     #[test]
     fn closed_intervention_response_off_dag_is_enforced() {
-        let err = refuse_if_not_applicable(cell(
-            "InterventionResponse",
-            "Admg",
-            "explicit",
-            "Frequentist",
-            "none",
-        ))
-        .unwrap_err();
-        assert!(
-            err.to_string().starts_with("refused: Admg response has no functional plug-in"),
-            "{err}"
-        );
+        for inference in ["Frequentist", "Bayesian"] {
+            for structure in ["explicit", "accepted"] {
+                assert_eq!(
+                    classify(cell("InterventionResponse", "Admg", structure, inference, "none")),
+                    CellStatus::Licensed,
+                    "{structure}/{inference}"
+                );
+                refuse_if_not_applicable(cell(
+                    "InterventionResponse",
+                    "Admg",
+                    structure,
+                    inference,
+                    "none",
+                ))
+                .unwrap();
+                assert_eq!(
+                    classify(cell("ResponseCurve", "Admg", structure, inference, "none")),
+                    CellStatus::Licensed,
+                    "curve {structure}/{inference}"
+                );
+            }
+            for validation in ["cheap", "full"] {
+                for structure in ["explicit", "accepted"] {
+                    let open =
+                        cell("InterventionResponse", "Admg", structure, inference, validation);
+                    assert_eq!(
+                        classify(open),
+                        CellStatus::Licensed,
+                        "Admg {structure}/{inference}/{validation}"
+                    );
+                    refuse_if_not_applicable(open).unwrap();
+                }
+            }
+        }
+        for inference in ["Frequentist", "Bayesian"] {
+            for validation in ["none", "cheap", "full"] {
+                let open =
+                    cell("InterventionResponse", "Admg", "graph_posterior", inference, validation);
+                assert_eq!(
+                    classify(open),
+                    CellStatus::Licensed,
+                    "Admg graph_posterior/{inference}/{validation}"
+                );
+                refuse_if_not_applicable(open).unwrap();
+            }
+        }
         for graph in ["Cpdag", "Pag"] {
             for inference in ["Frequentist", "Bayesian"] {
                 assert_eq!(
@@ -1170,6 +1253,27 @@ mod tests {
             assert_eq!(classify(c), CellStatus::Licensed, "{validation}");
             refuse_if_not_applicable(c).unwrap();
         }
+        for graph in ["Cpdag", "Pag"] {
+            for inference in ["Frequentist", "Bayesian"] {
+                for validation in ["none", "cheap", "full"] {
+                    let open =
+                        cell("AverageEffect", graph, "graph_posterior", inference, validation);
+                    assert_eq!(
+                        classify(open),
+                        CellStatus::Licensed,
+                        "{graph}/{inference}/{validation}"
+                    );
+                    refuse_if_not_applicable(open).unwrap();
+                }
+            }
+        }
+        for inference in ["Frequentist", "Bayesian"] {
+            for validation in ["none", "cheap", "full"] {
+                let open = cell("AverageEffect", "Admg", "graph_posterior", inference, validation);
+                assert_eq!(classify(open), CellStatus::Licensed, "Admg/{inference}/{validation}");
+                refuse_if_not_applicable(open).unwrap();
+            }
+        }
         for inference in ["Frequentist", "Bayesian"] {
             for validation in ["none", "cheap", "full"] {
                 let c = cell("ConditionalEffect", "Dag", "graph_posterior", inference, validation);
@@ -1182,19 +1286,17 @@ mod tests {
     #[test]
     fn class_and_mediation_graph_posterior_refusals_are_named() {
         for graph in ["Cpdag", "Pag"] {
-            for validation in ["none", "cheap", "full"] {
-                let err = refuse_if_not_applicable(cell(
-                    "ConditionalEffect",
-                    graph,
-                    "graph_posterior",
-                    "Frequentist",
-                    validation,
-                ))
-                .unwrap_err();
-                assert!(
-                    err.to_string().contains("licensed only for DAG atoms"),
-                    "{graph}/{validation}: {err}"
-                );
+            for inference in ["Frequentist", "Bayesian"] {
+                for validation in ["none", "cheap", "full"] {
+                    let open =
+                        cell("ConditionalEffect", graph, "graph_posterior", inference, validation);
+                    assert_eq!(
+                        classify(open),
+                        CellStatus::Licensed,
+                        "{graph}/{inference}/{validation}"
+                    );
+                    refuse_if_not_applicable(open).unwrap();
+                }
             }
         }
         for validation in ["none", "cheap", "full"] {
@@ -1240,8 +1342,16 @@ mod tests {
         }
         let schema = b.build().unwrap();
         let n = 10;
-        let t = vec![0.0; n];
-        let y = vec![0.0; n];
+        // Non-degenerate columns: Gaussian BIC no longer floors residual
+        // variance, so an all-zero table scores every DAG as non-finite.
+        let t: Vec<f64> =
+            (0..n).map(|i| f64::from(u32::try_from(i % 2).expect("tiny fixture"))).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| {
+                let i = u32::try_from(i).expect("tiny fixture");
+                2.0 * f64::from(i % 2) + 0.1 * f64::from(i)
+            })
+            .collect();
         let cols = vec![
             OwnedColumn::Float64(
                 Float64Column::new(
@@ -1675,11 +1785,13 @@ mod tests {
 
     #[test]
     fn temporal_mediation_dbn_posterior_all_suites_are_licensed() {
-        for v in ["none", "cheap", "full"] {
-            let c =
-                cell("TemporalMediationEffect", "TemporalDag", "graph_posterior", "Bayesian", v);
-            assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
-            assert!(refusal_reason(c).is_none());
+        for inference in ["Bayesian", "Frequentist"] {
+            for v in ["none", "cheap", "full"] {
+                let c =
+                    cell("TemporalMediationEffect", "TemporalDag", "graph_posterior", inference, v);
+                assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
+                assert!(refusal_reason(c).is_none());
+            }
         }
     }
 }

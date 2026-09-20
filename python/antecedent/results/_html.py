@@ -29,7 +29,10 @@ from ._format import fmt_float, fmt_pct, fmt_se
 from ._slots import describe_limitation
 
 if TYPE_CHECKING:
-    from ._views import AnalysisResult, PosteriorView, ValidationView
+    from ..errors import ReviewRequired
+    from ..identify import Identification
+    from ._views import AnalysisResult, IdentificationView, PosteriorView, ValidationView
+    from .response import CausalResponseView
 
 __all__: list[str] = []
 
@@ -318,13 +321,161 @@ def _posterior_repr_html(self: PosteriorView) -> str:
         return f"<pre>{_esc(repr(self))}</pre>"
 
 
+def _card(body: str) -> str:
+    return f'{_STYLE}<div class="antecedent-ar-card">{body}</div>'
+
+
+def _identification_body(
+    status: str, method: str, adjustment_set: list[str], statement: str
+) -> str:
+    banner_class = _BANNER_CLASS[verdict_tone(status)]
+    chips = _adjustment_chips_html(adjustment_set)
+    return (
+        f'<div class="antecedent-ar-banner {banner_class}">'
+        f"<span>{_esc(describe_status(status).capitalize())}</span>"
+        f'<span class="antecedent-ar-banner-method">via {_esc(method)}</span>'
+        f"</div>"
+        f'<div class="antecedent-ar-row">{_esc(statement)}</div>'
+        f'<div class="antecedent-ar-row">'
+        f'<span class="antecedent-ar-label">Adjustment set</span>{chips}'
+        f"</div>"
+    )
+
+
+def _identification_repr_html(self: Identification) -> str:
+    try:
+        return _card(
+            _identification_body(
+                self.status, self.method, list(self.adjustment_set), self.statement
+            )
+        )
+    except Exception:  # noqa: BLE001 — never break the notebook on display
+        return f"<pre>{_esc(repr(self))}</pre>"
+
+
+def _identification_view_repr_html(self: IdentificationView) -> str:
+    try:
+        from .._claim import identification_statement
+
+        statement = identification_statement(
+            "this query", self.status, self.method, self.adjustment_set
+        )
+        return _card(
+            _identification_body(self.status, self.method, list(self.adjustment_set), statement)
+        )
+    except Exception:  # noqa: BLE001 — never break the notebook on display
+        return f"<pre>{_esc(repr(self))}</pre>"
+
+
+def _response_repr_html(self: CausalResponseView) -> str:
+    try:
+        ident = self.identification
+        banner_class = _BANNER_CLASS[verdict_tone(ident.status)]
+        limitation = self.rendering_limitation()
+        mass = None if self.envelope is None else self.envelope.unidentified_mass
+        callout = _unidentified_callout_html(mass)
+        if self.response is not None:
+            value = f"{len(self.response)} response points"
+        elif isinstance(self.estimate, (float, int)):
+            value = fmt_float(float(self.estimate))
+        else:
+            value = self.answer.kind
+        if limitation is not None:
+            value = (
+                f'<span class="antecedent-ar-muted">'
+                f"{_esc(self.answer.kind)}: {_esc(describe_limitation(limitation))}"
+                f"</span>"
+            )
+        chips = _adjustment_chips_html(list(ident.adjustment_set))
+        body = (
+            f'<div class="antecedent-ar-banner {banner_class}">'
+            f"<span>{_esc(describe_status(ident.status).capitalize())}</span>"
+            f'<span class="antecedent-ar-banner-method">via {_esc(ident.method)}</span>'
+            f"</div>"
+            f"{callout}"
+            f'<div class="antecedent-ar-row">'
+            f'<span class="antecedent-ar-label">Claim</span>'
+            f'<span class="antecedent-ar-value">{_esc(self.claim())}</span>'
+            f"</div>"
+            f'<div class="antecedent-ar-row">'
+            f'<span class="antecedent-ar-label">Response</span>'
+            f'<span class="antecedent-ar-value">{value}</span>'
+            f"</div>"
+            f'<div class="antecedent-ar-row">'
+            f'<span class="antecedent-ar-label">Adjustment set</span>{chips}'
+            f"</div>"
+            '<div class="antecedent-ar-row"><span class="antecedent-ar-label">Calibration</span>'
+            f"<span>{_esc(self.calibration.describe())}</span></div>"
+        )
+        return _card(body)
+    except Exception:  # noqa: BLE001 — never break the notebook on display
+        return f"<pre>{_esc(repr(self))}</pre>"
+
+
+def _graph_repr_html(self: Any) -> str:
+    try:
+        dot = self.to_dot() if hasattr(self, "to_dot") else repr(self)
+        nodes = list(self.nodes()) if hasattr(self, "nodes") else []
+        title = type(self).__name__
+        if nodes:
+            title = f"{title} ({len(nodes)} nodes)"
+        return _card(
+            f'<div class="antecedent-ar-row"><strong>{_esc(title)}</strong></div>'
+            f"<pre>{_esc(dot)}</pre>"
+        )
+    except Exception:  # noqa: BLE001 — never break the notebook on display
+        return f"<pre>{_esc(repr(self))}</pre>"
+
+
+def _review_required_repr_html(self: ReviewRequired) -> str:
+    try:
+        from ..errors import next_action, pending_edges
+
+        edges = pending_edges(self)
+        chips = (
+            "".join(
+                f'<span class="antecedent-ar-chip">{_esc(edge.source)} → {_esc(edge.target)}</span>'
+                for edge in edges
+            )
+            or '<span class="antecedent-ar-muted">(none)</span>'
+        )
+        nxt = getattr(self, "report", None)
+        nxt_text = nxt.next if nxt is not None and getattr(nxt, "next", None) else next_action(self)
+        hint = getattr(self, "hint", None) or ""
+        body = (
+            '<div class="antecedent-ar-banner ar-caution"><span>Review required</span></div>'
+            f'<div class="antecedent-ar-row">{_esc(self)}</div>'
+            f'<div class="antecedent-ar-row">'
+            f'<span class="antecedent-ar-label">Pending</span>'
+            f'<span class="antecedent-ar-chips">{chips}</span>'
+            f"</div>"
+            f'<div class="antecedent-ar-row">'
+            f'<span class="antecedent-ar-label">Next</span>'
+            f"<span>{_esc(nxt_text)}</span>"
+            f"</div>"
+        )
+        if hint:
+            body += f'<div class="antecedent-ar-callout">{_esc(hint)}</div>'
+        return _card(body)
+    except Exception:  # noqa: BLE001 — never break the notebook on display
+        return f"<pre>{_esc(repr(self))}</pre>"
+
+
 def _attach() -> None:
-    """Attach ``_repr_html_`` to the view classes; called once on import."""
-    from ._views import AnalysisResult, PosteriorView, ValidationView
+    """Attach ``_repr_html_`` to the funnel objects; called once on import."""
+    from ..errors import ReviewRequired
+    from ..graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
+    from ._views import AnalysisResult, IdentificationView, PosteriorView, ValidationView
+    from .response import CausalResponseView
 
     AnalysisResult._repr_html_ = _analysis_result_repr_html  # type: ignore[attr-defined]
     ValidationView._repr_html_ = _validation_repr_html  # type: ignore[attr-defined]
     PosteriorView._repr_html_ = _posterior_repr_html  # type: ignore[attr-defined]
+    IdentificationView._repr_html_ = _identification_view_repr_html  # type: ignore[attr-defined]
+    CausalResponseView._repr_html_ = _response_repr_html  # type: ignore[attr-defined]
+    ReviewRequired._repr_html_ = _review_required_repr_html  # type: ignore[attr-defined]
+    for graph_cls in (Dag, Cpdag, Pag, Admg, TemporalDag, TemporalCpdag, TemporalPag):
+        graph_cls._repr_html_ = _graph_repr_html  # type: ignore[union-attr]
 
 
 _attach()

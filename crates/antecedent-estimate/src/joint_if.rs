@@ -68,37 +68,49 @@ pub fn weighted_mean(scores: &[f64], weights: Option<&[f64]>) -> Result<f64, Est
             if w.len() != scores.len() {
                 return Err(EstimationError::data_msg("weight length does not match scores"));
             }
-            let mut num = 0.0;
-            let mut den = 0.0;
-            for (&phi, &wi) in scores.iter().zip(w) {
-                if !wi.is_finite() || wi < 0.0 {
-                    return Err(EstimationError::data_msg(
-                        "target weights must be finite and non-negative",
-                    ));
-                }
-                num += wi * phi;
-                den += wi;
+            let scale = positive_weight_scale(w)?;
+            let den: f64 = w.iter().map(|wi| wi / scale).sum();
+            let mean: f64 = scores.iter().zip(w).map(|(phi, wi)| ((wi / scale) / den) * phi).sum();
+            if !mean.is_finite() {
+                return Err(EstimationError::data_msg("score mean overflowed"));
             }
-            if !den.is_finite() || den <= 0.0 || !num.is_finite() {
-                return Err(EstimationError::data_msg("target weights have no mass"));
-            }
-            Ok(num / den)
+            Ok(mean)
         }
     }
 }
 
-/// Kish effective sample size of non-negative weights.
+/// Kish effective sample size of non-negative relative weights.
+/// Zero mass returns zero; negative or non-finite weights return NaN.
 #[must_use]
 pub fn kish_n_eff(weights: &[f64]) -> f64 {
+    if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+        return f64::NAN;
+    }
+    let scale = weights.iter().copied().fold(0.0_f64, f64::max);
+    if scale == 0.0 {
+        return 0.0;
+    }
     let mut sum = 0.0;
     let mut sum_sq = 0.0;
     for &w in weights {
-        if w > 0.0 && w.is_finite() {
-            sum += w;
-            sum_sq += w * w;
-        }
+        let relative = w / scale;
+        sum += relative;
+        sum_sq += relative * relative;
     }
-    if sum_sq <= 0.0 { 0.0 } else { (sum * sum) / sum_sq }
+    (sum / sum_sq) * sum
+}
+
+/// Rescale relative weights before sums or products so their arbitrary units
+/// cannot overflow or underflow the estimator or its uncertainty.
+fn positive_weight_scale(weights: &[f64]) -> Result<f64, EstimationError> {
+    if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+        return Err(EstimationError::data_msg("weights must be finite and non-negative"));
+    }
+    let scale = weights.iter().copied().fold(0.0_f64, f64::max);
+    if scale == 0.0 {
+        return Err(EstimationError::data_msg("weights have no positive mass"));
+    }
+    Ok(scale)
 }
 
 /// Joint covariance of `k` score columns that share rows.
@@ -186,18 +198,17 @@ pub(crate) fn joint_influence_covariance_with_means(
             }
         }
         Some(w) => {
-            let w_sum: f64 = w.iter().sum();
-            if w_sum <= 0.0 {
-                return Err(EstimationError::data_msg("target weights have no mass"));
-            }
+            let scale = positive_weight_scale(w)?;
+            let w_sum: f64 = w.iter().map(|wi| wi / scale).sum();
             for j in 0..dim {
                 for i in 0..=j {
                     let mut acc = 0.0;
                     for r in 0..n {
-                        acc +=
-                            (w[r] * (scores[i][r] - means[i])) * (w[r] * (scores[j][r] - means[j]));
+                        let normalized = (w[r] / scale) / w_sum;
+                        acc += (normalized * (scores[i][r] - means[i]))
+                            * (normalized * (scores[j][r] - means[j]));
                     }
-                    let cov = (nf / (nf - 1.0)) * acc / (w_sum * w_sum);
+                    let cov = (nf / (nf - 1.0)) * acc;
                     values[j * dim + i] = cov;
                     values[i * dim + j] = cov;
                 }
@@ -228,6 +239,7 @@ pub fn frozen_weight_mixture_scores(
         return Err(EstimationError::data_msg("mixture scores and weights must align"));
     }
     let n = atom_scores[0].len();
+    let weight_scale = positive_weight_scale(atom_weights)?;
     let mut mass = 0.0;
     for (scores, &w) in atom_scores.iter().zip(atom_weights) {
         if scores.len() != n {
@@ -238,7 +250,10 @@ pub fn frozen_weight_mixture_scores(
                 "mixture weights must be finite and non-negative",
             ));
         }
-        mass += w;
+        if w > 0.0 && scores.iter().any(|v| !v.is_finite()) {
+            return Err(EstimationError::data_msg("contributing mixture scores must be finite"));
+        }
+        mass += w / weight_scale;
     }
     if mass <= 0.0 {
         return Err(EstimationError::data_msg("mixture has no contributing mass"));
@@ -248,10 +263,13 @@ pub fn frozen_weight_mixture_scores(
         if w == 0.0 {
             continue;
         }
-        let scale = w / mass;
+        let scale = (w / weight_scale) / mass;
         for i in 0..n {
             out[i] += scale * scores[i];
         }
+    }
+    if out.iter().any(|v| !v.is_finite()) {
+        return Err(EstimationError::data_msg("mixture scores overflowed"));
     }
     Ok(out)
 }
@@ -435,6 +453,32 @@ fn cholesky_corr(corr: &[f64], k: usize) -> Result<Vec<f64>, EstimationError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn review_relative_weights_preserve_mean_covariance_and_effective_size() {
+        let scores = [1.0, 2.0, 4.0, 8.0];
+        let weights = [1.0, 2.0, 3.0, 4.0];
+        let expected_mean = weighted_mean(&scores, Some(&weights)).unwrap();
+        let expected_cov = joint_influence_covariance(&[&scores], Some(&weights)).unwrap();
+        let expected_n = 100.0 / 30.0;
+        assert!((expected_mean - 4.9).abs() < 1e-12);
+        assert!((expected_cov.get(0, 0) - 2099.0 / 750.0).abs() < 1e-12);
+        for scale in [1e-200, 1.0, 1e200] {
+            let scaled = weights.map(|w| w * scale);
+            let mean = weighted_mean(&scores, Some(&scaled)).unwrap();
+            let cov = joint_influence_covariance(&[&scores], Some(&scaled)).unwrap();
+            assert!((mean - expected_mean).abs() < 1e-12);
+            assert!((cov.get(0, 0) - expected_cov.get(0, 0)).abs() < 1e-12);
+            assert!((kish_n_eff(&scaled) - expected_n).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn review_mixture_does_not_turn_overflowing_weight_sum_into_zero_scores() {
+        let mixed =
+            frozen_weight_mixture_scores(&[&[1.0, 3.0], &[5.0, 7.0]], &[1e308, 1e308]).unwrap();
+        assert_eq!(mixed, vec![3.0, 5.0]);
+    }
 
     #[test]
     fn constant_weights_preserve_covariance_and_invalid_inputs_refuse() {

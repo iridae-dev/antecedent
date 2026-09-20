@@ -750,7 +750,6 @@ fn conditional_graph_posterior_retains_unidentified_mass() {
     ))
     .unwrap();
     let unidentified = pin["static_average_effect"]["expected_unidentified_mass"].as_f64().unwrap();
-    let cate_tol = pin["static_average_effect"]["effect_abs_tolerance"].as_f64().unwrap();
     assert!(
         bayes.posterior.as_ref().is_some_and(|p| (p.unidentified_mass - unidentified).abs() < 1e-9),
         "bayes mass {:?}",
@@ -766,13 +765,20 @@ fn conditional_graph_posterior_retains_unidentified_mass() {
         })),
         "Bayesian envelope must record that E[τ] is conditional on identification"
     );
-    // Both identified CATE atoms recover the structural slope 2 on Y = 2T + 2Z.
-    // Published moments are the identified-atom BMA, not a 100% mixture and not
-    // the ATE number 2.625 from the same fixture.
+    // Distinct adjustment sets are GraphDependentAtoms: withhold the scalar,
+    // keep unidentified mass, publish the identified set. Both identified CATE
+    // atoms recover the structural slope 2 on Y = 2T + 2Z.
     assert!(
-        (bayes.estimate.ate - 2.0).abs() < cate_tol,
-        "Bayesian CATE mixture mean must be the identified-atom BMA, got {}",
+        bayes.estimate.ate.is_nan(),
+        "disagreeing CATE atoms must withhold estimate.ate, got {}",
         bayes.estimate.ate
+    );
+    assert!(
+        bayes.diagnostics.iter().any(|d| {
+            d.code.as_ref() == "estimate.graph_posterior.structural_aggregation"
+                && d.message.contains("graph_dependent_atoms")
+        }),
+        "Bayesian CATE mixture must disclose GraphDependentAtoms"
     );
     let bayes_post = bayes.posterior.as_ref().unwrap();
     assert_ne!(

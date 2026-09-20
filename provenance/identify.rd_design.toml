@@ -1,0 +1,24 @@
+feature_id = "identify.rd_design"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Identification and Estimation of Treatment Effects with a Regression-Discontinuity Design", doi = "10.1111/1468-0262.00183", sections = ["sharp RD identification: continuity of potential-outcome means at the cutoff and deterministic assignment"] },
+]
+
+implementation_deviations = [
+ "Does not search a causal graph. Identification is the declared sharp-RD design (running variable, cutoff, bandwidth) packaged as an RdSharp estimand.",
+ "Records continuity and sharp-assignment as algorithm-default assumptions; it does not test density continuity, manipulation, or fuzzy compliance.",
+ "Requires an AverageEffect query with Set (or Soft-constant / Shift reducible to Set) interventions. Fuzzy RD is unsupported.",
+ "Bandwidth is a caller-supplied identification parameter, not a data-driven selector.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-identify/src/rd.rs",
+ "conformance/estimate/rd_sharp",
+]

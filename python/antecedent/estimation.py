@@ -62,8 +62,10 @@ from .inference import (
 from .interference import InterferenceEstimate, InterferenceQuery, RandomizationContrast
 from .population import coerce_target_population
 from .query import (
+    AnomalyAttribution,
     AverageDerivative,
     AverageEffect,
+    ChangeAttribution,
     ConditionalEffect,
     Counterfactual,
     DirectionalDerivative,
@@ -88,6 +90,7 @@ from .results import (
     EffectEnvelope,
     EstimateView,
     IdentificationView,
+    InspectionReport,
     MediationView,
     PerformanceView,
     PhysicalPlanView,
@@ -526,7 +529,8 @@ def _wrap_ate(
             slices=slices,
             joint_posterior=bool(getattr(raw, "mediation_joint_posterior", False)),
         )
-    return AnalysisResult(
+    # ResultModel accepts private retained handles outside its public Pydantic fields.
+    return AnalysisResult(  # type: ignore[call-arg]
         certificate=json.loads(certificate_json) if certificate_json else None,
         query=query if query is not None else getattr(prepared, "_query", None),
         identification=IdentificationView(
@@ -635,6 +639,8 @@ def _wrap_ate(
         ),
         transport_overlap=_transport_overlap_from_raw(raw),
         interference=_interference_from_raw(raw),
+        anomaly=getattr(raw, "anomaly", None),
+        change_attribution=getattr(raw, "change_attribution", None),
         _raw=raw,
         _prepared=prepared,
         _execution=execution,
@@ -643,13 +649,6 @@ def _wrap_ate(
         claim_id=None if slots is None else slots.claim_id,
         data_snapshot_id=None if slots is None else slots.data_snapshot_id,
     )
-
-
-ADMG_DISTRIBUTION_RUST_ONLY = (
-    "refused: ADMG InterventionalDistribution (unconditional finite-discrete tables, "
-    "validation none) is licensed in the Rust Study API only; the Python "
-    "distribution entry points take DAG edges and cannot carry bidirected edges"
-)
 
 
 def _static_edges(
@@ -664,8 +663,9 @@ def _static_edges(
             f"this query reads a fully oriented static Dag; got {type(graph).__name__}"
         )
     if isinstance(graph, Cpdag):
-        # PathSpecific / Interventional need a fully oriented DAG; incomplete
-        # CPDAGs fail closed with a clear undirected-count message.
+        # Compatibility normalization for fixed-DAG query families: a fully
+        # oriented CPDAG has a unique DAG and reports that Dag coordinate.
+        # Incomplete CPDAGs refuse; this does not license class execution.
         return cpdag_oriented_edges(graph, require_oriented=True)
     return [(str(a), str(b)) for a, b in graph]
 
@@ -679,10 +679,6 @@ _RESPONSE_FAMILY = (
     SemiElasticity,
     DirectionalDerivative,
     ResponseJacobian,
-)
-_ADMG_RESPONSE_REFUSED = (
-    "refused: Admg response has no functional plug-in; licensed general-ID "
-    "ATE does not estimate a curve."
 )
 #: Nuisance and interval options every continuous-response estimator reads.
 _RESPONSE_NUISANCE_KEYS = frozenset(
@@ -712,18 +708,11 @@ _RESPONSE_ESTIMATORS = {
 
 
 def _refuse_admg_response(graph: Any, query: Any) -> None:
-    if isinstance(graph, Admg) and isinstance(query, _RESPONSE_FAMILY):
-        raise CausalUnsupportedError(_ADMG_RESPONSE_REFUSED)
     if isinstance(graph, Admg) and isinstance(query, ConditionalEffect):
         raise CausalUnsupportedError(
             "refused: ConditionalEffect on Admg has no compile arm; "
             "Dag, Cpdag, and Pag are licensed."
         )
-
-
-def _check_response_threads(threads: int) -> None:
-    if threads != 1:
-        raise ValueError("response queries currently require threads=1")
 
 
 def _check_response_strategy(
@@ -876,7 +865,7 @@ def analyze_many(
     refute: bool | Literal["full", "placebo", "none", "cheap"] | None = None,
     seed: int = 1,
     bootstrap: int | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     latency: Literal["interactive", "standard", "report"] | None = None,
     candidate_screen: CandidateScreen | None = None,
 ) -> list[AnalysisResult]:
@@ -1065,7 +1054,7 @@ class PreparedBatch:
         refute: bool | Literal["full", "placebo", "none", "cheap"] | None = False,
         seed: int = 1,
         bootstrap: int | None = 0,
-        threads: int = 1,
+        threads: int | None = None,
         latency: Literal["interactive", "standard", "report"] | None = None,
         candidate_screen: CandidateScreen | None = None,
     ) -> PreparedBatch:
@@ -1128,7 +1117,7 @@ class PreparedBatch:
         refute: bool | Literal["full", "placebo", "none", "cheap"] | None = False,
         seed: int = 1,
         bootstrap: int | None = 0,
-        threads: int = 1,
+        threads: int | None = None,
         latency: Literal["interactive", "standard", "report"] | None = None,
         candidate_screen: CandidateScreen | None = None,
         family_contrast: Literal["cell_minus_control", "interaction"] | None = "cell_minus_control",
@@ -1190,7 +1179,7 @@ class PreparedBatch:
         data: Mapping[str, Any] | Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> list[AnalysisResult]:
         names, columns = ingest_columns(data)
         raws = self._native.estimate(names, columns, seed=seed, threads=threads)
@@ -1313,7 +1302,9 @@ def _wrap_prepared_response(
     from typing import cast
 
     response = (
-        ResponseView(raw.treatments, raw.outcomes, raw.points, raw.values)
+        ResponseView(
+            treatments=raw.treatments, outcomes=raw.outcomes, points=raw.points, values=raw.values
+        )
         if raw.points and raw.values
         else None
     )
@@ -1328,13 +1319,13 @@ def _wrap_prepared_response(
         method = "temporal.backdoor.unfolded"
         identify_op = "identify.temporal_backdoor"
         validation = ResponseValidationView(
-            (
+            checks=(
                 ResponseValidationCheck(
-                    "refute.temporal_response.skipped",
-                    "skipped",
-                    None,
-                    None,
-                    "scalar ATE refuters are not applicable to a function-valued temporal response",
+                    id="refute.temporal_response.skipped",
+                    status="skipped",
+                    statistic=None,
+                    threshold=None,
+                    detail="scalar ATE refuters are not applicable to a function-valued temporal response",
                 ),
             )
         )
@@ -1348,18 +1339,18 @@ def _wrap_prepared_response(
         if raw.lower is None or raw.upper is None:
             raise RuntimeError("native structural response omitted its identified envelope")
         envelope = ResponseEnvelopeView(
-            raw.treatments,
-            raw.outcomes,
-            raw.points,
-            raw.lower,
-            raw.upper,
-            float(raw.identified_mass),
-            float(raw.unidentified_mass),
-            int(raw.completion_count),
-            int(raw.truncated_completions),
-            bool(raw.enumeration_capped),
-            cast(Literal["full_class", "examined_completions"], raw.mass_scope),
-            cast(
+            treatments=raw.treatments,
+            outcomes=raw.outcomes,
+            points=raw.points,
+            lower=raw.lower,
+            upper=raw.upper,
+            identified_mass=float(raw.identified_mass),
+            unidentified_mass=float(raw.unidentified_mass),
+            completion_count=int(raw.completion_count),
+            truncated_completions=int(raw.truncated_completions),
+            enumeration_capped=bool(raw.enumeration_capped),
+            mass_scope=cast(Literal["full_class", "examined_completions"], raw.mass_scope),
+            weight_basis=cast(
                 Literal[
                     "posterior_probability",
                     "completion_enumeration",
@@ -1367,20 +1358,21 @@ def _wrap_prepared_response(
                 ],
                 raw.weight_basis,
             ),
-            tuple(raw.atom_keys),
-            tuple(raw.atom_weights),
-            tuple(raw.atom_statuses),
-            tuple(tuple(values) for values in raw.atom_values),
-            float(getattr(raw, "unevaluable_mass", None) or 0.0),
-            float(getattr(raw, "subsampled_out_mass", None) or 0.0),
+            atom_keys=tuple(raw.atom_keys),
+            atom_weights=tuple(raw.atom_weights),
+            atom_statuses=tuple(raw.atom_statuses),
+            atom_values=tuple(tuple(values) for values in raw.atom_values),
+            unevaluable_mass=float(getattr(raw, "unevaluable_mass", None) or 0.0),
+            subsampled_out_mass=float(getattr(raw, "subsampled_out_mass", None) or 0.0),
         )
-    return CausalResponseView(
+    # ResultModel accepts private retained handles outside its public Pydantic fields.
+    return CausalResponseView(  # type: ignore[call-arg]
         certificate=json.loads(certificate_json) if certificate_json else None,
         estimand=query,
         response=response,
         estimate=raw.scalar if raw.scalar is not None else raw.matrix,
         uncertainty=ResponseUncertainty(
-            cast(UncertaintyKind, raw.uncertainty_kind),
+            kind=cast(UncertaintyKind, raw.uncertainty_kind),
             lower=raw.lower,
             upper=raw.upper,
             level=raw.level,
@@ -1389,10 +1381,10 @@ def _wrap_prepared_response(
             artifact_id=raw.artifact_id,
         ),
         support=SupportReport(
-            cast(SupportStatus, raw.support_status),
-            _response_support_bounds(raw),
-            [
-                SupportDiagnostic(identifier, values, detail)
+            status=cast(SupportStatus, raw.support_status),
+            query_region=_response_support_bounds(raw),
+            diagnostics=[
+                SupportDiagnostic(id=identifier, values=values, detail=detail)
                 for identifier, values, detail in zip(
                     raw.diagnostic_ids,
                     raw.diagnostic_values,
@@ -1400,8 +1392,8 @@ def _wrap_prepared_response(
                     strict=True,
                 )
             ],
-            raw.warnings,
-            _support_point_status(raw),
+            warnings=raw.warnings,
+            point_status=_support_point_status(raw),
         ),
         identification=IdentificationView(
             status=raw.identification,
@@ -1460,6 +1452,8 @@ _PreparedQuery = (
     | TemporalMediationEffect
     | TransportQuery
     | InterferenceQuery
+    | AnomalyAttribution
+    | ChangeAttribution
 )
 
 
@@ -1621,7 +1615,7 @@ def _accept_live_discovery(
     accept_discovered: bool,
     regimes: Sequence[int] | None,
     seed: int,
-    threads: int,
+    threads: int | None,
     controls: _Controls,
 ) -> Any:
     """Run a live discovery config once and accept it through its review gate.
@@ -1677,7 +1671,7 @@ class _PrepareRoute:
     estimator_config: Mapping[str, Any] | None
     refute: str | bool | None
     bootstrap: int | None
-    threads: int
+    threads: int | None
     seed: int
     class_prior: ClassPrior | None
     max_completions: int | None
@@ -1735,6 +1729,8 @@ class _PrepareRoute:
             return self._transport()
         if isinstance(query, InterferenceQuery):
             return self._interference()
+        if isinstance(query, (AnomalyAttribution, ChangeAttribution)):
+            return self._attribution()
         if not isinstance(query, AverageEffect):
             self._refuse_rd(f"{type(query).__name__}")
         if isinstance(query, _RESPONSE_FAMILY):
@@ -1748,8 +1744,22 @@ class _PrepareRoute:
             return self._average()
         if isinstance(query, ConditionalEffect):
             return self._conditional()
-        if isinstance(query, InterventionalDistribution) and isinstance(self.graph, Admg):
-            raise CausalUnsupportedError(ADMG_DISTRIBUTION_RUST_ONLY)
+        if isinstance(query, InterventionalDistribution):
+            self._refuse_estimator_config("InterventionalDistribution")
+            self._refuse_ids("InterventionalDistribution (general.id + functional.distribution)")
+            admg = isinstance(self.graph, Admg)
+            native = _NativePreparedAnalysis.prepare_distribution(
+                self.names,
+                self.columns,
+                [] if admg else _static_edges(self.graph),
+                query.outcome,
+                dict(query.interventions),
+                graph=self.graph if admg else None,
+                conditioning=list(query.conditioning) or None,
+                accepted=self.accepted,
+                **self._common(),
+            )
+            return native, "average"
         edges = _static_edges(self.graph)
         if isinstance(query, (MediationEffect, Counterfactual)):
             return self._static_kind(edges)
@@ -1767,20 +1777,6 @@ class _PrepareRoute:
                 path_nodes=list(query.path_nodes) if query.path_nodes is not None else None,
                 max_paths=query.max_paths,
                 max_len=query.max_len,
-                accepted=self.accepted,
-                **self._common(),
-            )
-            return native, "average"
-        if isinstance(query, InterventionalDistribution):
-            self._refuse_estimator_config("InterventionalDistribution")
-            self._refuse_ids("InterventionalDistribution (general.id + functional.distribution)")
-            native = _NativePreparedAnalysis.prepare_distribution(
-                self.names,
-                self.columns,
-                edges,
-                query.outcome,
-                dict(query.interventions),
-                conditioning=list(query.conditioning) or None,
                 accepted=self.accepted,
                 **self._common(),
             )
@@ -1909,12 +1905,69 @@ class _PrepareRoute:
                 **shared,
             )
             return native, "average"
+        if (
+            temporal
+            and isinstance(query, (ResponseCurve, InterventionResponse))
+            and query.is_temporal
+        ):
+            if isinstance(query, ResponseCurve) and self._explicit_refute():
+                raise CausalUnsupportedError(
+                    "not_applicable: graph-posterior ResponseCurve cheap/full do not denote; "
+                    "InterventionResponse cheap/full mix Pulse-native atom reports.",
+                    reason_code="refutation_not_applicable",
+                )
+            from .intervention import encode_temporal_steps
+
+            if isinstance(query, InterventionResponse):
+                supplied = query.intervention
+                specs = (
+                    list(supplied)
+                    if isinstance(supplied, Sequence) and not isinstance(supplied, (str, bytes))
+                    else [supplied]
+                )
+                treatments = []
+                kinds = []
+                parameters = []
+                for spec in specs:
+                    for variable, kind, params in encode_temporal_steps(spec):
+                        treatments.append(variable)
+                        kinds.append(kind)
+                        parameters.append(params)
+                grid = None
+                response_kind: Literal["response_curve", "intervention_response"] = (
+                    "intervention_response"
+                )
+                outcomes = [query.outcome]
+            else:
+                treatments, kinds, parameters = [query.treatment], None, None  # type: ignore[assignment]
+                grid = list(query.grid)
+                response_kind = "response_curve"
+                outcomes = [query.outcome]
+            native = _NativePreparedAnalysis.prepare_dbn_posterior_response(
+                self.names,
+                self.columns,
+                query.kind,
+                treatments,
+                outcomes,
+                grid=grid,
+                intervention_kinds=kinds,
+                intervention_parameters=parameters,
+                horizons=list(query.horizons or ()),
+                policy=query.policy,
+                treatment_lag=query.treatment_lag,
+                max_history_lag=query.max_history_lag,
+                **dbn,
+                **shared,
+            )
+            return native, response_kind
         raise CausalUnsupportedError(
             "graph-posterior structures are refused: a path, distribution, or mediation "
             "mixture is not a single estimand across posterior atoms. "
             "Licensed graph-posterior cells are AverageEffect / "
-            "ConditionalEffect / static ResponseCurve / one-coordinate InterventionResponse on "
-            "DAG atoms and Pulse / Sustained / TemporalMediationEffect on DBN atoms",
+            "ConditionalEffect / ResponseCurve / one-coordinate InterventionResponse on "
+            "DAG, CPDAG, PAG, and ADMG atoms and Pulse / Sustained / TemporalMediationEffect / "
+            "temporal ResponseCurve / one-coordinate InterventionResponse on DBN and "
+            "temporal-class atoms",
             reason_code="option_not_applicable",
         )
 
@@ -2291,6 +2344,58 @@ class _PrepareRoute:
         )
         return native, "average"
 
+    def _attribution(self) -> tuple[Any, Any]:
+        query = self.query
+        route = type(query).__name__
+        self._refuse_rd(route)
+        self._refuse_ids(route)
+        self._refuse_estimator_config(route)
+        if self.bootstrap:
+            raise CausalUnsupportedError(
+                f"{route} sampling uncertainty is unavailable",
+                reason_code="option_not_applicable",
+            )
+        if self._explicit_refute():
+            raise CausalUnsupportedError(
+                f"{route} has no refuter suite: GCM attribution scores are not "
+                "an average treatment effect, and the average-effect refuters do not apply",
+                reason_code="option_not_applicable",
+            )
+        if isinstance(self.graph, Dag):
+            edges = [(str(a), str(b)) for a, b in self.graph.edges()]
+        elif isinstance(self.graph, Sequence) and not isinstance(self.graph, (str, bytes)):
+            items = list(self.graph)
+            if items and len(items[0]) != 2:
+                raise CausalTypeError(f"{route} requires graph=Dag(...) or an edge list")
+            edges = [(str(a), str(b)) for a, b in items]
+        else:
+            raise CausalTypeError(f"{route} requires graph=Dag(...) or an edge list")
+        if isinstance(query, AnomalyAttribution):
+            native = _NativePreparedAnalysis.prepare_anomaly_attribution(
+                self.names,
+                self.columns,
+                edges,
+                list(query.targets),
+                int(query.max_units),
+                accepted=self.accepted,
+                **self._common(),
+            )
+        else:
+            query = cast(ChangeAttribution, query)
+            native = _NativePreparedAnalysis.prepare_change_attribution(
+                self.names,
+                self.columns,
+                edges,
+                query.outcome,
+                int(query.baseline_start),
+                int(query.baseline_end),
+                int(query.comparison_start),
+                int(query.comparison_end),
+                accepted=self.accepted,
+                **self._common(),
+            )
+        return native, "average"
+
     # -- static responses -------------------------------------------------------
     def _refuse_response_bootstrap(self) -> None:
         """Only Frequentist temporal surfaces resample; elsewhere refuse the request."""
@@ -2307,7 +2412,11 @@ class _PrepareRoute:
         query, graph = self.query, self.graph
         # A scalar Dag InterventionResponse has an ATE-shaped state, so the
         # refuter suite denotes on it; a curve or a derivative is function
-        # valued and cheap/full name nothing there.
+        # valued and cheap/full name nothing there. Admg InterventionResponse
+        # cheap/full is the plugin-level suite on the identified mean.
+        if isinstance(graph, Admg) and isinstance(query, (ResponseCurve, InterventionResponse)):
+            response_options = _parse_response_estimator_config(query, self.estimator_config)
+            return self._admg_response(response_options)
         scalar_dag_response = isinstance(query, InterventionResponse) and isinstance(graph, Dag)
         if self._explicit_refute() and scalar_dag_response:
             # The response executor has no validation stage; the study runs the
@@ -2329,7 +2438,6 @@ class _PrepareRoute:
             return self._class_response(response_options)
         if isinstance(query, InterventionResponse) and isinstance(graph, TieredBackground):
             return self._tiered_response()
-        _check_response_threads(self.threads)
         _check_response_strategy(
             query,
             graph=graph,
@@ -2343,6 +2451,53 @@ class _PrepareRoute:
         if isinstance(query, InterventionResponse):
             return self._intervention_response(edges)
         return self._derivative(edges, response_options)
+
+    def _admg_response(self, response_options: Mapping[str, Any]) -> tuple[Any, Any]:
+        query, graph = self.query, self.graph
+        if self.identifier not in (None, "general.id"):
+            raise CausalUnsupportedError("Admg response requires identifier='general.id'")
+        if self.estimator not in (None, "functional.effect"):
+            raise CausalUnsupportedError(
+                f"Admg response requires estimator='functional.effect'; got {self.estimator!r}"
+            )
+        if isinstance(query, ResponseCurve):
+            native = _NativePreparedAnalysis.prepare_class_response(
+                self.names,
+                self.columns,
+                graph,
+                query.kind,
+                [query.treatment],
+                [query.outcome],
+                grid=list(query.grid),
+                identifier=self.identifier or "general.id",
+                estimator=self.estimator or "functional.effect",
+                response_options=_response_options_wire(response_options, self.seed)
+                if response_options
+                else None,
+                accepted=self.accepted,
+                **self._common(),
+            )
+            return native, "response_curve"
+        treatments, kinds, parameters = _encode_interventions(
+            query.intervention,
+            route="functional.effect",
+            soft_hint="require a structural/temporal model",
+        )
+        native = _NativePreparedAnalysis.prepare_class_response(
+            self.names,
+            self.columns,
+            graph,
+            "intervention_response",
+            treatments,
+            [query.outcome],
+            intervention_kinds=kinds,
+            intervention_parameters=parameters,
+            identifier=self.identifier or "general.id",
+            estimator=self.estimator or "functional.effect",
+            accepted=self.accepted,
+            **self._common(),
+        )
+        return native, "intervention_response"
 
     def _class_response(self, response_options: Mapping[str, Any]) -> tuple[Any, Any]:
         query, graph = self.query, self.graph
@@ -2679,7 +2834,7 @@ class PreparedAnalysis:
         kind: Literal["average", "response_curve", "intervention_response"] = "average",
         query: _PreparedQuery | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         controls: _Controls | None = None,
         deferred_suite: str | None = None,
         snapshot_data: Any = None,
@@ -2738,7 +2893,7 @@ class PreparedAnalysis:
         refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
         seed: int = 1,
         bootstrap: int | None = None,
-        threads: int = 1,
+        threads: int | None = None,
         latency: Latency | Literal["interactive", "standard", "report"] | None = None,
         class_prior: ClassPrior | None = None,
         max_completions: int | None = None,
@@ -2785,8 +2940,10 @@ class PreparedAnalysis:
         ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` / a constructed
         ``GraphPosterior`` compiles the licensed graph-posterior cells
         (AverageEffect / ConditionalEffect / ResponseCurve / one-coordinate
-        InterventionResponse on DAG atoms; Pulse / Sustained /
-        TemporalMediationEffect on a DBN posterior). Frequentist DBN mixtures
+        InterventionResponse on DAG, CPDAG, PAG, and ADMG atoms; Pulse /
+        Sustained / TemporalMediationEffect / temporal ResponseCurve /
+        one-coordinate InterventionResponse on a DBN or temporal-class
+        posterior). Frequentist DBN mixtures
         take their shared circular-block replicates from the ``latency`` tier
         (or an explicit ``bootstrap``).
 
@@ -2994,7 +3151,7 @@ class PreparedAnalysis:
         raw = self._native.plan_summary().get("allowlist_parent")
         return str(raw) if raw is not None else None
 
-    def inspect(self) -> ReasoningSlots:
+    def inspect(self) -> InspectionReport:
         """Everything known about this study, including cached identification.
 
         ``to_dict()`` gives the structured report; its ``contract`` field is the
@@ -3005,16 +3162,21 @@ class PreparedAnalysis:
         from dataclasses import replace
 
         from .results._execution import Answer, CalibrationInfo
+        from .results._report import as_inspection
 
-        return replace(
-            ReasoningSlots.from_contract(dict(self._native.contract())),
-            answer=Answer("unavailable", detail="not_executed"),
-            calibration=CalibrationInfo(status="unavailable", reason="not_executed"),
+        return as_inspection(
+            replace(
+                ReasoningSlots.from_contract(dict(self._native.contract())),
+                answer=Answer("unavailable", detail="not_executed"),
+                calibration=CalibrationInfo(status="unavailable", reason="not_executed"),
+            )
         )
 
-    def preflight(self) -> ReasoningSlots:
+    def preflight(self) -> InspectionReport:
         """Cheap structural-only inspection; identification and fitting are not run."""
-        return ReasoningSlots.from_contract(self._native.inspect())
+        from .results._report import as_inspection
+
+        return as_inspection(ReasoningSlots.from_contract(self._native.inspect()))
 
     def preview_transform(self, intent: str) -> dict[str, str]:
         """Pure preview of a transformation of this study; nothing is re-executed.
@@ -3128,7 +3290,9 @@ class PreparedAnalysis:
         raw = self._run_click(lambda: fn(names, columns, seed=seed, threads=threads, **controls))
         return self._with_deferred_suite(self._wrap(raw), data, seed=seed, threads=threads)
 
-    def _with_deferred_suite(self, result: Any, data: Any, *, seed: int, threads: int) -> Any:
+    def _with_deferred_suite(
+        self, result: Any, data: Any, *, seed: int, threads: int | None
+    ) -> Any:
         """Run the study's refuter suite as this click's second click.
 
         A scalar ``InterventionResponse`` on a Dag is estimated by the response
@@ -3138,12 +3302,12 @@ class PreparedAnalysis:
         """
         if self._deferred_suite is None or data is None:
             return result
-        from dataclasses import replace
+        from .results._report import copy_model
 
         refuted = self.refute(data, suite=self._deferred_suite, seed=seed, threads=threads)
         # The suite ran against this estimate, so the click's claim is the
         # refuted one; the estimate itself is the response executor's.
-        return replace(
+        return copy_model(
             result,
             validation=refuted.validation,
             certificate=refuted.certificate,
@@ -3187,7 +3351,7 @@ class PreparedAnalysis:
         depends_on: Sequence[str],
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> AnalysisResult:
         """Estimate a declared target population from frozen scores. No refit.
 
@@ -3212,7 +3376,7 @@ class PreparedAnalysis:
         artifact: bytes,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> AnalysisResult:
         """Re-execute the row-weight retarget an exported contract carries.
 
@@ -3271,6 +3435,13 @@ class PreparedAnalysis:
                 f"{type(self._query).__name__} has no refuter suite: its estimand is "
                 "defined by the design (selection diagram and trial probabilities, or the "
                 "randomization and network), and the average-effect refuters do not apply",
+                reason_code="option_not_applicable",
+            )
+        if isinstance(self._query, (AnomalyAttribution, ChangeAttribution)):
+            raise CausalUnsupportedError(
+                f"{type(self._query).__name__} has no refuter suite: GCM attribution "
+                "scores are not an average treatment effect, and the average-effect "
+                "refuters do not apply",
                 reason_code="option_not_applicable",
             )
         if isinstance(suite, Refute):

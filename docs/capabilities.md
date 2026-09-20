@@ -2,8 +2,8 @@
 
 This page is a readable tour of what exists in Antecedent. The parity manifests
 are the maintained implementation inventory; the [support matrix](support-matrix.md)
-is the public **license** for analysis cells. 1.10 inspect / claim / reuse /
-handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/v1.10.0/parity/compiler.toml)
+is the public **license** for analysis cells. 1.11 inspect / claim / reuse /
+handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/1.11/parity/compiler.toml)
 and are not analysis-matrix coordinates. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).
@@ -31,7 +31,7 @@ verified from the data, intervals are universally calibrated, identification is 
 beyond the named subset, or parametric restrictions disappeared. In particular, priors
 cannot convert a nonidentified estimand into an identified one.
 
-At analysis level, the support matrix is the license. The 1.10 matrix includes
+At analysis level, the support matrix is the license. The licensed matrix includes
 temporal policy cells: per-horizon
 `TemporalMediationEffect`, multi-step and joint `Sequence` overlays,
 observation-adjusted temporal curves (Frequentist IPCW pairs and the
@@ -130,18 +130,26 @@ CBOR artifacts.
 * DBN posterior.
 
 Selected posterior graph samples can be propagated into licensed Bayesian
-or Frequentist effect envelopes. Static graph-posterior analysis is limited to
-`AverageEffect` and `ResponseCurve` / one-coordinate `InterventionResponse`
-with DAG atoms. A Frequentist multi-atom aggregate publishes a joint-IF SE only for
+or Frequentist effect envelopes. Static graph-posterior analysis covers
+`AverageEffect` on DAG, CPDAG, and PAG atoms (CPDAG/PAG at validation none)
+and `ResponseCurve` / one-coordinate `InterventionResponse` with DAG atoms.
+CPDAG/PAG posterior atoms are evaluated with the existing class ATE envelope
+and combined by `StructuralAggregationPolicy`: a weighted mean only when
+estimands agree, otherwise an identified set or `GraphDependent` result.
+Completion enumeration is not posterior probability; unidentified mass is
+retained. A Frequentist multi-atom aggregate publishes a joint-IF SE only for
 a scalar (one-coordinate `InterventionResponse`) when atom influences align on
 the shared rows; a multi-atom curve, or unaligned influences, withholds
 uncertainty with `estimate.response.graph_posterior.uncertainty_withheld`. The
 interval is not coverage-calibrated. Failed estimation mass is unevaluable, not
 unidentified, and makes the result `GraphDependent`. Temporal
-graph-posterior analysis is limited to pulse, single- or multi-step sustained
-effects, and single-horizon Frequentist or Bayesian temporal mediation with
-`TemporalDag` atoms. DBN-posterior response surfaces, TemporalCpdag/Pag
-posterior mixing, and ADMG/CPDAG/PAG posterior ATE atoms are refused.
+graph-posterior analysis covers pulse, single- or multi-step sustained
+effects, single-horizon Frequentist or Bayesian temporal mediation, and
+licensed TemporalDag / TemporalCpdag / TemporalPag `ResponseCurve` /
+`InterventionResponse` cells (see the [support matrix](support-matrix.md)).
+ADMG graph-posterior AverageEffect identifies each atom with `general.id` and
+estimates `functional.effect`. TemporalPag graph-posterior mediation stays
+refused.
 
 Panel Pulse/Sustained on an explicit or accepted `TemporalDag` can prepare and
 refresh. Every panel route requires one time-index regularity across units, so
@@ -181,7 +189,8 @@ not completed onto the DAG executor.
 
 Unconditional finite-discrete `InterventionalDistribution` on an explicit or
 accepted ADMG is licensed at validation `none` via general ID (bidirected
-edges stay). Cheap/full and IDC conditionals remain refused.
+edges stay). Python `analyze`/`prepare` reach these cells. Cheap/full and
+IDC conditionals remain refused.
 
 ### Conditional independence tests
 
@@ -283,13 +292,20 @@ the structure before estimating a response.
 The list above is inventory. Derivative cells are licensed on explicit or
 accepted DAGs under Frequentist and Bayesian inference at validation `none`;
 partial-graph derivatives remain refused. `ResponseCurve` and `InterventionResponse` are
-licensed on `Dag` and `TemporalDag` under Frequentist and Bayesian inference
-with validation `none`, and on `Cpdag` / `Pag` under Frequentist and Bayesian
-inference with validation `none` via the same generalized-adjustment envelope
-as ATE (see the [support matrix](support-matrix.md)). Bayesian
-responses require the documented Gaussian additive models and AllObserved population, with pointwise posterior intervals. Static Bayesian response uses complete observations; temporal Bayesian response also supports the five licensed observation pairs through its observed-data SEM backend. Bayesian Cpdag/Pag response
-keeps per-completion posteriors unmixed and publishes the completion identified
-set when completions disagree. `Admg` response remains refused. Frequentist TemporalCpdag/Pag responses retain completion identified sets; DAG-posterior responses retain atom probabilities and unidentified mass.
+licensed on `Dag`, `TemporalDag`, `Admg`, `Cpdag`, and `Pag` under Frequentist
+and Bayesian inference with validation `none` (class graphs via the same
+generalized-adjustment envelope as ATE; see the [support matrix](support-matrix.md)).
+That is not MAG/PAG-native response identification. Graph-posterior
+`ResponseCurve` cheap/full on `Admg` / `Cpdag` / `Pag`, and Bayesian
+graph-posterior `InterventionResponse` cheap/full on `Cpdag` / `Pag`, stay
+refused. Bayesian responses require the documented Gaussian additive models and
+AllObserved population, with pointwise posterior intervals. Static Bayesian
+response uses complete observations; temporal Bayesian response also supports
+the five licensed observation pairs through its observed-data SEM backend.
+Licensed Bayesian `Cpdag` / `Pag` cells keep per-completion posteriors unmixed
+and publish the completion identified set when completions disagree. Frequentist
+TemporalCpdag/Pag cells retain completion identified sets; DAG-posterior cells
+retain atom probabilities and unidentified mass.
 `ConditionalEffect` is licensed on `Dag`, `Cpdag`, and `Pag`. The public
 license is that matrix, not this page.
 
@@ -474,7 +490,7 @@ S-admissible sID plus binary trial-to-target IPW) and `InterferenceQuery` ×
 HT/Hájek, Young variance) run on `analyze` and the Rust `Study` API at
 validation `none`, and retain a study like every other licensed cell. On the
 GCM path, `AnomalyAttribution` / `ChangeAttribution` × `Dag` × explicit ×
-Frequentist are Rust `Study` only.
+Frequentist run on `analyze` and the Rust `Study` API at validation `none`.
 
 * **Observation** (`antecedent.observation`): complete, right/left/interval-
   censored, truncated, and selected mechanisms. Assumptions are declared
@@ -484,14 +500,14 @@ Frequentist are Rust `Study` only.
   diagrams, the `identify` stage, and `TransportQuery`, whose trial-to-target
   IPW reports separate selection and treatment overlap diagnostics
   (`result.transport_overlap`). `transport.estimate_trial_effect` remains an
-  unlicensed IPW/AIPW utility with its 1.9 behaviour. Distinct from Bayesian prior/evidence transfer in
+  unlicensed IPW/AIPW utility that returns bare numbers. Distinct from Bayesian prior/evidence transfer in
   `antecedent.priors`.
 * **Randomized interference** (`antecedent.interference`): assignment design,
   exposure mapping, and exposure-contrast estimands with Horvitz–Thompson and
   Hájek estimates (`result.interference`). The network and realized assignment
   are fixed and supplied by the caller on `InterferenceQuery`.
   `interference.estimate` remains an unlicensed utility over every design and
-  exposure mapping, with its 1.9 behaviour.
+  exposure mapping; it returns bare numbers.
 
 Multi-source meta-transport, cyclic/equilibrium models, and observational
 network interference remain outside the current contract.
@@ -552,8 +568,9 @@ Antecedent can analyze:
 * feature relevance;
 * root-cause rankings.
 
-1.9 licenses `AnomalyAttribution` and `ChangeAttribution` on an explicit Dag
-at Frequentist validation `none` (Rust `Study` only). Mechanism-change,
+`AnomalyAttribution` and `ChangeAttribution` on an explicit Dag
+at Frequentist validation `none` run on `analyze` and the Rust `Study` API.
+Mechanism-change,
 unit-change, cheap/full, Bayesian, accepted, and graph-posterior stay
 refused. The public license is the [support matrix](support-matrix.md).
 
@@ -728,7 +745,7 @@ Python interfaces support NumPy, pandas, and Arrow CDI. Rust uses `TableView`.
 
 ## Artifacts
 
-Durable artifact format **0.5** is current; it adds the optional
+Durable artifact format **0.5** is current; it includes the optional
 identified-set interval on structural-mixture analysis results. Format 0.4 was
 the 1.0 wire freeze, and 0.4 artifacts migrate unchanged. Versioned artifacts
 include:

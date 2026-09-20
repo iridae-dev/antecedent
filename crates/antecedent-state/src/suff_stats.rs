@@ -22,6 +22,8 @@ pub struct LinearOlsSuffStats {
     pub n: u64,
     /// Sum of squared responses (for residual variance).
     pub yty: f64,
+    /// Welford scatter of `[x | y]` for a translation-stable residual scale.
+    joint: StreamingCovariance,
     /// Retention declaration.
     pub retention: RetentionPolicy,
 }
@@ -36,6 +38,7 @@ impl LinearOlsSuffStats {
             xty: vec![0.0; ncols],
             n: 0,
             yty: 0.0,
+            joint: StreamingCovariance::new(ncols.saturating_add(1)),
             retention: RetentionPolicy::SufficientStatisticsOnly,
         }
     }
@@ -55,6 +58,12 @@ impl LinearOlsSuffStats {
         }
         accumulate_xtx_xty_row(row, y, &mut self.xtx, &mut self.xty);
         self.yty += y * y;
+        let mut joint_row = Vec::with_capacity(self.ncols.saturating_add(1));
+        joint_row.extend_from_slice(row);
+        joint_row.push(y);
+        if self.joint.append(&joint_row).is_err() {
+            // Keep raw grams; residual_variance refuses when counts diverge.
+        }
         self.n = self.n.saturating_add(1);
         Ok(())
     }
@@ -104,18 +113,42 @@ impl LinearOlsSuffStats {
         Ok(beta)
     }
 
-    /// Residual variance estimate `σ² = (yty − βᵀXᵀy) / (n − p)` when `n > p`.
+    /// Residual variance estimate `σ² = SSE / (n − p)` when `n > p`.
+    ///
+    /// SSE is the Welford scatter of `y − Xβ`, not `yty − βᵀXᵀy`.
     #[must_use]
     pub fn residual_variance(&self, beta: &[f64]) -> Option<f64> {
         if beta.len() != self.ncols || self.n as usize <= self.ncols {
             return None;
         }
-        let mut bxty = 0.0;
-        for i in 0..self.ncols {
-            bxty += beta[i] * self.xty[i];
+        if self.joint.n != self.n || self.joint.dim != self.ncols.saturating_add(1) {
+            return None;
         }
-        let sse = (self.yty - bxty).max(0.0);
-        Some(sse / (self.n as f64 - self.ncols as f64))
+        let p = self.ncols;
+        let dim = p + 1;
+        let s = &self.joint.m2;
+        let mut sse = s[p * dim + p];
+        let mut bsy = 0.0;
+        let mut bsb = 0.0;
+        for i in 0..p {
+            bsy += beta[i] * s[i * dim + p];
+            for j in 0..p {
+                bsb += beta[i] * s[i * dim + j] * beta[j];
+            }
+        }
+        sse = sse - 2.0 * bsy + bsb;
+        if !sse.is_finite() {
+            return None;
+        }
+        if sse < 0.0 {
+            let scale = s[p * dim + p].abs().max(1.0);
+            if sse.abs() <= 1e-12 * scale {
+                sse = 0.0;
+            } else {
+                return None;
+            }
+        }
+        Some(sse / (self.n as f64 - p as f64))
     }
 }
 
@@ -263,6 +296,25 @@ mod tests {
         // y ≈ 1 + 2x
         assert!((b_inc[0] - 1.0).abs() < 1e-8);
         assert!((b_inc[1] - 2.0).abs() < 1e-8);
+    }
+
+    #[test]
+    fn incremental_ols_residual_variance_survives_large_offset() {
+        let offset = 1e12;
+        let eps = [-2.0, -1.0, 0.0, 1.0, 2.0];
+        let y: Vec<f64> = eps.iter().map(|e| offset + e).collect();
+        let rows = vec![1.0; 5];
+        let mut stats = LinearOlsSuffStats::new(1);
+        stats.append_batch(&rows, &y).unwrap();
+        let beta = stats.solve_beta().unwrap();
+        let var = stats.residual_variance(&beta).expect("residual variance");
+        assert!((var - 2.5).abs() < 1e-9, "got {var}");
+
+        let shifted: Vec<f64> = y.iter().map(|yi| yi + 1e9).collect();
+        let mut shifted_stats = LinearOlsSuffStats::new(1);
+        shifted_stats.append_batch(&rows, &shifted).unwrap();
+        let shifted_var = shifted_stats.residual_variance(&shifted_stats.solve_beta().unwrap());
+        assert!((shifted_var.unwrap() - var).abs() < 1e-9);
     }
 
     #[test]

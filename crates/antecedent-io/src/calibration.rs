@@ -140,7 +140,7 @@ pub fn identification_key<'a>(
 /// Execution facts a record's scope is checked against.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct CalibrationScopeWire {
-    /// Data-snapshot rows.
+    /// Analysis-sample rows that informed the interval, not the raw snapshot.
     pub row_count: u64,
     /// Resampling replicates that succeeded, when resampling-based.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -317,9 +317,17 @@ fn worst<'a>(records: &[&'a CoverageRecord]) -> Option<&'a CoverageRecord> {
 /// Re-derive a claim's slot (primary and secondary) from the bases it carries.
 ///
 /// A slot without a basis re-derives to `unavailable` / `calibration_basis_missing`.
+/// Caller-attested evidence that records `attested_not_reverifiable` is
+/// uncalibrated by construction, not a missing match key.
 #[must_use]
 pub fn rederive_calibration(slot: &CalibrationSlotWire) -> CalibrationSlotWire {
     let Some(primary) = slot.basis.as_ref() else {
+        if slot.status == "unavailable"
+            && slot.reason.as_deref()
+                == Some(antecedent_core::reason_code!("attested_not_reverifiable"))
+        {
+            return CalibrationSlotWire::unavailable("attested_not_reverifiable");
+        }
         return CalibrationSlotWire::unavailable(BASIS_MISSING);
     };
     let mut bases = vec![primary.clone()];
@@ -591,5 +599,15 @@ mod tests {
         forged.status = "calibrated".into();
         forged.secondary[0].status = "calibrated".into();
         assert_ne!(rederive_calibration(&forged), forged);
+    }
+
+    #[test]
+    fn attested_external_estimate_stays_uncalibrated_without_a_basis() {
+        let slot = CalibrationSlotWire::unavailable("attested_not_reverifiable");
+        assert_eq!(rederive_calibration(&slot), slot);
+        assert_eq!(
+            rederive_calibration(&CalibrationSlotWire::unavailable("forged")).reason.as_deref(),
+            Some(BASIS_MISSING)
+        );
     }
 }

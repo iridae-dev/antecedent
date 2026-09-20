@@ -1256,7 +1256,18 @@ fn licensed_family_conditional_graph_posterior_preserves_mass() {
         &ctx,
     );
     assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
-    assert!((result.effect() - 2.0).abs() < 0.15);
+    assert!(result.effect().is_nan(), "graph-dependent estimands withhold a scalar");
+    let structural = result.structural_response.as_ref().unwrap();
+    let values: Vec<_> = structural
+        .atoms
+        .iter()
+        .filter_map(|atom| match atom.value {
+            Some(antecedent_core::ResponseValue::Scalar(value)) => Some(value),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(values.len(), 2);
+    assert!(values.iter().all(|value| (value - 2.0).abs() < 0.15));
     let slot = consumed
         .contract
         .as_ref()
@@ -1272,7 +1283,7 @@ fn licensed_family_conditional_graph_posterior_preserves_mass() {
         }
         other => panic!("graph-posterior mass must remain available, got {other:?}"),
     }
-    assert_eq!(claim.kind, ClaimKind::Mixture);
+    assert_eq!(claim.kind, ClaimKind::Bounds);
 }
 
 #[test]
@@ -1654,7 +1665,7 @@ fn composition_two_programs_compare_only_on_shared_data() {
 
     let left = dag_result.claim(&dag_contract, &ctx).unwrap();
     let right = mixture_result.claim(&mixture_contract, &ctx).unwrap();
-    assert_eq!(right.kind, ClaimKind::Mixture);
+    assert_eq!(right.kind, ClaimKind::Bounds);
     match &right.reasoning.identification {
         SlotAvailability::Available(slot) => {
             assert!((slot.unidentified_mass - 0.2).abs() < 1e-9);
@@ -2509,6 +2520,20 @@ fn licensed_family_response_curve_bayesian_consumes() {
     for (got, truth) in mean.iter().zip([0.0, 1.0, 2.0]) {
         assert!((got - truth).abs() < 0.35, "grid point {got} vs {truth}");
     }
+    let uncertainty = consumed
+        .contract
+        .as_ref()
+        .unwrap()
+        .reasoning
+        .uncertainty
+        .value
+        .as_ref()
+        .expect("published Bayesian band has an uncertainty disclosure");
+    assert!(uncertainty.components.iter().any(|component| {
+        component.source == "parameter"
+            && component.target == "posterior_pointwise_band"
+            && !component.omitted
+    }));
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
             .into_iter()
@@ -4932,6 +4957,165 @@ fn calibration_slot_is_scope_not_assessed_outside_the_measured_sample_size() {
 }
 
 #[test]
+fn missing_row_padding_does_not_upgrade_calibration() {
+    let ctx = ExecutionContext::for_tests(24);
+    let mut t = vec![0.0; 100];
+    let mut y = vec![0.0; 100];
+    for i in 0..100 {
+        t[i] = (i as f64) * 0.1;
+        y[i] = 2.0 * t[i] + ((i % 5) as f64 - 2.0) * 0.1;
+    }
+    let run = |pad: usize| {
+        let mut tp = t.clone();
+        let mut yp = y.clone();
+        tp.extend(std::iter::repeat(f64::NAN).take(pad));
+        yp.extend(std::iter::repeat(f64::NAN).take(pad));
+        let data =
+            TabularData::from_f64_columns([("t", tp.as_slice()), ("y", yp.as_slice())]).unwrap();
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let prepared = Study::tabular(data.clone())
+            .graph(dag)
+            .query(CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+            )))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap();
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        let claim = calibration_of(&prepared, &result, &ctx);
+        let contract = prepared.contract().unwrap();
+        let basis = &result.calibration_bases(&contract).unwrap()[0];
+        assert_eq!(basis.scope.row_count, 100);
+        assert_eq!(contract.row_count, (100 + pad) as u64);
+        assert_eq!(artifact_analysis_n(&prepared, &result, &ctx), 100);
+        (
+            result.effect(),
+            result.estimate.se_analytic,
+            claim.status.to_string(),
+            result.estimate.n_obs,
+        )
+    };
+    let (e0, se0, status0, n0) = run(0);
+    let (e1, se1, status1, n1) = run(400);
+    let (e2, se2, status2, n2) = run(900);
+    assert_eq!(n0, Some(100));
+    assert_eq!(n1, Some(100));
+    assert_eq!(n2, Some(100));
+    assert!((e0 - e1).abs() < 1e-12 && (e0 - e2).abs() < 1e-12);
+    assert!((se0 - se1).abs() < 1e-12 && (se0 - se2).abs() < 1e-12);
+    assert_eq!(status0, status1);
+    assert_eq!(status0, status2);
+}
+
+fn artifact_analysis_n(
+    prepared: &antecedent::PreparedStudy,
+    result: &StudyResult,
+    ctx: &ExecutionContext,
+) -> u64 {
+    let bytes = prepared.encode_contracted_result(result, "r11-n", ctx).unwrap();
+    let consumed = consume_analysis_result(&bytes).unwrap();
+    consumed
+        .contract
+        .as_ref()
+        .and_then(|section| section.claim.as_ref())
+        .and_then(|claim| claim.calibration.basis.as_ref())
+        .map(|basis| basis.scope.row_count)
+        .expect("encoded claim carries an analysis-sample calibration basis")
+}
+
+#[test]
+fn matching_missing_row_padding_does_not_upgrade_calibration() {
+    let ctx = ExecutionContext::for_tests(25);
+    let mut t = vec![0.0; 100];
+    let mut y = vec![0.0; 100];
+    let mut z = vec![0.0; 100];
+    for i in 0..100 {
+        t[i] = (i % 2) as f64;
+        z[i] = (i as f64) * 0.05;
+        y[i] = 2.0 * t[i] + z[i];
+    }
+    let run = |pad: usize| {
+        let mut tp = t.clone();
+        let mut yp = y.clone();
+        let mut zp = z.clone();
+        tp.extend(std::iter::repeat(f64::NAN).take(pad));
+        yp.extend(std::iter::repeat(f64::NAN).take(pad));
+        zp.extend(std::iter::repeat(f64::NAN).take(pad));
+        let data = TabularData::from_f64_columns([
+            ("t", tp.as_slice()),
+            ("y", yp.as_slice()),
+            ("z", zp.as_slice()),
+        ])
+        .unwrap();
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let prepared = Study::tabular(data.clone())
+            .graph(dag)
+            .query(CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+            )))
+            .estimator(antecedent_estimate::PropensityMatching {
+                bootstrap_replicates: 0,
+                se_kind: antecedent_estimate::AnalyticSeKind::Homoskedastic,
+                ..antecedent_estimate::PropensityMatching::new()
+            })
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap();
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        let contract = prepared.contract().unwrap();
+        let basis = &result.calibration_bases(&contract).unwrap()[0];
+        assert!(basis.scope.row_count < contract.row_count || pad == 0);
+        assert_eq!(basis.scope.row_count, result.estimate.n_obs.unwrap());
+        assert_eq!(artifact_analysis_n(&prepared, &result, &ctx), basis.scope.row_count);
+        (result.effect(), result.estimate.n_obs, basis.scope.row_count)
+    };
+    let (e0, n0, scope0) = run(0);
+    let (e1, n1, scope1) = run(400);
+    let (e2, n2, scope2) = run(900);
+    assert_eq!(n0, n1);
+    assert_eq!(n0, n2);
+    assert_eq!(scope0, scope1);
+    assert_eq!(scope0, scope2);
+    assert!((e0 - e1).abs() < 1e-10 && (e0 - e2).abs() < 1e-10);
+}
+
+#[test]
+fn temporal_calibration_scope_uses_lag_aligned_n() {
+    let ctx = ExecutionContext::for_tests(26);
+    let (series, graph) = lag1_series();
+    let snapshot_n = series.row_count() as u64;
+    let prepared = Study::series(series.clone())
+        .graph(graph)
+        .temporal_query(pulse_query())
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate_series(&series, &ctx).unwrap();
+    let contract = prepared.contract().unwrap();
+    let analysis_n = result.estimate.n_obs.expect("temporal pulse records lag-aligned n");
+    assert!(analysis_n < snapshot_n, "lag alignment must drop at least the history window");
+    assert_eq!(contract.row_count, snapshot_n);
+    let basis = &result.calibration_bases(&contract).unwrap()[0];
+    assert_eq!(basis.scope.row_count, analysis_n);
+    assert_eq!(artifact_analysis_n(&prepared, &result, &ctx), analysis_n);
+}
+
+#[test]
 fn calibration_slot_is_not_calibrated_with_fewer_posterior_draws_than_measured() {
     let ctx = ExecutionContext::for_tests(23);
     let (measured, data) = gcomp_measured_study(500, 400, 23);
@@ -5823,10 +6007,18 @@ fn graph_posterior_weights_and_atoms_enter_identification() {
     assert_ne!(a.program, b.program);
     let first = base.estimate(&data, &ctx).unwrap();
     let second = reweighted.estimate(&data, &ctx).unwrap();
-    assert!(
-        (first.effect() - second.effect()).abs() > 1e-6,
-        "the reweighted mixture is a different number"
-    );
+    assert!(first.effect().is_nan() && second.effect().is_nan());
+    let weights = |result: &StudyResult| {
+        result
+            .structural_response
+            .as_ref()
+            .unwrap()
+            .atoms
+            .iter()
+            .map(|atom| (atom.graph_key, atom.weight))
+            .collect::<Vec<_>>()
+    };
+    assert_ne!(weights(&first), weights(&second), "reweighting changes the structural result");
     let claim_id = |prepared: &antecedent::PreparedStudy, result: &StudyResult| {
         let consumed = consume_analysis_result(
             &prepared.encode_contracted_result(result, "mix", &ctx).unwrap(),
@@ -5876,7 +6068,7 @@ fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
     let section = antecedent_io::decode_analysis_result_contract(&decoded).unwrap().unwrap();
     let edits: [fn(&mut antecedent_io::AnalysisResultWire); 3] = [
         |body| body.standard_error = Some(body.standard_error.unwrap_or(1.0) / 100.0),
-        |body| body.estimate = body.estimate.map(|value| value + 1.0),
+        |body| body.estimate = Some(body.estimate.unwrap_or(0.0) + 1.0),
         // Search effort is execution detail the product excludes; only the
         // result digest inside the claim id covers it.
         |body| body.identification.candidates_examined += 1,

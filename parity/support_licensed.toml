@@ -86,6 +86,342 @@ limitations = "Applicable temporal refuters run on every contributing atom again
 calibration = ["cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_ar1_rho05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_ar1_rho09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_sustained_shared_block_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_ar1_rho05_n160_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_ar1_rho05_n60_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_ar1_rho09_n400_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_multistep_sustained_shared_block_nominal_90_coverage", "cov.sustained_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_sustained_shared_block_nominal_90_coverage"]
 
 [[cell]]
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_numeric_pins"
+limitations = "Each TemporalCpdag posterior atom is reconstructed from adjacency + lag_masks and evaluated with the existing temporal class envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained and not redistributed. Atoms that disagree on estimand identity withhold estimate.ate and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. With more than one contributing atom the Frequentist SE is the joint influence-function covariance of the atoms' IFs on shared rows with frozen graph weights (estimate.graph_posterior.joint_if_se). Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalCpdag class-posterior envelope as none: completion enumeration is not posterior probability; outer weights are frozen posterior probabilities; unidentified mass is retained. Cheap runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion (or that atom's shared design), then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalCpdag class-posterior envelope as none: completion enumeration is not posterior probability; outer weights are frozen posterior probabilities; unidentified mass is retained. Full runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion (or that atom's shared design), then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_numeric_pins"
+limitations = "Each TemporalCpdag posterior atom is reconstructed from adjacency + lag_masks and evaluated with the existing temporal class Bayesian envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained; priors do not upgrade unidentified atoms. Atoms that disagree on estimand identity withhold estimate.ate and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalCpdag class-posterior envelope as none: completion enumeration is not posterior probability; outer weights are frozen posterior probabilities; unidentified mass is retained; priors do not upgrade unidentified atoms. Cheap runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalCpdag class-posterior envelope as none: completion enumeration is not posterior probability; outer weights are frozen posterior probabilities; unidentified mass is retained; priors do not upgrade unidentified atoms. Full runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_numeric_pins"
+limitations = "Each TemporalCpdag posterior atom is reconstructed from adjacency + lag_masks and evaluated with the existing temporal class envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold estimate.ate and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. With more than one contributing atom the Frequentist SE is the joint influence-function covariance of the atoms' IFs on shared rows with frozen graph weights (estimate.graph_posterior.joint_if_se). Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalCpdag class-posterior envelope as none. Cheap runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalCpdag class-posterior envelope as none. Full runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_numeric_pins"
+limitations = "Each TemporalCpdag posterior atom is reconstructed from adjacency + lag_masks and evaluated with the existing temporal class Bayesian envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities. Unidentified class mass is retained; priors do not upgrade unidentified atoms. Atoms that disagree on estimand identity withhold estimate.ate and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalCpdag class-posterior envelope as none. Cheap runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalCpdag class-posterior envelope as none. Full runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_numeric_pins"
+limitations = "Each TemporalPag posterior atom is reconstructed from adjacency + lag_masks + mark_masks and evaluated with the existing temporal class envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold estimate.ate and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. With more than one contributing atom the Frequentist SE is the joint influence-function covariance of the atoms' IFs on shared rows with frozen graph weights (estimate.graph_posterior.joint_if_se). Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalPag class-posterior envelope as none. Cheap runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalPag class-posterior envelope as none. Full runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_numeric_pins"
+limitations = "Each TemporalPag posterior atom is reconstructed from adjacency + lag_masks + mark_masks and evaluated with the existing temporal class Bayesian envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities. Unidentified class mass is retained; priors do not upgrade unidentified atoms. Atoms that disagree on estimand identity withhold estimate.ate and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalPag class-posterior envelope as none. Cheap runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PulseEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalPag class-posterior envelope as none. Full runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_numeric_pins"
+limitations = "Each TemporalPag posterior atom is reconstructed from adjacency + lag_masks + mark_masks and evaluated with the existing temporal class envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold estimate.ate and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. With more than one contributing atom the Frequentist SE is the joint influence-function covariance of the atoms' IFs on shared rows with frozen graph weights (estimate.graph_posterior.joint_if_se). Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalPag class-posterior envelope as none. Cheap runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalPag class-posterior envelope as none. Full runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_numeric_pins"
+limitations = "Each TemporalPag posterior atom is reconstructed from adjacency + lag_masks + mark_masks and evaluated with the existing temporal class Bayesian envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities. Unidentified class mass is retained; priors do not upgrade unidentified atoms. Atoms that disagree on estimand identity withhold estimate.ate and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalPag class-posterior envelope as none. Cheap runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SustainedEffect"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_cheap_and_full_run"
+limitations = "Same TemporalPag class-posterior envelope as none. Full runs existing TemporalDag Pulse/Sustained refuters on each contributing identified completion, then mixes those atom reports by frozen posterior weight; the mixed check passes only if every contributing atom passes. ATE refuters are not attached. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
 query = "TemporalMediationEffect"
 graph_class = "TemporalCpdag"
 structure = "explicit"
@@ -283,6 +619,326 @@ calibration = ["cov.sustained_effect.temporal_dag.frequentist.circular_block_se.
 
 [[cell]]
 query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "dbn_posterior_response_curve_matches_identified_atom"
+limitations = "Each TemporalDag posterior atom is identified at every requested horizon with its own I(h) and estimated with the existing TemporalDag response estimator. Frozen posterior weights mix the atom surfaces (`StructuralAggregationPolicy`); unidentified mass is retained and makes the result GraphDependent. Failed estimation is unevaluable, not unidentified. Completion enumeration is not used (atoms are DAGs). Multi-atom aggregate bands are withheld (`estimate.response.dbn_posterior.uncertainty_withheld`). ResponseCurve cheap/full stay n/a (function-valued). Prepared clicks reuse the DBN-posterior response identification cache. Sequence overlays remain refused. Complete observations only."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "dbn_posterior_response_curve_matches_identified_atom"
+limitations = "Per-atom Bayesian TemporalDag response surfaces are mixed by frozen posterior weight. Unidentified mass is retained; the result is GraphDependent when any mass is unidentified or unevaluable. Multi-atom aggregate credible bands are withheld. ResponseCurve cheap/full stay n/a. Prepared clicks reuse the identification cache. Sequence overlays remain refused. Complete observations only."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "dbn_posterior_intervention_response_matches_identified_atom"
+limitations = "One intervention coordinate. Each TemporalDag atom is identified and estimated with the existing temporal InterventionResponse estimator, then mixed by frozen posterior weight via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified mass is retained. Multi-atom aggregate bands are withheld. Sequence overlays remain refused. Prepared clicks reuse the identification cache. Policy pins: crates/antecedent/tests/manufacturing_temporal.rs::dbn_posterior_graph_posterior_numeric_pins."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "dbn_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+limitations = "Same mixed intervention surface as none. Cheap runs the TemporalDag Pulse-native suite on every contributing atom against that atom's own Pulse witness (first requested horizon) and mixes those reports by frozen graph weight; the mixed check passes only if every atom passes. AverageEffect refuters are not attached to ResponseCurve."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "dbn_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+limitations = "Same mixed intervention surface as none. Full runs the TemporalDag Pulse-native suite on every contributing atom against that atom's own Pulse witness and mixes those reports by frozen graph weight; the mixed check passes only if every atom passes. AverageEffect refuters are not attached to ResponseCurve."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "dbn_posterior_intervention_response_matches_identified_atom"
+limitations = "One intervention coordinate. Per-atom Bayesian TemporalDag intervention surfaces are mixed by frozen posterior weight via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified mass is retained. Multi-atom aggregate credible bands are withheld. Sequence overlays remain refused. Policy pins: crates/antecedent/tests/manufacturing_temporal.rs::dbn_posterior_graph_posterior_numeric_pins."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "dbn_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+limitations = "Same mixed intervention surface as none. Cheap runs the Pulse-native temporal refuters on every contributing atom against that atom's own Pulse witness and mixes by frozen graph weight; the mixed check passes only if every atom passes."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "dbn_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+limitations = "Same mixed intervention surface as none. Full runs the Pulse-native temporal refuters (and Bayesian predictive checks) on every contributing atom against that atom's own Pulse witness and mixes by frozen graph weight; the mixed check passes only if every atom passes."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_response_mixes"
+limitations = "Each TemporalCpdag posterior atom is reconstructed and evaluated with the existing temporal class response envelope; outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Multi-atom aggregate bands are withheld. Sequence overlays remain refused. Complete observations only. ResponseCurve cheap/full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_response_mixes"
+limitations = "Each TemporalCpdag posterior atom is reconstructed and evaluated with the existing temporal class Bayesian response envelope; outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Multi-atom aggregate credible bands are withheld. Sequence overlays remain refused. Complete observations only."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_response_mixes"
+limitations = "Each TemporalPag posterior atom is reconstructed and evaluated with the existing temporal class response envelope; outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Multi-atom aggregate bands are withheld. Sequence overlays remain refused. Complete observations only. ResponseCurve cheap/full stay n/a."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_response_mixes"
+limitations = "Each TemporalPag posterior atom is reconstructed and evaluated with the existing temporal class Bayesian response envelope; outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Multi-atom aggregate credible bands are withheld. Sequence overlays remain refused. Complete observations only."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_response_mixes"
+limitations = "One intervention coordinate. Each TemporalCpdag posterior atom is reconstructed and evaluated with the existing temporal class InterventionResponse envelope, then mixed by frozen posterior weight via StructuralAggregationPolicy. Unidentified mass is retained. Multi-atom aggregate bands are withheld. Sequence overlays remain refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+limitations = "Same mixed intervention surface as none. Cheap runs the TemporalDag Pulse-native suite on every contributing class-posterior atom against that atom's own Pulse witness and mixes those reports by frozen graph weight; the mixed check passes only if every atom passes."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+limitations = "Same mixed intervention surface as none. Full runs the TemporalDag Pulse-native suite on every contributing class-posterior atom against that atom's own Pulse witness and mixes those reports by frozen graph weight; the mixed check passes only if every atom passes."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_response_mixes"
+limitations = "One intervention coordinate. Per-atom Bayesian TemporalCpdag class envelopes are mixed by frozen posterior weight via StructuralAggregationPolicy. Unidentified mass is retained. Multi-atom aggregate credible bands are withheld. Sequence overlays remain refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+limitations = "Same mixed intervention surface as none. Cheap runs the Pulse-native temporal refuters on every contributing class-posterior atom against that atom's own Pulse witness and mixes by frozen graph weight; the mixed check passes only if every atom passes."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+limitations = "Same mixed intervention surface as none. Full runs the Pulse-native temporal refuters on every contributing class-posterior atom against that atom's own Pulse witness and mixes by frozen graph weight; the mixed check passes only if every atom passes."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_response_mixes"
+limitations = "One intervention coordinate. Each TemporalPag posterior atom is reconstructed and evaluated with the existing temporal class InterventionResponse envelope, then mixed by frozen posterior weight via StructuralAggregationPolicy. Unidentified mass is retained. Multi-atom aggregate bands are withheld. Sequence overlays remain refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+limitations = "Same mixed intervention surface as none. Cheap runs the TemporalDag Pulse-native suite on every contributing class-posterior atom against that atom's own Pulse witness and mixes those reports by frozen graph weight; the mixed check passes only if every atom passes."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+limitations = "Same mixed intervention surface as none. Full runs the TemporalDag Pulse-native suite on every contributing class-posterior atom against that atom's own Pulse witness and mixes those reports by frozen graph weight; the mixed check passes only if every atom passes."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_response_mixes"
+limitations = "One intervention coordinate. Per-atom Bayesian TemporalPag class envelopes are mixed by frozen posterior weight via StructuralAggregationPolicy. Unidentified mass is retained. Multi-atom aggregate credible bands are withheld. Sequence overlays remain refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+limitations = "Same mixed intervention surface as none. Cheap runs the Pulse-native temporal refuters on every contributing class-posterior atom against that atom's own Pulse witness and mixes by frozen graph weight; the mixed check passes only if every atom passes."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalPag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_cross_check"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_refuters"
+limitations = "Same mixed intervention surface as none. Full runs the Pulse-native temporal refuters on every contributing class-posterior atom against that atom's own Pulse witness and mixes by frozen graph weight; the mixed check passes only if every atom passes."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
 graph_class = "Dag"
 structure = "graph_posterior"
 inference = "Bayesian"
@@ -319,7 +975,7 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/response_facade.rs"
-evidence_assertion = "graph_posterior_response_known_truth_conditional_on_identified"
+evidence_assertion = "graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters"
 limitations = "Scalar one-coordinate Frequentist plugin level. Cheap runs overlap only against the conditional-on-identified mixture level; it is not an ATE contrast suite. Known-truth pin (conformance/bayesian/known_truth_mixtures static_response): atom curves 1 + 2.75t and 1 + 2t at weights 0.5 / 0.3 with 0.2 unidentified give conditional_on_identified = 1 + 2.46875t; this is a numeric pin, not a coverage claim. Under the interactive latency tier at most 16 identified atoms are fitted (a stratified subsample, estimate.envelope.interactive_subsample); the mass of the atoms not fitted is reported separately as subsampled-out mass (in the envelope diagnostic, and as subsampled_out_mass on the structured response or posterior where the cell publishes one), not as unidentified or unevaluable mass, and the result is GraphDependent."
 calibration = ["cov.intervention_response.dag.frequentist.analytic_se.l90.intervention_response_dag_graph_posterior_frequentist_nominal_coverage", "cov.intervention_response.dag.frequentist.analytic_se.l95.intervention_response_dag_graph_posterior_frequentist_nominal_coverage"]
 
@@ -333,7 +989,7 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/response_facade.rs"
-evidence_assertion = "graph_posterior_response_known_truth_conditional_on_identified"
+evidence_assertion = "graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters"
 limitations = "Scalar one-coordinate Frequentist plugin level. Full adds sampling-stability of the g-comp level to overlap. Contrast-shaped E-values are not licensed. Known-truth pin (conformance/bayesian/known_truth_mixtures static_response): atom curves 1 + 2.75t and 1 + 2t at weights 0.5 / 0.3 with 0.2 unidentified give conditional_on_identified = 1 + 2.46875t; this is a numeric pin, not a coverage claim. Under the interactive latency tier at most 16 identified atoms are fitted (a stratified subsample, estimate.envelope.interactive_subsample); the mass of the atoms not fitted is reported separately as subsampled-out mass (in the envelope diagnostic, and as subsampled_out_mass on the structured response or posterior where the cell publishes one), not as unidentified or unevaluable mass, and the result is GraphDependent."
 calibration = ["cov.intervention_response.dag.frequentist.analytic_se.l90.intervention_response_dag_graph_posterior_frequentist_nominal_coverage", "cov.intervention_response.dag.frequentist.analytic_se.l95.intervention_response_dag_graph_posterior_frequentist_nominal_coverage"]
 
@@ -2150,7 +2806,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
-limitations = "Same known-truth DGP as the Bayesian mixture: E[tau | identified]=2.625 from identified atom effects 3 and 2 at weights 0.5 and 0.3. The Frequentist aggregator is mass-weighted linear.adjustment.ate; a valid reverse-causal atom's 0.2 weight remains unidentified and the public status is GraphDependent. Staged prepared and fresh results are equal; prepared execution consumes cached per-atom identification. With more than one contributing atom the SE of E[tau | identified] is the joint influence-function covariance of the atoms' IFs on shared rows with frozen graph weights (estimate.graph_posterior.joint_if_se); graph-weight uncertainty and unidentified mass are not in the SE, and the interval is for that aggregate, not a distribution over graph-specific effects. A single contributing atom keeps its own SE. If any contributing atom cannot be IF-aligned to the shared rows the SE is NaN and estimate.envelope.se_omits_between_atom_variance is emitted. 400-replicate coverage: crates/antecedent/tests/v19_static_mixture_calibration.rs. Under the interactive latency tier at most 16 identified atoms are fitted (a stratified subsample, estimate.envelope.interactive_subsample); the mass of the atoms not fitted is reported separately as subsampled-out mass (in the envelope diagnostic, and as subsampled_out_mass on the structured response or posterior where the cell publishes one), not as unidentified or unevaluable mass, and the result is GraphDependent."
+limitations = "Frozen analytic DGP with disagreeing identified atoms (effects 3 and 2 at weights 0.5 and 0.3) plus a valid reverse-causal atom's 0.2 unidentified weight. StructuralAggregationPolicy is GraphDependentAtoms: estimate.ate and Frequentist SE are withheld, structural_response publishes the identified set, and per-atom values are retained. Unidentified mass is not redistributed. Staged prepared and fresh results are equal; prepared execution consumes cached per-atom identification. Same-estimand joint-IF SE calibration (truth 3) is in crates/antecedent/tests/v19_static_mixture_calibration.rs. Under the interactive latency tier at most 16 identified atoms are fitted (a stratified subsample, estimate.envelope.interactive_subsample); subsampled-out mass is reported separately, not as unidentified mass, and the result is GraphDependent."
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l90.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage"]
 
 [[cell]]
@@ -2164,7 +2820,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
-limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained, status GraphDependent, and prepared cache consumption. Cheap runs the ATE-shaped overlap/E-value suite on every contributing atom against that atom's own estimate (not the pooled mixture) and mixes those reports by envelope mass; the mixed check passes only if every atom passes; validator values are not numerically pinned. With more than one contributing atom the SE of E[tau | identified] is the joint influence-function covariance of the atoms' IFs on shared rows with frozen graph weights (estimate.graph_posterior.joint_if_se); graph-weight uncertainty and unidentified mass are not in the SE, and the interval is for that aggregate, not a distribution over graph-specific effects. A single contributing atom keeps its own SE. If any contributing atom cannot be IF-aligned to the shared rows the SE is NaN and estimate.envelope.se_omits_between_atom_variance is emitted. 400-replicate coverage: crates/antecedent/tests/v19_static_mixture_calibration.rs. Under the interactive latency tier at most 16 identified atoms are fitted (a stratified subsample, estimate.envelope.interactive_subsample); the mass of the atoms not fitted is reported separately as subsampled-out mass (in the envelope diagnostic, and as subsampled_out_mass on the structured response or posterior where the cell publishes one), not as unidentified or unevaluable mass, and the result is GraphDependent."
+limitations = "Same disagreeing mixture pin as none: scalar ate withheld under GraphDependentAtoms, identified set on structural_response, 0.2 unidentified mass retained, and prepared cache consumption. Cheap runs per-atom refuters (refute.envelope.class_posterior) against each atom's own estimate; outer scalar mix is skipped. Same-estimand joint-IF calibration (truth 3) is in crates/antecedent/tests/v19_static_mixture_calibration.rs. Under the interactive latency tier at most 16 identified atoms are fitted (estimate.envelope.interactive_subsample); subsampled-out mass is reported separately."
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l90.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage"]
 
 [[cell]]
@@ -2178,7 +2834,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
-limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained, status GraphDependent, and prepared cache consumption. Full runs the ATE-shaped refuter suite on every contributing atom against that atom's own estimate (not the pooled mixture) and mixes those reports by envelope mass; the mixed check passes only if every atom passes; validator values are not numerically pinned. With more than one contributing atom the SE of E[tau | identified] is the joint influence-function covariance of the atoms' IFs on shared rows with frozen graph weights (estimate.graph_posterior.joint_if_se); graph-weight uncertainty and unidentified mass are not in the SE, and the interval is for that aggregate, not a distribution over graph-specific effects. A single contributing atom keeps its own SE. If any contributing atom cannot be IF-aligned to the shared rows the SE is NaN and estimate.envelope.se_omits_between_atom_variance is emitted. 400-replicate coverage: crates/antecedent/tests/v19_static_mixture_calibration.rs. Under the interactive latency tier at most 16 identified atoms are fitted (a stratified subsample, estimate.envelope.interactive_subsample); the mass of the atoms not fitted is reported separately as subsampled-out mass (in the envelope diagnostic, and as subsampled_out_mass on the structured response or posterior where the cell publishes one), not as unidentified or unevaluable mass, and the result is GraphDependent."
+limitations = "Same disagreeing mixture pin as none: scalar ate withheld under GraphDependentAtoms, identified set on structural_response, 0.2 unidentified mass retained, and prepared cache consumption. Full runs per-atom refuters (refute.envelope.class_posterior) against each atom's own estimate; outer scalar mix is skipped. Same-estimand joint-IF calibration (truth 3) is in crates/antecedent/tests/v19_static_mixture_calibration.rs. Under the interactive latency tier at most 16 identified atoms are fitted (estimate.envelope.interactive_subsample); subsampled-out mass is reported separately."
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l90.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage"]
 
 [[cell]]
@@ -2192,7 +2848,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture"
-limitations = "Frozen analytic DGP pins E[tau | identified]=2.625 from identified atom effects 3 and 2 at weights 0.5 and 0.3; a valid reverse-causal atom's 0.2 weight remains unidentified, so priors do not upgrade ID. Staged prepared and fresh results are equal; prepared execution consumes cached per-atom identification. The credible interval is the identified-atom BMA P(tau | identified), a distribution over graph-specific effects that does not shrink to the aggregate; its 400-replicate coverage of the effect of a graph drawn from the identified weights is in crates/antecedent/tests/v19_static_mixture_calibration.rs. Under the interactive latency tier at most 16 identified atoms are fitted (a stratified subsample, estimate.envelope.interactive_subsample); the mass of the atoms not fitted is reported separately as subsampled-out mass (in the envelope diagnostic, and as subsampled_out_mass on the structured response or posterior where the cell publishes one), not as unidentified or unevaluable mass, and the result is GraphDependent."
+limitations = "Frozen analytic DGP with disagreeing identified atoms (effects 3 and 2) and 0.2 unidentified mass. estimate.ate is withheld under GraphDependentAtoms; posterior BMA P(tau | identified) and structural_response identified set are still published. Staged prepared and fresh results are equal; prepared execution consumes cached per-atom identification. The credible interval is the identified-atom BMA, a distribution over graph-specific effects; its 400-replicate coverage of a graph drawn from identified weights is in crates/antecedent/tests/v19_static_mixture_calibration.rs. Under the interactive latency tier at most 16 identified atoms are fitted (estimate.envelope.interactive_subsample); subsampled-out mass is reported separately."
 calibration = ["cov.average_effect.dag.bayesian.posterior_quantile.l90.static_graph_posterior_bayesian_ate_bma_nominal_90_coverage", "cov.average_effect.dag.bayesian.posterior_quantile.l95.static_graph_posterior_bayesian_ate_bma_nominal_90_coverage"]
 
 [[cell]]
@@ -2206,7 +2862,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture"
-limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained and prepared cache consumption. Cheap runs the applicable overlap/E-value suite on every contributing atom against that atom's own posterior mean and mixes those reports by posterior mass, plus mixture-weighted PPC; validator values are not numerically pinned. Under the interactive latency tier at most 16 identified atoms are fitted (a stratified subsample, estimate.envelope.interactive_subsample); the mass of the atoms not fitted is reported separately as subsampled-out mass (in the envelope diagnostic, and as subsampled_out_mass on the structured response or posterior where the cell publishes one), not as unidentified or unevaluable mass, and the result is GraphDependent."
+limitations = "Same disagreeing mixture pin as none: estimate.ate withheld, posterior BMA and structural_response identified set retained, 0.2 unidentified mass, and prepared cache consumption. Cheap runs per-atom refuters and PPC against each atom's own estimate; outer scalar mix is skipped under GraphDependentAtoms (`refute.envelope.graph_dependent_atoms`). Validator values are not numerically pinned. Under the interactive latency tier at most 16 identified atoms are fitted (estimate.envelope.interactive_subsample); subsampled-out mass is reported separately."
 calibration = ["cov.average_effect.dag.bayesian.posterior_quantile.l90.static_graph_posterior_bayesian_ate_bma_nominal_90_coverage", "cov.average_effect.dag.bayesian.posterior_quantile.l95.static_graph_posterior_bayesian_ate_bma_nominal_90_coverage"]
 
 [[cell]]
@@ -2220,8 +2876,372 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/src/analysis/execute/mod.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture"
-limitations = "Same frozen mixture pin as none: E[tau | identified]=2.625 with 0.2 unidentified mass retained and prepared cache consumption. Full runs the effect-refuter suite on every contributing atom against that atom's own posterior mean, mixes those reports by posterior mass, and adds mixture-weighted PPC / prior-sensitivity; validator values are not numerically pinned. Prior sensitivity perturbs the prior in force (variance-multiplier grid around a staged or transferred prior, alpha grid for a prior-bank compose, isotropic scale grid only when no prior was supplied; the summary records the family) and the prior PPC simulates from that prior. Under the interactive latency tier at most 16 identified atoms are fitted (a stratified subsample, estimate.envelope.interactive_subsample); the mass of the atoms not fitted is reported separately as subsampled-out mass (in the envelope diagnostic, and as subsampled_out_mass on the structured response or posterior where the cell publishes one), not as unidentified or unevaluable mass, and the result is GraphDependent."
+limitations = "Same disagreeing mixture pin as none: estimate.ate withheld, posterior BMA and structural_response identified set retained, 0.2 unidentified mass, and prepared cache consumption. Full runs per-atom refuters, PPC, and prior-sensitivity against each atom's own estimate; outer scalar mix is skipped under GraphDependentAtoms (`refute.envelope.graph_dependent_atoms`). A mixed prior-sensitivity object is withheld. Validator values are not numerically pinned. Under the interactive latency tier at most 16 identified atoms are fitted (estimate.envelope.interactive_subsample); subsampled-out mass is reported separately."
 calibration = ["cov.average_effect.dag.bayesian.posterior_quantile.l90.static_graph_posterior_bayesian_ate_bma_nominal_90_coverage", "cov.average_effect.dag.bayesian.posterior_quantile.l95.static_graph_posterior_bayesian_ate_bma_nominal_90_coverage"]
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_frequentist_numeric_pins"
+limitations = "Each CPDAG posterior atom is evaluated with the existing class ATE envelope (completion enumeration is not posterior probability). Outer weights are posterior probabilities. Unidentified and unevaluable posterior mass are retained and not redistributed. Atoms that disagree on estimand identity publish an identified set / GraphDependent result rather than a scalar mixture; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified even when unidentified mass is retained. With more than one contributing atom the Frequentist SE is the joint influence-function covariance of the atoms' IFs on shared rows with frozen graph weights (estimate.graph_posterior.joint_if_se). Cheap/full are licensed separately."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_none_runs"
+limitations = "Each PAG posterior atom is evaluated with the existing class ATE envelope (completion enumeration is not posterior probability). Outer weights are posterior probabilities. Unidentified and unevaluable posterior mass are retained and not redistributed. Atoms that disagree on estimand identity publish an identified set / GraphDependent result rather than a scalar mixture. StructuralAggregationPolicy chooses SameEstimandWeightedMean, IdentifiedSetEnvelope, or GraphDependentAtoms. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_none_runs"
+limitations = "Each CPDAG posterior atom is evaluated with the existing class ATE envelope (completion enumeration is not posterior probability). Outer weights are posterior probabilities. Unidentified and unevaluable posterior mass are retained and not redistributed. Atoms that disagree on estimand identity publish an identified set / GraphDependent result rather than a scalar mixture. Priors do not upgrade unidentified atoms. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_none_runs"
+limitations = "Each PAG posterior atom is evaluated with the existing class ATE envelope (completion enumeration is not posterior probability). Outer weights are posterior probabilities. Unidentified and unevaluable posterior mass are retained and not redistributed. Atoms that disagree on estimand identity publish an identified set / GraphDependent result rather than a scalar mixture. Priors do not upgrade unidentified atoms. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+limitations = "Same class-posterior envelope as none: each CPDAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained. Cheap runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. With more than one contributing atom the Frequentist SE is the joint influence-function covariance of the atoms' IFs on shared rows with frozen graph weights (estimate.graph_posterior.joint_if_se). Validator values are not numerically pinned."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+limitations = "Same class-posterior envelope as none: each CPDAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained. Full runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. With more than one contributing atom the Frequentist SE is the joint influence-function covariance of the atoms' IFs on shared rows with frozen graph weights (estimate.graph_posterior.joint_if_se). Validator values are not numerically pinned."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+limitations = "Same class-posterior envelope as none: each PAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained. Cheap runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+limitations = "Same class-posterior envelope as none: each PAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained. Full runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+limitations = "Same class-posterior envelope as none: each CPDAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained; priors do not upgrade unidentified atoms. Cheap runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+limitations = "Same class-posterior envelope as none: each CPDAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained; priors do not upgrade unidentified atoms. Full runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+limitations = "Same class-posterior envelope as none: each PAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained; priors do not upgrade unidentified atoms. Cheap runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_cpdag_and_pag_average_effect_cheap_and_full_run"
+limitations = "Same class-posterior envelope as none: each PAG atom uses the class ATE envelope (completion enumeration is not posterior probability) and outer weights are posterior probabilities. Unidentified mass is retained; priors do not upgrade unidentified atoms. Full runs ATE refuters on every identified completion against that completion's own estimate, mixes those reports by completion weight within the atom, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_ate.rs"
+evidence_assertion = "admg_posterior_average_effect_none_runs"
+limitations = "Each ADMG posterior atom is identified with general.id and estimated with functional.effect. Outer weights are posterior probabilities. Unidentified mass is retained and not redistributed. ADMG atoms are single graphs, not MEC completions; bidirected edges are not coerced to Dag; completion enumeration is not posterior probability. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_ate.rs"
+evidence_assertion = "admg_posterior_average_effect_none_runs"
+limitations = "Each ADMG posterior atom is identified with general.id and estimated with functional.effect (not bayesian.gcomp). Outer weights are posterior probabilities. Unidentified mass is retained and not redistributed. Priors do not upgrade unidentified atoms. ADMG atoms are single graphs, not MEC completions; bidirected edges are not coerced to Dag. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_ate.rs"
+evidence_assertion = "admg_posterior_average_effect_cheap_and_full_run"
+limitations = "Same ADMG graph-posterior envelope as none: each ADMG atom uses general.id + functional.effect (not class completion enumeration or bayesian.gcomp). Outer weights are posterior probabilities via StructuralAggregationPolicy. Unidentified mass is retained. Cheap runs ATE refuters on every identified atom against that atom's own estimate, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_ate.rs"
+evidence_assertion = "admg_posterior_average_effect_cheap_and_full_run"
+limitations = "Same ADMG graph-posterior envelope as none: each ADMG atom uses general.id + functional.effect (not class completion enumeration or bayesian.gcomp). Outer weights are posterior probabilities via StructuralAggregationPolicy. Unidentified mass is retained. Full runs ATE refuters on every identified atom against that atom's own estimate, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_ate.rs"
+evidence_assertion = "admg_posterior_average_effect_cheap_and_full_run"
+limitations = "Same ADMG graph-posterior envelope as none: each ADMG atom uses general.id + functional.effect (not bayesian.gcomp or class completion enumeration). Outer weights are posterior probabilities via StructuralAggregationPolicy. Unidentified mass is retained; priors do not upgrade unidentified atoms. Cheap runs ATE refuters on every identified atom against that atom's own estimate, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_ate.rs"
+evidence_assertion = "admg_posterior_average_effect_cheap_and_full_run"
+limitations = "Same ADMG graph-posterior envelope as none: each ADMG atom uses general.id + functional.effect (not bayesian.gcomp or class completion enumeration). Outer weights are posterior probabilities via StructuralAggregationPolicy. Unidentified mass is retained; priors do not upgrade unidentified atoms. Full runs ATE refuters on every identified atom against that atom's own estimate, then mixes atom reports by frozen posterior weight when StructuralAggregationPolicy is SameEstimandWeightedMean; the mixed check passes only if every contributing atom passes. Disagreeing estimands skip the outer scalar mix and do not compare against a pooled mixture ATE. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_graph_posterior_intervention_response_matches_identified_atom"
+limitations = "One intervention coordinate. Each ADMG posterior atom is identified with general.id and estimated with functional.effect, then mixed by frozen posterior weight via StructuralAggregationPolicy. Unidentified mass is retained. Multi-atom aggregate bands are withheld. ADMG atoms are single graphs, not MEC completions. Policy pins: crates/antecedent/tests/admg_posterior_response.rs::admg_graph_posterior_intervention_response_matches_identified_atom. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_graph_posterior_intervention_response_cheap_and_full_run"
+limitations = "Cheap runs plugin-level overlap on the mixed intervention mean when StructuralAggregationPolicy is SameEstimandWeightedMean. Contrast-shaped ATE refuters are not licensed. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_graph_posterior_intervention_response_cheap_and_full_run"
+limitations = "Full runs plugin-level overlap plus sampling-stability on the mixed intervention mean when StructuralAggregationPolicy is SameEstimandWeightedMean. Contrast-shaped ATE refuters are not licensed. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_graph_posterior_intervention_response_matches_identified_atom"
+limitations = "Bayesian ADMG graph-posterior InterventionResponse uses functional.effect per atom with frozen posterior mixing; aggregate bands are withheld when multiple atoms contribute. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_graph_posterior_intervention_response_cheap_and_full_run"
+limitations = "Bayesian cheap runs plugin-level overlap on the mixed intervention mean when StructuralAggregationPolicy is SameEstimandWeightedMean. Contrast-shaped ATE refuters are not licensed. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_graph_posterior_intervention_response_cheap_and_full_run"
+limitations = "Bayesian full runs plugin-level overlap plus sampling-stability on the mixed intervention mean when StructuralAggregationPolicy is SameEstimandWeightedMean. Contrast-shaped ATE refuters are not licensed. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_graph_posterior_response_curve_matches_identified_atom"
+limitations = "MeanCurve grid via general.id + functional.effect per ADMG posterior atom; surfaces mix by frozen posterior weight when estimands agree. cheap/full are n/a (function-valued). No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_graph_posterior_response_curve_matches_identified_atom"
+limitations = "Bayesian MeanCurve on ADMG graph posterior mixes atom surfaces by frozen posterior weight when estimands agree; aggregate bands withheld across atoms. cheap/full are n/a. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
 
 [[cell]]
 query = "PulseEffect"
@@ -2262,7 +3282,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
 evidence_assertion = "manufacturing_dbn_posterior_bayesian_mediation_envelope"
-limitations = "Known-truth DBN mediation mixture pins the mediated effect at 0.44; a valid autoregressive atom is NotCertified, so its 0.3 weight remains unidentified and priors do not upgrade ID. Each atom uses that atom's cached per-horizon S(h) (its I(h) plus its mediator-outcome confounders), not a union across atoms. The staged prepared result equals fresh and consumes cached per-atom identification. cheap/full are licensed separately with the 1.2 mediation suite (placebo-mediator, RCC, mechanism PPC; full adds contiguous-window stability and contrast prior sensitivity) mixed by posterior mass. Under the interactive latency tier at most 16 identified atoms are fitted (a stratified subsample, estimate.envelope.interactive_subsample); the mass of the atoms not fitted is reported separately as subsampled-out mass (in the envelope diagnostic, and as subsampled_out_mass on the structured response or posterior where the cell publishes one), not as unidentified or unevaluable mass, and the result is GraphDependent."
+limitations = "Known-truth DBN mediation mixture pins the mediated effect at 0.44; a valid autoregressive atom is NotCertified, so its 0.3 weight remains unidentified and priors do not upgrade ID. Each atom uses that atom's cached per-horizon S(h) (its I(h) plus its mediator-outcome confounders), not a union across atoms. Frozen posterior weights publish StructuralAggregationPolicy in estimate.graph_posterior.structural_aggregation. The staged prepared result equals fresh and consumes cached per-atom identification. cheap/full are licensed separately with the 1.2 mediation suite (placebo-mediator, RCC, mechanism PPC; full adds contiguous-window stability and contrast prior sensitivity) mixed by posterior mass. Policy pins: crates/antecedent/tests/manufacturing_temporal.rs::dbn_posterior_graph_posterior_numeric_pins. Under the interactive latency tier at most 16 identified atoms are fitted (a stratified subsample, estimate.envelope.interactive_subsample); the mass of the atoms not fitted is reported separately as subsampled-out mass (in the envelope diagnostic, and as subsampled_out_mass on the structured response or posterior where the cell publishes one), not as unidentified or unevaluable mass, and the result is GraphDependent."
 calibration_reason = "estimator_grid_not_measured"
 
 [[cell]]
@@ -4625,7 +5645,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_distribution"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "admg_frontdoor_distribution_known_truth"
-limitations = "Unconditional finite-discrete tables only. General ID on the supplied ADMG; bidirected edges are not dropped to coerce a Dag. Validation none only; cheap/full and IDC conditionals are refused. A nonidentified ADMG refuses rather than publishing a table. Prepared clicks reuse the cached functional. No continuous density claim. Known truth: binary front-door SCM with latent U (conformance/estimate/admg_frontdoor_distribution), P(Y=1|do(T=1)) = 0.625 and P(Y=1|do(T=0)) = 0.375 on the exact 800-row law; the plug-in matches to 1e-12 on fresh and prepared paths, and with 100 bootstrap replicates the logit-bounded probability interval is finite and brackets it. The interval is not coverage-calibrated. Rust Study API only: the Python distribution entry points take DAG edges and refuse an Admg."
+limitations = "Unconditional finite-discrete tables only. General ID on the supplied ADMG; bidirected edges are not dropped to coerce a Dag. Validation none only; cheap/full and IDC conditionals are refused. A nonidentified ADMG refuses rather than publishing a table. Prepared clicks reuse the cached functional. No continuous density claim. Known truth: binary front-door SCM with latent U (conformance/estimate/admg_frontdoor_distribution), P(Y=1|do(T=1)) = 0.625 and P(Y=1|do(T=0)) = 0.375 on the exact 800-row law; the plug-in matches to 1e-12 on fresh and prepared paths, and with 100 bootstrap replicates the logit-bounded probability interval is finite and brackets it. The interval is not coverage-calibrated. Python `analyze`/`prepare` reach this cell."
 calibration_reason = "estimator_grid_not_measured"
 
 [[cell]]
@@ -4639,7 +5659,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_distribution"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "admg_frontdoor_distribution_known_truth"
-limitations = "Same evaluator as explicit Admg; acceptance does not add identification. Validation none only. Known truth: binary front-door SCM with latent U (conformance/estimate/admg_frontdoor_distribution), P(Y=1|do(T=1)) = 0.625 and P(Y=1|do(T=0)) = 0.375 on the exact 800-row law; the plug-in matches to 1e-12 on fresh and prepared paths, and with 100 bootstrap replicates the logit-bounded probability interval is finite and brackets it. The interval is not coverage-calibrated. Rust Study API only: the Python distribution entry points take DAG edges and refuse an Admg."
+limitations = "Same evaluator as explicit Admg; acceptance does not add identification. Validation none only. Known truth: binary front-door SCM with latent U (conformance/estimate/admg_frontdoor_distribution), P(Y=1|do(T=1)) = 0.625 and P(Y=1|do(T=0)) = 0.375 on the exact 800-row law; the plug-in matches to 1e-12 on fresh and prepared paths, and with 100 bootstrap replicates the logit-bounded probability interval is finite and brackets it. The interval is not coverage-calibrated. Python `analyze`/`prepare` reach this cell."
 calibration_reason = "estimator_grid_not_measured"
 
 [[cell]]
@@ -4653,7 +5673,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_distribution"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "admg_frontdoor_distribution_known_truth"
-limitations = "Same ID functional as Frequentist; Bayesian uses the existing FunctionalDistribution CPT path. No transferred prior. Validation none only. Same SCM truth: the Bayesian-bootstrap posterior mean (500 draws) is within 0.02 of it and its 95% credible interval is finite, inside (0, 1) and brackets the posterior mean; a numeric pin, not a coverage claim. Rust Study API only: the Python distribution entry points take DAG edges and refuse an Admg."
+limitations = "Same ID functional as Frequentist; Bayesian uses the existing FunctionalDistribution CPT path. No transferred prior. Validation none only. Same SCM truth: the Bayesian-bootstrap posterior mean (500 draws) is within 0.02 of it and its 95% credible interval is finite, inside (0, 1) and brackets the posterior mean; a numeric pin, not a coverage claim. Python `analyze`/`prepare` reach this cell."
 calibration = ["cov.interventional_distribution.admg.bayesian.posterior_quantile.l90.interventional_distribution_admg_frontdoor_bayesian_nominal_coverage", "cov.interventional_distribution.admg.bayesian.posterior_quantile.l95.interventional_distribution_admg_frontdoor_bayesian_nominal_coverage"]
 
 [[cell]]
@@ -4667,8 +5687,232 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/admg_frontdoor_distribution"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "admg_frontdoor_distribution_known_truth"
-limitations = "Same evaluator as explicit Bayesian Admg; acceptance does not add identification. Same SCM truth: the Bayesian-bootstrap posterior mean (500 draws) is within 0.02 of it and its 95% credible interval is finite, inside (0, 1) and brackets the posterior mean; a numeric pin, not a coverage claim. Rust Study API only: the Python distribution entry points take DAG edges and refuse an Admg."
+limitations = "Same evaluator as explicit Bayesian Admg; acceptance does not add identification. Same SCM truth: the Bayesian-bootstrap posterior mean (500 draws) is within 0.02 of it and its 95% credible interval is finite, inside (0, 1) and brackets the posterior mean; a numeric pin, not a coverage claim. Python `analyze`/`prepare` reach this cell."
 calibration = ["cov.interventional_distribution.admg.bayesian.posterior_quantile.l90.interventional_distribution_admg_frontdoor_bayesian_nominal_coverage", "cov.interventional_distribution.admg.bayesian.posterior_quantile.l95.interventional_distribution_admg_frontdoor_bayesian_nominal_coverage"]
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/pag_admg_numeric_pins.rs"
+evidence_assertion = "admg_frontdoor_response_pins_against_distribution"
+limitations = "general.id on the supplied ADMG plus the functional.effect plug-in at each grid level. Bidirected edges stay bidirected; this is not g-computation on a coerced DAG and not transport. MeanCurve is the identified P(Y|do(X=x)) grid. Validation none only; cheap/full are n/a (function-valued). graph-posterior ADMG response stays closed. Accepted shares this evaluator."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/pag_admg_numeric_pins.rs"
+evidence_assertion = "admg_frontdoor_response_pins_against_distribution"
+limitations = "Accepted ADMG shares the explicit general.id + functional.effect response evaluator. Not gcomp; not transport. Validation none only."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/pag_admg_numeric_pins.rs"
+evidence_assertion = "admg_frontdoor_response_pins_against_distribution"
+limitations = "Same identification as Frequentist; each grid level uses the existing functional.effect Bayesian-bootstrap path (not HMC, not bayesian.gcomp). Validation none only. graph-posterior stays closed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/pag_admg_numeric_pins.rs"
+evidence_assertion = "admg_frontdoor_response_pins_against_distribution"
+limitations = "Accepted ADMG shares the explicit Bayesian functional.effect response evaluator. Validation none only."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/pag_admg_numeric_pins.rs"
+evidence_assertion = "admg_frontdoor_response_pins_against_distribution"
+limitations = "general.id on the supplied ADMG plus the functional.effect plug-in at the requested Set level. Bidirected edges stay bidirected; this is not g-computation and not transport. Mean at do(X=x) is pinned against InterventionalDistribution / ATE functional on the same graph. Cheap/full run plugin-level overlap / sampling-stability on the intervention mean; contrast-shaped ATE refuters stay out."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/pag_admg_numeric_pins.rs"
+evidence_assertion = "admg_frontdoor_response_pins_against_distribution"
+limitations = "Accepted ADMG shares the explicit general.id + functional.effect intervention-mean evaluator. Cheap/full run plugin-level overlap / sampling-stability on the intervention mean."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/pag_admg_numeric_pins.rs"
+evidence_assertion = "admg_frontdoor_response_pins_against_distribution"
+limitations = "Same identification as Frequentist; Bayesian uses the existing functional.effect draw path. Not HMC. Cheap/full run plugin-level overlap / sampling-stability on the intervention mean."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/pag_admg_numeric_pins.rs"
+evidence_assertion = "admg_frontdoor_response_pins_against_distribution"
+limitations = "Accepted ADMG shares the explicit Bayesian functional.effect intervention-mean evaluator. Cheap/full run plugin-level overlap / sampling-stability on the intervention mean."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+limitations = "Cheap runs plugin-level overlap on the identified intervention mean. Contrast-shaped ATE refuters are not licensed. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+limitations = "Full runs plugin-level overlap plus sampling-stability on the identified intervention mean. Contrast-shaped ATE refuters are not licensed. Validator values are not numerically pinned. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+limitations = "Accepted ADMG shares the explicit plugin-level cheap suite on the intervention mean."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+limitations = "Accepted ADMG shares the explicit plugin-level full suite on the intervention mean."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+limitations = "Bayesian cheap runs plugin-level overlap on the functional.effect intervention mean. Contrast-shaped ATE refuters are not licensed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+limitations = "Bayesian full runs plugin-level overlap plus sampling-stability on the functional.effect intervention mean. Contrast-shaped ATE refuters are not licensed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+limitations = "Accepted Bayesian ADMG shares the explicit plugin-level cheap suite on the intervention mean."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Admg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/admg_posterior_response.rs"
+evidence_assertion = "admg_explicit_and_accepted_intervention_response_cheap_and_full_run"
+limitations = "Accepted Bayesian ADMG shares the explicit plugin-level full suite on the intervention mean."
+calibration_reason = "estimator_grid_not_measured"
 
 [[cell]]
 query = "TemporalMediationEffect"
@@ -4681,7 +5925,119 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
 evidence_assertion = "manufacturing_dbn_posterior_frequentist_mediation_envelope"
-limitations = "Single horizon only; multi-horizon grids are refused (fresh and prepared). Frozen posterior weights. Each identified atom uses its own S(h) (its I(h) plus mediator-outcome confounders); sets are not unioned. Total, Direct and Mediated are fixed-weight means over evaluable atoms. When replicates are requested, one shared circular-block replicate over the lag-aligned series times every atom can evaluate refits every atom's three mechanism regressions and mixes them with the frozen weights inside the replicate, so the three SEs are for the reported aggregate and include between-atom covariance; the block length is dependence-aware (at least max(span, ⌈m^{1/3}⌉), lengthened on persistent contrast or normal-equation scores) and the replicate SD carries the circular-Bartlett fixed-b factor; estimate.temporal.circular_block_se.short_series warns below the temporal mediation threshold (one atom) or the mixture threshold. With one identified atom this is that atom's own block bootstrap. Without usable replicates the aggregate SE is withheld (estimate.dbn_posterior.mediation.uncertainty_withheld); no iid SE is substituted. Identified/unidentified/unevaluable mass, atom values and the atom range are in structural_response (posterior_probability weights); unidentified or unevaluable mass makes the status GraphDependent. Failed estimation is unevaluable, not unidentified. The SE is checked as finite and positive, not calibrated for coverage. Python: analyze() and PreparedAnalysis.prepare(discovery=DbnPosterior(...) or GraphPosterior(...)) with Frequentist() reach this cell; without an explicit bootstrap the replicate count follows the latency tier (interactive 0, standard 199, report 200; 199 without a tier). cheap/full are not licensed. Class-valued posterior atoms remain refused."
+limitations = "Single horizon only; multi-horizon grids are refused (fresh and prepared). Frozen posterior weights via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Each identified atom uses its own S(h) (its I(h) plus mediator-outcome confounders); sets are not unioned. Total, Direct and Mediated are fixed-weight means over evaluable atoms. When replicates are requested, one shared circular-block replicate over the lag-aligned series times every atom can evaluate refits every atom's three mechanism regressions and mixes them with the frozen weights inside the replicate, so the three SEs are for the reported aggregate and include between-atom covariance; the block length is dependence-aware (at least max(span, ⌈m^{1/3}⌉), lengthened on persistent contrast or normal-equation scores) and the replicate SD carries the circular-Bartlett fixed-b factor; estimate.temporal.circular_block_se.short_series warns below the temporal mediation threshold (one atom) or the mixture threshold. With one identified atom this is that atom's own block bootstrap. Without usable replicates the aggregate SE is withheld (estimate.dbn_posterior.mediation.uncertainty_withheld); no iid SE is substituted. Identified/unidentified/unevaluable mass, atom values and the atom range are in structural_response (posterior_probability weights); unidentified or unevaluable mass makes the status GraphDependent. Failed estimation is unevaluable, not unidentified. The SE is checked as finite and positive, not calibrated for coverage. Python: analyze() and PreparedAnalysis.prepare(discovery=DbnPosterior(...) or GraphPosterior(...)) with Frequentist() reach this cell; without an explicit bootstrap the replicate count follows the latency tier (interactive 0, standard 199, report 200; 199 without a tier). cheap/full are licensed separately: mediation refuters run per contributing atom against that atom's own contrast and mix by fixed graph weight. Class-valued posterior atoms remain refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_frequentist_mediation_cheap_and_full_mix_atom_refuters"
+limitations = "Same frozen mediation mixture as none: mediated E[tau | identified]=0.44 with 0.3 unidentified mass retained and per-atom S(h). Cheap runs the mediation suite (placebo-mediator, RCC, empirical binary mediator-range overlap when applicable) on every contributing atom against that atom's own contrast using that atom's S(h), not the pooled mean, and mixes reports by fixed graph weight; the mixed check passes only if every atom passes. They do not rediscover graphs. Interval calibration is unchanged from the none cell."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalDag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
+evidence_assertion = "manufacturing_dbn_posterior_frequentist_mediation_cheap_and_full_mix_atom_refuters"
+limitations = "Same frozen mediation mixture as none: mediated E[tau | identified]=0.44 with 0.3 unidentified mass retained and per-atom S(h). Full adds contiguous-window stability to the cheap per-atom mediation refuters, mixed by fixed graph weight; the mixed check passes only if every atom passes. They do not rediscover graphs. Interval calibration is unchanged from the none cell."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_mediation_envelope"
+limitations = "Single horizon only. Each TemporalCpdag posterior atom is reconstructed from adjacency + lag_masks and evaluated with the existing temporal class mediation envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Each atom uses its own S(h); sets are not unioned across atoms. Total, Direct and Mediated are fixed-weight means over evaluable atoms when StructuralAggregationPolicy is SameEstimandWeightedMean. Shared circular-block bootstrap across posterior atoms when mixable. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_mediation_cheap_and_full_run"
+limitations = "Same TemporalCpdag class-posterior mediation envelope as none. Cheap runs mediation refuters on each contributing posterior atom against that atom's own contrast, then mixes those atom reports by frozen posterior weight when SameEstimandWeightedMean applies. ATE refuters are not attached."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_mediation_cheap_and_full_run"
+limitations = "Same TemporalCpdag class-posterior mediation envelope as none. Full runs mediation refuters on each contributing posterior atom against that atom's own contrast, then mixes those atom reports by frozen posterior weight when SameEstimandWeightedMean applies."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_mediation_envelope"
+limitations = "Each TemporalCpdag posterior atom is reconstructed from adjacency + lag_masks and evaluated with the existing temporal class Bayesian mediation envelope. Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained; priors do not upgrade unidentified atoms. Cheap/full are licensed separately. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_mediation_cheap_and_full_run"
+limitations = "Same TemporalCpdag class-posterior Bayesian mediation envelope as none. Cheap/full refuters are not numerically pinned on this cell."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalMediationEffect"
+graph_class = "TemporalCpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/temporal_class_posterior.rs"
+evidence_assertion = "temporal_class_graph_posterior_mediation_cheap_and_full_run"
+limitations = "Same TemporalCpdag class-posterior Bayesian mediation envelope as none. Cheap/full refuters are not numerically pinned on this cell."
 calibration_reason = "estimator_grid_not_measured"
 
 [[cell]]
@@ -4695,7 +6051,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_attribution"
 evidence_test = "crates/antecedent/tests/staged_attribution_transport_interference.rs"
 evidence_assertion = "anomaly_attribution_known_truth"
-limitations = "GCM anomaly scores on a supplied explicit Dag. Identification is parametric (gcm.parametric); estimator gcm.fit. Not an average treatment effect. Sampling uncertainty is unavailable. cheap/full, Bayesian, accepted, graph-posterior, and non-Dag graphs remain refused. Rust Study API only."
+limitations = "GCM anomaly scores on a supplied explicit Dag. Identification is parametric (gcm.parametric); estimator gcm.fit. Not an average treatment effect. Sampling uncertainty is unavailable. cheap/full, Bayesian, accepted, graph-posterior, and non-Dag graphs remain refused. Python analyze(data, graph=Dag, query=AnomalyAttribution(...)) and the Rust Study API run this cell and retain a study; a second-click refuter suite refuses with option_not_applicable."
 calibration_reason = "no_interval_reported"
 
 [[cell]]
@@ -4709,7 +6065,7 @@ evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/staged_attribution"
 evidence_test = "crates/antecedent/tests/staged_attribution_transport_interference.rs"
 evidence_assertion = "change_attribution_known_truth"
-limitations = "GCM distribution-change Shapley on a supplied explicit Dag, two time-range populations. Identification is parametric (gcm.parametric); estimator gcm.fit. Pins total_change from conformance/estimate/staged_attribution (same two-period intercept-shift chain as conformance/attribution/distribution_change_y_shift). cheap/full, Bayesian, accepted, graph-posterior, and non-Dag graphs remain refused. Rust Study API only."
+limitations = "GCM distribution-change Shapley on a supplied explicit Dag, two time-range populations. Identification is parametric (gcm.parametric); estimator gcm.fit. Pins total_change from conformance/estimate/staged_attribution (same two-period intercept-shift chain as conformance/attribution/distribution_change_y_shift). cheap/full, Bayesian, accepted, graph-posterior, and non-Dag graphs remain refused. Python analyze(data, graph=Dag, query=ChangeAttribution(...)) and the Rust Study API run this cell and retain a study; a second-click refuter suite refuses with option_not_applicable."
 calibration_reason = "no_interval_reported"
 
 [[cell]]
@@ -4739,4 +6095,340 @@ evidence_test = "crates/antecedent/tests/staged_attribution_transport_interferen
 evidence_assertion = "interference_bernoulli_neighbor_count_known_truth"
 limitations = "Design-based Horvitz–Thompson / Hájek exposure contrast. The Dag binds schema/outcome; it does not identify the contrast. Licensed mapping is NeighborCount under Bernoulli assignment on a caller-supplied fixed network. Variance is the conservative Young bound, not Aronow–Samii. Complete or cluster randomization and every other exposure mapping refuse with construction_not_licensed. cheap/full, Bayesian, accepted, graph-posterior, and non-Dag graphs remain refused. The network and realized assignment freeze at prepare; the unit table is the data, so a refresh executes on new outcomes under the frozen design. Python analyze(data, graph=Dag or edges, query=InterferenceQuery(..., network=, realized_assignment=)) and the Rust Study API run this cell and retain a study; retarget refuses with population_not_estimable and a second-click refuter suite with option_not_applicable. The calibration slot is keyed InterferenceQuery/Dag/fixed/tabular/Frequentist/interference.ht_hajek/analytic_se/iid at the reported 0.95 level."
 calibration = ["cov.interference_query.dag.frequentist.analytic_se.l90.interference_dag_bernoulli_neighbor_count_conservative_bound_boundary", "cov.interference_query.dag.frequentist.analytic_se.l95.interference_dag_bernoulli_neighbor_count_conservative_bound_boundary"]
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_response_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_response_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_response_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Cpdag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_response_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ConditionalEffect"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_conditional_effect_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class ConditionalEffect envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy. Unidentified class mass is retained. Atoms that disagree on estimand identity withhold the scalar and publish structural_response.identified_set under GraphDependentAtoms; SameEstimandWeightedMean publishes E[τ | identified] on estimate.ate and structural_response.conditional_on_identified. Cheap/full run per-completion refuters inside each atom (refute.envelope.class_posterior); outer scalar mix is skipped under GraphDependentAtoms. No coverage record: calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_response_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_response_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_response_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_intervention_response_cheap_and_full_run"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "Pag"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
+evidence_test = "crates/antecedent/tests/class_posterior_ate.rs"
+evidence_assertion = "class_posterior_graph_posterior_response_runs"
+limitations = "Each CPDAG/PAG posterior atom is evaluated with the existing class response envelope (completion enumeration is not posterior probability). Outer weights are frozen posterior probabilities via StructuralAggregationPolicy (estimate.graph_posterior.structural_aggregation). Unidentified class mass is retained. Multi-atom aggregate bands are withheld under GraphDependentAtoms. InterventionResponse cheap/full use query-native plugin-level refuters on the frozen-weight scalar when SameEstimandWeightedMean applies. No coverage record."
+calibration_reason = "estimator_grid_not_measured"
 
