@@ -1250,6 +1250,12 @@ pub(crate) struct EstimateSection {
     /// outcome (the probability `P(Y = 1 | do(x))`). `None` otherwise.
     #[pyo3(get)]
     mean_interval: Option<ProbabilityIntervalSection>,
+    /// Per-row CATE when a heterogeneous-effect estimator produced one.
+    #[pyo3(get)]
+    cate: Option<Vec<f64>>,
+    /// Actual fitted learner spec, implementation and version, in fit order.
+    #[pyo3(get)]
+    learner_provenance: Vec<(String, String, String)>,
 }
 
 /// Bounded interval for one interventional probability, or the reason none
@@ -1544,6 +1550,13 @@ pub(crate) fn shared_study_sections(
         evalue_threshold: result.estimate.evalue_threshold,
         distribution_atoms,
         mean_interval,
+        cate: result.estimate.cate.as_ref().map(|c| c.to_vec()),
+        learner_provenance: result
+            .estimate
+            .learner_provenance
+            .iter()
+            .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
+            .collect(),
     };
     let (
         posterior_effect_mean,

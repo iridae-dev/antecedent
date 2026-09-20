@@ -220,6 +220,9 @@ class EstimateView(ResultModel):
     #: ``unidentified_mass``, ...). When set, ``ate`` is not a point for the
     #: claim and displays withhold it behind the caveat.
     limitation: str | None = None
+    #: Per-row CATE when a heterogeneous-effect estimator produced one.
+    cate: tuple[float, ...] | None = None
+    learner_provenance: tuple[tuple[str, str, str], ...] = ()
 
     def __repr__(self) -> str:
         if self.limitation is not None:

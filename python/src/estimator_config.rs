@@ -3,7 +3,7 @@
 //! Before this module, the only estimator tuning reachable from Python was the three loose
 //! `rd.sharp` kwargs (`running_variable` / `cutoff` / `bandwidth`, still supported unchanged
 //! for backward compatibility). This module adds one table-driven parser behind a single
-//! `estimator_config: dict | None` kwarg, covering the ten estimators the facade's
+//! `estimator_config: dict | None` kwarg, covering the estimators the facade's
 //! [`antecedent::EstimatorSpec`] can carry fully configured
 //! (`crates/antecedent/src/estimator_spec.rs`), plus the `rd.sharp` triple and its SE kind.
 //!
@@ -24,9 +24,10 @@ use std::sync::Arc;
 
 use antecedent::EstimatorSpec;
 use antecedent_estimate::{
-    AipwAte, AnalyticSeKind, CaliperScale, DistanceMatching, FrontDoorTwoStage, GlmAdjustmentAte,
-    LinearAdjustmentAte, LinearFitKind, PropensityMatching, PropensityStratification,
-    PropensityWeighting, TwoStageLeastSquares, WaldIv,
+    AipwAte, AnalyticSeKind, CaliperScale, CausalForest, DistanceMatching, DmlAte, DmlScore,
+    DrLearner, FrontDoorTwoStage, GlmAdjustmentAte, LearnerSpec, LinearAdjustmentAte,
+    LinearFitKind, PropensityMatching, PropensityStratification, PropensityWeighting,
+    TwoStageLeastSquares, WaldIv,
 };
 use antecedent_stats::{GlmFamily, GlmOptions};
 use pyo3::exceptions::PyValueError;
@@ -142,6 +143,9 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
     // with the loose `running_variable`/`cutoff`/`bandwidth` kwargs by `merge_rd_triple`.
     // `se_kind` selects the jump coefficient's residual-based SE (`RdConfig::with_se_kind`).
     ("rd.sharp", &["running_variable", "cutoff", "bandwidth", "se_kind"]),
+    ("dml", &["learner", "outcome", "treatment", "score", "folds", "overlap"]),
+    ("dr.learner", &["learner", "outcome", "treatment", "final_learner", "folds", "overlap"]),
+    ("causal.forest", &["n_trees", "min_leaf", "max_depth", "honesty"]),
 ];
 
 /// Valid `glm_options` sub-dict keys (see [`build_glm_options`]).
@@ -353,6 +357,16 @@ fn get_f64(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<f64>> {
     v.extract::<f64>().map(Some).map_err(|_| {
         PyValueError::new_err(format!(
             "estimator_config[{key:?}] must be a float, got {}",
+            type_name(&v)
+        ))
+    })
+}
+
+fn get_bool(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<bool>> {
+    let Some(v) = dict.get_item(key)? else { return Ok(None) };
+    v.extract::<bool>().map(Some).map_err(|_| {
+        PyValueError::new_err(format!(
+            "estimator_config[{key:?}] must be a bool, got {}",
             type_name(&v)
         ))
     })
@@ -614,6 +628,10 @@ fn build_overlap(dict: &Bound<'_, PyDict>) -> PyResult<Option<antecedent_estimat
     }))
 }
 
+fn parse_learner(key: &str) -> PyResult<LearnerSpec> {
+    LearnerSpec::parse(key).map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
 fn invalid(message: String) -> PyErr {
     crate::with_reason_code(
         PyValueError::new_err(message),
@@ -825,6 +843,68 @@ fn build_configured_spec(
             }
             if let Some(pt) = panel_times {
                 est = est.with_panel_times(pt);
+            }
+            est.into()
+        }
+        "dml" => {
+            let mut est = DmlAte::new();
+            if let Some(learner) = get_string(dict, "learner")? {
+                est = est.with_learner(parse_learner(&learner)?);
+            }
+            if let Some(outcome) = get_string(dict, "outcome")? {
+                est = est.with_outcome(parse_learner(&outcome)?);
+            }
+            if let Some(treatment) = get_string(dict, "treatment")? {
+                est = est.with_treatment(parse_learner(&treatment)?);
+            }
+            if let Some(score) = get_string(dict, "score")? {
+                est = est.with_score(
+                    DmlScore::parse(&score).map_err(|e| PyValueError::new_err(e.to_string()))?,
+                );
+            }
+            if let Some(folds) = get_u32(dict, "folds")? {
+                est = est.with_folds(folds as usize);
+            }
+            if let Some(policy) = overlap {
+                est = est.with_overlap(policy);
+            }
+            est.into()
+        }
+        "dr.learner" => {
+            let mut est = DrLearner::new();
+            if let Some(learner) = get_string(dict, "learner")? {
+                est = est.with_learner(parse_learner(&learner)?);
+            }
+            if let Some(outcome) = get_string(dict, "outcome")? {
+                est = est.with_outcome(parse_learner(&outcome)?);
+            }
+            if let Some(treatment) = get_string(dict, "treatment")? {
+                est = est.with_treatment(parse_learner(&treatment)?);
+            }
+            if let Some(final_learner) = get_string(dict, "final_learner")? {
+                est = est.with_final_learner(parse_learner(&final_learner)?);
+            }
+            if let Some(folds) = get_u32(dict, "folds")? {
+                est = est.with_folds(folds as usize);
+            }
+            if let Some(policy) = overlap {
+                est = est.with_overlap(policy);
+            }
+            est.into()
+        }
+        "causal.forest" => {
+            let mut est = CausalForest::new();
+            if let Some(n_trees) = get_u32(dict, "n_trees")? {
+                est = est.with_n_trees(n_trees as usize);
+            }
+            if let Some(min_leaf) = get_u32(dict, "min_leaf")? {
+                est = est.with_min_leaf(min_leaf as usize);
+            }
+            if let Some(max_depth) = get_u32(dict, "max_depth")? {
+                est = est.with_max_depth(max_depth as usize);
+            }
+            if let Some(honesty) = get_bool(dict, "honesty")? {
+                est = est.with_honesty(honesty);
             }
             est.into()
         }

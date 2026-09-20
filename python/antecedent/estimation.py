@@ -214,6 +214,8 @@ def _section_estimate(raw: Any) -> Any:
         score_inference=getattr(raw, "score_inference", None),
         scenario_effects=getattr(raw, "scenario_effects", None),
         scenario_intervals=getattr(raw, "scenario_intervals", None),
+        cate=getattr(raw, "cate", None),
+        learner_provenance=tuple(getattr(raw, "learner_provenance", ())),
     )
 
 
@@ -576,6 +578,8 @@ def _wrap_ate(
             mean_interval=_probability_interval_from_raw(
                 getattr(sec_estimate, "mean_interval", None)
             ),
+            learner_provenance=tuple(getattr(sec_estimate, "learner_provenance", ())),
+            cate=tuple(sec_estimate.cate) if getattr(sec_estimate, "cate", None) is not None else None,
         ),
         posterior=posterior,
         unit_effects=getattr(raw, "unit_effects", None),

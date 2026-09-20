@@ -98,6 +98,12 @@ pub struct EffectEstimateWire {
     /// Per-unit effects are homogeneous by construction of the selected mechanisms.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit_effects_homogeneous: Option<bool>,
+    /// Complete-case-aligned CATE point predictions; no pointwise intervals implied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cate: Option<Vec<f64>>,
+    /// Actual fitted learner (spec, implementation, version), in fit order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub learner_provenance: Vec<(String, String, String)>,
     /// Point E-value for a named no-latent premise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evalue: Option<f64>,
@@ -370,6 +376,12 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
         family_contrast: e.family_contrast,
         family_contrast_interval: e.family_contrast_interval,
         unit_effects_homogeneous: e.unit_effects_homogeneous.then_some(true),
+        cate: e.cate.as_ref().map(|v| v.to_vec()),
+        learner_provenance: e
+            .learner_provenance
+            .iter()
+            .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
+            .collect(),
         evalue: e.evalue,
         evalue_threshold: e.evalue_threshold,
         candidate_selection: e.candidate_selection.as_ref().map(|s| CandidateSelectionWire {
@@ -557,6 +569,16 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     estimate.scenario_intervals = w.scenario_intervals.clone().map(Into::into);
     estimate.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
     estimate.unit_effects_homogeneous = w.unit_effects_homogeneous.unwrap_or(false);
+    estimate.cate = w.cate.clone().map(Into::into);
+    estimate.learner_provenance = w
+        .learner_provenance
+        .iter()
+        .map(|(spec, implementation, version)| antecedent_estimate::LearnerProvenance {
+            spec: spec.clone(),
+            implementation: implementation.clone(),
+            version: version.clone(),
+        })
+        .collect();
     Ok(estimate)
 }
 
@@ -935,6 +957,28 @@ mod tests {
     use super::*;
     use crate::trace::{AssumptionRecordWire, AssumptionTagWire};
 
+    #[test]
+    fn learner_outputs_survive_wire_round_trip() {
+        let mut effect = EffectEstimate::new(
+            2.0,
+            0.1,
+            AssumptionSet::new(),
+            antecedent_estimate::OverlapPolicy::ExplicitOverride,
+        )
+        .with_cate(Some(vec![1.0, 3.0].into()));
+        effect.learner_provenance.push(antecedent_estimate::LearnerProvenance {
+            spec: "ridge".into(),
+            implementation: "faer".into(),
+            version: "0.24".into(),
+        });
+        let wire = effect_estimate_to_wire(&effect);
+        let bytes = serde_json::to_vec(&wire).unwrap();
+        let decoded: EffectEstimateWire = serde_json::from_slice(&bytes).unwrap();
+        let restored = effect_estimate_from_wire(&decoded).unwrap();
+        assert_eq!(restored.cate, effect.cate);
+        assert_eq!(restored.learner_provenance, effect.learner_provenance);
+    }
+
     fn empty_id_result(status: IdentificationStatus) -> IdentificationResult {
         let t = VariableId::from_raw(0);
         let y = VariableId::from_raw(1);
@@ -1037,6 +1081,8 @@ mod tests {
             monotone_rearranged: false,
             interaction_structurally_zero: None,
             unit_effects_homogeneous: None,
+            cate: None,
+            learner_provenance: Vec::new(),
             evalue: None,
             evalue_threshold: None,
             candidate_selection: None,

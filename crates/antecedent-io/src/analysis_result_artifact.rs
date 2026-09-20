@@ -375,6 +375,12 @@ pub struct AnalysisResultWire {
     /// unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit_effects: Option<UnitEffectsWire>,
+    /// Complete-case-aligned CATE point predictions, without pointwise intervals.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cate: Option<Vec<f64>>,
+    /// Fitted learner (spec, implementation, version), in fit order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub learner_provenance: Vec<(String, String, String)>,
 }
 
 /// Per-unit counterfactual effects an execution reported.

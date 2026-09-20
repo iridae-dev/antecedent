@@ -767,8 +767,117 @@ class SharpRd:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class DML:
+    """``dml`` — cross-fitted DML / AIPW."""
+
+    learner: str | None = None
+    outcome: str | None = None
+    treatment: str | None = None
+    score: str | None = None
+    folds: int | None = None
+    overlap: Overlap | None = None
+
+    def __post_init__(self) -> None:
+        if self.folds is not None and self.folds < 2:
+            raise ValueError(f"DML folds must be at least 2, got {self.folds!r}")
+        if self.score is not None and self.score not in {"aipw", "partially_linear"}:
+            raise ValueError(f"DML score must be 'aipw' or 'partially_linear', got {self.score!r}")
+
+    @property
+    def estimator_id(self) -> str:
+        return str(Estimator.DML)
+
+    def _wire(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        if self.learner is not None:
+            out["learner"] = self.learner
+        if self.outcome is not None:
+            out["outcome"] = self.outcome
+        if self.treatment is not None:
+            out["treatment"] = self.treatment
+        if self.score is not None:
+            out["score"] = self.score
+        if self.folds is not None:
+            out["folds"] = self.folds
+        out.update(_wire_overlap(self.overlap))
+        return _omit_empty(out)
+
+
+@dataclass(frozen=True, slots=True)
+class DRLearner:
+    """``dr.learner`` — doubly robust CATE learner."""
+
+    learner: str | None = None
+    outcome: str | None = None
+    treatment: str | None = None
+    final_learner: str | None = None
+    folds: int | None = None
+    overlap: Overlap | None = None
+
+    def __post_init__(self) -> None:
+        if self.folds is not None and self.folds < 2:
+            raise ValueError(f"DRLearner folds must be at least 2, got {self.folds!r}")
+
+    @property
+    def estimator_id(self) -> str:
+        return str(Estimator.DR_LEARNER)
+
+    def _wire(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        if self.learner is not None:
+            out["learner"] = self.learner
+        if self.outcome is not None:
+            out["outcome"] = self.outcome
+        if self.treatment is not None:
+            out["treatment"] = self.treatment
+        if self.final_learner is not None:
+            out["final_learner"] = self.final_learner
+        if self.folds is not None:
+            out["folds"] = self.folds
+        out.update(_wire_overlap(self.overlap))
+        return _omit_empty(out)
+
+
+@dataclass(frozen=True, slots=True)
+class CausalForest:
+    """``causal.forest`` — honest causal-forest CATE."""
+
+    n_trees: int | None = None
+    min_leaf: int | None = None
+    max_depth: int | None = None
+    honesty: bool | None = None
+
+    def __post_init__(self) -> None:
+        if self.n_trees is not None and self.n_trees < 1:
+            raise ValueError(f"CausalForest n_trees must be at least 1, got {self.n_trees!r}")
+        if self.min_leaf is not None and self.min_leaf < 1:
+            raise ValueError(f"CausalForest min_leaf must be at least 1, got {self.min_leaf!r}")
+        if self.max_depth is not None and self.max_depth < 1:
+            raise ValueError(f"CausalForest max_depth must be at least 1, got {self.max_depth!r}")
+
+    @property
+    def estimator_id(self) -> str:
+        return str(Estimator.CAUSAL_FOREST)
+
+    def _wire(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        if self.n_trees is not None:
+            out["n_trees"] = self.n_trees
+        if self.min_leaf is not None:
+            out["min_leaf"] = self.min_leaf
+        if self.max_depth is not None:
+            out["max_depth"] = self.max_depth
+        if self.honesty is not None:
+            out["honesty"] = self.honesty
+        return _omit_empty(out)
+
+
 __all__ = [
     "Aipw",
+    "CausalForest",
+    "DML",
+    "DRLearner",
     "DistanceMatching",
     "FitKind",
     "FrontdoorTwoStage",

@@ -100,9 +100,21 @@ parity with DoWhy.
 ### EconML
 
 EconML focuses on machine-learning estimators for heterogeneous treatment
-effects and policy-oriented workflows. Antecedent's licensed
-`ConditionalEffect` path is a linear interaction model; it does not provide
-causal forests, meta-learners, or a general ML CATE surface.
+effects and policy-oriented workflows. Antecedent now ships native
+cross-fitted DML (`estimators.DML`, AIPW or Robinson PLR) and a DR-Learner
+CATE path (`estimators.DRLearner`) and a native honest causal forest
+(`estimators.CausalForest`). DR-Learner and the forest report the marginal
+ATE and its IID interval from cross-fitted AIPW scores; fitted CATEs are
+separate point predictions, without pointwise uncertainty. Robinson PLR
+requires a constant conditional effect to interpret its slope as the ATE.
+The initial known-truth fixture in `conformance/estimate/learner_ate/fixture.json`
+covers a binary-treatment linear SCM at one sample size; it does not license
+nonlinear-provider or CATE interval calibration. Full 2.0 calibration remains
+unattested pending the separate measurement sweep.
+
+That is not a 12-estimator EconML clone:
+learners never choose the adjustment set, and the EconML handoff remains
+an identification-set export.
 
 `antecedent.handoff.econml(result)` emits the adjustment set and identification
 status for point-identified backdoor / generalized-adjustment estimands,
@@ -111,7 +123,7 @@ including lag-aligned temporal columns when the certificate carries offsets.
 evidence; Antecedent does not wrap the learner or inherit native calibration.
 Front-door, IV, general-ID, partial-identification, and graph-posterior
 results refuse rather than pretending they are a set. The adapter does not
-wrap EconML learners or absorb ML CATE.
+wrap EconML learners or absorb an external CATE.
 
 ### Tigramite
 
@@ -141,7 +153,7 @@ downstream analysis is licensed, not applicable, or refused.
 
 The following are current product boundaries or explicit matrix refusals:
 
-- no ML-based CATE estimators (the EconML adapter emits a set, not a learner);
+- no 12-estimator EconML clone (native DML, DRLearner, and honest causal-forest CATE; the EconML adapter still emits a set, not a learner);
 - no plotting module;
 - no R, Julia, or JavaScript bindings;
 - no complete PAG-native ID/IDC;

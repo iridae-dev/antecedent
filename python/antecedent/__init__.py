@@ -95,9 +95,9 @@ from ._native import (
 )
 
 if getattr(_native_module, "__build_optimized__", True) is False:
-    import warnings
+    import warnings as _warnings
 
-    warnings.warn(
+    _warnings.warn(
         "antecedent._native was compiled in Cargo's debug profile; estimation "
         "runs ~50x slower than a release build (results are unaffected). "
         "Reinstall the package (e.g. `uv sync --reinstall-package antecedent` "

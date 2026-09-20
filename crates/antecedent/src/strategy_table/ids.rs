@@ -293,6 +293,12 @@ pub enum EstimatorId {
     TransportTrialIpw,
     /// Horvitz–Thompson / Hájek exposure contrast under a known assignment design.
     InterferenceHtHajek,
+    /// Cross-fitted DML / AIPW average treatment effect.
+    Dml,
+    /// Doubly robust CATE learner (DRLearner).
+    DrLearner,
+    /// Native honest causal forest CATE.
+    CausalForest,
 }
 all_doc = "Every closed-set estimator, in declaration order (powers [`UnknownStrategy::expected`]).";
 }
@@ -543,6 +549,24 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "interference.ht_hajek",
             provenance: ("estimate.interference.ht_hajek", "estimate.interference.ht_hajek"),
         },
+        EstimatorId::Dml => EstimatorData {
+            name: "dml",
+            parallel_task_dimension: "crossfit.fold",
+            kernel_label: "dml",
+            provenance: ("estimate.dml", "estimate.dml"),
+        },
+        EstimatorId::DrLearner => EstimatorData {
+            name: "dr.learner",
+            parallel_task_dimension: "crossfit.fold",
+            kernel_label: "dr.learner",
+            provenance: ("estimate.dr.learner", "estimate.dr.learner"),
+        },
+        EstimatorId::CausalForest => EstimatorData {
+            name: "causal.forest",
+            parallel_task_dimension: "forest.tree",
+            kernel_label: "causal.forest",
+            provenance: ("estimate.causal.forest", "estimate.causal.forest"),
+        },
     }
 }
 
@@ -713,6 +737,9 @@ pub fn validate_static_pair(
             | EstimatorId::DistanceMatching
             | EstimatorId::Aipw
             | EstimatorId::GlmAdjustment
+            | EstimatorId::Dml
+            | EstimatorId::DrLearner
+            | EstimatorId::CausalForest
             | EstimatorId::BayesianGcomp
             | EstimatorId::BayesianConditional
             | EstimatorId::ConditionalLinearAdjustment
@@ -735,6 +762,9 @@ pub fn validate_static_pair(
             | EstimatorId::DistanceMatching
             | EstimatorId::Aipw
             | EstimatorId::GlmAdjustment
+            | EstimatorId::Dml
+            | EstimatorId::DrLearner
+            | EstimatorId::CausalForest
             | EstimatorId::BayesianGcomp
             | EstimatorId::BayesianConditional
             | EstimatorId::ConditionalLinearAdjustment,
@@ -857,6 +887,9 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::ResponseGamDerivative
         | EstimatorId::ResponseInterventionGcomp
         | EstimatorId::CellAipw
+        | EstimatorId::Dml
+        | EstimatorId::DrLearner
+        | EstimatorId::CausalForest
         | EstimatorId::ResponseBayesian => method.is_backdoor_family(),
         EstimatorId::FrontDoorTwoStage => matches!(method, EstimandMethod::FrontDoor),
         EstimatorId::IvWald | EstimatorId::Iv2Sls => matches!(method, EstimandMethod::Iv),

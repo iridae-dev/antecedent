@@ -136,6 +136,9 @@ pub struct EffectEstimate {
     pub unit_effects_homogeneous: bool,
     /// Per-row influence for the reported scalar (shared-row joint IF / envelopes).
     pub influence: Option<Arc<[f64]>>,
+    /// Actual fitted learner identities, in fold order (control, treated, propensity
+    /// for AIPW; outcome folds then treatment folds for PLR; final CATE fit last).
+    pub learner_provenance: Vec<antecedent_learn::LearnerProvenance>,
     /// Point E-value for the reported effect when a named no-latent premise is in force.
     pub evalue: Option<f64>,
     /// Threshold [`Self::evalue`] was judged against, when it came from an
@@ -158,6 +161,8 @@ pub struct EffectEstimate {
     /// Circular-block SE family behind a one-series [`Self::se_bootstrap`],
     /// recorded by the path that ran the circular-block bootstrap.
     pub block_family: Option<crate::temporal_block::CircularBlockFamily>,
+    /// Per-row CATE when a heterogeneous-effect estimator produced one.
+    pub cate: Option<Arc<[f64]>>,
 }
 
 /// Circular-block geometry an estimator used for its one-series bootstrap SE.
@@ -228,6 +233,7 @@ impl EffectEstimate {
             interaction_structurally_zero: false,
             unit_effects_homogeneous: false,
             influence: None,
+            learner_provenance: Vec::new(),
             evalue: None,
             evalue_threshold: None,
             candidate_selection: None,
@@ -235,6 +241,7 @@ impl EffectEstimate {
             n_obs: None,
             se_kind: None,
             block_family: None,
+            cate: None,
         }
     }
 
@@ -288,6 +295,7 @@ impl EffectEstimate {
             interaction_structurally_zero: false,
             unit_effects_homogeneous: false,
             influence: None,
+            learner_provenance: Vec::new(),
             evalue: None,
             evalue_threshold: None,
             candidate_selection: None,
@@ -295,6 +303,7 @@ impl EffectEstimate {
             n_obs: None,
             se_kind: None,
             block_family: None,
+            cate: None,
         }
     }
 
@@ -375,6 +384,13 @@ impl EffectEstimate {
     #[must_use]
     pub fn with_se_kind(mut self, se_kind: crate::se::AnalyticSeKind) -> Self {
         self.se_kind = Some(se_kind);
+        self
+    }
+
+    /// Attach a per-row CATE (`DrLearner` / `CausalForest`).
+    #[must_use]
+    pub fn with_cate(mut self, cate: Option<Arc<[f64]>>) -> Self {
+        self.cate = cate;
         self
     }
 

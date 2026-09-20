@@ -16,6 +16,13 @@ categories.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+ml-gbdt = ["antecedent-estimate/ml-gbdt"]
+ml-forest = ["antecedent-estimate/ml-forest"]
+ml-full = ["ml-gbdt", "ml-forest"]
+ml-gpu = ["antecedent-estimate/ml-gpu"]
+
 [dependencies]
 antecedent-core = { version = "1.11.0", path = "../antecedent-core" }
 antecedent-data = { version = "1.11.0", path = "../antecedent-data" }

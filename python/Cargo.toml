@@ -18,6 +18,13 @@ crate-type = ["cdylib"]
 [lints]
 workspace = true
 
+[features]
+default = ["ml-full"]
+ml-gbdt = ["antecedent/ml-gbdt", "antecedent-estimate/ml-gbdt"]
+ml-forest = ["antecedent/ml-forest", "antecedent-estimate/ml-forest"]
+ml-full = ["ml-gbdt", "ml-forest"]
+ml-gpu = ["antecedent/ml-gpu", "antecedent-estimate/ml-gpu"]
+
 [dependencies]
 antecedent-core = { path = "../crates/antecedent-core" }
 antecedent-data = { path = "../crates/antecedent-data", features = ["arrow"] }

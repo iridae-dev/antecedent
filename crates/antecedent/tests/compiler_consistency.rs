@@ -37,6 +37,9 @@ const REFUSED_UNDER_BAYESIAN: &[&str] = &[
     "cell.aipw",
     "transport.trial_ipw",
     "interference.ht_hajek",
+    "dml",
+    "dr.learner",
+    "causal.forest",
 ];
 const REFUSED_UNDER_FREQUENTIST: &[&str] = &[
     "bayesian.gcomp",
