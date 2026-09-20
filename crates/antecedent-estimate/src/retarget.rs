@@ -189,7 +189,7 @@ fn weights_are_constant(weights: &[f64]) -> bool {
     if !first.is_finite() {
         return false;
     }
-    weights.iter().all(|&w| w.is_finite() && w == first)
+    weights.iter().all(|&w| w.is_finite() && w.to_bits() == first.to_bits())
 }
 
 /// Whether `weights` change the target relative to a constant population.

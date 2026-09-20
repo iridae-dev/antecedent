@@ -1,4 +1,4 @@
-//! CPDAG/PAG graph-posterior AverageEffect: policy, mass, and weight basis.
+//! CPDAG/PAG graph-posterior `AverageEffect`: policy, mass, and weight basis.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -150,11 +150,11 @@ fn pag_from_dag_edges(edges: &[(u32, u32)]) -> Pag {
 fn pag_posterior(weights: &[f64], graphs: &[Pag]) -> GraphPosterior {
     let n = graphs[0].node_count();
     let mut masks = Vec::new();
-    let mut marks = Vec::new();
+    let mut mark_masks = Vec::new();
     for graph in graphs {
-        let (adj, mark) = adjacency_masks_from_pag(graph).unwrap();
+        let (adj, mark_mask) = adjacency_masks_from_pag(graph).unwrap();
         masks.push(adj);
-        marks.push(mark);
+        mark_masks.push(mark_mask);
     }
     GraphPosterior::new(
         n,
@@ -168,7 +168,7 @@ fn pag_posterior(weights: &[f64], graphs: &[Pag]) -> GraphPosterior {
     )
     .unwrap()
     .with_atom_kind(GraphPosteriorAtomKind::Pag)
-    .with_mark_masks(marks)
+    .with_mark_masks(mark_masks)
     .unwrap()
 }
 
@@ -231,7 +231,7 @@ struct FailNth {
 }
 
 impl CustomEffectValidator for FailNth {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "fail.nth"
     }
 
@@ -695,8 +695,8 @@ fn identified_pag_mask_roundtrips() {
     let original = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
         .identify_pag_envelope(&pag, &ate());
     assert!(original.as_ref().is_ok_and(|e| e.identified_weight.0 > 0.0), "original {original:?}");
-    let (mask, mark) = adjacency_masks_from_pag(&pag).unwrap();
-    let back = antecedent_discovery::pag_from_adjacency_mask(mask, mark, 3).unwrap();
+    let (mask, mark_mask) = adjacency_masks_from_pag(&pag).unwrap();
+    let back = antecedent_discovery::pag_from_adjacency_mask(mask, mark_mask, 3).unwrap();
     assert!(back.has_edge(d(2), d(0)));
     assert!(back.has_edge(d(0), d(1)));
     let envelope = antecedent_identify::GeneralizedAdjustmentIdentifier::new()

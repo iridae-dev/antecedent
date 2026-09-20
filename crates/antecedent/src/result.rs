@@ -185,7 +185,7 @@ pub struct StructuralResponseMixture {
     /// enumeration was capped the interval is still published, flagged
     /// `truncated`, with a warning diagnostic.
     pub identified_set_interval: Option<antecedent_estimate::IdentifiedSetInterval>,
-    /// Probability-weighted summary when a scalar SameEstimandWeightedMean mix is
+    /// Probability-weighted summary when a scalar `SameEstimandWeightedMean` mix is
     /// published (`E[τ | identified]`). Retained unidentified mass does not
     /// suppress this field; consumers should read `identification.status` and
     /// `unidentified_mass` alongside it.

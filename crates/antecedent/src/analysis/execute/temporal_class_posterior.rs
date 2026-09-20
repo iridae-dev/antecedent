@@ -251,8 +251,9 @@ impl super::Study {
 
         let estimator_id = match (&self.inference, is_multi_step_sustained(query)) {
             (InferenceMode::Frequentist, false) => EstimatorId::TemporalLinearAdjustment,
-            (InferenceMode::Frequentist, true) => EstimatorId::TemporalSequentialGcomp,
-            (InferenceMode::Bayesian(_), true) => EstimatorId::TemporalSequentialGcomp,
+            (InferenceMode::Frequentist | InferenceMode::Bayesian(_), true) => {
+                EstimatorId::TemporalSequentialGcomp
+            }
             (InferenceMode::Bayesian(_), false) => EstimatorId::BayesianTemporalGcomp,
         };
         let (refutations, refute_diagnostics) = refute_temporal_class_graph_posterior(
@@ -771,7 +772,7 @@ fn mix_temporal_class_posterior_evals(
         matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) && mixable > 0.0;
     let ate = if mixable_scalar { weighted / mixable } else { f64::NAN };
     let conditional_on_identified =
-        mixable_scalar.then(|| antecedent_core::ResponseValue::Scalar(ate));
+        mixable_scalar.then_some(antecedent_core::ResponseValue::Scalar(ate));
     let mixture = StructuralResponseMixture {
         weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
         atoms,
@@ -844,12 +845,10 @@ fn eval_identification(
     eval: &TemporalClassAtomEval,
     identified: &CachedTemporalClassPosteriorIdentification,
 ) -> IdentificationResult {
-    identified
-        .class_atoms
-        .iter()
-        .find(|atom| atom.key == eval.key)
-        .map(|atom| atom.identification.clone())
-        .unwrap_or_else(|| identified.class_atoms[0].identification.clone())
+    identified.class_atoms.iter().find(|atom| atom.key == eval.key).map_or_else(
+        || identified.class_atoms[0].identification.clone(),
+        |atom| atom.identification.clone(),
+    )
 }
 
 /// Inner: TemporalDag Pulse/Sustained refuters per identified completion.

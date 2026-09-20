@@ -450,7 +450,7 @@ fn temporal_gp(n_vars: usize) -> GraphPosterior {
 
 /// Reconstructible TemporalCpdag/Pag atom.
 ///
-/// TemporalPag MAG adjustment needs a contemporaneous arrowhead into the
+/// `TemporalPag` MAG adjustment needs a contemporaneous arrowhead into the
 /// treatment so the unfolded `t_{t-1} → y_t` edge is visible. `2→0` and `2→1`
 /// plus lag `0→1` is that backdoor template.
 fn temporal_class_gp(n_vars: usize) -> GraphPosterior {

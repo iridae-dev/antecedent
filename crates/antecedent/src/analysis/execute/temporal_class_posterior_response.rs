@@ -58,7 +58,7 @@ impl super::Study {
                 message: "temporal class graph-posterior response: too many atoms".into(),
             })?;
             let weight = gp.weights[i];
-            let mark = gp.mark_masks.as_ref().map(|marks| marks[i]).unwrap_or(0);
+            let mark = gp.mark_masks.as_ref().map_or(0, |marks| marks[i]);
             let reconstructed = reconstruct_temporal_class_atom(
                 gp.atom_kind,
                 gp.adjacency[i],
@@ -542,7 +542,7 @@ fn refute_temporal_class_graph_posterior_intervention(
         let i = usize::try_from(*key).map_err(|_| CausalError::Compile {
             message: "temporal class graph-posterior IR refuter: atom key overflow".into(),
         })?;
-        let mark = gp.mark_masks.as_ref().map(|marks| marks[i]).unwrap_or(0);
+        let mark = gp.mark_masks.as_ref().map_or(0, |marks| marks[i]);
         let Ok(graph) = reconstruct_temporal_class_atom(
             gp.atom_kind,
             gp.adjacency[i],

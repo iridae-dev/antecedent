@@ -27,7 +27,7 @@ struct ArrayOwner(#[allow(dead_code)] ArrayRef);
 ///
 /// The FFI pair is private so a mismatched array/schema cannot be assembled
 /// with only safe Rust. Construct via [`Self::from_ffi`] at a compliant
-/// exporter boundary, or [`Self::from_arrow_array`] from an owned array.
+/// exporter boundary, or [`Self::from_arrow_array`] from an Arrow array.
 pub struct ArrowCColumn {
     /// Column name.
     pub name: String,
@@ -57,7 +57,7 @@ impl ArrowCColumn {
     /// # Errors
     ///
     /// When Arrow cannot export the array through the C Data Interface.
-    pub fn from_arrow_array(name: impl Into<String>, array: ArrayRef) -> Result<Self, DataError> {
+    pub fn from_arrow_array(name: impl Into<String>, array: &dyn Array) -> Result<Self, DataError> {
         let (ffi_array, ffi_schema) = to_ffi(&array.to_data()).map_err(|e| {
             DataError::InvalidArgument { message: format!("Arrow CDI export failed: {e}") }
         })?;

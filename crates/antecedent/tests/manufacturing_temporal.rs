@@ -1154,7 +1154,9 @@ fn response_values(result: &antecedent::StudyResult) -> Vec<f64> {
         ResponseIdentification::GraphDependent(atoms) => {
             response_value_points(&atoms.first().expect("graph-dependent atom").1)
         }
-        other => panic!("unexpected response estimate {other:?}"),
+        other @ ResponseIdentification::Unidentified { .. } => {
+            panic!("unexpected response estimate {other:?}")
+        }
     }
 }
 
@@ -1308,8 +1310,8 @@ fn dbn_posterior_intervention_response_matches_identified_atom() {
     }
 }
 
-/// Numeric pins for TemporalDag graph_posterior InterventionResponse and
-/// TemporalMediationEffect: frozen-weight surfaces/contrasts and the published
+/// Numeric pins for `TemporalDag` `graph_posterior` `InterventionResponse` and
+/// `TemporalMediationEffect`: frozen-weight surfaces/contrasts and the published
 /// [`StructuralAggregationPolicy`] diagnostic.
 #[test]
 fn dbn_posterior_graph_posterior_numeric_pins() {

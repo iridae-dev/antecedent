@@ -279,7 +279,7 @@ fn mix_admg_posterior_evals(
         matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) && mixable > 0.0;
     let ate = if mixable_scalar { weighted / mixable } else { f64::NAN };
     let conditional_on_identified =
-        mixable_scalar.then(|| antecedent_core::ResponseValue::Scalar(ate));
+        mixable_scalar.then_some(antecedent_core::ResponseValue::Scalar(ate));
     let mixture = StructuralResponseMixture {
         weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
         atoms,

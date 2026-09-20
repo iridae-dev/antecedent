@@ -534,7 +534,7 @@ fn mix_class_posterior_evals(
         f64::NAN
     };
     let conditional_on_identified =
-        mixable_scalar.then(|| antecedent_core::ResponseValue::Scalar(ate));
+        mixable_scalar.then_some(antecedent_core::ResponseValue::Scalar(ate));
     let mixture = StructuralResponseMixture {
         weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
         atoms,
@@ -586,12 +586,10 @@ fn eval_identification(
     eval: &ClassAtomEval,
     identified: &CachedGraphPosteriorIdentification,
 ) -> IdentificationResult {
-    identified
-        .class_atoms
-        .iter()
-        .find(|atom| atom.key == eval.key)
-        .map(|atom| atom.identification.clone())
-        .unwrap_or_else(|| identified.class_atoms[0].identification.clone())
+    identified.class_atoms.iter().find(|atom| atom.key == eval.key).map_or_else(
+        || identified.class_atoms[0].identification.clone(),
+        |atom| atom.identification.clone(),
+    )
 }
 
 /// Inner: per-completion envelope refuters inside each posterior atom.

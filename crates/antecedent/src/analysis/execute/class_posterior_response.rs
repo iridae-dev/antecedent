@@ -441,7 +441,7 @@ fn mix_class_posterior_responses(
         for (score_w, scores) in &eval.atom_scores {
             atom_scores.push((w * score_w, scores.clone()));
         }
-        let value = eval.response.as_ref().and_then(|response| response_identified_value(response));
+        let value = eval.response.as_ref().and_then(response_identified_value);
         if let Some(response) = eval.response.clone() {
             if value.is_some() {
                 identified_weight += w;
@@ -627,12 +627,10 @@ fn eval_identification_response(
     eval: &ClassAtomResponseEval,
     identified: &CachedGraphPosteriorIdentification,
 ) -> IdentificationResult {
-    identified
-        .class_atoms
-        .iter()
-        .find(|atom| atom.key == eval.key)
-        .map(|atom| atom.identification.clone())
-        .unwrap_or_else(|| identified.class_atoms[0].identification.clone())
+    identified.class_atoms.iter().find(|atom| atom.key == eval.key).map_or_else(
+        || identified.class_atoms[0].identification.clone(),
+        |atom| atom.identification.clone(),
+    )
 }
 
 fn atom_plugin_scalar(response: &CausalResponse) -> Option<f64> {

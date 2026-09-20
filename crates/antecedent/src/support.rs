@@ -1344,8 +1344,14 @@ mod tests {
         let n = 10;
         // Non-degenerate columns: Gaussian BIC no longer floors residual
         // variance, so an all-zero table scores every DAG as non-finite.
-        let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
-        let y: Vec<f64> = (0..n).map(|i| 2.0 * (i % 2) as f64 + 0.1 * i as f64).collect();
+        let t: Vec<f64> =
+            (0..n).map(|i| f64::from(u32::try_from(i % 2).expect("tiny fixture"))).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| {
+                let i = u32::try_from(i).expect("tiny fixture");
+                2.0 * f64::from(i % 2) + 0.1 * f64::from(i)
+            })
+            .collect();
         let cols = vec![
             OwnedColumn::Float64(
                 Float64Column::new(

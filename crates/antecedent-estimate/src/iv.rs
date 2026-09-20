@@ -1137,7 +1137,7 @@ mod tests {
             )
             .unwrap();
         }
-        let cols = [t, y.to_vec(), z.to_vec(), u.to_vec()]
+        let cols = [t, y, z.to_vec(), u.to_vec()]
             .into_iter()
             .enumerate()
             .map(|(i, values)| {

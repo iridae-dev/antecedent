@@ -1,4 +1,4 @@
-//! ADMG graph-posterior AverageEffect: functional.effect per atom, posterior mix.
+//! ADMG graph-posterior `AverageEffect`: functional.effect per atom, posterior mix.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

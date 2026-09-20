@@ -168,7 +168,7 @@ pub(crate) fn bootstrap_se(
     n: usize,
     estimate: impl Fn(&[usize]) -> Result<Option<f64>, EstimationError> + Sync,
 ) -> Result<BootstrapSeResult, EstimationError> {
-    bootstrap_se_with_scratch(replicates, ctx, stream_base, n, || (), |_, idx| estimate(idx))
+    bootstrap_se_with_scratch(replicates, ctx, stream_base, n, || (), |(), idx| estimate(idx))
 }
 
 /// [`bootstrap_se`] with per-worker scratch so replicate evaluation can run
@@ -317,7 +317,6 @@ where
     std::thread::scope(|scope| {
         let estimate = &estimate;
         let make_scratch = &make_scratch;
-        let indexes = indexes;
         let mut rest = slots.as_mut_slice();
         let mut start = 0usize;
         for t in 0..threads {

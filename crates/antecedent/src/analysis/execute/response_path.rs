@@ -90,14 +90,12 @@ impl super::Study {
                     )
                     .map(|response| (response, None))
             } else {
-                estimator
-                    .estimate_identified_scored(
-                        data,
-                        query,
-                        atom.identification.status,
-                        atom.identification.required_assumptions.clone(),
-                    )
-                    .map(|(response, scores)| (response, scores))
+                estimator.estimate_identified_scored(
+                    data,
+                    query,
+                    atom.identification.status,
+                    atom.identification.required_assumptions.clone(),
+                )
             };
             Ok::<_, CausalError>((atom, scored))
         })?;
