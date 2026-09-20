@@ -169,7 +169,8 @@ pub struct TheoremScope {
 }
 
 impl TheoremScope {
-    /// Classical sID as implemented in T0–T1: sound subset, incomplete recursion.
+    /// Sound subset used by the conservative identifier: no multi-node
+    /// c-component recursion. Completeness is not claimed.
     #[must_use]
     pub fn classical_sid() -> Self {
         Self {
@@ -191,6 +192,62 @@ impl TheoremScope {
                 multi_node_c_component_recursion: false,
             },
         }
+    }
+
+    /// Classical single-source family after Figure-5 recursion (T3). Completeness
+    /// applies only to the paper's experimental-information setting.
+    #[must_use]
+    pub fn classical_sid_complete() -> Self {
+        Self {
+            family: TheoremFamily::ClassicalSid,
+            reference: TheoremReference {
+                citation: Arc::from(
+                    "Bareinboim & Pearl, A General Algorithm for Deciding Transportability of Experimental Results, arXiv:1312.7485v1",
+                ),
+                version: Arc::from("classical-sid-t3"),
+            },
+            graph_assumptions: GraphAssumptionSet::SemiMarkovianSelectionAdmg,
+            observed: Arc::from([]),
+            allowed_experiments: ExperimentFamily::TheoremExperiments,
+            distribution_family: TransportDistributionFamily::PositiveLaws,
+            query_scope: TransportQueryScope::TargetInterventionalResponse,
+            outcome_guarantees: OutcomeGuarantee::CompleteForStatedFamily,
+            computation_limits: ComputationLimits {
+                max_standardizer_candidates: 20,
+                multi_node_c_component_recursion: true,
+            },
+        }
+    }
+
+    /// Bounded search over a supplied catalog. Missing a factor is not a proof
+    /// that no alternative catalog-supported formula exists.
+    #[must_use]
+    pub fn finite_catalog_search() -> Self {
+        Self {
+            family: TheoremFamily::FiniteCatalogSearch,
+            reference: TheoremReference {
+                citation: Arc::from(
+                    "Bareinboim & Pearl, A General Algorithm for Deciding Transportability of Experimental Results, arXiv:1312.7485v1; finite-catalog search is implemented, not a completeness theorem",
+                ),
+                version: Arc::from("finite-catalog-search-bounded"),
+            },
+            graph_assumptions: GraphAssumptionSet::SemiMarkovianSelectionAdmg,
+            observed: Arc::from([]),
+            allowed_experiments: ExperimentFamily::SuppliedCatalog,
+            distribution_family: TransportDistributionFamily::FiniteExactTables,
+            query_scope: TransportQueryScope::TargetInterventionalResponse,
+            outcome_guarantees: OutcomeGuarantee::SoundIncomplete,
+            computation_limits: ComputationLimits {
+                max_standardizer_candidates: 20,
+                multi_node_c_component_recursion: true,
+            },
+        }
+    }
+
+    /// Durable inspect token used by exact-law preparation.
+    #[must_use]
+    pub fn exact_law_inspect_label() -> &'static str {
+        "classical_single_source_all_experiments_v1; finite_catalog_search_bounded"
     }
 }
 
@@ -440,6 +497,22 @@ mod tests {
         assert_eq!(scope.outcome_guarantees, OutcomeGuarantee::SoundIncomplete);
         assert!(!scope.computation_limits.multi_node_c_component_recursion);
         assert_ne!(scope.family.as_str(), TheoremFamily::FiniteCatalogSearch.as_str());
+    }
+
+    #[test]
+    fn classical_complete_and_catalog_search_are_distinct_families() {
+        let complete = TheoremScope::classical_sid_complete();
+        let catalog = TheoremScope::finite_catalog_search();
+        assert!(complete.computation_limits.multi_node_c_component_recursion);
+        assert_eq!(complete.outcome_guarantees, OutcomeGuarantee::CompleteForStatedFamily);
+        assert_eq!(complete.family, TheoremFamily::ClassicalSid);
+        assert_eq!(catalog.family, TheoremFamily::FiniteCatalogSearch);
+        assert_eq!(catalog.outcome_guarantees, OutcomeGuarantee::SoundIncomplete);
+        assert_eq!(catalog.allowed_experiments, ExperimentFamily::SuppliedCatalog);
+        assert_eq!(
+            TheoremScope::exact_law_inspect_label(),
+            "classical_single_source_all_experiments_v1; finite_catalog_search_bounded"
+        );
     }
 
     #[test]
