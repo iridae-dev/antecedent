@@ -16,7 +16,7 @@ use antecedent_core::RegimeId;
 
 /// One step in a compiled evaluation plan (child references are slot indices).
 #[derive(Clone, Debug)]
-enum EvalOp {
+pub(crate) enum EvalOp {
     Distribution {
         variables: VarSetId,
         conditioned_on: VarSetId,
@@ -61,12 +61,13 @@ enum EvalOp {
 /// Topologically ordered compiled evaluator for repeated provider evaluation.
 #[derive(Clone, Debug)]
 pub struct CompiledEvaluator {
-    ops: Vec<EvalOp>,
+    pub(crate) ops: Vec<EvalOp>,
+    pub(crate) origins: Vec<ExprId>,
     /// Sorted, deduplicated free variables per slot. A static property of the
     /// plan, computed once at compile time; `Expectation` evaluation reads it
     /// on every call instead of re-deriving it per evaluation.
-    free_vars: Vec<Arc<[VariableId]>>,
-    root: usize,
+    pub(crate) free_vars: Vec<Arc<[VariableId]>>,
+    pub(crate) root: usize,
 }
 
 impl CausalExprArena {
@@ -88,7 +89,11 @@ impl CompiledEvaluator {
         let mut expr_to_slot = HashMap::new();
         let root_slot = compile_rec(arena, root, &mut ops, &mut expr_to_slot)?;
         let free_vars = compute_free_vars(&ops, arena);
-        Ok(Self { ops, free_vars, root: root_slot })
+        let mut origins = vec![root; ops.len()];
+        for (expression, slot) in expr_to_slot {
+            origins[slot] = ExprId::from_raw(expression);
+        }
+        Ok(Self { ops, origins, free_vars, root: root_slot })
     }
 
     /// Evaluate once against a provider.
@@ -216,7 +221,7 @@ impl CompiledEvaluator {
                 let num = self.eval_slot(arena, provider, ctx, env, *numerator)?;
                 let den = self.eval_slot(arena, provider, ctx, env, *denominator)?;
                 if den == 0.0 {
-                    return Err(EvalError::DivisionByZero);
+                    return Err(provider.zero_denominator(arena, self.origins[slot], env));
                 }
                 Ok(num / den)
             }
@@ -381,7 +386,7 @@ impl CompiledEvaluator {
 /// observationally identical to the previous clone-per-row scheme, without the
 /// per-row `Assignment` clone. Restoration also runs on the error path so a
 /// failed inner evaluation leaves the scratch assignment as it found it.
-fn with_scoped_bindings<T>(
+pub(crate) fn with_scoped_bindings<T>(
     env: &mut Assignment,
     vars: impl IntoIterator<Item = VariableId>,
     f: impl FnOnce(&mut Assignment) -> Result<T, EvalError>,
