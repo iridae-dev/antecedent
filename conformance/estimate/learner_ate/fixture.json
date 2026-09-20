@@ -1,0 +1,13 @@
+{
+  "description": "Independent Gaussian Z, Bernoulli expit(-0.5+Z) treatment, Y=2T+Z+0.5 epsilon; IID standard normal epsilon independent of Z and T.",
+  "n": 600,
+  "replicates": 200,
+  "seed_start": 10000,
+  "ate": 2.0,
+  "nominal_coverage": 0.95,
+  "coverage_acceptance": [
+    0.9,
+    0.99
+  ],
+  "absolute_bias_limit": 0.03
+}

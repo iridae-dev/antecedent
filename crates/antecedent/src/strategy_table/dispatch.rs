@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::needless_pass_by_value, clippy::too_many_arguments)]
+#![allow(clippy::needless_pass_by_value, clippy::too_many_arguments, clippy::too_many_lines)]
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, ExecutionContext, PopulationRegistry,
@@ -10,10 +10,10 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_estimate::{
-    AipwAte, AipwWorkspace, DistanceMatching, EffectEstimate, EstimationError, EstimationWorkspace,
-    FrontDoorTwoStage, FrontDoorWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace,
-    LinearAdjustmentAte, OverlapPolicy, PropensityEstimationWorkspace, PropensityMatching,
-    PropensityStratification, PropensityWeighting, TwoStageLeastSquares,
+    AipwAte, AipwWorkspace, CausalForest, DistanceMatching, DmlAte, DrLearner, EffectEstimate,
+    EstimationError, EstimationWorkspace, FrontDoorTwoStage, FrontDoorWorkspace, GlmAdjustmentAte,
+    GlmAdjustmentWorkspace, LinearAdjustmentAte, OverlapPolicy, PropensityEstimationWorkspace,
+    PropensityMatching, PropensityStratification, PropensityWeighting, TwoStageLeastSquares,
     TwoStageLeastSquaresWorkspace, WaldIv,
 };
 use antecedent_expr::IdentifiedEstimand;
@@ -458,6 +458,18 @@ pub fn estimate_static_effect(
             let mut ws = TwoStageLeastSquaresWorkspace::default();
             cfg.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
         }
+        EstimatorSpec::Dml(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            cfg.fit(&prep, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorSpec::DrLearner(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            cfg.fit(&prep, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorSpec::CausalForest(cfg) => {
+            let prep = cfg.prepare(data, estimand, query).map_err(est_err)?;
+            cfg.fit(&prep, ctx, assumptions).map_err(est_err)
+        }
     }
 }
 
@@ -564,6 +576,27 @@ fn estimate_static_effect_default(
         }
         EstimatorId::GcmFit => {
             Err(CausalError::Unsupported { message: "gcm.fit is not a static ATE estimator" })
+        }
+        EstimatorId::Dml => {
+            let mut est = DmlAte::new();
+            if let Some(overlap) = overlap_policy {
+                est.overlap = overlap;
+            }
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            est.fit(&prep, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorId::DrLearner => {
+            let mut est = DrLearner::new();
+            if let Some(overlap) = overlap_policy {
+                est.overlap = overlap;
+            }
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            est.fit(&prep, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorId::CausalForest => {
+            let est = CausalForest::new();
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            est.fit(&prep, ctx, assumptions).map_err(est_err)
         }
         _ => Err(CausalError::Unsupported { message: "unknown static estimator" }),
     }

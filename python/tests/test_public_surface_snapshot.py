@@ -317,6 +317,9 @@ SNAPSHOT: dict[str, set[str]] = {
     },
     "estimators": {
         "Aipw",
+        "CausalForest",
+        "DML",
+        "DRLearner",
         "DistanceMatching",
         "FitKind",
         "FrontdoorTwoStage",

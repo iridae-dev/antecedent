@@ -3922,6 +3922,13 @@ fn composite_result_wire(
         mediation_grid: None,
         structural_response: None,
         unit_effects: None,
+        cate: result.estimate.cate.as_ref().map(|v| v.to_vec()),
+        learner_provenance: result
+            .estimate
+            .learner_provenance
+            .iter()
+            .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
+            .collect(),
     };
     result.fill_analysis_result_payloads(&mut wire, artifact_id).map_err(py_err)?;
     Ok(wire)

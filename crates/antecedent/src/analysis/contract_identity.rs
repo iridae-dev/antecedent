@@ -127,6 +127,38 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             panel_times: cfg.panel_times.as_deref().map(panel_times),
             ..base(cfg.bootstrap_replicates, cfg.overlap)
         }),
+        EstimatorSpec::Dml(cfg) => EstimatorSpecWire::Dml(EstimatorConfigWire {
+            folds: Some(u32::try_from(cfg.folds).unwrap_or(u32::MAX)),
+            outcome: Some(cfg.outcome.name().into()),
+            outcome_config: Some(learner_identity(cfg.outcome)),
+            treatment: Some(cfg.treatment.name().into()),
+            treatment_config: Some(learner_identity(cfg.treatment)),
+            score: Some(
+                match cfg.score {
+                    antecedent_estimate::DmlScore::Aipw => "aipw",
+                    antecedent_estimate::DmlScore::PartiallyLinear => "partially_linear",
+                }
+                .into(),
+            ),
+            ..base(0, cfg.overlap)
+        }),
+        EstimatorSpec::DrLearner(cfg) => EstimatorSpecWire::DrLearner(EstimatorConfigWire {
+            folds: Some(u32::try_from(cfg.folds).unwrap_or(u32::MAX)),
+            outcome: Some(cfg.outcome.name().into()),
+            outcome_config: Some(learner_identity(cfg.outcome)),
+            treatment: Some(cfg.treatment.name().into()),
+            treatment_config: Some(learner_identity(cfg.treatment)),
+            final_learner: Some(cfg.final_learner.name().into()),
+            final_learner_config: Some(learner_identity(cfg.final_learner)),
+            ..base(0, cfg.overlap)
+        }),
+        EstimatorSpec::CausalForest(cfg) => EstimatorSpecWire::CausalForest(EstimatorConfigWire {
+            n_trees: Some(u32::try_from(cfg.n_trees).unwrap_or(u32::MAX)),
+            min_leaf: Some(u32::try_from(cfg.min_leaf).unwrap_or(u32::MAX)),
+            max_depth: Some(u32::try_from(cfg.max_depth).unwrap_or(u32::MAX)),
+            honesty: Some(cfg.honesty),
+            ..base(0, antecedent_estimate::DmlAte::new().overlap)
+        }),
     }
 }
 
@@ -148,6 +180,18 @@ fn base(bootstrap_replicates: u32, overlap: OverlapPolicy) -> EstimatorConfigWir
         multiway_ids: None,
         panel_times: None,
         population_registry: None,
+        folds: None,
+        outcome: None,
+        treatment: None,
+        score: None,
+        final_learner: None,
+        outcome_config: None,
+        treatment_config: None,
+        final_learner_config: None,
+        n_trees: None,
+        min_leaf: None,
+        max_depth: None,
+        honesty: None,
     }
 }
 
@@ -431,5 +475,38 @@ pub(crate) fn interference_snapshot(
             len: edges.len() as u64,
         },
         assignment: PayloadDigestWire::bytes("interference.assignment", &assignment),
+    }
+}
+
+fn learner_identity(spec: antecedent_estimate::LearnerSpec) -> String {
+    use antecedent_estimate::LearnerSpec;
+    match spec {
+        LearnerSpec::Auto => "auto".into(),
+        LearnerSpec::Linear(_) => "linear".into(),
+        LearnerSpec::Logistic(_) => "logistic".into(),
+        LearnerSpec::Ridge(s) => format!("ridge:{}", s.lambda.to_bits()),
+        LearnerSpec::ElasticNet(s) => {
+            format!("elastic_net:{}:{}", s.lambda.to_bits(), s.l1_ratio.to_bits())
+        }
+        LearnerSpec::GradientBoostedTrees(s) => {
+            format!("gbdt:{}:{}:{}", s.trees, s.depth, s.learning_rate.to_bits())
+        }
+        LearnerSpec::RandomForest(s) => format!("forest:{}", u8::from(s.extra_trees)),
+        LearnerSpec::NeuralNet(s) => {
+            format!("neural:{}:{}:{}", s.hidden, s.epochs, s.learning_rate.to_bits())
+        }
+    }
+}
+
+#[cfg(test)]
+mod learner_identity_tests {
+    use super::*;
+    #[test]
+    fn learner_hyperparameters_change_contract_identity() {
+        let a = EstimatorSpec::from(antecedent_estimate::DmlAte::new());
+        let b = EstimatorSpec::from(antecedent_estimate::DmlAte::new().with_outcome(
+            antecedent_estimate::LearnerSpec::Ridge(antecedent_estimate::RidgeSpec { lambda: 2.0 }),
+        ));
+        assert_ne!(estimator_spec_identity(&a), estimator_spec_identity(&b));
     }
 }

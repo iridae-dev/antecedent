@@ -55,6 +55,9 @@ class Estimator(StrEnum):
     CELL_AIPW = "cell.aipw"
     GCM_FIT = "gcm.fit"
     MEDIATION_LINEAR = "mediation.linear"
+    DML = "dml"
+    DR_LEARNER = "dr.learner"
+    CAUSAL_FOREST = "causal.forest"
 
 
 class Latency(StrEnum):

@@ -664,6 +664,9 @@ fn refuse_estimator_inference_mismatch(
                 }
                 EstimatorId::DistanceMatching if average => frequentist!("distance.matching"),
                 EstimatorId::Aipw if average => frequentist!("aipw"),
+                EstimatorId::Dml if average => frequentist!("dml"),
+                EstimatorId::DrLearner if average => frequentist!("dr.learner"),
+                EstimatorId::CausalForest if average => frequentist!("causal.forest"),
                 EstimatorId::GlmAdjustment if average => frequentist!("glm.adjustment"),
                 EstimatorId::FrontDoorTwoStage if average => frequentist!("frontdoor.two_stage"),
                 EstimatorId::IvWald if average => frequentist!("iv.wald"),

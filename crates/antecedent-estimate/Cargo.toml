@@ -16,6 +16,13 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+default = []
+ml-gbdt = ["antecedent-learn/ml-gbdt"]
+ml-forest = ["antecedent-learn/ml-forest"]
+ml-full = ["ml-gbdt", "ml-forest"]
+ml-gpu = ["antecedent-learn/ml-gpu"]
+
 [dependencies]
 antecedent-graph = { version = "1.11.0", path = "../antecedent-graph" }
 antecedent-core = { version = "1.11.0", path = "../antecedent-core" }
@@ -23,6 +30,7 @@ antecedent-data = { version = "1.11.0", path = "../antecedent-data" }
 antecedent-expr = { version = "1.11.0", path = "../antecedent-expr" }
 antecedent-identify = { version = "1.11.0", path = "../antecedent-identify" }
 antecedent-kernels = { version = "1.11.0", path = "../antecedent-kernels" }
+antecedent-learn = { version = "1.11.0", path = "../antecedent-learn" }
 antecedent-prob = { version = "1.11.0", path = "../antecedent-prob" }
 antecedent-stats = { version = "1.11.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }

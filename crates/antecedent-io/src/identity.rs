@@ -1665,6 +1665,42 @@ pub struct EstimatorConfigWire {
     /// Population registry contents, when present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub population_registry: Option<PayloadDigestWire>,
+    /// Cross-fit folds (`dml` / `dr.learner`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folds: Option<u32>,
+    /// Outcome nuisance spec name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
+    /// Treatment nuisance spec name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub treatment: Option<String>,
+    /// DML score name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score: Option<String>,
+    /// `dr.learner` final-stage spec name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub final_learner: Option<String>,
+    /// Full outcome learner configuration, including hyperparameters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome_config: Option<String>,
+    /// Full treatment learner configuration, including hyperparameters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub treatment_config: Option<String>,
+    /// Full final-stage learner configuration, including hyperparameters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub final_learner_config: Option<String>,
+    /// Causal-forest tree count.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub n_trees: Option<u32>,
+    /// Causal-forest minimum leaf size.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_leaf: Option<u32>,
+    /// Causal-forest maximum depth.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<u32>,
+    /// Causal-forest honesty flag.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub honesty: Option<bool>,
 }
 
 /// Portable estimator-spec identity (mirrors `antecedent::EstimatorSpec` variants).
@@ -1693,6 +1729,12 @@ pub enum EstimatorSpecWire {
     IvWald(EstimatorConfigWire),
     /// Caller-configured two-stage least squares.
     Iv2Sls(EstimatorConfigWire),
+    /// Caller-configured DML / AIPW.
+    Dml(EstimatorConfigWire),
+    /// Caller-configured DR-Learner.
+    DrLearner(EstimatorConfigWire),
+    /// Caller-configured causal forest.
+    CausalForest(EstimatorConfigWire),
 }
 
 /// Portable response-surface options (every field that changes the estimate).

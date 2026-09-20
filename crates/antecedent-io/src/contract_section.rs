@@ -1541,6 +1541,8 @@ mod tests {
             mediation_grid: None,
             structural_response: None,
             unit_effects: None,
+            cate: None,
+            learner_provenance: Vec::new(),
         };
         let target = TargetIdentityWire {
             format: IDENTITY_FORMAT,

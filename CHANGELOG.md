@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Native cross-fitted DML (`dml` / `estimators.DML`) with AIPW and Robinson
+  partially linear scores, plus a DR-Learner CATE path (`dr.learner` /
+  `estimators.DRLearner`). Learners stay in `antecedent-learn`; estimate never
+  names Forust or SmartCore. This is not a 12-estimator EconML clone.
+- Native honest causal forest (`causal.forest` / `estimators.CausalForest`)
+  with per-row CATE and a cross-fitted AIPW marginal ATE and standard error. Not a SmartCore RF stand-in.
+- Optional Burn neural-net nuisance (`neural_net`) behind `ml-gpu` /
+  `antecedent-learn-burn`. Not in `ml-full`; still emits `Vec<f64>` OOF
+  predictions. Estimate never names Burn.
+
 ## [1.11.0]
 
 The 1.x close-out on the 1.10.0 composition contract. This cut also

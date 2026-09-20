@@ -19,10 +19,13 @@ pub mod adjustment;
 pub mod aipw;
 pub mod bayesian;
 pub mod bayesian_mediation;
+pub mod causal_forest;
 pub mod cell_aipw;
 pub mod conditional;
 pub mod crossfit_aipw;
 pub mod design_compile;
+pub mod dml;
+pub mod dr;
 pub mod envelope;
 pub mod error;
 pub mod estimator;
@@ -34,6 +37,7 @@ pub mod identified_set;
 pub mod interference;
 pub mod iv;
 pub mod joint_if;
+mod learn_nuisance;
 pub mod observation;
 pub mod overlap;
 pub mod prediction;
@@ -67,6 +71,10 @@ pub use adjustment::{
 };
 pub use aipw::{AipwAte, AipwWorkspace};
 pub use antecedent_expr::EstimandMethod;
+pub use antecedent_learn::{
+    ForestSpec, GbtSpec, LearnerProvenance, LearnerSpec, LinearSpec, LogisticSpec, NeuralSpec,
+    RidgeSpec,
+};
 pub use antecedent_stats::FirstStageDiagnostics;
 pub use bayesian::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianGlmMechanism,
@@ -76,6 +84,7 @@ pub use bayesian::{
     hydrate_prior, hydrate_prior_from_posterior, hydrate_prior_from_quantity_summaries,
     nonidentified_with_prior, require_bayesian_n_draws,
 };
+pub use causal_forest::CausalForest;
 pub use cell_aipw::{
     CellSaturatedAipw, ContinuousCellSpec, MAX_JOINT_BINARY, POINT_CDE_UNLICENSED,
     cell_minus_control_contrast, contrast_named, family_cell_contrast, interaction_contrast,
@@ -86,6 +95,8 @@ pub use crossfit_aipw::{
     crossfit_binary_scores, thresholds_of, weighted_support,
 };
 pub use design_compile::{CovariateSpec, compile_adjustment_design};
+pub use dml::{DmlAte, DmlScore};
+pub use dr::DrLearner;
 pub use envelope::{
     EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope,
     aggregate_mixture_functional_envelope, couple_mixture_functional_draws,
