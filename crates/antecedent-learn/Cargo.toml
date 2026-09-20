@@ -1,0 +1,35 @@
+[package]
+name = "antecedent-learn"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Prediction contract and nuisance learners for the Antecedent causal inference engine; start with the `antecedent` crate"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = ["ml-faer"]
+ml-faer = []
+ml-gbdt = ["dep:forust-ml"]
+ml-forest = ["dep:smartcore"]
+ml-full = ["ml-gbdt", "ml-forest"]
+# L: not in ml-full. GPU/WGPU stays off; NdArray is the portable default.
+ml-gpu = ["dep:antecedent-learn-burn"]
+
+[dependencies]
+antecedent-core = { version = "1.11.0", path = "../antecedent-core" }
+antecedent-kernels = { version = "1.11.0", path = "../antecedent-kernels" }
+antecedent-stats = { version = "1.11.0", path = "../antecedent-stats" }
+thiserror = { workspace = true }
+forust-ml = { version = "0.5", optional = true }
+smartcore = { version = "0.4", optional = true, default-features = false }
+antecedent-learn-burn = { version = "1.11.0", path = "../antecedent-learn-burn", optional = true }

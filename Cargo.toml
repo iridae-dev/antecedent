@@ -9,6 +9,8 @@ members = [
     "crates/antecedent-expr",
     "crates/antecedent-identify",
     "crates/antecedent-stats",
+    "crates/antecedent-learn",
+    "crates/antecedent-learn-burn",
     "crates/antecedent-prob",
     "crates/antecedent-estimate",
     "crates/antecedent-validate",
@@ -30,6 +32,7 @@ default-members = [
     "crates/antecedent-expr",
     "crates/antecedent-identify",
     "crates/antecedent-stats",
+    "crates/antecedent-learn",
     "crates/antecedent-prob",
     "crates/antecedent-estimate",
     "crates/antecedent-validate",
@@ -62,7 +65,7 @@ ciborium = "0.2"
 blake3 = "1"
 zstd = "0.13"
 memmap2 = "0.9"
-faer = "0.21"
+faer = "0.24"
 arrow-array = { version = "54", default-features = false }
 arrow-schema = { version = "54", default-features = false }
 arrow-buffer = { version = "54", default-features = false }

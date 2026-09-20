@@ -18,6 +18,7 @@ pub mod gam;
 pub mod glm;
 pub mod gram;
 pub mod interference;
+mod la_ops;
 pub mod linalg;
 pub mod m_estimate;
 pub mod matching;
