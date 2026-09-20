@@ -29,7 +29,7 @@ impl SelectionDiagram {
         let selection_targets = selection_targets.into();
         let mut seen = BTreeSet::new();
         for target in selection_targets.iter().copied() {
-            if target.as_usize() >= causal_graph.node_count() {
+            if !causal_graph.nodes().contains(&crate::NodeRef::Static(target)) {
                 return Err(GraphError::UnknownNode { id: target.raw() });
             }
             if !seen.insert(target.raw()) {

@@ -38,12 +38,18 @@ pub mod rd;
 pub mod response;
 pub(crate) mod response_id;
 pub mod result;
+pub mod sid;
 pub mod temporal_backdoor;
 pub mod temporal_generalized;
 mod temporal_mag;
 pub mod temporal_mediation;
 pub mod tiered;
 pub mod transport;
+pub use sid::{
+    BoundTransportFunctional, CatalogTransportResult, ClassicalTransportDerivation,
+    ClassicalTransportQuery, ClassicalTransportResult, SidLimits, identify_catalog_transport,
+    identify_classical_transport, verify_classical_transport,
+};
 mod transport_lower;
 
 #[cfg(test)]
@@ -92,8 +98,8 @@ pub use tiered::{
     identify_tiered_on,
 };
 pub use transport::{
-    MissingEvidenceCertificate, NonTransportableCertificate, PopulationFactor,
-    TransportCertificate, TransportFormula, TransportIdentification, TransportIdentifier,
+    MissingEvidenceCertificate, NotCertifiedCertificate, PopulationFactor, TransportCertificate,
+    TransportFormula, TransportIdentification, TransportIdentifier,
 };
 pub use transport_lower::{
     bind_transport_derivation, lower_transport_formula, lower_transport_mean,
