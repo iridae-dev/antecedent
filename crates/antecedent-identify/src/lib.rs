@@ -44,6 +44,7 @@ mod temporal_mag;
 pub mod temporal_mediation;
 pub mod tiered;
 pub mod transport;
+mod transport_lower;
 
 #[cfg(test)]
 mod id_scm_property;
@@ -91,8 +92,11 @@ pub use tiered::{
     identify_tiered_on,
 };
 pub use transport::{
-    NonTransportableCertificate, PopulationFactor, TransportCertificate, TransportFormula,
-    TransportIdentification, TransportIdentifier,
+    MissingEvidenceCertificate, NonTransportableCertificate, PopulationFactor,
+    TransportCertificate, TransportFormula, TransportIdentification, TransportIdentifier,
+};
+pub use transport_lower::{
+    bind_transport_derivation, lower_transport_formula, lower_transport_mean,
 };
 
 mod joint_response;

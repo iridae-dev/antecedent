@@ -159,7 +159,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Latent projection | `latent_project` | `Dag.latent_project(observed)` |
 | External prior bank | `antecedent-prob::conjugate_moment_match` / `compose_external_priors` | `antecedent.priors.beta_from_moments` / `compose_external_priors` / `PriorCatalog` (module renamed from `prior_bank` to `priors`) |
 | Target identity | target digest on the inspect/contract | `inspect().target_id` |
-| Identification premises identity | identification digest over the population-free question, accepted structure (posterior atoms and weights), class prior, transport selection, and observation contract | `inspect().identification_id` |
+| Identification premises identity | identification digest over the population-free question, accepted structure (posterior atoms and weights), class prior, transport selection and the full optional evidence catalog (`source_experiments` only for legacy queries), and observation contract | `inspect().identification_id` |
 | Identification product identity | identification-product digest | `inspect().identification_product_id` |
 | Compiled program identity | program digest on the inspect/contract; covers the target population, so ATE and ATT are different programs | `result.program_id` / `inspect().program_id` — compiled program, not the execution claim; loaded (executed) study only for `claim_id` |
 | Inference binding identity | inference-binding digest over prior contents, backend and likelihood, and numeric knobs (a response bandwidth moves this, not the program); independent of structure | `inspect().inference_binding_id` |

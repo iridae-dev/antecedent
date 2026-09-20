@@ -378,6 +378,18 @@ pub struct AnalysisResultWire {
     /// Complete-case-aligned CATE point predictions, without pointwise intervals.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate: Option<Vec<f64>>,
+    /// Held-out outcome R².
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome_oof_r2: Option<f64>,
+    /// Held-out treatment probability log loss.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub treatment_oof_logloss: Option<f64>,
+    /// Number of nuisance cross-fitting folds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crossfit_folds: Option<usize>,
+    /// Master seed used for nuisance cross-fitting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crossfit_seed: Option<u64>,
     /// Fitted learner (spec, implementation, version), in fit order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub learner_provenance: Vec<(String, String, String)>,

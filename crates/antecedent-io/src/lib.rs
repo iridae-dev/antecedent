@@ -42,6 +42,7 @@ pub mod query_wire;
 pub mod reader;
 pub mod response_wire;
 pub mod trace;
+pub mod transport_catalog_wire;
 pub mod transport_interference_wire;
 pub mod wire;
 

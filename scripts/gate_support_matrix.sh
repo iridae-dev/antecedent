@@ -502,3 +502,5 @@ print(
     f"{allowed_count} active allowed_unlicensed compatibility entries)"
 )
 PY
+
+python3 "$ROOT/scripts/check_transport_stages.py"

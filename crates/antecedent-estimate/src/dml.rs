@@ -21,7 +21,7 @@ use antecedent_learn::{LearnerSpec, LogisticSpec, PredictionTask, RidgeSpec, dia
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::learn_nuisance::{
-    aipw_scores, clip_propensity, cross_fit_aipw_nuisances, cross_fit_nuisance, iid_se,
+    aipw_scores, cached_aipw_nuisances, clip_propensity, cross_fit_nuisance, iid_se,
 };
 use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
@@ -185,17 +185,8 @@ impl DmlAte {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let (mu0, mu1, mut ehat, treat) = cross_fit_aipw_nuisances(
-            self.outcome,
-            self.treatment,
-            problem.design_matrix.as_ref(),
-            problem.nrows,
-            problem.design_ncols,
-            problem.outcome.as_ref(),
-            problem.treatment.as_ref(),
-            self.folds,
-            ctx,
-        )?;
+        let (mu0, mu1, mut ehat, treat) =
+            cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
         let raw_e = ehat.clone();
         clip_propensity(&mut ehat, clip_of(problem.overlap));
         let phi =
@@ -216,6 +207,8 @@ impl DmlAte {
             outcome_diag.r2,
             raw_e,
         )?;
+        effect.crossfit_folds = Some(self.folds);
+        effect.crossfit_seed = Some(ctx.rng.master_seed());
         effect.learner_provenance = treat.model_provenance;
         Ok(effect)
     }
@@ -309,6 +302,10 @@ impl DmlAte {
             .with_n_obs(u64::try_from(keep.iter().filter(|&&v| v).count()).unwrap_or(u64::MAX))
             .with_se_kind(AnalyticSeKind::Homoskedastic)
             .with_influence(Some(Arc::from(psi)));
+        effect.crossfit_folds = Some(self.folds);
+        effect.crossfit_seed = Some(ctx.rng.master_seed());
+        effect.outcome_oof_r2 = m.validation.r2;
+        effect.treatment_oof_logloss = e.validation.logloss;
         effect.learner_provenance = m.model_provenance;
         effect.learner_provenance.extend(e.model_provenance);
         Ok(effect)
@@ -319,8 +316,8 @@ pub(crate) fn finish_dml(
     phi: &[f64],
     problem: &PreparedPropensityProblem,
     assumptions: AssumptionSet,
-    _treat_logloss: Option<f64>,
-    _outcome_r2: Option<f64>,
+    treat_logloss: Option<f64>,
+    outcome_r2: Option<f64>,
     raw_e: Vec<f64>,
 ) -> Result<EffectEstimate, EstimationError> {
     let n = phi.len();
@@ -348,11 +345,14 @@ pub(crate) fn finish_dml(
         Some(IpwTarget::Ate),
         None,
     );
-    Ok(EffectEstimate::new(ate, se, assumptions, problem.overlap)
+    let mut effect = EffectEstimate::new(ate, se, assumptions, problem.overlap)
         .with_overlap_report(Some(report))
         .with_n_obs(u64::try_from(kept).unwrap_or(u64::MAX))
         .with_se_kind(AnalyticSeKind::Homoskedastic)
-        .with_influence(Some(Arc::from(influence))))
+        .with_influence(Some(Arc::from(influence)));
+    effect.outcome_oof_r2 = outcome_r2;
+    effect.treatment_oof_logloss = treat_logloss;
+    Ok(effect)
 }
 
 #[cfg(test)]
@@ -523,6 +523,31 @@ mod tests {
         let effect = est.fit(&prep, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.35, "ate={}", effect.ate);
     }
+    #[test]
+    fn cached_oof_reuses_predictions_and_invalidates_changed_input() {
+        let (t, y, z) = confounded_columns(120, 12);
+        let (data, estimand) = build_dataset(t, y, z);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let estimator = DmlAte::new();
+        let mut problem = estimator.prepare(&data, &estimand, &query).unwrap();
+        let ctx = ExecutionContext::for_tests(44);
+        let first = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
+        assert!(first.outcome_oof_r2.is_some());
+        assert!(first.treatment_oof_logloss.is_some());
+        assert_eq!(first.crossfit_folds, Some(5));
+        assert_eq!(first.crossfit_seed, Some(44));
+        let again = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
+        assert_eq!(first.ate.to_bits(), again.ate.to_bits());
+        let mut outcomes = problem.outcome.to_vec();
+        for (y, t) in outcomes.iter_mut().zip(problem.treatment.iter()) {
+            *y += t * 2.0;
+        }
+        problem.outcome = outcomes.into();
+        let changed = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
+        assert!((changed.ate - first.ate - 2.0).abs() < 0.1);
+    }
+
     #[test]
     fn trimming_changes_the_score_target_and_keeps_row_alignment() {
         let (t, y, z) = confounded_columns(4, 12);

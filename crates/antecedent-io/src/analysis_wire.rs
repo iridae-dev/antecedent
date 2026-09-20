@@ -101,6 +101,18 @@ pub struct EffectEstimateWire {
     /// Complete-case-aligned CATE point predictions; no pointwise intervals implied.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cate: Option<Vec<f64>>,
+    /// Held-out outcome R².
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome_oof_r2: Option<f64>,
+    /// Held-out treatment probability log loss.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub treatment_oof_logloss: Option<f64>,
+    /// Number of nuisance cross-fitting folds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crossfit_folds: Option<usize>,
+    /// Master seed used for nuisance cross-fitting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crossfit_seed: Option<u64>,
     /// Actual fitted learner (spec, implementation, version), in fit order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub learner_provenance: Vec<(String, String, String)>,
@@ -377,6 +389,10 @@ pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
         family_contrast_interval: e.family_contrast_interval,
         unit_effects_homogeneous: e.unit_effects_homogeneous.then_some(true),
         cate: e.cate.as_ref().map(|v| v.to_vec()),
+        outcome_oof_r2: e.outcome_oof_r2,
+        treatment_oof_logloss: e.treatment_oof_logloss,
+        crossfit_folds: e.crossfit_folds,
+        crossfit_seed: e.crossfit_seed,
         learner_provenance: e
             .learner_provenance
             .iter()
@@ -570,6 +586,10 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
     estimate.interaction_structurally_zero = w.interaction_structurally_zero.unwrap_or(false);
     estimate.unit_effects_homogeneous = w.unit_effects_homogeneous.unwrap_or(false);
     estimate.cate = w.cate.clone().map(Into::into);
+    estimate.outcome_oof_r2 = w.outcome_oof_r2;
+    estimate.treatment_oof_logloss = w.treatment_oof_logloss;
+    estimate.crossfit_folds = w.crossfit_folds;
+    estimate.crossfit_seed = w.crossfit_seed;
     estimate.learner_provenance = w
         .learner_provenance
         .iter()
@@ -971,10 +991,18 @@ mod tests {
             implementation: "faer".into(),
             version: "0.24".into(),
         });
+        effect.outcome_oof_r2 = Some(0.8);
+        effect.treatment_oof_logloss = Some(0.4);
+        effect.crossfit_folds = Some(5);
+        effect.crossfit_seed = Some(42);
         let wire = effect_estimate_to_wire(&effect);
         let bytes = serde_json::to_vec(&wire).unwrap();
         let decoded: EffectEstimateWire = serde_json::from_slice(&bytes).unwrap();
         let restored = effect_estimate_from_wire(&decoded).unwrap();
+        assert_eq!(restored.outcome_oof_r2, effect.outcome_oof_r2);
+        assert_eq!(restored.treatment_oof_logloss, effect.treatment_oof_logloss);
+        assert_eq!(restored.crossfit_folds, effect.crossfit_folds);
+        assert_eq!(restored.crossfit_seed, effect.crossfit_seed);
         assert_eq!(restored.cate, effect.cate);
         assert_eq!(restored.learner_provenance, effect.learner_provenance);
     }
@@ -1082,6 +1110,10 @@ mod tests {
             interaction_structurally_zero: None,
             unit_effects_homogeneous: None,
             cate: None,
+            outcome_oof_r2: None,
+            treatment_oof_logloss: None,
+            crossfit_folds: None,
+            crossfit_seed: None,
             learner_provenance: Vec::new(),
             evalue: None,
             evalue_threshold: None,

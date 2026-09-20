@@ -28,6 +28,9 @@ pub use provider::{
 };
 pub use simplify::SimplifyError;
 
+mod scope;
+pub use scope::LeafBinding;
+
 use latex::latex_expr;
 use pretty::pretty_expr;
 
@@ -35,7 +38,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-use antecedent_core::{Value, VariableId};
+use antecedent_core::{RegimeId, Value, VariableId};
 
 /// Opaque expression node id.
 #[repr(transparent)]
@@ -138,6 +141,25 @@ impl OutcomeExprId {
     }
 }
 
+/// Interned population key id.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct PopulationKeyId(u32);
+
+impl PopulationKeyId {
+    /// Create from a raw index (deserialization).
+    #[must_use]
+    pub const fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    /// Raw index.
+    #[must_use]
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+}
+
 /// Expression list id (product children).
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -170,6 +192,21 @@ pub enum ExprNode {
         intervention: InterventionSetId,
         /// Domain.
         domain: DomainRef,
+        /// Population this factor is labelled with. Empty is the default (single-study).
+        population: PopulationKeyId,
+        /// Catalog regime this leaf cites. `None` is an anonymous / single-study factor.
+        regime: Option<RegimeId>,
+    },
+    /// Intermediate kernel: a nested subexpression, not a supplied observational law.
+    Kernel {
+        /// Kernel body.
+        body: ExprId,
+        /// Kernel parameter coordinates. They remain free until explicitly marginalized.
+        bound: VarSetId,
+        /// Population this kernel is labelled with.
+        population: PopulationKeyId,
+        /// Catalog regime, if this kernel is bound to one.
+        regime: Option<RegimeId>,
     },
     /// Product of factors.
     Product(ExprListId),
@@ -212,13 +249,82 @@ pub enum ExprNode {
     },
 }
 
+/// Errors from constructing a tagged expression leaf.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum ExprError {
+    /// A catalog regime's observational/experimental kind disagrees with [`DomainRef`].
+    RegimeDomainMismatch,
+    /// Substitution would capture a bound variable or conflict with an assignment.
+    CaptureOrConflict,
+    /// A required binding is absent.
+    MissingBinding,
+    /// Free variables of the expression disagree with the certified target.
+    FreeVariableMismatch,
+    /// Certificate leaf set does not match the lowered expression.
+    CertificateBindFailed,
+}
+
+impl fmt::Display for ExprError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::RegimeDomainMismatch => {
+                write!(f, "regime kind disagrees with the distribution domain")
+            }
+            Self::CaptureOrConflict => {
+                write!(f, "substitution would capture a bound variable or conflict")
+            }
+            Self::MissingBinding => write!(f, "required binding is absent"),
+            Self::FreeVariableMismatch => {
+                write!(f, "expression free variables disagree with the certified target")
+            }
+            Self::CertificateBindFailed => {
+                write!(f, "certificate does not bind the lowered expression")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ExprError {}
+
 /// Separate derivation metadata keyed by expression id.
+///
+/// Off the semantic hash: the same [`ExprId`] may carry different traces.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct DerivationMeta {
-    /// Human-readable rule tag (e.g. `backdoor.adjustment`).
+    /// Named rule (e.g. `backdoor.adjustment`, `transport.sid.direct`).
     pub rule: Arc<str>,
-    /// Optional note.
+    /// Optional display note. Projection of the typed record, not an equality key.
     pub note: Option<Arc<str>>,
+    /// Input subproblem, when this node was derived from one.
+    pub input: Option<ExprId>,
+    /// Output subproblem (usually the node this metadata is attached to).
+    pub output: Option<ExprId>,
+    /// Optional graph operation tag (`mutilate`, `ancestry`, …).
+    pub graph_operation: Option<Arc<str>>,
+    /// Checked premises.
+    pub premises: Arc<[Arc<str>]>,
+    /// Evidence regimes this step depends on.
+    pub evidence: Arc<[RegimeId]>,
+    /// Parent derivation nodes.
+    pub parents: Arc<[ExprId]>,
+}
+
+impl DerivationMeta {
+    /// Rule-only metadata (existing builders).
+    #[must_use]
+    pub fn rule(rule: impl Into<Arc<str>>, note: Option<Arc<str>>) -> Self {
+        Self { rule: rule.into(), note, ..Self::default() }
+    }
+
+    /// Display projection of the typed record (not an equality key).
+    #[must_use]
+    pub fn pretty(&self) -> String {
+        match &self.note {
+            Some(note) => format!("{}: {note}", self.rule),
+            None => self.rule.to_string(),
+        }
+    }
 }
 
 /// Arena for causal expressions with interned variable sets.
@@ -241,6 +347,9 @@ pub struct CausalExprArena {
     empty_var_set_id: Option<VarSetId>,
     /// Cached id of the interned empty intervention set (see above).
     empty_intervention_set_id: Option<InterventionSetId>,
+    populations: Vec<Arc<str>>,
+    population_index: HashMap<Arc<str>, PopulationKeyId>,
+    empty_population_id: Option<PopulationKeyId>,
 }
 
 impl CausalExprArena {
@@ -303,6 +412,103 @@ impl CausalExprArena {
         let id = self.intern_var_set([]);
         self.empty_var_set_id = Some(id);
         id
+    }
+
+    /// Intern a population key. The empty string is the default single-study label.
+    pub fn intern_population(&mut self, key: impl Into<Arc<str>>) -> PopulationKeyId {
+        let key = key.into();
+        if let Some(id) = self.population_index.get(&key) {
+            return *id;
+        }
+        let id = PopulationKeyId(u32::try_from(self.populations.len()).expect("population id"));
+        self.populations.push(Arc::clone(&key));
+        self.population_index.insert(key, id);
+        id
+    }
+
+    /// Empty / default population key.
+    pub fn empty_population(&mut self) -> PopulationKeyId {
+        if let Some(id) = self.empty_population_id {
+            return id;
+        }
+        let id = self.intern_population("");
+        self.empty_population_id = Some(id);
+        id
+    }
+
+    /// Borrow an interned population key.
+    #[must_use]
+    pub fn population(&self, id: PopulationKeyId) -> &str {
+        &self.populations[id.0 as usize]
+    }
+
+    /// Number of interned population keys (for serialization).
+    #[must_use]
+    pub fn population_count(&self) -> usize {
+        self.populations.len()
+    }
+
+    /// Hash-cons a default (single-study) distribution leaf.
+    pub fn intern_distribution(
+        &mut self,
+        variables: VarSetId,
+        conditioned_on: VarSetId,
+        intervention: InterventionSetId,
+        domain: DomainRef,
+    ) -> ExprId {
+        let population = self.empty_population();
+        self.intern(ExprNode::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            domain,
+            population,
+            regime: None,
+        })
+    }
+
+    /// Hash-cons a population- and regime-tagged distribution leaf.
+    ///
+    /// # Errors
+    ///
+    /// [`ExprError::RegimeDomainMismatch`] when `regime_kind` disagrees with `domain`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn intern_distribution_tagged(
+        &mut self,
+        variables: VarSetId,
+        conditioned_on: VarSetId,
+        intervention: InterventionSetId,
+        domain: DomainRef,
+        population: impl Into<Arc<str>>,
+        regime: Option<RegimeId>,
+        regime_kind: Option<DomainRef>,
+    ) -> Result<ExprId, ExprError> {
+        if let (Some(_), Some(kind)) = (regime, regime_kind) {
+            if kind != domain {
+                return Err(ExprError::RegimeDomainMismatch);
+            }
+        }
+        let population = self.intern_population(population);
+        Ok(self.intern(ExprNode::Distribution {
+            variables,
+            conditioned_on,
+            intervention,
+            domain,
+            population,
+            regime,
+        }))
+    }
+
+    /// Hash-cons an intermediate kernel.
+    pub fn intern_kernel(
+        &mut self,
+        body: ExprId,
+        bound: VarSetId,
+        population: impl Into<Arc<str>>,
+        regime: Option<RegimeId>,
+    ) -> ExprId {
+        let population = self.intern_population(population);
+        self.intern(ExprNode::Kernel { body, bound, population, regime })
     }
 
     /// Empty intervention set.
@@ -440,10 +646,10 @@ impl CausalExprArena {
         let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
         self.set_derivation(
             contrast,
-            DerivationMeta {
-                rule: Arc::from("backdoor.adjustment"),
-                note: Some(Arc::from(format!("ATE adjustment set size {}", adjustment.len()))),
-            },
+            DerivationMeta::rule(
+                "backdoor.adjustment",
+                Some(Arc::from(format!("ATE adjustment set size {}", adjustment.len()))),
+            ),
         );
         contrast
     }
@@ -463,13 +669,13 @@ impl CausalExprArena {
         let mean = self.backdoor_potential_outcome(treatment, outcome, adjustment, level);
         self.set_derivation(
             mean,
-            DerivationMeta {
-                rule: Arc::from("backdoor.adjustment"),
-                note: Some(Arc::from(format!(
+            DerivationMeta::rule(
+                "backdoor.adjustment",
+                Some(Arc::from(format!(
                     "single-arm intervention mean, adjustment set size {}",
                     adjustment.len()
                 ))),
-            },
+            ),
         );
         mean
     }
@@ -490,18 +696,8 @@ impl CausalExprArena {
             value: level,
         }]);
 
-        let dist_body = self.intern(ExprNode::Distribution {
-            variables: y,
-            conditioned_on: z,
-            intervention: do_t,
-            domain: DomainRef::Interventional,
-        });
-        let z_marg = self.intern(ExprNode::Distribution {
-            variables: z,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist_body = self.intern_distribution(y, z, do_t, DomainRef::Interventional);
+        let z_marg = self.intern_distribution(z, empty, empty_i, DomainRef::Observational);
         let product = {
             let list = self.intern_list([dist_body, z_marg]);
             self.intern(ExprNode::Product(list))
@@ -530,10 +726,10 @@ impl CausalExprArena {
         let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
         self.set_derivation(
             contrast,
-            DerivationMeta {
-                rule: Arc::from("frontdoor"),
-                note: Some(Arc::from(format!("front-door mediator set size {}", mediators.len()))),
-            },
+            DerivationMeta::rule(
+                "frontdoor",
+                Some(Arc::from(format!("front-door mediator set size {}", mediators.len()))),
+            ),
         );
         contrast
     }
@@ -553,13 +749,13 @@ impl CausalExprArena {
         let contrast = self.intern(ExprNode::Contrast { left, right, op: ContrastOp::Difference });
         self.set_derivation(
             contrast,
-            DerivationMeta {
-                rule: Arc::from("temporal_mediation"),
-                note: Some(Arc::from(format!(
+            DerivationMeta::rule(
+                "temporal_mediation",
+                Some(Arc::from(format!(
                     "linear temporal mediation path-product; mediator set size {}",
                     mediators.len()
                 ))),
-            },
+            ),
         );
         contrast
     }
@@ -584,26 +780,11 @@ impl CausalExprArena {
 
         // P(m | t): observational under FD condition 2; treatment level bound so
         // the evaluator treats it as fixed (not free).
-        let m_given_t = self.intern(ExprNode::Distribution {
-            variables: m,
-            conditioned_on: t,
-            intervention: do_t,
-            domain: DomainRef::Observational,
-        });
+        let m_given_t = self.intern_distribution(m, t, do_t, DomainRef::Observational);
         // P(y | m, t').
-        let y_given_m_t = self.intern(ExprNode::Distribution {
-            variables: y,
-            conditioned_on: m_and_t,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let y_given_m_t = self.intern_distribution(y, m_and_t, empty_i, DomainRef::Observational);
         // P(t').
-        let t_marginal = self.intern(ExprNode::Distribution {
-            variables: t,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let t_marginal = self.intern_distribution(t, empty, empty_i, DomainRef::Observational);
         let inner_product = {
             let list = self.intern_list([y_given_m_t, t_marginal]);
             self.intern(ExprNode::Product(list))
@@ -653,13 +834,13 @@ impl CausalExprArena {
         let ratio = self.intern(ExprNode::Ratio { numerator: num, denominator: den });
         self.set_derivation(
             ratio,
-            DerivationMeta {
-                rule: Arc::from("iv.wald"),
-                note: Some(Arc::from(format!(
+            DerivationMeta::rule(
+                "iv.wald",
+                Some(Arc::from(format!(
                     "Wald IV ratio using {} instrument(s); treatment contrast [{active:?}, {control:?}]",
                     instruments.len()
                 ))),
-            },
+            ),
         );
         ratio
     }
@@ -681,12 +862,7 @@ impl CausalExprArena {
             variable: conditioner,
             value: level,
         }]);
-        let dist = self.intern(ExprNode::Distribution {
-            variables: y,
-            conditioned_on: z,
-            intervention: bind,
-            domain: DomainRef::Observational,
-        });
+        let dist = self.intern_distribution(y, z, bind, DomainRef::Observational);
         self.intern(ExprNode::Expectation {
             function: OutcomeExprId::identity(outcome),
             distribution: dist,
@@ -730,18 +906,8 @@ mod tests {
         let mut a = CausalExprArena::new();
         let empty = a.empty_var_set();
         let empty_i = a.empty_intervention_set();
-        let n1 = a.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
-        let n2 = a.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let n1 = a.intern_distribution(empty, empty, empty_i, DomainRef::Observational);
+        let n2 = a.intern_distribution(empty, empty, empty_i, DomainRef::Observational);
         assert_eq!(n1, n2);
         assert_eq!(a.len(), 1);
     }
@@ -824,5 +990,38 @@ mod tests {
         assert!(matches!(a.node(*numerator), ExprNode::Contrast { .. }));
         assert!(matches!(a.node(*denominator), ExprNode::Contrast { .. }));
         assert_ne!(*numerator, *denominator);
+    }
+
+    #[test]
+    fn existing_builders_keep_empty_population_identity() {
+        let mut a = CausalExprArena::new();
+        let left = a.backdoor_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            &[VariableId::from_raw(2)],
+            Value::f64(1.0),
+            Value::f64(0.0),
+        );
+        let right = a.backdoor_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            &[VariableId::from_raw(2)],
+            Value::f64(1.0),
+            Value::f64(0.0),
+        );
+        assert_eq!(left, right);
+        assert!(a.leaf_bindings(left).iter().all(|b| b.population.as_ref().is_empty()));
+    }
+
+    #[test]
+    fn substitute_rejects_missing_binding() {
+        let mut a = CausalExprArena::new();
+        let y = a.intern_var_set([VariableId::from_raw(1)]);
+        let empty = a.empty_var_set();
+        let empty_i = a.empty_intervention_set();
+        let id = a.intern_distribution(y, empty, empty_i, DomainRef::Observational);
+        let err =
+            a.substitute(id, &[(VariableId::from_raw(9), VariableId::from_raw(8))]).unwrap_err();
+        assert_eq!(err, ExprError::MissingBinding);
     }
 }

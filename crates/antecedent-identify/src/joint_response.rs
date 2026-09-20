@@ -339,18 +339,9 @@ pub(crate) fn joint_result(
     let xz_set = arena.intern_var_set(treatments.iter().copied().chain(adjustment.iter().copied()));
     let empty = arena.empty_var_set();
     let observational = arena.empty_intervention_set();
-    let conditional = arena.intern(ExprNode::Distribution {
-        variables: y_set,
-        conditioned_on: xz_set,
-        intervention: observational,
-        domain: DomainRef::Observational,
-    });
-    let marginal = arena.intern(ExprNode::Distribution {
-        variables: z_set,
-        conditioned_on: empty,
-        intervention: observational,
-        domain: DomainRef::Observational,
-    });
+    let conditional =
+        arena.intern_distribution(y_set, xz_set, observational, DomainRef::Observational);
+    let marginal = arena.intern_distribution(z_set, empty, observational, DomainRef::Observational);
     let factors = arena.intern_list([conditional, marginal]);
     let product = arena.intern(ExprNode::Product(factors));
     let distribution = arena.intern(ExprNode::SumOut { variables: z_set, expr: product });

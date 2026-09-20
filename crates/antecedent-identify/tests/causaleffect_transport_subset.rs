@@ -108,6 +108,9 @@ fn matches_frozen_causaleffect_supported_sid_subset() {
             TransportIdentification::NotCertified(refusal) => {
                 panic!("{id}: expected transportable, got refusal: {}", refusal.reason);
             }
+            TransportIdentification::MissingEvidence(missing) => {
+                panic!("{id}: expected transportable, got missing evidence: {}", missing.reason);
+            }
         }
         assert_eq!(
             case["oracle"]["expression"].as_str().unwrap(),
@@ -164,6 +167,13 @@ fn multinode_c_component_outside_certified_subset_is_not_certified() {
             panic!(
                 "diagram was constructed to fall outside every certified rule; \
                  a Transportable result here would be an unsound (over-)claim"
+            );
+        }
+        TransportIdentification::MissingEvidence(missing) => {
+            panic!(
+                "diagram was constructed with a source experiment; missing evidence \
+                 ({}) is the wrong refusal",
+                missing.reason
             );
         }
     }

@@ -1518,6 +1518,7 @@ mod tests {
                 query: query_wire.clone(),
                 estimands: Vec::new(),
                 arena: ExprArenaWire {
+                    derivations: Vec::new(),
                     var_sets: Vec::new(),
                     interventions: Vec::new(),
                     lists: Vec::new(),
@@ -1542,6 +1543,10 @@ mod tests {
             structural_response: None,
             unit_effects: None,
             cate: None,
+            outcome_oof_r2: None,
+            treatment_oof_logloss: None,
+            crossfit_folds: None,
+            crossfit_seed: None,
             learner_provenance: Vec::new(),
         };
         let target = TargetIdentityWire {

@@ -22,6 +22,9 @@ fn require_dahabreh_compatible_formula(
         TransportIdentification::NotCertified(certificate) => {
             Err(EstimationError::not_certified(stage, &certificate.reason, &certificate.message))
         }
+        TransportIdentification::MissingEvidence(certificate) => {
+            Err(EstimationError::not_certified(stage, &certificate.reason, &certificate.message))
+        }
         TransportIdentification::Transportable {
             formula: TransportFormula::Direct(_) | TransportFormula::Standardize { .. },
             ..
@@ -417,6 +420,7 @@ mod tests {
     fn certified_identification() -> TransportIdentification {
         TransportIdentification::Transportable {
             formula: TransportFormula::Direct(PopulationFactor {
+                regime: None,
                 population: Arc::from("source"),
                 variables: Arc::from([]),
                 conditioned_on: Arc::from([]),
@@ -580,6 +584,7 @@ mod tests {
             formula: TransportFormula::RecursiveFactorization {
                 sum_out: Arc::from([]),
                 factors: Arc::from([PopulationFactor {
+                    regime: None,
                     population: Arc::from("target"),
                     variables: Arc::from([]),
                     conditioned_on: Arc::from([]),

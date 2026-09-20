@@ -239,3 +239,71 @@ pub(crate) fn aipw_scores(t: &[f64], y: &[f64], e: &[f64], mu0: &[f64], mu1: &[f
         })
         .collect()
 }
+
+/// One-entry OOF cache tied to immutable prepared input buffers and exact fit settings.
+/// Holding the Arcs prevents allocator reuse from turning pointer identity into a stale hit.
+#[derive(Clone, Debug)]
+pub(crate) struct AipwCacheEntry {
+    design: std::sync::Arc<[f64]>,
+    outcome_values: std::sync::Arc<[f64]>,
+    treatment_values: std::sync::Arc<[f64]>,
+    nrows: usize,
+    ncols: usize,
+    outcome: LearnerSpec,
+    treatment: LearnerSpec,
+    folds: usize,
+    seed: u64,
+    result: (Vec<f64>, Vec<f64>, Vec<f64>, CrossFittedPrediction),
+}
+
+pub(crate) fn cached_aipw_nuisances(
+    problem: &crate::propensity::PreparedPropensityProblem,
+    outcome: LearnerSpec,
+    treatment: LearnerSpec,
+    folds: usize,
+    ctx: &ExecutionContext,
+) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>, CrossFittedPrediction), EstimationError> {
+    use std::sync::Arc;
+    let mut cache = problem
+        .learner_cache
+        .lock()
+        .map_err(|_| EstimationError::stats_msg("nuisance cache lock poisoned"))?;
+    if let Some(entry) = cache.as_ref() {
+        if Arc::ptr_eq(&entry.design, &problem.design_matrix)
+            && Arc::ptr_eq(&entry.outcome_values, &problem.outcome)
+            && Arc::ptr_eq(&entry.treatment_values, &problem.treatment)
+            && entry.nrows == problem.nrows
+            && entry.ncols == problem.design_ncols
+            && entry.outcome == outcome
+            && entry.treatment == treatment
+            && entry.folds == folds
+            && entry.seed == ctx.rng.master_seed()
+        {
+            return Ok(entry.result.clone());
+        }
+    }
+    let result = cross_fit_aipw_nuisances(
+        outcome,
+        treatment,
+        &problem.design_matrix,
+        problem.nrows,
+        problem.design_ncols,
+        &problem.outcome,
+        &problem.treatment,
+        folds,
+        ctx,
+    )?;
+    *cache = Some(AipwCacheEntry {
+        design: Arc::clone(&problem.design_matrix),
+        outcome_values: Arc::clone(&problem.outcome),
+        treatment_values: Arc::clone(&problem.treatment),
+        nrows: problem.nrows,
+        ncols: problem.design_ncols,
+        outcome,
+        treatment,
+        folds,
+        seed: ctx.rng.master_seed(),
+        result: result.clone(),
+    });
+    Ok(result)
+}

@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{ResponseFunctional, TransportQuery, VariableId};
+use antecedent_core::{ResponseFunctional, TransportOutcome, TransportQuery, VariableId};
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, SelectionDiagram};
 
 use crate::IdentificationError;
@@ -14,6 +14,8 @@ use crate::IdentificationError;
 pub struct PopulationFactor {
     /// Population key.
     pub population: Arc<str>,
+    /// Supplied evidence regime used by this factor, when explicitly catalogued.
+    pub regime: Option<antecedent_core::RegimeId>,
     /// Variables whose conditional law is required.
     pub variables: Arc<[VariableId]>,
     /// Conditioning variables.
@@ -67,6 +69,17 @@ pub struct NonTransportableCertificate {
     pub message: Arc<str>,
 }
 
+/// Required available evidence was absent. Distinct from [`NonTransportableCertificate`].
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MissingEvidenceCertificate {
+    /// Stable reason id.
+    pub reason: Arc<str>,
+    /// Variables or regimes that were required and missing.
+    pub missing: Arc<[VariableId]>,
+    /// Scope note. Callers must not parse this prose.
+    pub message: Arc<str>,
+}
+
 /// Result of structural transport identification.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TransportIdentification {
@@ -77,8 +90,36 @@ pub enum TransportIdentification {
         /// Positive certificate.
         certificate: TransportCertificate,
     },
-    /// No implemented sound rule applies.
+    /// No implemented sound rule applies. Historical meaning preserved.
     NotCertified(NonTransportableCertificate),
+    /// A required available source regime is absent.
+    MissingEvidence(MissingEvidenceCertificate),
+}
+
+impl TransportIdentification {
+    /// Typed outcome. Callers match [`TransportOutcome::kind`]; they must not parse prose.
+    #[must_use]
+    pub fn outcome(&self) -> TransportOutcome {
+        match self {
+            Self::Transportable { certificate, .. } => {
+                TransportOutcome::identified(Arc::clone(&certificate.rule))
+            }
+            Self::NotCertified(certificate) => TransportOutcome::not_certified(
+                Arc::clone(&certificate.reason),
+                Arc::clone(&certificate.witness),
+            ),
+            Self::MissingEvidence(certificate) => TransportOutcome::missing_evidence(
+                Arc::clone(&certificate.reason),
+                Arc::clone(&certificate.missing),
+            ),
+        }
+    }
+
+    /// Whether a sound formula was certified.
+    #[must_use]
+    pub const fn is_transportable(&self) -> bool {
+        matches!(self, Self::Transportable { .. })
+    }
 }
 
 /// Conservative sID-style identifier covering direct transport, general pre-treatment
@@ -95,7 +136,12 @@ impl TransportIdentifier {
 
     /// Identify a structural transport formula.
     ///
-    /// The implementation deliberately returns `NotCertified` rather than claiming
+    /// Target-only identification is attempted before any source experiment is
+    /// demanded. An empty source catalog on a causally sufficient graph emits
+    /// the target observational truncated factorization. A required missing source regime is
+    /// [`TransportIdentification::MissingEvidence`], not [`TransportIdentification::NotCertified`].
+    ///
+    /// The implementation deliberately returns [`Self::NotCertified`] rather than claiming
     /// non-transportability when general multi-node c-component recursion is required.
     #[allow(clippy::too_many_lines)]
     pub fn identify(
@@ -103,41 +149,71 @@ impl TransportIdentifier {
         diagram: &SelectionDiagram,
         query: &TransportQuery,
     ) -> Result<TransportIdentification, IdentificationError> {
+        let result = Self::identify_structural(diagram, query)?;
+        let bound = bind_catalog(result, query);
+        if matches!(bound, TransportIdentification::MissingEvidence(_))
+            && diagram.causal_graph().district_count() == diagram.causal_graph().node_count()
+        {
+            let mut target_query = query.clone();
+            target_query.source_experiments = Arc::from([]);
+            target_query.catalog = None;
+            return Ok(bind_catalog(Self::identify_structural(diagram, &target_query)?, query));
+        }
+        Ok(bound)
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn identify_structural(
+        diagram: &SelectionDiagram,
+        query: &TransportQuery,
+    ) -> Result<TransportIdentification, IdentificationError> {
         query.validate().map_err(|error| IdentificationError::msg(error.to_string()))?;
         let graph = diagram.causal_graph();
         let (outcomes, treatments) = response_variables(query)?;
-        for variable in outcomes.iter().chain(treatments.iter()) {
+        let mut coordinates = outcomes
+            .iter()
+            .chain(treatments.iter())
+            .chain(query.source_experiments.iter())
+            .copied()
+            .collect::<Vec<_>>();
+        if let Some(catalog) = &query.catalog {
+            for environment in catalog.environments.iter() {
+                coordinates.extend(environment.variables.iter().map(|v| v.variable));
+                coordinates.extend(environment.selection_targets.iter().copied());
+            }
+            for regime in catalog.regimes.iter() {
+                coordinates
+                    .extend(regime.measured.iter().chain(regime.interventions.iter()).copied());
+            }
+        }
+        for variable in &coordinates {
             if variable.as_usize() >= graph.node_count() {
                 return Err(IdentificationError::UnknownVariable { id: *variable });
             }
-        }
-        if treatments.iter().any(|x| !query.source_experiments.contains(x)) {
-            return Ok(TransportIdentification::NotCertified(NonTransportableCertificate {
-                reason: Arc::from("transport.source_experiment_missing"),
-                witness: treatments,
-                message: Arc::from(
-                    "the source experiment required by this transport query is unavailable",
-                ),
-            }));
         }
 
         // One reachability workspace for every ancestry probe in this identify
         // call; `reaches()` would otherwise allocate a fresh workspace per pair.
         let mut reach_ws = antecedent_graph::GraphWorkspace::default();
+        let mut outcome_ancestors = std::collections::BTreeSet::new();
+        let mut pending = outcomes.to_vec();
+        while let Some(variable) = pending.pop() {
+            if treatments.contains(&variable) || !outcome_ancestors.insert(variable) {
+                continue;
+            }
+            pending.extend(
+                graph.parents(dense(variable)).iter().map(|p| VariableId::from_raw(p.raw())),
+            );
+        }
         let relevant_selection = diagram
             .selection_targets()
             .iter()
             .copied()
-            .filter(|selection| {
-                !treatments.contains(selection)
-                    && outcomes.iter().any(|outcome| {
-                        graph.reaches_with(dense(*selection), dense(*outcome), &mut reach_ws)
-                    })
-            })
+            .filter(|v| outcome_ancestors.contains(v))
             .collect::<Vec<_>>();
-        if relevant_selection.is_empty() {
-            let factor =
-                response_factor(Arc::clone(&query.source_population), &outcomes, &[], &treatments);
+        if relevant_selection.is_empty() && source_experiments_cover(query, &treatments) {
+            let population = Arc::clone(&query.source_population);
+            let factor = response_factor(population, &outcomes, &[], &treatments);
             return Ok(TransportIdentification::Transportable {
                 formula: TransportFormula::Direct(factor),
                 certificate: TransportCertificate {
@@ -148,6 +224,56 @@ impl TransportIdentifier {
                     )]),
                 },
             });
+        }
+        // In a causally sufficient graph, target observational factors identify
+        // the intervention by the truncated factorization, regardless of selection.
+        if !source_experiments_cover(query, &treatments)
+            && graph.district_count() == graph.node_count()
+        {
+            let order = topological_order(diagram)?
+                .into_iter()
+                .filter(|v| outcome_ancestors.contains(v))
+                .collect::<Vec<_>>();
+            let factors = order
+                .iter()
+                .copied()
+                .filter(|v| !treatments.contains(v))
+                .map(|v| {
+                    let parents = graph
+                        .parents(dense(v))
+                        .iter()
+                        .map(|p| VariableId::from_raw(p.raw()))
+                        .collect::<Vec<_>>();
+                    response_factor(Arc::clone(&query.target_population), &[v], &parents, &[])
+                })
+                .collect::<Vec<_>>();
+            let sum_out = order
+                .iter()
+                .copied()
+                .filter(|v| !outcomes.contains(v) && !treatments.contains(v))
+                .collect::<Vec<_>>();
+            return Ok(TransportIdentification::Transportable {
+                formula: TransportFormula::RecursiveFactorization {
+                    sum_out: sum_out.into(),
+                    factors: factors.into(),
+                },
+                certificate: TransportCertificate {
+                    rule: Arc::from("transport.sid.target_g_formula"),
+                    selection_targets: diagram.selection_targets().to_vec().into(),
+                    premises: Arc::from([Arc::from(
+                        "causal sufficiency licenses the target observational truncated factorization",
+                    )]),
+                },
+            });
+        }
+        if !source_experiments_cover(query, &treatments) {
+            return Ok(TransportIdentification::MissingEvidence(MissingEvidenceCertificate {
+                reason: Arc::from("transport.source_experiment_missing"),
+                missing: treatments,
+                message: Arc::from(
+                    "the source experiment required by this transport query is unavailable",
+                ),
+            }));
         }
 
         // This is intentionally stronger than general S-admissibility. Requiring selected
@@ -276,6 +402,79 @@ impl TransportIdentifier {
     }
 }
 
+fn bind_catalog(
+    mut result: TransportIdentification,
+    query: &TransportQuery,
+) -> TransportIdentification {
+    let Some(catalog) = &query.catalog else {
+        return result;
+    };
+    let TransportIdentification::Transportable { formula, .. } = &mut result else {
+        return result;
+    };
+    let factors: Vec<&mut PopulationFactor> = match formula {
+        TransportFormula::Direct(factor) => vec![factor],
+        TransportFormula::Standardize { source_response, target_law, .. } => {
+            vec![source_response, target_law]
+        }
+        TransportFormula::RecursiveFactorization { factors, .. } => {
+            Arc::make_mut(factors).iter_mut().collect()
+        }
+    };
+    let mut missing = std::collections::BTreeSet::new();
+    for factor in factors {
+        let target = factor.population == query.target_population;
+        let sampling_valid = !target
+            || catalog
+                .target_sampling
+                .is_none_or(antecedent_core::TargetSampling::represents_target_law);
+        let needed = factor
+            .variables
+            .iter()
+            .chain(factor.conditioned_on.iter())
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
+        let regime = catalog.regimes.iter().find(|r| {
+            r.population == factor.population && r.evidence_kind.can_satisfy_factor()
+                && r.conditioned_on.iter().all(|v| factor.conditioned_on.contains(v) && !factor.variables.contains(v))
+                && r.interventions.len() == factor.interventions.len()
+                && r.interventions.iter().all(|v| factor.interventions.contains(v))
+                && needed.iter().all(|v| r.measured.contains(v) || r.interventions.contains(v))
+                && (matches!(r.distribution, antecedent_core::DistributionAvailability::Joint)
+                    || needed.len() <= 1)
+                // Restricted assignments cannot supply an unrestricted symbolic response.
+                && r.intervention_values.is_empty()
+        });
+        if sampling_valid {
+            if let Some(regime) = regime {
+                factor.regime = Some(regime.id);
+                continue;
+            }
+            // An empty source catalog does not withdraw the target observational law.
+            if target
+                && catalog.target_sampling
+                    != Some(antecedent_core::TargetSampling::LicensedWeightedDesign)
+                && factor.interventions.is_empty()
+                && !catalog.regimes.iter().any(|r| r.population == factor.population)
+            {
+                continue;
+            }
+        }
+        missing.extend(needed);
+    }
+    if missing.is_empty() {
+        result
+    } else {
+        TransportIdentification::MissingEvidence(MissingEvidenceCertificate {
+            reason: Arc::from("transport.missing_evidence"),
+            missing: missing.into_iter().collect::<Vec<_>>().into(),
+            message: Arc::from(
+                "required joint measured law, intervention regime, or representative target law is unavailable",
+            ),
+        })
+    }
+}
+
 fn s_admissible_standardizers(
     diagram: &SelectionDiagram,
     outcomes: &[VariableId],
@@ -380,7 +579,9 @@ fn treatment_mutilated_selection_graph(
             }
         }
         for &other in graph.bidirected_neighbors(from) {
-            if from.raw() < other.raw() {
+            if from.raw() < other.raw()
+                && !treatments.iter().any(|t| dense(*t) == from || dense(*t) == other)
+            {
                 out.insert_bidirected(from, other).map_err(IdentificationError::from)?;
             }
         }
@@ -397,6 +598,14 @@ fn treatment_mutilated_selection_graph(
     Ok(out)
 }
 
+fn source_experiments_cover(query: &TransportQuery, treatments: &[VariableId]) -> bool {
+    if let Some(catalog) = &query.catalog {
+        catalog.has_available_experiment(&query.source_population, treatments)
+    } else {
+        treatments.len() == 1 && query.source_experiments.contains(&treatments[0])
+    }
+}
+
 fn response_factor(
     population: Arc<str>,
     variables: &[VariableId],
@@ -405,6 +614,7 @@ fn response_factor(
 ) -> PopulationFactor {
     PopulationFactor {
         population,
+        regime: None,
         variables: variables.to_vec().into(),
         conditioned_on: conditioned_on.to_vec().into(),
         interventions: interventions.to_vec().into(),
@@ -481,7 +691,7 @@ fn topological_order(diagram: &SelectionDiagram) -> Result<Vec<VariableId>, Iden
 
 #[cfg(test)]
 mod tests {
-    use antecedent_core::{ContinuousDomain, GridSpec, ResponseQuery};
+    use antecedent_core::{ContinuousDomain, GridSpec, ResponseQuery, TransportOutcomeKind};
     use antecedent_graph::Admg;
 
     use super::*;
@@ -635,5 +845,76 @@ mod tests {
         let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
         let result = TransportIdentifier::new().identify(&diagram, &query()).unwrap();
         assert!(matches!(result, TransportIdentification::NotCertified(_)));
+        assert_eq!(result.outcome().kind, TransportOutcomeKind::NotCertified);
+    }
+
+    #[test]
+    fn selection_upstream_of_intervened_treatment_needs_no_target_covariate_law() {
+        let mut graph = Admg::with_variables(3);
+        graph
+            .insert_directed(dense(VariableId::from_raw(1)), dense(VariableId::from_raw(0)))
+            .unwrap();
+        graph
+            .insert_directed(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(2)))
+            .unwrap();
+        graph
+            .insert_bidirected(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(2)))
+            .unwrap();
+        let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
+        let result = TransportIdentifier::new().identify(&diagram, &query()).unwrap();
+        assert!(matches!(
+            result,
+            TransportIdentification::Transportable { formula: TransportFormula::Direct(_), .. }
+        ));
+        let mutilated =
+            treatment_mutilated_selection_graph(&diagram, &[VariableId::from_raw(0)]).unwrap();
+        assert!(mutilated.bidirected_neighbors(dense(VariableId::from_raw(0))).is_empty());
+    }
+
+    fn empty_catalog_query() -> TransportQuery {
+        TransportQuery::new(query().response, "trial", "target", Vec::<VariableId>::new())
+            .with_catalog(antecedent_core::EvidenceCatalog::empty())
+            .unwrap()
+    }
+
+    #[test]
+    fn empty_catalog_and_invariant_mechanisms_identify_on_the_target() {
+        let graph = Admg::with_variables(3);
+        let diagram = SelectionDiagram::try_new(graph, []).unwrap();
+        let result = TransportIdentifier::new().identify(&diagram, &empty_catalog_query()).unwrap();
+        let TransportIdentification::Transportable { formula, .. } = &result else {
+            panic!("target-only identify must succeed with an empty source catalog");
+        };
+        match formula {
+            TransportFormula::RecursiveFactorization { factors, .. } => {
+                assert!(
+                    factors
+                        .iter()
+                        .all(|f| f.population.as_ref() == "target" && f.interventions.is_empty())
+                );
+            }
+            other => panic!("expected observational target factorization, got {other:?}"),
+        }
+        assert_eq!(result.outcome().kind, TransportOutcomeKind::Identified);
+    }
+
+    #[test]
+    fn missing_source_experiment_is_missing_evidence_not_not_certified() {
+        let mut graph = Admg::with_variables(3);
+        graph
+            .insert_directed(dense(VariableId::from_raw(1)), dense(VariableId::from_raw(2)))
+            .unwrap();
+        graph
+            .insert_directed(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(2)))
+            .unwrap();
+        graph
+            .insert_bidirected(dense(VariableId::from_raw(0)), dense(VariableId::from_raw(2)))
+            .unwrap();
+        let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
+        let result = TransportIdentifier::new().identify(&diagram, &empty_catalog_query()).unwrap();
+        assert!(matches!(result, TransportIdentification::MissingEvidence(_)));
+        assert_eq!(result.outcome().kind, TransportOutcomeKind::MissingEvidence);
+        assert_ne!(result.outcome().kind, TransportOutcomeKind::NotCertified);
+        assert_ne!(result.outcome().kind, TransportOutcomeKind::ProvenNonTransportable);
     }
 }

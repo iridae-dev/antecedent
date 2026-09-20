@@ -480,7 +480,32 @@ pub(crate) fn validate_query_ids(
         Q::Response(wire) => validate_response_query_ids(wire, variable_count),
         Q::Transport(wire) => {
             validate_response_query_ids(&wire.response, variable_count)?;
-            validate_ids(wire.source_experiments.iter().copied(), variable_count)
+            validate_ids(wire.source_experiments.iter().copied(), variable_count)?;
+            if let Some(catalog) = &wire.catalog {
+                for environment in &catalog.environments {
+                    validate_ids(
+                        environment
+                            .variables
+                            .iter()
+                            .map(|v| v.0)
+                            .chain(environment.selection_targets.iter().copied()),
+                        variable_count,
+                    )?;
+                }
+                for regime in &catalog.regimes {
+                    validate_ids(
+                        regime
+                            .interventions
+                            .iter()
+                            .chain(&regime.measured)
+                            .copied()
+                            .chain(regime.intervention_values.iter().map(|v| v.0))
+                            .chain(regime.separate_marginals.iter().flatten().copied()),
+                        variable_count,
+                    )?;
+                }
+            }
+            Ok(())
         }
         Q::Interference(wire) => {
             let crate::InterferenceFunctionalWire::ExposureContrast { outcome, .. } =
@@ -1106,7 +1131,8 @@ fn validate_transport_identification_ids(
             }
             validate_ids(certificate.selection_targets.iter().copied(), variable_count)
         }
-        TransportIdentificationWire::NotCertified(certificate) => {
+        TransportIdentificationWire::NotCertified(certificate)
+        | TransportIdentificationWire::MissingEvidence(certificate) => {
             validate_ids(certificate.witness.iter().copied(), variable_count)
         }
     }
@@ -1125,7 +1151,8 @@ fn validate_transport_identification(
                 ));
             }
         }
-        TransportIdentificationWire::NotCertified(certificate) => {
+        TransportIdentificationWire::NotCertified(certificate)
+        | TransportIdentificationWire::MissingEvidence(certificate) => {
             if certificate.reason.trim().is_empty() || certificate.message.trim().is_empty() {
                 return Err(IoError::Convert(
                     "non-transportable certificate reason and message must be non-blank".into(),

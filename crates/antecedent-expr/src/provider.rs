@@ -8,7 +8,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, PoisonError, RwLock};
 
-use antecedent_core::{Value, VariableId};
+use antecedent_core::{RegimeId, Value, VariableId};
 
 use crate::{DomainRef, InterventionAssignment};
 
@@ -114,6 +114,23 @@ pub struct FactorSpec<'a> {
     pub intervention: &'a [InterventionAssignment],
     /// Observational vs interventional domain.
     pub domain: DomainRef,
+    /// Population label. Empty is the default single-study factor.
+    pub population: &'a str,
+    /// Catalog regime this factor cites.
+    pub regime: Option<RegimeId>,
+}
+
+impl<'a> FactorSpec<'a> {
+    /// Untagged single-study factor (existing estimators).
+    #[must_use]
+    pub const fn new(
+        variables: &'a [VariableId],
+        conditioned_on: &'a [VariableId],
+        intervention: &'a [InterventionAssignment],
+        domain: DomainRef,
+    ) -> Self {
+        Self { variables, conditioned_on, intervention, domain, population: "", regime: None }
+    }
 }
 
 /// Errors from compiling or evaluating causal expressions.
@@ -734,6 +751,8 @@ mod tests {
             conditioned_on: &[],
             intervention: &[],
             domain: DomainRef::Observational,
+            population: "",
+            regime: None,
         };
         let assignment = Assignment::from_pairs([(y, f(0.0))]);
         let err = p.probability(&spec, &assignment, &EvalContext::default()).unwrap_err();
@@ -790,6 +809,8 @@ mod tests {
             conditioned_on: &[z],
             intervention: &interv,
             domain: DomainRef::Interventional,
+            population: "",
+            regime: None,
         };
         let assign = Assignment::from_pairs([(y, f(1.0)), (z, f(0.0))]);
         p.insert_probability(&spec, &assign, 0.25).unwrap();
@@ -816,6 +837,8 @@ mod tests {
             conditioned_on: &[z],
             intervention: &[],
             domain: DomainRef::Observational,
+            population: "",
+            regime: None,
         };
         let assignment = Assignment::from_pairs([(y, f(0.5)), (z, f(0.2))]);
         let err = p.probability(&spec, &assignment, &EvalContext::default()).unwrap_err();

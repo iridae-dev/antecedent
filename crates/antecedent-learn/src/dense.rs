@@ -10,7 +10,7 @@ use crate::error::LearnError;
 /// Gather a dense column-major design for the view's logical rows.
 pub(crate) fn materialize_dense_colmajor(
     x: DesignView<'_>,
-) -> Result<(Vec<f64>, usize, usize), LearnError> {
+) -> Result<(std::borrow::Cow<'_, [f64]>, usize, usize), LearnError> {
     let nrows = x.nrows();
     let ncols = x.ncols();
     match x.storage() {
@@ -20,7 +20,7 @@ pub(crate) fn materialize_dense_colmajor(
         DesignStorage::Dense(d) => {
             if x.row_selection().is_none() && d.layout() == Layout::ColumnMajor {
                 let need = nrows.saturating_mul(ncols);
-                return Ok((d.values()[..need].to_vec(), nrows, ncols));
+                return Ok((std::borrow::Cow::Borrowed(&d.values()[..need]), nrows, ncols));
             }
         }
     }
@@ -30,7 +30,7 @@ pub(crate) fn materialize_dense_colmajor(
             out[c * nrows + r] = x.get(r, c)?;
         }
     }
-    Ok((out, nrows, ncols))
+    Ok((std::borrow::Cow::Owned(out), nrows, ncols))
 }
 
 /// Gather physical-aligned values onto logical rows of `x`.

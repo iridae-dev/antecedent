@@ -2,11 +2,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::VariableId;
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::Arc;
-
-use antecedent_core::VariableId;
 
 use crate::{CausalExprArena, DerivationMeta, ExprId, ExprNode, VarSetId};
 
@@ -101,6 +99,10 @@ fn rebuild_children(
     let node = arena.node(id).clone();
     let rebuilt = match node {
         ExprNode::Distribution { .. } => id,
+        ExprNode::Kernel { body, bound, population, regime } => {
+            let body = simplify_rec(arena, body, memo, free_memo)?;
+            arena.intern(ExprNode::Kernel { body, bound, population, regime })
+        }
         ExprNode::Product(list) => {
             let children_ids: Vec<ExprId> = arena.list(list).to_vec();
             let mut children: Vec<ExprId> = Vec::with_capacity(children_ids.len());
@@ -308,7 +310,7 @@ fn intern_derived(arena: &mut CausalExprArena, node: ExprNode, rule: &str) -> Ex
     let before = arena.len();
     let id = arena.intern(node);
     if arena.len() > before {
-        arena.set_derivation_if_absent(id, DerivationMeta { rule: Arc::from(rule), note: None });
+        arena.set_derivation_if_absent(id, DerivationMeta::rule(rule, None));
     }
     id
 }
@@ -328,7 +330,7 @@ fn intersects(arena: &CausalExprArena, a: VarSetId, b: VarSetId) -> bool {
     false
 }
 
-fn free_vars(
+pub(crate) fn free_vars(
     arena: &mut CausalExprArena,
     id: ExprId,
     memo: &mut HashMap<ExprId, VarSetId>,
@@ -350,15 +352,27 @@ fn free_vars(
             // i.e. it can only turn a previously-missed dead-sum/integral into a
             // now-detected `SimplifyError`, never turn a legitimate dependency into a
             // spurious elimination. It cannot newly enable an unsound rewrite.
-            let bound: Vec<VariableId> =
-                arena.intervention_assignments(intervention).iter().map(|a| a.variable).collect();
+            let bound: Vec<VariableId> = arena
+                .intervention_assignments(intervention)
+                .iter()
+                .filter(|a| !matches!(a.value, antecedent_core::Value::Float64(x) if x.is_nan()))
+                .map(|a| a.variable)
+                .collect();
             for &v in arena.var_set(conditioned_on) {
                 if !bound.iter().any(|b| *b == v) {
                     vars.push(v);
                 }
             }
+            vars.extend(
+                arena
+                    .intervention_assignments(intervention)
+                    .iter()
+                    .filter(|a| matches!(a.value, antecedent_core::Value::Float64(x) if x.is_nan()))
+                    .map(|a| a.variable),
+            );
             arena.intern_var_set(vars)
         }
+        ExprNode::Kernel { body, .. } => free_vars(arena, body, memo),
         ExprNode::Product(list) => {
             let children: Vec<ExprId> = arena.list(list).to_vec();
             let mut vars = Vec::new();
@@ -388,8 +402,12 @@ fn free_vars(
         }
         ExprNode::Expectation { function, distribution } => {
             let dist = free_vars(arena, distribution, memo);
-            let mut vars = arena.var_set(dist).to_vec();
-            vars.push(function.variable());
+            let vars = arena
+                .var_set(dist)
+                .iter()
+                .copied()
+                .filter(|v| *v != function.variable())
+                .collect::<Vec<_>>();
             arena.intern_var_set(vars)
         }
         ExprNode::Contrast { left, right, .. } => {
@@ -415,12 +433,7 @@ mod tests {
         let mut a = CausalExprArena::new();
         let empty = a.empty_var_set();
         let empty_i = a.empty_intervention_set();
-        let dist = a.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = a.intern_distribution(empty, empty, empty_i, DomainRef::Observational);
         let summed = a.intern(ExprNode::SumOut { variables: empty, expr: dist });
         assert_eq!(simplify(&mut a, summed).unwrap(), dist);
     }
@@ -433,12 +446,7 @@ mod tests {
         let v1 = a.intern_var_set([VariableId::from_raw(1)]);
         let v2 = a.intern_var_set([VariableId::from_raw(2)]);
         let vars12 = a.intern_var_set([VariableId::from_raw(1), VariableId::from_raw(2)]);
-        let dist = a.intern(ExprNode::Distribution {
-            variables: vars12,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = a.intern_distribution(vars12, empty, empty_i, DomainRef::Observational);
         let inner = a.intern(ExprNode::SumOut { variables: v2, expr: dist });
         let outer = a.intern(ExprNode::SumOut { variables: v1, expr: inner });
         let s = simplify(&mut a, outer).unwrap();
@@ -466,12 +474,7 @@ mod tests {
         let empty_i = a.empty_intervention_set();
         let y = a.intern_var_set([VariableId::from_raw(0)]);
         let z = a.intern_var_set([VariableId::from_raw(1)]);
-        let dist = a.intern(ExprNode::Distribution {
-            variables: y,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = a.intern_distribution(y, empty, empty_i, DomainRef::Observational);
         let summed = a.intern(ExprNode::SumOut { variables: z, expr: dist });
         let err = simplify(&mut a, summed).unwrap_err();
         assert_eq!(err, SimplifyError::DeadSumOut { variables: vec![VariableId::from_raw(1)] });
@@ -487,12 +490,7 @@ mod tests {
         let empty_i = a.empty_intervention_set();
         let y = a.intern_var_set([VariableId::from_raw(0)]);
         let z = a.intern_var_set([VariableId::from_raw(1)]);
-        let dist = a.intern(ExprNode::Distribution {
-            variables: y,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = a.intern_distribution(y, empty, empty_i, DomainRef::Observational);
         let integrated = a.intern(ExprNode::IntegralOut { variables: z, expr: dist });
         let err = simplify(&mut a, integrated).unwrap_err();
         assert_eq!(
@@ -508,18 +506,8 @@ mod tests {
         let empty_i = a.empty_intervention_set();
         let v0 = a.intern_var_set([VariableId::from_raw(0)]);
         let v1 = a.intern_var_set([VariableId::from_raw(1)]);
-        let d1 = a.intern(ExprNode::Distribution {
-            variables: v0,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
-        let d2 = a.intern(ExprNode::Distribution {
-            variables: v1,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let d1 = a.intern_distribution(v0, empty, empty_i, DomainRef::Observational);
+        let d2 = a.intern_distribution(v1, empty, empty_i, DomainRef::Observational);
         let inner = {
             let list = a.intern_list([d1]);
             a.intern(ExprNode::Product(list))
@@ -552,18 +540,8 @@ mod tests {
         let empty_i = a.empty_intervention_set();
         let v0 = a.intern_var_set([VariableId::from_raw(0)]);
         let v1 = a.intern_var_set([VariableId::from_raw(1)]);
-        let d1 = a.intern(ExprNode::Distribution {
-            variables: v0,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
-        let d2 = a.intern(ExprNode::Distribution {
-            variables: v1,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let d1 = a.intern_distribution(v0, empty, empty_i, DomainRef::Observational);
+        let d2 = a.intern_distribution(v1, empty, empty_i, DomainRef::Observational);
         let p1 = {
             let list = a.intern_list([d1, d2]);
             a.intern(ExprNode::Product(list))
@@ -598,24 +576,9 @@ mod tests {
         let v0 = a.intern_var_set([VariableId::from_raw(0)]);
         let v1 = a.intern_var_set([VariableId::from_raw(1)]);
         let v2 = a.intern_var_set([VariableId::from_raw(2)]);
-        let da = a.intern(ExprNode::Distribution {
-            variables: v0,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
-        let db = a.intern(ExprNode::Distribution {
-            variables: v1,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
-        let dc = a.intern(ExprNode::Distribution {
-            variables: v2,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let da = a.intern_distribution(v0, empty, empty_i, DomainRef::Observational);
+        let db = a.intern_distribution(v1, empty, empty_i, DomainRef::Observational);
+        let dc = a.intern_distribution(v2, empty, empty_i, DomainRef::Observational);
         let ab = a.intern(ExprNode::Ratio { numerator: da, denominator: db });
         let nested = a.intern(ExprNode::Ratio { numerator: ab, denominator: dc });
         let s = simplify(&mut a, nested).unwrap();
@@ -640,12 +603,7 @@ mod tests {
         let mut a = CausalExprArena::new();
         let empty = a.empty_var_set();
         let empty_i = a.empty_intervention_set();
-        let dist = a.intern(ExprNode::Distribution {
-            variables: empty,
-            conditioned_on: empty,
-            intervention: empty_i,
-            domain: DomainRef::Observational,
-        });
+        let dist = a.intern_distribution(empty, empty, empty_i, DomainRef::Observational);
         let summed = a.intern(ExprNode::SumOut { variables: empty, expr: dist });
         let exp = a.intern(ExprNode::Expectation {
             function: OutcomeExprId::identity(VariableId::from_raw(0)),

@@ -17,6 +17,8 @@ mod response;
 mod target;
 mod temporal;
 mod transport;
+mod transport_catalog;
+mod transport_contract;
 
 pub use crate::intervention::TemporalPolicy;
 
@@ -45,6 +47,18 @@ pub use response::{
 pub use target::{PredicateExpr, TargetPopulation};
 pub use temporal::TemporalEffectQuery;
 pub use transport::TransportQuery;
+pub use transport_catalog::{
+    DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
+    EvidenceProjection, EvidenceRegime, InterventionAssignment, LicensedWeights, RegimeBinding,
+    RegimeKind, SamplingDesign, TargetSampling, UnmetDependency, VariableCoordinate,
+    VariableDomain,
+};
+pub use transport_contract::{
+    ComputationLimits, ExperimentFamily, GraphAssumptionSet, OutcomeGuarantee, TheoremFamily,
+    TheoremReference, TheoremScope, TransportDistributionFamily, TransportEvaluateSupport,
+    TransportIdentifySupport, TransportLocation, TransportOutcome, TransportOutcomeKind,
+    TransportQueryScope, TransportSupportCoordinate, TransportUncertaintySupport,
+};
 
 /// Top-level causal query enum.
 #[derive(Clone, Debug, PartialEq)]

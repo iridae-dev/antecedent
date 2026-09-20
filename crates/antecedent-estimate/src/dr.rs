@@ -14,7 +14,7 @@ use antecedent_learn::{LearnerSpec, LinearSpec, LogisticSpec, PredictionTask, Ri
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::learn_nuisance::{
-    aipw_scores, clip_propensity, cross_fit_aipw_nuisances, design_for_spec, learn_err,
+    aipw_scores, cached_aipw_nuisances, clip_propensity, design_for_spec, learn_err,
     resolve_nuisance,
 };
 use crate::overlap::OverlapPolicy;
@@ -134,17 +134,8 @@ impl DrLearner {
         if self.folds < 2 {
             return Err(EstimationError::data_msg("DRLearner requires at least two folds"));
         }
-        let (mu0, mu1, mut ehat, treat) = cross_fit_aipw_nuisances(
-            self.outcome,
-            self.treatment,
-            problem.design_matrix.as_ref(),
-            problem.nrows,
-            problem.design_ncols,
-            problem.outcome.as_ref(),
-            problem.treatment.as_ref(),
-            self.folds,
-            ctx,
-        )?;
+        let (mu0, mu1, mut ehat, treat) =
+            cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
         let raw_e = ehat.clone();
         clip_propensity(&mut ehat, clip_of(problem.overlap));
         let phi =
@@ -169,8 +160,26 @@ impl DrLearner {
             .map_err(learn_err)?;
         let mut cate = vec![0.0; problem.nrows];
         fitted.predict(view, &mut cate, ctx).map_err(learn_err)?;
-        let mut effect = crate::dml::finish_dml(&phi, problem, assumptions, None, None, raw_e)?
-            .with_cate(Some(Arc::from(cate)));
+        let yhat = problem
+            .treatment
+            .iter()
+            .zip(&mu0)
+            .zip(&mu1)
+            .map(|((&t, &m0), &m1)| if t > 0.5 { m1 } else { m0 })
+            .collect::<Vec<_>>();
+        let outcome_diag =
+            antecedent_learn::diagnose(PredictionTask::Regression, problem.outcome.as_ref(), &yhat);
+        let mut effect = crate::dml::finish_dml(
+            &phi,
+            problem,
+            assumptions,
+            treat.validation.logloss,
+            outcome_diag.r2,
+            raw_e,
+        )?
+        .with_cate(Some(Arc::from(cate)));
+        effect.crossfit_folds = Some(self.folds);
+        effect.crossfit_seed = Some(ctx.rng.master_seed());
         effect.learner_provenance = treat.model_provenance;
         effect.learner_provenance.push(fitted.provenance());
         Ok(effect)

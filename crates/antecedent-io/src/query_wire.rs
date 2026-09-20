@@ -786,6 +786,9 @@ impl CausalQueryWire {
 /// Structural transportability query wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct TransportQueryWire {
+    /// Supplied catalog; omission preserves the legacy experimental contract.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog: Option<crate::transport_catalog_wire::EvidenceCatalogWire>,
     /// Target response query.
     pub response: ResponseQueryWire,
     /// Source population key.
@@ -1364,6 +1367,10 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
 /// Unsupported response-query fields.
 pub fn transport_query_to_wire(q: &TransportQuery) -> Result<TransportQueryWire, IoError> {
     Ok(TransportQueryWire {
+        catalog: q
+            .catalog
+            .as_ref()
+            .map(crate::transport_catalog_wire::EvidenceCatalogWire::from_catalog),
         response: response_query_to_wire(&q.response)?,
         source_population: q.source_population.to_string(),
         target_population: q.target_population.to_string(),
@@ -1377,12 +1384,17 @@ pub fn transport_query_to_wire(q: &TransportQuery) -> Result<TransportQueryWire,
 ///
 /// Invalid response or transport semantics.
 pub fn transport_query_from_wire(w: &TransportQueryWire) -> Result<TransportQuery, IoError> {
-    let query = TransportQuery::new(
+    let mut query = TransportQuery::new(
         response_query_from_wire(&w.response)?,
         w.source_population.as_str(),
         w.target_population.as_str(),
         vars_from_raw(&w.source_experiments),
     );
+    if let Some(catalog) = &w.catalog {
+        query = query
+            .with_catalog(catalog.to_catalog()?)
+            .map_err(|e| IoError::Convert(e.to_string()))?;
+    }
     query.validate().map_err(|error| IoError::Convert(error.to_string()))?;
     Ok(query)
 }
