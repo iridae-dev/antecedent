@@ -300,7 +300,9 @@ def test_admg_interventional_distribution_numeric_pin(accepted: bool) -> None:
     truth = {float(row["t"]): float(row["p_y1"]) for row in _ADMG_DIST_PIN["truth"]}
     for level, expected in truth.items():
         query = antecedent.InterventionalDistribution("y", interventions={"t": level})
-        fresh = antecedent.analyze(data, graph=graph, query=query, refute=False, bootstrap=0, seed=1)
+        fresh = antecedent.analyze(
+            data, graph=graph, query=query, refute=False, bootstrap=0, seed=1
+        )
         prepared = antecedent.estimation.PreparedAnalysis.prepare(
             data, graph=graph, query=query, refute=False, bootstrap=0, seed=1
         )

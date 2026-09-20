@@ -26,7 +26,9 @@ from antecedent.estimation import PreparedAnalysis
 from _repo_text import read_text
 
 ROOT = Path(__file__).resolve().parents[2]
-PIN = json.loads(read_text(ROOT / "conformance" / "estimate" / "staged_attribution" / "expected.json"))
+PIN = json.loads(
+    read_text(ROOT / "conformance" / "estimate" / "staged_attribution" / "expected.json")
+)
 
 
 def _outlier_chain(n: int = 20, outlier_at: int = -1) -> dict[str, np.ndarray]:
@@ -40,7 +42,9 @@ def _two_period_chain(n: int = 80, comparison_intercept: float = 6.0) -> dict[st
     x = np.array([(i % 40) * 0.1 for i in range(n)], dtype=np.float64)
     y = np.array(
         [
-            (1.0 + 2.0 * (i % 40) * 0.1) if i < 40 else (comparison_intercept + 2.0 * (i % 40) * 0.1)
+            (1.0 + 2.0 * (i % 40) * 0.1)
+            if i < 40
+            else (comparison_intercept + 2.0 * (i % 40) * 0.1)
             for i in range(n)
         ],
         dtype=np.float64,
@@ -210,7 +214,9 @@ def test_unlicensed_axes_refuse_on_analyze():
             graph=ant.AcceptedGraph(_dag()),
             query=_change_query(),
         )
-    with pytest.raises((CausalUnsupportedError, ant.errors.CausalTypeError, ant.errors.CausalValueError)):
+    with pytest.raises(
+        (CausalUnsupportedError, ant.errors.CausalTypeError, ant.errors.CausalValueError)
+    ):
         ant.analyze(
             _outlier_chain(),
             graph=ant.Admg.from_edges(["x", "y"], [("x", "y")]),

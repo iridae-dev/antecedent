@@ -50,6 +50,32 @@ def test_estimate_other_data_does_not_rebind_study():
     assert study.estimate().effect == pytest.approx(baseline.effect)
 
 
+def test_missing_row_padding_does_not_upgrade_calibration():
+    rng = np.random.default_rng(42)
+    t = rng.normal(size=100)
+    y = 2 * t + rng.normal(size=100)
+    labels = []
+    effects = []
+    ses = []
+    for total in (100, 500, 1000):
+        missing = np.full(total - 100, np.nan)
+        result = ant.analyze(
+            {"t": np.r_[t, missing], "y": np.r_[y, missing]},
+            graph=[("t", "y")],
+            query=ant.AverageEffect("t", "y"),
+            refute="none",
+            bootstrap=0,
+        )
+        labels.append(result.calibration.describe())
+        effects.append(result.effect)
+        ses.append(result.estimate.se_analytic)
+    assert effects[0] == pytest.approx(effects[1])
+    assert effects[0] == pytest.approx(effects[2])
+    assert ses[0] == pytest.approx(ses[1])
+    assert ses[0] == pytest.approx(ses[2])
+    assert labels[0] == labels[1] == labels[2]
+
+
 def test_report_has_json_types_and_explicit_calibration_scope():
     result = ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
     report = result.inspect()
@@ -341,3 +367,32 @@ def test_cpdag_partial_identification_with_full_mass_reports_its_identified_set(
     monkeypatch.setenv("ANTECEDENT_STRICT_ANSWER", "1")
     with pytest.raises(ant.errors.CausalUnsupportedError, match="ANTECEDENT_STRICT_ANSWER"):
         _ = result.effect
+
+
+@pytest.mark.parametrize("kind", ["cpdag", "pag"])
+def test_class_posterior_bounds_answer_survives_loading(kind):
+    """Practitioner S: degenerate bounds retain the identified-set disclosure."""
+    names = ["t", "y", "z"]
+    edges = [("z", "t"), ("z", "y"), ("t", "y")]
+    graph = (
+        ant.Cpdag.from_directed_undirected(names, edges, [])
+        if kind == "cpdag"
+        else ant.Pag.from_marked_edges(names, [(a, b, "tail", "arrow") for a, b in edges])
+    )
+    if kind == "pag":
+        # z is a visibility witness for t -> y; z is not adjacent to y.
+        graph = ant.Pag.from_marked_edges(
+            names, [("z", "t", "tail", "arrow"), ("t", "y", "tail", "arrow")]
+        )
+    data = sample()
+    if kind == "pag":
+        data["y"] = data["y"] - data["z"]
+    posterior = ant.discovery.GraphPosterior.from_graphs(names, [0.4, 0.6], [graph, graph])
+    result = ant.analyze(
+        data, discovery=posterior, query=QUERY, refute="none", bootstrap=0, seed=731
+    )
+    assert result.answer.kind == "bounds"
+    assert result.answer.detail == "identified_set"
+    loaded = ant.load(result.export())
+    assert loaded.acceptance.verified
+    assert loaded.answer == result.answer

@@ -1,0 +1,3 @@
+input_rows=100, complete_rows=100, effect=2.1191746354035366, analytic_se=0.12682625476532788, calibration=scope_not_assessed · reason sample_size_outside_measured_range · record cov.average_effect.dag.frequentist.analytic_se.l95.linear_adjustment_analytic_ci_coverage
+input_rows=500, complete_rows=100, effect=2.1191746354035366, analytic_se=0.12682625476532788, calibration=calibrated · record cov.average_effect.dag.frequentist.analytic_se.l95.linear_adjustment_analytic_ci_coverage
+input_rows=1000, complete_rows=100, effect=2.1191746354035366, analytic_se=0.12682625476532788, calibration=scope_not_assessed · reason sample_size_outside_measured_range · record cov.average_effect.dag.frequentist.analytic_se.l95.linear_adjustment_analytic_ci_coverage

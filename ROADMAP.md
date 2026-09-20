@@ -2,16 +2,15 @@
 
 Last updated: 2026-09-19.
 
-**1.11 carries P** (fast while correct). **2.0 is transport plus S**
-(practitioner scenarios and the leftover list). Transport is the scientific
-program for 2.0. S sits beside it so 2.0 is still Antecedent: the same
-engine, the same four slots, used the way a person would use it. P lands
-on the 1.11 cut so they have a machine that is fast enough.
+**1.11 carries S and P**: practitioner scenarios, their 1.x leftover fixes,
+and fast-while-correct execution. **2.0 carries transport** and inherits
+the independent practitioner suite and speed contract. The 1.11 cut must
+earn the same four slots on the jobs a person actually runs.
 
 | Workstream | Job | What it is not |
 | --- | --- | --- |
 | **T — Transport** | Executable, auditable transport across the studies we actually have | A new library, a second workflow engine, or a reason to drop 1.x cells |
-| **S — Practitioner scenarios** | An out-of-repo suite that uses only the public API, then a 1.x leftover fix-list that 2.0 ships | A second test harness inside this tree, or a wishlist of new graph types |
+| **S — Practitioner scenarios** | An out-of-repo suite that uses only the public API, then a 1.x leftover fix-list that 1.11 ships | A second test harness inside this tree, or a wishlist of new graph types |
 | **P — Fast while correct** | Make the 1.x engine use the machine without moving a licensed number | `PreferFast` as the default interval, a GPU rewrite, or remasuring 587 records to flip a thread count |
 
 Every checkbox below is an open implementation or evidence obligation, **not a
@@ -21,10 +20,13 @@ them. File references name existing owners, not a requirement for parallel
 implementations. Follow-on workstreams are dependency-ordered proposals, not
 assigned minor versions. A breaking extension requires a later major.
 
-S does not wait for T5. P does not wait for a tagged 1.11.0 or for S.
+S runs against the current 1.11 candidate; it does not wait for T5 or a
+tagged 1.11.0. P does not wait for a tagged release or for S.
 The 1.x close-out is **1.11.0**, not a 1.10.1 patch: this branch's work
-(parallel seeds, leftover rows, licensed GP cells, GAC 40, P speed), the
-[1.11 finding closeout](docs/reviews/v1.11-finding-closeout.md), and a
+(parallel seeds, leftover rows, licensed GP cells, GAC 40), the
+S practitioner acceptance and non-transport 1.x leftovers, the P speed
+program, and the
+[1.11 finding closeout](docs/reviews/v1.11-finding-closeout.md), then a
 flat history at the cut. Finding repairs that touch `core` remasure the
 587 coverage records. Do not treat a green historical attestation gate as
 the cut. Keep committing on top until that cut. Transport consumes their
@@ -34,15 +36,16 @@ leftovers and their speed work; it does not replace them.
 
 **Question:** When someone who is not us uses Antecedent on a problem they
 actually have, does the library do the thing they asked, refuse the thing they
-must not get, and say so in the four slots? **Depends on:** accepted 1.11.0.
-**Feeds:** the 2.0 leftover list; T10 practitioner acceptance; later
-scientific assertions on P's in-repo user-sized jobs.
+must not get, and say so in the four slots? **Depends on:** the current 1.11 candidate, including existing close-out work.
+**Feeds:** 1.11 acceptance; inherited T10 practitioner acceptance; scientific
+assertions on P's in-repo user-sized jobs. The independent suite lives at
+`../antecedent-practitioner-scenarios`; see [acceptance instructions](docs/practitioner-acceptance.md).
 
 In-repo tests prove licensed cells, fixtures, and gates. They do not prove a
 first-hour analysis, a messy sheet, a second click, or the question a user
 will type after reading the five-line API. Those gaps are 1.x leftovers, not
-2.x inventions. 2.0 ships the leftover list. It does not abandon the
-composition contract to start transport.
+2.x inventions. 1.11 ships the leftover fixes before its cut. 2.0 inherits
+that acceptance contract when it starts transport.
 
 ### S1 — Out-of-repo suite
 
@@ -52,64 +55,73 @@ It must not `use` crate internals, read `parity/`, or import `tests/common`.
 A failure here is a user failure. A pass that needs an internal helper is
 not a pass.
 
-- [ ] Stand up a sibling repo (or an isolated package that `gate_release.sh`
+- [x] Stand up a sibling repo (or an isolated package that `gate_release.sh`
       does not own). Pin `antecedent` the way a user pins it. No path
       dependency on this tree except an optional local override for
       pre-release checks.
-- [ ] Write scenarios as jobs, not cell coordinates. Each scenario has: the
+- [x] Write scenarios as jobs, not cell coordinates. Each scenario has: the
       question in the user's words, the data they would have, the graph they
       would draw, the call they would make, and the scientific outcome
       (a number with a named interval, or a named refusal). Inspect and
       execute must agree. An exported artifact must mean the same thing
       when loaded in a fresh process.
-- [ ] Cover the jobs 1.x already claims, at user shape:
+- [x] Cover the jobs 1.x already claims, at user shape:
       first-hour Python (CSV / pandas / Arrow, claim sentence, named
       refusal); static ATE / CATE / intervention level / curve on Dag and
       front-door Admg; class-posterior Cpdag / Pag; derivatives and
       elasticities; temporal pulse / sustained / mediation; unit and mean
       ITE; prepare → replace data → refresh → export; graph-posterior
       plus validation, not each in isolation.
-- [ ] Cover the jobs users will try and 1.x will honestly refuse: wrong
+- [x] Cover the jobs users will try and 1.x will honestly refuse: wrong
       treatment coding, missing columns, a cyclic “DAG”, unidentified
       queries, cheap/full surprises, inspect-open / execute-refuse,
       continuous point interventions they expected to bin, joint `do(A,B)`
       inferred from separate regimes. A silent success is a leftover.
       A precise refusal is not.
-- [ ] Cover scale the calibration suite does not: n a practitioner would
+- [x] Cover scale the calibration suite does not: n a practitioner would
       actually have (10⁴–10⁵), mixed types, unused columns, short and
       irregular series, two studies in one notebook. These are also P's
       benches; S owns the scientific assertion, P owns the wall-clock.
-- [ ] Do not reimplement transport scenarios here. When T5 lands, add
-      transport jobs to this suite the same way — public API only.
+- [x] Keep transport outside the 1.11 scenario inventory.
+- [ ] When T5 lands in 2.0, add transport jobs to this suite — public API only.
 
 **Done when:** a stranger can clone the suite, `pip install antecedent`,
-and see green for every job 1.10 licensed, red for every job 1.10 must
-refuse, and a leftover file for everything else.
+and see passing known-truth checks for the 1.x scenario inventory, passing
+named-refusal checks for unsupported jobs, and a leftover file for every
+unexpected failure. Full acceptance includes the separately selected scale runs.
 
-### S2 — Leftover list that 2.0 ships
+### S2 — Leftover list that 1.11 ships
 
 Every suite failure becomes a leftover record, not a chat note.
 
-- [ ] Record: symptom, public route, owner crate, class
+- [x] Record: symptom, public route, owner crate, class
       (`bug` / `silent_refuse` / `inspect_execute_drift` / `docs_lie` /
       `missing_pin` / `unusable_default` / `too_slow_to_be_true`).
       Cite the scenario. Cite the 1.x row or doc sentence that made the
       user try it.
-- [ ] Promotion rule: a leftover enters 2.0 when it has a consuming
+- [x] Promotion rule: a leftover enters 1.11 when it has a consuming
       in-repo test and, if it opened or closed a cell, a support-matrix
       and calibration obligation under the 1.10 extension rules. Research
       interest is not promotion.
-- [ ] Out of this list: new graph types, observational interference,
+- [x] Out of this list: new graph types, observational interference,
       PAG-native full ID, transport, ML CATE competition. Those stay
-      unscheduled or T/X. S exists so 2.0 does not leave 1.x half-true.
-- [ ] Close-out of 1.11.0 (licensed cells that must earn, GAC 40,
-      inspect/execute pins, non-transport 1.x leftovers) is not this
-      list. S starts after that cut is true. Anything still false
-      after the cut is the first leftover.
+      unscheduled or T/X. S exists so 1.11 does not leave 1.x half-true.
+- [x] Run S before the 1.11.0 cut, alongside the existing licensed-cell,
+      GAC 40, inspect/execute and P obligations. Record and close any
+      additional practitioner failure against that candidate. A candidate
+      is not accepted merely because its in-repo gates pass.
 
-**Done when:** 2.0's leftover list is empty or every remaining item is
-closed with a named reason. Transport M4 cannot accept while S has an
-open `bug`, `silent_refuse`, `inspect_execute_drift`, or `docs_lie`.
+**Done when:** the full Python/Rust suite and 10⁴/10⁵ scale runs pass against
+the 1.11 candidate, and every leftover is fixed or closed with an evidenced
+reason. No known in-scope defect is deferred to 2.0. Both the 1.11 cut and
+later transport M4 require this acceptance; unrun checks block the cut.
+
+**Implementation evidence (2026-09-19):** the sibling acceptance report passes
+32 Python jobs (including ten scale jobs), 11 Rust jobs, and seven runner
+checks; all eight recorded leftovers are closed. See
+[practitioner acceptance](docs/practitioner-acceptance.md) for validation and
+the remaining exact-candidate CI requirement. This working-tree completion
+does not declare the release candidate accepted.
 
 ## P — Fast while correct
 
@@ -118,7 +130,7 @@ what a licensed cell means? **Depends on:** the accepted 1.11 close-out
 work (already on this branch), not a tagged release and not S. **Feeds:**
 T4/T6 evaluation budgets; T10 performance gate; every later 2.x path that
 reuses estimate/identify/expr. User-sized benches live in this tree. S
-still owns later scientific assertions on those jobs.
+owns the 1.11 scientific assertions on those jobs.
 
 1.x already has the knobs: `ExecutionContext` owns threads, kernels, cache,
 and adaptive effort; scalar kernels are the conformance reference; `faer`
@@ -133,7 +145,7 @@ claim. Speed may not change those. A faster reduction that is not
 bit-identical under `Determinism::Strict` is a new inference identity and
 needs its own license. `PreferFast` is never the default licensed interval.
 
-The 585 attested records stay. A change that cannot move a number is a
+The 587 attested records stay. A change that cannot move a number is a
 waiver, not a remasure. A change that can move a number owes the groups
 behind its records. Flipping a thread count on independent seeds does not
 owe remasure; flipping kernels, stopping rules, or draw counts does.
@@ -226,7 +238,7 @@ not a latency budget for `analyze` on a 50k-row sheet.
 - [ ] Will not make `Determinism::PreferFast` the licensed default.
 - [ ] Will not drop default bootstrap replicates or posterior draws
       without a new licensed method and a coverage record.
-- [ ] Will not remasure the 585 because seeds now run in parallel or
+- [ ] Will not remasure the 587 because seeds now run in parallel or
       because Python defaulted to more than one thread.
 - [ ] Will not start a GPU or WASM rewrite as a 1.11 speed program
       (those stay independent tracks).
@@ -281,7 +293,7 @@ licensed evaluator is an identification result; it is not a completed analysis.
 
 ## Release contract and invariants
 
-**Required for 2.0:** S leftover list closed (`bug` / `silent_refuse` /
+**Required for 2.0:** inherited 1.11 S acceptance, with its leftover list closed (`bug` / `silent_refuse` /
 `inspect_execute_drift` / `docs_lie`); P user-path speed (a 1.11
 obligation that 2.0 inherits);
 explicit evidence catalogs; complete classical single-source
@@ -368,7 +380,7 @@ Concrete gaps already visible:
 
 | Milestone | Depends on | Exit artifact |
 | --- | --- | --- |
-| S: leftover truth | Accepted 1.11.0 (including P) | Out-of-repo suite; leftover list empty or closed |
+| S: leftover truth (ships in 1.11) | Current 1.11 candidate; no tagged-release dependency | Independent Python/Rust suite and scale evidence; leftovers fixed or closed |
 | P: user-path speed | 1.11 close-out work (this branch) | In-repo user-path benches; default `threads>1` |
 | M0: contracts | Accepted 1.10, T0–T1 | ADR, evidence schema, exact theorem scopes and support coordinates |
 | M1: single-source exact path | M0, T2–T4 | Checked recursion executing against exact SCM tables, including negative witnesses |

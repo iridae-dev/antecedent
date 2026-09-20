@@ -23,7 +23,7 @@ from .discovery import (
 )
 
 
-def _run_static_discovery(data, discovery, *, seed: int, threads: int):
+def _run_static_discovery(data, discovery, *, seed: int, threads: int | None):
     if isinstance(discovery, (FCI, RFCI)):
         algo = "fci" if isinstance(discovery, FCI) else "rfci"
         raise ValueError(

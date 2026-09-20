@@ -325,7 +325,9 @@ def _card(body: str) -> str:
     return f'{_STYLE}<div class="antecedent-ar-card">{body}</div>'
 
 
-def _identification_body(status: str, method: str, adjustment_set: list[str], statement: str) -> str:
+def _identification_body(
+    status: str, method: str, adjustment_set: list[str], statement: str
+) -> str:
     banner_class = _BANNER_CLASS[verdict_tone(status)]
     chips = _adjustment_chips_html(adjustment_set)
     return (
@@ -430,10 +432,13 @@ def _review_required_repr_html(self: ReviewRequired) -> str:
         from ..errors import next_action, pending_edges
 
         edges = pending_edges(self)
-        chips = "".join(
-            f'<span class="antecedent-ar-chip">{_esc(edge.source)} → {_esc(edge.target)}</span>'
-            for edge in edges
-        ) or '<span class="antecedent-ar-muted">(none)</span>'
+        chips = (
+            "".join(
+                f'<span class="antecedent-ar-chip">{_esc(edge.source)} → {_esc(edge.target)}</span>'
+                for edge in edges
+            )
+            or '<span class="antecedent-ar-muted">(none)</span>'
+        )
         nxt = getattr(self, "report", None)
         nxt_text = nxt.next if nxt is not None and getattr(nxt, "next", None) else next_action(self)
         hint = getattr(self, "hint", None) or ""
@@ -470,7 +475,7 @@ def _attach() -> None:
     CausalResponseView._repr_html_ = _response_repr_html  # type: ignore[attr-defined]
     ReviewRequired._repr_html_ = _review_required_repr_html  # type: ignore[attr-defined]
     for graph_cls in (Dag, Cpdag, Pag, Admg, TemporalDag, TemporalCpdag, TemporalPag):
-        graph_cls._repr_html_ = _graph_repr_html  # type: ignore[attr-defined]
+        graph_cls._repr_html_ = _graph_repr_html  # type: ignore[union-attr]
 
 
 _attach()

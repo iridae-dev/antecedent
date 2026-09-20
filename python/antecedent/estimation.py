@@ -529,7 +529,8 @@ def _wrap_ate(
             slices=slices,
             joint_posterior=bool(getattr(raw, "mediation_joint_posterior", False)),
         )
-    return AnalysisResult(
+    # ResultModel accepts private retained handles outside its public Pydantic fields.
+    return AnalysisResult(  # type: ignore[call-arg]
         certificate=json.loads(certificate_json) if certificate_json else None,
         query=query if query is not None else getattr(prepared, "_query", None),
         identification=IdentificationView(
@@ -662,8 +663,9 @@ def _static_edges(
             f"this query reads a fully oriented static Dag; got {type(graph).__name__}"
         )
     if isinstance(graph, Cpdag):
-        # PathSpecific / Interventional need a fully oriented DAG; incomplete
-        # CPDAGs fail closed with a clear undirected-count message.
+        # Compatibility normalization for fixed-DAG query families: a fully
+        # oriented CPDAG has a unique DAG and reports that Dag coordinate.
+        # Incomplete CPDAGs refuse; this does not license class execution.
         return cpdag_oriented_edges(graph, require_oriented=True)
     return [(str(a), str(b)) for a, b in graph]
 
@@ -1300,7 +1302,9 @@ def _wrap_prepared_response(
     from typing import cast
 
     response = (
-        ResponseView(raw.treatments, raw.outcomes, raw.points, raw.values)
+        ResponseView(
+            treatments=raw.treatments, outcomes=raw.outcomes, points=raw.points, values=raw.values
+        )
         if raw.points and raw.values
         else None
     )
@@ -1315,13 +1319,13 @@ def _wrap_prepared_response(
         method = "temporal.backdoor.unfolded"
         identify_op = "identify.temporal_backdoor"
         validation = ResponseValidationView(
-            (
+            checks=(
                 ResponseValidationCheck(
-                    "refute.temporal_response.skipped",
-                    "skipped",
-                    None,
-                    None,
-                    "scalar ATE refuters are not applicable to a function-valued temporal response",
+                    id="refute.temporal_response.skipped",
+                    status="skipped",
+                    statistic=None,
+                    threshold=None,
+                    detail="scalar ATE refuters are not applicable to a function-valued temporal response",
                 ),
             )
         )
@@ -1335,18 +1339,18 @@ def _wrap_prepared_response(
         if raw.lower is None or raw.upper is None:
             raise RuntimeError("native structural response omitted its identified envelope")
         envelope = ResponseEnvelopeView(
-            raw.treatments,
-            raw.outcomes,
-            raw.points,
-            raw.lower,
-            raw.upper,
-            float(raw.identified_mass),
-            float(raw.unidentified_mass),
-            int(raw.completion_count),
-            int(raw.truncated_completions),
-            bool(raw.enumeration_capped),
-            cast(Literal["full_class", "examined_completions"], raw.mass_scope),
-            cast(
+            treatments=raw.treatments,
+            outcomes=raw.outcomes,
+            points=raw.points,
+            lower=raw.lower,
+            upper=raw.upper,
+            identified_mass=float(raw.identified_mass),
+            unidentified_mass=float(raw.unidentified_mass),
+            completion_count=int(raw.completion_count),
+            truncated_completions=int(raw.truncated_completions),
+            enumeration_capped=bool(raw.enumeration_capped),
+            mass_scope=cast(Literal["full_class", "examined_completions"], raw.mass_scope),
+            weight_basis=cast(
                 Literal[
                     "posterior_probability",
                     "completion_enumeration",
@@ -1354,20 +1358,21 @@ def _wrap_prepared_response(
                 ],
                 raw.weight_basis,
             ),
-            tuple(raw.atom_keys),
-            tuple(raw.atom_weights),
-            tuple(raw.atom_statuses),
-            tuple(tuple(values) for values in raw.atom_values),
-            float(getattr(raw, "unevaluable_mass", None) or 0.0),
-            float(getattr(raw, "subsampled_out_mass", None) or 0.0),
+            atom_keys=tuple(raw.atom_keys),
+            atom_weights=tuple(raw.atom_weights),
+            atom_statuses=tuple(raw.atom_statuses),
+            atom_values=tuple(tuple(values) for values in raw.atom_values),
+            unevaluable_mass=float(getattr(raw, "unevaluable_mass", None) or 0.0),
+            subsampled_out_mass=float(getattr(raw, "subsampled_out_mass", None) or 0.0),
         )
-    return CausalResponseView(
+    # ResultModel accepts private retained handles outside its public Pydantic fields.
+    return CausalResponseView(  # type: ignore[call-arg]
         certificate=json.loads(certificate_json) if certificate_json else None,
         estimand=query,
         response=response,
         estimate=raw.scalar if raw.scalar is not None else raw.matrix,
         uncertainty=ResponseUncertainty(
-            cast(UncertaintyKind, raw.uncertainty_kind),
+            kind=cast(UncertaintyKind, raw.uncertainty_kind),
             lower=raw.lower,
             upper=raw.upper,
             level=raw.level,
@@ -1376,10 +1381,10 @@ def _wrap_prepared_response(
             artifact_id=raw.artifact_id,
         ),
         support=SupportReport(
-            cast(SupportStatus, raw.support_status),
-            _response_support_bounds(raw),
-            [
-                SupportDiagnostic(identifier, values, detail)
+            status=cast(SupportStatus, raw.support_status),
+            query_region=_response_support_bounds(raw),
+            diagnostics=[
+                SupportDiagnostic(id=identifier, values=values, detail=detail)
                 for identifier, values, detail in zip(
                     raw.diagnostic_ids,
                     raw.diagnostic_values,
@@ -1387,8 +1392,8 @@ def _wrap_prepared_response(
                     strict=True,
                 )
             ],
-            raw.warnings,
-            _support_point_status(raw),
+            warnings=raw.warnings,
+            point_status=_support_point_status(raw),
         ),
         identification=IdentificationView(
             status=raw.identification,
@@ -1610,7 +1615,7 @@ def _accept_live_discovery(
     accept_discovered: bool,
     regimes: Sequence[int] | None,
     seed: int,
-    threads: int,
+    threads: int | None,
     controls: _Controls,
 ) -> Any:
     """Run a live discovery config once and accept it through its review gate.
@@ -1666,7 +1671,7 @@ class _PrepareRoute:
     estimator_config: Mapping[str, Any] | None
     refute: str | bool | None
     bootstrap: int | None
-    threads: int
+    threads: int | None
     seed: int
     class_prior: ClassPrior | None
     max_completions: int | None
@@ -1920,9 +1925,9 @@ class _PrepareRoute:
                     if isinstance(supplied, Sequence) and not isinstance(supplied, (str, bytes))
                     else [supplied]
                 )
-                treatments: list[str] = []
-                kinds: list[str] = []
-                parameters: list[list[float]] = []
+                treatments = []
+                kinds = []
+                parameters = []
                 for spec in specs:
                     for variable, kind, params in encode_temporal_steps(spec):
                         treatments.append(variable)
@@ -3285,7 +3290,9 @@ class PreparedAnalysis:
         raw = self._run_click(lambda: fn(names, columns, seed=seed, threads=threads, **controls))
         return self._with_deferred_suite(self._wrap(raw), data, seed=seed, threads=threads)
 
-    def _with_deferred_suite(self, result: Any, data: Any, *, seed: int, threads: int) -> Any:
+    def _with_deferred_suite(
+        self, result: Any, data: Any, *, seed: int, threads: int | None
+    ) -> Any:
         """Run the study's refuter suite as this click's second click.
 
         A scalar ``InterventionResponse`` on a Dag is estimated by the response

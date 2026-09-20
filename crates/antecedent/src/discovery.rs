@@ -14,15 +14,16 @@ use antecedent_data::{MultiEnvironmentData, TabularData, TimeSeriesData};
 pub use antecedent_discovery::{
     CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult, DagDiscoveryResult,
     DbnPosterior, DirectLingam, DiscoveryPerformanceRecord, EXACT_ENUM_MAX_NODES,
-    ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPosteriorEngine, GraphPrior, JpcmciNodeRole,
-    JpcmciPlus, LaggedParent, Lpcmci, MultiDatasetConstraints, Notears, NotearsDiscoveryResult,
-    OrderMcmc, PagDiscoveryResult, Pc, PcSepsets, RegimeAssignment, RegimeGraphCollection, Rfci,
-    Rpcmci, RpcmciDiscoveryResult, ScoredLink, SpaceDummyCiMode, StaticCpdagDiscoveryResult,
-    StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc, TimeDummyCiMode,
-    two_regime_half_split,
+    ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPosteriorAtomKind, GraphPosteriorEngine,
+    GraphPrior, JpcmciNodeRole, JpcmciPlus, LaggedParent, Lpcmci, MultiDatasetConstraints, Notears,
+    NotearsDiscoveryResult, OrderMcmc, PagDiscoveryResult, Pc, PcSepsets, RegimeAssignment,
+    RegimeGraphCollection, Rfci, Rpcmci, RpcmciDiscoveryResult, ScoredLink, SpaceDummyCiMode,
+    StaticCpdagDiscoveryResult, StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc,
+    TimeDummyCiMode, adjacency_mask_from_cpdag, adjacency_masks_from_pag, two_regime_half_split,
 };
 use antecedent_discovery::{DiscoveryWorkspace, Pcmci, PcmciPlus};
 use antecedent_graph::{DenseNodeId, Endpoint, TemporalPag};
+pub use antecedent_prob::InferenceDiagnostics;
 use antecedent_state::GraphScoreFamily;
 use antecedent_stats::{ConditionalIndependence, FdrAdjustment};
 

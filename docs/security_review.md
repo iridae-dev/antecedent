@@ -133,7 +133,7 @@ mapping; `n_draws < 2` is a typed refuse.
 |-------|--------|-------|
 | Most semantic crates (`antecedent-*` except below / kernels) | `#![forbid(unsafe_code)]` | Verified locally by `scripts/gate_release.sh` |
 | `antecedent-data` | `#![deny(unsafe_code)]` + scoped `allow` | Foreign buffers (`buffer.rs`) and Arrow CDI (`arrow_ffi.rs`) |
-| `antecedent-io` | `#![deny(unsafe_code)]` + scoped `allow` | Thin mmap (`mmap_file.rs`) only |
+| `antecedent-io` | `#![deny(unsafe_code)]` + scoped `allow` | Thin mmap (`mmap_file.rs`); `unsafe` mapped constructors on `MappedArtifactReader` |
 | `antecedent-kernels` | `#![allow(unsafe_code)]` | Only reviewed SIMD / aliasing kernels |
 | `python` / `antecedent-py` | `#![allow(unsafe_code)]` | Required by PyO3 |
 
