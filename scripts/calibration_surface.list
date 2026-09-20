@@ -246,3 +246,7 @@ suite.v110_calibration_temporal crates/antecedent/tests/v110_calibration_tempora
 suite.v110_calibration_bayesian_static crates/antecedent/tests/v110_calibration_bayesian_static.rs
 suite.v110_calibration_counterfactual crates/antecedent/tests/v110_calibration_counterfactual.rs
 suite.v110_class_posterior_calibration crates/antecedent/tests/v110_class_posterior_calibration.rs
+
+# Learner adapters and their dependency choices can move nuisance predictions.
+core crates/antecedent-learn/
+core crates/antecedent-learn-burn/
