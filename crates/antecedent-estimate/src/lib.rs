@@ -191,8 +191,8 @@ pub use temporal_sequential_tuples::{
 };
 pub use transport::{
     TransportEffectEstimate, TransportOverlapDiagnostic, TransportOverlapReport,
-    TransportResponseGridEstimate, transport_augmented_response_grid, trial_to_target_effect,
-    trial_to_target_ipw_se,
+    TransportResponseGridEstimate, evaluate_exact_transport, prepare_exact_transport,
+    transport_augmented_response_grid, trial_to_target_effect, trial_to_target_ipw_se,
 };
 pub use util::BootstrapSeResult;
 

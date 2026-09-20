@@ -137,6 +137,8 @@ impl<'a> FactorSpec<'a> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum EvalError {
+    /// Located exact-law coverage or support failure.
+    ExactLaw(Box<crate::exact::ExactLawError>),
     /// Continuous `IntegralOut` without quadrature nodes and without discrete support.
     UnsupportedIntegralOut,
     /// Provider has no entry for the requested factor / assignment.
@@ -147,6 +149,15 @@ pub enum EvalError {
     EmptySupport(VariableId),
     /// Division by zero while evaluating a ratio.
     DivisionByZero,
+    /// Located zero denominator in an exact expression.
+    ExactRatioSupport {
+        /// Original ratio expression, not its compiled slot.
+        expression: crate::ExprId,
+        /// Assignment at the failing ratio, including scoped variables.
+        assignment: Arc<[(VariableId, Value)]>,
+        /// Population/regime dependencies of the ratio.
+        bindings: Arc<[crate::LeafBinding]>,
+    },
     /// Posterior draw index out of range.
     DrawOutOfRange {
         /// Requested draw.
@@ -171,6 +182,14 @@ pub enum EvalError {
 impl fmt::Display for EvalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ExactLaw(error) => error.fmt(f),
+            Self::ExactRatioSupport { expression, assignment, bindings } => write!(
+                f,
+                "zero denominator at expression {} with assignment {:?}, providers {:?}",
+                expression.raw(),
+                assignment,
+                bindings
+            ),
             Self::UnsupportedIntegralOut => {
                 write!(f, "IntegralOut requires provider quadrature nodes or discrete support")
             }
@@ -243,6 +262,16 @@ pub trait DistributionProvider {
         assignment: &Assignment,
         ctx: &EvalContext,
     ) -> Result<f64, EvalError>;
+
+    /// Locate a zero denominator. Legacy providers preserve their historical error.
+    fn zero_denominator(
+        &self,
+        _arena: &crate::CausalExprArena,
+        _expression: crate::ExprId,
+        _assignment: &Assignment,
+    ) -> EvalError {
+        EvalError::DivisionByZero
+    }
 
     /// Number of posterior draws, or `None` for a single empirical world.
     fn n_draws(&self) -> Option<usize>;

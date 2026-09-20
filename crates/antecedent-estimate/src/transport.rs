@@ -405,10 +405,123 @@ fn signed_weight_effective_sample_size(weights: &[f64]) -> f64 {
     if sum_sq > 0.0 { absolute_sum * absolute_sum / sum_sq } else { 0.0 }
 }
 
+/// Evaluate a checked, catalog-bound transport functional against supplied exact laws.
+/// The returned distribution carries no sampling standard errors or intervals.
+///
+/// # Errors
+/// Inconsistent evidence/provider metadata, missing support, invalid mass, or budgets.
+pub fn evaluate_exact_transport(
+    functional: &antecedent_identify::BoundTransportFunctional,
+    data: antecedent_expr::ExactTransportData,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_expr::ExactDistribution, antecedent_expr::EvalError> {
+    prepare_exact_transport(functional, data, request, limits, ctx)?.evaluate(ctx)
+}
+
+/// Validate exact providers and compile without evaluating any probabilities.
+///
+/// # Errors
+/// Provider contract, coverage, or resource limit violation.
+pub fn prepare_exact_transport(
+    functional: &antecedent_identify::BoundTransportFunctional,
+    data: antecedent_expr::ExactTransportData,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
+    use antecedent_core::{DistributionAvailability, VariableDomain};
+    use antecedent_expr::{EvalError, ExactEvaluationPlan, LawTolerance};
+    let treatments = &functional.derivation().query().treatments;
+    if request.entries().len() != treatments.len()
+        || treatments.iter().any(|v| request.get(*v).is_none())
+    {
+        return Err(EvalError::ProviderKind(
+            "exact request must bind precisely the certified treatment coordinates",
+        ));
+    }
+    let catalog = functional.catalog();
+    for law in data.laws() {
+        let regime = catalog
+            .regimes
+            .iter()
+            .find(|r| r.id == law.regime() && r.population.as_ref() == law.population())
+            .ok_or(EvalError::ProviderKind("exact provider names an unknown evidence regime"))?;
+        if !regime.evidence_kind.can_satisfy_factor()
+            || !matches!(regime.distribution, DistributionAvailability::Joint)
+            || !regime.conditioned_on.is_empty()
+            || law.interventions().len() != regime.interventions.len()
+            || !law.interventions().iter().all(|a| regime.interventions.contains(&a.variable))
+            || law.axes().iter().any(|axis| !regime.measured.contains(&axis.variable))
+            || regime.intervention_values.iter().any(|required| {
+                !law.interventions()
+                    .iter()
+                    .any(|a| a.variable == required.variable && a.value == required.value)
+            })
+        {
+            return Err(EvalError::ProviderKind(
+                "exact provider disagrees with its evidence regime",
+            ));
+        }
+        for binding in catalog.bindings.iter().filter(|b| b.regime == regime.id) {
+            if binding.snapshot_identity.as_ref() != law.snapshot_identity() {
+                return Err(EvalError::ProviderKind(
+                    "exact provider snapshot does not match catalog binding",
+                ));
+            }
+        }
+        for axis in law.axes() {
+            for coordinate in catalog
+                .environments
+                .iter()
+                .flat_map(|env| env.variables.iter())
+                .filter(|c| c.variable == axis.variable)
+            {
+                let valid = match coordinate.domain {
+                    VariableDomain::Unspecified => true,
+                    VariableDomain::Continuous => false,
+                    VariableDomain::Binary => {
+                        axis.values.len() == 2
+                            && [0.0, 1.0]
+                                .iter()
+                                .all(|level| axis.values.iter().any(|v| v.as_f64() == Some(*level)))
+                    }
+                    VariableDomain::Categorical { cardinality } => {
+                        usize::try_from(cardinality).ok() == Some(axis.values.len())
+                            && (0..cardinality).all(|level| {
+                                axis.values.iter().any(|v| v.as_f64() == Some(f64::from(level)))
+                            })
+                    }
+                    VariableDomain::Count => axis
+                        .values
+                        .iter()
+                        .all(|v| v.as_f64().is_some_and(|v| v >= 0.0 && v.fract() == 0.0)),
+                };
+                if !valid {
+                    return Err(EvalError::ProviderKind(
+                        "exact provider domain disagrees with evidence coordinates",
+                    ));
+                }
+            }
+        }
+    }
+    ExactEvaluationPlan::compile(
+        functional.arena(),
+        functional.root(),
+        data,
+        functional.derivation().query().outcomes.clone(),
+        request,
+        limits,
+        LawTolerance::default(),
+        ctx,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use antecedent_identify::{
-        NonTransportableCertificate, PopulationFactor, TransportCertificate, TransportFormula,
+        NotCertifiedCertificate, PopulationFactor, TransportCertificate, TransportFormula,
     };
 
     use super::*;
@@ -437,7 +550,7 @@ mod tests {
     /// A refusal certificate carrying a distinctive reason/message so tests can assert both
     /// are surfaced in the returned error rather than swallowed.
     fn not_certified_identification() -> TransportIdentification {
-        TransportIdentification::NotCertified(NonTransportableCertificate {
+        TransportIdentification::NotCertified(NotCertifiedCertificate {
             reason: Arc::from("transport.test.refused"),
             witness: Arc::from([]),
             message: Arc::from("test-fixture refusal explaining why identification failed"),

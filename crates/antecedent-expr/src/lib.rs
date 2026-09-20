@@ -15,6 +15,13 @@
 
 pub mod estimand;
 pub mod eval;
+pub mod exact;
+mod exact_engine;
+pub mod exact_plan;
+pub use exact::{DiscreteAxis, ExactDiscreteLaw, ExactLawError, ExactTransportData, LawTolerance};
+pub use exact_plan::{
+    ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactSupportRecord,
+};
 pub mod latex;
 pub mod pretty;
 pub mod provider;
