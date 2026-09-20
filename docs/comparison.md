@@ -15,15 +15,17 @@ estimation.
 The [support matrix](support-matrix.md) is authoritative. A capability present
 in the codebase is not necessarily a licensed `analyze()` combination.
 
-Antecedent 1.10 composes the existing **341 licensed combinations** into an
-inspectable, reusable execution workflow. Each combination fixes the question,
-graph class, structure source, inference method, and validation level. A
-successful licensed Python analysis retains a study and exports its result.
+Antecedent 1.11 composes **463 licensed combinations** of 1403 meaningful
+cells into an inspectable, reusable execution workflow. Each combination
+fixes the question, graph class, structure source, inference method, and
+validation level. A successful licensed Python analysis retains a study and
+exports its result.
 
 Use [supported analyses](supported-analyses.md) to find a starting point and
 [capabilities](capabilities.md) for the methods behind each path. The
-[1.10 release notes](release-notes/v1.10.0.md) describe the execution contract;
-older release notes record when individual methods were added.
+[1.11 release notes](release-notes/v1.11.0.md) describe this cut; the
+[1.10 release notes](release-notes/v1.10.0.md) remain the composition-contract
+baseline. Older release notes record when individual methods were added.
 
 Some important distinctions when choosing a workflow:
 
@@ -38,16 +40,21 @@ Some important distinctions when choosing a workflow:
   mixture weights; enumerating completions alone does not assign probabilities.
 - Derivatives on explicit or accepted DAGs support Frequentist and Bayesian
   inference at validation `none`. Partial-graph derivatives remain refused.
-- ADMG interventional distributions and the licensed anomaly/change attribution
-  paths are available through Rust `Study`. Their Python query types do not
-  imply that `analyze()` can execute them.
+- ADMG interventional distributions run through Python `analyze`/`prepare` and
+  Rust `Study` at validation `none`.
+- Licensed anomaly/change attribution paths run through Python `analyze`/`prepare`
+  and Rust `Study` at validation `none`.
 - Licensed transport and interference queries run through both Python `analyze`
   and Rust `Study`, with their explicit design assumptions.
 
-Graph-posterior response surfaces on temporal DAGs, posterior mixing over
-`TemporalCpdag`/`TemporalPag` atoms, and ADMG/CPDAG/PAG posterior ATE atoms
-remain refused. These are different requests from incomplete-class envelopes.
-Unidentified structural mass stays visible; priors do not establish identification.
+Graph-posterior response surfaces on temporal DAGs and posterior mixing over
+`TemporalCpdag`/`TemporalPag` atoms remain refused. ADMG graph-posterior
+AverageEffect at validation `none` identifies each atom with `general.id` and
+estimates `functional.effect`; cheap/full stay closed. These are different
+requests from incomplete-class envelopes and from CPDAG/PAG graph-posterior
+AverageEffect, which evaluates each atom with the class ATE envelope and
+combines only under a shared estimand. Unidentified structural mass stays
+visible; priors do not establish identification.
 
 ## What the repository compares externally
 
@@ -100,6 +107,8 @@ causal forests, meta-learners, or a general ML CATE surface.
 `antecedent.handoff.econml(result)` emits the adjustment set and identification
 status for point-identified backdoor / generalized-adjustment estimands,
 including lag-aligned temporal columns when the certificate carries offsets.
+`spec.attach(...)` records a caller-fitted estimate as attested, uncalibrated
+evidence; Antecedent does not wrap the learner or inherit native calibration.
 Front-door, IV, general-ID, partial-identification, and graph-posterior
 results refuse rather than pretending they are a set. The adapter does not
 wrap EconML learners or absorb ML CATE.

@@ -17,7 +17,7 @@ use super::prepare::{
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
-use crate::util::{BootstrapSeResult, bootstrap_se};
+use crate::util::BootstrapSeResult;
 
 /// Propensity stratification estimator: within-stratum difference of means pooled by size.
 ///
@@ -189,6 +189,7 @@ impl PropensityStratification {
         let overlap_report = Some(report);
 
         Ok(EffectEstimate::new(result.ate, result.se_analytic, assumptions, problem.overlap)
+            .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
             .with_retained_memory_bytes(Some(workspace.retained_memory_bytes()))
             .with_bootstrap(boot))
@@ -205,46 +206,58 @@ impl PropensityStratification {
         let clip = clip_of(problem.overlap);
         let n = problem.nrows;
         let ncols = problem.design_ncols;
-        let mut x_boot = vec![0.0; n * ncols];
-        let mut t_boot = vec![0.0; n];
-        let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, ctx, 0x3D2F_u64, n, |idx| {
-            crate::util::gather_bootstrap_vector(&mut t_boot, &problem.treatment, idx);
-            crate::util::gather_bootstrap_vector(&mut y_boot, &problem.outcome, idx);
-            crate::util::gather_bootstrap_design(
-                &mut x_boot,
-                &problem.design_matrix,
-                n,
-                ncols,
-                idx,
-            );
-            let Ok(fit) = fit_propensity(
-                &x_boot,
-                n,
-                ncols,
-                &t_boot,
-                &self.backend,
-                &mut workspace.propensity,
-                &self.glm_options,
-            ) else {
-                return Ok(None);
-            };
-            let raw = fit.scores;
-            let mut scores = raw.clone();
-            if let Some(c) = clip {
-                clamp_scores(&mut scores, c);
-            }
-            let Ok(retained) = trim_retained_rows(&raw, trim) else {
-                return Ok(None);
-            };
-            let (t_used, y_used, s_used) =
-                restrict_to_rows(&t_boot, &y_boot, &scores, 1, retained.as_deref());
-            let stratum = assign_strata(&s_used, n_strata);
-            match stratified_ate(&t_used, &y_used, &stratum, n_strata, &problem.target_population) {
-                Ok(r) => Ok(Some(r.ate)),
-                Err(_) => Ok(None),
-            }
-        })
+        let _ = workspace;
+        crate::util::bootstrap_se_with_scratch(
+            self.bootstrap_replicates,
+            ctx,
+            0x3D2F_u64,
+            n,
+            || {
+                (
+                    PropensityEstimationWorkspace::default(),
+                    vec![0.0; n * ncols],
+                    vec![0.0; n],
+                    vec![0.0; n],
+                )
+            },
+            |(workspace, x_boot, t_boot, y_boot), idx| {
+                crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
+                crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
+                crate::util::gather_bootstrap_design(x_boot, &problem.design_matrix, n, ncols, idx);
+                let Ok(fit) = fit_propensity(
+                    x_boot,
+                    n,
+                    ncols,
+                    t_boot,
+                    &self.backend,
+                    &mut workspace.propensity,
+                    &self.glm_options,
+                ) else {
+                    return Ok(None);
+                };
+                let raw = fit.scores;
+                let mut scores = raw.clone();
+                if let Some(c) = clip {
+                    clamp_scores(&mut scores, c);
+                }
+                let Ok(retained) = trim_retained_rows(&raw, trim) else {
+                    return Ok(None);
+                };
+                let (t_used, y_used, s_used) =
+                    restrict_to_rows(t_boot, y_boot, &scores, 1, retained.as_deref());
+                let stratum = assign_strata(&s_used, n_strata);
+                match stratified_ate(
+                    &t_used,
+                    &y_used,
+                    &stratum,
+                    n_strata,
+                    &problem.target_population,
+                ) {
+                    Ok(r) => Ok(Some(r.ate)),
+                    Err(_) => Ok(None),
+                }
+            },
+        )
     }
 }
 
@@ -272,6 +285,7 @@ pub(crate) struct StratifiedResult {
     /// missing an arm are dropped from the pooled contrast, which redefines the target
     /// population; callers surface this via the overlap report's support figure.
     retained_fraction: f64,
+    n_obs: usize,
 }
 
 pub(crate) fn stratified_ate(
@@ -332,12 +346,10 @@ pub(crate) fn stratified_ate(
     }
     let ate = diffs.iter().zip(&weights).map(|(d, w)| d * w).sum::<f64>() / total_w;
     let se_var = vars.iter().zip(&weights).map(|(v, w)| v * (w / total_w).powi(2)).sum::<f64>();
-    let retained_n: f64 = (0..n_strata)
-        .filter(|&s| cnt1[s] > 0 && cnt0[s] > 0)
-        .map(|s| (cnt1[s] + cnt0[s]) as f64)
-        .sum();
-    let retained_fraction = retained_n / (treatment.len().max(1) as f64);
-    Ok(StratifiedResult { ate, se_analytic: se_var.sqrt(), retained_fraction })
+    let retained_n: usize =
+        (0..n_strata).filter(|&s| cnt1[s] > 0 && cnt0[s] > 0).map(|s| cnt1[s] + cnt0[s]).sum();
+    let retained_fraction = retained_n as f64 / (treatment.len().max(1) as f64);
+    Ok(StratifiedResult { ate, se_analytic: se_var.sqrt(), retained_fraction, n_obs: retained_n })
 }
 
 /// Unbiased sample variance from `Σy²`, the mean, and a count of at least two.

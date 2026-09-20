@@ -225,7 +225,7 @@ pub struct ClaimSectionWire {
     pub evaluated_domain: String,
     /// Calibration slot computed from coverage records.
     pub calibration: CalibrationSlotWire,
-    /// Caller-attested evidence (custom validators).
+    /// Caller-attested evidence (custom validators or an external estimate).
     #[serde(default)]
     pub attested: Vec<AttestedEvidenceWire>,
 }
@@ -272,12 +272,12 @@ pub struct CalibrationSlotWire {
     pub secondary: Vec<CalibrationSlotWire>,
 }
 
-/// Caller-attested custom-validator evidence.
+/// Caller-attested custom-validator or external-estimate evidence.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AttestedEvidenceWire {
-    /// Validator name.
+    /// Validator name, or the caller-supplied learner label.
     pub name: String,
-    /// Evidence kind (`custom_validator`).
+    /// Evidence kind (`custom_validator` or `external_estimate`).
     pub kind: String,
     /// Whether the validator passed.
     pub passed: bool,
@@ -292,8 +292,14 @@ pub struct AttestedEvidenceWire {
     /// Failure condition, when reported.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure_condition: Option<String>,
-    /// Always false at 1.10.0 — attested evidence is not re-verifiable.
+    /// Always false — attested evidence is not re-verifiable.
     pub reverifiable: bool,
+    /// Digest of the caller-supplied learner config, when this is an external estimate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_digest: Option<String>,
+    /// Digest of the caller-supplied estimate payload, when this is an external estimate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload_digest: Option<String>,
 }
 
 impl CalibrationSlotWire {
@@ -627,7 +633,7 @@ fn calibration_basis_matches_contract(
                 .is_none_or(|resolved| resolved == key.estimator)
     });
     let snapshot_ok = contract.data_snapshot.as_ref().is_some_and(|snapshot| {
-        snapshot.row_count == basis.scope.row_count
+        basis.scope.row_count <= snapshot.row_count
             && snapshot.modality == key.modality
             && match snapshot.modality.as_str() {
                 "panel" => key.dependence == "panel_cluster",

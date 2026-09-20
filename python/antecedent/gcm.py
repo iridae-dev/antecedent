@@ -23,7 +23,7 @@ from .discovery import (
 )
 
 
-def _run_static_discovery(data, discovery, *, seed: int, threads: int):
+def _run_static_discovery(data, discovery, *, seed: int, threads: int | None):
     if isinstance(discovery, (FCI, RFCI)):
         algo = "fci" if isinstance(discovery, FCI) else "rfci"
         raise ValueError(
@@ -38,7 +38,7 @@ def fit_gcm_discovered(
     *,
     discovery: PC | GES | LiNGAM | NOTEARS,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ):
     """Discover structure, coerce to a DAG, then ``fit_gcm``.
 
@@ -63,7 +63,7 @@ def attribute_paths_discovered(
     max_paths: int = 64,
     max_len: int = 16,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ):
     """``fit_gcm_discovered`` then ``FittedGcm.attribute_paths``. Returns ``(result, graph_edges)``.
 
@@ -91,7 +91,7 @@ def anomaly_attribution_discovered(
     outcomes: Sequence[str],
     max_units: int = 0,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ):
     """``fit_gcm_discovered`` then ``FittedGcm.anomaly_attribution``. Returns ``(result, graph_edges)``.
 
@@ -114,7 +114,7 @@ def attribute_distribution_change_discovered(
     comparison_end: int,
     n_samples: int = 500,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ):
     """Compose discover → DAG → ``FittedGcm.attribute_distribution_change``.
 

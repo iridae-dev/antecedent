@@ -129,18 +129,14 @@ pub struct LaplaceWorkspace {
     pub(crate) conjugate_key: Option<ConjugateGramKey>,
 }
 
-/// Address/shape key for [`LaplaceWorkspace`]'s conjugate **XᵀX** cache.
+/// Content/shape key for [`LaplaceWorkspace`]'s conjugate **XᵀX** cache.
 ///
-/// Only `X`, weights, and shape participate. `y` and offsets are intentionally
-/// excluded: SBC and other shared-workspace refits often allocate a fresh
-/// outcome buffer of the same length that the allocator recycles to the same
-/// address, so pointer identity is not content identity for `y`. Callers must
-/// still not mutate `X`/weights in place across refits that share this
-/// workspace without allocating new slices.
+/// Identity is the contents of `X` and weights, not their addresses: a new
+/// allocation can reuse a released design pointer. `y` and offsets stay out
+/// of the key so equal-length outcome reallocations still recompute `Xᵀy`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ConjugateGramKey {
-    x: usize,
-    weights: usize,
+    content: u64,
     nrows: usize,
     ncols: usize,
 }
@@ -148,12 +144,34 @@ pub(crate) struct ConjugateGramKey {
 impl ConjugateGramKey {
     pub(crate) fn from_design(design: &BayesDesignRef<'_>) -> Self {
         Self {
-            x: design.x_colmajor.as_ptr() as usize,
-            weights: design.weights.map_or(0, |w| w.as_ptr() as usize),
+            content: hash_design_contents(design.x_colmajor, design.weights),
             nrows: design.nrows,
             ncols: design.ncols,
         }
     }
+}
+
+fn hash_design_contents(x: &[f64], weights: Option<&[f64]>) -> u64 {
+    let mut h = 0xcbf2_9ce4_8422_2325_u64;
+    let mut mix = |v: u64| {
+        h ^= v;
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    };
+    mix(x.len() as u64);
+    for &v in x {
+        mix(v.to_bits());
+    }
+    match weights {
+        None => mix(0),
+        Some(w) => {
+            mix(1);
+            mix(w.len() as u64);
+            for &v in w {
+                mix(v.to_bits());
+            }
+        }
+    }
+    h
 }
 
 impl LaplaceWorkspace {

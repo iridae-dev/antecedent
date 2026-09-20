@@ -247,7 +247,7 @@ fn analyze_observation_response(
             builder = builder.observation_delayed_entry(entry);
         }
         let study = builder.build().map_err(py_err)?;
-        let ctx = crate::py_execution_context(1, 1);
+        let ctx = crate::py_execution_context(1, crate::resolve_user_threads(None));
         let prepared = study.prepare(&ctx).map_err(py_err)?;
         let result = prepared.estimate(&data, &ctx).map_err(py_err)?;
         let adjustment_set =
@@ -267,7 +267,7 @@ fn analyze_observation_response(
     observed=None, censoring=None, event=None, lower=None, upper=None, indicator=None,
     assumption_kind, assumption_variables=Vec::new(), structural_model=None,
     delayed_entry=None, correction="aipw", observation_probability_floor=0.01,
-    censoring_survival_floor=0.01, crossfit_folds=5, accepted=false, seed=1, threads=1,
+    censoring_survival_floor=0.01, crossfit_folds=5, accepted=false, seed=1, threads=None,
     options=None
 ))]
 #[allow(clippy::too_many_arguments)]
@@ -297,7 +297,7 @@ fn prepare_observation_response(
     crossfit_folds: usize,
     accepted: bool,
     seed: u64,
-    threads: u32,
+    threads: Option<u32>,
     options: Option<Bound<'_, pyo3::types::PyDict>>,
 ) -> PyResult<crate::prepared_api::PyPreparedAnalysis> {
     let mut opts = crate::prepared_options::PrepareOptions::parse(options.as_ref())?;

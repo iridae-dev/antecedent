@@ -56,7 +56,8 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, Pag};
 use common::calibration::{
-    CoverageTally, PRECISION_N_SIM, RecordKey, SampleGrid, gaussian, grid_n, n_sim, stream_seed,
+    CoverageTally, PRECISION_N_SIM, RecordKey, SampleGrid, gaussian, grid_n, map_replicates, n_sim,
+    stream_seed,
 };
 use common::calibration_bind::bind;
 use common::reported::{
@@ -148,15 +149,15 @@ fn coverage_over(
     test: &'static str,
     replicates: u32,
     cells: &[Cell],
-    replicate: impl Fn(u64) -> Option<Replicate>,
+    replicate: impl Fn(u64) -> Option<Replicate> + Sync,
     measured: &[Option<f64>],
 ) {
     let mut tallies: Vec<CoverageTally> = cells
         .iter()
         .flat_map(|&cell| [keyed(test, cell, REPORTED_LEVEL), keyed(test, cell, GATE_LEVEL)])
         .collect();
-    for rep in 0..u64::from(replicates) {
-        match replicate(rep) {
+    for scored in map_replicates(replicates, replicate) {
+        match scored {
             Some(scored) => {
                 assert_eq!(scored.pairs.len(), cells.len());
                 let (reported_study, reported_result) = &scored.reported;
@@ -177,15 +178,15 @@ fn coverage_over(
 fn coverage_at(
     test: &'static str,
     cells: &[Cell],
-    replicate: impl Fn(u64) -> Option<Replicate>,
+    replicate: impl Fn(u64) -> Option<Replicate> + Sync,
     measured: &[[Option<f64>; 3]],
 ) {
     let mut tallies: Vec<CoverageTally> = cells
         .iter()
         .flat_map(|&cell| [keyed(test, cell, REPORTED_LEVEL), keyed(test, cell, GATE_LEVEL)])
         .collect();
-    for rep in 0..u64::from(n_sim()) {
-        match replicate(rep) {
+    for scored in map_replicates(n_sim(), replicate) {
+        match scored {
             Some(scored) => {
                 assert_eq!(scored.pairs.len(), cells.len());
                 let (reported_study, reported_result) = &scored.reported;
@@ -207,7 +208,7 @@ fn coverage_at(
 fn coverage(
     test: &'static str,
     cells: &[Cell],
-    replicate: impl Fn(u64) -> Option<Replicate>,
+    replicate: impl Fn(u64) -> Option<Replicate> + Sync,
     measured: &[Option<f64>],
 ) {
     coverage_over(test, n_sim(), cells, replicate, measured);
@@ -657,7 +658,7 @@ fn conditional_case(
     modifier: u32,
     truth: f64,
     sample: fn(usize, u64) -> TabularData,
-    graph: impl Fn() -> Graph,
+    graph: impl Fn() -> Graph + Sync,
 ) {
     let cell = Cell {
         query: "ConditionalEffect",
@@ -691,7 +692,7 @@ fn conditional_case_at(
     modifier: u32,
     truth: f64,
     sample: fn(usize, u64) -> TabularData,
-    graph: impl Fn() -> Graph,
+    graph: impl Fn() -> Graph + Sync,
     measured: &[[Option<f64>; 3]],
 ) {
     let cell = Cell {
@@ -1428,13 +1429,8 @@ fn directional_derivative_bayesian_default_nominal_coverage() {
         direction: Arc::from(DIRECTION),
     };
     let labels: Vec<String> = (0..DIRECTIONAL_TRUTH.len()).map(|j| format!("{j}")).collect();
-    let cells = response_cells(
-        "DirectionalDerivative",
-        "response.gam_derivative",
-        GAM_DGP,
-        None,
-        &labels,
-    );
+    let cells =
+        response_cells("DirectionalDerivative", "response.gam_derivative", GAM_DGP, None, &labels);
     let graph = gam_graph();
     coverage_at(
         "directional_derivative_bayesian_default_nominal_coverage",
@@ -1454,12 +1450,7 @@ fn directional_derivative_bayesian_default_nominal_coverage() {
                 truths: DIRECTIONAL_TRUTH.to_vec(),
             })
         },
-        &[
-            [None, None, None],
-            [Some(0.886), None, None],
-            [None, None, None],
-            [None, None, None],
-        ],
+        &[[None, None, None], [Some(0.886), None, None], [None, None, None], [None, None, None]],
     );
 }
 

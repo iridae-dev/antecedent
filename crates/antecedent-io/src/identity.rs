@@ -29,7 +29,11 @@ use antecedent_core::{
     CausalSchema, ExecutionContext, IDENTITY_FORMAT, IdentityDomain, NodeRef, SemanticDigest,
     VariableId,
 };
-use antecedent_discovery::{GraphPosterior, dag_from_adjacency_mask, temporal_dag_from_dbn_masks};
+use antecedent_discovery::{
+    GraphPosterior, GraphPosteriorAtomKind, admg_from_adjacency_mask, cpdag_from_adjacency_mask,
+    dag_from_adjacency_mask, pag_from_adjacency_mask, temporal_cpdag_from_dbn_masks,
+    temporal_dag_from_dbn_masks, temporal_pag_from_dbn_masks,
+};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{
     Admg, Cpdag, Dag, MarkedEdge, Pag, TemporalCpdag, TemporalDag, TemporalPag,
@@ -489,7 +493,7 @@ impl GraphIdentityWire {
 }
 
 /// Temporal CPDAG / PAG identity: lagged edges plus contemporaneous marks.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TemporalClassIdentityWire {
     /// `temporal_cpdag` or `temporal_pag`.
     pub kind: String,
@@ -714,13 +718,21 @@ fn temporal_class_identity(
 }
 
 /// Structure of one graph-posterior atom.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum PosteriorAtomGraphWire {
     /// Static DAG over the schema variables (canonical edge order).
     Static(DagWire),
+    /// Static ADMG (canonical directed and bidirected edge order).
+    Admg(AdmgWire),
+    /// Static CPDAG (canonical directed and undirected edge order).
+    Cpdag(CpdagWire),
+    /// Static PAG (canonical marked edge order).
+    Pag(PagWire),
     /// Lagged and contemporaneous DBN structure (canonical temporal wire).
     Temporal(TemporalGraphWire),
+    /// Temporal class structure (lagged/context nodes and marked edges).
+    TemporalClass(TemporalClassIdentityWire),
 }
 
 /// Durable graph-posterior atom: structure plus posterior weight.
@@ -728,7 +740,7 @@ pub enum PosteriorAtomGraphWire {
 /// The variable namespace is the enclosing premises' `schema_names`.
 /// `execution_key` maps the atom to the local cache key used by the frozen
 /// handle; it is audit data and is excluded from the hashed premises.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct PosteriorAtomIdentityWire {
     /// Identity format.
     pub format: u16,
@@ -756,26 +768,7 @@ pub fn graph_posterior_atom_identities(
     for (index, (&adjacency, &weight)) in
         posterior.adjacency.iter().zip(posterior.weights.iter()).enumerate()
     {
-        let graph = if let Some(lag_masks) = posterior.lag_masks.as_ref() {
-            {
-                let lag_mask = *lag_masks.get(index).ok_or_else(|| {
-                    IoError::Convert("posterior lag masks must align with atoms".into())
-                })?;
-                let graph = temporal_dag_from_dbn_masks(
-                    adjacency,
-                    lag_mask,
-                    posterior.n_vars,
-                    max_lag,
-                    &ids,
-                )
-                .map_err(|err| IoError::Convert(err.to_string()))?;
-                PosteriorAtomGraphWire::Temporal(canonical_temporal_dag_wire(&graph)?)
-            }
-        } else {
-            let dag = dag_from_adjacency_mask(adjacency, posterior.n_vars)
-                .map_err(|err| IoError::Convert(err.to_string()))?;
-            PosteriorAtomGraphWire::Static(canonical_dag_wire(&dag)?)
-        };
+        let graph = posterior_atom_graph_wire(posterior, index, adjacency, max_lag, &ids)?;
         atoms.push(PosteriorAtomIdentityWire {
             format: IDENTITY_FORMAT,
             weight_bits: weight.to_bits(),
@@ -784,6 +777,106 @@ pub fn graph_posterior_atom_identities(
         });
     }
     Ok(atoms)
+}
+
+fn posterior_atom_graph_wire(
+    posterior: &GraphPosterior,
+    index: usize,
+    adjacency: u64,
+    max_lag: u32,
+    ids: &[VariableId],
+) -> Result<PosteriorAtomGraphWire, IoError> {
+    if let Some(lag_masks) = posterior.lag_masks.as_ref() {
+        let lag_mask = *lag_masks
+            .get(index)
+            .ok_or_else(|| IoError::Convert("posterior lag masks must align with atoms".into()))?;
+        return match posterior.atom_kind {
+            GraphPosteriorAtomKind::Cpdag => {
+                let graph = temporal_cpdag_from_dbn_masks(
+                    adjacency,
+                    lag_mask,
+                    posterior.n_vars,
+                    max_lag,
+                    ids,
+                )
+                .map_err(|err| IoError::Convert(err.to_string()))?;
+                let GraphIdentityWire::TemporalClass(wire) = temporal_cpdag_identity(&graph) else {
+                    return Err(IoError::Convert(
+                        "temporal CPDAG posterior atom must encode as TemporalClass".into(),
+                    ));
+                };
+                Ok(PosteriorAtomGraphWire::TemporalClass(wire))
+            }
+            GraphPosteriorAtomKind::Pag => {
+                let mark_mask = posterior
+                    .mark_masks
+                    .as_ref()
+                    .and_then(|masks| masks.get(index))
+                    .copied()
+                    .unwrap_or(0);
+                let graph = temporal_pag_from_dbn_masks(
+                    adjacency,
+                    lag_mask,
+                    mark_mask,
+                    posterior.n_vars,
+                    max_lag,
+                    ids,
+                )
+                .map_err(|err| IoError::Convert(err.to_string()))?;
+                let GraphIdentityWire::TemporalClass(wire) = temporal_pag_identity(&graph) else {
+                    return Err(IoError::Convert(
+                        "temporal PAG posterior atom must encode as TemporalClass".into(),
+                    ));
+                };
+                Ok(PosteriorAtomGraphWire::TemporalClass(wire))
+            }
+            _ => {
+                let graph = temporal_dag_from_dbn_masks(
+                    adjacency,
+                    lag_mask,
+                    posterior.n_vars,
+                    max_lag,
+                    ids,
+                )
+                .map_err(|err| IoError::Convert(err.to_string()))?;
+                Ok(PosteriorAtomGraphWire::Temporal(canonical_temporal_dag_wire(&graph)?))
+            }
+        };
+    }
+    match posterior.atom_kind {
+        GraphPosteriorAtomKind::Admg => {
+            let admg = admg_from_adjacency_mask(adjacency, posterior.n_vars)
+                .map_err(|err| IoError::Convert(err.to_string()))?;
+            Ok(PosteriorAtomGraphWire::Admg(canonical_admg_wire(&admg)?))
+        }
+        GraphPosteriorAtomKind::Cpdag => {
+            let cpdag = cpdag_from_adjacency_mask(adjacency, posterior.n_vars)
+                .map_err(|err| IoError::Convert(err.to_string()))?;
+            let GraphIdentityWire::Cpdag(wire) = cpdag_identity(&cpdag)? else {
+                return Err(IoError::Convert("CPDAG posterior atom must encode as Cpdag".into()));
+            };
+            Ok(PosteriorAtomGraphWire::Cpdag(wire))
+        }
+        GraphPosteriorAtomKind::Pag => {
+            let mark_mask = posterior
+                .mark_masks
+                .as_ref()
+                .and_then(|masks| masks.get(index))
+                .copied()
+                .unwrap_or(0);
+            let pag = pag_from_adjacency_mask(adjacency, mark_mask, posterior.n_vars)
+                .map_err(|err| IoError::Convert(err.to_string()))?;
+            let GraphIdentityWire::Pag(wire) = pag_identity(&pag)? else {
+                return Err(IoError::Convert("PAG posterior atom must encode as Pag".into()));
+            };
+            Ok(PosteriorAtomGraphWire::Pag(wire))
+        }
+        _ => {
+            let dag = dag_from_adjacency_mask(adjacency, posterior.n_vars)
+                .map_err(|err| IoError::Convert(err.to_string()))?;
+            Ok(PosteriorAtomGraphWire::Static(canonical_dag_wire(&dag)?))
+        }
+    }
 }
 
 /// RD configuration hashed with identification premises.

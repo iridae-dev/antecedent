@@ -13,8 +13,6 @@ import pytest
 
 antecedent = pytest.importorskip("antecedent")
 
-from antecedent.errors import CausalUnsupportedError  # noqa: E402
-
 from known_truth import (  # noqa: E402
     BAYES,
     FREQ,
@@ -47,13 +45,20 @@ def _assert_mixture_contract(
     tolerance: float,
     unidentified_mass: float,
     expect_ppc: bool,
+    withhold_scalar: bool = False,
 ) -> None:
     assert prepared.evidence_status == "licensed"
     assert fresh.evidence_status == click.evidence_status == "licensed"
     assert fresh.plan.validation_suite == click.plan.validation_suite == validation_suite
-    assert fresh.ate == pytest.approx(expected_ate, abs=tolerance)
-    assert click.ate == pytest.approx(expected_ate, abs=tolerance)
-    assert fresh.posterior is not None and click.posterior is not None
+    if withhold_scalar:
+        assert fresh.ate is None and click.ate is None
+        assert fresh.posterior is not None and click.posterior is not None
+        assert fresh.posterior.effect_mean == pytest.approx(expected_ate, abs=tolerance)
+        assert click.posterior.effect_mean == pytest.approx(expected_ate, abs=tolerance)
+    else:
+        assert fresh.ate == pytest.approx(expected_ate, abs=tolerance)
+        assert click.ate == pytest.approx(expected_ate, abs=tolerance)
+        assert fresh.posterior is not None and click.posterior is not None
     assert fresh.posterior.unidentified_mass == pytest.approx(unidentified_mass, abs=1e-12)
     assert click.posterior.unidentified_mass == pytest.approx(unidentified_mass, abs=1e-12)
     assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in fresh.diagnostics)
@@ -71,7 +76,7 @@ def _assert_mixture_contract(
             assert fresh.validation.posterior_predictive is not None
             assert click.validation.prior_predictive is not None
             assert click.validation.posterior_predictive is not None
-            if validation_suite == "validation.full":
+            if validation_suite == "validation.full" and not withhold_scalar:
                 assert fresh.validation.prior_sensitivity is not None
                 assert click.validation.prior_sensitivity is not None
 
@@ -109,6 +114,7 @@ def test_static_known_truth_mixture(validation, validation_suite: str | None) ->
         tolerance=float(STATIC["effect_abs_tolerance"]),
         unidentified_mass=float(STATIC["expected_unidentified_mass"]),
         expect_ppc=True,
+        withhold_scalar=True,
     )
 
 
@@ -124,8 +130,7 @@ def _assert_frequentist_mixture_contract(
     assert prepared.evidence_status == "licensed"
     assert fresh.evidence_status == click.evidence_status == "licensed"
     assert fresh.plan.validation_suite == click.plan.validation_suite == validation_suite
-    assert fresh.ate == pytest.approx(expected_ate, abs=1e-8)
-    assert click.ate == pytest.approx(expected_ate, abs=1e-8)
+    assert fresh.ate is None and click.ate is None
     assert fresh.posterior is None and click.posterior is None
     assert fresh.identification.status == click.identification.status == "GraphDependent"
     assert any(
@@ -192,8 +197,10 @@ def test_static_known_truth_mixture_refresh_reuses_identification() -> None:
     refreshed = prepared.refresh(data, seed=1)
     expected = float(STATIC["expected_effect_given_identified"])
     tolerance = float(STATIC["effect_abs_tolerance"])
-    assert click.ate == pytest.approx(expected, abs=tolerance)
-    assert refreshed.ate == pytest.approx(expected, abs=tolerance)
+    assert click.ate is None and refreshed.ate is None
+    assert click.posterior is not None and refreshed.posterior is not None
+    assert click.posterior.effect_mean == pytest.approx(expected, abs=tolerance)
+    assert refreshed.posterior.effect_mean == pytest.approx(expected, abs=tolerance)
     assert any(diagnostic.startswith("exec.identify.cached") for diagnostic in click.diagnostics)
     assert any(
         diagnostic.startswith("exec.identify.cached") for diagnostic in refreshed.diagnostics
@@ -385,24 +392,25 @@ def test_temporal_mediation_known_truth_mixture(validation, validation_suite: st
         assert any("refute.envelope.effect_mixture" in d for d in click.diagnostics)
 
 
-def test_dbn_posterior_response_curve_stays_refused() -> None:
+def test_dbn_posterior_response_curve_runs() -> None:
     data = white_noise_pulse_series(64, 1)
-    with pytest.raises(CausalUnsupportedError, match="graph-posterior structures are refused"):
-        antecedent.analyze(
-            data,
-            discovery=temporal_posterior(),
-            query=antecedent.ResponseCurve(
-                treatment="pressure",
-                outcome="defect",
-                grid=[0.0, 1.0],
-                horizons=[1],
-                policy="pulse",
-            ),
-            inference=BAYES,
-            refute=False,
-            bootstrap=0,
-            seed=1,
-        )
+    result = antecedent.analyze(
+        data,
+        discovery=temporal_posterior(),
+        query=antecedent.ResponseCurve(
+            treatment="pressure",
+            outcome="defect",
+            grid=[0.0, 1.0],
+            horizons=[1],
+            policy="pulse",
+        ),
+        inference=BAYES,
+        refute=False,
+        bootstrap=0,
+        seed=1,
+    )
+    assert result.evidence_status == "licensed"
+    assert result.response is not None
 
 
 def test_frequentist_dbn_mediation_mixture_follows_the_latency_tier() -> None:

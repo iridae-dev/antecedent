@@ -72,7 +72,8 @@ pub use constraints::{
     TemporalConstraints, TimeDummyCiMode,
 };
 pub use dbn_posterior::{
-    DBN_EXACT_MAX_LAG, DBN_EXACT_MAX_VARS, DbnPosterior, temporal_dag_from_dbn_masks,
+    DBN_EXACT_MAX_LAG, DBN_EXACT_MAX_VARS, DbnPosterior, temporal_cpdag_from_dbn_masks,
+    temporal_dag_from_dbn_masks, temporal_pag_from_dbn_masks,
 };
 pub use discriminating_paths::{DiscriminatingPath, find_discriminating_paths};
 pub use engine::{DiscoveryWorkspace, PcmciEngine};
@@ -86,9 +87,11 @@ pub use exact_enumeration::ExactDagPosterior;
 pub use fci::{Fci, StaticPagDiscoveryResult};
 pub use ges::Ges;
 pub use graph_posterior::{
-    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPosteriorEngine, GraphPrior, allows_graph_posterior,
-    dag_from_adjacency_mask, edge_bit, has_edge, mask_is_dag, n_directed_edges, parents_of,
-    publish_graph_posterior, set_edge,
+    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPosteriorAtomKind, GraphPosteriorEngine, GraphPrior,
+    adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
+    admg_from_adjacency_mask, allows_graph_posterior, cpdag_from_adjacency_mask,
+    dag_from_adjacency_mask, edge_bit, has_edge, mask_is_dag, n_directed_edges,
+    pag_from_adjacency_mask, parents_of, publish_graph_posterior, set_edge,
 };
 pub use jpcmci_plus::{JpcmciPlus, JpcmciPlusDiscoveryResult};
 pub use lingam::{DirectLingam, StaticDagDiscoveryResult};

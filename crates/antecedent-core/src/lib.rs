@@ -76,9 +76,10 @@ pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeveri
 pub use error::SchemaError;
 pub use execution::{
     AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy, CancellationToken,
-    CausalRng, Determinism, ExecutionContext, ExecutionReceipt, ExecutionRequestState,
-    KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError, NonZeroThreadCount, Parallelism,
-    ProgressSink, RequestIdentity, RngFactory,
+    CausalRng, DEFAULT_USER_THREAD_CAP, Determinism, ExecutionContext, ExecutionReceipt,
+    ExecutionRequestState, KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError,
+    NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory,
+    default_user_threads,
 };
 pub use identification::IdentificationStatus;
 pub use identity::{

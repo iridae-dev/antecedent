@@ -606,23 +606,25 @@ fn prepared_graph_posterior_response_reuses_identification() {
 
 #[test]
 fn graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters() {
-    let (data, _graph, _) = mean_curve_study();
-    let ctx = ExecutionContext::for_tests(3);
-    let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
-    let gp = antecedent::discovery::discover_exact_dag_posterior(
-        &data,
-        &vars,
-        &antecedent::discovery::BayesianDiscoverParams::default(),
-        &ctx,
-    )
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/bayesian/known_truth_mixtures/expected.json"
+    ))
     .unwrap();
+    let pin = &expected["static_response"];
+    let weights: Vec<f64> =
+        pin["posterior_weights"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let data = known_truth_response_data(pin);
+    let t = VariableId::from_raw(0);
+    let y = VariableId::from_raw(1);
+    let active = pin["intervention_level"].as_f64().unwrap();
     let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
-        outcome: VariableId::from_raw(1),
-        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.25))]),
+        outcome: y,
+        interventions: Arc::from([Intervention::set(t, Value::f64(active))]),
     });
+    let ctx = ExecutionContext::for_tests(pin["seed"].as_u64().unwrap());
     for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
         let result = Study::tabular(data.clone())
-            .graph_posterior(gp.clone())
+            .graph_posterior(known_truth_mixture_posterior(&weights))
             .query(CausalQuery::Response(query.clone()))
             .inference(InferenceMode::Frequentist)
             .refute(suite)
@@ -641,6 +643,7 @@ fn graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters() {
                 .iter()
                 .any(|diagnostic| { diagnostic.code.as_ref() == "refute.evalue.not_a_contrast" })
         );
+        assert!(result.refutations.iter().any(|r| r.refuter.contains("overlap")));
         assert!(result.structural_response.is_some());
     }
 }

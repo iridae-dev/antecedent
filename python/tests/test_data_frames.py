@@ -135,3 +135,18 @@ def test_column_ingest_and_arrow_probes():
             return ArrowCol()
 
     assert try_as_arrow_c_columns(FrameCols())[0] == ["a"]
+
+    class StreamTable:
+        """Polars/DuckDB table-level capsule; pandas also has this in 2.1+."""
+
+        def __arrow_c_stream__(self, requested_schema=None):
+            import pyarrow as pa
+
+            return pa.table({"a": [1.0, 2.0]}).__arrow_c_stream__(requested_schema)
+
+        def to_numpy(self) -> np.ndarray:
+            raise AssertionError("Arrow stream must be preferred over to_numpy")
+
+    streamed = try_as_arrow_c_columns(StreamTable())
+    assert streamed is not None
+    assert streamed[0] == ["a"]

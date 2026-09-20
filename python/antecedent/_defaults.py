@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ._native import omitted_defaults
+from ._native import default_user_threads, omitted_defaults
 
 #: ``bootstrap`` (on routes that resample), ``refute`` (before any cell
 #: downgrade), ``latency`` (never injected), and the Bayesian draw budgets.
@@ -31,6 +31,15 @@ RESPONSE_QUERY_KINDS = frozenset(
         "response_jacobian",
     }
 )
+
+
+def resolve_threads(threads: int | None) -> int:
+    """Omitted ``threads`` uses the machine; ``threads=1`` remains an explicit pin."""
+    if threads is None:
+        return int(default_user_threads())
+    if threads < 1:
+        raise ValueError("threads must be >= 1")
+    return int(threads)
 
 
 def is_temporal_query(query: Any = None, *, kind: str = "") -> bool:

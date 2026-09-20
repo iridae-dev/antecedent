@@ -198,9 +198,10 @@ impl ConditionalIndependenceTest for KnnDependence {
     }
 }
 
-/// Fingerprint of the columns feeding a kNN index: query indexes plus pointer, length,
-/// and sampled contents of each involved column. Content samples guard against pointer
-/// reuse after frees between batches.
+/// Content identity of the columns feeding a kNN index.
+///
+/// Hashes query indexes and the full contents of each involved column. Pointers
+/// are not identity: allocator reuse or an unsampled mutation must miss.
 fn knn_input_fingerprint(columns: &[&[f64]], x: usize, y: usize, z: &[usize], n: usize) -> u64 {
     let mut h = 0xcbf2_9ce4_8422_2325_u64;
     let mut mix = |v: u64| {
@@ -210,17 +211,15 @@ fn knn_input_fingerprint(columns: &[&[f64]], x: usize, y: usize, z: &[usize], n:
     mix(x as u64);
     mix(y as u64);
     mix(z.len() as u64);
+    mix(n as u64);
     for &zc in z {
         mix(zc as u64);
     }
     for &c in [x, y].iter().chain(z.iter()) {
         let col = columns[c];
-        mix(col.as_ptr() as u64);
         mix(col.len() as u64);
-        if n > 0 {
-            mix(col[0].to_bits());
-            mix(col[n / 2].to_bits());
-            mix(col[n - 1].to_bits());
+        for &v in col.iter().take(n) {
+            mix(v.to_bits());
         }
     }
     h

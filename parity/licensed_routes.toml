@@ -38,6 +38,126 @@ identifier = "temporal.backdoor.unfolded"
 estimator = "temporal.linear.adjustment"
 
 [[route]]
+coordinate = "PulseEffect:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PulseEffect:TemporalCpdag:graph_posterior:Frequentist:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PulseEffect:TemporalCpdag:graph_posterior:Frequentist:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PulseEffect:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "bayesian.temporal.gcomp"
+
+[[route]]
+coordinate = "PulseEffect:TemporalCpdag:graph_posterior:Bayesian:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "bayesian.temporal.gcomp"
+
+[[route]]
+coordinate = "PulseEffect:TemporalCpdag:graph_posterior:Bayesian:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "bayesian.temporal.gcomp"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalCpdag:graph_posterior:Frequentist:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalCpdag:graph_posterior:Frequentist:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "bayesian.temporal.gcomp"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalCpdag:graph_posterior:Bayesian:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "bayesian.temporal.gcomp"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalCpdag:graph_posterior:Bayesian:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "bayesian.temporal.gcomp"
+
+[[route]]
+coordinate = "PulseEffect:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PulseEffect:TemporalPag:graph_posterior:Frequentist:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PulseEffect:TemporalPag:graph_posterior:Frequentist:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PulseEffect:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "bayesian.temporal.gcomp"
+
+[[route]]
+coordinate = "PulseEffect:TemporalPag:graph_posterior:Bayesian:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "bayesian.temporal.gcomp"
+
+[[route]]
+coordinate = "PulseEffect:TemporalPag:graph_posterior:Bayesian:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "bayesian.temporal.gcomp"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalPag:graph_posterior:Frequentist:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalPag:graph_posterior:Frequentist:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "bayesian.temporal.gcomp"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalPag:graph_posterior:Bayesian:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "bayesian.temporal.gcomp"
+
+[[route]]
+coordinate = "SustainedEffect:TemporalPag:graph_posterior:Bayesian:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "bayesian.temporal.gcomp"
+
+[[route]]
 coordinate = "TemporalMediationEffect:TemporalCpdag:explicit:Frequentist:none"
 identifier = "generalized.adjustment"
 estimator = "temporal.mediation"
@@ -111,6 +231,126 @@ estimator = "temporal.response.gcomp"
 coordinate = "SustainedEffect:TemporalDag:graph_posterior:Frequentist:none"
 identifier = "temporal.backdoor.unfolded"
 estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:graph_posterior:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalDag:graph_posterior:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalDag:graph_posterior:Frequentist:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalDag:graph_posterior:Frequentist:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalDag:graph_posterior:Frequentist:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalDag:graph_posterior:Bayesian:none"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalDag:graph_posterior:Bayesian:cheap"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalDag:graph_posterior:Bayesian:full"
+identifier = "temporal.backdoor.unfolded"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "ResponseCurve:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalCpdag:graph_posterior:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalCpdag:graph_posterior:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalCpdag:graph_posterior:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalCpdag:graph_posterior:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalPag:graph_posterior:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalPag:graph_posterior:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalPag:graph_posterior:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:TemporalPag:graph_posterior:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
 
 [[route]]
 coordinate = "ResponseCurve:Dag:graph_posterior:Bayesian:none"
@@ -806,6 +1046,136 @@ estimator = "bayesian.gcomp"
 coordinate = "AverageEffect:Dag:graph_posterior:Bayesian:full"
 identifier = "backdoor.adjustment"
 estimator = "bayesian.gcomp"
+
+[[route]]
+coordinate = "AverageEffect:Cpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "linear.adjustment.ate"
+
+[[route]]
+coordinate = "AverageEffect:Pag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "linear.adjustment.ate"
+
+[[route]]
+coordinate = "AverageEffect:Cpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "bayesian.gcomp"
+
+[[route]]
+coordinate = "AverageEffect:Pag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "bayesian.gcomp"
+
+[[route]]
+coordinate = "AverageEffect:Cpdag:graph_posterior:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "linear.adjustment.ate"
+
+[[route]]
+coordinate = "AverageEffect:Cpdag:graph_posterior:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "linear.adjustment.ate"
+
+[[route]]
+coordinate = "AverageEffect:Pag:graph_posterior:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "linear.adjustment.ate"
+
+[[route]]
+coordinate = "AverageEffect:Pag:graph_posterior:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "linear.adjustment.ate"
+
+[[route]]
+coordinate = "AverageEffect:Cpdag:graph_posterior:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "bayesian.gcomp"
+
+[[route]]
+coordinate = "AverageEffect:Cpdag:graph_posterior:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "bayesian.gcomp"
+
+[[route]]
+coordinate = "AverageEffect:Pag:graph_posterior:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "bayesian.gcomp"
+
+[[route]]
+coordinate = "AverageEffect:Pag:graph_posterior:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "bayesian.gcomp"
+
+[[route]]
+coordinate = "AverageEffect:Admg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:Admg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:Admg:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:Admg:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:Admg:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "AverageEffect:Admg:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:graph_posterior:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:graph_posterior:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:graph_posterior:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:graph_posterior:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "ResponseCurve:Admg:graph_posterior:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "ResponseCurve:Admg:graph_posterior:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
 
 [[route]]
 coordinate = "PulseEffect:TemporalDag:graph_posterior:Bayesian:none"
@@ -1688,9 +2058,129 @@ identifier = "general.id"
 estimator = "functional.distribution"
 
 [[route]]
+coordinate = "ResponseCurve:Admg:explicit:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "ResponseCurve:Admg:accepted:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "ResponseCurve:Admg:explicit:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "ResponseCurve:Admg:accepted:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:explicit:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:accepted:Frequentist:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:explicit:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:accepted:Bayesian:none"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:explicit:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:explicit:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:accepted:Frequentist:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:accepted:Frequentist:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:explicit:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:explicit:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:accepted:Bayesian:cheap"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
+coordinate = "InterventionResponse:Admg:accepted:Bayesian:full"
+identifier = "general.id"
+estimator = "functional.effect"
+
+[[route]]
 coordinate = "TemporalMediationEffect:TemporalDag:graph_posterior:Frequentist:none"
 identifier = "temporal.mediation"
 estimator = "temporal.mediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalDag:graph_posterior:Frequentist:cheap"
+identifier = "temporal.mediation"
+estimator = "temporal.mediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalDag:graph_posterior:Frequentist:full"
+identifier = "temporal.mediation"
+estimator = "temporal.mediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "temporal.mediation"
+estimator = "temporal.mediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalCpdag:graph_posterior:Frequentist:cheap"
+identifier = "temporal.mediation"
+estimator = "temporal.mediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalCpdag:graph_posterior:Frequentist:full"
+identifier = "temporal.mediation"
+estimator = "temporal.mediation"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "temporal.mediation"
+estimator = "temporal.mediation.bayesian"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalCpdag:graph_posterior:Bayesian:cheap"
+identifier = "temporal.mediation"
+estimator = "temporal.mediation.bayesian"
+
+[[route]]
+coordinate = "TemporalMediationEffect:TemporalCpdag:graph_posterior:Bayesian:full"
+identifier = "temporal.mediation"
+estimator = "temporal.mediation.bayesian"
 
 [[route]]
 coordinate = "AnomalyAttribution:Dag:explicit:Frequentist:none"
@@ -1711,3 +2201,123 @@ estimator = "transport.trial_ipw"
 coordinate = "InterferenceQuery:Dag:explicit:Frequentist:none"
 identifier = "interference.design"
 estimator = "interference.ht_hajek"
+
+[[route]]
+coordinate = "ConditionalEffect:Cpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "conditional.linear.adjustment"
+
+[[route]]
+coordinate = "ConditionalEffect:Cpdag:graph_posterior:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "conditional.linear.adjustment"
+
+[[route]]
+coordinate = "ConditionalEffect:Cpdag:graph_posterior:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "conditional.linear.adjustment"
+
+[[route]]
+coordinate = "ConditionalEffect:Cpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "conditional.bayesian"
+
+[[route]]
+coordinate = "ConditionalEffect:Cpdag:graph_posterior:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "conditional.bayesian"
+
+[[route]]
+coordinate = "ConditionalEffect:Cpdag:graph_posterior:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "conditional.bayesian"
+
+[[route]]
+coordinate = "ResponseCurve:Cpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "response.kennedy_dr"
+
+[[route]]
+coordinate = "ResponseCurve:Cpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:Cpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "response.intervention_gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:Cpdag:graph_posterior:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.intervention_gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:Cpdag:graph_posterior:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "response.intervention_gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:Cpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+
+[[route]]
+coordinate = "ConditionalEffect:Pag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "conditional.linear.adjustment"
+
+[[route]]
+coordinate = "ConditionalEffect:Pag:graph_posterior:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "conditional.linear.adjustment"
+
+[[route]]
+coordinate = "ConditionalEffect:Pag:graph_posterior:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "conditional.linear.adjustment"
+
+[[route]]
+coordinate = "ConditionalEffect:Pag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "conditional.bayesian"
+
+[[route]]
+coordinate = "ConditionalEffect:Pag:graph_posterior:Bayesian:cheap"
+identifier = "generalized.adjustment"
+estimator = "conditional.bayesian"
+
+[[route]]
+coordinate = "ConditionalEffect:Pag:graph_posterior:Bayesian:full"
+identifier = "generalized.adjustment"
+estimator = "conditional.bayesian"
+
+[[route]]
+coordinate = "ResponseCurve:Pag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "response.kennedy_dr"
+
+[[route]]
+coordinate = "ResponseCurve:Pag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"
+
+[[route]]
+coordinate = "InterventionResponse:Pag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "response.intervention_gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:Pag:graph_posterior:Frequentist:cheap"
+identifier = "generalized.adjustment"
+estimator = "response.intervention_gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:Pag:graph_posterior:Frequentist:full"
+identifier = "generalized.adjustment"
+estimator = "response.intervention_gcomp"
+
+[[route]]
+coordinate = "InterventionResponse:Pag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.bayesian"

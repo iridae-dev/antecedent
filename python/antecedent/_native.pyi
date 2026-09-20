@@ -73,7 +73,7 @@ def accept_rpcmci(
     seed: int = 1,
     ci: CiArg = None,
     weights: Sequence[Any] | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     max_cond_size: int = 2,
     accept_discovered: bool = True,
 ) -> Any:
@@ -203,6 +203,8 @@ class AteAnalysisResult:
     mediation_joint_posterior: bool | None
     transport: TransportSection | None
     interference: InterferenceSection | None
+    anomaly: list[AnomalyScores] | None
+    change_attribution: ChangeAttributionResult | None
     evidence_status: str | None
     allowlist_reason: str | None
     allowlist_parent: str | None
@@ -607,6 +609,8 @@ class GraphPosterior:
     max_lag: int | None
     lag_masks: list[int] | None
     algorithm: str | None
+    atom_kind: str
+    mark_masks: list[int] | None
     def to_weighted_samples(self) -> dict[str, object]: ...
     def edge_marginal_matrix(self) -> list[list[float]]: ...
     @classmethod
@@ -621,6 +625,17 @@ class GraphPosterior:
         lagged_edge_marginals: list[float] | None = None,
         lag_masks: list[int] | None = None,
         max_lag: int | None = None,
+        ess: float | None = None,
+        atom_kind: str = "Dag",
+        mark_masks: list[int] | None = None,
+    ) -> GraphPosterior: ...
+    @classmethod
+    def from_graphs(
+        cls,
+        names: list[str],
+        weights: list[float],
+        graphs: Sequence[Any],
+        *,
         ess: float | None = None,
     ) -> GraphPosterior: ...
 
@@ -717,7 +732,7 @@ class PreparedAnalysis:
         columns: Sequence[Any],
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         cancel: CancellationToken | None = None,
         on_progress: Callable[..., Any] | None = None,
         on_stage: Callable[..., Any] | None = None,
@@ -726,7 +741,7 @@ class PreparedAnalysis:
         self,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         cancel: CancellationToken | None = None,
         on_progress: Callable[..., Any] | None = None,
         on_stage: Callable[..., Any] | None = None,
@@ -740,7 +755,7 @@ class PreparedAnalysis:
         response: bool = False,
         refresh: bool = False,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         cancel: CancellationToken | None = None,
         on_progress: Callable[..., Any] | None = None,
         on_stage: Callable[..., Any] | None = None,
@@ -751,7 +766,7 @@ class PreparedAnalysis:
         columns: Sequence[Any],
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         cancel: CancellationToken | None = None,
         on_progress: Callable[..., Any] | None = None,
         on_stage: Callable[..., Any] | None = None,
@@ -760,7 +775,7 @@ class PreparedAnalysis:
         self,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         cancel: CancellationToken | None = None,
         on_progress: Callable[..., Any] | None = None,
         on_stage: Callable[..., Any] | None = None,
@@ -824,7 +839,7 @@ class PreparedAnalysis:
         bandwidth: float | None = None,
         accepted: bool = False,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -843,7 +858,7 @@ class PreparedAnalysis:
         outcome_functional: dict[str, Any] | None = None,
         accepted: bool = False,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -863,7 +878,7 @@ class PreparedAnalysis:
         response_options: dict[str, Any] | None = None,
         accepted: bool = False,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -883,7 +898,7 @@ class PreparedAnalysis:
         outcome_functional: dict[str, Any] | None = None,
         accepted: bool = False,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -906,7 +921,7 @@ class PreparedAnalysis:
         posterior: GraphPosterior | None = None,
         frame: dict[str, Any] | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -931,7 +946,33 @@ class PreparedAnalysis:
         posterior: GraphPosterior | None = None,
         frame: dict[str, Any] | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_dbn_posterior_response(
+        names: list[str],
+        columns: Sequence[Any],
+        kind: Any,
+        treatments: list[str],
+        outcomes: list[str],
+        *,
+        grid: list[float] | None = None,
+        intervention_kinds: list[str] | None = None,
+        intervention_parameters: list[list[float]] | None = None,
+        horizons: list[int],
+        policy: str = ...,
+        treatment_lag: int = ...,
+        max_history_lag: int | None = None,
+        max_lag: int = 1,
+        force_mcmc: bool = False,
+        n_chains: int = 2,
+        n_warmup: int = 200,
+        mcmc_draws: int = 400,
+        posterior: GraphPosterior | None = None,
+        frame: dict[str, Any] | None = None,
+        seed: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -951,7 +992,7 @@ class PreparedAnalysis:
         response_options: dict[str, Any] | None = None,
         accepted: bool = False,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -962,10 +1003,11 @@ class PreparedAnalysis:
         outcome: Any,
         interventions: dict[str, float],
         *,
+        graph: Any = None,
         conditioning: list[str] | None = None,
         accepted: bool = False,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -992,7 +1034,7 @@ class PreparedAnalysis:
         weighting: str = "observed",
         accepted: bool = False,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1015,7 +1057,36 @@ class PreparedAnalysis:
         probability_draws: int = 10_000,
         accepted: bool = False,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_anomaly_attribution(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, str]],
+        targets: list[str],
+        max_units: int,
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> PreparedAnalysis: ...
+    @staticmethod
+    def prepare_change_attribution(
+        names: list[str],
+        columns: Sequence[Any],
+        edges: list[tuple[str, str]],
+        outcome: str,
+        baseline_start: int,
+        baseline_end: int,
+        comparison_start: int,
+        comparison_end: int,
+        *,
+        accepted: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1030,7 +1101,7 @@ class PreparedAnalysis:
         estimator_config: Mapping[str, Any] | None = None,
         posterior: GraphPosterior | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1046,7 +1117,7 @@ class PreparedAnalysis:
         outcome_functional: dict[str, Any] | None = None,
         posterior: GraphPosterior | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1060,7 +1131,7 @@ class PreparedAnalysis:
         *,
         posterior: GraphPosterior | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1074,7 +1145,7 @@ class PreparedAnalysis:
         response_options: dict[str, Any] | None = None,
         posterior: GraphPosterior | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1092,7 +1163,7 @@ class PreparedAnalysis:
         outcome_functional: dict[str, Any] | None = None,
         accepted: bool = False,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1110,7 +1181,7 @@ class PreparedAnalysis:
         max_len: int = 16,
         accepted: bool = False,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1127,7 +1198,7 @@ class PreparedAnalysis:
         accepted: bool = False,
         response_options: dict[str, Any] | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1145,7 +1216,7 @@ class PreparedAnalysis:
         active_level: float = 1.0,
         accepted: bool = False,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1170,7 +1241,7 @@ class PreparedAnalysis:
         max_completions: str | None = None,
         frame: dict[str, Any] | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1193,7 +1264,7 @@ class PreparedAnalysis:
         max_completions: str | None = None,
         frame: dict[str, Any] | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1230,7 +1301,7 @@ class PreparedAnalysis:
         structural_model: str | None = None,
         frame: dict[str, Any] | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1248,7 +1319,7 @@ class PreparedAnalysis:
         estimator_config: Mapping[str, Any] | None = None,
         outcome_functional: dict[str, Any] | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     @staticmethod
@@ -1264,7 +1335,7 @@ class PreparedAnalysis:
         *,
         outcome_functional: dict[str, Any] | None = None,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> PreparedAnalysis: ...
     def preview_transform(
@@ -1280,7 +1351,7 @@ class PreparedAnalysis:
         artifact: bytes,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> AteAnalysisResult: ...
     def refresh(
         self,
@@ -1288,7 +1359,7 @@ class PreparedAnalysis:
         columns: Sequence[Any],
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         cancel: CancellationToken | None = None,
         on_progress: Callable[..., Any] | None = None,
         on_stage: Callable[..., Any] | None = None,
@@ -1299,7 +1370,7 @@ class PreparedAnalysis:
         columns: Sequence[Any],
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         cancel: CancellationToken | None = None,
         on_progress: Callable[..., Any] | None = None,
         on_stage: Callable[..., Any] | None = None,
@@ -1311,7 +1382,7 @@ class PreparedAnalysis:
         suite: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> AteAnalysisResult: ...
     def refute_arrow_c(
@@ -1321,7 +1392,7 @@ class PreparedAnalysis:
         suite: Any,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> AteAnalysisResult: ...
     def retarget(
@@ -1330,7 +1401,7 @@ class PreparedAnalysis:
         depends_on: list[str],
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> AteAnalysisResult: ...
     def snapshot(
         self,
@@ -1368,6 +1439,9 @@ class AnomalyScores:
     outcome: str
     mean_score: float
     n_units: int
+    scores: list[float]
+    rows: list[int]
+    top_row: int | None
 
 class MechanismChangeDetection:
     node: str
@@ -1420,7 +1494,7 @@ class FittedGcm:
         *,
         shifts: dict[str, float] | None = None,
         seed: int = 0,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> GcmSampleResult: ...
     def counterfactual_ite(
         self,
@@ -1430,7 +1504,7 @@ class FittedGcm:
         control: float,
         *,
         seed: int = 0,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> GcmIteResult: ...
     def attribute_path_specific(
         self,
@@ -1441,7 +1515,7 @@ class FittedGcm:
         max_paths: int = 64,
         max_len: int = 16,
         seed: int = 0,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> ChangeAttributionResult: ...
     def attribute_paths(
         self,
@@ -1451,7 +1525,7 @@ class FittedGcm:
         max_paths: int = 64,
         max_len: int = 16,
         seed: int = 0,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> ChangeAttributionResult: ...
     def attribute_distribution_change(
         self,
@@ -1463,7 +1537,7 @@ class FittedGcm:
         *,
         n_samples: int = 500,
         seed: int = 0,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> ChangeAttributionResult: ...
     def attribute_distribution_change_robust(
         self,
@@ -1475,7 +1549,7 @@ class FittedGcm:
         *,
         n_samples: int = 500,
         seed: int = 0,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> ChangeAttributionResult: ...
     def attribute_structure_change(
         self,
@@ -1488,7 +1562,7 @@ class FittedGcm:
         *,
         n_samples: int = 500,
         seed: int = 0,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> ChangeAttributionResult: ...
     def attribute_unit_change(
         self,
@@ -1496,7 +1570,7 @@ class FittedGcm:
         *,
         max_units: int = 0,
         seed: int = 0,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> ChangeAttributionResult: ...
     def attribute_feature_relevance(
         self,
@@ -1505,7 +1579,7 @@ class FittedGcm:
         delta: float = 1.0,
         n_samples: int = 200,
         seed: int = 0,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> list[FeatureRelevance]: ...
     def anomaly_attribution(
         self,
@@ -1521,14 +1595,14 @@ class FittedGcm:
         comparison_end: int,
         *,
         seed: int = 0,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> list[MechanismChangeDetection]: ...
     def rank_root_causes(
         self,
         attribution: ChangeAttributionResult,
         *,
         seed: int = 0,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> list[Contribution]: ...
 
 def fit_gcm(
@@ -1536,7 +1610,7 @@ def fit_gcm(
     columns: Sequence[Any],
     edges: list[tuple[str, str]],
     *,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> FittedGcm: ...
 def load_float64_columns(
     names: list[str],
@@ -1559,7 +1633,7 @@ def analyze_ate_many(
     refute: bool | str | None = None,
     seed: int = 1,
     bootstrap: int | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     latency: str | None = None,
     screen_id: str | None = None,
     screen_procedure: str | None = None,
@@ -1581,7 +1655,7 @@ class PreparedBatch:
         columns: Sequence[Any],
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> list[AteAnalysisResult]: ...
 
 def prepare_ate_batch(
@@ -1597,7 +1671,7 @@ def prepare_ate_batch(
     refute: bool | str | None = None,
     seed: int = 1,
     bootstrap: int | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     latency: str | None = None,
     screen_id: str | None = None,
     screen_procedure: str | None = None,
@@ -1617,7 +1691,7 @@ def prepare_cells_batch(
     refute: bool | str | None = None,
     seed: int = 1,
     bootstrap: int | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     latency: str | None = None,
     screen_id: str | None = None,
     screen_procedure: str | None = None,
@@ -1652,7 +1726,7 @@ def analyze_ate(
     estimator_config: Mapping[str, Any] | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
-    threads: int = 1,
+    threads: int | None = None,
     target_population: dict[str, Any] | None = None,
     outcome_functional: dict[str, Any] | None = None,
     population_predicates: dict[str, list[int]] | None = None,
@@ -1678,7 +1752,7 @@ def analyze_ate_tiered(
     refute: bool | str | None = None,
     seed: int = 1,
     bootstrap: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
     outcome_functional: dict[str, Any] | None = None,
     latency: str | None = None,
     identifier: str | None = None,
@@ -1711,7 +1785,7 @@ def analyze_ate_arrow_c(
     estimator_config: Mapping[str, Any] | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
-    threads: int = 1,
+    threads: int | None = None,
     latency: str | None = None,
     cancel: CancellationToken | None = None,
     on_progress: Callable[[float, str], Any] | None = None,
@@ -1738,7 +1812,7 @@ def analyze(
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> AnalysisResult: ...
 def analyze_temporal_cpdag(
     names: list[str],
@@ -1762,7 +1836,7 @@ def analyze_temporal_cpdag(
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
-    threads: int = 1,
+    threads: int | None = None,
     accepted: bool = False,
 ) -> AnalysisResult: ...
 def analyze_temporal_pag(
@@ -1787,7 +1861,7 @@ def analyze_temporal_pag(
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
-    threads: int = 1,
+    threads: int | None = None,
     accepted: bool = False,
 ) -> AnalysisResult: ...
 def analyze_events(
@@ -1811,7 +1885,7 @@ def analyze_events(
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
-    threads: int = 1,
+    threads: int | None = None,
     algorithm: str | None = None,
     max_lag: int = 1,
     alpha: float = 0.05,
@@ -1845,7 +1919,7 @@ def analyze_panel(
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> AnalysisResult: ...
 def analyze_panel_discover(
     names: list[str],
@@ -1872,7 +1946,7 @@ def analyze_panel_discover(
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
-    threads: int = 1,
+    threads: int | None = None,
     context_names: list[str] | None = None,
     include_space_dummy: bool = True,
     include_time_dummy: bool = False,
@@ -1891,7 +1965,7 @@ def analyze_distribution(
     conditioning: list[str] | None = None,
     refute: bool | str | None = None,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> AteAnalysisResult: ...
 def analyze_response(
     names: list[str],
@@ -1934,7 +2008,7 @@ def analyze_temporal_response(
     max_history_lag: int | None = None,
     seed: int = 1,
     bootstrap: int | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     accepted: bool = False,
     refute: bool | str | None = None,
     observation_kind: str | None = None,
@@ -2088,7 +2162,7 @@ def prepare_observation_response(
     crossfit_folds: int = 5,
     accepted: bool = False,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
     options: dict[str, Any] | None = None,
 ) -> PreparedAnalysis: ...
 def binary_iv_ate_bounds(cells: list[list[float]]) -> tuple[float, float]:
@@ -2129,7 +2203,7 @@ def analyze_path_specific(
     max_len: int = 16,
     seed: int = 1,
     bootstrap: int | None = 199,
-    threads: int = 1,
+    threads: int | None = None,
     refute: bool | str | None = None,
 ) -> AteAnalysisResult: ...
 def analyze_conditional(
@@ -2146,7 +2220,7 @@ def analyze_conditional(
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
-    threads: int = 1,
+    threads: int | None = None,
     accepted: bool = False,
     outcome_functional: dict[str, Any] | None = None,
 ) -> AteAnalysisResult: ...
@@ -2164,7 +2238,7 @@ def analyze_mediation(
     refute: bool | str | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> AteAnalysisResult: ...
 def identify_ate(
     names: list[str],
@@ -2216,7 +2290,7 @@ def analyze_temporal_mediation(
     horizons: list[int] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> AnalysisResult: ...
 def analyze_ate_discover(
     names: list[str],
@@ -2256,7 +2330,7 @@ def analyze_ate_discover(
     estimator_config: Mapping[str, Any] | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> AteAnalysisResult: ...
 def analyze_ate_graph_posterior(
     names: list[str],
@@ -2273,7 +2347,7 @@ def analyze_ate_graph_posterior(
     refute: bool | str | None = None,
     seed: int = 1,
     bootstrap: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
     cancel: CancellationToken | None = None,
     on_progress: Callable[[float, str], Any] | None = None,
 ) -> AteAnalysisResult: ...
@@ -2301,7 +2375,7 @@ def analyze_temporal_discover(
     validators: list[Callable[..., Any]] | None = None,
     seed: int = 1,
     bootstrap: int | None = 0,
-    threads: int = 1,
+    threads: int | None = None,
     env_columns: Sequence[Sequence[NDArray[np.float64]]] | None = None,
     regimes: list[int] | None = None,
     context_names: list[str] | None = None,
@@ -2334,7 +2408,7 @@ def analyze_temporal_graph_posterior(
     refute: bool | str | None = None,
     seed: int = 1,
     bootstrap: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
     cancel: CancellationToken | None = None,
     on_progress: Callable[[float, str], Any] | None = None,
 ) -> AnalysisResult: ...
@@ -2356,7 +2430,7 @@ def analyze_temporal_graph_posterior_mediation(
     refute: bool | str | None = None,
     seed: int = 1,
     bootstrap: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
     cancel: CancellationToken | None = None,
     on_progress: Callable[[float, str], Any] | None = None,
 ) -> AnalysisResult: ...
@@ -2370,7 +2444,7 @@ def discover_pcmci(
     seed: int = 1,
     ci: CiArg = None,
     weights: list[float] | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_pcmci_plus(
@@ -2383,7 +2457,7 @@ def discover_pcmci_plus(
     seed: int = 1,
     ci: CiArg = None,
     weights: list[float] | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_pc(
@@ -2395,7 +2469,7 @@ def discover_pc(
     seed: int = 1,
     ci: CiArg = None,
     max_cond_size: int = 2,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_ges(
     names: list[str],
@@ -2406,7 +2480,7 @@ def discover_ges(
     seed: int = 1,
     ci: CiArg = None,
     max_cond_size: int = 2,
-    threads: int = 1,
+    threads: int | None = None,
     screen_pc: bool = False,
     max_subset: int | None = None,
 ) -> PcmciDiscoveryResult: ...
@@ -2417,7 +2491,7 @@ def discover_lingam(
     prune_threshold: float = 0.05,
     seed: int = 1,
     max_cond_size: int = 8,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_notears(
     names: list[str],
@@ -2428,7 +2502,7 @@ def discover_notears(
     standardize: bool = True,
     seed: int = 1,
     max_cond_size: int = 8,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_fci(
     names: list[str],
@@ -2439,7 +2513,7 @@ def discover_fci(
     seed: int = 1,
     ci: CiArg = None,
     max_cond_size: int = 2,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_rfci(
     names: list[str],
@@ -2450,7 +2524,7 @@ def discover_rfci(
     seed: int = 1,
     ci: CiArg = None,
     max_cond_size: int = 2,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_lpcmci(
     names: list[str],
@@ -2462,7 +2536,7 @@ def discover_lpcmci(
     seed: int = 1,
     ci: CiArg = None,
     weights: list[float] | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_jpcmci_plus(
@@ -2475,7 +2549,7 @@ def discover_jpcmci_plus(
     seed: int = 1,
     ci: CiArg = None,
     weights: list[float] | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     context_names: list[str] | None = None,
     include_space_dummy: bool = True,
     include_time_dummy: bool = False,
@@ -2495,7 +2569,7 @@ def discover_rpcmci(
     seed: int = 1,
     ci: CiArg = None,
     weights: list[float] | None = None,
-    threads: int = 1,
+    threads: int | None = None,
     max_cond_size: int = 2,
 ) -> RpcmciDiscoverySummary: ...
 def two_regime_half_split(series_len: int) -> list[int]: ...
@@ -2504,7 +2578,7 @@ def discover_exact_dag_posterior(
     columns: Sequence[NDArray[np.float64]],
     *,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> GraphPosterior: ...
 def discover_order_mcmc(
     names: list[str],
@@ -2516,7 +2590,7 @@ def discover_order_mcmc(
     thin: int = 1,
     require_diagnostics_gate: bool = True,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> GraphPosterior: ...
 def discover_structure_mcmc(
     names: list[str],
@@ -2527,7 +2601,7 @@ def discover_structure_mcmc(
     n_draws: int = 1000,
     thin: int = 1,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> GraphPosterior: ...
 def discover_ci_screened_posterior(
     names: list[str],
@@ -2543,7 +2617,7 @@ def discover_ci_screened_posterior(
     n_draws: int = 600,
     thin: int = 1,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> GraphPosterior: ...
 def discover_dbn_posterior(
     names: list[str],
@@ -2556,7 +2630,7 @@ def discover_dbn_posterior(
     n_draws: int = 400,
     thin: int = 1,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> GraphPosterior: ...
 def mediation_effects_summary(
     names: list[str],
@@ -2566,7 +2640,7 @@ def mediation_effects_summary(
     outcome: str,
     *,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> MediationEffectsSummary: ...
 def predict_intervened_summary(
     names: list[str],
@@ -2587,7 +2661,7 @@ def counterfactual_ite(
     control: float,
     *,
     seed: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> GcmIteResult: ...
 def sample_do(
     names: list[str],
@@ -2598,7 +2672,7 @@ def sample_do(
     n_draws: int,
     *,
     seed: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
     mechanism_wrappers: dict[str, Any] | None = None,
     shift: bool = False,
 ) -> GcmSampleResult: ...
@@ -2612,7 +2686,7 @@ def sample_interventional_distribution(
     outcome: str | None = None,
     *,
     seed: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
     shift: bool = False,
 ) -> GcmSampleResult: ...
 def attribute_path_specific(
@@ -2626,7 +2700,7 @@ def attribute_path_specific(
     max_paths: int = 64,
     max_len: int = 16,
     seed: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> ChangeAttributionResult: ...
 def attribute_paths(
     names: list[str],
@@ -2638,7 +2712,7 @@ def attribute_paths(
     max_paths: int = 64,
     max_len: int = 16,
     seed: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> ChangeAttributionResult: ...
 def attribute_distribution_change(
     names: list[str],
@@ -2652,7 +2726,7 @@ def attribute_distribution_change(
     *,
     n_samples: int = 500,
     seed: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> ChangeAttributionResult: ...
 def attribute_distribution_change_robust(
     names: list[str],
@@ -2666,7 +2740,7 @@ def attribute_distribution_change_robust(
     *,
     n_samples: int = 500,
     seed: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> ChangeAttributionResult: ...
 def attribute_structure_change(
     names: list[str],
@@ -2681,7 +2755,7 @@ def attribute_structure_change(
     *,
     n_samples: int = 500,
     seed: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> ChangeAttributionResult: ...
 def anomaly_attribution(
     names: list[str],
@@ -2699,7 +2773,7 @@ def attribute_unit_change(
     *,
     max_units: int = 0,
     seed: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> ChangeAttributionResult: ...
 def attribute_feature_relevance(
     names: list[str],
@@ -2710,7 +2784,7 @@ def attribute_feature_relevance(
     delta: float = 1.0,
     n_samples: int = 200,
     seed: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> list[FeatureRelevance]: ...
 def mechanism_change_detection(
     names: list[str],
@@ -2722,13 +2796,13 @@ def mechanism_change_detection(
     comparison_end: int,
     *,
     seed: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> list[MechanismChangeDetection]: ...
 def rank_root_causes(
     attribution: ChangeAttributionResult,
     *,
     seed: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> list[Contribution]: ...
 def rank_designs(
     graph_weights: list[float],
@@ -2754,7 +2828,7 @@ def rank_designs(
     batch_size: int = 8,
     rank_uncertainty_threshold: float = 0.05,
     seed: int = 0,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> DesignRanking: ...
 def evaluate_decision_py(
     actions: list[float],
@@ -2939,7 +3013,7 @@ def analyze_ate_pag_arrow_c(
     latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> AteAnalysisResult: ...
 def analyze_ate_pag(
     names: list[str],
@@ -2965,7 +3039,7 @@ def analyze_ate_pag(
     latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> AteAnalysisResult: ...
 def analyze_ate_cpdag_arrow_c(
     names: list[str],
@@ -2991,7 +3065,7 @@ def analyze_ate_cpdag_arrow_c(
     latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> AteAnalysisResult: ...
 def analyze_ate_cpdag(
     names: list[str],
@@ -3017,7 +3091,7 @@ def analyze_ate_cpdag(
     latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> AteAnalysisResult: ...
 def analyze_ate_admg_arrow_c(
     names: list[str],
@@ -3043,7 +3117,7 @@ def analyze_ate_admg_arrow_c(
     latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> AteAnalysisResult: ...
 def analyze_ate_admg(
     names: list[str],
@@ -3069,7 +3143,7 @@ def analyze_ate_admg(
     latency: str | None = None,
     seed: int = 1,
     bootstrap: int | None = 199,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> AteAnalysisResult: ...
 def dag_from_dot(dot: str) -> tuple[int, list[tuple[int, int]]]: ...
 def dag_to_dot(node_count: int, edges: list[tuple[int, int]]) -> str: ...
@@ -3167,7 +3241,7 @@ def validate_pcmci_block_bootstrap(
     replicates: int = 20,
     block_size: int = 20,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]: ...
 def validate_pcmci_false_positive(
     names: list[str],
@@ -3180,7 +3254,7 @@ def validate_pcmci_false_positive(
     transform: str = "permute",
     replicates: int = 20,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]: ...
 def validate_pcmci_alpha_sensitivity(
     names: list[str],
@@ -3191,7 +3265,7 @@ def validate_pcmci_alpha_sensitivity(
     fdr: bool = False,
     ci: str = "parcorr",
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]: ...
 def validate_pcmci_lag_sensitivity(
     names: list[str],
@@ -3202,7 +3276,7 @@ def validate_pcmci_lag_sensitivity(
     fdr: bool = False,
     ci: str = "parcorr",
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]: ...
 def validate_pcmci_ci_sensitivity(
     names: list[str],
@@ -3213,7 +3287,7 @@ def validate_pcmci_ci_sensitivity(
     alpha: float = 0.05,
     fdr: bool = False,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]: ...
 def validate_pcmci_plus_orientation(
     names: list[str],
@@ -3226,7 +3300,7 @@ def validate_pcmci_plus_orientation(
     replicates: int = 20,
     block_size: int = 20,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]: ...
 def validate_synthetic_null_calibration(
     *,
@@ -3238,7 +3312,7 @@ def validate_synthetic_null_calibration(
     n_obs: int = 100,
     n_vars: int = 3,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]: ...
 def validate_environment_holdout(
     names: list[str],
@@ -3250,7 +3324,7 @@ def validate_environment_holdout(
     ci: str = "parcorr",
     n_discovery: int = 1,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]: ...
 def validate_regime_stability(
     names: list[str],
@@ -3264,7 +3338,7 @@ def validate_regime_stability(
     replicates: int = 10,
     block_size: int = 20,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]: ...
 def decode_model_bundle(
     bytes: list[int] | bytes,
@@ -3342,8 +3416,27 @@ def encode_causal_artifact(
 ) -> bytes: ...
 def decode_causal_artifact(bytes: bytes) -> DecodedCausalArtifact: ...
 def accept_analysis_result_contract(bytes: bytes) -> dict[str, str]: ...
+def encode_external_estimate_claim(
+    *,
+    learner: str,
+    config: bytes,
+    payload: bytes,
+    names: list[str],
+    treatment: str,
+    outcome: str,
+    identifier: str,
+    status: str,
+    confounders: list[str],
+    identification: str | None = None,
+    data_snapshot: str | None = None,
+    snapshot_payload: bytes | None = None,
+    scalar_value: float | None = None,
+) -> bytes: ...
 def omitted_defaults() -> dict[str, Any]:
     """Budgets the builder applies when a caller omits them (bootstrap, refute, n_draws, ...)."""
+
+def default_user_threads() -> int:
+    """Default product `threads` (`available_parallelism`, capped)."""
 
 def identification_status_names() -> list[str]:
     """Every native identification status string, exhaustively (the verdict table's key set)."""

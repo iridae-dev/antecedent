@@ -1,0 +1,25 @@
+feature_id = "ci.knn_dependence"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_tests = false
+copied_comments = false
+
+# No primary paper introduces this statistic. It is a permutation test on
+# −(mean k-th nearest-neighbor distance) in the joint (X, Y, Z) space — a
+# generic dependence proxy. It is not Kraskov–Stögbauer–Grassberger CMI
+# and not Tigramite CMIknn. mixed_knn_dependence is the same test after
+# rank-transforming discrete-looking columns.
+papers = []
+
+implementation_deviations = [
+ "The statistic is −mean k-th NN Euclidean distance in the concatenated (X, Y, Z) features, not a mutual-information estimator.",
+ "Conditional permutation uses coarse tercile strata on Z, not a full within-neighborhood conditional permutation scheme.",
+ "mixed_knn_dependence rank-transforms columns that look discrete, then runs the same test. That preprocessing is not a published mixed-data CI procedure.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-stats/src/ci/advanced.rs (KnnDependence, MixedKnnDependence)",
+]

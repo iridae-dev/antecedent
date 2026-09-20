@@ -94,7 +94,8 @@ impl DirectedAncestry for Admg {
 pub struct RetargetResult {
     /// Per-column `E_Q[μ_a(X)]` (and per-threshold `F_a` / exceedance).
     pub summary: ScoreSummary,
-    /// Active − control contrast on the mean columns when both arms exist.
+    /// Arm 1 minus arm 0 for means or one scalar exceedance threshold.
+    /// A threshold grid has no single scalar contrast.
     pub contrast: Option<LinearContrast>,
     /// Joint IF covariance (same object as `summary.covariance`).
     pub covariance: JointCovariance,
@@ -180,7 +181,7 @@ fn descendant_of_intervened(
     Ok(false)
 }
 
-/// Weights are constant when every finite entry equals the first, up to `1e-12`.
+/// Constant relative weights leave the target unchanged, regardless of their scale.
 fn weights_are_constant(weights: &[f64]) -> bool {
     let Some(&first) = weights.first() else {
         return true;
@@ -188,7 +189,7 @@ fn weights_are_constant(weights: &[f64]) -> bool {
     if !first.is_finite() {
         return false;
     }
-    weights.iter().all(|&w| w.is_finite() && (w - first).abs() <= 1e-12)
+    weights.iter().all(|&w| w.is_finite() && w.to_bits() == first.to_bits())
 }
 
 /// Whether `weights` change the target relative to a constant population.
@@ -310,19 +311,25 @@ fn ate_contrast(
     table: &ScoreTable,
     summary: &ScoreSummary,
 ) -> Result<Option<LinearContrast>, EstimationError> {
-    let mean: Vec<usize> = table
-        .columns
-        .iter()
-        .enumerate()
-        .filter(|(_, c)| c.threshold == table.columns.first().and_then(|c| c.threshold))
-        .map(|(i, _)| i)
-        .collect();
-    if mean.len() < 2 {
+    // Mean columns, or one scalar exceedance threshold. A grid has no single
+    // scalar contrast and must not silently choose its first threshold.
+    let threshold = if table.columns.iter().any(|c| c.threshold.is_none()) {
+        None
+    } else {
+        let Some(first) = table.columns.first() else { return Ok(None) };
+        if table.columns.iter().any(|c| c.threshold != first.threshold) {
+            return Ok(None);
+        }
+        first.threshold
+    };
+    let column_for =
+        |arm| table.columns.iter().position(|c| c.arm == arm && c.threshold == threshold);
+    let (Some(control), Some(active)) = (column_for(0), column_for(1)) else {
         return Ok(None);
-    }
+    };
     let mut c = vec![0.0; table.n_columns()];
-    c[mean[0]] = -1.0;
-    c[mean[1]] = 1.0;
+    c[control] = -1.0;
+    c[active] = 1.0;
     Ok(Some(table.linear_contrast(summary, &c)?))
 }
 
@@ -418,6 +425,26 @@ mod tests {
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
         }
+    }
+
+    #[test]
+    fn review_tiny_nonconstant_weights_still_change_the_target() {
+        let weights = [1e-16, 2e-16, 1e-16, 1e-16];
+        assert!(changes_target(&weights));
+        let err = retarget(&table(), &weights, &[], None, None, None).unwrap_err();
+        assert!(err.to_string().contains("nonconstant"));
+    }
+
+    #[test]
+    fn review_mean_contrast_uses_arm_identity_not_column_order() {
+        let mut t = table();
+        t.columns = Arc::from([
+            ScoreColumn { arm: 1, threshold: None },
+            ScoreColumn { arm: 0, threshold: None },
+        ]);
+        t.scores = Arc::from([1.0, 3.0, 1.0, 3.0, 0.0, 0.0, 0.0, 0.0]);
+        let (result, _) = retarget(&t, &[1.0; 4], &[], None, None, None).unwrap();
+        assert!((result.contrast.unwrap().value - 2.0).abs() < 1e-12);
     }
 
     #[test]

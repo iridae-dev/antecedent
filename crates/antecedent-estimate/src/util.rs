@@ -166,8 +166,29 @@ pub(crate) fn bootstrap_se(
     ctx: &ExecutionContext,
     stream_base: u64,
     n: usize,
-    mut estimate: impl FnMut(&[usize]) -> Result<Option<f64>, EstimationError>,
+    estimate: impl Fn(&[usize]) -> Result<Option<f64>, EstimationError> + Sync,
 ) -> Result<BootstrapSeResult, EstimationError> {
+    bootstrap_se_with_scratch(replicates, ctx, stream_base, n, || (), |(), idx| estimate(idx))
+}
+
+/// [`bootstrap_se`] with per-worker scratch so replicate evaluation can run
+/// under [`ExecutionContext::parallelism`] without a shared `&mut` workspace.
+///
+/// Adaptive early-stop stays serial (the floor is a running success count).
+/// When an outer map already saturates the thread budget, `ctx` is serial and
+/// this path does not spawn.
+pub(crate) fn bootstrap_se_with_scratch<S, F>(
+    replicates: u32,
+    ctx: &ExecutionContext,
+    stream_base: u64,
+    n: usize,
+    make_scratch: impl Fn() -> S + Sync,
+    estimate: F,
+) -> Result<BootstrapSeResult, EstimationError>
+where
+    S: Send,
+    F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
+{
     if replicates == 0 || n == 0 {
         return Ok(BootstrapSeResult::skipped());
     }
@@ -213,6 +234,33 @@ pub(crate) fn bootstrap_se(
     if ctx.cancellation.is_cancelled() {
         return Ok(finalize_bootstrap_se_ex(&[], 0, true, false));
     }
+    let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
+    let parallel = threads > 1 && !ctx.adaptive_bootstrap.enabled;
+    if parallel {
+        return evaluate_bootstrap_parallel(ctx, &indexes, n, n_rep, make_scratch, estimate);
+    }
+    evaluate_bootstrap_serial(ctx, &indexes, n, n_rep, make_scratch, estimate)
+}
+
+fn fill_replicate_idx(idx: &mut [usize], indexes: &[u32], n: usize, r: usize) {
+    let slice = &indexes[r * n..(r + 1) * n];
+    for (dst, &src) in idx.iter_mut().zip(slice.iter()) {
+        *dst = src as usize;
+    }
+}
+
+fn evaluate_bootstrap_serial<S, F>(
+    ctx: &ExecutionContext,
+    indexes: &[u32],
+    n: usize,
+    n_rep: usize,
+    make_scratch: impl Fn() -> S,
+    estimate: F,
+) -> Result<BootstrapSeResult, EstimationError>
+where
+    F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError>,
+{
+    let mut scratch = make_scratch();
     let mut ates = Vec::with_capacity(n_rep);
     let mut idx = vec![0usize; n];
     let mut cancelled = false;
@@ -224,12 +272,9 @@ pub(crate) fn bootstrap_se(
             cancelled = true;
             break;
         }
-        let slice = &indexes[r * n..(r + 1) * n];
-        for (dst, &src) in idx.iter_mut().zip(slice.iter()) {
-            *dst = src as usize;
-        }
+        fill_replicate_idx(&mut idx, indexes, n, r);
         attempted += 1;
-        let estimate = estimate(&idx)?.filter(|ate| ate.is_finite());
+        let estimate = estimate(&mut scratch, &idx)?.filter(|ate| ate.is_finite());
         if let Some(ate) = estimate {
             ates.push(ate);
         }
@@ -252,6 +297,74 @@ pub(crate) fn bootstrap_se(
         }
     }
     Ok(finalize_bootstrap_se_ex(&ates, attempted, cancelled, early_stopped))
+}
+
+fn evaluate_bootstrap_parallel<S, F>(
+    ctx: &ExecutionContext,
+    indexes: &[u32],
+    n: usize,
+    n_rep: usize,
+    make_scratch: impl Fn() -> S + Sync,
+    estimate: F,
+) -> Result<BootstrapSeResult, EstimationError>
+where
+    S: Send,
+    F: Fn(&mut S, &[usize]) -> Result<Option<f64>, EstimationError> + Sync,
+{
+    let threads = (ctx.parallelism.max_threads.get() as usize).clamp(1, n_rep);
+    let mut slots: Vec<Option<Result<Option<f64>, EstimationError>>> =
+        (0..n_rep).map(|_| None).collect();
+    std::thread::scope(|scope| {
+        let estimate = &estimate;
+        let make_scratch = &make_scratch;
+        let mut rest = slots.as_mut_slice();
+        let mut start = 0usize;
+        for t in 0..threads {
+            let take = rest.len().div_ceil(threads - t);
+            let (mine, next) = rest.split_at_mut(take);
+            let begin = start;
+            scope.spawn(move || {
+                let mut scratch = make_scratch();
+                let mut idx = vec![0usize; n];
+                for (k, slot) in mine.iter_mut().enumerate() {
+                    let r = begin + k;
+                    if ctx.cancellation.is_cancelled() {
+                        break;
+                    }
+                    fill_replicate_idx(&mut idx, indexes, n, r);
+                    *slot =
+                        Some(estimate(&mut scratch, &idx).map(|v| v.filter(|ate| ate.is_finite())));
+                }
+            });
+            rest = next;
+            start += take;
+            if rest.is_empty() {
+                break;
+            }
+        }
+    });
+    let mut ates = Vec::with_capacity(n_rep);
+    let mut attempted = 0u32;
+    let mut cancelled = ctx.cancellation.is_cancelled();
+    for slot in slots {
+        match slot {
+            None => {
+                cancelled = true;
+                break;
+            }
+            Some(Err(error)) => return Err(error),
+            Some(Ok(value)) => {
+                attempted += 1;
+                if let Some(ate) = value {
+                    ates.push(ate);
+                }
+            }
+        }
+    }
+    if let Some(p) = &ctx.progress {
+        p.report(1.0, "bootstrap");
+    }
+    Ok(finalize_bootstrap_se_ex(&ates, attempted, cancelled, false))
 }
 
 /// OLS residual variance `σ² = RSS / (n − p)` for a fitted coefficient vector.
@@ -364,18 +477,20 @@ pub(crate) fn range(values: &[f64]) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
     use antecedent_core::{AdaptiveBootstrapBudget, CancellationToken, ExecutionContext};
 
     #[test]
     fn cancelled_bootstrap_retains_actual_failures() {
         let ctx = ExecutionContext::for_tests(7);
-        let mut calls = 0;
+        let calls = AtomicU32::new(0);
         let result = bootstrap_se(20, &ctx, 1, 10, |_| {
-            calls += 1;
-            if calls == 4 {
+            let n = calls.fetch_add(1, Ordering::Relaxed) + 1;
+            if n == 4 {
                 ctx.cancellation.cancel();
             }
-            Ok(if calls <= 2 { Some(f64::from(calls)) } else { None })
+            Ok(if n <= 2 { Some(f64::from(n)) } else { None })
         })
         .unwrap();
         assert!(result.cancelled);
@@ -391,10 +506,10 @@ mod tests {
         // ε = 0.5 → floor ⌈1 + 1/(2·0.25)⌉ = 3 successes.
         ctx.adaptive_bootstrap =
             AdaptiveBootstrapBudget { enabled: true, min_replicates: 2, se_rel_epsilon: 0.5 };
-        let mut calls = 0;
+        let calls = AtomicU32::new(0);
         let result = bootstrap_se(20, &ctx, 1, 10, |_| {
-            calls += 1;
-            Ok(if calls <= 4 { None } else { Some(1.0) })
+            let n = calls.fetch_add(1, Ordering::Relaxed) + 1;
+            Ok(if n <= 4 { None } else { Some(1.0) })
         })
         .unwrap();
         assert!(result.early_stopped);
@@ -407,10 +522,9 @@ mod tests {
     fn bootstrap_nonfinite_estimates_are_failures() {
         let ctx = ExecutionContext::for_tests(7);
         let values = [Some(1.0), Some(f64::NAN), Some(f64::INFINITY), Some(2.0)];
-        let mut i = 0;
+        let i = AtomicU32::new(0);
         let result = bootstrap_se(4, &ctx, 1, 5, |_| {
-            let value = values[i];
-            i += 1;
+            let value = values[i.fetch_add(1, Ordering::Relaxed) as usize];
             Ok(value)
         })
         .unwrap();

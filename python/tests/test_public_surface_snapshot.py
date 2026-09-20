@@ -34,6 +34,12 @@ def members(obj):
     names = {n for n in dir(obj) if not n.startswith("_")}
     if dataclasses.is_dataclass(obj):
         names |= {f.name for f in dataclasses.fields(obj) if not f.name.startswith("_")}
+    try:
+        from pydantic import BaseModel
+        if isinstance(obj, type) and issubclass(obj, BaseModel):
+            names |= {n for n in obj.model_fields if not n.startswith("_")}
+    except Exception:
+        pass
     return sorted(names)
 
 json.dump(
@@ -54,8 +60,39 @@ json.dump(
 """
 
 # `annotations` is the `from __future__ import annotations` binding every module
-# carries; it is not API.
+# carries; it is not API. Pydantic machinery on analyze result models is not
+# Antecedent API; callers use ``to_dict()``.
 _NOT_API = {"annotations"}
+_PYDANTIC_SURFACE = {
+    "construct",
+    "copy",
+    "dict",
+    "from_orm",
+    "json",
+    "model_computed_fields",
+    "model_config",
+    "model_construct",
+    "model_copy",
+    "model_dump",
+    "model_dump_json",
+    "model_extra",
+    "model_fields",
+    "model_fields_set",
+    "model_json_schema",
+    "model_parametrized_name",
+    "model_post_init",
+    "model_rebuild",
+    "model_validate",
+    "model_validate_json",
+    "model_validate_strings",
+    "parse_file",
+    "parse_obj",
+    "parse_raw",
+    "schema",
+    "schema_json",
+    "update_forward_refs",
+    "validate",
+}
 
 SNAPSHOT: dict[str, set[str]] = {
     "antecedent": {
@@ -68,6 +105,7 @@ SNAPSHOT: dict[str, set[str]] = {
         # Structure, results and selectors
         "AcceptedGraph",
         "Admg",
+        "Analysis",
         "AnalysisResult",
         "Bayesian",
         "CausalError",
@@ -138,7 +176,10 @@ SNAPSHOT: dict[str, set[str]] = {
     "AnalysisResult": {
         # The five-line API (`ResultAPI`)
         "answer",
+        "as_point",
+        "as_response",
         "calibration",
+        "claim",
         "export",
         "inspect",
         "study",
@@ -172,6 +213,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "mean_ite",
         "refresh",
         "refute",
+        "to_dict",
         # Structural uncertainty
         "structural_identified_mass",
         "structural_identified_set",
@@ -191,6 +233,9 @@ SNAPSHOT: dict[str, set[str]] = {
         # Design-cell sections beside the scalar estimate
         "interference",
         "transport_overlap",
+        # Licensed GCM attribution cells
+        "anomaly",
+        "change_attribution",
     },
     "PreparedAnalysis": {
         # Compile, execute, and the two views
@@ -221,11 +266,18 @@ SNAPSHOT: dict[str, set[str]] = {
         "acceptance",
         "answer",
         "artifact",
+        "as_point",
+        "as_response",
+        "ate",
         "calibration",
+        "claim",
         "claim_id",
+        "effect",
         "export",
         "inspect",
         "program_id",
+        "refresh",
+        "refute",
         "study",
     },
     # Estimator options: the Bayesian likelihood, the temporal history cap and
@@ -303,7 +355,16 @@ def live() -> dict[str, set[str]]:
     completed = subprocess.run(
         [sys.executable, "-c", _DUMP], check=True, text=True, capture_output=True
     )
-    return {name: set(names) - _NOT_API for name, names in json.loads(completed.stdout).items()}
+    return {
+        name: {
+            item
+            for item in names
+            if item not in _NOT_API
+            and item not in _PYDANTIC_SURFACE
+            and not item.startswith("model_")
+        }
+        for name, names in json.loads(completed.stdout).items()
+    }
 
 
 @pytest.mark.parametrize("surface", sorted(SNAPSHOT))

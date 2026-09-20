@@ -113,28 +113,31 @@ Install their Python dependencies using the
 
 | Notebook | What it keeps visible |
 | --- | --- |
-| [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb) — a dashboard can credit paid search for demand that would have existed anyway. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v1.10.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb) |
-| [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb) — reuse a previous campaign’s evidence without assuming the new campaign is identical. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v1.10.0/examples/notebooks/sales_campaign_prior_transfer.ipynb) |
-| [Experiment design](examples/notebooks/marketing_experiment_design.ipynb) — rank a holdout, better intent data, and more CRM records under a £40,000 budget. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v1.10.0/examples/notebooks/marketing_experiment_design.ipynb) |
-| [Continuous causal response](examples/notebooks/continuous_causal_response.ipynb) — a nonlinear dose–response, with identification, support, and uncertainty as separate axes. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v1.10.0/examples/notebooks/continuous_causal_response.ipynb) |
-| [Pricing, availability, and latent demand](examples/notebooks/pricing_availability_latent_demand.ipynb) — observed sales are not demand; the observation-aware route fails closed. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/v1.10.0/examples/notebooks/pricing_availability_latent_demand.ipynb) |
+| [Paid-search attribution](examples/notebooks/marketing_channel_structural_uncertainty.ipynb) — a dashboard can credit paid search for demand that would have existed anyway. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.11/examples/notebooks/marketing_channel_structural_uncertainty.ipynb) |
+| [Campaign evidence transfer](examples/notebooks/sales_campaign_prior_transfer.ipynb) — reuse a previous campaign’s evidence without assuming the new campaign is identical. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.11/examples/notebooks/sales_campaign_prior_transfer.ipynb) |
+| [Experiment design](examples/notebooks/marketing_experiment_design.ipynb) — rank a holdout, better intent data, and more CRM records under a £40,000 budget. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.11/examples/notebooks/marketing_experiment_design.ipynb) |
+| [Continuous causal response](examples/notebooks/continuous_causal_response.ipynb) — a nonlinear dose–response, with identification, support, and uncertainty as separate axes. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.11/examples/notebooks/continuous_causal_response.ipynb) |
+| [Pricing, availability, and latent demand](examples/notebooks/pricing_availability_latent_demand.ipynb) — observed sales are not demand; the observation-aware route fails closed. | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/iridae-dev/antecedent/blob/1.11/examples/notebooks/pricing_availability_latent_demand.ipynb) |
 
 Paired Python and Rust scripts for the same workflows live in
 [examples](examples/README.md).
 
-## 1.10.0
+## 1.11.0
 
-The current package version is **1.10.0**.
-1.10 is a composition release of the existing 341 licensed cells (1423
-meaningful combinations). Every licensed cell has a first-class
+The current package version is **1.11.0**.
+1.11 is the 1.x close-out of the existing licensed cells (1403
+meaningful combinations; 463 licensed). Every licensed cell has a first-class
 inspect/contract coordinate and completes the Rust compiler path
 inspect → preview → execute → claim → consume. That is composition-seam
-evidence, not inherited estimator-oracle truth.
+evidence, not inherited estimator-oracle truth. The
+[1.11 finding closeout](docs/reviews/v1.11-finding-closeout.md) records the
+evidence, identification, numeric, and safety repairs on this tree. Coverage
+records must be attested against it.
 Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
 Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists.
 Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
 See the
-[1.10.0 release notes](docs/release-notes/v1.10.0.md), [1.9.0 calibration
+[1.11.0 release notes](docs/release-notes/v1.11.0.md), [1.10.0 release notes](docs/release-notes/v1.10.0.md), [1.9.0 calibration
 notes](docs/release-notes/v1.9.0.md), [support matrix](docs/support-matrix.md),
 and [conformance index](docs/conformance/README.md). The [1.5 Python
 walkthrough](docs/local-distributional-joint.md) remains the guide for

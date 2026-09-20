@@ -39,6 +39,7 @@ _EXPECTED_ALL = {
     # Structure and results
     "AcceptedGraph",
     "Identification",
+    "Analysis",
     "AnalysisResult",
     # Queries
     "AnomalyAttribution",
@@ -223,7 +224,10 @@ _EXPECTED_STAGE_ALL = {
         "PendingEdge",
         "ReviewRequired",
         "build_review_error",
+        "named_pending_edges",
+        "next_action",
         "pending_edges",
+        "resolve_display_name",
     },
     "estimation": {
         "AnalysisResult",

@@ -214,7 +214,7 @@ fn idc_recurse(
         z_rest.remove(z_node);
         let mut cond = x.clone();
         cond.union_with(&z_rest);
-        if independent_in_mutilated(prepared.admg(), y, z_node, &cond, x, z, &mut workspace.dsep)? {
+        if independent_in_mutilated(prepared.admg(), y, z_node, &cond, x, &mut workspace.dsep)? {
             derivation.push(
                 "general.idc.line1",
                 format!("insert Z={} into intervention (rule 2)", z_node.raw()),
@@ -291,17 +291,18 @@ fn intern_bitset_vars(
     Ok(arena.intern_var_set(vars?))
 }
 
-/// Y ⊥ `z_node` | cond in `G_{\overline{x_nodes} \underline{z_nodes}}`.
+/// Y ⊥ `z_node` | cond in `G_{\overline{x_nodes} \underline{z_node}}`.
 fn independent_in_mutilated(
     admg: &Admg,
     y: &BitSet,
     z_node: DenseNodeId,
     cond: &BitSet,
     x_nodes: &BitSet,
-    z_nodes: &BitSet,
     dsep: &mut DSeparationWorkspace,
 ) -> Result<bool, IdentificationError> {
-    let mutilated = mutilate_bar_x_underline_z(admg, x_nodes, z_nodes)?;
+    let mut z_nodes = BitSet::with_len(admg.node_count());
+    z_nodes.insert(z_node);
+    let mutilated = mutilate_bar_x_underline_z(admg, x_nodes, &z_nodes)?;
     let cond_ids = cond.to_dense_ids();
     // Y may be a set — require every y ∈ Y independent of z_node.
     for y_node in y.to_dense_ids() {
@@ -337,20 +338,16 @@ fn mutilate_bar_x_underline_z(
             out.insert_directed(from, to).map_err(IdentificationError::from)?;
         }
     }
-    // Bidirected unchanged (except endpoints still present).
-    let mut seen = BitSet::with_len(admg.node_count());
+    // Intervention removes all incoming arrowheads, including latent-parent
+    // arrows represented by bidirected edges incident to X.
     for i in 0..admg.node_count() {
         let a = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
         for &b in admg.bidirected_neighbors(a) {
-            if b.raw() < a.raw() {
-                continue;
-            }
-            if seen.contains(a) && seen.contains(b) {
+            if b.raw() < a.raw() || x_nodes.contains(a) || x_nodes.contains(b) {
                 continue;
             }
             out.insert_bidirected(a, b).map_err(IdentificationError::from)?;
         }
-        seen.insert(a);
     }
     Ok(out)
 }
@@ -362,6 +359,114 @@ mod tests {
 
     use super::*;
     use crate::identifier::IdentificationWorkspace;
+
+    #[test]
+    fn review_three_node_surgery_matches_explicit_latent_dags() {
+        let pairs = [(0_u32, 1_u32), (0, 2), (1, 2)];
+        // All 64 directed/bidirected graphs in this topological ordering,
+        // with all six assignments of intervention, conditioning and outcome.
+        for directed in 0..8 {
+            for bidirected in 0..8 {
+                let mut mixed = Admg::empty();
+                for i in 0..3 {
+                    mixed
+                        .add_node(antecedent_core::NodeRef::Static(VariableId::from_raw(i)))
+                        .unwrap();
+                }
+                for (bit, &(a, b)) in pairs.iter().enumerate() {
+                    if directed & (1 << bit) != 0 {
+                        mixed
+                            .insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
+                            .unwrap();
+                    }
+                    if bidirected & (1 << bit) != 0 {
+                        mixed
+                            .insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b))
+                            .unwrap();
+                    }
+                }
+                for x in 0..3 {
+                    for z in 0..3 {
+                        if x == z {
+                            continue;
+                        }
+                        let y = 3 - x - z;
+                        let mut latent = Dag::with_variables(6);
+                        for (bit, &(a, b)) in pairs.iter().enumerate() {
+                            if directed & (1 << bit) != 0 && b != x && a != z {
+                                latent
+                                    .insert_directed(
+                                        DenseNodeId::from_raw(a),
+                                        DenseNodeId::from_raw(b),
+                                    )
+                                    .unwrap();
+                            }
+                            if bidirected & (1 << bit) != 0 {
+                                let u = DenseNodeId::from_raw(3 + u32::try_from(bit).unwrap());
+                                for child in [a, b] {
+                                    if child != x {
+                                        latent
+                                            .insert_directed(u, DenseNodeId::from_raw(child))
+                                            .unwrap();
+                                    }
+                                }
+                            }
+                        }
+                        let (x, z, y) = (
+                            DenseNodeId::from_raw(x),
+                            DenseNodeId::from_raw(z),
+                            DenseNodeId::from_raw(y),
+                        );
+                        let mut xs = BitSet::with_len(3);
+                        xs.insert(x);
+                        let mut ys = BitSet::with_len(3);
+                        ys.insert(y);
+                        let mut ws = DSeparationWorkspace::default();
+                        let actual =
+                            independent_in_mutilated(&mixed, &ys, z, &xs, &xs, &mut ws).unwrap();
+                        let expected = latent.is_d_separated(y, z, &[x], &mut ws).unwrap();
+                        assert_eq!(
+                            actual, expected,
+                            "directed={directed} bidirected={bidirected} x={x:?} z={z:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn review_intervention_cuts_latent_parent_arrowheads() {
+        // Z <-> X <-> Y: conditioning on X opens the collider before surgery;
+        // do(X) removes both latent-parent arrows into X and closes that path.
+        let mut graph = Admg::empty();
+        for i in 0..3 {
+            graph.add_node(antecedent_core::NodeRef::Static(VariableId::from_raw(i))).unwrap();
+        }
+        let z = DenseNodeId::from_raw(0);
+        let x = DenseNodeId::from_raw(1);
+        let y = DenseNodeId::from_raw(2);
+        graph.insert_bidirected(z, x).unwrap();
+        graph.insert_bidirected(x, y).unwrap();
+        let mut xs = BitSet::with_len(3);
+        xs.insert(x);
+        let mut ys = BitSet::with_len(3);
+        ys.insert(y);
+        let mut ws = DSeparationWorkspace::default();
+        assert!(!graph.is_m_separated(z, y, &[x], &mut ws).unwrap());
+        assert!(independent_in_mutilated(&graph, &ys, z, &xs, &xs, &mut ws).unwrap());
+
+        // Independent explicit-latent DAG oracle: U -> Z, U -> X,
+        // V -> X, V -> Y. After do(X), only U -> Z and V -> Y remain.
+        let mut latent = Dag::with_variables(5);
+        latent.insert_directed(DenseNodeId::from_raw(3), z).unwrap();
+        latent.insert_directed(DenseNodeId::from_raw(4), y).unwrap();
+        assert!(latent.is_d_separated(z, y, &[x], &mut ws).unwrap());
+
+        // Intervening elsewhere must not erase remaining latent confounding.
+        graph.insert_bidirected(z, y).unwrap();
+        assert!(!independent_in_mutilated(&graph, &ys, z, &xs, &xs, &mut ws).unwrap());
+    }
 
     #[test]
     fn unconditional_matches_id() {

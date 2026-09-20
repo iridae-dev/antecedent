@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, MediationContrast, MediationQuery};
@@ -16,6 +17,82 @@ use crate::common::{
     RefutationReport, fill_gaussian, replicate_p_value, with_contiguous_row_window,
     with_extra_float, with_replaced_float,
 };
+
+/// Query-native cheap/full dispatch. Temporal mediation uses the mediation
+/// suite, not ATE [`crate::RefutationProblem`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum QueryRefutationPlan {
+    /// Placebo-mediator and RCC; full adds a contiguous-window stability check.
+    TemporalMediation {
+        /// Whether the full suite is requested.
+        full: bool,
+    },
+}
+
+impl QueryRefutationPlan {
+    /// Plan for [`refute_temporal_mediation_adjusted`].
+    #[must_use]
+    pub const fn temporal_mediation(full: bool) -> Self {
+        Self::TemporalMediation { full }
+    }
+
+    /// Run this plan on one identified atom against that atom's own contrast.
+    ///
+    /// # Errors
+    ///
+    /// Invalid refit data, regression failure, or cancellation.
+    pub fn refute_temporal_atom(
+        self,
+        data: &TimeSeriesData,
+        estimand: &IdentifiedEstimand,
+        query: &MediationQuery,
+        original: &TemporalMediationEstimate,
+        adjustment: &[LaggedColumn],
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<RefutationReport>, ValidationError> {
+        match self {
+            Self::TemporalMediation { full } => refute_temporal_mediation_adjusted(
+                data, estimand, query, original, full, adjustment, ctx,
+            ),
+        }
+    }
+
+    /// Mix per-atom reports of the same refuter by graph weight.
+    ///
+    /// The mixed check passes only if every positive-weight contributing atom
+    /// passed ([`RefutationReport::mixture_weighted`]).
+    #[must_use]
+    pub fn mix_weighted(
+        items: impl IntoIterator<Item = (f64, Vec<RefutationReport>)>,
+    ) -> Vec<RefutationReport> {
+        let mut order = Vec::new();
+        let mut by_refuter: HashMap<Arc<str>, Vec<(f64, RefutationReport)>> = HashMap::new();
+        for (weight, reports) in items {
+            if weight <= 0.0 {
+                continue;
+            }
+            for report in reports {
+                let bucket = by_refuter.entry(Arc::clone(&report.refuter)).or_insert_with(|| {
+                    order.push(Arc::clone(&report.refuter));
+                    Vec::new()
+                });
+                bucket.push((weight, report));
+            }
+        }
+        let mut mixed = Vec::with_capacity(order.len());
+        for id in order {
+            let Some(bucket) = by_refuter.get(&id) else {
+                continue;
+            };
+            let borrowed: Vec<(f64, &RefutationReport)> =
+                bucket.iter().map(|(w, r)| (*w, r)).collect();
+            if let Some(report) = RefutationReport::mixture_weighted(&borrowed) {
+                mixed.push(report);
+            }
+        }
+        mixed
+    }
+}
 
 /// Run placebo-mediator and random-common-cause checks on the mediation model.
 /// Full adds a contiguous-window contrast stability check, preserving lag adjacency.

@@ -33,7 +33,7 @@ use antecedent_core::{
 use antecedent_data::{
     NetworkData, NetworkEdge, SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData,
 };
-use antecedent_discovery::GraphPosterior;
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{
     Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag,
@@ -288,11 +288,13 @@ fn pag_envelope_fixture() -> (TabularData, Pag) {
 }
 
 fn uses_pag_envelope(cell: &antecedent::SupportCell) -> bool {
-    cell.graph_class == "Pag" && matches!(cell.query, "AverageEffect" | "ConditionalEffect")
+    cell.graph_class == "Pag"
+        && matches!(cell.query, "AverageEffect" | "ConditionalEffect")
+        && cell.structure != "graph_posterior"
 }
 
 fn uses_identified_temporal_pag(cell: &antecedent::SupportCell) -> bool {
-    cell.graph_class == "TemporalPag"
+    cell.graph_class == "TemporalPag" && cell.structure != "graph_posterior"
 }
 
 fn identified_pag_pin() -> serde_json::Value {
@@ -446,6 +448,41 @@ fn temporal_gp(n_vars: usize) -> GraphPosterior {
     static_gp(n_vars).with_lagged_marginals(1, lagged).unwrap().with_lag_masks(vec![2]).unwrap()
 }
 
+/// Reconstructible TemporalCpdag/Pag atom.
+///
+/// `TemporalPag` MAG adjustment needs a contemporaneous arrowhead into the
+/// treatment so the unfolded `t_{t-1} → y_t` edge is visible. `2→0` and `2→1`
+/// plus lag `0→1` is that backdoor template.
+fn temporal_class_gp(n_vars: usize) -> GraphPosterior {
+    let cell = n_vars * n_vars;
+    let mut lagged = vec![0.0; cell];
+    let mut adjacency = 0u64;
+    let mut lag_mask = 0u64;
+    if n_vars >= 2 {
+        lagged[1] = 1.0;
+        lag_mask |= 1u64 << 1;
+    }
+    if n_vars >= 3 {
+        lagged[2 * n_vars + 1] = 1.0;
+        adjacency = set_edge(set_edge(0, n_vars, 2, 0, true), n_vars, 2, 1, true);
+    }
+    GraphPosterior::new(
+        n_vars,
+        vec![1.0],
+        vec![adjacency],
+        vec![0.0; cell],
+        vec![0.0; cell],
+        1.0,
+        InferenceDiagnostics::analytic("licensed-compiler-temporal-class-gp"),
+        0,
+    )
+    .unwrap()
+    .with_lagged_marginals(1, lagged)
+    .unwrap()
+    .with_lag_masks(vec![lag_mask])
+    .unwrap()
+}
+
 fn temporal_spec() -> TemporalResponseSpec {
     TemporalResponseSpec::new([1], TemporalPolicy::pulse(-1), Some(1)).unwrap()
 }
@@ -476,7 +513,11 @@ fn query_for(cell: &antecedent::SupportCell) -> CausalQuery {
             CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(vid(0), vid(1)))
         }
         "ConditionalEffect" => {
-            let modifier = if cell.graph_class == "Pag" { vid(5) } else { vid(2) };
+            let modifier = if cell.graph_class == "Pag" && cell.structure != "graph_posterior" {
+                vid(5)
+            } else {
+                vid(2)
+            };
             CausalQuery::ConditionalEffect(
                 ConditionalEffectQuery::try_new(
                     AverageEffectQuery::binary_ate(vid(0), vid(1))
@@ -631,6 +672,7 @@ fn n_vars(cell: &antecedent::SupportCell) -> u32 {
         "AverageEffect" if matches!(cell.graph_class, "CoDetermined" | "Unknown") => 4,
         "ConditionalEffect" => 3,
         _ if needs_series(cell) && cell.query == "TemporalMediationEffect" => 3,
+        _ if needs_series(cell) && cell.graph_class == "TemporalPag" => 3,
         _ if needs_series(cell) => 2,
         _ => 3,
     }
@@ -713,7 +755,8 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
         } else if cell.query == "InterferenceQuery" {
             static_table(&[("y", 0), ("x", 1)])
         } else if cell.query == "InterventionalDistribution"
-            || (cell.query == "AverageEffect" && cell.graph_class == "Admg")
+            || (matches!(cell.query, "AverageEffect" | "ResponseCurve" | "InterventionResponse")
+                && cell.graph_class == "Admg")
         {
             discrete_joint_table(&["t", "y", "z"][..n.min(3) as usize])
         } else if matches!(
@@ -739,11 +782,28 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
     builder = builder.query(query).refute(refute).inference(inference).bootstrap_replicates(0);
 
     builder = match cell.structure {
-        "graph_posterior" => builder.graph_posterior(if series {
-            temporal_gp(n as usize)
-        } else {
-            static_gp(n as usize)
-        }),
+        "graph_posterior" => {
+            let gp = if series {
+                if cell.query == "TemporalMediationEffect"
+                    && matches!(cell.graph_class, "TemporalCpdag" | "TemporalPag")
+                {
+                    temporal_gp(n as usize)
+                } else if matches!(cell.graph_class, "TemporalCpdag" | "TemporalPag") {
+                    temporal_class_gp(n as usize)
+                } else {
+                    temporal_gp(n as usize)
+                }
+            } else {
+                static_gp(n as usize)
+            };
+            let gp = match cell.graph_class {
+                "Cpdag" | "TemporalCpdag" => gp.with_atom_kind(GraphPosteriorAtomKind::Cpdag),
+                "Pag" | "TemporalPag" => gp.with_atom_kind(GraphPosteriorAtomKind::Pag),
+                "Admg" => gp.with_atom_kind(GraphPosteriorAtomKind::Admg),
+                _ => gp,
+            };
+            builder.graph_posterior(gp)
+        }
         "explicit" | "accepted" => {
             let accepted = cell.structure == "accepted";
             match cell.graph_class {
@@ -827,7 +887,9 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
             .identifier(IdentifierId::GeneralId)
             .estimator(EstimatorId::FunctionalDistribution);
     }
-    if cell.query == "AverageEffect" && cell.graph_class == "Admg" {
+    if matches!(cell.query, "AverageEffect" | "ResponseCurve" | "InterventionResponse")
+        && cell.graph_class == "Admg"
+    {
         builder =
             builder.identifier(IdentifierId::GeneralId).estimator(EstimatorId::FunctionalEffect);
     }
@@ -987,7 +1049,7 @@ fn every_licensed_cell_inspects_as_a_first_class_contract() {
             failures.push(err);
         }
     }
-    assert_eq!(n, 341, "licensed inventory drifted");
+    assert_eq!(n, 463, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells are not first-class on inspect:\n{}",
@@ -1026,7 +1088,7 @@ fn every_licensed_cell_completes_the_compiler_path() {
             Err(err) => failures.push(err),
         }
     }
-    assert_eq!(n, 341, "licensed inventory drifted");
+    assert_eq!(n, 463, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells did not finish inspect→preview→execute→claim→consume:\n{}",

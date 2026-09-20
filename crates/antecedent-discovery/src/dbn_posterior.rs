@@ -24,8 +24,9 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, VariableId};
+use antecedent_core::{ExecutionContext, Lag, NodeRef, VariableId};
 use antecedent_data::{TableView, TimeSeriesData};
+use antecedent_graph::{DenseNodeId, MarkedEdge, MiddleMark, TemporalCpdag, TemporalPag};
 use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, LocalScoreCache};
 
 use crate::error::DiscoveryError;
@@ -420,6 +421,184 @@ pub fn temporal_dag_from_dbn_masks(
         }
     }
     Ok(g)
+}
+
+fn ensure_temporal_cpdag_lagged(
+    graph: &mut TemporalCpdag,
+    variable: VariableId,
+    lag: Lag,
+) -> Result<DenseNodeId, DiscoveryError> {
+    for (i, node) in graph.nodes().iter().enumerate() {
+        if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node {
+            if *existing == variable && *existing_lag == lag {
+                return Ok(DenseNodeId::try_from_usize(i)?);
+            }
+        }
+    }
+    Ok(graph.add_lagged(variable, lag)?)
+}
+
+fn ensure_temporal_pag_lagged(
+    graph: &mut TemporalPag,
+    variable: VariableId,
+    lag: Lag,
+) -> Result<DenseNodeId, DiscoveryError> {
+    for (i, node) in graph.nodes().iter().enumerate() {
+        if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node {
+            if *existing == variable && *existing_lag == lag {
+                return Ok(DenseNodeId::try_from_usize(i)?);
+            }
+        }
+    }
+    Ok(graph.add_lagged(variable, lag)?)
+}
+
+fn insert_lagged_directed_cpdag(
+    graph: &mut TemporalCpdag,
+    lmask: u64,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+) -> Result<(), DiscoveryError> {
+    for lag in 1..=max_lag {
+        for i in 0..n_vars {
+            for j in 0..n_vars {
+                if has_lag_edge(lmask, n_vars, max_lag, lag, i, j) {
+                    let from =
+                        ensure_temporal_cpdag_lagged(graph, variables[i], Lag::from_raw(lag))?;
+                    let to =
+                        ensure_temporal_cpdag_lagged(graph, variables[j], Lag::CONTEMPORANEOUS)?;
+                    graph.insert_directed(from, to)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn insert_lagged_directed_pag(
+    graph: &mut TemporalPag,
+    lmask: u64,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+) -> Result<(), DiscoveryError> {
+    for lag in 1..=max_lag {
+        for i in 0..n_vars {
+            for j in 0..n_vars {
+                if has_lag_edge(lmask, n_vars, max_lag, lag, i, j) {
+                    let from = ensure_temporal_pag_lagged(graph, variables[i], Lag::from_raw(lag))?;
+                    let to = ensure_temporal_pag_lagged(graph, variables[j], Lag::CONTEMPORANEOUS)?;
+                    graph.insert_directed(from, to)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Build a [`TemporalCpdag`] from contemporaneous + lag masks.
+///
+/// Contemporaneous packing matches [`crate::cpdag_from_adjacency_mask`]: both
+/// directed bits encode an undirected edge. Lag-`ℓ` bits are time-oriented
+/// `X_{t-ℓ} → Y_t` edges.
+///
+/// # Errors
+///
+/// Variable-count mismatch or a graph mutation the `TemporalCpdag` rejects.
+pub fn temporal_cpdag_from_dbn_masks(
+    cmask: u64,
+    lmask: u64,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+) -> Result<TemporalCpdag, DiscoveryError> {
+    if variables.len() != n_vars {
+        return Err(DiscoveryError::data_msg(
+            "temporal_cpdag_from_dbn_masks: variables length != n_vars",
+        ));
+    }
+    let mut graph = TemporalCpdag::empty();
+    for i in 0..n_vars {
+        for j in (i + 1)..n_vars {
+            let ij = has_edge(cmask, n_vars, i, j);
+            let ji = has_edge(cmask, n_vars, j, i);
+            if !ij && !ji {
+                continue;
+            }
+            let a = ensure_temporal_cpdag_lagged(&mut graph, variables[i], Lag::CONTEMPORANEOUS)?;
+            let b = ensure_temporal_cpdag_lagged(&mut graph, variables[j], Lag::CONTEMPORANEOUS)?;
+            if ij && ji {
+                graph.insert_undirected(a, b)?;
+            } else if ij {
+                graph.insert_directed(a, b)?;
+            } else {
+                graph.insert_directed(b, a)?;
+            }
+        }
+    }
+    insert_lagged_directed_cpdag(&mut graph, lmask, n_vars, max_lag, variables)?;
+    Ok(graph)
+}
+
+/// Build a [`TemporalPag`] from contemporaneous + lag + circle-mark masks.
+///
+/// Contemporaneous packing matches [`crate::pag_from_adjacency_mask`]. Lag-`ℓ`
+/// bits are time-oriented directed edges.
+///
+/// # Errors
+///
+/// Variable-count mismatch or a graph mutation the `TemporalPag` rejects.
+pub fn temporal_pag_from_dbn_masks(
+    cmask: u64,
+    lmask: u64,
+    mark_mask: u64,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+) -> Result<TemporalPag, DiscoveryError> {
+    if variables.len() != n_vars {
+        return Err(DiscoveryError::data_msg(
+            "temporal_pag_from_dbn_masks: variables length != n_vars",
+        ));
+    }
+    let mut graph = TemporalPag::empty();
+    for i in 0..n_vars {
+        for j in (i + 1)..n_vars {
+            let ij = has_edge(cmask, n_vars, i, j);
+            let ji = has_edge(cmask, n_vars, j, i);
+            if !ij && !ji {
+                continue;
+            }
+            let a = ensure_temporal_pag_lagged(&mut graph, variables[i], Lag::CONTEMPORANEOUS)?;
+            let b = ensure_temporal_pag_lagged(&mut graph, variables[j], Lag::CONTEMPORANEOUS)?;
+            let circle_a = has_edge(mark_mask, n_vars, i, j);
+            let circle_b = has_edge(mark_mask, n_vars, j, i);
+            if ij && ji {
+                if circle_a && circle_b {
+                    graph.insert_circle_circle_with_middle(a, b, MiddleMark::Empty)?;
+                } else if !circle_a && !circle_b {
+                    graph.insert_marked(MarkedEdge::bidirected(a, b))?;
+                } else if circle_a {
+                    graph.insert_circle_arrow(a, b)?;
+                } else {
+                    graph.insert_circle_arrow(b, a)?;
+                }
+            } else if ij {
+                if circle_a {
+                    graph.insert_circle_arrow(a, b)?;
+                } else {
+                    graph.insert_directed(a, b)?;
+                }
+            } else if circle_b {
+                graph.insert_circle_arrow(b, a)?;
+            } else {
+                graph.insert_directed(b, a)?;
+            }
+        }
+    }
+    insert_lagged_directed_pag(&mut graph, lmask, n_vars, max_lag, variables)?;
+    Ok(graph)
 }
 
 fn score_dbn_template(

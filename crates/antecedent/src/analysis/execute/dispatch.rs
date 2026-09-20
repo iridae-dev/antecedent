@@ -5,7 +5,8 @@ use super::*;
 /// Refusal for a graph-posterior study whose data / query pair has no route.
 pub(super) const GRAPH_POSTERIOR_QUERY_REFUSAL: &str = concat!(
     "graph-posterior analysis supports tabular average-effect, conditional-effect, or static ",
-    "response queries, and series temporal-effect or temporal-mediation queries only",
+    "response queries, and series temporal-effect, temporal-mediation, or temporal ",
+    "response queries only",
 );
 
 impl super::Study {
@@ -46,15 +47,12 @@ impl super::Study {
                         (&self.data, class),
                         (
                             DataInput::Tabular(_),
-                            GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
+                            GraphClass::Dag
+                                | GraphClass::Cpdag
+                                | GraphClass::Pag
+                                | GraphClass::Admg
                         )
-                    )
-                    || (matches!(
-                        (&self.data, class),
-                        (DataInput::Tabular(_), GraphClass::Admg)
-                    ) && self.tiered.as_ref().is_some_and(|b| {
-                        b.within_tier == antecedent_graph::WithinTier::CoDetermined
-                    })))
+                    ))
                     || (q.is_temporal()
                         && matches!(
                             (&self.data, class),
@@ -68,7 +66,7 @@ impl super::Study {
             {
                 return Err(CausalError::Unsupported {
                     message: "static CausalQuery::Response requires tabular data and a Dag, \
-                              Cpdag, or Pag (or a CoDetermined tier closure); temporal \
+                              Cpdag, Pag, or Admg (or a CoDetermined tier closure); temporal \
                               response requires series/event/panel data and a temporal graph",
                 });
             }
@@ -408,16 +406,39 @@ impl super::Study {
                 (
                     DataInput::Temporal(data) | DataInput::Event(data),
                     CausalQuery::TemporalEffect(q),
-                ) => match self.inference {
-                    InferenceMode::Frequentist => {
-                        self.execute_dbn_posterior_frequentist(data, gp, q, physical, ctx)
+                ) => match gp.atom_kind {
+                    antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                    | antecedent_discovery::GraphPosteriorAtomKind::Pag => {
+                        self.execute_temporal_class_graph_posterior(data, gp, q, physical, ctx)
                     }
-                    InferenceMode::Bayesian(_) => {
-                        self.execute_dbn_posterior_bayesian(data, gp, q, physical, ctx)
-                    }
+                    _ => match self.inference {
+                        InferenceMode::Frequentist => {
+                            self.execute_dbn_posterior_frequentist(data, gp, q, physical, ctx)
+                        }
+                        InferenceMode::Bayesian(_) => {
+                            self.execute_dbn_posterior_bayesian(data, gp, q, physical, ctx)
+                        }
+                    },
                 },
                 (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Mediation(q)) => {
-                    self.execute_dbn_posterior_mediation(data, gp, q, physical, ctx)
+                    match gp.atom_kind {
+                        antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                        | antecedent_discovery::GraphPosteriorAtomKind::Pag => self
+                            .execute_temporal_class_graph_posterior_mediation(
+                                data, gp, q, physical, ctx,
+                            ),
+                        _ => self.execute_dbn_posterior_mediation(data, gp, q, physical, ctx),
+                    }
+                }
+                (DataInput::Temporal(data) | DataInput::Event(data), CausalQuery::Response(q)) => {
+                    match gp.atom_kind {
+                        antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                        | antecedent_discovery::GraphPosteriorAtomKind::Pag => self
+                            .execute_temporal_class_graph_posterior_response(
+                                data, gp, q, physical, ctx,
+                            ),
+                        _ => self.execute_dbn_posterior_response(data, gp, q, physical, ctx),
+                    }
                 }
                 _ => Err(CausalError::Unsupported { message: GRAPH_POSTERIOR_QUERY_REFUSAL }),
             };
@@ -535,11 +556,28 @@ impl super::Study {
         let query = match &self.query {
             CausalQuery::AverageEffect(q) => q,
             CausalQuery::ConditionalEffect(q) => &q.inner,
-            CausalQuery::Response(q) => {
-                return self.execute_graph_posterior_response(data, gp, q, physical, ctx);
-            }
+            CausalQuery::Response(q) => match gp.atom_kind {
+                antecedent_discovery::GraphPosteriorAtomKind::Dag => {
+                    return self.execute_graph_posterior_response(data, gp, q, physical, ctx);
+                }
+                antecedent_discovery::GraphPosteriorAtomKind::Admg => {
+                    return self.execute_admg_graph_posterior_response(data, gp, q, physical, ctx);
+                }
+                _ => {
+                    return self.execute_class_graph_posterior_response(data, gp, q, physical, ctx);
+                }
+            },
             _ => return Err(CausalError::Unsupported { message: GRAPH_POSTERIOR_QUERY_REFUSAL }),
         };
+        match gp.atom_kind {
+            antecedent_discovery::GraphPosteriorAtomKind::Admg => {
+                return self.execute_admg_graph_posterior(data, gp, query, physical, ctx);
+            }
+            antecedent_discovery::GraphPosteriorAtomKind::Dag => {}
+            _ => {
+                return self.execute_class_graph_posterior(data, gp, query, physical, ctx);
+            }
+        }
         match &self.inference {
             InferenceMode::Frequentist => {
                 self.execute_graph_posterior_frequentist(data, gp, query, physical, ctx)
@@ -577,8 +615,24 @@ impl super::Study {
                     {
                         self.execute_codetermined_joint_response(data, q, physical, ctx)
                     }
+                    GraphClass::Admg => {
+                        let admg = self
+                            .graph
+                            .as_admg()
+                            .expect("class() == Admg implies as_admg() is Some");
+                        if admg_has_bidirected(admg) {
+                            self.execute_admg_response(data, admg, q, physical, ctx)
+                        } else {
+                            let graph = physical.static_graph().ok_or(CausalError::Compile {
+                                message: "Ready ADMG (DAG-coerced) response plan missing resolved \
+                                     static DAG"
+                                    .into(),
+                            })?;
+                            self.execute_response(data, graph, q, physical, ctx)
+                        }
+                    }
                     _ => Err(CausalError::Unsupported {
-                        message: "static response execute requires a Dag, Cpdag, or Pag \
+                        message: "static response execute requires a Dag, Cpdag, Pag, or Admg \
                                   (or a CoDetermined tier closure)",
                     }),
                 }

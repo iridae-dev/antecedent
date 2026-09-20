@@ -295,12 +295,12 @@ impl CalibrationBasis {
     }
 }
 
-/// Caller-attested validator evidence.
+/// Caller-attested evidence (custom validators or an external estimate).
 #[derive(Clone, Debug, PartialEq)]
 pub struct AttestedEvidence {
-    /// Validator name.
+    /// Validator name, or the caller-supplied learner label.
     pub name: Arc<str>,
-    /// Evidence kind.
+    /// Evidence kind (`custom_validator` or `external_estimate`).
     pub kind: Arc<str>,
     /// Whether the validator passed.
     pub passed: bool,
@@ -312,8 +312,12 @@ pub struct AttestedEvidence {
     pub informative: bool,
     /// Failure condition, when reported.
     pub failure_condition: Option<Arc<str>>,
-    /// Always false at 1.10.0.
+    /// Always false — attested evidence is not re-verifiable.
     pub reverifiable: bool,
+    /// Digest of the caller-supplied learner config, when this is an external estimate.
+    pub config_digest: Option<Arc<str>>,
+    /// Digest of the caller-supplied estimate payload, when this is an external estimate.
+    pub payload_digest: Option<Arc<str>>,
 }
 
 impl ClaimEnvelope {
@@ -1345,6 +1349,26 @@ mod tests {
         let derived =
             HandoffReceipt::new(digest(1), Some(digest(2)), "host", "derive", [], [], [], []);
         assert!(!derived.equivalent_claim());
+    }
+
+    #[test]
+    fn external_estimate_evidence_is_attested_and_not_reverifiable() {
+        let evidence = AttestedEvidence {
+            name: Arc::from("econml.dml.CausalForestDML"),
+            kind: Arc::from("external_estimate"),
+            passed: true,
+            refuted_ate: None,
+            comparison: None,
+            informative: true,
+            failure_condition: None,
+            reverifiable: false,
+            config_digest: Some(Arc::from("aa")),
+            payload_digest: Some(Arc::from("bb")),
+        };
+        assert_eq!(evidence.kind.as_ref(), "external_estimate");
+        assert!(!evidence.reverifiable);
+        assert_eq!(evidence.config_digest.as_deref(), Some("aa"));
+        assert_eq!(evidence.payload_digest.as_deref(), Some("bb"));
     }
 
     fn sample_claim(byte: u8, identified_mass: f64) -> ClaimEnvelope {

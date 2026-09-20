@@ -2,9 +2,11 @@
 
 use antecedent_io::executed_functional_labels;
 use antecedent_io::{
-    CausalPayloadWire, CausalQueryWire, CausalResponseWire, InterferenceEstimateWire,
-    TransportEffectEstimateWire, TransportIdentificationWire, decode_analysis_result_artifact,
-    decode_causal_payload_artifact, encode_causal_payload_artifact,
+    CausalPayloadWire, CausalQueryWire, CausalResponseWire, ExternalEstimateAttach,
+    InterferenceEstimateWire, TransportEffectEstimateWire, TransportIdentificationWire,
+    decode_analysis_result_artifact, decode_causal_payload_artifact,
+    encode_causal_payload_artifact, encode_external_estimate_claim, parse_digest_hex,
+    payload_digest,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -205,10 +207,54 @@ fn accept_analysis_result_contract(
     Ok(out)
 }
 
+#[pyfunction(name = "encode_external_estimate_claim")]
+#[pyo3(signature = (*, learner, config, payload, names, treatment, outcome, identifier, status, confounders, identification=None, data_snapshot=None, snapshot_payload=None, scalar_value=None))]
+#[allow(clippy::too_many_arguments)]
+fn encode_external_estimate_claim_py<'py>(
+    py: Python<'py>,
+    learner: &str,
+    config: &[u8],
+    payload: &[u8],
+    names: Vec<String>,
+    treatment: &str,
+    outcome: &str,
+    identifier: &str,
+    status: &str,
+    confounders: Vec<String>,
+    identification: Option<&str>,
+    data_snapshot: Option<&str>,
+    snapshot_payload: Option<&[u8]>,
+    scalar_value: Option<f64>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let identification =
+        identification.map(parse_digest_hex).transpose().map_err(serialization_error)?;
+    let data_snapshot = match data_snapshot {
+        Some(hex) => parse_digest_hex(hex).map_err(serialization_error)?,
+        None => payload_digest("external_estimate.data_snapshot", snapshot_payload.unwrap_or(b"")),
+    };
+    let bytes = encode_external_estimate_claim(&ExternalEstimateAttach {
+        learner: learner.into(),
+        config: config.to_vec(),
+        payload: payload.to_vec(),
+        names,
+        treatment: treatment.into(),
+        outcome: outcome.into(),
+        confounders,
+        identifier: identifier.into(),
+        status: status.into(),
+        identification,
+        data_snapshot,
+        scalar_value,
+    })
+    .map_err(serialization_error)?;
+    Ok(PyBytes::new(py, &bytes))
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DecodedCausalArtifact>()?;
     m.add_function(wrap_pyfunction!(encode_causal_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(decode_causal_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(accept_analysis_result_contract, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_external_estimate_claim_py, m)?)?;
     Ok(())
 }

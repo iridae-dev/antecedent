@@ -4,13 +4,14 @@ build-backend = "maturin"
 
 [project]
 name = "antecedent"
-version = "1.10.0"
+version = "1.11.0"
 description = "Identification-first causal inference: discovery, identification, estimation, interventions, and counterfactuals under structural uncertainty"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT OR Apache-2.0" }
 dependencies = [
   "numpy>=1.26",
+  "pydantic>=2.13.5",
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -37,6 +38,7 @@ Documentation = "https://antecedent.readthedocs.io/"
 features = ["pyo3/extension-module"]
 python-source = "."
 module-name = "antecedent._native"
+include = ["antecedent/py.typed"]
 # PEP 517/660 builds (including the editable rebuild uv triggers whenever this
 # file changes) default to Cargo's debug profile, which ships an unoptimized
 # faer/pulp and makes analyze_ate ~50x slower with bit-identical output.
@@ -106,8 +108,8 @@ disallow_untyped_defs = false
 warn_return_any = false
 show_error_codes = true
 
-# pandas is an optional runtime dependency, imported lazily inside
-# ValidationView.to_pandas(); it ships no type stubs here.
+# pandas is an optional runtime dependency for caller conversion after
+# ValidationView.to_columns(); it ships no type stubs here.
 [[tool.mypy.overrides]]
-module = "pandas.*"
+module = ["pandas.*", "pyarrow.*"]
 ignore_missing_imports = true

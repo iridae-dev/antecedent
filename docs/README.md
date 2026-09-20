@@ -7,14 +7,15 @@ Start with the [documentation home](index.md).
 - [Examples](examples.md): choose a workflow by the question you want to answer.
 - [Supported analyses](supported-analyses.md): check support and understand refusals.
 - [Python workflow reference](python-options.md): configure or integrate an analysis.
-- [1.10 release notes](release-notes/v1.10.0.md): changes in this version.
+- [1.11.0 release notes](release-notes/v1.11.0.md): changes in this version.
+- [1.11 finding closeout](reviews/v1.11-finding-closeout.md): review repairs on this tree.
 
 ## How docs are published
 
 | Surface | Host | Builder |
 |---------|------|---------|
 | Narrative (`docs/`) | [Read the Docs](https://antecedent.readthedocs.io/) | MkDocs — `mkdocs.yml`, `.readthedocs.yaml` |
-| Python API | [RTD `/python/`](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) | source checkout + `pdoc` in RTD `post_build` |
+| Python API | [RTD `/python/`](https://antecedent.readthedocs.io/en/latest/python/antecedent.html) | published wheel + `pdoc` in RTD `post_build` (compile the checkout only if that version is not on PyPI) |
 | Rust API | [docs.rs/antecedent](https://docs.rs/antecedent) | `cargo doc` on crates.io publish |
 
 Release `docs.tar.gz` still bundles markdown + rustdoc + pdoc for offline use; the

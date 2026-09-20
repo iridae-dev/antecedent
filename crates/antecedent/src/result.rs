@@ -106,6 +106,36 @@ impl From<StructuralWeightBasis> for antecedent_io::StructuralWeightBasisWire {
     }
 }
 
+/// How identified structural atoms may be combined.
+///
+/// Mass-weighting is licensed only when every contributing atom names the same
+/// estimand. Completion enumeration is a [`StructuralWeightBasis`], not a
+/// reason to treat class members as posterior probability.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum StructuralAggregationPolicy {
+    /// Identified atoms share one estimand identity; a probability-weighted
+    /// mean of their values is the same functional.
+    SameEstimandWeightedMean,
+    /// Identified atoms share one partially identified estimand; publish the
+    /// identified set, not a fake scalar mixture.
+    IdentifiedSetEnvelope,
+    /// Identified atoms name different estimands. No scalar mixture.
+    GraphDependentAtoms,
+}
+
+impl StructuralAggregationPolicy {
+    /// Snake-case name used in diagnostics.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SameEstimandWeightedMean => "same_estimand_weighted_mean",
+            Self::IdentifiedSetEnvelope => "identified_set_envelope",
+            Self::GraphDependentAtoms => "graph_dependent_atoms",
+        }
+    }
+}
+
 /// One structural atom in a graph-dependent response.
 #[derive(Clone, Debug)]
 pub struct StructuralResponseAtom {
@@ -155,8 +185,10 @@ pub struct StructuralResponseMixture {
     /// enumeration was capped the interval is still published, flagged
     /// `truncated`, with a warning diagnostic.
     pub identified_set_interval: Option<antecedent_estimate::IdentifiedSetInterval>,
-    /// Probability-weighted summary, only for posterior-probability or caller-
-    /// supplied class-prior weights when unidentified mass is zero.
+    /// Probability-weighted summary when a scalar `SameEstimandWeightedMean` mix is
+    /// published (`E[τ | identified]`). Retained unidentified mass does not
+    /// suppress this field; consumers should read `identification.status` and
+    /// `unidentified_mass` alongside it.
     pub conditional_on_identified: Option<ResponseValue>,
     /// Whether reported mass covers the full class rather than a capped subset.
     pub full_mass_scope: bool,

@@ -67,7 +67,7 @@ def validate_pcmci_block_bootstrap(
     replicates: int = 20,
     block_size: int = 20,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_pcmci_block_bootstrap,
@@ -93,7 +93,7 @@ def validate_pcmci_false_positive(
     transform: str = "permute",
     replicates: int = 20,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_pcmci_false_positive,
@@ -117,7 +117,7 @@ def validate_pcmci_alpha_sensitivity(
     fdr: bool = False,
     ci: str = "parcorr",
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_pcmci_alpha_sensitivity,
@@ -139,7 +139,7 @@ def validate_pcmci_lag_sensitivity(
     fdr: bool = False,
     ci: str = "parcorr",
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_pcmci_lag_sensitivity,
@@ -161,7 +161,7 @@ def validate_pcmci_ci_sensitivity(
     alpha: float = 0.05,
     fdr: bool = False,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_pcmci_ci_sensitivity,
@@ -185,7 +185,7 @@ def validate_pcmci_plus_orientation(
     replicates: int = 20,
     block_size: int = 20,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_pcmci_plus_orientation,
@@ -211,7 +211,7 @@ def validate_synthetic_null_calibration(
     n_obs: int = 100,
     n_vars: int = 3,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]:
     return _validate_synthetic_null_calibration(
         max_lag=max_lag,
@@ -235,7 +235,7 @@ def validate_environment_holdout(
     ci: str = "parcorr",
     n_discovery: int = 1,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]:
     return _with_multi_env(
         _validate_environment_holdout,
@@ -261,7 +261,7 @@ def validate_regime_stability(
     replicates: int = 10,
     block_size: int = 20,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
 ) -> dict[str, Any]:
     return _with_columns(
         _validate_regime_stability,

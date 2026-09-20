@@ -132,6 +132,7 @@ def test_arrow_interactive_cancel_and_progress():
         bootstrap=requested,
         refute=False,
         seed=3,
+        threads=1,
         cancel=token,
         on_progress=on_progress,
     )

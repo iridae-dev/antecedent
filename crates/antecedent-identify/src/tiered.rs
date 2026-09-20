@@ -832,10 +832,16 @@ mod tests {
 
         let admg = background.to_admg(&schema).unwrap();
         let query = joint_query(&schema, "t1", "t2", "y");
-        // Generic subset search lists z + every co-facet (> max_candidates=16) and caps.
-        let generic = GeneralizedAdjustmentIdentifier::new()
-            .identify_joint_admg_response(&admg, &query)
-            .unwrap();
+        // Generic subset search lists z + every co-facet. Pin 16 so this fixture
+        // still overflows after Default moved to 40; v15 covers the new default.
+        let generic = GeneralizedAdjustmentIdentifier {
+            config: crate::generalized::GeneralizedAdjustmentConfig {
+                max_candidates: 16,
+                ..Default::default()
+            },
+        }
+        .identify_joint_admg_response(&admg, &query)
+        .unwrap();
         assert_eq!(
             generic.status,
             IdentificationStatus::NotIdentified,

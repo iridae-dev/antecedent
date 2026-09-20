@@ -1066,6 +1066,12 @@ pub(crate) struct AteAnalysisResult {
     /// Randomized exposure contrast (InterferenceQuery).
     #[pyo3(get)]
     interference: Option<transport_interference_api::InterferenceSection>,
+    /// Per-target GCM anomaly scores (AnomalyAttribution).
+    #[pyo3(get)]
+    anomaly: Option<Vec<gcm_api::AnomalyScores>>,
+    /// GCM distribution-change Shapley (ChangeAttribution).
+    #[pyo3(get)]
+    change_attribution: Option<gcm_api::ChangeAttributionResult>,
     /// Support-matrix evidence contract (`licensed` or `allowed_unlicensed`).
     #[pyo3(get)]
     evidence_status: Option<String>,
@@ -2232,7 +2238,8 @@ fn load_float64_arrow_c_columns(
         let mut cdi_cols = Vec::with_capacity(columns.len());
         for (name, obj) in names.into_iter().zip(columns) {
             let (array, schema) = take_arrow_c_array(py, &obj)?;
-            cdi_cols.push(ArrowCColumn { name, array, schema });
+            // SAFETY: capsules were produced by a compliant Arrow CDI exporter.
+            cdi_cols.push(unsafe { ArrowCColumn::from_ffi(name, array, schema) });
         }
         let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
         let column_names: Vec<String> =
@@ -2303,7 +2310,8 @@ pub(crate) fn tabular_from_arrow_c_objs(
     let mut cdi_cols = Vec::with_capacity(columns.len());
     for (name, obj) in names.into_iter().zip(columns) {
         let (array, schema) = take_arrow_c_array(py, &obj)?;
-        cdi_cols.push(ArrowCColumn { name, array, schema });
+        // SAFETY: capsules were produced by a compliant Arrow CDI exporter.
+        cdi_cols.push(unsafe { ArrowCColumn::from_ffi(name, array, schema) });
     }
     let loaded = tabular_from_arrow_c_columns(cdi_cols).map_err(py_err)?;
     Ok((loaded.data, loaded.bytes_borrowed))
@@ -2335,6 +2343,21 @@ pub(crate) fn tabular_from_py_columns(
 /// Default coalition / semantic cache budget for Python production contexts
 /// (matches attribution bench policy).
 pub(crate) const PY_DEFAULT_CACHE_MAX_BYTES: u64 = 4_000_000;
+
+/// Resolve an omitted or zero `threads=` to [`antecedent_core::default_user_threads`].
+/// An explicit `threads >= 1` is a pin and may exceed the default cap.
+pub(crate) fn resolve_user_threads(threads: Option<u32>) -> u32 {
+    match threads {
+        Some(n) if n >= 1 => n,
+        Some(_) => 1,
+        None => antecedent_core::default_user_threads(),
+    }
+}
+
+#[pyfunction]
+fn default_user_threads() -> u32 {
+    antecedent_core::default_user_threads()
+}
 
 pub(crate) fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext {
     py_execution_context_ext(seed, threads, None, None, Some(PY_DEFAULT_CACHE_MAX_BYTES))
@@ -2492,6 +2515,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(set_unsupported_error_class, m)?)?;
     m.add_function(wrap_pyfunction!(set_not_identified_error_class, m)?)?;
     m.add_function(wrap_pyfunction!(omitted_defaults, m)?)?;
+    m.add_function(wrap_pyfunction!(default_user_threads, m)?)?;
     m.add_function(wrap_pyfunction!(identification_status_names, m)?)?;
     m.add_function(wrap_pyfunction!(runtime_refusal_codes, m)?)?;
     ate_api::register(m)?;

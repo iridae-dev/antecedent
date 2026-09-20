@@ -33,14 +33,14 @@ reason = "TransportQuery and InterferenceQuery are typed against static graphs; 
 
 [[n_a]]
 queries = ["ResponseCurve"]
-graph_classes = ["Dag", "TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
+graph_classes = ["Dag", "Admg", "TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
 structures = ["explicit", "accepted"]
 validations = ["cheap", "full"]
 reason = "cheap and full denote the ATE-shaped scalar refuter suite; a function-valued curve has no such state."
 
 [[n_a]]
 queries = ["ResponseCurve"]
-graph_classes = ["Dag"]
+graph_classes = ["Dag", "TemporalDag", "TemporalCpdag", "TemporalPag"]
 structures = ["graph_posterior"]
 validations = ["cheap", "full"]
 reason = "cheap and full denote the ATE-shaped scalar refuter suite; a graph-posterior response remains function-valued or atom-mixed with no licensed scalar-refuter state."

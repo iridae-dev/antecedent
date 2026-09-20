@@ -29,6 +29,18 @@ copied_tests = false
 #    graphs where some graphs identify the effect and others don't. This
 #    module generalizes the retention principle to a graph ensemble; that
 #    generalization itself has no known single-paper primary.
+#
+# StructuralAggregationPolicy (crates/antecedent/src/result.rs) is the
+# 1.10.1 contract for *when* this mixer may publish a scalar:
+#  - SameEstimandWeightedMean: identified atoms share one estimand; the
+#    weighted mean E[τ | identified] is that functional.
+#  - IdentifiedSetEnvelope: same partially identified estimand; publish
+#    the set, not a fake scalar mixture.
+#  - GraphDependentAtoms: estimands disagree, or unidentified / unevaluable
+#    mass remains; withhold estimate.ate.
+# Completion enumeration is a weight basis, not posterior probability.
+# Sampling intervals on a scalar identified set are estimate.identified_set;
+# frequentist multi-atom SEs are estimate.graph_posterior.joint_if.
 papers = [
  { title = "Bayesian Model Averaging: A Tutorial", doi = "10.1214/ss/1009212519", sections = ["model-weight semantics: sample a model, then that model's posterior"] },
  { title = "Bayesian Inference in a Class of Partially Identified Models", doi = "10.3982/QE399", sections = ["retaining posterior mass on the non-identified region instead of collapsing to a point estimate"] },
@@ -39,6 +51,7 @@ implementation_deviations = [
  "Requires every positive-weight identified graph to supply the same number of effect draws so the categorical representation has a common length; draw indices are never treated as coupled across models.",
  "Represents nonidentified graph weight as a separate scalar unidentified_mass while returning draws conditional on identified graphs; it does not construct posterior draws or identified sets for the nonidentified component as in the cited partial-identification setting.",
  "The graph-ensemble combination of identified and nonidentified model mass is an original scoped construction and does not inherit the guarantees of either cited paper.",
+ "A scalar mixture is published only under StructuralAggregationPolicy::SameEstimandWeightedMean. IdentifiedSetEnvelope and GraphDependentAtoms withhold estimate.ate; they are not BMA.",
 ]
 
 upstream_implementations_observed = []
@@ -47,4 +60,5 @@ test_sources = [
  "in-crate unit tests (crates/antecedent-estimate/src/envelope.rs): preserves unidentified mass by default, refuses renormalization that would discard positive unidentified mass, checks interactive-subsample mass accounting, retains between-graph variance, and is atom-order invariant",
  "conformance/bayesian/graph_effect_envelope (clean-room fixture: known unidentified fraction and exact identified-conditional mixture mean)",
  "conformance/bayesian/known_truth_mixtures (frozen analytic DAG-posterior ATE and DBN-posterior Pulse / single-step Sustained mixtures consumed from the staged path: identified atoms pin E[tau | identified], a structurally unidentified atom keeps its posterior weight as unidentified_mass, and the parameter prior does not upgrade it)",
+ "crates/antecedent/tests/class_posterior_ate.rs (StructuralAggregationPolicy: scalar only when estimands agree)",
 ]

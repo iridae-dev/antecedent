@@ -158,22 +158,30 @@ fn repeated_static_atom_frequentist_ate_is_the_mass_weighted_mixture() {
     };
     let (ate_a, ate_b) = (only(direct()), only(adjusted()));
     assert!((ate_a - ate_b).abs() > 0.5, "atoms must identify different effects");
-    let expected = (2.0 * ate_a + ate_b) / 3.0;
 
     let result = run(&data, repeated(), ate_query(), InferenceMode::Frequentist);
-    assert!(
-        (result.estimate.ate - expected).abs() < 1e-10,
-        "repeated-atom mixture {} != 2/3·{ate_a} + 1/3·{ate_b} = {expected}",
-        result.estimate.ate
-    );
+    // Direct and adjusted atoms disagree on estimand identity, so the scalar is
+    // withheld under GraphDependentAtoms; coalescing repeated listings must not
+    // change masses or the identified set.
+    assert!(result.estimate.ate.is_nan(), "scalar ate withheld under GraphDependentAtoms");
+    assert!(result.estimate.se_analytic.is_nan());
+    let structural = result.structural_response.as_ref().unwrap();
+    let set = structural.identified_set.as_ref().unwrap();
+    assert_eq!(set.lower.len(), 1);
+    assert!((set.lower[0] - ate_a.min(ate_b)).abs() < 1e-10);
+    assert!((set.upper[0] - ate_a.max(ate_b)).abs() < 1e-10);
+    assert!(structural.conditional_on_identified.is_none());
     let (identified, unidentified) = envelope_masses(&result);
     assert!((identified - 0.75).abs() < 1e-12, "identified mass {identified}");
     assert!((unidentified - 0.25).abs() < 1e-12, "unidentified mass {unidentified}");
     assert!((identified + unidentified - 1.0).abs() < 1e-12);
 
     let reference = run(&data, coalesced(), ate_query(), InferenceMode::Frequentist);
-    assert!((result.estimate.ate - reference.estimate.ate).abs() < 1e-12);
-    assert!((result.estimate.se_analytic - reference.estimate.se_analytic).abs() < 1e-12);
+    assert!(reference.estimate.ate.is_nan());
+    let ref_set = reference.structural_response.as_ref().unwrap().identified_set.as_ref().unwrap();
+    assert!((set.lower[0] - ref_set.lower[0]).abs() < 1e-12);
+    assert!((set.upper[0] - ref_set.upper[0]).abs() < 1e-12);
+    assert_eq!(structural.atoms.len(), reference.structural_response.as_ref().unwrap().atoms.len());
 }
 
 #[test]

@@ -1327,6 +1327,43 @@ fn refutation_report_mixture_weighted_is_mass_weighted_and_fail_closed() {
 }
 
 #[test]
+fn query_refutation_plan_mixes_mediation_atoms_fail_closed() {
+    let pass =
+        RefutationReport::new("mediation.placebo_mediator", 0.0, 0.01, 0.4, true, true, None, 20);
+    let fail = RefutationReport::new(
+        "mediation.placebo_mediator",
+        0.0,
+        0.2,
+        0.01,
+        true,
+        false,
+        Some(Arc::from("mediation contrast is inconsistent with the refuter target")),
+        20,
+    );
+    let rcc = RefutationReport::new(
+        "mediation.random_common_cause",
+        0.44,
+        0.45,
+        0.6,
+        true,
+        true,
+        None,
+        20,
+    );
+    let mixed =
+        QueryRefutationPlan::mix_weighted([(0.7, vec![pass, rcc.clone()]), (0.3, vec![fail, rcc])]);
+    assert_eq!(mixed.len(), 2);
+    assert_eq!(mixed[0].refuter.as_ref(), "mediation.placebo_mediator");
+    assert!(!mixed[0].passed);
+    assert_eq!(mixed[1].refuter.as_ref(), "mediation.random_common_cause");
+    assert!(mixed[1].passed);
+    assert_eq!(
+        QueryRefutationPlan::temporal_mediation(true),
+        QueryRefutationPlan::TemporalMediation { full: true }
+    );
+}
+
+#[test]
 fn average_effect_treatment_routing_matrix() {
     let n = 40;
     let two_valued: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 1.0 }).collect();

@@ -71,14 +71,13 @@ examples, the
 for studies, reports and portable executions, and the
 [documentation](https://antecedent.readthedocs.io/) for the full API.
 
-## 1.10.0
+## 1.11.0
 
 The
-[1.10.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.10.0.md)
-cover composition of the existing 341 licensed cells: inspect/contract
-coordinates, the Rust inspect → preview → execute → claim → consume path
-for every licensed cell, retained studies on ordinary prepared routes, and
-portable claims.
+[1.11.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.11.0.md)
+are the 1.x close-out on the 1.10 composition contract: licensed
+graph-posterior cells that now earn, GAC 40, parallel coverage seeds, and
+the [1.11 finding closeout](https://github.com/iridae-dev/antecedent/blob/1.11/docs/reviews/v1.11-finding-closeout.md).
 Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
 Every reported interval states its calibration: calibrated when a coverage record matches the execution and the execution is inside that record's scope; scope_not_assessed when a record matches but the execution is outside its scope or the record is a boundary; unavailable with a reason code when no record exists.
 Identities are distinct and stable: every IdentityDomain plus target_weights is domain-separated and registered in parity/identity.toml.
@@ -86,7 +85,16 @@ Identities are distinct and stable: every IdentityDomain plus target_weights is 
 ## Earlier releases
 
 These summaries describe the releases when they shipped. For current support,
-use the [support matrix](https://github.com/iridae-dev/antecedent/blob/v1.10.0/docs/support-matrix.md).
+use the [support matrix](https://github.com/iridae-dev/antecedent/blob/1.11/docs/support-matrix.md).
+
+### 1.10.0
+
+The
+[1.10.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.10.0.md)
+cover composition of the existing 341 licensed cells: inspect/contract
+coordinates, the Rust inspect → preview → execute → claim → consume path
+for every licensed cell, retained studies on ordinary prepared routes, and
+portable claims.
 
 ### 1.9.0
 
@@ -94,7 +102,7 @@ The
 [1.9.0 release notes](https://github.com/iridae-dev/antecedent/blob/main/docs/release-notes/v1.9.0.md)
 cover the calibration of licensed intervals (a two-sided repeated-sampling
 coverage gate, with boundary records disclosed at runtime), ADMG
-interventional distributions (Rust Study API only), accepted-Dag
+interventional distributions, accepted-Dag
 counterfactuals, Frequentist DBN-posterior mediation, and staged
 attribution / transport / interference cells (Rust Study API only).
 Behaviour changes:
@@ -183,15 +191,15 @@ fitted, edges = antecedent.gcm.fit_gcm_discovered(
 )
 ```
 
-The root namespace contains 56 names in 1.10: the 1.9 contract plus
-`prepare`, `load`, `TransportQuery` and `InterferenceQuery`. `AnomalyAttribution`
-and `ChangeAttribution` types exist for the query axis; `analyze()` refuses them —
-the licensed cells are Rust `Study` only. `TransportQuery` and `InterferenceQuery`
+The root namespace contains 57 names: the analyze contract plus
+`prepare`, `load`, `TransportQuery`, `InterferenceQuery`, and `Analysis`. `AnomalyAttribution`
+and `ChangeAttribution` run their licensed Dag cells on `analyze()` and retain
+a study. `TransportQuery` and `InterferenceQuery`
 run their licensed cells on `analyze()` and retain a study like every other
 licensed route; `antecedent.transport` / `antecedent.interference` hold the
 selection diagram, designs, exposure mappings, the transport identification stage,
-and the unlicensed `estimate_trial_effect` / `estimate` utilities, which keep their
-1.9 behaviour (bare numbers, no study or license).
+and the unlicensed `estimate_trial_effect` / `estimate` utilities, which return
+bare numbers with no study or license.
 Everything else is reached through a stage module (`antecedent.discovery`, `antecedent.priors`, `antecedent.errors`, …).
 
 Also exposed:
@@ -205,8 +213,9 @@ Also exposed:
   `TemporalMediationEffect`, `InterventionResponse`, plus the response family
   (`ResponseCurve`, `AverageDerivative`, `PointDerivative`, `Elasticity`,
   `SemiElasticity`, `DirectionalDerivative`, `ResponseJacobian`), plus
-  `AnomalyAttribution` / `ChangeAttribution` (root types; `analyze()`
-  refuses). Temporal dose × horizon uses the same `ResponseCurve` /
+  `AnomalyAttribution` / `ChangeAttribution` (root types; licensed
+  `analyze(data, graph=Dag, query=...)` at validation `none`). Temporal
+  dose × horizon uses the same `ResponseCurve` /
   `InterventionResponse` types with keyword-only `horizons`, `policy`, and
   `treatment_lag` (see `examples/python/temporal_response_curve.py`).
 - `antecedent.discovery` — PC, GES, LiNGAM, NOTEARS, FCI/RFCI, PCMCI family, Bayesian posteriors

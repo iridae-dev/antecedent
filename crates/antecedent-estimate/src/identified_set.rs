@@ -294,7 +294,12 @@ impl Selection {
         level: f64,
         replicates: usize,
     ) -> Option<Self> {
-        if !(level > 0.0 && level < 1.0) || replicates < 2 {
+        if !(level > 0.0 && level < 1.0)
+            || replicates < 2
+            || points.is_empty()
+            || points.len() != sds.len()
+            || points.iter().any(|p| !p.is_finite())
+        {
             return None;
         }
         let bound_lower = points.iter().copied().fold(f64::INFINITY, f64::min);
@@ -374,6 +379,23 @@ mod tests {
 
     fn column_sd(draws: &[Vec<f64>], g: usize) -> f64 {
         sample_sd(draws.iter().map(|d| d[g]))
+    }
+
+    #[test]
+    fn review_nonfinite_completion_point_cannot_be_silently_dropped() {
+        let draws = vec![vec![0.0, 1.0], vec![1.0, 2.0], vec![2.0, 3.0]];
+        assert!(
+            imbens_manski_shared_replicates(&[1.0, f64::NAN], &draws, 1.0, 100, 0.95).is_none()
+        );
+        assert!(
+            imbens_manski_posterior_draws(
+                &[1.0, f64::NAN],
+                &[&[0.0, 1.0, 2.0], &[1.0, 2.0, 3.0]],
+                100,
+                0.95
+            )
+            .is_none()
+        );
     }
 
     #[test]

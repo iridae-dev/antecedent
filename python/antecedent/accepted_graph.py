@@ -313,7 +313,7 @@ class AcceptedGraph:
         discovery: _SingleTableDiscovery,
         *,
         seed: int = 1,
-        threads: int = 1,
+        threads: int | None = None,
     ) -> AcceptedGraph:
         """User-triggered rediscovery; never called by estimate / prepare."""
         if isinstance(discovery, (PCMCI, PCMCIPlus, LPCMCI)):
@@ -509,7 +509,7 @@ def accept_discovery(
     data: Any,
     *,
     seed: int = 1,
-    threads: int = 1,
+    threads: int | None = None,
     accept_discovered: bool = True,
     regimes: Sequence[int] | None = None,
 ) -> AcceptedGraph:

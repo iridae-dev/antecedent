@@ -73,14 +73,34 @@ def try_as_arrow_c_columns(
             return names, flat
         return None
 
-    # Frame with columns that each export CDI (e.g. Polars column export)
+    # Frame columns that export CDI, but not pandas (it has to_numpy and
+    # Series.__arrow_c_array__; sending those skips the float64 cast).
     if hasattr(data, "columns") and not hasattr(data, "to_numpy"):
         try:
             names = [str(c) for c in data.columns]
             cols = [data[c] for c in data.columns]
             if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
                 return names, cols
-        except Exception:  # noqa: BLE001 — fall through to None
+        except Exception:  # noqa: BLE001 — try a table-level stream next
+            pass
+
+    # Table-level Arrow PyCapsule (Polars, DuckDB). Cast to float64 so
+    # integer treatments match the dict / pandas to_f64 ingest.
+    if hasattr(data, "__arrow_c_stream__"):
+        try:
+            import pyarrow as pa
+
+            table = pa.table(data)
+            names = [str(n) for n in table.column_names]
+            cols = []
+            for i in range(len(names)):
+                col = table.column(i).combine_chunks()
+                if not pa.types.is_float64(col.type):
+                    col = col.cast(pa.float64())
+                cols.append(col)
+            if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
+                return names, cols
+        except Exception:  # noqa: BLE001 — fall through to numpy ingest
             return None
     return None
 
@@ -94,20 +114,34 @@ def to_f64(arr: Any) -> NDArray[np.float64]:
     return a
 
 
+def _materialize_f64(column: Any) -> NDArray[np.float64]:
+    """Numpy view of an ingested column (Arrow CDI or array-like)."""
+    if hasattr(column, "__arrow_c_array__"):
+        try:
+            import pyarrow as pa
+
+            return to_f64(pa.array(column).to_numpy(zero_copy_only=False))
+        except Exception:  # noqa: BLE001 — try array protocols
+            pass
+    if hasattr(column, "to_numpy"):
+        return to_f64(column.to_numpy())
+    return to_f64(column)
+
+
 def as_multi_env_columns(
     data: Sequence[Mapping[str, Any] | Any],
 ) -> tuple[list[str], list[list[NDArray[np.float64]]]]:
     if not data:
         raise ValueError("expected a non-empty sequence of environment frames")
-    names, first = as_columns(data[0])
-    env_columns = [first]
+    names, first = ingest_columns(data[0])
+    env_columns = [[_materialize_f64(col) for col in first]]
     for i, env in enumerate(data[1:], start=1):
-        n, cols = as_columns(env)
+        n, cols = ingest_columns(env)
         if n != names:
             raise ValueError(
                 f"environment {i} column names {n!r} do not match environment 0 {names!r}"
             )
-        env_columns.append(cols)
+        env_columns.append([_materialize_f64(col) for col in cols])
     return names, env_columns
 
 

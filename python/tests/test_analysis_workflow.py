@@ -35,6 +35,8 @@ def test_one_call_study_and_frozen_export():
     assert second.data_snapshot_id != first.data_snapshot_id
     assert ant.artifacts.accept(second.export())["accepts_as_verified_program"] == "true"
     assert first.study.estimate().effect == pytest.approx(second.effect)
+    via_result = first.refresh({**data, "y": data["y"] + data["t"]})
+    assert via_result.effect == pytest.approx(second.effect)
 
 
 def test_estimate_other_data_does_not_rebind_study():
@@ -46,6 +48,32 @@ def test_estimate_other_data_does_not_rebind_study():
     assert study.inspect().data_snapshot_id == baseline.data_snapshot_id
     assert ant.artifacts.accept(other.export())["accepts_as_verified_program"] == "true"
     assert study.estimate().effect == pytest.approx(baseline.effect)
+
+
+def test_missing_row_padding_does_not_upgrade_calibration():
+    rng = np.random.default_rng(42)
+    t = rng.normal(size=100)
+    y = 2 * t + rng.normal(size=100)
+    labels = []
+    effects = []
+    ses = []
+    for total in (100, 500, 1000):
+        missing = np.full(total - 100, np.nan)
+        result = ant.analyze(
+            {"t": np.r_[t, missing], "y": np.r_[y, missing]},
+            graph=[("t", "y")],
+            query=ant.AverageEffect("t", "y"),
+            refute="none",
+            bootstrap=0,
+        )
+        labels.append(result.calibration.describe())
+        effects.append(result.effect)
+        ses.append(result.estimate.se_analytic)
+    assert effects[0] == pytest.approx(effects[1])
+    assert effects[0] == pytest.approx(effects[2])
+    assert ses[0] == pytest.approx(ses[1])
+    assert ses[0] == pytest.approx(ses[2])
+    assert labels[0] == labels[1] == labels[2]
 
 
 def test_report_has_json_types_and_explicit_calibration_scope():
@@ -80,6 +108,9 @@ def test_response_retains_study_and_exports_own_execution():
     assert result.answer.kind == "response"
     encoded = result.export()
     result.study.refresh({**data, "y": data["y"] + 1.0})
+    assert result.export() == encoded
+    refreshed = result.refresh({**data, "y": data["y"] + 1.0})
+    assert refreshed.answer.kind == "response"
     assert result.export() == encoded
     assert ant.artifacts.accept(encoded)["accepts_as_verified_program"] == "true"
     loaded = ant.load(encoded)
@@ -177,20 +208,22 @@ def test_failed_refresh_retains_previous_binding_and_error_context():
 def test_partial_and_missing_evidence_are_not_scalar_success():
     from dataclasses import replace
 
+    from antecedent.results._report import copy_model
+
     result = ant.analyze(sample(), graph=GRAPH, query=QUERY, bootstrap=0, refute="none")
     ident = replace(
         result.reasoning.identification,
         payload={**result.reasoning.identification.payload, "unevaluable_mass": 0.25},
     )
-    partial = replace(result, reasoning=replace(result.reasoning, identification=ident))
+    partial = copy_model(result, reasoning=replace(result.reasoning, identification=ident))
     assert partial.answer.kind == "partial"
     assert partial.answer.value is None
     assert "partial" in repr(partial)
     assert "unevaluable_mass" in partial._repr_html_()
-    empty = replace(
+    empty = copy_model(
         result,
         reasoning=None,
-        estimate=replace(result.estimate, se_analytic=float("nan")),
+        estimate=copy_model(result.estimate, se_analytic=float("nan")),
         assumptions=None,
     )
     assert not empty.inspect().uncertainty.available
@@ -334,3 +367,32 @@ def test_cpdag_partial_identification_with_full_mass_reports_its_identified_set(
     monkeypatch.setenv("ANTECEDENT_STRICT_ANSWER", "1")
     with pytest.raises(ant.errors.CausalUnsupportedError, match="ANTECEDENT_STRICT_ANSWER"):
         _ = result.effect
+
+
+@pytest.mark.parametrize("kind", ["cpdag", "pag"])
+def test_class_posterior_bounds_answer_survives_loading(kind):
+    """Practitioner S: degenerate bounds retain the identified-set disclosure."""
+    names = ["t", "y", "z"]
+    edges = [("z", "t"), ("z", "y"), ("t", "y")]
+    graph = (
+        ant.Cpdag.from_directed_undirected(names, edges, [])
+        if kind == "cpdag"
+        else ant.Pag.from_marked_edges(names, [(a, b, "tail", "arrow") for a, b in edges])
+    )
+    if kind == "pag":
+        # z is a visibility witness for t -> y; z is not adjacent to y.
+        graph = ant.Pag.from_marked_edges(
+            names, [("z", "t", "tail", "arrow"), ("t", "y", "tail", "arrow")]
+        )
+    data = sample()
+    if kind == "pag":
+        data["y"] = data["y"] - data["z"]
+    posterior = ant.discovery.GraphPosterior.from_graphs(names, [0.4, 0.6], [graph, graph])
+    result = ant.analyze(
+        data, discovery=posterior, query=QUERY, refute="none", bootstrap=0, seed=731
+    )
+    assert result.answer.kind == "bounds"
+    assert result.answer.detail == "identified_set"
+    loaded = ant.load(result.export())
+    assert loaded.acceptance.verified
+    assert loaded.answer == result.answer

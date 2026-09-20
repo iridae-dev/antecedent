@@ -15,9 +15,9 @@ use antecedent_core::{
     ClaimKind, ContractIdentities, DomainStatus, ExecutionContext, IDENTITY_FORMAT,
     IdentificationSlot, IdentificationStatus, IdentityDomain, IntervalMethod, NextAction,
     ObligationKind, ObligationRecord, ObligationScope, OperationKind, OperationReadiness,
-    OperationReport, ReasoningView, SemanticApplicability, SemanticLayer, SlotAvailability,
-    SupportSlot, TargetPopulation, TransformIntent, TransformationReport, UncertaintyComponent,
-    UncertaintySlot, UncertaintySource, intent_effects,
+    OperationReport, ReasoningView, ResponseUncertainty, SemanticApplicability, SemanticLayer,
+    SlotAvailability, SupportSlot, TargetPopulation, TransformIntent, TransformationReport,
+    UncertaintyComponent, UncertaintySlot, UncertaintySource, intent_effects,
 };
 use antecedent_data::TableView;
 use antecedent_identify::{
@@ -867,7 +867,8 @@ impl StudyResult {
             }
         }
         let body = body_for(&contract.body, self)?;
-        let mut reasoning = result_reasoning(self, &contract.reasoning, &body)?;
+        let mut reasoning =
+            result_reasoning(self, &contract.reasoning, &body, &contract.inference)?;
         if let (SlotAvailability::Available(slot), Some(status)) =
             (&mut reasoning.identification, contract.body.identification_status)
         {
@@ -1542,11 +1543,24 @@ fn dbn_projected_temporal_identification(study: &Study) -> Option<CachedTemporal
 
 /// Project a TemporalCpdag/Pag envelope indexer onto the same namespace owner.
 fn class_projected_temporal_identification(study: &Study) -> Option<CachedTemporalIdentification> {
-    let cache = study.temporal_class_identification_cache.as_ref()?;
-    let (horizon, envelope) = cache.by_horizon.first().map_or_else(
-        || (query_horizon_steps(&study.query), &cache.envelope),
-        |(horizon, envelope)| (*horizon, envelope),
-    );
+    if let Some(cache) = study.temporal_class_identification_cache.as_ref() {
+        let (horizon, envelope) = cache.by_horizon.first().map_or_else(
+            || (query_horizon_steps(&study.query), &cache.envelope),
+            |(horizon, envelope)| (*horizon, envelope),
+        );
+        if let Some(projected) = project_class_envelope(horizon, envelope) {
+            return Some(projected);
+        }
+    }
+    let cache = study.temporal_class_posterior_identification_cache.as_ref()?;
+    let atom = cache.class_atoms.first()?;
+    project_class_envelope(query_horizon_steps(&study.query), &atom.envelope)
+}
+
+fn project_class_envelope(
+    horizon: u32,
+    envelope: &antecedent_identify::TemporalClassEnvelope,
+) -> Option<CachedTemporalIdentification> {
     let indexer = envelope.indexers.first()?.clone();
     let case = envelope.envelope.cases.iter().find(|case| !case.result.estimands.is_empty())?;
     Some(CachedTemporalIdentification {
@@ -1653,6 +1667,16 @@ fn population_depends_on(
     }
 }
 
+fn analysis_row_count(result: &StudyResult, contract: &CausalContract) -> u64 {
+    result
+        .estimate
+        .n_obs
+        .or_else(|| result.estimate.influence.as_ref().map(|rows| rows.len() as u64))
+        .or_else(|| result.estimate.score_table.as_ref().map(|table| table.n_rows as u64))
+        .or_else(|| result.estimate.block_resampling.map(|block| block.rows as u64))
+        .unwrap_or(contract.row_count)
+}
+
 fn data_row_count(data: &DataInput) -> u64 {
     match data {
         DataInput::Tabular(data) => data.row_count() as u64,
@@ -1748,7 +1772,7 @@ impl StudyResult {
                     identification: label.to_string(),
                 },
                 scope: CalibrationScopeWire {
-                    row_count: contract.row_count,
+                    row_count: analysis_row_count(self, contract),
                     replicates_ok: binding.replicates_ok,
                     posterior_draws: binding.posterior_draws.or_else(|| {
                         (binding.method == IntervalMethod::PosteriorQuantile)
@@ -1950,6 +1974,8 @@ fn attested_evidence(result: &StudyResult) -> Arc<[AttestedEvidence]> {
             informative: report.informative,
             failure_condition: report.failure_condition.clone(),
             reverifiable: false,
+            config_digest: None,
+            payload_digest: None,
         })
         .collect()
 }
@@ -2102,7 +2128,11 @@ fn identifies_per_execution(study: &Study) -> bool {
 fn matrix_coordinate(study: &Study) -> Option<String> {
     let cell = crate::support::support_cell_named(
         &study.query,
-        crate::support::matrix_graph_class(&study.graph, &study.query, study.tiered.as_ref()),
+        if study.graph_posterior.is_some() {
+            study.graph.class().as_str()
+        } else {
+            crate::support::matrix_graph_class(&study.graph, &study.query, study.tiered.as_ref())
+        },
         study.structure_source,
         &study.inference,
         study.refute,
@@ -2306,6 +2336,7 @@ fn result_reasoning(
     result: &StudyResult,
     prepared: &ReasoningView,
     body: &AnalysisResultWire,
+    inference: &str,
 ) -> Result<ReasoningView, CausalError> {
     let identification = identification_slot_from_result(result)?;
     let mut components = Vec::new();
@@ -2329,6 +2360,30 @@ fn result_reasoning(
             "posterior",
             false,
         ));
+    }
+    // A function-valued posterior can carry its band directly on the response,
+    // without a scalar posterior or SE on StudyResult. Its portable reasoning
+    // must not call that published parameter uncertainty "omitted".
+    if inference == "bayesian" {
+        if let Some(response) = &result.response {
+            let target = match &response.uncertainty {
+                ResponseUncertainty::None => None,
+                ResponseUncertainty::Scalar { .. } => Some("posterior_interval"),
+                ResponseUncertainty::PointwiseBand { .. } => Some("posterior_pointwise_band"),
+                ResponseUncertainty::SimultaneousBand { .. } => Some("posterior_simultaneous_band"),
+                ResponseUncertainty::IdentifiedEnvelopeBand { .. } => {
+                    Some("posterior_envelope_band")
+                }
+                ResponseUncertainty::Posterior { .. } => Some("posterior_artifact"),
+            };
+            if let Some(target) = target {
+                components.push(UncertaintyComponent::new(
+                    UncertaintySource::Parameter,
+                    target,
+                    false,
+                ));
+            }
+        }
     }
     if result.structural_response.is_some()
         || identification.weight_basis.is_some()
@@ -2562,6 +2617,8 @@ fn claim_section(claim: &ClaimEnvelope) -> ClaimSectionWire {
                     .as_ref()
                     .map(std::string::ToString::to_string),
                 reverifiable: item.reverifiable,
+                config_digest: item.config_digest.as_ref().map(std::string::ToString::to_string),
+                payload_digest: item.payload_digest.as_ref().map(std::string::ToString::to_string),
             })
             .collect(),
     }

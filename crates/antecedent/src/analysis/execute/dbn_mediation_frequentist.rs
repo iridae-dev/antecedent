@@ -26,7 +26,10 @@ impl super::Study {
     /// times refits every atom's three mechanism regressions and mixes them
     /// inside the replicate, so the three SEs describe the reported aggregate and
     /// include between-atom sampling covariance. Unidentified mass is retained;
-    /// failed estimation is unevaluable, not unidentified.
+    /// failed estimation is unevaluable, not unidentified. Cheap/full run
+    /// mediation refuters per contributing atom against that atom's own
+    /// contrast (not the pooled mean) and mix by frozen graph weight; the mixed
+    /// check passes only if every atom passes.
     pub(super) fn execute_dbn_posterior_mediation_frequentist(
         &self,
         data: &TimeSeriesData,
@@ -40,12 +43,6 @@ impl super::Study {
             return Err(CausalError::Unsupported {
                 message: "Frequentist DBN-posterior mediation is licensed for one horizon; \
                           multi-horizon grids need their own joint uncertainty contract",
-            });
-        }
-        if self.refute != RefuteSuite::None {
-            return Err(CausalError::Unsupported {
-                message: "Frequentist DBN-posterior mediation is licensed at validation none; \
-                          mediation refuters are not mixed across atoms on this path",
             });
         }
         let vars: Vec<VariableId> = data.schema().variables().iter().map(|v| v.id).collect();
@@ -84,27 +81,42 @@ impl super::Study {
         let est = TemporalMediationEstimator::new().with_allow_natural_controlled_alias(true);
         let mut designs = Vec::new();
         let mut weights = Vec::new();
+        let mut refute_atoms = Vec::new();
+        let mut contributing_estimands: Vec<&IdentifiedEstimand> = Vec::new();
+        let mut any_partial = false;
         let mut failed_mass = 0.0;
         let mut primary: Option<PrimaryAtom> = None;
         let mut distinct_sets = false;
-        for atom in identified.atoms.iter() {
+        let mapped = ctx.map_indexed(identified.atoms.len(), |i, inner| {
+            let atom = &identified.atoms[i];
             let weight = identified_weight_for_key(&identified.graphs, atom.key);
             if weight <= 0.0 {
-                continue;
+                return Ok(None);
             }
-            let slot = atoms.iter_mut().find(|candidate| candidate.graph_key == atom.key);
             let Some(entry) = atom.horizons.as_ref().and_then(|h| h.get(horizon)) else {
-                failed_mass += weight;
-                continue;
+                return Ok(Some((atom, weight, None, None)));
             };
-            if let Some(slot) = slot {
-                slot.status = entry.identification.status;
-            }
             let lagged = super::temporal_path::lagged_adjustment_from_entry(entry);
             let prepared = require_identified(&entry.identification)
                 .ok()
-                .and_then(|()| est.prepare_shared(data, &entry.estimand, query, &lagged, ctx).ok());
-            let Some(prepared) = prepared.filter(|p| p.estimate().effect.ate.is_finite()) else {
+                .and_then(|()| {
+                    est.prepare_shared(data, &entry.estimand, query, &lagged, inner).ok()
+                })
+                .filter(|prepared| prepared.estimate().effect.ate.is_finite());
+            Ok::<_, CausalError>(Some((atom, weight, Some(entry), prepared.map(|p| (lagged, p)))))
+        })?;
+        for mapped_atom in mapped {
+            let Some((atom, weight, entry, prepared)) = mapped_atom else {
+                continue;
+            };
+            let Some(entry) = entry else {
+                failed_mass += weight;
+                continue;
+            };
+            if let Some(slot) = atoms.iter_mut().find(|candidate| candidate.graph_key == atom.key) {
+                slot.status = entry.identification.status;
+            }
+            let Some((lagged, prepared)) = prepared else {
                 // Identified but not evaluable: the atom keeps its status and
                 // has no value, so its mass is unevaluable.
                 failed_mass += weight;
@@ -113,6 +125,7 @@ impl super::Study {
             if let Some(slot) = atoms.iter_mut().find(|candidate| candidate.graph_key == atom.key) {
                 slot.value = Some(ResponseValue::Scalar(prepared.estimate().effect.ate));
             }
+            let lagged_for_refute = Arc::clone(&lagged);
             match primary.as_ref() {
                 None => {
                     let mut keys = entry
@@ -133,8 +146,11 @@ impl super::Study {
                 Some(first) if first.lagged.as_ref() != lagged.as_ref() => distinct_sets = true,
                 Some(_) => {}
             }
+            refute_atoms.push((atom.key, weight, entry.estimand.clone(), lagged_for_refute));
             designs.push(prepared);
             weights.push(weight);
+            contributing_estimands.push(&entry.estimand);
+            any_partial |= entry.identification.status == IdentificationStatus::PartiallyIdentified;
         }
         let PrimaryAtom {
             estimand, mut identification, indexer, adjustment_keys: adjustment, ..
@@ -221,6 +237,14 @@ impl super::Study {
             DiagnosticSeverity::Info,
             identified.identify_demotion.summary(0, 0, 0),
         ));
+        push_graph_posterior_structural_aggregation_diagnostic(
+            &mut diagnostics,
+            resolve_structural_aggregation(&contributing_estimands, any_partial),
+            identified_mass / total_mass,
+            unidentified_mass / total_mass,
+            failed_mass / total_mass,
+            0.0,
+        );
         if distinct_sets {
             diagnostics.push(Diagnostic::new(
                 "identify.dbn_posterior.atom_horizon_sets_differ",
@@ -293,6 +317,34 @@ impl super::Study {
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
+        let mut refutations = Vec::new();
+        if self.refute != RefuteSuite::None {
+            let plan = QueryRefutationPlan::temporal_mediation(self.refute == RefuteSuite::Full);
+            let mut per_atom = Vec::with_capacity(refute_atoms.len());
+            for ((_, weight, estimand, lagged), design) in refute_atoms.iter().zip(&designs) {
+                let reports = plan
+                    .refute_temporal_atom(data, estimand, query, design.estimate(), lagged, ctx)
+                    .map_err(CausalError::from)?;
+                per_atom.push((*weight, reports));
+            }
+            refutations = QueryRefutationPlan::mix_weighted(per_atom);
+            let atom_keys: String = refute_atoms
+                .iter()
+                .map(|(key, _, _, _)| format!("{key:x}"))
+                .collect::<Vec<_>>()
+                .join(",");
+            diagnostics.push(Diagnostic::new(
+                "refute.envelope.effect_mixture",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "mediation refuters evaluated each contributing graph atom [{atom_keys}] \
+                     against that atom's own contrast using that atom's S(h), not the pooled \
+                     mixture; reports mix by fixed graph weight and pass only if every \
+                     contributing atom passes"
+                ),
+            ));
+        }
         let uncertainty = match shared {
             Some(s) if replicates_requested => {
                 antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
@@ -348,7 +400,7 @@ impl super::Study {
             outcome: query.outcome,
             identify_cached,
             extra_diagnostics: Vec::new(),
-            refutations: Vec::new(),
+            refutations,
             distribution: None,
             mediation: Some(mediation),
             wall_time_ns: u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX),

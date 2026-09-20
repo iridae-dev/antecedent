@@ -47,7 +47,7 @@ use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::se::{AnalyticSeKind, require_clusters};
-use crate::util::{BootstrapSeResult, bootstrap_se, stats_err};
+use crate::util::{BootstrapSeResult, stats_err};
 
 /// Stage-1 design column count: `[1, T]`.
 const STAGE1_NCOLS: usize = 2;
@@ -366,32 +366,44 @@ impl FrontDoorTwoStage {
     ) -> Result<BootstrapSeResult, EstimationError> {
         let n = problem.nrows;
         let k = problem.mediators.len();
-        let mut t_boot = vec![0.0; n];
-        let mut m_boot: Vec<Vec<f64>> = (0..k).map(|_| vec![0.0; n]).collect();
-        let mut y_boot = vec![0.0; n];
-        bootstrap_se(self.bootstrap_replicates, ctx, 0xF80D_u64, n, |idx| {
-            for (r, &src) in idx.iter().enumerate() {
-                t_boot[r] = problem.treatment[src];
-                y_boot[r] = problem.outcome[src];
-                for (j, mcol) in problem.mediators.iter().enumerate() {
-                    m_boot[j][r] = mcol[src];
+        let _ = workspace;
+        crate::util::bootstrap_se_with_scratch(
+            self.bootstrap_replicates,
+            ctx,
+            0xF80D_u64,
+            n,
+            || {
+                (
+                    FrontDoorWorkspace::default(),
+                    vec![0.0; n],
+                    (0..k).map(|_| vec![0.0; n]).collect::<Vec<_>>(),
+                    vec![0.0; n],
+                )
+            },
+            |(ws, t_boot, m_boot, y_boot), idx| {
+                for (r, &src) in idx.iter().enumerate() {
+                    t_boot[r] = problem.treatment[src];
+                    y_boot[r] = problem.outcome[src];
+                    for (j, mcol) in problem.mediators.iter().enumerate() {
+                        m_boot[j][r] = mcol[src];
+                    }
                 }
-            }
-            let mediators: Vec<Arc<[f64]>> =
-                m_boot.iter().map(|m| Arc::<[f64]>::from(m.as_slice())).collect();
-            let Ok(stage2) = self.fit_stage2(&t_boot, &mediators, &y_boot, workspace) else {
-                return Ok(None);
-            };
-            let mut path_sum = 0.0;
-            for (j, m_j) in mediators.iter().enumerate() {
-                let Ok(s1) = self.fit_stage1(&t_boot, m_j, workspace) else {
+                let mediators: Vec<Arc<[f64]>> =
+                    m_boot.iter().map(|m| Arc::<[f64]>::from(m.as_slice())).collect();
+                let Ok(stage2) = self.fit_stage2(t_boot, &mediators, y_boot, ws) else {
                     return Ok(None);
                 };
-                path_sum += s1.coefficients[STAGE1_TREATMENT_COL]
-                    * stage2.coefficients[STAGE2_FIRST_MEDIATOR_COL + j];
-            }
-            Ok(Some(path_sum * problem.treatment_delta))
-        })
+                let mut path_sum = 0.0;
+                for (j, m_j) in mediators.iter().enumerate() {
+                    let Ok(s1) = self.fit_stage1(t_boot, m_j, ws) else {
+                        return Ok(None);
+                    };
+                    path_sum += s1.coefficients[STAGE1_TREATMENT_COL]
+                        * stage2.coefficients[STAGE2_FIRST_MEDIATOR_COL + j];
+                }
+                Ok(Some(path_sum * problem.treatment_delta))
+            },
+        )
     }
 }
 

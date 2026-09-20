@@ -12,9 +12,11 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, get_args
 
 if TYPE_CHECKING:
     from ..estimation import PreparedAnalysis
+    from .response import CausalResponseView
 
 from .._api import describe_refusal
 from ..errors import CausalUnsupportedError
+from ._report import InspectionReport, as_inspection
 from ._slots import ReasoningSlots, SlotView
 
 
@@ -221,16 +223,28 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     if kind == "response":
         # A limited function-valued claim is partial: its envelope, not a curve.
         return Answer("partial" if limitation else "response", detail=limitation)
+    if kind == "bounds" and bounds is not None and limitation is None:
+        # A structural identified set remains a set after loading, even when
+        # all graph atoms are identified and its two endpoints coincide.
+        limitation = "identified_set"
     return Answer(kind, bounds=bounds, detail=limitation)
 
 
 def _payload(value: Any) -> dict[str, Any]:
+    skip = {"artifact", "score_table", "score_inference", "envelope"}
     if is_dataclass(value) and not isinstance(value, type):
-        return {
-            f.name: getattr(value, f.name)
-            for f in fields(value)
-            if f.name not in {"artifact", "score_table", "score_inference", "envelope"}
-        }
+        return {f.name: getattr(value, f.name) for f in fields(value) if f.name not in skip}
+    try:
+        from pydantic import BaseModel
+
+        if isinstance(value, BaseModel):
+            return {
+                name: getattr(value, name)
+                for name, field in type(value).model_fields.items()
+                if field.exclude is not True and name not in skip
+            }
+    except ImportError:
+        pass  # pydantic is optional; fall through to the generic value wrapper
     return {"value": value}
 
 
@@ -252,6 +266,45 @@ class ResultAPI:
             )
         return prepared
 
+    def refresh(
+        self,
+        data: Mapping[str, Any] | Any,
+        *,
+        seed: int | None = None,
+        threads: int | None = None,
+    ) -> Any:
+        """Re-estimate on new data via the retained prepared handle.
+
+        The five-line second click is ``result = analyze(...); result.refresh(new_data)``.
+        A second ``analyze()`` still re-prepares. Equivalent to ``result.study.refresh``.
+        """
+        return self.study.refresh(data, seed=seed, threads=threads)
+
+    def refute(
+        self,
+        data: Mapping[str, Any] | Any,
+        suite: Any = "placebo",
+        *,
+        seed: int | None = None,
+        threads: int | None = None,
+        cancel: Any | None = None,
+    ) -> Any:
+        """Second-click refute via the retained prepared handle."""
+        from ..ids import Refute
+
+        if isinstance(suite, Refute):
+            suite = str(suite)
+        study = self.study
+        execution = getattr(self, "_execution", None)
+        if execution is None:
+            raise CausalUnsupportedError(
+                "This result has no retained execution snapshot.",
+                reason_code="not_executed",
+            )
+        frozen = study._frozen(execution.snapshot())
+        token = {} if cancel is None else {"cancel": cancel}
+        return frozen.refute(data, suite, seed=seed, threads=threads, **token)
+
     def _scalar_effect(self) -> float | None:
         """Historical scalar without the legacy-field warning."""
         getter = getattr(self, "estimate", None)
@@ -261,6 +314,18 @@ class ResultAPI:
         if isinstance(getter, (int, float)):
             return float(getter)
         return None
+
+    @property
+    def effect(self) -> float | None:
+        """Historical scalar. Prefer :attr:`answer` / :meth:`as_point`."""
+        self._warn_legacy_scalar("effect")
+        return self._scalar_effect()
+
+    @property
+    def ate(self) -> float | None:
+        """Alias for :attr:`effect`."""
+        self._warn_legacy_scalar("ate")
+        return self._scalar_effect()
 
     def _warn_legacy_scalar(self, name: str) -> None:
         limitation = getattr(self, "rendering_limitation", lambda: None)()
@@ -296,6 +361,43 @@ class ResultAPI:
             return Answer("unavailable", detail="non_finite_effect")
         return Answer("point", value=float(value))
 
+    def claim(self) -> str:
+        """One paragraph: identification, answer, calibration. Same table as HTML."""
+        from .._claim import result_claim
+
+        identification = getattr(self, "identification", None)
+        return result_claim(
+            query=getattr(self, "query", None) or getattr(self, "estimand", None),
+            status=getattr(identification, "status", "NotIdentified"),
+            method=getattr(identification, "method", None),
+            adjustment_set=tuple(getattr(identification, "adjustment_set", ()) or ()),
+            answer=self.answer,
+            calibration=self.calibration.describe(),
+        )
+
+    def as_point(self) -> float:
+        """The scalar when :attr:`answer` is ``point``; refuse any other kind."""
+        answer = self.answer
+        if answer.kind != "point" or answer.value is None:
+            raise CausalUnsupportedError(
+                f"result.as_point() requires answer.kind='point'; got {answer.kind!r}"
+                + (f" ({answer.detail})" if answer.detail else ""),
+                reason_code="invalid_argument",
+            )
+        return float(answer.value)
+
+    def as_response(self) -> CausalResponseView:
+        """This result when it is function-valued; refuse a scalar analysis."""
+        from .response import CausalResponseView
+
+        if isinstance(self, CausalResponseView):
+            return self
+        raise CausalUnsupportedError(
+            "result.as_response() requires a function-valued analysis "
+            f"(answer.kind={self.answer.kind!r})",
+            reason_code="invalid_argument",
+        )
+
     @property
     def calibration(self) -> CalibrationInfo:
         contract = getattr(self, "_contract", None)
@@ -306,7 +408,7 @@ class ResultAPI:
             return CalibrationInfo.from_contract(contract)
         return CalibrationInfo(status="unavailable", reason="not_executed")
 
-    def inspect(self) -> ReasoningSlots:
+    def inspect(self) -> InspectionReport:
         """Inspect this execution, including uncertainty and all available evidence."""
         slots = getattr(self, "reasoning", None)
         if slots is None:
@@ -379,7 +481,7 @@ class ResultAPI:
             support=replace(slots.support, payload=support_payload),
             uncertainty=SlotView(
                 uncertainty_available,
-                None if uncertainty_available else "not_evaluated",
+                None if uncertainty_available else (slots.uncertainty.reason or "not_evaluated"),
                 slots.uncertainty.summary
                 if slots.uncertainty.available
                 else "execution_specific"
@@ -411,7 +513,7 @@ class ResultAPI:
             ),
             diagnostics=tuple(getattr(self, "diagnostics", ())),
         )
-        return self._with_portable_record(report)
+        return as_inspection(self._with_portable_record(report))
 
     def _with_portable_record(self, report: ReasoningSlots) -> ReasoningSlots:
         """Report the execution through the record its export carries.
