@@ -174,3 +174,105 @@ differences = [
 
 [waiver.outcome.fingerprints]
 "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage" = "793505c9ce7c98248708ec419d11c70ff66c7149fb5cccb828b5cf49314829b4"
+
+[[waiver]]
+id = "clippy-1.85-da29054e"
+from = "6a41568f5c249aa2ebf707e61248cbd80dc75058"
+to = "da29054ec40eee1079a976e9ac0fafe6fe989708"
+reviewed_by = "Charles Hinshaw"
+justification = """
+Core and estimator/identity-path edits after remesure: ArrowCColumn unit
+tests now use from_arrow_array; the graph-posterior license fixture uses
+non-degenerate columns; RollingMechanismDiagnostics reports window σ²
+from ring SSE; the day-1 crate re-exports response/temporal constructors;
+and rustc 1.85 Clippy -D warnings forced signature, extract, and lint
+rewrites (from_arrow_array takes &dyn Array; GAC candidate scan and
+posterior-atom wire helpers extracted; retained_n counted as usize;
+finite-weight equality via to_bits). No estimator formula changed.
+Coverage records do not execute the constructor tests, license fixture,
+or rolling diagnostics slot. Same seed, same interval.\
+"""
+paths = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent-data/src/arrow_ffi.rs",
+  "crates/antecedent-discovery/src/dbn_posterior.rs",
+  "crates/antecedent-discovery/src/graph_posterior.rs",
+  "crates/antecedent-estimate/src/iv.rs",
+  "crates/antecedent-estimate/src/propensity/stratification.rs",
+  "crates/antecedent-estimate/src/retarget.rs",
+  "crates/antecedent-estimate/src/util.rs",
+  "crates/antecedent-identify/src/generalized.rs",
+  "crates/antecedent-io/src/identity.rs",
+  "crates/antecedent-state/src/mechanism_diag.rs",
+  "crates/antecedent/src/analysis/execute/admg_posterior.rs",
+  "crates/antecedent/src/analysis/execute/bayesian_path.rs",
+  "crates/antecedent/src/analysis/execute/class_posterior.rs",
+  "crates/antecedent/src/analysis/execute/class_posterior_response.rs",
+  "crates/antecedent/src/analysis/execute/execute_helpers.rs",
+  "crates/antecedent/src/analysis/execute/pag_path.rs",
+  "crates/antecedent/src/analysis/execute/response_path.rs",
+  "crates/antecedent/src/analysis/execute/temporal_class_mediation_posterior.rs",
+  "crates/antecedent/src/analysis/execute/temporal_class_posterior.rs",
+  "crates/antecedent/src/analysis/execute/temporal_class_posterior_response.rs",
+  "crates/antecedent/src/analysis/execute/temporal_posterior_response.rs",
+  "crates/antecedent/src/analysis/prepared.rs",
+  "crates/antecedent/src/discovery.rs",
+  "crates/antecedent/src/estimate.rs",
+  "crates/antecedent/src/graph.rs",
+  "crates/antecedent/src/query.rs",
+  "crates/antecedent/src/result.rs",
+  "crates/antecedent/src/support.rs",
+]
+
+[[waiver.replay]]
+record = "cov.intervention_response.dag.frequentist.analytic_se.l95.intervention_response_cell_aipw_nominal_95_coverage"
+exercises = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent-data/src/arrow_ffi.rs",
+  "crates/antecedent-discovery/src/dbn_posterior.rs",
+  "crates/antecedent-discovery/src/graph_posterior.rs",
+  "crates/antecedent-estimate/src/propensity/stratification.rs",
+  "crates/antecedent-estimate/src/retarget.rs",
+  "crates/antecedent-estimate/src/util.rs",
+  "crates/antecedent-identify/src/generalized.rs",
+  "crates/antecedent-io/src/identity.rs",
+  "crates/antecedent-state/src/mechanism_diag.rs",
+  "crates/antecedent/src/analysis/execute/admg_posterior.rs",
+  "crates/antecedent/src/analysis/execute/bayesian_path.rs",
+  "crates/antecedent/src/analysis/execute/class_posterior.rs",
+  "crates/antecedent/src/analysis/execute/class_posterior_response.rs",
+  "crates/antecedent/src/analysis/execute/execute_helpers.rs",
+  "crates/antecedent/src/analysis/execute/pag_path.rs",
+  "crates/antecedent/src/analysis/execute/response_path.rs",
+  "crates/antecedent/src/analysis/execute/temporal_class_mediation_posterior.rs",
+  "crates/antecedent/src/analysis/execute/temporal_class_posterior.rs",
+  "crates/antecedent/src/analysis/execute/temporal_class_posterior_response.rs",
+  "crates/antecedent/src/analysis/execute/temporal_posterior_response.rs",
+  "crates/antecedent/src/analysis/prepared.rs",
+  "crates/antecedent/src/discovery.rs",
+  "crates/antecedent/src/estimate.rs",
+  "crates/antecedent/src/graph.rs",
+  "crates/antecedent/src/query.rs",
+  "crates/antecedent/src/result.rs",
+  "crates/antecedent/src/support.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analytic_ci_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/iv.rs",
+]
+
+[waiver.outcome]
+replayed_at = "da29054ec40eee1079a976e9ac0fafe6fe989708"
+identical = true
+records = [
+  "cov.intervention_response.dag.frequentist.analytic_se.l95.intervention_response_cell_aipw_nominal_95_coverage",
+  "cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analytic_ci_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.dag.frequentist.analytic_se.l95.iv_2sls_analytic_ci_coverage" = "ea6e1a2e5eec106195c31373f24a59facadfb986560542e280c355c2392da159"
+"cov.intervention_response.dag.frequentist.analytic_se.l95.intervention_response_cell_aipw_nominal_95_coverage" = "8823326a2eee097b106b9847002d6a93c0e1e3c5abed02607fca606447335d5c"
