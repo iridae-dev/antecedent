@@ -16,3 +16,36 @@
 # than this header are not kept (the justification is the prose).
 # `scripts/gate_calibration_attestation.sh` validates every waiver and reports
 # the records it covers as `attested_by_replay (waiver <id>)`.
+
+[[waiver]]
+id = "arrow-adapter-test-constructors-2dd36a8b"
+from = "6a41568f5c249aa2ebf707e61248cbd80dc75058"
+to = "2dd36a8ba4d64ea35f91cedd03d0072a50abc963"
+reviewed_by = "Charles Hinshaw"
+justification = """
+Unit tests in arrow_adapter.rs now construct ArrowCColumn through
+from_arrow_array because R9 made the FFI pair private. No production
+function in the file changed. Same seed, same interval. This cannot
+move a measured number.\
+"""
+paths = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.dag.frequentist.bootstrap_se.l95.ipw_hajek_bootstrap_ci_coverage"
+exercises = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+]
+
+[waiver.outcome]
+replayed_at = "2dd36a8ba4d64ea35f91cedd03d0072a50abc963"
+identical = true
+records = [
+  "cov.average_effect.dag.frequentist.bootstrap_se.l95.ipw_hajek_bootstrap_ci_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.dag.frequentist.bootstrap_se.l95.ipw_hajek_bootstrap_ci_coverage" = "6ed8dd8150185d26761a4b15f34b00c1133c8f2c523c8513bb57354d04768d24"
