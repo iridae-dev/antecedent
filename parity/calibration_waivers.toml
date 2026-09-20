@@ -84,3 +84,44 @@ differences = [
 
 [waiver.outcome.fingerprints]
 "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage" = "793505c9ce7c98248708ec419d11c70ff66c7149fb5cccb828b5cf49314829b4"
+
+[[waiver]]
+id = "rolling-window-sse-d31f4dcb"
+from = "6a41568f5c249aa2ebf707e61248cbd80dc75058"
+to = "d31f4dcbc45efb8721291bf77d17bf54fa4b7f0b"
+reviewed_by = "Charles Hinshaw"
+justification = """
+Three core-path edits after remesure: ArrowCColumn unit tests now use
+from_arrow_array, the graph-posterior license fixture uses non-degenerate
+columns because Gaussian BIC no longer floors residual variance, and
+RollingMechanismDiagnostics reports window σ² from the residuals it
+already sums (SSE/(n−p)) because IncrementalOLS Welford scatter is
+append-only and left residual_var empty after eviction. Coverage records
+do not execute the rolling diagnostics slot, the Arrow constructor
+tests, or the license fixture. Same seed, same interval.\
+"""
+paths = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent/src/support.rs",
+  "crates/antecedent-state/src/mechanism_diag.rs",
+]
+
+[[waiver.replay]]
+record = "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-data/src/arrow_adapter.rs",
+  "crates/antecedent/src/support.rs",
+  "crates/antecedent-state/src/mechanism_diag.rs",
+]
+
+[waiver.outcome]
+replayed_at = "d31f4dcbc45efb8721291bf77d17bf54fa4b7f0b"
+identical = true
+records = [
+  "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage" = "793505c9ce7c98248708ec419d11c70ff66c7149fb5cccb828b5cf49314829b4"
