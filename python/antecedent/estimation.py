@@ -113,7 +113,12 @@ from .results import (
     ValidationView,
 )
 from .results.response import SupportStatus, UncertaintyKind
-from .transport import OverlapDiagnostic, TransportOverlapReport, TransportQuery
+from .transport import (
+    ExactTransportQuery,
+    OverlapDiagnostic,
+    TransportOverlapReport,
+    TransportQuery,
+)
 
 # Preferred name for the native temporal DTO.
 NativeAnalysisResult = TemporalAnalysisResult
@@ -1465,6 +1470,7 @@ _PreparedQuery = (
     | ResponseJacobian
     | TemporalMediationEffect
     | TransportQuery
+    | ExactTransportQuery
     | InterferenceQuery
     | AnomalyAttribution
     | ChangeAttribution
@@ -2846,7 +2852,7 @@ class PreparedAnalysis:
         self,
         native: Any,
         *,
-        kind: Literal["average", "response_curve", "intervention_response"] = "average",
+        kind: Literal["average", "response_curve", "intervention_response", "exact_transport"] = "average",
         query: _PreparedQuery | None = None,
         seed: int = 1,
         threads: int | None = None,
@@ -2881,6 +2887,8 @@ class PreparedAnalysis:
     @property
     def validator_names(self) -> tuple[str, ...]:
         """Attested custom-validator names frozen at prepare (their claim identity)."""
+        if self._kind == "exact_transport":
+            return ()
         return tuple(self._native.validator_names())
 
     def rebind_validators(self, validators: Mapping[str, Any]) -> None:
@@ -2890,6 +2898,10 @@ class PreparedAnalysis:
         results, never the callables. The names must equal
         :attr:`validator_names`; otherwise the rebind is refused.
         """
+        if self._kind == "exact_transport":
+            if validators:
+                raise ValueError("Exact-law studies do not fit or invoke statistical validators")
+            return
         self._native.rebind_validators(dict(validators))
 
     @classmethod
@@ -2980,6 +2992,22 @@ class PreparedAnalysis:
         routes that have them. The handle retains all three; a click may
         override them.
         """
+        from .transport import ExactTransportData, prepare_exact
+
+        if isinstance(query, ExactTransportQuery) or isinstance(data, ExactTransportData):
+            if not isinstance(query, ExactTransportQuery) or not isinstance(data, ExactTransportData):
+                raise ValueError("Exact transport requires ExactTransportData and ExactTransportQuery")
+            if any(option is not None for option in (
+                graph, discovery, inference, identifier, estimator, estimator_config,
+                refute, bootstrap, threads, latency, class_prior, max_completions,
+                population_registry, on_progress, on_stage, validators, regimes,
+                running_variable, cutoff, bandwidth,
+            )) or seed != 1 or not accept_discovered:
+                raise ValueError("Exact transport uses its retained graph and evidence contract; sampled-data preparation options do not apply")
+            prepared = prepare_exact(query.identification, query.catalog, data, at=query.at, cancel=cancel)
+            prepared._controls = _Controls(cancel=cancel)
+            return prepared
+
         from .population import registry_wire
 
         coerce_query(query)
@@ -3133,6 +3161,10 @@ class PreparedAnalysis:
         artifacts also retain support and assumptions; retain the analysis result
         separately for posterior assumptions and validation reports.
         """
+        if self._kind == "exact_transport":
+            if payload != "result":
+                raise ValueError("Exact artifacts export a checked execution and its full proof")
+            return self._native.export()
         return self._native.export_artifact(artifact_id=artifact_id, payload=payload)
 
     def export(self, *, artifact_id: str = "analysis-result") -> bytes:
@@ -3143,6 +3175,8 @@ class PreparedAnalysis:
                 "Cancelled estimate produced no claim.",
                 reason_code="cancelled_no_claim",
             )
+        if self._kind == "exact_transport":
+            return self._native.export()
         return self._native.export_contracted_artifact(artifact_id=artifact_id)
 
     @property
@@ -3174,6 +3208,9 @@ class PreparedAnalysis:
         its ``calibration`` is unavailable (``not_executed``) until an estimate
         runs. :meth:`preflight` is the cheap structural-only view.
         """
+        if self._kind == "exact_transport":
+            return InspectionReport(**json.loads(self._native.inspection_json()))
+
         from dataclasses import replace
 
         from .results._execution import Answer, CalibrationInfo
@@ -3191,6 +3228,8 @@ class PreparedAnalysis:
         """Cheap structural-only inspection; identification and fitting are not run."""
         from .results._report import as_inspection
 
+        if self._kind == "exact_transport":
+            return self.inspect()
         return as_inspection(ReasoningSlots.from_contract(self._native.inspect()))
 
     def preview_transform(self, intent: str) -> dict[str, str]:
@@ -3224,6 +3263,12 @@ class PreparedAnalysis:
             in ("1", "true"),
             kernels=raw.get("kernels") or None,
         )
+
+    def replace_snapshot(self, data: Any, *, cancel: Any = _UNSET) -> None:
+        """Replace exact-law providers and invalidate execution claims atomically."""
+        if self._kind != "exact_transport":
+            raise ValueError("Use refresh for this sampled-data modality")
+        self._native.replace_snapshot(data.laws, cancel=self._controls.cancel if cancel is _UNSET else cancel)
 
     def _click_controls(self, cancel: Any, on_progress: Any, on_stage: Any) -> dict[str, Any]:
         """The study's retained controls, with any per-click override applied."""
@@ -3273,6 +3318,20 @@ class PreparedAnalysis:
         threads: int | None,
         controls: dict[str, Any],
     ) -> AnalysisResult | CausalResponseView:
+        if self._kind == "exact_transport":
+            from .transport import _exact_distribution
+
+            if seed is not None or threads is not None or any(
+                controls.get(name) is not None for name in ("on_progress", "on_stage")
+            ):
+                raise ValueError("Exact execution accepts cancellation; sampling and callback controls are not applicable")
+            if refresh:
+                raw = self._native.refresh(data.laws, cancel=controls.get("cancel"))
+            elif data is None:
+                raw = self._native.estimate(cancel=controls.get("cancel"))
+            else:
+                raise ValueError("Use replace_snapshot or refresh for an explicit exact-law snapshot change")
+            return _exact_distribution(self._native, raw)
         seed = self._seed if seed is None else seed
         threads = self._threads if threads is None else threads
         response = self._kind in ("response_curve", "intervention_response")
@@ -3375,6 +3434,11 @@ class PreparedAnalysis:
         descendant closure can be checked. Nonconstant weights require a
         nonempty ``depends_on``.
         """
+        if self._kind == "exact_transport":
+            raise CausalUnsupportedError(
+                "This operation requires a new exact preparation or a licensed statistical provider",
+                reason_code="option_not_applicable",
+            )
         import numpy as np
 
         raw = self._native.retarget(
@@ -3401,6 +3465,11 @@ class PreparedAnalysis:
         ``reason_code="row_weights_bound_to_snapshot"`` instead of silently
         reweighting other rows.
         """
+        if self._kind == "exact_transport":
+            raise CausalUnsupportedError(
+                "This operation requires a new exact preparation or a licensed statistical provider",
+                reason_code="option_not_applicable",
+            )
         raw = self._native.reexecute_retarget(bytes(artifact), seed=seed, threads=threads)
         return _wrap_ate(raw, prepared=self)
 
@@ -3440,6 +3509,11 @@ class PreparedAnalysis:
         call this with ``suite="placebo"`` or ``"full"`` for the deferred suite.
         ``seed`` / ``threads`` / ``cancel`` default to the study's own.
         """
+        if self._kind == "exact_transport":
+            raise CausalUnsupportedError(
+                "This operation requires a new exact preparation or a licensed statistical provider",
+                reason_code="option_not_applicable",
+            )
         if self._kind == "response_curve":
             raise CausalUnsupportedError(
                 "not_applicable: PreparedAnalysis.refute is AverageEffect and scalar "

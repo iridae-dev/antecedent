@@ -238,6 +238,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "change_attribution",
     },
     "PreparedAnalysis": {
+        "replace_snapshot",
         # Compile, execute, and the two views
         "prepare",
         "estimate",

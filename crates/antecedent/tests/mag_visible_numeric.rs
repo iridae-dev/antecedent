@@ -88,7 +88,7 @@ fn visible_mag_scalar_and_response_cells_reuse_certified_envelopes() {
                     let fresh = study.clone().run(&ctx).unwrap();
                     let prepared = study.prepare(&ctx).unwrap();
                     let click = prepared.estimate(&data, &ctx).unwrap();
-                    for result in [fresh, click] {
+                    for result in vec![fresh, click] {
                         let values = if let Some(response) = result.response {
                             match response.estimate {
                                 ResponseIdentification::PointIdentified(value)

@@ -138,7 +138,7 @@ fn latent_temporal_effect_preserves_query_and_prepared_estimation() {
                 });
                 let prepared = study.prepare(&ctx).unwrap();
                 let click = prepared.estimate_series(&data, &ctx).unwrap();
-                for result in [fresh, click] {
+                for result in vec![fresh, click] {
                     let certificate = result.certificate.as_ref().expect("execution certificate");
                     let antecedent::Identification::TemporalEnvelope { envelope, .. } =
                         &certificate.identification

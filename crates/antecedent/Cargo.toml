@@ -41,6 +41,7 @@ antecedent-attribution = { version = "1.11.0", path = "../antecedent-attribution
 antecedent-design = { version = "1.11.0", path = "../antecedent-design" }
 antecedent-state = { version = "1.11.0", path = "../antecedent-state" }
 thiserror = { workspace = true }
+serde = { workspace = true }
 
 [dev-dependencies]
 criterion.workspace = true

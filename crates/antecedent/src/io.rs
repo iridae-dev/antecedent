@@ -8,7 +8,7 @@ pub use antecedent_io::{
     AnalysisResultConsumption, AnalysisResultContractWire, AssignmentDesignWire, CONTRACT_SECTION,
     ExposureLevelWire, ExposureMappingWire, ExposureProbabilityMethodWire,
     InterferenceEstimateWire, InterferenceFunctionalWire, InterferenceQueryWire,
-    NonTransportableCertificateWire, PopulationFactorWire, RandomizationContrastWire,
+    NotCertifiedCertificateWire, PopulationFactorWire, RandomizationContrastWire,
     TransportCertificateWire, TransportEffectEstimateWire, TransportFormulaWire,
     TransportIdentificationWire, TransportOverlapDiagnosticWire, TransportQueryWire,
     consume_analysis_result, decode_analysis_result_artifact, decode_analysis_result_contract,
@@ -637,3 +637,6 @@ pub fn prior_set_from_posterior_bytes(
     hydrate_prior_from_quantity_summaries(&quantities, &wire.mean, &wire.sd, None)
         .map_err(CausalError::from)
 }
+
+/// Portable checked transport proof and supplied exact-law records.
+pub use antecedent_io::{exact_law_wire::ExactLawWire, transport_proof::TransportProofWire};

@@ -263,7 +263,7 @@ fn two_completion_dose_horizon_sequence_matches_fixture() {
             pag.certificate.as_ref().expect("certificate").graph_class,
             antecedent::GraphClass::TemporalPag
         );
-        for result in [cpdag, pag] {
+        for result in vec![cpdag, pag] {
             let got = class_surface(&result);
             assert_eq!(got.len(), expected.len());
             for (actual, truth) in got.iter().zip(&expected) {
@@ -321,7 +321,7 @@ fn two_completion_soft_mean_mechanisms_match_fixture() {
         for inference in inferences() {
             let cpdag = run_class(data.clone(), soft_cpdag(), query.clone(), inference.clone());
             let pag = run_class(data.clone(), soft_pag(), query.clone(), inference);
-            for result in [cpdag, pag] {
+            for result in vec![cpdag, pag] {
                 let got = class_surface(&result);
                 assert!((got[0] - expected).abs() < atol, "case {index}: {} vs {expected}", got[0]);
             }

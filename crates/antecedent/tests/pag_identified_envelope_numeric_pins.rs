@@ -401,14 +401,14 @@ fn response_pin() -> serde_json::Value {
 
 /// Fresh run and prepared click of a response study; the click must reuse the
 /// frozen envelope.
-fn fresh_and_click(study: &Study, data: &TabularData, seed: u64) -> [antecedent::StudyResult; 2] {
+fn fresh_and_click(study: &Study, data: &TabularData, seed: u64) -> Vec<antecedent::StudyResult> {
     let (ctx, sink) = recording_ctx(seed);
     let fresh = study.clone().run(&ctx).unwrap();
     let click = study.prepare(&ctx).unwrap().estimate(data, &ctx).unwrap();
     assert_eq!(identify_computations(&sink), 2, "the click must reuse the prepared envelope");
     assert_eq!(cached_count(&fresh), 0);
     assert_eq!(cached_count(&click), 1);
-    [fresh, click]
+    vec![fresh, click]
 }
 
 fn atom_scalars(result: &antecedent::StudyResult) -> Vec<Option<f64>> {

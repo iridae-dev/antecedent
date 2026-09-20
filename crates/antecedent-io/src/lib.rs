@@ -17,6 +17,7 @@ pub mod convert;
 pub mod coverage_records_data;
 pub mod discovery_wire;
 pub mod error;
+pub mod exact_law_wire;
 pub mod expr_wire;
 pub mod external_estimate;
 pub mod graph_dot;
@@ -44,6 +45,7 @@ pub mod response_wire;
 pub mod trace;
 pub mod transport_catalog_wire;
 pub mod transport_interference_wire;
+pub mod transport_proof;
 pub mod wire;
 
 pub use analysis_result_artifact::{
@@ -199,7 +201,7 @@ pub use trace::{
     assumptions_to_wire,
 };
 pub use transport_interference_wire::{
-    ExposureProbabilityMethodWire, InterferenceEstimateWire, NonTransportableCertificateWire,
+    ExposureProbabilityMethodWire, InterferenceEstimateWire, NotCertifiedCertificateWire,
     PopulationFactorWire, RandomizationContrastWire, TransportCertificateWire,
     TransportEffectEstimateWire, TransportFormulaWire, TransportIdentificationWire,
     TransportOverlapDiagnosticWire, interference_estimate_from_wire, interference_estimate_to_wire,

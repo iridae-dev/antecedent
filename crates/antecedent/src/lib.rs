@@ -82,11 +82,12 @@ pub mod validate;
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
     BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
-    CandidateSelection, CausalContract, CellFamilyContrast, ComputeBudget, InterferenceSpec,
-    LatencyMode, LicensedNeighbor, NextAction, OperationKind, OperationReadiness, OperationReport,
-    PremiseChange, PreparedBatch, PreparedStudy, RdConfig, RefuteSuite, SemanticApplicability,
-    SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink, Study, StudyBuilder,
-    TransportTrialSpec,
+    CandidateSelection, CausalContract, CellFamilyContrast, ComputeBudget, ExactFactorRequirement,
+    ExactPreparedState, ExactStudyIdentities, ExactStudyInspection, ExactStudyResult,
+    InterferenceSpec, LatencyMode, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
+    OperationReport, PremiseChange, PreparedBatch, PreparedStudy, RdConfig, RefuteSuite,
+    SemanticApplicability, SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink,
+    Study, StudyBuilder, TransportTrialSpec,
 };
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};

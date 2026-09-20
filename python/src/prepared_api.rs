@@ -3705,39 +3705,9 @@ impl PyPreparedAnalysis {
         &self,
         intent: String,
     ) -> PyResult<std::collections::HashMap<String, String>> {
-        let intent = match intent.as_str() {
-            "display_precision" => antecedent_core::TransformIntent::DisplayPrecision,
-            "compatible_data_replace" => antecedent_core::TransformIntent::CompatibleDataReplace,
-            "retarget" => antecedent_core::TransformIntent::Retarget,
-            "filter_display" => antecedent_core::TransformIntent::FilterDisplay,
-            "filter_population" => antecedent_core::TransformIntent::FilterPopulation,
-            "new_conditional_query" => antecedent_core::TransformIntent::NewConditionalQuery,
-            "change_graph" => antecedent_core::TransformIntent::ChangeGraph,
-            "change_prior" => antecedent_core::TransformIntent::ChangePrior,
-            "change_physical_policy" => antecedent_core::TransformIntent::ChangePhysicalPolicy,
-            "average_unweighted_class" => antecedent_core::TransformIntent::AverageUnweightedClass,
-            other => {
-                return Err(PyValueError::new_err(format!("unknown transform intent {other:?}")));
-            }
-        };
+        let intent = parse_transform_intent(&intent)?;
         let report = self.inner.preview_transform(intent).map_err(py_err)?;
-        let mut out = std::collections::HashMap::new();
-        out.insert("intent".into(), report.intent.as_str().to_string());
-        for identity in report.input_identities.iter() {
-            out.insert(format!("input_{}", identity.domain.as_str()), identity.digest.to_hex());
-        }
-        out.insert("refused".into(), report.refused.to_string());
-        if let Some(refusal) = &report.refusal {
-            if let Some((code, _)) = antecedent_core::reason_code::split_prefix(refusal) {
-                out.insert("refusal_code".into(), code.to_string());
-            }
-            out.insert("refusal".into(), refusal.to_string());
-        }
-        out.insert(
-            "obligations".into(),
-            report.obligations.iter().map(|o| o.id.to_string()).collect::<Vec<_>>().join(","),
-        );
-        Ok(out)
+        Ok(transform_report_map(&report))
     }
 }
 
@@ -3945,4 +3915,44 @@ fn composite_result_wire(
     };
     result.fill_analysis_result_payloads(&mut wire, artifact_id).map_err(py_err)?;
     Ok(wire)
+}
+
+pub(crate) fn parse_transform_intent(intent: &str) -> PyResult<antecedent_core::TransformIntent> {
+    let intent = match intent {
+        "display_precision" => antecedent_core::TransformIntent::DisplayPrecision,
+        "compatible_data_replace" => antecedent_core::TransformIntent::CompatibleDataReplace,
+        "retarget" => antecedent_core::TransformIntent::Retarget,
+        "filter_display" => antecedent_core::TransformIntent::FilterDisplay,
+        "filter_population" => antecedent_core::TransformIntent::FilterPopulation,
+        "new_conditional_query" => antecedent_core::TransformIntent::NewConditionalQuery,
+        "change_graph" => antecedent_core::TransformIntent::ChangeGraph,
+        "change_prior" => antecedent_core::TransformIntent::ChangePrior,
+        "change_physical_policy" => antecedent_core::TransformIntent::ChangePhysicalPolicy,
+        "average_unweighted_class" => antecedent_core::TransformIntent::AverageUnweightedClass,
+        other => {
+            return Err(PyValueError::new_err(format!("unknown transform intent {other:?}")));
+        }
+    };
+    Ok(intent)
+}
+pub(crate) fn transform_report_map(
+    report: &antecedent_core::TransformationReport,
+) -> std::collections::HashMap<String, String> {
+    let mut out = std::collections::HashMap::new();
+    out.insert("intent".into(), report.intent.as_str().to_string());
+    for identity in report.input_identities.iter() {
+        out.insert(format!("input_{}", identity.domain.as_str()), identity.digest.to_hex());
+    }
+    out.insert("refused".into(), report.refused.to_string());
+    if let Some(refusal) = &report.refusal {
+        if let Some((code, _)) = antecedent_core::reason_code::split_prefix(refusal) {
+            out.insert("refusal_code".into(), code.to_string());
+        }
+        out.insert("refusal".into(), refusal.to_string());
+    }
+    out.insert(
+        "obligations".into(),
+        report.obligations.iter().map(|o| o.id.to_string()).collect::<Vec<_>>().join(","),
+    );
+    out
 }

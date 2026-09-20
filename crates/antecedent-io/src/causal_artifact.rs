@@ -1865,7 +1865,7 @@ mod tests {
     #[test]
     fn decode_rejects_transport_certificate_id_outside_header() {
         let identification =
-            TransportIdentificationWire::NotCertified(crate::NonTransportableCertificateWire {
+            TransportIdentificationWire::NotCertified(crate::NotCertifiedCertificateWire {
                 reason: "not_certified".into(),
                 witness: vec![2],
                 message: "implemented rules did not certify transport".into(),

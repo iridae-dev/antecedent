@@ -393,12 +393,20 @@ pub(crate) fn parse_catalog(
     }
     let mut regimes = Vec::new();
     let mut ids = std::collections::HashMap::new();
-    for (index, regime) in catalog.getattr("regimes")?.try_iter()?.enumerate() {
-        let regime = regime?;
+    let mut entries = catalog
+        .getattr("regimes")?
+        .try_iter()?
+        .map(|regime| {
+            let regime = regime?;
+            let label = regime.getattr("id")?.extract::<String>()?;
+            Ok((label, regime))
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    for (index, (name, regime)) in entries.into_iter().enumerate() {
         let id = RegimeId::from_raw(
             u32::try_from(index).map_err(|e| PyValueError::new_err(e.to_string()))?,
         );
-        let name: String = regime.getattr("id")?.extract()?;
         if ids.insert(name.clone(), id).is_some() {
             return Err(PyValueError::new_err("duplicate regime id"));
         }
@@ -499,6 +507,7 @@ pub(crate) fn parse_catalog(
             _ => return Err(PyValueError::new_err("unknown target sampling")),
         };
     EvidenceCatalog::try_new(environments, regimes, bindings, target_sampling)
+        .and_then(|catalog| catalog.canonicalized())
         .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
