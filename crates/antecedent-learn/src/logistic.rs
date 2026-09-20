@@ -7,7 +7,9 @@ use antecedent_stats::{
     FaerBackend, GlmDesignRef, GlmFamily, GlmFit, GlmOptions, LeastSquaresWorkspace, fit_glm,
 };
 
-use crate::dense::{gather_physical, materialize_dense_colmajor, predict_linear};
+use crate::dense::{
+    gather_physical, materialize_dense_colmajor, predict_linear, require_binary_labels,
+};
 use crate::design::{DesignView, TargetView};
 use crate::error::LearnError;
 use crate::learner::{
@@ -65,6 +67,7 @@ impl LearnerFactory for LogisticLearner {
             return Err(LearnError::Shape { message: "target length != physical rows" });
         }
         let gathered_y = gather_physical(y.values(), x, nrows)?;
+        require_binary_labels(&gathered_y)?;
         let mut ws = LeastSquaresWorkspace::default();
         let fit = fit_glm(
             GlmFamily::BinomialLogit,

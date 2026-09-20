@@ -46,6 +46,17 @@ pub(crate) fn gather_physical(
     Ok(out)
 }
 
+/// Binary-probability nuisances train on coded 0/1 labels, not class scores.
+#[allow(clippy::float_cmp)] // Treatment coding is exact, not a numeric tolerance.
+pub(crate) fn require_binary_labels(y: &[f64]) -> Result<(), LearnError> {
+    if y.iter().any(|&value| value != 0.0 && value != 1.0) {
+        return Err(LearnError::Shape {
+            message: "binary-probability targets must be coded 0 or 1",
+        });
+    }
+    Ok(())
+}
+
 /// Linear predictor into `out` (logical rows).
 pub(crate) fn predict_linear(
     coefficients: &[f64],
