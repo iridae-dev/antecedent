@@ -2538,7 +2538,7 @@ fn temporal_identification_wires(
         .collect()
 }
 
-fn reasoning_section(view: &ReasoningView) -> ReasoningSectionWire {
+pub(super) fn reasoning_section(view: &ReasoningView) -> ReasoningSectionWire {
     ReasoningSectionWire {
         identification: slot_section_from_availability(&view.identification, |slot| {
             IdentificationSlotWire {

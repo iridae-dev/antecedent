@@ -39,6 +39,7 @@ mod stability;
 mod state_api;
 mod temporal_api;
 mod temporal_license;
+mod transport_exact_api;
 mod transport_interference_api;
 
 pub(crate) use ate_api::{
@@ -2441,6 +2442,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     response_api::register(m)?;
     temporal_license::register(m)?;
     transport_interference_api::register(m)?;
+    transport_exact_api::register(m)?;
     observation_api::register(m)?;
     bounds_api::register(m)?;
     artifact_api::register(m)?;

@@ -1426,9 +1426,15 @@ impl PreparedModality {
 /// silent recompile. `analyze` / [`Study::run`] is sugar over identify →
 /// prepare → estimate.
 #[derive(Clone, Debug)]
-pub struct PreparedStudy {
+pub struct PreparedStudy<S = SampledPreparedState> {
+    pub(crate) state: S,
+}
+
+/// Retained state for sampled-data modalities of the common prepared handle.
+#[derive(Clone, Debug)]
+pub struct SampledPreparedState {
     /// Frozen analysis config (data slot replaced on each estimate). Read
-    /// through [`Self::study`]; mutate only through [`Self::study_mut`], which
+    /// through `PreparedStudy::study`; mutate only through `PreparedStudy::study_mut`, which
     /// drops the compiled program identities.
     analysis: Study,
     /// Data-independent contract layers, compiled once per handle state.
@@ -1444,6 +1450,18 @@ pub struct PreparedStudy {
     time_regularity: Option<antecedent_data::SamplingRegularity>,
     /// Cross-fitted AIPW scores frozen at prepare when the cell can export them.
     score_table: Option<antecedent_estimate::ScoreTable>,
+}
+
+impl std::ops::Deref for PreparedStudy {
+    type Target = SampledPreparedState;
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+impl std::ops::DerefMut for PreparedStudy {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.state
+    }
 }
 
 impl PreparedStudy {
@@ -1596,13 +1614,13 @@ impl PreparedStudy {
     /// Matrix structure-source axis frozen at prepare.
     #[must_use]
     pub const fn structure_source(&self) -> crate::support::StructureSource {
-        self.analysis.structure_source()
+        self.state.analysis.structure_source()
     }
 
     /// Evidence contract frozen at prepare. `None` when the query is off-axis.
     #[must_use]
     pub const fn support_status(&self) -> Option<crate::support::CellStatus> {
-        self.analysis.support_status()
+        self.state.analysis.support_status()
     }
 
     /// Borrow the ready physical plan retained from prepare.
@@ -2757,13 +2775,15 @@ impl Study {
         }
         let score_table = analysis.prepare_score_table(ctx)?;
         Ok(PreparedStudy {
-            analysis,
-            program_cache: std::sync::OnceLock::new(),
-            plan,
-            schema,
-            modality,
-            time_regularity,
-            score_table,
+            state: SampledPreparedState {
+                analysis,
+                program_cache: std::sync::OnceLock::new(),
+                plan,
+                schema,
+                modality,
+                time_regularity,
+                score_table,
+            },
         })
     }
 

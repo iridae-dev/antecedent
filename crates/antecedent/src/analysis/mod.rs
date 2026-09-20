@@ -14,7 +14,12 @@ mod batch;
 mod builder;
 mod contract;
 mod contract_identity;
+mod exact;
 mod execute;
+pub use exact::{
+    ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
+    ExactStudyResult,
+};
 mod helpers;
 mod latency;
 mod prepared;

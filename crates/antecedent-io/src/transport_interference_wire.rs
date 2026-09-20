@@ -9,8 +9,8 @@ use antecedent_estimate::{
     TransportOverlapReport,
 };
 use antecedent_identify::{
-    MissingEvidenceCertificate, NonTransportableCertificate, PopulationFactor,
-    TransportCertificate, TransportFormula, TransportIdentification,
+    MissingEvidenceCertificate, NotCertifiedCertificate, PopulationFactor, TransportCertificate,
+    TransportFormula, TransportIdentification,
 };
 use antecedent_stats::{ExposureProbabilityMethod, RandomizationContrast};
 use serde::{Deserialize, Serialize};
@@ -68,9 +68,9 @@ pub struct TransportCertificateWire {
     pub premises: Vec<String>,
 }
 
-/// Scoped negative transport certificate wire form.
+/// Inconclusive transport certificate wire form; never an impossibility proof.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct NonTransportableCertificateWire {
+pub struct NotCertifiedCertificateWire {
     /// Stable reason id.
     pub reason: String,
     /// Witness variables.
@@ -91,10 +91,10 @@ pub enum TransportIdentificationWire {
         certificate: TransportCertificateWire,
     },
     /// No implemented rule certified a formula; not a general impossibility claim.
-    NotCertified(NonTransportableCertificateWire),
+    NotCertified(NotCertifiedCertificateWire),
     /// A required available source regime is absent. Additive in this slice:
     /// existing `Transportable` / `NotCertified` artifacts still decode.
-    MissingEvidence(NonTransportableCertificateWire),
+    MissingEvidence(NotCertifiedCertificateWire),
 }
 
 /// Exposure-probability method wire form.
@@ -184,14 +184,14 @@ pub fn transport_identification_to_wire(
             }
         }
         TransportIdentification::NotCertified(certificate) => {
-            TransportIdentificationWire::NotCertified(NonTransportableCertificateWire {
+            TransportIdentificationWire::NotCertified(NotCertifiedCertificateWire {
                 reason: certificate.reason.to_string(),
                 witness: certificate.witness.iter().map(|id| id.raw()).collect(),
                 message: certificate.message.to_string(),
             })
         }
         TransportIdentification::MissingEvidence(certificate) => {
-            TransportIdentificationWire::MissingEvidence(NonTransportableCertificateWire {
+            TransportIdentificationWire::MissingEvidence(NotCertifiedCertificateWire {
                 reason: certificate.reason.to_string(),
                 witness: certificate.missing.iter().map(|id| id.raw()).collect(),
                 message: certificate.message.to_string(),
@@ -228,7 +228,7 @@ pub fn transport_identification_from_wire(
             }
         }
         TransportIdentificationWire::NotCertified(certificate) => {
-            TransportIdentification::NotCertified(NonTransportableCertificate {
+            TransportIdentification::NotCertified(NotCertifiedCertificate {
                 reason: Arc::from(certificate.reason.as_str()),
                 witness: certificate
                     .witness
@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn not_certified_transport_round_trip_preserves_scope() {
-        let original = TransportIdentification::NotCertified(NonTransportableCertificate {
+        let original = TransportIdentification::NotCertified(NotCertifiedCertificate {
             reason: Arc::from("transport.sid.multinode_c_component_not_implemented"),
             witness: Arc::from([antecedent_core::VariableId::from_raw(2)]),
             message: Arc::from("no non-transportability claim is made"),

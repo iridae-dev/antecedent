@@ -218,13 +218,12 @@ mod tests {
 
     #[test]
     fn migrate_0_2_preserves_transport_not_certified_section() {
-        let wire = crate::TransportIdentificationWire::NotCertified(
-            crate::NonTransportableCertificateWire {
+        let wire =
+            crate::TransportIdentificationWire::NotCertified(crate::NotCertifiedCertificateWire {
                 reason: "transport.sid.multinode_c_component_not_implemented".into(),
                 witness: vec![2],
                 message: "no non-transportability claim is made".into(),
-            },
-        );
+            });
         let payload = to_cbor(&wire).unwrap();
         let mut artifact = tiny_artifact(FormatVersion { major: 0, minor: 2 });
         artifact.manifest.sections =

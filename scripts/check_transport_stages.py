@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 import tomllib
-from test_evidence import resolve_python_test
+from test_evidence import resolve_python_test, resolve_rust_test
 
 root = Path(__file__).resolve().parents[1]
 registry = tomllib.loads((root / "parity/transport_stages.toml").read_text())
@@ -22,6 +22,8 @@ for route in registry.get("routes", []):
         "representation",
         "evaluate",
         "uncertainty",
+        "prepare",
+        "consume",
     }:
         errors.append(f"invalid stage: {name}")
     if route.get("status") == "licensed":
@@ -42,7 +44,19 @@ for route in registry.get("routes", []):
             route.get("stage") == "identify"
             and route.get("guarantee") != "sound_incomplete"
         ):
-            errors.append(f"{name}: implemented identifier must not claim completeness")
+            if (
+                name != "antecedent.transport.identify_classical"
+                or route.get("guarantee") != "complete_in_classical_evidence_scope"
+                or route.get("evidence") != "classical_complete_source_experimental_family"
+                or route.get("reference") != "https://arxiv.org/abs/1312.7485v1"
+            ):
+                errors.append(f"{name}: completeness requires the pinned classical evidence scope")
+            path, assertion = route.get("conformance_test"), route.get("conformance_assertion")
+            if not path or not assertion:
+                errors.append(f"{name}: completeness requires consuming Rust branch conformance")
+            else:
+                _, problems = resolve_rust_test(root / path, assertion)
+                errors.extend(problems)
     elif route.get("status") != "closed" or not route.get("reason_code"):
         errors.append(f"{name}: expected licensed or a reason-backed closed contract")
 required = {
