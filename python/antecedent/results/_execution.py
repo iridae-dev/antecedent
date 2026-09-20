@@ -223,6 +223,10 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     if kind == "response":
         # A limited function-valued claim is partial: its envelope, not a curve.
         return Answer("partial" if limitation else "response", detail=limitation)
+    if kind == "bounds" and bounds is not None and limitation is None:
+        # A structural identified set remains a set after loading, even when
+        # all graph atoms are identified and its two endpoints coincide.
+        limitation = "identified_set"
     return Answer(kind, bounds=bounds, detail=limitation)
 
 
@@ -477,7 +481,7 @@ class ResultAPI:
             support=replace(slots.support, payload=support_payload),
             uncertainty=SlotView(
                 uncertainty_available,
-                None if uncertainty_available else "not_evaluated",
+                None if uncertainty_available else (slots.uncertainty.reason or "not_evaluated"),
                 slots.uncertainty.summary
                 if slots.uncertainty.available
                 else "execution_specific"

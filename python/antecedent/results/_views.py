@@ -117,7 +117,7 @@ class TemporalMediationGridView(ResultModel):
     def __len__(self) -> int:
         return len(self.slices)
 
-    def __iter__(self) -> Iterator[TemporalMediationSliceView]:
+    def __iter__(self) -> Iterator[TemporalMediationSliceView]:  # type: ignore[override]
         return iter(self.slices)
 
 
@@ -469,7 +469,7 @@ class ValidationView(ResultModel):
     def __len__(self) -> int:
         return len(self.reports)
 
-    def __iter__(self) -> Iterator[RefutationReport]:
+    def __iter__(self) -> Iterator[RefutationReport]:  # type: ignore[override]
         return iter(self.reports)
 
     def __getitem__(self, key: int | str) -> RefutationReport:
@@ -751,7 +751,6 @@ class AnalysisResult(ResultModel, ResultAPI):
         if self.evidence_status == "allowed_unlicensed":
             parts.append("unlicensed")
         return f"<AnalysisResult {' '.join(parts)}>"
-
 
     def rendering_limitation(self) -> str | None:
         """Stable id when a point-mean display would misrepresent the claim."""

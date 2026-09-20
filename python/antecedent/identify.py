@@ -222,9 +222,7 @@ class Identification:
     @property
     def statement(self) -> str:
         """One-sentence identification state. This is data, not a display hook."""
-        return identification_statement(
-            self.query, self.status, self.method, self.adjustment_set
-        )
+        return identification_statement(self.query, self.status, self.method, self.adjustment_set)
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-safe identification state, including the human-readable fields."""

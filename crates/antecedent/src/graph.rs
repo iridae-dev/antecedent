@@ -2,9 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub use antecedent_core::Lag;
 pub use antecedent_graph::{
     Admg, CompletionSampler, Cpdag, CpdagCompletion, CpdagCompletionSampler, CpdagReview, Dag,
     DagReview, DenseNodeId, Pag, PagCompletion, PagReview, SelectionDiagram, TemporalCpdag,
-    TemporalDag, TemporalPag, TemporalPagReview, TieredBackground, WithinTier, is_mec_member,
-    latent_project,
+    TemporalDag, TemporalPag, TemporalPagReview, TieredBackground, WithinTier, ensure_lagged,
+    is_mec_member, latent_project,
 };

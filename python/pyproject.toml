@@ -111,5 +111,5 @@ show_error_codes = true
 # pandas is an optional runtime dependency for caller conversion after
 # ValidationView.to_columns(); it ships no type stubs here.
 [[tool.mypy.overrides]]
-module = "pandas.*"
+module = ["pandas.*", "pyarrow.*"]
 ignore_missing_imports = true

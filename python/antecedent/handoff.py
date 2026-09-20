@@ -470,7 +470,7 @@ def _bind_parent_identities(
 
 
 def _unpack(
-    result: AnalysisResult | CausalResponseView | Identification | IdentifyResult,
+    result: object,
     *,
     treatment: str | tuple[str, ...] | None,
     outcome: str | None,

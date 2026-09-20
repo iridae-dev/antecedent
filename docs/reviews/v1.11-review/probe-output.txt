@@ -1,0 +1,20 @@
+Calibration dependency probe
+crates/antecedent-estimate/src/util.rs: facet=core, invalidates 0/587 records
+crates/antecedent-stats/src/faer_backend.rs: facet=core, invalidates 0/587 records
+crates/antecedent-prob/src/conjugate.rs: facet=core, invalidates 0/587 records
+crates/antecedent-kernels/src/rng.rs: facet=core, invalidates 0/587 records
+crates/antecedent/src/analysis/execute/dispatch.rs: facet=core, invalidates 0/587 records
+   Compiling antecedent-review-probes v0.0.0 (/var/folders/vx/w3vnnpzx0m73zrb1d6v87ctw0000gn/T/antecedent-review-o07mi500)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.83s
+     Running `target/debug/antecedent-review-probes`
+IV descendant: status=IdentifiedUnderParametricRestrictions, instruments=[[VariableId(2)]]
+conditional IV: wald=3, 2sls=2.000000000000001, truth=2
+conjugate recycled allocation: reused=3.9987503905029684, fresh=0.999921881103039
+conjugate allocator recycle observed=true
+knn: before=CiResult { statistic: -1.5084944665313011, p_value: 0.1, df: 0.0, ci: None }, reused=CiResult { statistic: -1.5084944665313011, p_value: 0.1, df: 0.0, ci: None }, fresh=CiResult { statistic: -33.96319576480802, p_value: 0.1, df: 0.0, ci: None }
+backdoor irrelevant=10: performance=IdentificationPerformanceRecord { candidates_examined: 1024, sets_returned: 1 }, elapsed=2.390666ms
+backdoor irrelevant=16: performance=IdentificationPerformanceRecord { candidates_examined: 65536, sets_returned: 1 }, elapsed=202.32925ms
+backdoor irrelevant=20: performance=IdentificationPerformanceRecord { candidates_examined: 1048576, sets_returned: 1 }, elapsed=4.436006416s
+streaming OLS offset variance=Some(0.0); expected=2.5
+BIC outcome scale=1: edge-minus-empty=297.40895307587
+BIC outcome scale=0.00000001: edge-minus-empty=-2.3025850929939224

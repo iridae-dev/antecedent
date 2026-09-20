@@ -10,10 +10,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.11.0]
 
 The 1.x close-out on the 1.10.0 composition contract. This cut also
-carries the P speed program (default user `threads>1`, in-repo user-path
-benches). Entries accumulate here until the cut.
+carries the S practitioner acceptance suite and leftover fixes, and the P
+speed program (default user `threads>1`, in-repo user-path benches).
+Entries accumulate here until the cut.
 
 ### Added
+
+- Independent practitioner acceptance for 1.11 in the sibling
+  `antecedent-practitioner-scenarios` repository: installed-wheel Python and
+  public-facade Rust jobs, artifact consumption in fresh processes, named
+  refusals, and separately selected 10,000/100,000-row checks. See
+  `docs/practitioner-acceptance.md` for candidate evidence requirements.
+- Rust facade exports for constructing and inspecting response queries,
+  temporal policies and lagged graphs, configuring response bandwidths, and
+  constructing class graph posteriors without component-crate dependencies.
+- A second independent matrix edge-case suite crosses graph class, accepted
+  structure, inference and validation boundaries and reports executed versus
+  untested licensed coordinates. It also tests observation assumptions,
+  structural ambiguity, and artifact integrity.
+- Clarified and regression-tested Python's existing fully oriented CPDAG-to-DAG
+  compatibility normalization for fixed-DAG query families. Incomplete CPDAGs
+  still refuse; normalized calls count as DAG execution, not CPDAG coverage.
+  Bayesian response bands retain their parameter-uncertainty source and band
+  method in the portable four-slot contract, including after artifact loading.
+- Live Python inspection preserves the contract's unavailable-uncertainty
+  reason, matching the disclosure after exporting and loading the result.
+  Loaded class-posterior bounds also retain their `identified_set` explanation.
 
 - `result.claim()`, `result.as_point()`, and `result.as_response()` on the
   shared `Analysis` type (`AnalysisResult | CausalResponseView`).

@@ -40,3 +40,25 @@ def test_inspect_is_pydantic_and_to_dict_matches_dump() -> None:
     live_report = live.inspect()
     assert isinstance(live_report, InspectionReport)
     assert live_report.to_dict()["contract"] == live.inspect().contract
+
+
+def test_point_only_uncertainty_reason_survives_artifact_loading() -> None:
+    """Practitioner S: a live result must retain the portable omission reason."""
+    import antecedent as ant
+    import numpy as np
+
+    treatment = np.sin(np.arange(90) * 0.73)
+    outcome = np.zeros(90)
+    outcome[1:] = 0.8 * treatment[:-1]
+    result = ant.analyze(
+        {"t": treatment, "y": outcome},
+        graph=[("t", 1, "y", 0)],
+        query=ant.PulseEffect("t", "y"),
+        refute="none",
+        bootstrap=0,
+    )
+    live = result.inspect().uncertainty
+    loaded = ant.load(result.export()).inspect().uncertainty
+    assert not live.available and not loaded.available
+    assert loaded.reason == "omitted"
+    assert live.reason == loaded.reason

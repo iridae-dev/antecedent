@@ -3435,10 +3435,8 @@ def encode_external_estimate_claim(
 def omitted_defaults() -> dict[str, Any]:
     """Budgets the builder applies when a caller omits them (bootstrap, refute, n_draws, ...)."""
 
-
 def default_user_threads() -> int:
     """Default product `threads` (`available_parallelism`, capped)."""
-
 
 def identification_status_names() -> list[str]:
     """Every native identification status string, exhaustively (the verdict table's key set)."""
