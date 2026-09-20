@@ -55,9 +55,10 @@ static ATE_GRID_FAILING_SMALL: [CoverageGridPoint; 3] =
 /// Default Bayesian DAG `AverageEffect` at 250 / 500 / 1000.
 static BAYES_GRID: [CoverageGridPoint; 3] =
     [point(0, 250, 0.97, false), point(1, 500, 0.96, false), point(2, 1000, 0.93, false)];
-/// Frequentist `TemporalDag` Pulse on the driven AR(1) ρ = 0.5 design at 80 / 160 / 320.
+/// Frequentist `TemporalDag` Pulse on the driven AR(1) ρ = 0.5 design at DGP
+/// lengths 80 / 160 / 320. The slot binds on lag-aligned analysis n (79 / 159 / 319).
 static PULSE_GRID: [CoverageGridPoint; 3] =
-    [point(0, 80, 0.96, false), point(1, 160, 0.93, false), point(2, 320, 0.96, false)];
+    [point(0, 79, 0.96, false), point(1, 159, 0.93, false), point(2, 319, 0.96, false)];
 
 fn record(
     id: &'static str,
