@@ -285,7 +285,8 @@ certificates are outside the 0.9 transport contract.
 * covariate-distance matching;
 * stratification;
 * AIPW;
-* front-door two-stage estimation;
+* front-door functional plug-in estimation (`frontdoor.functional`);
+* linear front-door two-stage estimation (`frontdoor.linear_two_stage`);
 * Wald estimation;
 * 2SLS;
 * sharp local-linear regression discontinuity (effect at the cutoff);
@@ -336,10 +337,19 @@ license is that matrix, not this page.
 Three of these carry parametric scope conditions that the estimator cannot check
 at runtime:
 
-* **Front-door two-stage estimation** is the linear-SEM product-of-coefficients
-  estimator. It assumes linear structural equations and no direct treatment to
-  outcome edge. The general nonparametric front-door formula is reached through
-  the ID path and functional plug-in estimation, not through this estimator.
+* **Linear front-door two-stage estimation** (`frontdoor.linear_two_stage`) is the
+  linear-SEM product-of-coefficients estimator. The front-door criterion licenses
+  the functional `E[Y|do(t)] = sum_m P(m|t) sum_t' E[Y|m,t'] P(t')`; the product of
+  coefficients equals it only when `E[M|T]` is linear and `E[Y|M,T]` has no
+  treatment-mediator interaction. A latent treatment-outcome confounder that
+  modifies the mediator's effect breaks this (a binary example converges to 0.363
+  against a true 0.315), so every result records the
+  `frontdoor.linear_path_product` restriction. For a discrete treatment use
+  `frontdoor.functional`, which estimates the functional itself: saturated cell
+  means for discrete mediators (nothing assumed; refused when a mediator value is
+  missing from an arm), or a per-arm linear outcome regression for continuous
+  mediators (treatment-mediator interaction free, within-arm linearity recorded),
+  with an influence-function standard error. It refuses a continuous treatment.
 * **Sharp regression discontinuity identifies and estimates one effect: the
   average effect for units at the cutoff,**
   `lim_{r↓c} E[Y | R = r] − lim_{r↑c} E[Y | R = r]`. It is not the population

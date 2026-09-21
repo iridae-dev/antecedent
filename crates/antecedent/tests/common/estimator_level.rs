@@ -106,14 +106,14 @@ pub const CASES: &[EstimatorLevelCase] = &[
     ),
     case(
         "frontdoor_stacked_hc0_ci_coverage",
-        "frontdoor.two_stage",
+        "frontdoor.linear_two_stage",
         "analytic_se",
         "hc0",
         "all_observed.mean",
     ),
     case(
         "frontdoor_stacked_hc1_ci_coverage",
-        "frontdoor.two_stage",
+        "frontdoor.linear_two_stage",
         "analytic_se",
         "hc1",
         "all_observed.mean",

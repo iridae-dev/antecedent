@@ -11,10 +11,10 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_estimate::{
     AipwAte, AipwWorkspace, CausalForest, DistanceMatching, DmlAte, DrLearner, EffectEstimate,
-    EstimationError, EstimationWorkspace, FrontDoorTwoStage, FrontDoorWorkspace, GlmAdjustmentAte,
-    GlmAdjustmentWorkspace, LinearAdjustmentAte, OverlapPolicy, PropensityEstimationWorkspace,
-    PropensityMatching, PropensityStratification, PropensityWeighting, TwoStageLeastSquares,
-    TwoStageLeastSquaresWorkspace, WaldIv,
+    EstimationError, EstimationWorkspace, FrontDoorFunctional, FrontDoorTwoStage,
+    FrontDoorWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace, LinearAdjustmentAte,
+    OverlapPolicy, PropensityEstimationWorkspace, PropensityMatching, PropensityStratification,
+    PropensityWeighting, TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
 };
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{Dag, Pag};
@@ -562,6 +562,11 @@ fn estimate_static_effect_default(
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             let mut ws = FrontDoorWorkspace::default();
             est.fit(&prep, &mut ws, ctx, assumptions).map_err(est_err)
+        }
+        EstimatorId::FrontDoorFunctional => {
+            let est = FrontDoorFunctional::new().with_bootstrap_replicates(bootstrap_replicates);
+            let prep = est.prepare(data, estimand, query).map_err(est_err)?;
+            est.fit(&prep, ctx, assumptions).map_err(est_err)
         }
         EstimatorId::IvWald => {
             let mut est = WaldIv::new();

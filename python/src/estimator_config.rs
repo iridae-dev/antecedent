@@ -115,7 +115,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "family",
         ],
     ),
-    ("frontdoor.two_stage", &["bootstrap_replicates", "se_kind", "se_lag", "cluster_ids"]),
+    ("frontdoor.linear_two_stage", &["bootstrap_replicates", "se_kind", "se_lag", "cluster_ids"]),
     (
         "iv.wald",
         &[
@@ -814,7 +814,7 @@ fn build_configured_spec(
             }
             est.into()
         }
-        "frontdoor.two_stage" => {
+        "frontdoor.linear_two_stage" => {
             let mut est = FrontDoorTwoStage::new().with_bootstrap_replicates(bootstrap);
             if let Some(k) = se_kind {
                 est = est.with_se_kind(k);

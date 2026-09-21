@@ -1,9 +1,9 @@
 {
   "true_effect": 2.0,
-  "tolerance": 0.35,
+  "tolerance": 0.06,
   "identifier": "frontdoor",
-  "estimator": "frontdoor.two_stage",
-  "notes": "synthetic SCM; clean-room; U->T->M->Y with U->Y confounding and no direct T->Y edge (U unmeasured, absent from the graph); M=1*T+noise, Y=2*M+U+noise; two-stage product-of-coefficients recovers effect=1*2=2",
+  "estimator": "frontdoor.linear_two_stage",
+  "notes": "synthetic SCM; clean-room; U->T->M->Y with U->Y confounding and no direct T->Y edge (U unmeasured, absent from the graph); T=3+U+noise (uncentred), M=0.4*T+noise, Y=5*M+U+noise; the linear product of coefficients recovers 0.4*5=2, while either coefficient alone (0.4, 5) and the confounded Y~T slope (~3) are far outside the tolerance (about five standard errors at n=4000). The reported SE is checked against the closed-form delta-method SE of this SCM.",
   "generation": {
     "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "baseline_pin": "parity/baselines/dowhy.toml",
@@ -15,7 +15,7 @@
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
     "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
-    "note": "black-box execution only; no source translation",
+    "note": "black-box execution only; no source translation. Recorded on the fixture's earlier SCM (M=1*T, Y=2*M); its outputs are kept as provenance and are not compared with anything.",
     "outputs": {
       "method": "frontdoor.two_stage_regression",
       "estimate": 2.0510287289381304,

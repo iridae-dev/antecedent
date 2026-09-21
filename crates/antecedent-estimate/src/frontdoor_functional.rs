@@ -172,7 +172,7 @@ impl FrontDoorFunctional {
             problem.active,
             problem.control,
             model,
-            &self.backend,
+            self.backend,
             &mut ols,
             true,
         )?;
@@ -230,7 +230,7 @@ impl FrontDoorFunctional {
                     problem.active,
                     problem.control,
                     model,
-                    &self.backend,
+                    self.backend,
                     ols,
                     false,
                 )
@@ -329,7 +329,7 @@ fn contrast(
     active: f64,
     control: f64,
     model: ResolvedModel,
-    backend: &FaerBackend,
+    backend: FaerBackend,
     ols: &mut LeastSquaresWorkspace,
     want_influence: bool,
 ) -> Result<Contrast, EstimationError> {
@@ -492,7 +492,7 @@ impl OutcomeFit {
         arm_of: &[u32],
         arm_n: &[f64],
         contrasted: [usize; 2],
-        backend: &FaerBackend,
+        backend: FaerBackend,
         ols: &mut LeastSquaresWorkspace,
     ) -> Result<Self, EstimationError> {
         let n = sample.treatment.len();
@@ -598,7 +598,12 @@ impl OutcomeFit {
 }
 
 #[cfg(test)]
-#[allow(clippy::many_single_char_names, clippy::float_cmp)]
+#[allow(
+    clippy::many_single_char_names,
+    clippy::float_cmp,
+    clippy::cast_sign_loss,
+    clippy::needless_range_loop
+)]
 mod tests {
     use antecedent_core::{
         CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
