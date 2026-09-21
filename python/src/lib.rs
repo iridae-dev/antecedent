@@ -30,6 +30,7 @@ mod graph_build;
 mod graph_io;
 mod graphs;
 mod identification_details;
+mod interrupt;
 mod learned_trial_api;
 mod observation_api;
 mod prepared_api;
@@ -538,13 +539,14 @@ fn panic_payload_msg(payload: &(dyn Any + Send)) -> String {
     }
 }
 
-/// Release the GIL for native work and convert any panic into [`CausalError`].
+/// Release the GIL for native work, convert any panic into [`CausalError`], and let Ctrl-C in the
+/// calling thread cancel the run (see [`interrupt`]).
 pub(crate) fn detach_catch<F, T>(py: Python<'_>, f: F) -> PyResult<T>
 where
     F: FnOnce() -> PyResult<T> + Send,
     T: Send,
 {
-    py.detach(|| catch_ffi(f))
+    interrupt::run(py, f)
 }
 
 impl IntoCausalPyErr for RustCausalError {
@@ -1630,6 +1632,12 @@ pub(crate) fn shared_study_sections(
     };
     let (evidence_status, allowlist_reason, allowlist_parent) =
         evidence_status_parts(result.support_status);
+    // A query with no matrix cell (mechanism / unit change) is off the axis by design; say so
+    // rather than leaving a reader to mistake it for a licensed cell that was never stamped.
+    let evidence_status = match (evidence_status, result.support_status) {
+        (None, None) => Some("off_axis".to_owned()),
+        (status, _) => status,
+    };
     let structural = result.structural_response.as_ref();
     Ok(SharedStudySections {
         identification,
@@ -1907,7 +1915,6 @@ struct PosteriorArtifact {
     q025: Vec<f64>,
     #[pyo3(get)]
     q975: Vec<f64>,
-    #[pyo3(get)]
     draws: Vec<f64>,
     #[pyo3(get)]
     backend_id: String,
@@ -1934,6 +1941,13 @@ struct PosteriorArtifact {
 
 #[pymethods]
 impl PosteriorArtifact {
+    /// Posterior draws as a float64 array (one memcpy, no boxed floats). `numpy.asarray(artifact)`
+    /// views the same storage through the buffer protocol without copying at all.
+    #[getter]
+    fn draws<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        PyArray1::from_slice(py, &self.draws)
+    }
+
     #[new]
     #[pyo3(signature = (
         n_draws,
@@ -2208,15 +2222,21 @@ pub(crate) fn columns_to_batch(
     let fields: Vec<Field> =
         names.iter().map(|nm| Field::new(nm, DataType::Float64, true)).collect();
     let schema = Schema::new(fields);
-    // Contiguous copy from NumPy buffers (no Option-per-element intermediate).
+    // One pass into the Arrow values buffer. NumPy has no validity bitmap (NaN is its
+    // missing-value sentinel), so the Option-per-element route is taken only for a column that
+    // actually holds a NaN.
     let arrays: Vec<Arc<dyn arrow_array::Array>> = columns
         .iter()
         .map(|c| {
-            let slice = c.as_array();
-            // NumPy has no validity bitmap: NaN is its missing-value sentinel.
-            let values: Vec<Option<f64>> =
-                slice.iter().map(|&v| (!v.is_nan()).then_some(v)).collect();
-            Arc::new(Float64Array::from(values)) as Arc<dyn arrow_array::Array>
+            let view = c.as_array();
+            let array = if view.iter().any(|v| v.is_nan()) {
+                Float64Array::from(
+                    view.iter().map(|&v| (!v.is_nan()).then_some(v)).collect::<Vec<Option<f64>>>(),
+                )
+            } else {
+                Float64Array::from_iter_values(view.iter().copied())
+            };
+            Arc::new(array) as Arc<dyn arrow_array::Array>
         })
         .collect();
     RecordBatch::try_new(Arc::new(schema), arrays).map_err(py_err)
@@ -2396,6 +2416,17 @@ pub(crate) fn py_execution_context(seed: u64, threads: u32) -> ExecutionContext 
     py_execution_context_ext(seed, threads, None, None, Some(PY_DEFAULT_CACHE_MAX_BYTES))
 }
 
+/// [`py_execution_context`] honouring an optional caller token.
+pub(crate) fn py_execution_context_cancel(
+    seed: u64,
+    threads: u32,
+    cancel: Option<PyCancellationToken>,
+) -> ExecutionContext {
+    let mut ctx = py_execution_context(seed, threads);
+    apply_cancel(&mut ctx, cancel);
+    ctx
+}
+
 pub(crate) fn py_execution_context_ext(
     seed: u64,
     threads: u32,
@@ -2405,11 +2436,30 @@ pub(crate) fn py_execution_context_ext(
 ) -> ExecutionContext {
     let mut ctx = ExecutionContext::production(seed, threads);
     ctx.cache_policy = CachePolicy::enabled(cache_max_bytes);
-    if let Some(token) = cancel {
-        ctx.cancellation = token;
-    }
+    install_cancellation(&mut ctx, cancel);
     ctx.progress = progress;
     ctx
+}
+
+/// Install the caller's cancellation token on `ctx`; Ctrl-C also fires it (or, with no token, the
+/// run's own).
+pub(crate) fn apply_cancel(ctx: &mut ExecutionContext, cancel: Option<PyCancellationToken>) {
+    install_cancellation(ctx, cancel.map(|token| token.inner));
+}
+
+fn install_cancellation(
+    ctx: &mut ExecutionContext,
+    cancel: Option<antecedent_core::CancellationToken>,
+) {
+    if let Some(token) = cancel {
+        interrupt::link(&token);
+        ctx.cancellation = token;
+    } else if let Some(token) = interrupt::ambient_token() {
+        ctx.cancellation = token;
+    } else {
+        // Built ahead of the detached call: the token joins the run that executes this context.
+        interrupt::link(&ctx.cancellation);
+    }
 }
 
 /// Cooperative cancellation token shared with a running analysis.
@@ -2509,6 +2559,13 @@ fn omitted_defaults(py: Python<'_>) -> PyResult<Py<PyAny>> {
     // Draw budgets belong to the Bayesian backend constructors.
     dict.set_item("n_draws", BayesianConfig::laplace().n_draws)?;
     dict.set_item("n_draws_hmc", BayesianConfig::hmc().n_draws)?;
+    // Keyword defaults the native signatures repeat as literals; a test compares them here.
+    dict.set_item("discovery_alpha", antecedent::discovery_defaults::DEFAULT_ALPHA)?;
+    dict.set_item(
+        "discovery_max_cond_size",
+        antecedent::discovery_defaults::DEFAULT_MAX_COND_SIZE,
+    )?;
+    dict.set_item("prior_scale", BayesianConfig::laplace().prior_scale)?;
     Ok(dict.into())
 }
 

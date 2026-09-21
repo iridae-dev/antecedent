@@ -174,7 +174,7 @@ fn observation_adjusted_outcome(
     observed=None, censoring=None, event=None, lower=None, upper=None, indicator=None,
     assumption_kind, assumption_variables=Vec::new(), structural_model=None,
     delayed_entry=None, correction="aipw", observation_probability_floor=0.01,
-    censoring_survival_floor=0.01, crossfit_folds=5, accepted=false
+    censoring_survival_floor=0.01, crossfit_folds=5, accepted=false, seed=1
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_observation_response(
@@ -202,6 +202,7 @@ fn analyze_observation_response(
     censoring_survival_floor: f64,
     crossfit_folds: usize,
     accepted: bool,
+    seed: u64,
 ) -> PyResult<ObservationResponseResult> {
     let batch = columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -247,7 +248,7 @@ fn analyze_observation_response(
             builder = builder.observation_delayed_entry(entry);
         }
         let study = builder.build().map_err(py_err)?;
-        let ctx = crate::py_execution_context(1, crate::resolve_user_threads(None));
+        let ctx = crate::py_execution_context(seed, crate::resolve_user_threads(None));
         let prepared = study.prepare(&ctx).map_err(py_err)?;
         let result = prepared.estimate(&data, &ctx).map_err(py_err)?;
         let adjustment_set =

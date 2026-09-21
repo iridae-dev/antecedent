@@ -37,18 +37,16 @@ impl LogicalAnalysisPlan {
     ///
     /// Invalid combinations.
     pub fn validate(&self) -> Result<(), CausalError> {
-        match (&self.query, self.record.data_classification) {
-            (CausalQuery::TemporalEffect(_), DataClassification::Tabular) => {
-                return Err(CausalError::Compile {
-                    message: "temporal effect query requires temporal data".into(),
-                });
-            }
-            (CausalQuery::AverageEffect(_), DataClassification::Temporal)
-                if self.record.discovery_algorithm.is_some() =>
-            {
-                // Static ATE on temporal rows is allowed only without temporal discovery.
-            }
-            _ => {}
+        // A static average effect never carries a temporal classification (it compiles as
+        // tabular), and a temporal graph under `AverageEffect` is an n/a support cell, so no
+        // modality rule for it belongs here.
+        if matches!(
+            (&self.query, self.record.data_classification),
+            (CausalQuery::TemporalEffect(_), DataClassification::Tabular)
+        ) {
+            return Err(CausalError::Compile {
+                message: "temporal effect query requires temporal data".into(),
+            });
         }
         if matches!(
             self.record.discovery_algorithm.as_deref(),

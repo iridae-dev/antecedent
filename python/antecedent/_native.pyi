@@ -74,6 +74,7 @@ def accept_rpcmci(
     ci: CiArg = None,
     weights: Sequence[Any] | None = None,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
     accept_discovered: bool = True,
 ) -> Any:
@@ -519,7 +520,7 @@ class PosteriorArtifact:
     sd: list[float]
     q025: list[float]
     q975: list[float]
-    draws: list[float]
+    draws: NDArray[np.float64]
     backend_id: str
     identification: str
     unidentified_mass: float
@@ -2007,6 +2008,7 @@ def analyze_response(
     export_row_diagnostics: bool = False,
     accepted: bool = False,
     refute: bool | str | None = None,
+    seed: int = 1,
 ) -> ResponseAnalysisResult: ...
 def analyze_temporal_response(
     names: list[str],
@@ -2157,6 +2159,7 @@ def analyze_observation_response(
     censoring_survival_floor: float = 0.01,
     crossfit_folds: int = 5,
     accepted: bool = False,
+    seed: int = 1,
 ) -> ObservationResponseResult: ...
 def prepare_observation_response(
     names: list[str],
@@ -2467,6 +2470,7 @@ def discover_pcmci(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_pcmci_plus(
@@ -2480,6 +2484,7 @@ def discover_pcmci_plus(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_pc(
@@ -2492,6 +2497,7 @@ def discover_pc(
     ci: CiArg = None,
     max_cond_size: int = 2,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_ges(
     names: list[str],
@@ -2503,6 +2509,7 @@ def discover_ges(
     ci: CiArg = None,
     max_cond_size: int = 2,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     screen_pc: bool = False,
     max_subset: int | None = None,
 ) -> PcmciDiscoveryResult: ...
@@ -2514,6 +2521,7 @@ def discover_lingam(
     seed: int = 1,
     max_cond_size: int = 8,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_notears(
     names: list[str],
@@ -2525,6 +2533,7 @@ def discover_notears(
     seed: int = 1,
     max_cond_size: int = 8,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_fci(
     names: list[str],
@@ -2536,6 +2545,7 @@ def discover_fci(
     ci: CiArg = None,
     max_cond_size: int = 2,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_rfci(
     names: list[str],
@@ -2547,6 +2557,7 @@ def discover_rfci(
     ci: CiArg = None,
     max_cond_size: int = 2,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> PcmciDiscoveryResult: ...
 def discover_lpcmci(
     names: list[str],
@@ -2559,6 +2570,7 @@ def discover_lpcmci(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
 ) -> PcmciDiscoveryResult: ...
 def discover_jpcmci_plus(
@@ -2572,6 +2584,7 @@ def discover_jpcmci_plus(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     context_names: list[str] | None = None,
     include_space_dummy: bool = True,
     include_time_dummy: bool = False,
@@ -2592,6 +2605,7 @@ def discover_rpcmci(
     ci: CiArg = None,
     weights: list[float] | None = None,
     threads: int | None = None,
+    cancel: CancellationToken | None = None,
     max_cond_size: int = 2,
 ) -> RpcmciDiscoverySummary: ...
 def two_regime_half_split(series_len: int) -> list[int]: ...
@@ -3667,7 +3681,7 @@ class FittedEffectModel:
     parent_claim: str
     @staticmethod
     def load(bytes: bytes) -> FittedEffectModel: ...
-    def predict(self, columns: list[list[float]], nrows: int) -> list[float]: ...
+    def predict(self, columns: list[NDArray[np.float64]], nrows: int) -> NDArray[np.float64]: ...
     def export(self) -> bytes: ...
 
 class PreparedLearnedTrial:

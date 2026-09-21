@@ -2334,7 +2334,7 @@ fn intervention_support(
     if shifted_extrapolation {
         report.warnings.push(Diagnostic::new(
             "response.temporal.shift_distribution_extrapolative",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Warning,
             "the shifted treatment distribution extends beyond at least one horizon's observed treatment range",
         ));
@@ -2378,7 +2378,7 @@ fn assemble_temporal_support(
     if mixed {
         warnings.push(Diagnostic::new(
             "response.temporal.partial_horizon_support",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Warning,
             "some requested (dose, horizon) cells sit outside that horizon's lag-aligned \
              treatment range; inspect support.point_status",
@@ -2386,7 +2386,7 @@ fn assemble_temporal_support(
     } else if status == SupportStatus::OutsideEmpiricalSupport {
         warnings.push(Diagnostic::new(
             "response.outside_empirical_support",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Warning,
             "no requested (dose, horizon) cell sits inside that horizon's lag-aligned \
              treatment range",

@@ -966,6 +966,7 @@ pub fn diagnostic_to_wire(d: &Diagnostic) -> DiagnosticWire {
         code: d.code.to_string(),
         kind: match d.kind {
             DiagnosticKind::Scientific => "scientific",
+            DiagnosticKind::Support => "support",
             DiagnosticKind::Execution => "execution",
         }
         .into(),
@@ -991,6 +992,7 @@ pub fn diagnostic_from_wire(w: &DiagnosticWire) -> Result<Diagnostic, IoError> {
         code: Arc::from(w.code.as_str()),
         kind: match w.kind.as_str() {
             "scientific" => DiagnosticKind::Scientific,
+            "support" => DiagnosticKind::Support,
             "execution" => DiagnosticKind::Execution,
             other => return Err(IoError::Convert(format!("unknown DiagnosticKind `{other}`"))),
         },
@@ -1202,6 +1204,19 @@ mod tests {
         };
         let wire = diagnostic_to_wire(&diagnostic);
         assert_eq!(diagnostic_from_wire(&wire).unwrap(), diagnostic);
+    }
+
+    #[test]
+    fn support_kind_survives_the_wire_independent_of_its_code() {
+        let diagnostic = Diagnostic::new(
+            "estimate.propensity.floor",
+            DiagnosticKind::Support,
+            DiagnosticSeverity::Warning,
+            "propensity floored",
+        );
+        let wire = diagnostic_to_wire(&diagnostic);
+        assert_eq!(wire.kind, "support");
+        assert_eq!(diagnostic_from_wire(&wire).unwrap().kind, DiagnosticKind::Support);
     }
 
     #[test]

@@ -8,6 +8,8 @@ use antecedent_io::{
     encode_causal_payload_artifact, encode_external_estimate_claim, parse_digest_hex,
     payload_digest,
 };
+use numpy::{PyArray1, PyReadonlyArray1};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Serialize;
@@ -294,20 +296,35 @@ impl FittedEffectModel {
         })
     }
 
-    fn predict(&self, py: Python<'_>, columns: Vec<Vec<f64>>, nrows: usize) -> PyResult<Vec<f64>> {
+    /// Predict from NumPy feature columns without copying them into Python lists.
+    fn predict<'py>(
+        &self,
+        py: Python<'py>,
+        columns: Vec<PyReadonlyArray1<'py, f64>>,
+        nrows: usize,
+    ) -> PyResult<Bound<'py, PyArray1<f64>>> {
         let ids: Vec<_> =
             self.model.features.iter().map(|v| antecedent_core::VariableId::from_raw(*v)).collect();
-        py.detach(|| {
-            let columns: Vec<_> = columns.iter().map(Vec::as_slice).collect();
+        // The read-only guards in `columns` outlive the detached closure that borrows the slices.
+        let slices: Vec<&[f64]> = columns
+            .iter()
+            .map(|column| {
+                column.as_slice().map_err(|_| {
+                    PyValueError::new_err("prediction columns must be contiguous float64 arrays")
+                })
+            })
+            .collect::<PyResult<_>>()?;
+        let values = py.detach(|| {
             self.model
                 .predict(
                     &ids,
-                    &columns,
+                    &slices,
                     nrows,
                     &antecedent_core::ExecutionContext::production_default(0),
                 )
                 .map_err(serialization_error)
-        })
+        })?;
+        Ok(PyArray1::from_vec(py, values))
     }
 
     fn export<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {

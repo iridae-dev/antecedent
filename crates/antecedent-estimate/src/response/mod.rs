@@ -497,7 +497,7 @@ impl ContinuousResponseEstimator {
                 maxima: (0..treatments.len()).map(|i| sample.treatment_column_range(i).1).collect(),
             };
             support.warnings.push(Diagnostic::new(
-                "response.joint_support_unverified", DiagnosticKind::Scientific, DiagnosticSeverity::Warning,
+                "response.joint_support_unverified", DiagnosticKind::Support, DiagnosticSeverity::Warning,
                 "per-treatment bounds do not certify joint policy support; posterior uncertainty conditions on the Gaussian additive model and empirical covariate distribution",
             ));
         }
@@ -505,7 +505,7 @@ impl ContinuousResponseEstimator {
             support.status = SupportStatus::Extrapolative;
             support.point_status = None;
             support.warnings.push(Diagnostic::new(
-                "response.stochastic_policy_support_unverified", DiagnosticKind::Scientific, DiagnosticSeverity::Warning,
+                "response.stochastic_policy_support_unverified", DiagnosticKind::Support, DiagnosticSeverity::Warning,
                 "the Gaussian additive model integrates stochastic policies by their exact means; local support at the mean does not certify support over the policy distribution; intervals describe the policy mean, not a predictive draw",
             ));
         }
@@ -1388,7 +1388,7 @@ impl ContinuousResponseEstimator {
             warnings: if weak {
                 vec![Diagnostic::new(
                     "response.weak_riesz_overlap",
-                    DiagnosticKind::Scientific,
+                    DiagnosticKind::Support,
                     DiagnosticSeverity::Warning,
                     "the average-derivative Riesz representer concentrates on few rows; the estimate is driven by the treatment tail",
                 )]
@@ -3009,14 +3009,14 @@ fn support_report(
     if outside {
         warnings.push(Diagnostic::new(
             "response.outside_empirical_support",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Warning,
             "at least one requested response coordinate is outside observed treatment support",
         ));
     } else if weak {
         warnings.push(Diagnostic::new(
             "response.weak_local_overlap",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Warning,
             "at least one requested response coordinate has low local effective sample size",
         ));

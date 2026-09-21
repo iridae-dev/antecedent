@@ -26,9 +26,7 @@ impl PreparedLearnedTrial {
     fn ctx(&self, cancel: Option<crate::PyCancellationToken>) -> ExecutionContext {
         let mut ctx = ExecutionContext::production_default(self.seed);
         ctx.memory.hard_limit_bytes = self.memory_bytes;
-        if let Some(cancel) = cancel {
-            ctx.cancellation = cancel.inner;
-        }
+        crate::apply_cancel(&mut ctx, cancel);
         ctx
     }
     /// Native four-slot reasoning: the executed result's own view once estimated, else
@@ -182,9 +180,7 @@ fn prepare_learned_trial(
     let options: TrialAipwOptions = serde_json::from_str(&options).map_err(err)?;
     let mut ctx = ExecutionContext::production_default(seed);
     ctx.memory.hard_limit_bytes = memory_bytes;
-    if let Some(cancel) = cancel {
-        ctx.cancellation = cancel.inner;
-    }
+    crate::apply_cancel(&mut ctx, cancel);
     let inner =
         antecedent::StudyBuilder::learned_trial_transport(diagram, query, input, options, &ctx)
             .map_err(err)?;

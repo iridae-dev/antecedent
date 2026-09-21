@@ -132,7 +132,7 @@ pub(crate) struct ResponseAnalysisResult {
     order=1, scale="identity", weighting="observed", bandwidth=None,
     simultaneous_replicates=None, confidence_level=0.95,
     multiplier_seed=0xA17E_CEDE_0500, export_row_diagnostics=false, accepted=false,
-    refute=None
+    refute=None, seed=1
 ))]
 #[allow(clippy::too_many_arguments)]
 fn analyze_response(
@@ -158,6 +158,7 @@ fn analyze_response(
     export_row_diagnostics: bool,
     accepted: bool,
     refute: Option<Bound<'_, PyAny>>,
+    seed: u64,
 ) -> PyResult<ResponseAnalysisResult> {
     let suite = match refute.as_ref() {
         None => RefuteSuite::None,
@@ -204,7 +205,7 @@ fn analyze_response(
             .bootstrap_replicates(0)
             .build()
             .map_err(py_err)?;
-        let ctx = py_execution_context(1, crate::resolve_user_threads(None));
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(None));
         let prepared = study.prepare(&ctx).map_err(py_err)?;
         let result = prepared.estimate(&data, &ctx).map_err(py_err)?;
         crate::prepared_api::response_from_study(&names, &result)

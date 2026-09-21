@@ -44,9 +44,7 @@ impl PreparedStatisticalStage {
     fn ctx(&self, cancel: Option<crate::PyCancellationToken>) -> ExecutionContext {
         let mut ctx = ExecutionContext::production_default(self.seed);
         ctx.memory.hard_limit_bytes = self.memory_bytes;
-        if let Some(cancel) = cancel {
-            ctx.cancellation = cancel.inner;
-        }
+        crate::apply_cancel(&mut ctx, cancel);
         ctx
     }
     fn payload(
@@ -383,9 +381,7 @@ fn prepare_statistical_transport(
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(seed);
         ctx.memory.hard_limit_bytes = memory_bytes;
-        if let Some(cancel) = cancel {
-            ctx.cancellation = cancel.inner;
-        }
+        crate::apply_cancel(&mut ctx, cancel);
         let functional = match proof.bind_catalog_with_context(
             &catalog,
             antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
@@ -454,9 +450,7 @@ fn consume_statistical_transport(
             antecedent_io::from_cbor(payload).map_err(error)?;
         let mut ctx = ExecutionContext::production_default(seed);
         ctx.memory.hard_limit_bytes = memory_bytes;
-        if let Some(token) = cancel {
-            ctx.cancellation = token.inner;
-        }
+        crate::apply_cancel(&mut ctx, cancel);
         let (inner, result) =
             antecedent::PreparedStudy::<antecedent::StatisticalPreparedState>::consume(
                 &artifact,

@@ -2391,7 +2391,7 @@ impl super::Study {
         {
             result.diagnostics.push(Diagnostic {
                 code: Arc::from("support.allowed_unlicensed"),
-                kind: DiagnosticKind::Scientific,
+                kind: DiagnosticKind::Support,
                 severity: DiagnosticSeverity::Warning,
                 message: Arc::from(
                     "this estimate executed an allowlisted cell; it is not a licensed claim",

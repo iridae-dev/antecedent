@@ -614,7 +614,7 @@ impl UnitSupport {
             if pooled || any > 0 { DiagnosticSeverity::Warning } else { DiagnosticSeverity::Info };
         Diagnostic::new(
             "gcm.counterfactual.support",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             severity,
             format!(
                 "observed treatment range=[{min},{max}]; extrapolative={pooled}; \

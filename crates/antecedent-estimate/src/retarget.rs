@@ -294,7 +294,7 @@ pub fn retarget(
     if overlap_failed {
         diagnostics.push(Diagnostic::new(
             "retarget.weighted_overlap_failed",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Warning,
             RetargetRefusal::WeightedOverlap.as_str(),
         ));

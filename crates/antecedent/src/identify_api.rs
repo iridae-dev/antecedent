@@ -172,14 +172,9 @@ pub fn identify(
     structure: &AcceptedGraph,
     query: &CausalQuery,
 ) -> Result<Identification, CausalError> {
-    let strategy = match (structure.class(), query) {
-        (GraphClass::Dag, CausalQuery::Counterfactual(_)) => IdentifierId::GcmParametric,
-        (GraphClass::Dag, CausalQuery::Response(_)) => IdentifierId::ResponseBackdoor,
-        (GraphClass::Dag, CausalQuery::Mediation(_) | CausalQuery::PathSpecific(_)) => {
-            IdentifierId::PathSpecificNatural
-        }
-        (GraphClass::Dag, CausalQuery::Distribution(_)) => IdentifierId::GeneralId,
-        _ => default_strategy(structure.class()),
+    let strategy = match structure.class() {
+        GraphClass::Dag => dag_default_strategy(query),
+        class => default_strategy(class),
     };
     identify_with(structure, query, strategy)
 }
@@ -212,19 +207,10 @@ pub fn identify_dag(
     graph: &antecedent_graph::Dag,
     query: &CausalQuery,
 ) -> Result<Identification, CausalError> {
-    let strategy = match query {
-        CausalQuery::Response(_) => IdentifierId::ResponseBackdoor,
-        CausalQuery::Mediation(_) | CausalQuery::PathSpecific(_) => {
-            IdentifierId::PathSpecificNatural
-        }
-        CausalQuery::Counterfactual(_) => IdentifierId::GcmParametric,
-        CausalQuery::Distribution(_) => IdentifierId::GeneralId,
-        _ => DEFAULT_IDENTIFIER_ID,
-    };
     identify_with_source(
         &AcceptedGraph::from(graph.clone()),
         query,
-        strategy,
+        dag_default_strategy(query),
         crate::support::StructureSource::Explicit,
     )
 }
@@ -237,6 +223,7 @@ fn identify_with_source(
     source: crate::support::StructureSource,
 ) -> Result<Identification, CausalError> {
     let structure_version = structure.version();
+    crate::support::refuse_undeclared_off_axis(query)?;
     if let Some(cell) = crate::support::support_cell(
         query,
         crate::support::effective_graph_class(structure, query),
@@ -398,6 +385,20 @@ fn class_ate_witness(
                  and ConditionalEffect"
             ),
         }),
+    }
+}
+
+/// Default identifier for `query` on a DAG: the one table behind [`identify`] and
+/// [`identify_dag`].
+fn dag_default_strategy(query: &CausalQuery) -> IdentifierId {
+    match query {
+        CausalQuery::Counterfactual(_) => IdentifierId::GcmParametric,
+        CausalQuery::Response(_) => IdentifierId::ResponseBackdoor,
+        CausalQuery::Mediation(_) | CausalQuery::PathSpecific(_) => {
+            IdentifierId::PathSpecificNatural
+        }
+        CausalQuery::Distribution(_) => IdentifierId::GeneralId,
+        _ => default_strategy(GraphClass::Dag),
     }
 }
 

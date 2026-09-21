@@ -32,14 +32,15 @@ struct PreparedTransportGridStage {
     options: Option<EmpiricalTableOptions>,
     memory: Option<u64>,
     max_support_rows: usize,
+    /// Stream seed of later estimates: the caller's `seed` at preparation, 0 for a consumed artifact
+    /// (its result was computed before this stage existed).
+    seed: u64,
 }
 impl PreparedTransportGridStage {
     fn ctx(&self, cancel: Option<crate::PyCancellationToken>) -> ExecutionContext {
-        let mut ctx = ExecutionContext::production_default(0);
+        let mut ctx = ExecutionContext::production_default(self.seed);
         ctx.memory.hard_limit_bytes = self.memory;
-        if let Some(token) = cancel {
-            ctx.cancellation = token.inner;
-        }
+        crate::apply_cancel(&mut ctx, cancel);
         ctx
     }
     fn data(&self, data: &Bound<'_, PyAny>) -> PyResult<TransportGridData> {
@@ -296,9 +297,7 @@ fn prepare_transport_grid(
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(seed);
         ctx.memory.hard_limit_bytes = memory_bytes;
-        if let Some(token) = cancel {
-            ctx.cancellation = token.inner;
-        }
+        crate::apply_cancel(&mut ctx, cancel);
         let functional = match proof.bind_catalog_with_context(
             &catalog,
             antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
@@ -336,6 +335,7 @@ fn prepare_transport_grid(
             options,
             memory: memory_bytes,
             max_support_rows,
+            seed,
         })
     })
 }
@@ -359,9 +359,7 @@ fn consume_transport_grid(
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(0);
         ctx.memory.hard_limit_bytes = memory_bytes;
-        if let Some(token) = cancel {
-            ctx.cancellation = token.inner;
-        }
+        crate::apply_cancel(&mut ctx, cancel);
         let (inner, result) = antecedent::PreparedStudy::<TransportGridState>::consume(
             &bytes,
             ExactEvaluationLimits { operations: max_operations, depth: max_depth },
@@ -385,6 +383,7 @@ fn consume_transport_grid(
             options,
             memory: memory_bytes,
             max_support_rows: max_operations,
+            seed: 0,
         })
     })
 }

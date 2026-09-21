@@ -319,13 +319,13 @@ pub(crate) fn overlap_diagnostic(overlap: OverlapPolicy) -> Diagnostic {
     match overlap {
         OverlapPolicy::ExplicitOverride => Diagnostic::new(
             "estimate.overlap.explicit_override",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Info,
             "estimator used ExplicitOverride for positivity (not a propensity-based method)",
         ),
         OverlapPolicy::RequireDiagnostics { .. } => Diagnostic::new(
             "estimate.overlap.require_diagnostics",
-            DiagnosticKind::Scientific,
+            DiagnosticKind::Support,
             DiagnosticSeverity::Info,
             "estimator used RequireDiagnostics for mandatory positivity diagnostics",
         ),

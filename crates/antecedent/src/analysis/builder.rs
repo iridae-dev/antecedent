@@ -1804,6 +1804,9 @@ impl StudyBuilder {
                 message: "class_prior requires an incomplete temporal graph class",
             });
         }
+        if !inspect_only {
+            crate::support::refuse_undeclared_off_axis(&query)?;
+        }
         let support_status = if let Some(cell) =
             crate::support::support_cell_named(&query, matrix_class, structure, &inference, refute)
         {

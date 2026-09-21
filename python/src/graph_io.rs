@@ -22,9 +22,10 @@ fn dag_from_node_edges(node_count: u32, edges: Vec<(u32, u32)>) -> PyResult<Dag>
     antecedent_io::dag_from_wire(&wire).map_err(py_err)
 }
 
-fn parse_dag_to_wire_tuple<F>(parse: F) -> PyResult<DagWireTuple>
+fn parse_dag_to_wire_tuple<F, E>(parse: F) -> PyResult<DagWireTuple>
 where
-    F: FnOnce() -> Result<Dag, antecedent::CausalError>,
+    F: FnOnce() -> Result<Dag, E>,
+    E: IntoCausalPyErr,
 {
     catch_ffi(|| {
         let dag = parse().map_err(py_err)?;
@@ -32,9 +33,10 @@ where
     })
 }
 
-fn emit_dag_from_wire<F>(node_count: u32, edges: Vec<(u32, u32)>, emit: F) -> PyResult<String>
+fn emit_dag_from_wire<F, E>(node_count: u32, edges: Vec<(u32, u32)>, emit: F) -> PyResult<String>
 where
-    F: FnOnce(&Dag) -> Result<String, antecedent::CausalError>,
+    F: FnOnce(&Dag) -> Result<String, E>,
+    E: IntoCausalPyErr,
 {
     catch_ffi(|| {
         let dag = dag_from_node_edges(node_count, edges)?;

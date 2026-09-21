@@ -344,6 +344,40 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
     }
 }
 
+/// Query kinds that intentionally sit off the matrix axes: the two GCM attribution studies, which
+/// have no geometric cell to license and run only against a supplied static DAG.
+///
+/// This is the closed allow-list for "no cell": every other query kind must classify onto the
+/// axis (for some graph class), so a variant added later without a matrix row is refused at build
+/// rather than silently defaulting to allowed.
+#[must_use]
+pub fn is_declared_off_axis(query: &CausalQuery) -> bool {
+    matches!(query, CausalQuery::MechanismChange(_) | CausalQuery::UnitChange(_))
+}
+
+/// Refuse a query the matrix does not know and that is not a declared off-axis kind.
+///
+/// "Default = refused" holds on the axis because [`classify`] falls through to
+/// [`CellStatus::Refused`]; this closes the same default for a query kind with no axis name at
+/// all. A `Response` whose temporal/static attachment disagrees with the graph class has an axis
+/// name for some class and is left to the compiler's typed refusal.
+///
+/// # Errors
+///
+/// [`CausalError::Support`] ([`SupportRefusal::Refused`]) for an unlisted off-axis kind.
+pub fn refuse_undeclared_off_axis(query: &CausalQuery) -> Result<(), CausalError> {
+    if is_declared_off_axis(query)
+        || query_axis_name(query, GraphClass::Dag).is_some()
+        || query_axis_name(query, GraphClass::TemporalDag).is_some()
+    {
+        return Ok(());
+    }
+    Err(CausalError::Support { id: SupportRefusal::Refused, message: UNDECLARED_OFF_AXIS })
+}
+
+const UNDECLARED_OFF_AXIS: &str = "this query kind has no support-matrix cell and is not a \
+     declared off-axis kind; it is refused until a cell licenses it.";
+
 fn inference_axis(mode: &InferenceMode) -> &'static str {
     match mode {
         InferenceMode::Frequentist => "Frequentist",
@@ -710,6 +744,26 @@ mod tests {
             query_axis_name(&make(&[0, 1]), GraphClass::TemporalDag),
             Some("SustainedEffect")
         );
+    }
+
+    #[test]
+    fn declared_off_axis_kinds_are_the_only_axisless_queries_that_build() {
+        use antecedent_core::{TemporalEffectQuery, UnitChangeQuery, VariableId};
+        // Unit change has no matrix cell for any class, and is on the closed allow-list.
+        let unit = CausalQuery::UnitChange(UnitChangeQuery::new(VariableId::from_raw(1), 20));
+        for class in [GraphClass::Dag, GraphClass::TemporalDag] {
+            assert_eq!(query_axis_name(&unit, class), None);
+        }
+        assert!(is_declared_off_axis(&unit));
+        assert!(refuse_undeclared_off_axis(&unit).is_ok());
+        // An on-axis query never needs the allow-list.
+        let pulse = CausalQuery::TemporalEffect(TemporalEffectQuery::pulse(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            1.0,
+        ));
+        assert!(!is_declared_off_axis(&pulse));
+        assert!(refuse_undeclared_off_axis(&pulse).is_ok());
     }
 
     #[test]

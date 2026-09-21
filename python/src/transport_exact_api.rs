@@ -108,9 +108,7 @@ impl ClassicalTransportStage {
         crate::detach_catch(py, move || {
             let mut ctx = ExecutionContext::production_default(0);
             ctx.memory.hard_limit_bytes = memory_bytes;
-            if let Some(cancel) = cancel {
-                ctx.cancellation = cancel.inner;
-            }
+            crate::apply_cancel(&mut ctx, cancel);
             let result = proof
                 .search_catalog(
                     &diagram,
@@ -204,9 +202,7 @@ impl ClassicalTransportStage {
         crate::detach_catch(py, move || {
             let mut ctx = ExecutionContext::production_default(0);
             ctx.memory.hard_limit_bytes = memory_bytes;
-            if let Some(cancel) = cancel {
-                ctx.cancellation = cancel.inner;
-            }
+            crate::apply_cancel(&mut ctx, cancel);
             let functional = match proof.bind_catalog_with_context(
                 &catalog,
                 antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
@@ -290,9 +286,7 @@ fn identify_classical_transport_stage(
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(0);
         ctx.memory.hard_limit_bytes = memory_bytes;
-        if let Some(cancel) = cancel {
-            ctx.cancellation = cancel.inner;
-        }
+        crate::apply_cancel(&mut ctx, cancel);
         let result = identify_classical_transport(
             &diagram,
             &query,
@@ -357,9 +351,7 @@ fn identify_meta_transport_stage(
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(0);
         ctx.memory.hard_limit_bytes = memory_bytes;
-        if let Some(cancel) = cancel {
-            ctx.cancellation = cancel.inner;
-        }
+        crate::apply_cancel(&mut ctx, cancel);
         let result = antecedent_identify::identify_meta_transport(
             &aligned,
             &query,
@@ -412,9 +404,7 @@ fn consume_transport_certificate(
     crate::detach_catch(py, move || {
         let mut ctx = ExecutionContext::production_default(0);
         ctx.memory.hard_limit_bytes = memory_bytes;
-        if let Some(token) = cancel {
-            ctx.cancellation = token.inner;
-        }
+        crate::apply_cancel(&mut ctx, cancel);
         let limits = SidLimits { steps: max_steps, depth: max_depth };
         let certificate = antecedent_io::transport_certificate::TransportCertificateWire::consume(
             &bytes, limits, &ctx,
@@ -533,9 +523,7 @@ impl PreparedExactStage {
     fn ctx(&self, cancel: Option<crate::PyCancellationToken>) -> ExecutionContext {
         let mut ctx = ExecutionContext::production_default(0);
         ctx.memory.hard_limit_bytes = self.memory_bytes;
-        if let Some(cancel) = cancel {
-            ctx.cancellation = cancel.inner;
-        }
+        crate::apply_cancel(&mut ctx, cancel);
         ctx
     }
     fn payload(&self, result: &antecedent::ExactStudyResult) -> PyResult<ExactStagePayload> {
@@ -711,9 +699,7 @@ fn consume_exact_transport(
             antecedent_io::from_cbor(payload).map_err(error)?;
         let mut ctx = ExecutionContext::production_default(0);
         ctx.memory.hard_limit_bytes = memory_bytes;
-        if let Some(token) = cancel {
-            ctx.cancellation = token.inner;
-        }
+        crate::apply_cancel(&mut ctx, cancel);
         let (inner, result) = antecedent::PreparedStudy::<antecedent::ExactPreparedState>::consume(
             &artifact,
             ExactEvaluationLimits { operations: max_operations, depth: max_depth },

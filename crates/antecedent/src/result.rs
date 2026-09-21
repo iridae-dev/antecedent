@@ -6,7 +6,7 @@ use antecedent_attribution::{
     AnomalyScores, ChangeAttributionResult, MechanismChangeDetection, UnitChangeResult,
 };
 use antecedent_core::{
-    CausalResponse, Diagnostic, ExecutionPerformanceRecord, IdentificationStatus,
+    CausalResponse, Diagnostic, DiagnosticKind, ExecutionPerformanceRecord, IdentificationStatus,
     LogicalAnalysisPlanRecord, PhysicalExecutionPlanRecord, ProvenanceGraph, ResponseEnvelope,
     ResponseValue, VariableId,
 };
@@ -554,6 +554,14 @@ fn temporal_response_band(response: &CausalResponse, level: f64) -> Option<Inter
 }
 
 impl StudyResult {
+    /// The diagnostics that describe whether the data support the estimand (overlap, positivity,
+    /// coordinates outside the observed support): exactly those emitted as
+    /// [`DiagnosticKind::Support`], whatever their code. The one owner of the Support slot's
+    /// diagnostic selection.
+    pub fn support_diagnostics(&self) -> impl Iterator<Item = &Diagnostic> {
+        self.diagnostics.iter().filter(|d| d.kind == DiagnosticKind::Support)
+    }
+
     /// Dependence rule the execution's data imposes before any circular-block
     /// family: panel executions cluster by unit, every other modality is `iid`
     /// unless a circular-block construction names its family.

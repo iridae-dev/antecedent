@@ -816,7 +816,7 @@ def test_posterior_round_trip_preserves_named_schema_and_source_contrast(contras
     reencoded = bytes(antecedent.inference.encode_posterior_artifact(decoded))
     restored = antecedent.inference.decode_posterior_artifact(reencoded)
     assert restored.quantity_names == decoded.quantity_names
-    assert restored.draws == decoded.draws
+    assert np.array_equal(restored.draws, decoded.draws)
     assert restored.treatment_contrast == contrast
     for mapping in [
         antecedent.priors.PriorMapping.identical(),

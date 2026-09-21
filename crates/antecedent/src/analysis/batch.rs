@@ -1425,7 +1425,7 @@ fn attach_candidate_selection(
             if !selection.disjoint {
                 result.diagnostics.push(antecedent_core::Diagnostic::new(
                     "batch.candidate_selection.overlap",
-                    antecedent_core::DiagnosticKind::Scientific,
+                    antecedent_core::DiagnosticKind::Support,
                     antecedent_core::DiagnosticSeverity::Warning,
                     "screen and estimate row sets are not disjoint",
                 ));

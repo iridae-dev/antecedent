@@ -75,8 +75,8 @@ class FittedEffectModel:
             raise ValueError("intercept-only prediction needs data with an explicit row count")
         if any(len(c) != n for c in columns):
             raise ValueError("prediction columns have different lengths")
-        values = self._native.predict([c.tolist() for c in columns], n)
-        return EffectPrediction(tuple(values), self.parent_claim)
+        values = self._native.predict([np.ascontiguousarray(c) for c in columns], n)
+        return EffectPrediction(tuple(values.tolist()), self.parent_claim)
 
 
 __all__ = ["FittedEffectModel", "EffectPrediction"]
