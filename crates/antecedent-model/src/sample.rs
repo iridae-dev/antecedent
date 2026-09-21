@@ -905,57 +905,117 @@ mod tests {
         assert!(matches!(err, ModelError::Unsupported { .. }), "expected Unsupported, got {err:?}");
     }
 
-    /// Conditioning on a descendant (via the LW / SIR path) must return that
-    /// descendant at the conditioned value. Propose-then-clamp that ignores
-    /// descendants would still return `Ok` with unconditioned child draws.
+    /// Condition on the middle of X→Y→Z and check the *unconditioned* child Z.
+    /// Propose-then-clamp overwrites Y but leaves Z drawn under proposal parents;
+    /// forward LW must redraw Z given Y fixed at the evidence, so the sample mean
+    /// of Z sits on the linear-Gaussian conditional mean, not on E[Z | do(X)].
     #[test]
-    fn conditional_do_lw_matches_conditioned_descendant() {
+    fn conditional_do_lw_redraws_descendant_under_clamped_evidence() {
         let model = fitted_three_chain();
+        let z_slot = model.mechanisms.get(DenseNodeId::from_raw(2));
+        let MechanismSlot::LinearGaussian { intercept, coeffs, sigma } = z_slot else {
+            panic!("expected LinearGaussian Z mechanism, got {z_slot:?}");
+        };
+        assert_eq!(coeffs.len(), 1, "Z should have a single parent Y");
+        let y_cond = 0.0_f64;
+        // Under do(X=1) the chain mean for Y is near 2; conditioning far from that
+        // separates E[Z | Y=y_cond] from the propose-then-clamp mean E[Z | do(X)].
+        let conditional_mean = intercept + coeffs[0] * y_cond;
+        let interventional_mean = {
+            let y_slot = model.mechanisms.get(DenseNodeId::from_raw(1));
+            let MechanismSlot::LinearGaussian {
+                intercept: y_int,
+                coeffs: y_coeffs,
+                ..
+            } = y_slot
+            else {
+                panic!("expected LinearGaussian Y mechanism, got {y_slot:?}");
+            };
+            let e_y_do = y_int + y_coeffs[0] * 1.0;
+            intercept + coeffs[0] * e_y_do
+        };
+        assert!(
+            (conditional_mean - interventional_mean).abs() > 0.5,
+            "test needs separated targets: cond={conditional_mean} do={interventional_mean}"
+        );
+
         let mut rng = CausalRng::from_seed(11);
         let mut ws = MechanismWorkspace::default();
         let x = VariableId::from_raw(0);
-        let z_node = DenseNodeId::from_raw(2);
-        let z_cond = 2.5;
+        let y_node = DenseNodeId::from_raw(1);
+        let n_rows = 2_048usize;
         let batch = sample_conditional_interventional(
             &model,
             &[Intervention::set(x, Value::f64(1.0))],
-            &[z_node],
-            &[z_cond],
-            32,
+            &[y_node],
+            &[y_cond],
+            n_rows,
             &mut rng,
             &mut ws,
             &ExecutionContext::for_tests(1),
         )
-        .expect("conditional do with named descendant must succeed or error honestly");
-        let z = batch.column(2).unwrap();
+        .expect("conditional do should succeed");
+        let y = batch.column(1).unwrap();
         assert!(
-            z.iter().all(|&v| (v - z_cond).abs() < 1e-12),
-            "descendant Z in the conditioning set must equal the conditioned value, got {z:?}"
+            y.iter().all(|&v| (v - y_cond).abs() < 1e-12),
+            "evidence column Y must be clamped"
+        );
+        let z = batch.column(2).unwrap();
+        let z_mean = z.iter().sum::<f64>() / n_rows as f64;
+        // Monte Carlo SE ≈ sigma / sqrt(n); allow a few SEs plus fitting slack.
+        let tol = 4.0 * sigma / (n_rows as f64).sqrt() + 0.05;
+        assert!(
+            (z_mean - conditional_mean).abs() < tol,
+            "Z mean {z_mean} should sit on E[Z|Y={y_cond}]={conditional_mean} (tol {tol}); \
+             propose-then-clamp would land near E[Z|do(X)]={interventional_mean}"
+        );
+        assert!(
+            (z_mean - interventional_mean).abs() > (z_mean - conditional_mean).abs() + 0.25,
+            "Z mean {z_mean} is closer to the do-proposal mean {interventional_mean} than to \
+             the clamped conditional mean {conditional_mean}"
         );
     }
 
     fn fitted_three_chain() -> CompiledCausalModel {
-        let n = 40usize;
+        let n = 80usize;
         let mut b = CausalSchemaBuilder::new();
         for (name, hint) in [
             ("x", RoleHint::Context),
             ("y", RoleHint::Context),
             ("z", RoleHint::OutcomeCandidate),
         ] {
-            b.add_variable(name, ValueType::Continuous, SmallRoleSet::from_hint(hint), None, None, MeasurementSpec::default())
-                .unwrap();
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
         }
         let schema = b.build().unwrap();
-        let xv: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
-        let yv: Vec<f64> = xv.iter().map(|x| 0.5 + 1.5 * x).collect();
-        let zv: Vec<f64> = yv.iter().map(|y| -0.25 + 0.8 * y).collect();
+        // Small noise so LinearGaussian fits with usable residual density for LW.
+        let xv: Vec<f64> = (0..n).map(|i| i as f64 * 0.05).collect();
+        let yv: Vec<f64> = xv
+            .iter()
+            .enumerate()
+            .map(|(i, x)| 0.5 + 1.5 * x + 0.15 * ((i % 7) as f64 - 3.0) / 3.0)
+            .collect();
+        let zv: Vec<f64> = yv
+            .iter()
+            .enumerate()
+            .map(|(i, y)| -0.25 + 0.8 * y + 0.12 * ((i % 5) as f64 - 2.0) / 2.0)
+            .collect();
         let validity = ValidityBitmap::all_valid(n);
         let cols = vec![
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone()).unwrap(),
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone())
+                    .unwrap(),
             ),
             OwnedColumn::Float64(
-                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity.clone()).unwrap(),
+                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity.clone())
+                    .unwrap(),
             ),
             OwnedColumn::Float64(
                 Float64Column::new(VariableId::from_raw(2), Arc::from(zv), validity).unwrap(),
