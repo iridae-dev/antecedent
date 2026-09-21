@@ -5,7 +5,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 /// Parallel execution budget.
@@ -101,6 +101,13 @@ impl MemoryBudget {
     }
 }
 
+/// Whether an architecture-SIMD kernel path is compiled into this build.
+///
+/// Always `false` until a justified `simd-runtime` kernel lands. Kernel dispatch and
+/// execution identity both read it, so a request for SIMD that cannot be honored is
+/// neither run nor recorded as if it were.
+pub const ARCH_SIMD_COMPILED: bool = false;
+
 /// Kernel selection policy.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct KernelPolicy {
@@ -123,6 +130,12 @@ impl KernelPolicy {
     #[must_use]
     pub const fn scalar_only() -> Self {
         Self { allow_portable_optimized: false, allow_arch_simd: false, force_scalar: true }
+    }
+
+    /// Whether SIMD is both allowed and available in this build.
+    #[must_use]
+    pub const fn arch_simd_effective(&self) -> bool {
+        self.allow_arch_simd && ARCH_SIMD_COMPILED && !self.force_scalar
     }
 }
 
@@ -206,9 +219,12 @@ pub struct MonteCarloError {
 
 /// Opt-in bootstrap early-stop budget bounded by Monte Carlo error.
 ///
-/// A bootstrap SE computed from `B` replicates carries a relative Monte Carlo
-/// standard error of about `1/√(2(B − 1))` (the SD of a sample SD), so the
-/// only honest stopping rule is a replicate floor: after
+/// For approximately normal replicates, a bootstrap SE computed from `B` of them
+/// carries a relative Monte Carlo standard error of about `1/√(2(B − 1))` (the SD
+/// of a sample SD); for a replicate distribution with kurtosis `κ` it is
+/// `√((κ − 1)/(4B))`, so heavy-tailed replicates need more than the floor below
+/// to reach the same precision. The only honest stopping rule is a replicate
+/// floor: after
 /// [`Self::required_replicates`] successful replicates — the larger of
 /// [`Self::min_replicates`] and `⌈1 + 1/(2·se_rel_epsilon²)⌉`, the count at
 /// which that relative error is at most [`Self::se_rel_epsilon`] — the loop
@@ -277,8 +293,10 @@ impl AdaptiveBootstrapBudget {
 }
 
 impl Default for AdaptiveBootstrapBudget {
+    /// Disabled, like every constructor: early stopping is opt-in, so
+    /// `..Default::default()` never changes how many replicates run.
     fn default() -> Self {
-        Self::enabled_default()
+        Self::disabled()
     }
 }
 
@@ -321,8 +339,10 @@ impl AdaptiveDrawBudget {
 }
 
 impl Default for AdaptiveDrawBudget {
+    /// Disabled, like every constructor: early stopping is opt-in, so
+    /// `..Default::default()` never changes how many draws are materialized.
     fn default() -> Self {
-        Self::enabled_default()
+        Self::disabled()
     }
 }
 
@@ -587,12 +607,13 @@ impl ExecutionContext {
     ///
     /// # Errors
     ///
-    /// Returns the first error produced by `f`.
+    /// Returns the lowest-index error produced by `f`. Work above a known failure
+    /// is skipped, so a failing run does not evaluate every remaining index.
     ///
     /// # Panics
     ///
-    /// Panics if a worker fails to write its assigned slot (a programming error
-    /// in the pool, not in `f`).
+    /// Panics if a worker fails to write a slot at or below the first error (a
+    /// programming error in the pool, not in `f`).
     pub fn map_indexed<T, E, F>(&self, n: usize, f: F) -> Result<Vec<T>, E>
     where
         T: Send,
@@ -608,9 +629,15 @@ impl ExecutionContext {
         }
         let inner = self.serial_inner();
         let mut slots: Vec<Option<Result<T, E>>> = (0..n).map(|_| None).collect();
+        // Lowest index known to have failed. A serial run stops at the first error,
+        // so an item above a known failure can no longer change the result and is
+        // skipped; items below it still run, so the returned error is always the
+        // lowest-index one regardless of thread count or scheduling.
+        let first_failure = AtomicUsize::new(usize::MAX);
         std::thread::scope(|scope| {
             let f = &f;
             let inner = &inner;
+            let first_failure = &first_failure;
             let mut rest = slots.as_mut_slice();
             let mut start = 0usize;
             for t in 0..threads {
@@ -619,7 +646,15 @@ impl ExecutionContext {
                 let begin = start;
                 scope.spawn(move || {
                     for (k, slot) in mine.iter_mut().enumerate() {
-                        *slot = Some(f(begin + k, inner));
+                        let index = begin + k;
+                        if first_failure.load(Ordering::Relaxed) < index {
+                            break;
+                        }
+                        let outcome = f(index, inner);
+                        if outcome.is_err() {
+                            first_failure.fetch_min(index, Ordering::Relaxed);
+                        }
+                        *slot = Some(outcome);
                     }
                 });
                 rest = next;
@@ -629,7 +664,11 @@ impl ExecutionContext {
                 }
             }
         });
-        slots.into_iter().map(|slot| slot.expect("every index was filled")).collect()
+        // Unfilled slots exist only above the lowest failure, which `collect` reaches first.
+        slots
+            .into_iter()
+            .map(|slot| slot.expect("every index below the first error was filled"))
+            .collect()
     }
 
     /// Production context: optimized kernels allowed, cache enabled, bounded threads.
@@ -885,6 +924,45 @@ mod tests {
             .unwrap();
         assert_eq!(inner_threads, vec![1]);
         assert_eq!(serial.serial_inner().parallelism.max_threads.get(), 1);
+    }
+
+    #[test]
+    fn map_indexed_stops_at_a_failure_and_reports_the_lowest_index() {
+        let ctx = ExecutionContext::production(1, 4);
+        let evaluated = AtomicUsize::new(0);
+        let n = 2000;
+        // Index 0 fails immediately; its own chunk (500 items) must stop there.
+        let result = ctx.map_indexed(n, |i, _| {
+            evaluated.fetch_add(1, Ordering::Relaxed);
+            if i == 0 { Err(i) } else { Ok(i) }
+        });
+        assert_eq!(result, Err(0));
+        assert!(evaluated.load(Ordering::Relaxed) <= n - 499, "the failing chunk must not run on");
+        // Two failures in different chunks: the lowest index wins on every run.
+        for _ in 0..20 {
+            let result =
+                ctx.map_indexed(n, |i, _| if i == 700 || i == 1500 { Err(i) } else { Ok(i) });
+            assert_eq!(result, Err(700));
+        }
+        // No failure: everything is evaluated, in order.
+        let all = ctx.map_indexed(n, |i, _| Ok::<_, ()>(i * 2)).unwrap();
+        assert_eq!(all, (0..n).map(|i| i * 2).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn adaptive_budgets_are_disabled_by_default() {
+        assert_eq!(AdaptiveBootstrapBudget::default(), AdaptiveBootstrapBudget::disabled());
+        assert_eq!(AdaptiveDrawBudget::default(), AdaptiveDrawBudget::disabled());
+        let spread = AdaptiveBootstrapBudget { min_replicates: 5, ..Default::default() };
+        assert!(!spread.enabled);
+        assert_eq!(spread.required_replicates(), u32::MAX);
+    }
+
+    #[test]
+    fn unavailable_arch_simd_is_not_an_effective_request() {
+        assert!(!ARCH_SIMD_COMPILED);
+        assert!(!KernelPolicy::default_policy().arch_simd_effective());
+        assert!(!KernelPolicy::scalar_only().arch_simd_effective());
     }
 
     #[test]

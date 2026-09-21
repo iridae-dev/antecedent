@@ -318,7 +318,8 @@ impl DesignRanker {
         for batch_i in 0..max_batches {
             for _ in 0..self.config.batch_size {
                 // Shared CRN draw index into graph posterior.
-                let g_idx = sample_categorical(&mut rng, &ctx_eval.graphs.weights);
+                let g_idx = sample_categorical(&mut rng, &ctx_eval.graphs.weights)
+                    .ok_or(DesignError::EmptyPosterior)?;
                 // Decision replicates share one seed across candidates, so every
                 // candidate sees the same sampled state and noise (CRN).
                 let crn_seed = decision.map(|_| rng.next_u64());

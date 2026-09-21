@@ -3,6 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalRng;
+use antecedent_kernels::standard_normal;
 
 use crate::error::StateError;
 use crate::retention::RetentionPolicy;
@@ -261,12 +262,6 @@ fn systematic_resample(state: &mut ParticleFilterState, rng: &mut CausalRng) {
     }
     std::mem::swap(&mut state.particles, &mut state.scratch.particles);
     state.log_weights.fill(0.0);
-}
-
-fn standard_normal(rng: &mut CausalRng) -> f64 {
-    let u1 = rng.next_f64().max(1e-12);
-    let u2 = rng.next_f64();
-    (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
 }
 
 #[cfg(test)]

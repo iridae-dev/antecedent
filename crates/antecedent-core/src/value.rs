@@ -186,6 +186,21 @@ mod tests {
     }
 
     #[test]
+    fn signed_zero_eq_and_hash_agree() {
+        use std::hash::{Hash, Hasher};
+        let hash = |v: &Value| {
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            v.hash(&mut h);
+            h.finish()
+        };
+        let (pos, neg) = (Value::f64(0.0), Value::f64(-0.0));
+        // Equality is by bits, exactly like the hash and the identity encoding.
+        assert_ne!(pos, neg);
+        assert_ne!(hash(&pos), hash(&neg));
+        assert_eq!(hash(&pos), hash(&Value::f64(0.0)));
+    }
+
+    #[test]
     fn float_eq_uses_bits_so_nan_matches_itself() {
         let a = Value::f64(f64::NAN);
         let b = Value::f64(f64::NAN);

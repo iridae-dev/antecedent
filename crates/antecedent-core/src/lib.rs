@@ -77,11 +77,11 @@ pub use claim::{
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
 pub use execution::{
-    AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy, CancellationToken,
-    CausalRng, DEFAULT_USER_THREAD_CAP, Determinism, ExecutionContext, ExecutionReceipt,
-    ExecutionRequestState, KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError,
-    NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory, StreamDomain,
-    default_user_threads,
+    ARCH_SIMD_COMPILED, AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy,
+    CancellationToken, CausalRng, DEFAULT_USER_THREAD_CAP, Determinism, ExecutionContext,
+    ExecutionReceipt, ExecutionRequestState, KernelPolicy, MemoryBudget, MonteCarloBudget,
+    MonteCarloError, NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory,
+    StreamDomain, default_user_threads,
 };
 pub use identification::IdentificationStatus;
 pub use identity::{
@@ -109,7 +109,7 @@ pub use query::{
     AverageEffectQuery, CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery,
     ContinuousDomain, CounterfactualQuery, DependenceGroup, DerivativeScale, DerivativeWeighting,
     DistributionAvailability, EXPOSURE_LEVEL_TOLERANCE, Environment, EvidenceCatalog, EvidenceKind,
-    EvidenceProjection, EvidenceRegime, ExposureLevel, ExposureMapping, GridSpec,
+    EvidenceProjection, EvidenceRegime, ExposureLevel, ExposureMapping, FactorNeed, GridSpec,
     InterferenceFunctional, InterferenceQuery, InterventionAssignment,
     InterventionalDistributionQuery, LicensedWeights, MAX_NONPARAMETRIC_RESPONSE_DIM,
     MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS, MechanismChangeQuery,

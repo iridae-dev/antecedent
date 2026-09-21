@@ -187,6 +187,27 @@ pub struct InterventionAssignment {
     pub value: Value,
 }
 
+/// What one executable factor needs from a supplied regime.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FactorNeed<'a> {
+    /// Population the factor is a law of.
+    pub population: &'a str,
+    /// Variables whose (conditional) law is required.
+    pub variables: &'a [VariableId],
+    /// Conditioning variables of the law.
+    pub conditioned_on: &'a [VariableId],
+    /// Variables experimentally intervened on. The regime must match this set exactly.
+    pub interventions: &'a [VariableId],
+}
+
+impl FactorNeed<'_> {
+    /// Variables the factor reads: its own and its conditioning coordinates.
+    #[must_use]
+    pub fn needed_variables(&self) -> BTreeSet<VariableId> {
+        self.variables.iter().chain(self.conditioned_on.iter()).copied().collect()
+    }
+}
+
 /// One evidence regime. Two single-variable experiments never imply a joint.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EvidenceRegime {
@@ -293,6 +314,39 @@ impl EvidenceRegime {
             && self.kind == RegimeKind::Experimental
             && self.population.as_ref() == population
             && same_variable_set(&self.interventions, variables)
+    }
+
+    /// Whether this regime can supply the factor `need`: results exist, same
+    /// population, exactly the needed intervention set, every needed variable
+    /// measured (or intervened), a joint law when more than one variable is
+    /// needed, only conditioning the factor itself conditions on, and an
+    /// unrestricted intervention domain (a restricted assignment cannot supply
+    /// an unrestricted symbolic response).
+    ///
+    /// This is the single owner of factor satisfaction: the identifier and the
+    /// public unmet-dependency report both call it.
+    #[must_use]
+    pub fn satisfies(&self, need: &FactorNeed<'_>) -> bool {
+        let needed = need.needed_variables();
+        let separate_marginals = match &self.distribution {
+            DistributionAvailability::Joint => None,
+            DistributionAvailability::SeparateMarginals { variables } => Some(variables),
+        };
+        self.evidence_kind.can_satisfy_factor()
+            && self.population.as_ref() == need.population
+            && self
+                .conditioned_on
+                .iter()
+                .all(|v| need.conditioned_on.contains(v) && !need.variables.contains(v))
+            && same_variable_set(&self.interventions, need.interventions)
+            && needed.iter().all(|v| self.measured.contains(v) || self.interventions.contains(v))
+            && separate_marginals.is_none_or(|marginals| {
+                needed.len() <= 1
+                    && needed
+                        .iter()
+                        .all(|v| marginals.contains(v) || self.interventions.contains(v))
+            })
+            && self.intervention_values.is_empty()
     }
 
     /// Admissible projection: marginalize or condition within a measured regime.
@@ -618,7 +672,27 @@ impl EvidenceCatalog {
         }
         let mut regime_ids = BTreeSet::new();
         let mut labels = BTreeSet::new();
+        let declared_variables: BTreeSet<u32> = domains.keys().copied().collect();
         for regime in self.regimes.iter() {
+            if !identities.is_empty() {
+                // A population or variable no environment declares can never match
+                // anything: reject it instead of letting the evidence read as missing.
+                if !identities.contains(regime.population.as_ref()) {
+                    return Err(QueryError::InvalidTransport(
+                        "regime population is not a declared environment".into(),
+                    ));
+                }
+                let undeclared = regime
+                    .interventions
+                    .iter()
+                    .chain(regime.measured.iter())
+                    .any(|v| !declared_variables.contains(&v.raw()));
+                if undeclared {
+                    return Err(QueryError::InvalidTransport(
+                        "regime variable is not declared by any environment".into(),
+                    ));
+                }
+            }
             if let Some(label) = &regime.label {
                 if label.trim().is_empty() || !labels.insert(label.as_ref()) {
                     return Err(QueryError::InvalidTransport(
@@ -679,9 +753,15 @@ impl EvidenceCatalog {
                     "invalid, duplicate, or mismatched regime binding".into(),
                 ));
             }
-            if !self.regimes.iter().any(|regime| regime.id == binding.regime) {
+            let Some(regime) = self.regimes.iter().find(|regime| regime.id == binding.regime)
+            else {
                 return Err(QueryError::InvalidTransport(
                     "regime binding names an unknown regime".into(),
+                ));
+            };
+            if !regime.evidence_kind.can_satisfy_factor() {
+                return Err(QueryError::InvalidTransport(
+                    "regime binding names a regime whose results do not exist".into(),
                 ));
             }
         }
@@ -713,20 +793,30 @@ impl EvidenceCatalog {
         self.regimes.iter().any(|regime| regime.available_experiment_on(population, variables))
     }
 
+    /// First available regime that can supply `need` (see [`EvidenceRegime::satisfies`]).
+    #[must_use]
+    pub fn satisfying_regime(&self, need: &FactorNeed<'_>) -> Option<&EvidenceRegime> {
+        self.regimes.iter().find(|regime| regime.satisfies(need))
+    }
+
     /// Unmet executable-factor dependencies, sorted by factor id then reason.
+    ///
+    /// A factor is met only by a regime that [`EvidenceRegime::satisfies`] it, so
+    /// an experiment that never measured the needed variables, a set of separate
+    /// marginals, or a value-restricted assignment leaves it unmet. Reported
+    /// `variables` are the ones the factor reads.
     #[must_use]
     pub fn unmet_factor_dependencies(
         &self,
-        population: &str,
-        needed: &[(Arc<str>, Arc<[VariableId]>)],
+        needed: &[(Arc<str>, FactorNeed<'_>)],
     ) -> Arc<[UnmetDependency]> {
         let mut unmet = needed
             .iter()
-            .filter(|(_, variables)| !self.has_available_experiment(population, variables))
-            .map(|(factor_id, variables)| UnmetDependency {
+            .filter(|(_, need)| self.satisfying_regime(need).is_none())
+            .map(|(factor_id, need)| UnmetDependency {
                 factor_id: Arc::clone(factor_id),
                 reason: Arc::from("transport.missing_evidence"),
-                variables: Arc::clone(variables),
+                variables: need.needed_variables().into_iter().collect::<Vec<_>>().into(),
             })
             .collect::<Vec<_>>();
         unmet.sort_by(|a, b| (&*a.factor_id, &*a.reason).cmp(&(&*b.factor_id, &*b.reason)));
@@ -745,6 +835,8 @@ impl EvidenceCatalog {
             .copied()
             .enumerate()
             .map(|(index, variable)| EvidenceRegime {
+                // A slice past u32::MAX experiments cannot be built in memory; saturate
+                // rather than wrap, and `validate` rejects the resulting duplicate ids.
                 id: RegimeId::from_raw(u32::try_from(index).unwrap_or(u32::MAX)),
                 label: None,
                 kind: RegimeKind::Experimental,
@@ -779,7 +871,7 @@ fn unique_variables(
     Ok(variables)
 }
 
-fn same_variable_set(left: &[VariableId], right: &[VariableId]) -> bool {
+pub(crate) fn same_variable_set(left: &[VariableId], right: &[VariableId]) -> bool {
     if left.len() != right.len() {
         return false;
     }
@@ -815,7 +907,16 @@ mod tests {
     #[test]
     fn single_and_joint_experiments_are_distinct() {
         let catalog = EvidenceCatalog::try_new(
-            [Environment::try_new("trial", [coord(0, VariableDomain::Binary)], []).unwrap()],
+            [Environment::try_new(
+                "trial",
+                [
+                    coord(0, VariableDomain::Binary),
+                    coord(1, VariableDomain::Binary),
+                    coord(2, VariableDomain::Binary),
+                ],
+                [],
+            )
+            .unwrap()],
             [experimental(1, "trial", &[0]), experimental(2, "trial", &[1])],
             [],
             None,
@@ -932,15 +1033,136 @@ mod tests {
     #[test]
     fn unmet_dependencies_are_stable_and_complete() {
         let catalog = EvidenceCatalog::empty();
-        let unmet = catalog.unmet_factor_dependencies(
-            "trial",
-            &[
-                (Arc::from("factor.b"), Arc::from([VariableId::from_raw(1)])),
-                (Arc::from("factor.a"), Arc::from([VariableId::from_raw(0)])),
-            ],
-        );
+        let (v0, v1) = ([VariableId::from_raw(0)], [VariableId::from_raw(1)]);
+        let need = |interventions: &'static [VariableId]| FactorNeed {
+            population: "trial",
+            variables: &[],
+            conditioned_on: &[],
+            interventions,
+        };
+        let (do_v0, do_v1): (&'static [VariableId], &'static [VariableId]) =
+            (Box::leak(Box::new(v0)), Box::leak(Box::new(v1)));
+        let unmet = catalog.unmet_factor_dependencies(&[
+            (Arc::from("factor.b"), need(do_v1)),
+            (Arc::from("factor.a"), need(do_v0)),
+        ]);
         assert_eq!(unmet.len(), 2);
         assert_eq!(&*unmet[0].factor_id, "factor.a");
         assert_eq!(&*unmet[1].factor_id, "factor.b");
+    }
+
+    fn regime_with(
+        measured: &[u32],
+        interventions: &[u32],
+        distribution: DistributionAvailability,
+    ) -> EvidenceRegime {
+        let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
+        EvidenceRegime::try_new(
+            RegimeId::from_raw(1),
+            if interventions.is_empty() {
+                RegimeKind::Observational
+            } else {
+                RegimeKind::Experimental
+            },
+            EvidenceKind::Available,
+            ids(interventions),
+            [],
+            ids(measured),
+            "trial",
+            distribution,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn unmet_dependencies_require_the_measured_law_not_just_the_intervention_set() {
+        let (x, y) = ([VariableId::from_raw(0)], [VariableId::from_raw(1)]);
+        let need = FactorNeed {
+            population: "trial",
+            variables: &y,
+            conditioned_on: &[],
+            interventions: &x,
+        };
+        let unmet = |regime: EvidenceRegime| {
+            EvidenceCatalog::try_new([], [regime], [], None)
+                .unwrap()
+                .unmet_factor_dependencies(&[(Arc::from("f"), need)])
+                .len()
+        };
+        // do(X) that never measured Y cannot supply P(Y | do(X)).
+        assert_eq!(unmet(regime_with(&[], &[0], DistributionAvailability::Joint)), 1);
+        // do(X) measuring Y does.
+        assert_eq!(unmet(regime_with(&[1], &[0], DistributionAvailability::Joint)), 0);
+        // A wrong intervention set does not.
+        assert_eq!(unmet(regime_with(&[1], &[1], DistributionAvailability::Joint)), 1);
+        // Two needed variables need a joint law, not separate marginals.
+        let two = [VariableId::from_raw(1), VariableId::from_raw(2)];
+        let joint_need = FactorNeed { variables: &two, ..need };
+        let marginals = DistributionAvailability::SeparateMarginals {
+            variables: Arc::from([VariableId::from_raw(1), VariableId::from_raw(2)]),
+        };
+        let separate = regime_with(&[1, 2], &[0], marginals);
+        assert!(!separate.satisfies(&joint_need));
+        assert!(regime_with(&[1, 2], &[0], DistributionAvailability::Joint).satisfies(&joint_need));
+        // A value-restricted assignment cannot supply an unrestricted response.
+        let mut restricted = regime_with(&[1], &[0], DistributionAvailability::Joint);
+        restricted.intervention_values = Arc::from([InterventionAssignment {
+            variable: VariableId::from_raw(0),
+            value: Value::f64(1.0),
+        }]);
+        assert!(!restricted.satisfies(&need));
+        // An unavailable (proposed) regime supplies nothing.
+        let mut proposed = regime_with(&[1], &[0], DistributionAvailability::Joint);
+        proposed.evidence_kind = EvidenceKind::Proposed;
+        assert!(!proposed.satisfies(&need));
+    }
+
+    #[test]
+    fn regimes_must_name_declared_environments_and_variables() {
+        let env = || {
+            Environment::try_new(
+                "trial",
+                [coord(0, VariableDomain::Binary), coord(2, VariableDomain::Binary)],
+                [],
+            )
+            .unwrap()
+        };
+        let build = |regime: EvidenceRegime| EvidenceCatalog::try_new([env()], [regime], [], None);
+        assert!(build(experimental(1, "trial", &[0])).is_ok());
+        // A typo'd population would otherwise read as missing evidence.
+        let typo = build(experimental(1, "trail", &[0])).unwrap_err();
+        assert!(
+            matches!(typo, QueryError::InvalidTransport(m) if m.contains("declared environment"))
+        );
+        // Variable 1 is declared by no environment.
+        let undeclared = build(experimental(1, "trial", &[1])).unwrap_err();
+        assert!(
+            matches!(undeclared, QueryError::InvalidTransport(m) if m.contains("not declared"))
+        );
+        // Without environments nothing is declared, so nothing is checked.
+        assert!(
+            EvidenceCatalog::try_new([], [experimental(1, "anywhere", &[1])], [], None).is_ok()
+        );
+    }
+
+    #[test]
+    fn bindings_to_regimes_without_results_are_rejected() {
+        let binding = |regime: u32| RegimeBinding {
+            dataset_identity: None,
+            regime: RegimeId::from_raw(regime),
+            snapshot_identity: Arc::from("snap"),
+            schema_names: Arc::from([]),
+            sampling: SamplingDesign::Independent,
+            weights: None,
+            dependence: DependenceGroup::IndependentStudies,
+        };
+        let mut proposed = experimental(1, "trial", &[0]);
+        proposed.evidence_kind = EvidenceKind::Proposed;
+        let error = EvidenceCatalog::try_new([], [proposed], [binding(1)], None).unwrap_err();
+        assert!(matches!(error, QueryError::InvalidTransport(m) if m.contains("do not exist")));
+        assert!(
+            EvidenceCatalog::try_new([], [experimental(1, "trial", &[0])], [binding(1)], None)
+                .is_ok()
+        );
     }
 }

@@ -7,7 +7,8 @@
 /// Scratch for residualization and Pearson correlation.
 #[derive(Clone, Debug, Default)]
 pub struct ParCorrWorkspace {
-    /// Design matrix column-major `[Z…]` (`n * p`); no intercept (pinned baseline parity).
+    /// Design matrix column-major `[Z…]` (`n * p`). Every column is centered, which is the
+    /// implicit intercept: X and Y are residualized on `[1, Z…]`.
     pub design: Vec<f64>,
     /// `XtX` / Gram (`p^2`).
     pub gram: Vec<f64>,
@@ -73,8 +74,17 @@ pub struct ParCorrQuery {
 }
 
 /// Pearson correlation of two equal-length slices (population formula).
+///
+/// `None` for fewer than two points, a non-finite column, or an effectively
+/// constant column (see [`constant_column`]).
 #[must_use]
 pub fn pearson(x: &[f64], y: &[f64]) -> Option<f64> {
+    pearson_floored(x, y, None)
+}
+
+/// [`pearson`] with optional explicit constant-column floors on the centered sums of
+/// squares of `x` and `y`. `None` judges each column against its own magnitude.
+fn pearson_floored(x: &[f64], y: &[f64], floors: Option<(f64, f64)>) -> Option<f64> {
     debug_assert_eq!(x.len(), y.len());
     let n = x.len();
     if n < 2 {
@@ -99,17 +109,43 @@ pub fn pearson(x: &[f64], y: &[f64]) -> Option<f64> {
         cyy += dy * dy;
         cxy += dx * dy;
     }
-    if constant_column(cxx, mx, nf) || constant_column(cyy, my, nf) {
+    let (floor_x, floor_y) = floors.unwrap_or((raw_floor(mx, nf), raw_floor(my, nf)));
+    if constant_column(cxx, floor_x) || constant_column(cyy, floor_y) {
         return None;
     }
     Some(cxy / (cxx * cyy).sqrt())
 }
 
-/// Effectively-constant test on a centered sum of squares, relative to the column's
-/// magnitude so the verdict does not depend on the data's units.
-fn constant_column(css: f64, mean: f64, nf: f64) -> bool {
-    let tol = nf * (f64::EPSILON * (1.0 + mean.abs())).powi(2);
-    !(css.is_finite() && css > tol)
+/// Centered sum of squares below which a residual is rounding noise, as a fraction of
+/// the raw column's own centered sum of squares (a relative sd of `1e-10`).
+const RESIDUAL_REL_TOL: f64 = 1e-10;
+
+/// Floor for a raw column: its centered sum of squares must exceed what representing
+/// the mean alone can leave behind (`n * (eps * mean)^2`). Purely relative, so the
+/// verdict does not depend on the data's units.
+fn raw_floor(mean: f64, nf: f64) -> f64 {
+    nf * (f64::EPSILON * mean).powi(2)
+}
+
+/// Floor for the residual of `raw` after regression on Z: relative to the *raw*
+/// column's centered sum of squares, because the residual's own mean is ~0 and says
+/// nothing about the scale the rounding noise lives at. A raw column that is itself
+/// constant or non-finite has no variation to explain: any residual is noise.
+fn residual_floor(raw: &[f64]) -> f64 {
+    let nf = raw.len() as f64;
+    let mean = raw.iter().sum::<f64>() / nf;
+    let css = raw.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>();
+    if constant_column(css, raw_floor(mean, nf)) {
+        f64::INFINITY
+    } else {
+        RESIDUAL_REL_TOL * RESIDUAL_REL_TOL * css
+    }
+}
+
+/// Effectively-constant test on a centered sum of squares. Also true for a non-finite
+/// sum, so callers that must tell noise from NaN check finiteness separately.
+fn constant_column(css: f64, floor: f64) -> bool {
+    !(css.is_finite() && css > floor)
 }
 
 fn build_design(z_cols: &[&[f64]], n: usize, design: &mut [f64]) {
@@ -299,7 +335,7 @@ fn partial_correlation_scalar_impl(
     // Finite zero-variance residuals ⇒ trivial conditional independence (r = 0).
     // Non-finite residuals must stay None: `constant_column` also fires on NaN css,
     // so pearson alone cannot distinguish them from a real constant residual.
-    pearson_after_residualize(&workspace.rx[..n], &workspace.ry[..n], pearson)
+    pearson_after_residualize(&workspace.rx[..n], &workspace.ry[..n], x, y, pearson_floored)
 }
 
 /// Portable optimized path: design built once, Gram reformed once between X/Y
@@ -346,19 +382,22 @@ fn partial_correlation_portable_impl(
         residual_from_beta(y, design, beta, n, ncols, ry);
     }
     // See the scalar path: finite constant residual ⇒ Some(0.0); non-finite ⇒ None.
-    pearson_after_residualize(&workspace.rx[..n], &workspace.ry[..n], pearson_fused)
+    pearson_after_residualize(&workspace.rx[..n], &workspace.ry[..n], x, y, pearson_fused_floored)
 }
 
 /// Pearson on residuals, restoring `Some(0.0)` only for finite constant residuals.
 ///
 /// `constant_column` returns true for both non-finite css and a finite near-zero css,
 /// so a bare `pearson(..).or(Some(0.0))` would turn NaN input into false independence.
+/// Residuals are judged against the raw columns' scale (see [`residual_floor`]).
 fn pearson_after_residualize(
     rx: &[f64],
     ry: &[f64],
-    corr: fn(&[f64], &[f64]) -> Option<f64>,
+    x: &[f64],
+    y: &[f64],
+    corr: fn(&[f64], &[f64], Option<(f64, f64)>) -> Option<f64>,
 ) -> Option<f64> {
-    match corr(rx, ry) {
+    match corr(rx, ry, Some((residual_floor(x), residual_floor(y)))) {
         Some(r) => Some(r),
         None if rx.iter().chain(ry.iter()).all(|v| v.is_finite()) => Some(0.0),
         None => None,
@@ -385,6 +424,10 @@ fn residual_from_beta(
 
 /// Fused two-pass Pearson favoring contiguous auto-vectorization.
 fn pearson_fused(x: &[f64], y: &[f64]) -> Option<f64> {
+    pearson_fused_floored(x, y, None)
+}
+
+fn pearson_fused_floored(x: &[f64], y: &[f64], floors: Option<(f64, f64)>) -> Option<f64> {
     const CHUNK: usize = 8;
     debug_assert_eq!(x.len(), y.len());
     let n = x.len();
@@ -438,7 +481,8 @@ fn pearson_fused(x: &[f64], y: &[f64]) -> Option<f64> {
         cxy += dx * dy;
         i += 1;
     }
-    if constant_column(cxx, mx, nf) || constant_column(cyy, my, nf) {
+    let (floor_x, floor_y) = floors.unwrap_or((raw_floor(mx, nf), raw_floor(my, nf)));
+    if constant_column(cxx, floor_x) || constant_column(cyy, floor_y) {
         return None;
     }
     Some(cxy / (cxx * cyy).sqrt())
@@ -763,5 +807,60 @@ mod tests {
         let y_ok: Vec<f64> = (0..n).map(|i| ((i * 5) % 11) as f64 - 5.0).collect();
         let r = partial_correlation_scalar(&x_ok, &y_ok, &[&z_ok], &mut ws);
         assert!(r.is_some_and(f64::is_finite), "finite independent sample → finite r, got {r:?}");
+    }
+
+    type Columns = (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>);
+
+    fn confounded_columns(n: usize, scale: f64, noise: f64) -> Columns {
+        let z1: Vec<f64> = (0..n).map(|i| (0.37 * i as f64).sin()).collect();
+        let z2: Vec<f64> = (0..n).map(|i| (0.81 * i as f64).cos()).collect();
+        let e: Vec<f64> = (0..n).map(|i| (1.7 * i as f64 + 0.3).cos()).collect();
+        let x = (0..n).map(|i| scale * (0.3 * z1[i] + 0.7 * z2[i] + noise * e[i])).collect();
+        let y = (0..n).map(|i| scale * (z1[i] - z2[i] + noise * e[i])).collect();
+        (z1, z2, x, y)
+    }
+
+    #[test]
+    fn exactly_explained_column_is_independent_at_every_unit_scale() {
+        // X is an exact linear function of (Z1, Z2): its residual is rounding noise whose
+        // size scales with X. The verdict must not depend on the data's units.
+        let mut ws = ParCorrWorkspace::default();
+        let n = 200;
+        for scale in [1.0, 1e3, 1e6] {
+            let (z1, z2, x, _) = confounded_columns(n, scale, 0.0);
+            let y: Vec<f64> = (0..n).map(|i| (2.3 * i as f64).sin() + 0.5 * z1[i]).collect();
+            let scalar = partial_correlation_scalar(&x, &y, &[&z1, &z2], &mut ws);
+            let portable = partial_correlation_portable(&x, &y, &[&z1, &z2], &mut ws);
+            assert_eq!(scalar, Some(0.0), "scalar at scale {scale}");
+            assert_eq!(portable, Some(0.0), "portable at scale {scale}");
+        }
+    }
+
+    #[test]
+    fn small_unit_residual_variation_is_not_mistaken_for_constant() {
+        // Both residuals equal 1e-3 * scale * (e projected off Z), so the partial
+        // correlation is exactly 1 in exact arithmetic. At scale 1e-14 that residual sd
+        // (~1e-17) is far below any absolute epsilon, yet it is 1e-3 of the column's own
+        // spread, so it is real variation and must be correlated, not reported as r = 0.
+        let mut ws = ParCorrWorkspace::default();
+        for scale in [1.0, 1e-14] {
+            let (z1, z2, x, y) = confounded_columns(200, scale, 1e-3);
+            let scalar = partial_correlation_scalar(&x, &y, &[&z1, &z2], &mut ws).unwrap();
+            let portable = partial_correlation_portable(&x, &y, &[&z1, &z2], &mut ws).unwrap();
+            assert!((scalar - 1.0).abs() < 1e-8, "scalar at scale {scale}: {scalar}");
+            assert!((portable - 1.0).abs() < 1e-8, "portable at scale {scale}: {portable}");
+        }
+    }
+
+    #[test]
+    fn raw_columns_in_tiny_units_are_not_constant() {
+        let x: Vec<f64> = (0..20).map(|i| 1e-20 * f64::from(i)).collect();
+        let y: Vec<f64> = (0..20).map(|i| 1e-20 * f64::from(i * i)).collect();
+        let r = pearson(&x, &y).expect("tiny-unit columns vary");
+        let xs: Vec<f64> = (0..20).map(f64::from).collect();
+        let ys: Vec<f64> = (0..20).map(|i| f64::from(i * i)).collect();
+        let oracle = pearson(&xs, &ys).unwrap();
+        assert!((r - oracle).abs() < 1e-12, "{r} vs {oracle}");
+        assert!(pearson(&[3.0; 20], &y).is_none(), "a genuinely constant column stays None");
     }
 }

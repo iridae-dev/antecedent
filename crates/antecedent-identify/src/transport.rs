@@ -428,26 +428,17 @@ fn bind_catalog(
             || catalog
                 .target_sampling
                 .is_none_or(antecedent_core::TargetSampling::represents_target_law);
-        let needed = factor
-            .variables
-            .iter()
-            .chain(factor.conditioned_on.iter())
-            .copied()
-            .collect::<std::collections::BTreeSet<_>>();
-        let regime = catalog.regimes.iter().find(|r| {
-            r.population == factor.population && r.evidence_kind.can_satisfy_factor()
-                && r.conditioned_on.iter().all(|v| factor.conditioned_on.contains(v) && !factor.variables.contains(v))
-                && r.interventions.len() == factor.interventions.len()
-                && r.interventions.iter().all(|v| factor.interventions.contains(v))
-                && needed.iter().all(|v| r.measured.contains(v) || r.interventions.contains(v))
-                && (matches!(r.distribution, antecedent_core::DistributionAvailability::Joint)
-                    || needed.len() <= 1)
-                // Restricted assignments cannot supply an unrestricted symbolic response.
-                && r.intervention_values.is_empty()
-        });
+        let need = antecedent_core::FactorNeed {
+            population: &factor.population,
+            variables: &factor.variables,
+            conditioned_on: &factor.conditioned_on,
+            interventions: &factor.interventions,
+        };
+        let needed = need.needed_variables();
+        let regime = catalog.satisfying_regime(&need).map(|regime| regime.id);
         if sampling_valid {
             if let Some(regime) = regime {
-                factor.regime = Some(regime.id);
+                factor.regime = Some(regime);
                 continue;
             }
             // An empty source catalog does not withdraw the target observational law.
