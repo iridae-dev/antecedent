@@ -12,7 +12,6 @@
     clippy::cast_precision_loss
 )]
 
-use std::str::FromStr;
 use std::sync::Arc;
 
 use antecedent_core::{
@@ -1785,19 +1784,13 @@ impl StudyBuilder {
                     }
                 }
                 crate::support::CellStatus::Licensed => {
+                    // Unset → licensed_routes default for this cell (not "refuse
+                    // when the evidence list has more than one estimator").
                     let estimator = self.estimator.or_else(|| {
-                        // Evidence named exactly one estimator for this cell:
-                        // that is the default route the licensed compiler ran.
-                        let named = crate::support::licensed_estimators(cell);
-                        (named.len() == 1)
-                            .then(|| EstimatorId::from_str(named[0]).ok())
-                            .flatten()
+                        crate::support::licensed_route_estimator(cell)
                     });
                     match estimator {
                         Some(est) => Some(crate::support::classify_estimator(cell, est)),
-                        // Inspect (and any path with no bound estimator) must
-                        // not stamp licensed for a later matching/IV selection
-                        // to inherit.
                         None => Some(crate::support::CellStatus::Refused),
                     }
                 }

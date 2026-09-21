@@ -712,26 +712,79 @@ def render_allowed_rules(rules: list[dict]) -> str:
     return ",\n".join(items) if items else ""
 
 
+# Unambiguous substrings of calibration record ids → EstimatorId::as_str().
+# Longer tokens first so e.g. cell_aipw wins over aipw. Only map tokens that
+# name one closed-set estimator; do not invent from limitations prose.
+CALIBRATION_ESTIMATOR_TOKENS: list[tuple[str, str]] = [
+    ("matching_homoskedastic", "propensity.matching"),
+    ("frontdoor_stacked", "frontdoor.two_stage"),
+    ("codetermined_aipw", "cell.aipw"),
+    ("cell_aipw", "cell.aipw"),
+    ("ipw_hajek", "propensity.weighting"),
+    ("glm_adjustment", "glm.adjustment"),
+    ("linear_adjustment", "linear.adjustment.ate"),
+    ("wald_iv", "iv.wald"),
+    ("iv_2sls", "iv.2sls"),
+    ("rd_sharp", "rd.sharp"),
+    ("distance_matching", "distance.matching"),
+    ("causal_forest", "causal.forest"),
+    ("propensity_stratification", "propensity.stratification"),
+    ("propensity_weighting", "propensity.weighting"),
+    ("propensity_matching", "propensity.matching"),
+    ("aipw", "aipw"),
+]
+
+
+def estimators_from_calibration(record_ids: list[str]) -> list[str]:
+    """Wire-ids implied by unambiguous tokens in calibration record ids."""
+    found: set[str] = set()
+    for cid in record_ids:
+        if not isinstance(cid, str):
+            continue
+        for token, wire in CALIBRATION_ESTIMATOR_TOKENS:
+            if token in cid:
+                found.add(wire)
+                break
+    return sorted(found)
+
+
+def cell_route_estimator(row: dict, routes: dict[str, dict]) -> str | None:
+    route = routes.get(external_evidence.coordinate(row))
+    if route is None:
+        return None
+    est = route.get("estimator")
+    if isinstance(est, str) and est.strip():
+        return est
+    return None
+
+
 def cell_estimators(row: dict, routes: dict[str, dict]) -> list[str]:
     """Estimator wire-ids whose evidence ran for this geometric cell.
 
-    Prefer an explicit `estimators` list on the licensed row. Otherwise join
-    the estimator recorded for this coordinate in `parity/licensed_routes.toml`
-    (the plan each licensed-compiler evidence run actually executed). Never
-    invent an estimator that neither source names.
+    Union of the licensed_routes compiler-plan estimator (when present) and
+    estimators implied by unambiguous tokens in this row's calibration record
+    ids. Never invent an estimator from limitations prose alone.
     """
-    named = row.get("estimators")
-    if isinstance(named, list):
-        out = [str(x) for x in named if isinstance(x, str) and x.strip()]
-        if out:
-            return out
-    route = routes.get(external_evidence.coordinate(row))
-    if route is None:
-        return []
-    est = route.get("estimator")
-    if isinstance(est, str) and est.strip():
-        return [est]
-    return []
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def add(wire: str) -> None:
+        if wire and wire not in seen:
+            seen.add(wire)
+            out.append(wire)
+
+    route = cell_route_estimator(row, routes)
+    if route is not None:
+        add(route)
+    for wire in estimators_from_calibration(list(row.get("calibration") or [])):
+        add(wire)
+    return out
+
+
+def rust_opt_str(value: str | None) -> str:
+    if value is None:
+        return "None"
+    return f'Some("{rust_escape(value)}")'
 
 
 def rust_str_list(values: list[str]) -> str:
@@ -754,6 +807,7 @@ def render_rust(
     lic_items = []
     for row in cells:
         estimators = cell_estimators(row, routes)
+        route = cell_route_estimator(row, routes)
         lic_items.append(
             "    LicensedCell {\n"
             f'        query: "{rust_escape(row["query"])}",\n'
@@ -761,6 +815,7 @@ def render_rust(
             f'        structure: "{rust_escape(row["structure"])}",\n'
             f'        inference: "{rust_escape(row["inference"])}",\n'
             f'        validation: "{rust_escape(row["validation"])}",\n'
+            f"        route_estimator: {rust_opt_str(route)},\n"
             f"        estimators: {rust_str_list(estimators)},\n"
             "    }"
         )
@@ -798,7 +853,9 @@ pub struct LicensedCell {{
     pub structure: &'static str,
     pub inference: &'static str,
     pub validation: &'static str,
-    /// Estimator wire-ids whose evidence ran for this geometric cell.
+    /// Compiler-plan estimator from `parity/licensed_routes.toml`, when present.
+    pub route_estimator: Option<&'static str>,
+    /// Union of the route estimator and calibration-token estimators for this cell.
     pub estimators: &'static [&'static str],
 }}
 

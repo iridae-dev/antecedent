@@ -18,6 +18,8 @@
 //! two-stage front-door cannot inherit a license whose calibration never ran
 //! them.
 
+use std::str::FromStr;
+
 use antecedent_core::{
     CausalQuery, DerivativeScale, LicensedNeighbor, PremiseChange, ResponseFunctional,
     TemporalPolicy,
@@ -213,21 +215,31 @@ pub fn classify(cell: SupportCell) -> CellStatus {
 
 /// Estimator wire-ids whose evidence ran for this geometric cell.
 ///
-/// Empty when the cell is not licensed, or when the licensed row named no
-/// estimator (do not guess one).
+/// Empty when the cell is not licensed, or when neither the compiler route nor
+/// a calibration-record token named an estimator (do not guess one).
 #[must_use]
 pub fn licensed_estimators(cell: SupportCell) -> &'static [&'static str] {
-    LICENSED
-        .iter()
-        .find(|row| {
-            row.query == cell.query
-                && row.graph_class == cell.graph_class
-                && row.structure == cell.structure
-                && row.inference == cell.inference
-                && row.validation == cell.validation
-        })
-        .map(|row| row.estimators)
-        .unwrap_or(&[])
+    licensed_row(cell).map(|row| row.estimators).unwrap_or(&[])
+}
+
+/// Compiler-plan estimator for this geometric cell (`parity/licensed_routes.toml`).
+///
+/// This is the default unbound compile path; it is independent of how many
+/// additional estimators the cell's calibration records license.
+#[must_use]
+pub fn licensed_route_estimator(cell: SupportCell) -> Option<EstimatorId> {
+    let wire = licensed_row(cell)?.route_estimator?;
+    wire.parse().ok()
+}
+
+fn licensed_row(cell: SupportCell) -> Option<&'static crate::support_matrix_data::LicensedCell> {
+    LICENSED.iter().find(|row| {
+        row.query == cell.query
+            && row.graph_class == cell.graph_class
+            && row.structure == cell.structure
+            && row.inference == cell.inference
+            && row.validation == cell.validation
+    })
 }
 
 /// Classify `cell` for a concrete estimator.
@@ -709,33 +721,40 @@ mod tests {
     }
 
     #[test]
-    fn classify_estimator_licenses_only_evidence_estimators() {
+    fn classify_estimator_licenses_calibration_and_route_estimators() {
         let c = cell("AverageEffect", "Dag", "explicit", "Frequentist", "none");
         assert_eq!(classify(c), CellStatus::Licensed);
-        assert!(
-            licensed_estimators(c).contains(&"linear.adjustment.ate"),
-            "{:?}",
-            licensed_estimators(c)
-        );
+        let named = licensed_estimators(c);
+        assert!(named.contains(&"linear.adjustment.ate"), "{named:?}");
+        // Route default.
         assert_eq!(
-            classify_estimator(c, EstimatorId::LinearAdjustmentAte),
-            CellStatus::Licensed
+            licensed_route_estimator(c),
+            Some(EstimatorId::LinearAdjustmentAte)
         );
-        // These families inherit the geometric cell today but have no evidence
-        // on this row (parity/licensed_routes.toml recorded linear.adjustment.ate).
+        // Calibration-record tokens on this row (plus the route).
         for est in [
-            EstimatorId::PropensityMatching,
-            EstimatorId::DistanceMatching,
+            EstimatorId::LinearAdjustmentAte,
+            EstimatorId::Aipw,
+            EstimatorId::PropensityWeighting,
+            EstimatorId::GlmAdjustment,
+            EstimatorId::FrontDoorTwoStage,
             EstimatorId::IvWald,
             EstimatorId::Iv2Sls,
+            EstimatorId::PropensityMatching,
             EstimatorId::RdSharp,
-            EstimatorId::CausalForest,
-            EstimatorId::FrontDoorTwoStage,
         ] {
             assert_eq!(
                 classify_estimator(c, est),
+                CellStatus::Licensed,
+                "{est:?} is named by this cell's route or calibration ids; got refuse"
+            );
+        }
+        // No record id names these on this cell.
+        for est in [EstimatorId::DistanceMatching, EstimatorId::CausalForest] {
+            assert_eq!(
+                classify_estimator(c, est),
                 CellStatus::Refused,
-                "{est:?} must not inherit a license whose evidence never ran it"
+                "{est:?} must stay refused without a calibration token"
             );
         }
     }
@@ -743,9 +762,20 @@ mod tests {
     #[test]
     fn classify_estimator_never_allowlists_unmeasured_estimators() {
         let c = cell("AverageEffect", "Dag", "explicit", "Frequentist", "none");
-        let status = classify_estimator(c, EstimatorId::PropensityMatching);
+        let status = classify_estimator(c, EstimatorId::CausalForest);
         assert_eq!(status, CellStatus::Refused);
         assert!(!matches!(status, CellStatus::Allowlisted { .. }));
+    }
+
+    #[test]
+    fn classify_estimator_refuses_estimator_with_no_route_or_token() {
+        // Stratification has neither a licensed_routes entry nor a calibration
+        // token on the AverageEffect Dag frequentist/none cell.
+        let c = cell("AverageEffect", "Dag", "explicit", "Frequentist", "none");
+        assert_eq!(
+            classify_estimator(c, EstimatorId::PropensityStratification),
+            CellStatus::Refused
+        );
     }
 
     #[test]
