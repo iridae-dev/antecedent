@@ -5,9 +5,10 @@
 //! adjustment (Abadie–Imbens) is applied on the match feature(s).
 //!
 //! **Bootstrap caution:** the nonparametric bootstrap is invalid for nearest-neighbor
-//! matching with a fixed number of matches (Abadie–Imbens 2008). Prefer the analytic
-//! SE; bootstrap replicates (when enabled) are retained only for diagnostics and must
-//! not be treated as valid confidence-interval input for NN matching.
+//! matching with a fixed number of matches (Abadie–Imbens 2008). The licensed uncertainty
+//! product is the Abadie–Imbens analytic SE ([`EffectEstimate::se_analytic`]). Setting
+//! [`PropensityMatching::bootstrap_replicates`] does **not** populate
+//! [`EffectEstimate::se_bootstrap`] — the invalid bootstrap is not retained as a CI.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -18,19 +19,19 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance, fit_propensity_in_place};
+use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance};
 
 use super::prepare::{
-    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, gather, gather_optional_multiway,
-    gather_optional_row_labels, gather_rowmajor, prepare_propensity_problem_with_registry,
-    restrict_to_rows, split_by_treatment, trim_of, trim_retained_rows,
+    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
+    default_propensity_overlap, gather, gather_optional_multiway, gather_optional_row_labels,
+    gather_rowmajor, prepare_propensity_problem_with_registry, restrict_to_rows,
+    split_by_treatment, trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::se::{AnalyticSeKind, influence_se_kind};
-use crate::util::{BootstrapSeResult, sample_std, stats_err};
+use crate::util::{sample_std, stats_err};
 
 /// Scale on which the propensity-score matching distance (and [`PropensityMatching::caliper`])
 /// is computed.
@@ -70,7 +71,8 @@ pub enum CaliperScale {
 pub struct PropensityMatching {
     /// Dense linear-algebra backend used for the logistic IRLS fit.
     pub backend: FaerBackend,
-    /// Bootstrap replicates (0 = skip bootstrap). Invalid for NN matching CIs — see module docs.
+    /// Accepted for API compatibility; does not populate [`EffectEstimate::se_bootstrap`]
+    /// (Abadie–Imbens 2008 — see module docs). Prefer [`EffectEstimate::se_analytic`].
     pub bootstrap_replicates: u32,
     /// Overlap policy; must be [`OverlapPolicy::RequireDiagnostics`].
     pub overlap: OverlapPolicy,
@@ -101,7 +103,7 @@ impl Default for PropensityMatching {
 }
 
 impl PropensityMatching {
-    /// Defaults: no caliper, 200 bootstrap replicates, clip = 0.01, no trim.
+    /// Defaults: no caliper, `bootstrap_replicates = 200` (ignored for SE), clip = 0.01, no trim.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -126,10 +128,12 @@ impl PropensityMatching {
         self
     }
 
-    /// Set the number of bootstrap replicates (0 = skip bootstrap).
+    /// Record a bootstrap-replicate count without licensing a bootstrap SE.
     ///
-    /// Defaults to 200, but the nonparametric bootstrap is invalid for nearest-neighbor
-    /// matching CIs (Abadie–Imbens 2008) — see the module docs. Prefer the analytic SE.
+    /// The nonparametric bootstrap is invalid for nearest-neighbor matching CIs
+    /// (Abadie–Imbens 2008). This setter keeps the field for callers that still set it;
+    /// [`PropensityMatching::fit`] never writes [`EffectEstimate::se_bootstrap`]. Prefer
+    /// the analytic SE.
     #[must_use]
     pub const fn with_bootstrap_replicates(mut self, replicates: u32) -> Self {
         self.bootstrap_replicates = replicates;
@@ -235,9 +239,13 @@ impl PropensityMatching {
         &self,
         problem: &PreparedPropensityProblem,
         workspace: &mut PropensityEstimationWorkspace,
-        ctx: &ExecutionContext,
+        _ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        // `bootstrap_replicates` is intentionally unread: the nonparametric bootstrap is
+        // invalid for fixed-M NN matching (Abadie–Imbens 2008) and must not land in
+        // `se_bootstrap` even when a caller still requests replicates.
+        let _ = self.bootstrap_replicates;
         let trim = trim_of(problem.overlap);
         let model = PropensityModel::fit(
             problem,
@@ -293,12 +301,6 @@ impl PropensityMatching {
             times_used.as_deref(),
         )?;
 
-        let boot = if self.bootstrap_replicates == 0 {
-            None
-        } else {
-            Some(self.bootstrap_se(problem, trim, workspace, ctx)?)
-        };
-
         let ipw_target = IpwTarget::from_population(&problem.target_population).ok();
         let mut overlap_report = crate::propensity::propensity_overlap_report(
             problem,
@@ -313,90 +315,7 @@ impl PropensityMatching {
             .with_se_kind(self.se_kind)
             .with_n_obs(u64::try_from(result.n_obs).unwrap_or(u64::MAX))
             .with_overlap_report(overlap_report)
-            .with_retained_memory_bytes(Some(workspace.retained_memory_bytes()))
-            .with_bootstrap(boot))
-    }
-
-    fn bootstrap_se(
-        &self,
-        problem: &PreparedPropensityProblem,
-        trim: Option<f64>,
-        workspace: &mut PropensityEstimationWorkspace,
-        ctx: &ExecutionContext,
-    ) -> Result<BootstrapSeResult, EstimationError> {
-        let clip = clip_of(problem.overlap);
-        let n = problem.nrows;
-        let ncols = problem.design_ncols;
-        let _ = workspace;
-        crate::util::bootstrap_se_with_scratch(
-            self.bootstrap_replicates,
-            ctx,
-            0x51E7_u64,
-            n,
-            || {
-                (
-                    PropensityEstimationWorkspace::default(),
-                    vec![0.0; n * ncols],
-                    vec![0.0; n],
-                    vec![0.0; n],
-                )
-            },
-            |(workspace, x_boot, t_boot, y_boot), idx| {
-                crate::util::gather_bootstrap_vector(t_boot, &problem.treatment, idx);
-                crate::util::gather_bootstrap_vector(y_boot, &problem.outcome, idx);
-                crate::util::gather_bootstrap_design(x_boot, &problem.design_matrix, n, ncols, idx);
-                if fit_propensity_in_place(
-                    x_boot,
-                    n,
-                    ncols,
-                    t_boot,
-                    &self.backend,
-                    &mut workspace.propensity,
-                    &self.glm_options,
-                )
-                .is_err()
-                {
-                    return Ok(None);
-                }
-                let raw = &workspace.propensity.scores[..n];
-                if workspace.clip_scratch.len() < n {
-                    workspace.clip_scratch.resize(n, 0.0);
-                }
-                workspace.clip_scratch[..n].copy_from_slice(raw);
-                if let Some(c) = clip {
-                    clamp_scores(&mut workspace.clip_scratch[..n], c);
-                }
-                let Ok(retained) = trim_retained_rows(raw, trim) else {
-                    return Ok(None);
-                };
-                let (t_used, y_used, s_used) = restrict_to_rows(
-                    t_boot,
-                    y_boot,
-                    &workspace.clip_scratch[..n],
-                    1,
-                    retained.as_deref(),
-                );
-                let s_used = apply_caliper_scale(s_used, self.caliper_scale);
-                match matching_contrast(
-                    &t_used,
-                    &y_used,
-                    &s_used,
-                    1,
-                    MatchingDistance::Absolute,
-                    &problem.target_population,
-                    self.caliper,
-                    workspace,
-                    AnalyticSeKind::Homoskedastic,
-                    None,
-                    None,
-                    None,
-                    None,
-                ) {
-                    Ok(m) => Ok(Some(m.ate)),
-                    Err(_) => Ok(None),
-                }
-            },
-        )
+            .with_retained_memory_bytes(Some(workspace.retained_memory_bytes())))
     }
 }
 
@@ -803,7 +722,98 @@ fn solve_linear_system(a: &mut [f64], b: &mut [f64], p: usize) -> Option<Vec<f64
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, MeasurementSpec, RoleHint,
+        SmallRoleSet, TargetPopulation, ValueType, VariableId,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+    };
+    use antecedent_expr::{ExprId, IdentifiedEstimand};
+    use antecedent_kernels::standard_normal;
+
     use super::*;
+
+    fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1234_u64);
+        let mut z = vec![0.0; n];
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let zi = standard_normal(&mut rng);
+            let logit = -0.5 + zi;
+            let p = 1.0 / (1.0 + (-logit).exp());
+            let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
+            let noise = standard_normal(&mut rng) * 0.5;
+            z[i] = zi;
+            t[i] = ti;
+            y[i] = 2.0 * ti + zi + noise;
+        }
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "z",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        );
+        (TabularData::new(storage), estimand)
+    }
 
     #[test]
     fn abadie_imbens_se_grows_with_donor_reuse() {
@@ -843,6 +853,31 @@ mod tests {
         let se_reuse = se(&donors_reuse, 2);
         let se_unique = se(&donors_unique, 4);
         assert!(se_reuse > se_unique, "cluster reuse={se_reuse} unique={se_unique}");
+    }
+
+    /// Regression: requesting bootstrap replicates must not license an SE in
+    /// `se_bootstrap` (Abadie–Imbens 2008). Analytic SE remains the uncertainty product.
+    #[test]
+    fn bootstrap_replicates_do_not_populate_se_bootstrap() {
+        let (data, estimand) = confounded_scm(120, 42);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(TargetPopulation::Treated);
+        let est = PropensityMatching { bootstrap_replicates: 30, ..PropensityMatching::new() };
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = PropensityEstimationWorkspace::default();
+        let effect = est
+            .fit(&prep, &mut ws, &ExecutionContext::for_tests(7), AssumptionSet::new())
+            .unwrap();
+        assert!(
+            effect.se_bootstrap.is_none(),
+            "NN matching must not store the invalid bootstrap SE"
+        );
+        assert!(
+            effect.se_analytic.is_finite() && effect.se_analytic > 0.0,
+            "se_analytic={}",
+            effect.se_analytic
+        );
     }
 
     /// Regression test for the caliper-scale defect: with a fixed numeric caliper of 0.2 and

@@ -13,8 +13,8 @@
 //!
 //! **Matching caveat:** for nearest-neighbor matching with a fixed number of matches, the
 //! nonparametric bootstrap is asymptotically invalid (Abadie–Imbens 2008). Matching
-//! estimators expose Abadie–Imbens (2006) analytic SEs with donor-reuse counts; treat any
-//! matching bootstrap SE as diagnostic only.
+//! estimators expose Abadie–Imbens (2006) analytic SEs with donor-reuse counts and do
+//! **not** write [`crate::EffectEstimate::se_bootstrap`], even when `bootstrap_replicates > 0`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -311,7 +311,8 @@ mod tests {
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "att={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
+        assert!(effect.se_bootstrap.is_none());
+        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
     }
 
     #[test]
@@ -376,7 +377,8 @@ mod tests {
         let mut ws = PropensityEstimationWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!((effect.ate - 2.0).abs() < 0.3, "att={}", effect.ate);
-        assert!(effect.se_bootstrap.is_some());
+        assert!(effect.se_bootstrap.is_none());
+        assert!(effect.se_analytic.is_finite() && effect.se_analytic > 0.0);
         assert!(effect.overlap_report.is_some());
     }
 
