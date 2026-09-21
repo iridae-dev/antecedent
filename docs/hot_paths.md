@@ -83,6 +83,36 @@ bench" carry an allocation assertion; other rows record a baseline without
 one, and not every baseline file records the date, machine, or commit it was
 measured at.
 
+## Python↔Rust ingest overhead
+
+The Criterion table above measures Rust hot paths. For choosing among **dict /
+pandas / Arrow** inputs on the Python facade, run the local sanity script
+(not a merge gate; absolute ms are machine noise):
+
+```bash
+python examples/python/bench_python_overhead.py
+python examples/python/bench_python_overhead.py --smoke   # few iters
+```
+
+The printed table has columns `workload`, `format`, `iters`, `ingest_ms`,
+`total_ms`, `native_est_ms`. `ingest_ms` times `try_as_arrow_c_columns` /
+`as_columns` alone; `total_ms` is the end-to-end `analyze` (or PCMCI)
+call; `native_est_ms ≈ total_ms − ingest_ms` (ingest also runs inside the
+call, so treat it as a lower bound on non-ingest work).
+
+How to read it alongside the Arrow CDI row above:
+
+- Prefer **Arrow** (CDI borrow) for interactive / hot-loop estimates when you
+  already hold a PyArrow table — that is the zero-copy path
+  (`performance.bytes_borrowed`).
+- Prefer a **dict of float64 NumPy arrays** when you control the producer and
+  want minimal Python conversion without an Arrow dependency.
+- **pandas** is correct and convenient, but `as_columns` / `to_f64` copies;
+  avoid re-wrapping the same frame on every click in a tight loop when
+  ingest shows up as a large share of `total_ms`.
+
+This script does not replace Criterion baselines or latency-tier tests.
+
 ## 1.3 staged execution
 
 Cached derivative estimation and refitted GCM unit counterfactual execution are
