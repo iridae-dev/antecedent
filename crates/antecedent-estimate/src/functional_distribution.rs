@@ -554,10 +554,10 @@ impl FunctionalDistribution {
                 &prepared.bootstrap_signatures,
                 None,
             )?;
-            let mut prep = prepared.clone();
-            prep.provider = provider;
             let mut ws = FunctionalDistributionWorkspace::default();
-            let Ok(est) = self.estimate_point(&prep, conditioning_values, &mut ws) else {
+            let Ok(est) =
+                self.estimate_point_with(prepared, &provider, conditioning_values, &mut ws)
+            else {
                 return Ok(None);
             };
             let mut aligned = vec![f64::NAN; n_atoms];
@@ -624,6 +624,18 @@ impl FunctionalDistribution {
         conditioning_values: &[(VariableId, Value)],
         workspace: &mut FunctionalDistributionWorkspace,
     ) -> Result<InterventionalDistributionEstimate, EstimationError> {
+        self.estimate_point_with(prepared, &prepared.provider, conditioning_values, workspace)
+    }
+
+    /// Evaluate against `provider` (a bootstrap or posterior refit of the tables)
+    /// without cloning the prepared problem per replicate.
+    fn estimate_point_with(
+        &self,
+        prepared: &PreparedFunctionalDistribution,
+        provider: &EmpiricalTableProvider,
+        conditioning_values: &[(VariableId, Value)],
+        workspace: &mut FunctionalDistributionWorkspace,
+    ) -> Result<InterventionalDistributionEstimate, EstimationError> {
         workspace.clear();
 
         let needed_z: Vec<VariableId> = prepared.conditioning.iter().map(|a| a.variable).collect();
@@ -635,8 +647,7 @@ impl FunctionalDistribution {
             }
             vec![Vec::new()]
         } else if conditioning_values.is_empty() {
-            let support =
-                prepared.provider.support(&needed_z, &EvalContext::default()).map_err(eval_err)?;
+            let support = provider.support(&needed_z, &EvalContext::default()).map_err(eval_err)?;
             support
                 .iter()
                 .map(|row| needed_z.iter().copied().zip(row.iter().cloned()).collect::<Vec<_>>())
@@ -653,8 +664,7 @@ impl FunctionalDistribution {
             vec![conditioning_values.to_vec()]
         };
 
-        let y_support = prepared
-            .provider
+        let y_support = provider
             .support(prepared.outcomes.as_ref(), &EvalContext::default())
             .map_err(eval_err)?;
         if y_support.is_empty() {
@@ -686,11 +696,8 @@ impl FunctionalDistribution {
             }
             // One pass per value of the free variables evaluates the whole table, so a
             // value is kept or dropped for every atom at once.
-            let probabilities = average_over_free_variables(
-                &prepared.provider,
-                &prepared.free_variables,
-                &base,
-                |env| {
+            let probabilities =
+                average_over_free_variables(provider, &prepared.free_variables, &base, |env| {
                     rows.iter()
                         .map(|outcome_pairs| {
                             workspace.assignment = env.clone();
@@ -699,15 +706,14 @@ impl FunctionalDistribution {
                             }
                             prepared.compiled.evaluate_with(
                                 &prepared.arena,
-                                &prepared.provider,
+                                provider,
                                 &EvalContext::default(),
                                 &workspace.assignment,
                             )
                         })
                         .collect()
-                },
-            )
-            .map_err(eval_err)?;
+                })
+                .map_err(eval_err)?;
 
             for (outcome_pairs, p) in rows.into_iter().zip(probabilities) {
                 if mean_ok {
@@ -782,7 +788,6 @@ impl FunctionalDistribution {
         }));
         let mut values = vec![0.0; draws * quantities.len()];
         let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 0xF01E_u64);
-        let mut draw_prepared = prepared.clone();
         let mut draw_ws = FunctionalDistributionWorkspace::default();
         for draw in 0..draws {
             if ctx.cancellation.is_cancelled() {
@@ -795,8 +800,8 @@ impl FunctionalDistribution {
                 &prepared.bootstrap_signatures,
                 &mut rng,
             )?;
-            draw_prepared.provider = provider;
-            let est = self.estimate_point(&draw_prepared, conditioning_values, &mut draw_ws)?;
+            let est =
+                self.estimate_point_with(prepared, &provider, conditioning_values, &mut draw_ws)?;
             if has_mean {
                 if !est.mean.is_finite() {
                     return Err(EstimationError::stats_msg(
@@ -1432,8 +1437,10 @@ fn provider_from_columns(
         if vars.is_empty() && cond.is_empty() {
             continue;
         }
+        // One row scan per (vars, cond); every alias below reads the same entries.
+        let entries = cpt_entries(columns, n, vars, cond, weights)?;
         // Observational CPT.
-        insert_cpt(&mut provider, columns, n, vars, cond, &[], DomainRef::Observational, weights)?;
+        insert_cpt(&mut provider, vars, cond, &[], DomainRef::Observational, &entries)?;
         // Duplicate under every interventional signature with the same (vars, cond).
         for (s_vars, s_cond, interv, domain) in signatures {
             if s_vars.as_ref() != vars.as_ref() || s_cond.as_ref() != cond.as_ref() {
@@ -1446,7 +1453,7 @@ fn provider_from_columns(
             // change the law the factor is read from. A factor that generates an intervened
             // variable (ID line 7 keeps `P(x | w, z)` on the napkin graph) is therefore the
             // observational conditional evaluated at the fixed value, not a point mass.
-            insert_cpt(&mut provider, columns, n, vars, cond, interv.as_ref(), *domain, weights)?;
+            insert_cpt(&mut provider, vars, cond, interv.as_ref(), *domain, &entries)?;
         }
     }
 
@@ -1495,16 +1502,18 @@ fn cartesian_domain(
     Ok(rows)
 }
 
-fn insert_cpt(
-    provider: &mut EmpiricalTableProvider,
+/// Conditional-probability table `P(vars | cond)` as `(assignment, probability)` entries.
+///
+/// Depends only on the rows and weights, not on the intervention slot or domain a
+/// factor is later registered under, so it is computed once per `(vars, cond)`.
+fn cpt_entries(
     columns: &HashMap<VariableId, Vec<Option<Value>>>,
     n: usize,
     vars: &[VariableId],
     cond: &[VariableId],
-    intervention: &[InterventionAssignment],
-    domain: DomainRef,
     weights: Option<&[f64]>,
-) -> Result<(), EstimationError> {
+) -> Result<Vec<(Assignment, f64)>, EstimationError> {
+    let mut entries = Vec::new();
     // Count (vars, cond) joint and cond marginal among complete cases.
     let mut joint: HashMap<Vec<Value>, f64> = HashMap::new();
     let mut marg: HashMap<Vec<Value>, f64> = HashMap::new();
@@ -1555,15 +1564,7 @@ fn insert_cpt(
             let key = var_vals.clone();
             let count = joint.get(&key).copied().unwrap_or(0.0);
             let assign = Assignment::from_pairs(vars.iter().copied().zip(var_vals.iter().cloned()));
-            let spec = FactorSpec {
-                variables: vars,
-                conditioned_on: cond,
-                intervention,
-                domain,
-                population: "",
-                regime: None,
-            };
-            provider.insert_probability(&spec, &assign, count / total).map_err(eval_err)?;
+            entries.push((assign, count / total));
         }
     } else {
         let var_rows = cartesian_domain(&domains_for_insert(columns, vars)?, vars)?;
@@ -1587,17 +1588,32 @@ fn insert_cpt(
                         .zip(var_vals.iter().cloned())
                         .chain(cond.iter().copied().zip(cond_vals.iter().cloned())),
                 );
-                let spec = FactorSpec {
-                    variables: vars,
-                    conditioned_on: cond,
-                    intervention,
-                    domain,
-                    population: "",
-                    regime: None,
-                };
-                provider.insert_probability(&spec, &assign, p).map_err(eval_err)?;
+                entries.push((assign, p));
             }
         }
+    }
+    Ok(entries)
+}
+
+/// Register precomputed [`cpt_entries`] under one intervention slot and domain.
+fn insert_cpt(
+    provider: &mut EmpiricalTableProvider,
+    vars: &[VariableId],
+    cond: &[VariableId],
+    intervention: &[InterventionAssignment],
+    domain: DomainRef,
+    entries: &[(Assignment, f64)],
+) -> Result<(), EstimationError> {
+    let spec = FactorSpec {
+        variables: vars,
+        conditioned_on: cond,
+        intervention,
+        domain,
+        population: "",
+        regime: None,
+    };
+    for (assign, probability) in entries {
+        provider.insert_probability(&spec, assign, *probability).map_err(eval_err)?;
     }
     Ok(())
 }
@@ -1727,6 +1743,46 @@ mod tests {
 
     fn f(x: f64) -> Value {
         Value::f64(x)
+    }
+
+    #[test]
+    fn interventional_aliases_read_the_same_conditional_table() {
+        let (x, y) = (VariableId::from_raw(0), VariableId::from_raw(1));
+        let bits = |v: [f64; 6]| v.iter().map(|&b| Some(f(b))).collect::<Vec<_>>();
+        let columns = HashMap::from([
+            (x, bits([0.0, 0.0, 0.0, 1.0, 1.0, 1.0])),
+            (y, bits([0.0, 0.0, 1.0, 1.0, 1.0, 0.0])),
+        ]);
+        let vars: Arc<[VariableId]> = Arc::from([y]);
+        let cond: Arc<[VariableId]> = Arc::from([x]);
+        let interv: Arc<[InterventionAssignment]> =
+            Arc::from([InterventionAssignment { variable: x, value: f(1.0) }]);
+        let factors = [(Arc::clone(&vars), Arc::clone(&cond))];
+        let signatures =
+            [(Arc::clone(&vars), Arc::clone(&cond), Arc::clone(&interv), DomainRef::Observational)];
+        let lookup = |provider: &EmpiricalTableProvider,
+                      intervention: &[InterventionAssignment]| {
+            let spec = FactorSpec {
+                variables: &[y],
+                conditioned_on: &[x],
+                intervention,
+                domain: DomainRef::Observational,
+                population: "",
+                regime: None,
+            };
+            let assignment = Assignment::from_pairs([(y, f(1.0)), (x, f(1.0))]);
+            provider.probability(&spec, &assignment, &EvalContext::default()).unwrap()
+        };
+        // P(Y = 1 | X = 1): two of the three X = 1 rows.
+        let counts = provider_from_columns(&columns, 6, &factors, &signatures, None).unwrap();
+        assert!((lookup(&counts, &[]) - 2.0 / 3.0).abs() < 1e-15);
+        assert!((lookup(&counts, &interv) - 2.0 / 3.0).abs() < 1e-15);
+        // Weights 1,1,1,1,1,3: (1 + 1) / (1 + 1 + 3).
+        let weights = [1.0, 1.0, 1.0, 1.0, 1.0, 3.0];
+        let weighted =
+            provider_from_columns(&columns, 6, &factors, &signatures, Some(&weights)).unwrap();
+        assert!((lookup(&weighted, &[]) - 0.4).abs() < 1e-15);
+        assert!((lookup(&weighted, &interv) - 0.4).abs() < 1e-15);
     }
 
     fn binary_confounding_table() -> TabularData {

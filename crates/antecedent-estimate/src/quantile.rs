@@ -3,7 +3,8 @@
 //! `Q_a(τ) = F_a^{-1}(τ)` with `F_a(c) = P(Y(a) ≤ c) = 1 − P(Y(a) > c)`.
 //! The influence function is `φ_Q = −φ_F(q) / f(q)`. Density is a finite
 //! difference of `F` on the estimation grid. The path refuses when `τ` is
-//! outside the estimated CDF range or the density is too small to invert.
+//! outside the estimated CDF range or the span-normalized density is too small
+//! to invert.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -11,7 +12,13 @@
 
 use crate::error::EstimationError;
 
-/// Minimum finite-difference density licensed for inversion.
+/// Minimum finite-difference density licensed for inversion, in units of the
+/// uniform-on-the-grid density.
+///
+/// The bracket's density `ΔF/Δy` has units `1/[Y]`, so it is compared after
+/// multiplying by the grid span `y_max − y_min` (a uniform outcome on the grid
+/// scores 1). The guard then depends on the shape of the CDF and not on the unit
+/// the outcome is measured in.
 pub const MIN_QUANTILE_DENSITY: f64 = 1e-3;
 
 /// Invert a monotone CDF on a strictly increasing threshold grid.
@@ -21,8 +28,8 @@ pub const MIN_QUANTILE_DENSITY: f64 = 1e-3;
 ///
 /// # Errors
 ///
-/// Empty grid, length mismatch, `τ` outside the estimated range, or density
-/// below [`MIN_QUANTILE_DENSITY`].
+/// Empty grid, length mismatch, `τ` outside the estimated range, or
+/// span-normalized density below [`MIN_QUANTILE_DENSITY`].
 pub fn invert_cdf_quantile(
     thresholds: &[f64],
     f_le: &[f64],
@@ -70,7 +77,8 @@ pub fn invert_cdf_quantile(
         return Err(EstimationError::data_msg("quantile grid must be strictly increasing"));
     }
     let density = rise / width;
-    if !density.is_finite() || density < MIN_QUANTILE_DENSITY {
+    let span = thresholds[thresholds.len() - 1] - thresholds[0];
+    if !density.is_finite() || !span.is_finite() || density * span < MIN_QUANTILE_DENSITY {
         return Err(EstimationError::unsupported(
             "quantile inversion refused: estimated density at the quantile is too small",
         ));
@@ -111,8 +119,11 @@ pub fn quantile_contrast(
     weights: Option<&[f64]>,
     tau: f64,
 ) -> Result<QuantileContrast, EstimationError> {
-    let control = quantile_arm(table, weights, tau, 0)?;
-    let active = quantile_arm(table, weights, tau, 1)?;
+    // Means and support depend on the weights only, so both arms share one pass.
+    let means = table.weighted_means(weights)?;
+    let support = table.support(weights);
+    let control = quantile_arm_at(table, weights, tau, 0, &means, &support)?;
+    let active = quantile_arm_at(table, weights, tau, 1, &means, &support)?;
     Ok(QuantileContrast {
         value: active.value - control.value,
         influence: active.influence.iter().zip(&control.influence).map(|(a, b)| a - b).collect(),
@@ -181,9 +192,22 @@ pub fn quantile_arm(
     tau: f64,
     arm: u32,
 ) -> Result<QuantileArm, EstimationError> {
-    let raw = table.summarize(weights)?;
-    let inference = table.inference(weights)?;
-    if !inference.support.overlap_ok {
+    let means = table.weighted_means(weights)?;
+    let support = table.support(weights);
+    quantile_arm_at(table, weights, tau, arm, &means, &support)
+}
+
+/// The inversion needs only the weighted means and the support flags, not the
+/// joint covariance or a simultaneous critical value.
+fn quantile_arm_at(
+    table: &crate::scores::ScoreTable,
+    weights: Option<&[f64]>,
+    tau: f64,
+    arm: u32,
+    means: &[f64],
+    support: &crate::scores::ScoreSupport,
+) -> Result<QuantileArm, EstimationError> {
+    if !support.overlap.overlap_ok {
         return Err(EstimationError::unsupported(
             "quantile inversion requires supported target overlap",
         ));
@@ -201,9 +225,8 @@ pub fn quantile_arm(
         .collect();
     indexes.sort_by(|a, b| a.1.total_cmp(&b.1));
     let thresholds: Vec<_> = indexes.iter().map(|(_, c)| *c).collect();
-    let cdf: Vec<_> = indexes.iter().map(|(j, _)| 1.0 - raw.means[*j]).collect();
-    let supported: Vec<_> =
-        indexes.iter().map(|(j, _)| inference.threshold_supported[*j]).collect();
+    let cdf: Vec<_> = indexes.iter().map(|(j, _)| 1.0 - means[*j]).collect();
+    let supported: Vec<_> = indexes.iter().map(|(j, _)| support.threshold_supported[*j]).collect();
     let phi: Vec<Vec<f64>> = indexes
         .iter()
         .map(|(j, _)| {
@@ -213,7 +236,7 @@ pub fn quantile_arm(
                 .enumerate()
                 .map(|(i, v)| {
                     let scale = weights.map_or(1.0, |w| n as f64 * ((w[i] / weight_scale) / mass));
-                    -scale * (v - raw.means[*j])
+                    -scale * (v - means[*j])
                 })
                 .collect())
         })
@@ -285,6 +308,33 @@ mod tests {
             };
             let derivative = (shifted(1.0) - shifted(-1.0)) / (2.0 * epsilon);
             assert!((derivative - expected).abs() < 1e-8);
+        }
+    }
+
+    #[test]
+    fn density_guard_is_invariant_to_outcome_units() {
+        // Uniform CDF on [0, 3s]: density 1/(3s), span 3s, so the normalized
+        // density is 1/3 for every unit s. The absolute guard refused s = 1000.
+        for scale in [1e-6, 1.0, 1e3, 1e6] {
+            let thresholds: Vec<f64> = (0..4).map(|k| f64::from(k) * scale).collect();
+            let f_le = [0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0];
+            let phi = vec![vec![0.0; 4]; 4];
+            let (q, _, density) = invert_cdf_quantile(&thresholds, &f_le, &phi, 0.5).unwrap();
+            assert!((q - 1.5 * scale).abs() < 1e-9 * scale, "scale {scale}");
+            assert!((density * scale - 1.0 / 3.0).abs() < 1e-9, "scale {scale}");
+        }
+    }
+
+    #[test]
+    fn flat_bracket_is_refused_at_every_unit() {
+        // ΔF = 1e-4 across one of three equal steps: normalized density 3e-4.
+        // The absolute guard accepted this at s = 1e-6 (density 100).
+        for scale in [1e-6, 1.0, 1e3] {
+            let thresholds: Vec<f64> = (0..4).map(|k| f64::from(k) * scale).collect();
+            let f_le = [0.1, 0.5, 0.5001, 0.9];
+            let phi = vec![vec![0.0; 4]; 4];
+            let err = invert_cdf_quantile(&thresholds, &f_le, &phi, 0.50005).unwrap_err();
+            assert!(err.to_string().contains("density"), "scale {scale}: {err}");
         }
     }
 

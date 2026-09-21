@@ -932,11 +932,10 @@ mod memory_budget_tests {
     }
 }
 
+/// Type-7 quantile of an ascending draw column; `NaN` (an unavailable band edge)
+/// for an empty column.
 fn quantile(x: &[f64], p: f64) -> f64 {
-    let pos = p * (x.len() - 1) as f64;
-    let lo = pos.floor() as usize;
-    let hi = pos.ceil() as usize;
-    x[lo] + (x[hi] - x[lo]) * (pos - lo as f64)
+    antecedent_stats::quantile_type7(x, p).unwrap_or(f64::NAN)
 }
 
 #[cfg(test)]

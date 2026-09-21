@@ -73,6 +73,23 @@ pub fn sample_std(values: &[f64]) -> f64 {
     var.sqrt()
 }
 
+/// Linear-interpolation empirical quantile (Hyndman–Fan type 7) of an ascending sample.
+///
+/// `p` is clamped to `[0, 1]`. `None` for an empty sample or a non-finite `p`, so
+/// the caller decides what an unavailable quantile means; no substitute value is
+/// invented and non-finite draws are never silently dropped.
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // h ∈ [0, len-1].
+pub fn quantile_type7(sorted: &[f64], p: f64) -> Option<f64> {
+    if sorted.is_empty() || !p.is_finite() {
+        return None;
+    }
+    let h = (sorted.len() - 1) as f64 * p.clamp(0.0, 1.0);
+    let lo = h.floor() as usize;
+    let hi = (lo + 1).min(sorted.len() - 1);
+    Some(sorted[lo] + (h - lo as f64) * (sorted[hi] - sorted[lo]))
+}
+
 /// Two-sample mean-difference statistic `|mean(a) − mean(b)|` with a Welch-SE
 /// z-test p-value approximation (normal).
 ///
@@ -487,6 +504,25 @@ pub fn max_abs_cusum(series: &[f64]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn type7_quantile_matches_hand_interpolation_and_boundaries() {
+        let s = [1.0, 2.0, 4.0, 8.0, 16.0];
+        // h = 4p: p = 0.25 -> exactly index 1; p = 0.6 -> 2.4 -> 4 + 0.4*(8-4).
+        assert_eq!(quantile_type7(&s, 0.25), Some(2.0));
+        assert!((quantile_type7(&s, 0.6).unwrap() - 5.6).abs() < 1e-12);
+        assert_eq!(quantile_type7(&s, 0.0), Some(1.0));
+        assert_eq!(quantile_type7(&s, 1.0), Some(16.0));
+        assert_eq!(quantile_type7(&s, -3.0), Some(1.0));
+        assert_eq!(quantile_type7(&s, 7.0), Some(16.0));
+        assert_eq!(quantile_type7(&[3.5], 0.9), Some(3.5));
+    }
+
+    #[test]
+    fn type7_quantile_is_none_when_undefined() {
+        assert_eq!(quantile_type7(&[], 0.5), None);
+        assert_eq!(quantile_type7(&[1.0, 2.0], f64::NAN), None);
+    }
 
     #[test]
     fn kernel_statistic_keeps_small_unit_distances_and_ties() {

@@ -571,24 +571,8 @@ pub fn percentile_interval(values: &[f64], level: f64) -> (f64, f64) {
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
     let alpha = (1.0 - level) / 2.0;
-    (quantile(&sorted, alpha), quantile(&sorted, 1.0 - alpha))
-}
-
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)] // p is in [0,1]; indexes are bounded by the allocated slice.
-fn quantile(sorted: &[f64], p: f64) -> f64 {
-    let n = sorted.len();
-    if n == 0 {
-        return f64::NAN;
-    }
-    let h = (n as f64 - 1.0) * p.clamp(0.0, 1.0);
-    let lo = h.floor() as usize;
-    let hi = h.ceil() as usize;
-    if lo == hi {
-        sorted[lo]
-    } else {
-        let weight = h - lo as f64;
-        sorted[lo].mul_add(1.0 - weight, sorted[hi] * weight)
-    }
+    let at = |p| antecedent_stats::quantile_type7(&sorted, p).unwrap_or(f64::NAN);
+    (at(alpha), at(1.0 - alpha))
 }
 
 #[cfg(test)]
