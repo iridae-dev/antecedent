@@ -267,6 +267,30 @@ impl<'a> DesignView<'a> {
         })
     }
 
+    /// View a CSR sparse design.
+    ///
+    /// # Errors
+    ///
+    /// Shape errors from [`SparseDesignView::new`].
+    pub fn from_csr(
+        values: &'a [f64],
+        col_indices: &'a [u32],
+        row_ptrs: &'a [u32],
+        rows: usize,
+        cols: usize,
+    ) -> Result<Self, LearnError> {
+        Ok(Self {
+            storage: DesignStorage::SparseCsr(SparseDesignView::new(
+                values,
+                col_indices,
+                row_ptrs,
+                rows,
+                cols,
+            )?),
+            rows: None,
+        })
+    }
+
     /// View a kernel matrix if it is packed column-major.
     ///
     /// # Errors
@@ -308,6 +332,12 @@ impl<'a> DesignView<'a> {
     #[must_use]
     pub const fn storage(self) -> DesignStorage<'a> {
         self.storage
+    }
+
+    /// Whether the backing buffer is CSR rather than dense.
+    #[must_use]
+    pub const fn is_sparse(self) -> bool {
+        matches!(self.storage, DesignStorage::SparseCsr(_))
     }
 
     /// Fold selection, if any.

@@ -13,6 +13,7 @@ pub mod auto;
 pub mod crossfit;
 mod dense;
 pub mod design;
+pub mod elastic_net;
 pub mod error;
 #[cfg(feature = "ml-forest")]
 pub mod forest;
@@ -32,6 +33,7 @@ pub use crossfit::{CrossFittedPrediction, NuisanceDiagnostics, assign_folds, cro
 pub use design::{
     DenseDesign, DesignStorage, DesignView, Layout, RowSelection, SparseDesignView, TargetView,
 };
+pub use elastic_net::ElasticNetLearner;
 pub use error::LearnError;
 pub use learner::{
     FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
@@ -72,6 +74,32 @@ mod tests {
     fn ridge_default_is_a_positive_penalty() {
         assert_eq!(RidgeSpec::default().lambda, 1.0);
         assert_eq!(LearnerSpec::parse("ridge").unwrap(), LearnerSpec::Ridge(RidgeSpec::default()));
+    }
+
+    #[test]
+    fn elastic_net_default_is_a_positive_mix() {
+        assert_eq!(ElasticNetSpec::default(), ElasticNetSpec { lambda: 1.0, l1_ratio: 0.5 });
+        assert_eq!(
+            LearnerSpec::parse("elastic_net").unwrap(),
+            LearnerSpec::ElasticNet(ElasticNetSpec::default())
+        );
+        let n = 20usize;
+        let (x, y) = line_design(n);
+        let ctx = ExecutionContext::for_tests(1);
+        let view = DesignView::from_column_major(&x, n, 2).unwrap();
+        let fitted = resolve(LearnerSpec::ElasticNet(ElasticNetSpec::default()))
+            .unwrap()
+            .fit(view, TargetView::new(&y), None, &ctx)
+            .unwrap();
+        assert_eq!(fitted.provenance().spec, "elastic_net");
+        let mut out = vec![0.0; n];
+        fitted.predict(view, &mut out, &ctx).unwrap();
+        assert!(out.iter().all(|v| v.is_finite()));
+        let ols = LinearLearner.fit(view, TargetView::new(&y), None, &ctx).unwrap();
+        let mut a = vec![0.0; n];
+        ols.predict(view, &mut a, &ctx).unwrap();
+        let err = (0..n).map(|i| (out[i] - a[i]).abs()).sum::<f64>() / n as f64;
+        assert!(err > 0.0, "default elastic-net must not collapse to OLS");
     }
 
     #[test]
