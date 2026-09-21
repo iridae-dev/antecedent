@@ -119,6 +119,20 @@ pub const CASES: &[EstimatorLevelCase] = &[
         "all_observed.mean",
     ),
     case(
+        "frontdoor_functional_saturated_ci_coverage",
+        "frontdoor.functional",
+        "analytic_se",
+        "",
+        "all_observed.mean",
+    ),
+    case(
+        "frontdoor_functional_arm_linear_ci_coverage",
+        "frontdoor.functional",
+        "analytic_se",
+        "",
+        "all_observed.mean",
+    ),
+    case(
         "rd_sharp_analytic_ci_coverage",
         "rd.sharp",
         "analytic_se",

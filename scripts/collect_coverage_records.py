@@ -124,7 +124,7 @@ ESTIMATOR_ROW_IDS = {
     "estimate.doubly_robust": {"aipw", "cell.aipw"},
     "estimate.iv": {"iv.wald", "iv.2sls"},
     "estimate.rd": {"rd.sharp"},
-    "estimate.two_stage": {"frontdoor.linear_two_stage"},
+    "estimate.two_stage": {"frontdoor.linear_two_stage", "frontdoor.functional"},
     "estimate.conditional": {"conditional.linear.adjustment", "bayesian.conditional"},
     "estimate.temporal_sequential": {"temporal.sequential.gcomp"},
     "estimate.mediation.linear": {"mediation.linear", "temporal.mediation"},
