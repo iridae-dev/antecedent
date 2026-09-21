@@ -677,7 +677,12 @@ fn linear_sensitivity_reports_a_bounded_robustness_value() {
     let refuter = LinearSensitivity::new();
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.comparison > 0.0);
-    assert!(report.comparison <= *refuter.partial_r2_grid.last().unwrap());
+    assert!(
+        report.comparison.is_infinite()
+            || report.comparison <= *refuter.partial_r2_grid.last().unwrap(),
+        "comparison={} must be a tipping grid point or +∞ if never explained away",
+        report.comparison
+    );
     assert_eq!(u64::from(report.replicates), fixture["expected"]["replicates"].as_u64().unwrap());
 }
 
@@ -703,7 +708,12 @@ fn partial_linear_sensitivity_reports_a_bounded_robustness_value() {
     let refuter = PartialLinearSensitivity::new();
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
     assert!(report.comparison > 0.0);
-    assert!(report.comparison <= *refuter.partial_r2_grid.last().unwrap());
+    assert!(
+        report.comparison.is_infinite()
+            || report.comparison <= *refuter.partial_r2_grid.last().unwrap(),
+        "comparison={} must be a tipping grid point or +∞ if never explained away",
+        report.comparison
+    );
     assert_eq!(report.replicates as usize, refuter.partial_r2_grid.len());
 }
 
@@ -730,7 +740,12 @@ fn nonparametric_sensitivity_reports_a_bounded_robustness_value() {
     let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
     assert_eq!(report.refuter.as_ref(), "sensitivity.nonparametric");
     assert!(report.comparison > 0.0);
-    assert!(report.comparison <= *refuter.partial_r2_grid.last().unwrap());
+    assert!(
+        report.comparison.is_infinite()
+            || report.comparison <= *refuter.partial_r2_grid.last().unwrap(),
+        "comparison={} must be a tipping grid point or +∞ if never explained away",
+        report.comparison
+    );
 }
 
 /// The sensitivity grid is a *partial* R², so the injected confounder must be scaled by the

@@ -42,7 +42,8 @@ pub struct RieszSensitivity {
     /// Ascending grid of residual confounding strengths `δ`, in units of `sd(Y)` so the
     /// verdict is invariant to outcome units.
     pub delta_grid: Vec<f64>,
-    /// Pass if the robustness `δ` exceeds this threshold.
+    /// Pass if the robustness `δ` *strictly exceeds* this threshold.
+    /// Equality fails: a residual shift at the bar already kills the effect.
     pub pass_threshold: f64,
     /// Propensity clip for numerical stability.
     pub clip: f64,
@@ -112,7 +113,7 @@ impl RieszSensitivity {
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let original_sign = ipw_ate.signum();
         let mut last_bound_ate = ipw_ate;
-        let mut robustness = sorted.last().copied().unwrap_or(1.0);
+        let mut explained_away_at = None;
         for &delta in &sorted {
             // Worst-case shift: |bias| ≤ δ·sd(Y) · ||α||_2 (population L2 product bound;
             // δ expressed in sd(Y) units keeps the grid scale-free).
@@ -124,12 +125,14 @@ impl RieszSensitivity {
             let flipped = if original_sign >= 0.0 { upper < 0.0 } else { lower > 0.0 };
             last_bound_ate = if original_sign >= 0.0 { lower } else { upper };
             if covers_zero || flipped {
-                robustness = delta;
+                explained_away_at = Some(delta);
                 break;
             }
             let _ = &y; // y retained for future DR extensions
         }
-        let passed = robustness >= self.pass_threshold;
+        // Smallest grid δ that tips the estimate; +∞ if the bound never covers zero.
+        let robustness = explained_away_at.unwrap_or(f64::INFINITY);
+        let passed = robustness > self.pass_threshold;
         Ok(RefutationReport {
             refuter: Arc::from("sensitivity.riesz"),
             original_ate: problem.original.ate,
@@ -142,7 +145,7 @@ impl RieszSensitivity {
             } else {
                 Some(Arc::from(format!(
                     "Riesz bound explains away effect at δ={robustness} (||α||₂={alpha_l2}), \
-                     below threshold {}",
+                     not strictly above threshold {}",
                     self.pass_threshold
                 )))
             },
@@ -292,12 +295,61 @@ mod tests {
         assert_eq!(report.refuter.as_ref(), "sensitivity.riesz");
         assert!(report.comparison > 0.0, "comparison={}", report.comparison);
         assert!(
-            fixture["delta_grid"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|delta| delta.as_f64() == Some(report.comparison))
+            report.comparison.is_infinite()
+                || fixture["delta_grid"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|delta| delta.as_f64() == Some(report.comparison)),
+            "comparison={} must be a grid δ or +∞ when never explained away",
+            report.comparison
         );
         assert!(report.informative);
+    }
+
+    #[test]
+    fn riesz_equality_at_threshold_fails_strict_above_passes() {
+        let (data, estimand) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let probe = RieszSensitivity { pass_threshold: 0.0, ..RieszSensitivity::new() };
+        let tipped = probe.refute(&problem, &mut ws, &ctx).unwrap();
+        assert!(
+            tipped.comparison.is_finite() && tipped.comparison > 0.0,
+            "expected a finite tipping δ, got {}",
+            tipped.comparison
+        );
+        let rv = tipped.comparison;
+
+        let at_bar = RieszSensitivity {
+            pass_threshold: rv,
+            delta_grid: probe.delta_grid.clone(),
+            ..RieszSensitivity::new()
+        };
+        let equal = at_bar.refute(&problem, &mut ws, &ctx).unwrap();
+        assert_eq!(equal.comparison, rv);
+        assert!(!equal.passed, "RV == threshold must fail");
+
+        let below_bar = RieszSensitivity {
+            pass_threshold: rv * 0.5,
+            delta_grid: probe.delta_grid.clone(),
+            ..RieszSensitivity::new()
+        };
+        let past = below_bar.refute(&problem, &mut ws, &ctx).unwrap();
+        assert_eq!(past.comparison, rv);
+        assert!(past.passed, "RV > threshold must pass");
     }
 }

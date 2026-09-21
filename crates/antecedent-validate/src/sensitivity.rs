@@ -107,6 +107,20 @@ fn default_grid() -> Vec<f64> {
     vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5]
 }
 
+/// Cinelli/sensemakr-style grid robustness value: the smallest probed partial R² that
+/// explains the effect away. If no grid point tips the estimate, the RV exceeds the
+/// whole grid — report `+∞` rather than the last grid point (which would look like a
+/// tipping strength that was never observed).
+fn grid_robustness_value(explained_away_at: Option<f64>) -> f64 {
+    explained_away_at.unwrap_or(f64::INFINITY)
+}
+
+/// Pass only when the robustness value is *strictly* above the caller's bar.
+/// Equality means a confounder at the threshold already kills the effect.
+fn robustness_passes(robustness_value: f64, pass_threshold: f64) -> bool {
+    robustness_value > pass_threshold
+}
+
 fn run_grid(
     problem: &RefutationProblem<'_>,
     workspace: &mut EstimationWorkspace,
@@ -216,11 +230,10 @@ fn run_grid_data_pass(
         last_ate = data_pass_ate(problem, workspace, ctx, estimator, setup, r)?;
         let explained_away = last_ate.abs() < 1e-9 || last_ate.signum() != setup.original_sign;
         if explained_away {
-            return Ok((r, last_ate, true));
+            return Ok((grid_robustness_value(Some(r)), last_ate, true));
         }
     }
-    let robustness_value = setup.sorted_grid.last().copied().unwrap_or(1.0);
-    Ok((robustness_value, last_ate, false))
+    Ok((grid_robustness_value(None), last_ate, false))
 }
 
 fn data_pass_ate(
@@ -273,11 +286,10 @@ fn try_run_grid_gram(
         last_ate = ate;
         let explained_away = last_ate.abs() < 1e-9 || last_ate.signum() != setup.original_sign;
         if explained_away {
-            return Ok(Some((r, last_ate, true)));
+            return Ok(Some((grid_robustness_value(Some(r)), last_ate, true)));
         }
     }
-    let robustness_value = setup.sorted_grid.last().copied().unwrap_or(1.0);
-    Ok(Some((robustness_value, last_ate, false)))
+    Ok(Some((grid_robustness_value(None), last_ate, false)))
 }
 
 /// Sufficient statistics `WᵀW` / `WᵀY` for `W = [X | u]`, `X = [1, T, Z]`.
@@ -454,7 +466,8 @@ fn fill_bounded(out: &mut [f64], ctx: &ExecutionContext, stream_id: u64) {
 pub struct LinearSensitivity {
     /// Ascending grid of partial-R² values to test (shared for treatment and outcome).
     pub partial_r2_grid: Vec<f64>,
-    /// Pass if the robustness value exceeds this threshold (harder to explain away).
+    /// Pass if the robustness value *strictly exceeds* this threshold (harder to explain away).
+    /// Equality fails: a confounder at the bar already kills the effect.
     pub pass_threshold: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
@@ -507,7 +520,7 @@ impl LinearSensitivity {
             0xA7E0_000A_0000_u64,
             false,
         )?;
-        let passed = robustness_value >= self.pass_threshold;
+        let passed = robustness_passes(robustness_value, self.pass_threshold);
         Ok(RefutationReport {
             refuter: Arc::from("sensitivity.linear"),
             original_ate: problem.original.ate,
@@ -519,7 +532,7 @@ impl LinearSensitivity {
                 None
             } else {
                 Some(Arc::from(format!(
-                    "effect explained away at partial R²={robustness_value}, below threshold {}",
+                    "effect explained away at partial R²={robustness_value}, not strictly above threshold {}",
                     self.pass_threshold
                 )))
             },
@@ -534,7 +547,8 @@ impl LinearSensitivity {
 pub struct PartialLinearSensitivity {
     /// Ascending grid of partial-R² values to test (shared for treatment and outcome).
     pub partial_r2_grid: Vec<f64>,
-    /// Pass if the robustness value exceeds this threshold (harder to explain away).
+    /// Pass if the robustness value *strictly exceeds* this threshold (harder to explain away).
+    /// Equality fails: a confounder at the bar already kills the effect.
     pub pass_threshold: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
@@ -587,7 +601,7 @@ impl PartialLinearSensitivity {
             0xA7E0_000B_0000_u64,
             true,
         )?;
-        let passed = robustness_value >= self.pass_threshold;
+        let passed = robustness_passes(robustness_value, self.pass_threshold);
         Ok(RefutationReport {
             refuter: Arc::from("sensitivity.partial_linear"),
             original_ate: problem.original.ate,
@@ -599,7 +613,7 @@ impl PartialLinearSensitivity {
                 None
             } else {
                 Some(Arc::from(format!(
-                    "effect explained away at partial R²={robustness_value}, below threshold {}",
+                    "effect explained away at partial R²={robustness_value}, not strictly above threshold {}",
                     self.pass_threshold
                 )))
             },
@@ -797,7 +811,8 @@ fn silverman_bandwidth(cov_rowmajor: &[f64], n: usize, dim: usize) -> f64 {
 pub struct NonparametricSensitivity {
     /// Ascending grid of partial-R² values to test on residualized series.
     pub partial_r2_grid: Vec<f64>,
-    /// Pass if the robustness value exceeds this threshold.
+    /// Pass if the robustness value *strictly exceeds* this threshold.
+    /// Equality fails: a confounder at the bar already kills the residual effect.
     pub pass_threshold: f64,
     /// Optional bandwidth override; `None` uses Silverman's (1986) rule of thumb.
     pub bandwidth: Option<f64>,
@@ -885,7 +900,7 @@ impl NonparametricSensitivity {
         // Worst-case orientation, as in `run_grid`: load U on Y against the observed sign.
         let dir = if residual_ate >= 0.0 { -1.0 } else { 1.0 };
         let mut last_ate = residual_ate;
-        let mut robustness_value = sorted_grid.last().copied().unwrap_or(1.0);
+        let mut explained_away_at = None;
         for &r in &sorted_grid {
             let r = r.clamp(0.0, 0.999);
             let scale = (r / (1.0 - r)).sqrt();
@@ -895,11 +910,12 @@ impl NonparametricSensitivity {
                 y_res.iter().zip(&u).map(|(&yv, &uu)| yv + dir * scale * sd_y * uu).collect();
             last_ate = residual_ols_ate(&t_pert, &y_pert);
             if last_ate.abs() < 1e-9 || last_ate.signum() != original_sign {
-                robustness_value = r;
+                explained_away_at = Some(r);
                 break;
             }
         }
-        let passed = robustness_value >= self.pass_threshold;
+        let robustness_value = grid_robustness_value(explained_away_at);
+        let passed = robustness_passes(robustness_value, self.pass_threshold);
         Ok(RefutationReport {
             refuter: Arc::from("sensitivity.nonparametric"),
             original_ate: problem.original.ate,
@@ -912,7 +928,7 @@ impl NonparametricSensitivity {
             } else {
                 Some(Arc::from(format!(
                     "nonparametric residual effect explained away at partial R²={robustness_value}, \
-                     below threshold {}",
+                     not strictly above threshold {}",
                     self.pass_threshold
                 )))
             },
@@ -1019,5 +1035,314 @@ mod kernel_regressions {
         let w2 = (-2.0_f64).exp();
         assert!((prediction[0] - (w1 * 4.0 + w2 * 9.0) / (w1 + w2)).abs() < 1e-12);
         assert!((prediction[1] - 5.0).abs() < 1e-12);
+    }
+}
+
+#[cfg(test)]
+mod robustness_value {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec,
+        RoleHint, SmallRoleSet, ValueType, VariableId,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+    };
+    use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
+    use antecedent_expr::ExprId;
+    use antecedent_identify::IdentifiedEstimand;
+
+    use super::{
+        LinearSensitivity, NonparametricSensitivity, PartialLinearSensitivity,
+        grid_robustness_value, robustness_passes,
+    };
+    use crate::common::RefutationProblem;
+
+    fn strong_effect_toy() -> (TabularData, IdentifiedEstimand) {
+        let n = 300usize;
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "t",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        b.add_variable(
+            "z",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let z: Vec<f64> = (0..n).map(|i| (i as f64) / n as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * t[i] + 0.5 * z[i]).collect();
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(0),
+                    Arc::from(t),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(1),
+                    Arc::from(y),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(2),
+                    Arc::from(z),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            ),
+        ];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from([VariableId::from_raw(2)]),
+            ExprId::from_raw(0),
+        );
+        (TabularData::new(storage), estimand)
+    }
+
+    fn problem_with_ate(
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+    ) -> (
+        EstimationWorkspace,
+        ExecutionContext,
+        AverageEffectQuery,
+        antecedent_estimate::EffectEstimate,
+    ) {
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let prep = est.prepare(data, estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(11);
+        let original = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        (ws, ctx, query, original)
+    }
+
+    #[test]
+    fn never_explained_away_is_infinite_not_last_grid_point() {
+        assert!(grid_robustness_value(None).is_infinite());
+        assert_eq!(grid_robustness_value(Some(0.2)), 0.2);
+        assert!(!robustness_passes(0.1, 0.1));
+        assert!(robustness_passes(0.2, 0.1));
+        assert!(robustness_passes(f64::INFINITY, 0.5));
+    }
+
+    #[test]
+    fn linear_sensitivity_equality_at_threshold_fails() {
+        let (data, estimand) = strong_effect_toy();
+        let (mut ws, ctx, query, original) = problem_with_ate(&data, &estimand);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let grid = vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5];
+        let probe = LinearSensitivity {
+            partial_r2_grid: grid.clone(),
+            pass_threshold: 0.0,
+            estimator: LinearAdjustmentAte {
+                bootstrap_replicates: 0,
+                ..LinearAdjustmentAte::new()
+            },
+        };
+        let tipped = probe.refute(&problem, &mut ws, &ctx).unwrap();
+        assert!(
+            tipped.comparison.is_finite() && tipped.comparison > 0.0,
+            "expected a finite tipping partial R², got {}",
+            tipped.comparison
+        );
+        let rv = tipped.comparison;
+
+        let at_bar = LinearSensitivity {
+            partial_r2_grid: grid,
+            pass_threshold: rv,
+            estimator: probe.estimator.clone(),
+        };
+        let equal = at_bar.refute(&problem, &mut ws, &ctx).unwrap();
+        assert_eq!(equal.comparison, rv);
+        assert!(!equal.passed, "RV == threshold must fail (effect already gone at the bar)");
+    }
+
+    #[test]
+    fn linear_sensitivity_explained_away_past_threshold_passes() {
+        let (data, estimand) = strong_effect_toy();
+        let (mut ws, ctx, query, original) = problem_with_ate(&data, &estimand);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let grid = vec![0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5];
+        let probe = LinearSensitivity {
+            partial_r2_grid: grid.clone(),
+            pass_threshold: 0.0,
+            estimator: LinearAdjustmentAte {
+                bootstrap_replicates: 0,
+                ..LinearAdjustmentAte::new()
+            },
+        };
+        let tipped = probe.refute(&problem, &mut ws, &ctx).unwrap();
+        let rv = tipped.comparison;
+        assert!(rv.is_finite() && rv > 0.0, "comparison={rv}");
+
+        let idx = grid.iter().position(|&r| r == rv).expect("RV must be a grid point");
+        assert!(idx > 0, "need a grid point before the tipping RV to set a lower bar");
+        let threshold = grid[idx - 1];
+        let below = LinearSensitivity {
+            partial_r2_grid: grid,
+            pass_threshold: threshold,
+            estimator: probe.estimator.clone(),
+        };
+        let past = below.refute(&problem, &mut ws, &ctx).unwrap();
+        assert_eq!(past.comparison, rv);
+        assert!(past.passed, "RV {rv} > threshold {threshold} must pass");
+    }
+
+    #[test]
+    fn partial_linear_equality_at_threshold_fails_past_passes() {
+        let (data, estimand) = strong_effect_toy();
+        let (mut ws, ctx, query, original) = problem_with_ate(&data, &estimand);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let grid = vec![0.01, 0.05, 0.1, 0.2, 0.5];
+        let estimator =
+            LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let tip = PartialLinearSensitivity {
+            partial_r2_grid: grid.clone(),
+            pass_threshold: 0.0,
+            estimator: estimator.clone(),
+        }
+        .refute(&problem, &mut ws, &ctx)
+        .unwrap();
+        let rv = tip.comparison;
+        assert!(rv.is_finite() && rv > 0.0, "comparison={rv}");
+
+        let equal = PartialLinearSensitivity {
+            partial_r2_grid: grid.clone(),
+            pass_threshold: rv,
+            estimator: estimator.clone(),
+        }
+        .refute(&problem, &mut ws, &ctx)
+        .unwrap();
+        assert!(!equal.passed);
+
+        let past =
+            PartialLinearSensitivity { partial_r2_grid: grid, pass_threshold: rv * 0.5, estimator }
+                .refute(&problem, &mut ws, &ctx)
+                .unwrap();
+        assert!(past.passed);
+    }
+
+    #[test]
+    fn nonparametric_equality_at_threshold_fails_past_passes() {
+        let (data, estimand) = strong_effect_toy();
+        let (mut ws, ctx, query, original) = problem_with_ate(&data, &estimand);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let grid = vec![0.01, 0.05, 0.1, 0.2, 0.5];
+        let tip = NonparametricSensitivity {
+            partial_r2_grid: grid.clone(),
+            pass_threshold: 0.0,
+            bandwidth: Some(0.5),
+        }
+        .refute(&problem, &mut ws, &ctx)
+        .unwrap();
+        let rv = tip.comparison;
+        assert!(rv.is_finite() && rv > 0.0, "comparison={rv}");
+
+        let equal = NonparametricSensitivity {
+            partial_r2_grid: grid.clone(),
+            pass_threshold: rv,
+            bandwidth: Some(0.5),
+        }
+        .refute(&problem, &mut ws, &ctx)
+        .unwrap();
+        assert!(!equal.passed);
+
+        let past = NonparametricSensitivity {
+            partial_r2_grid: grid,
+            pass_threshold: rv * 0.5,
+            bandwidth: Some(0.5),
+        }
+        .refute(&problem, &mut ws, &ctx)
+        .unwrap();
+        assert!(past.passed);
+    }
+
+    #[test]
+    fn never_explained_away_on_tiny_grid_reports_infinity() {
+        let (data, estimand) = strong_effect_toy();
+        let (mut ws, ctx, query, original) = problem_with_ate(&data, &estimand);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        );
+        let refuter = LinearSensitivity {
+            partial_r2_grid: vec![1e-6],
+            pass_threshold: 0.1,
+            estimator: LinearAdjustmentAte {
+                bootstrap_replicates: 0,
+                ..LinearAdjustmentAte::new()
+            },
+        };
+        let report = refuter.refute(&problem, &mut ws, &ctx).unwrap();
+        assert!(
+            report.comparison.is_infinite(),
+            "surviving the grid must report +∞, got {}",
+            report.comparison
+        );
+        assert!(report.passed);
+        assert!(report.failure_condition.is_none());
     }
 }
