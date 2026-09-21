@@ -29,7 +29,8 @@ use antecedent_core::{
     DiagnosticKind, DiagnosticSeverity, IdentificationStatus, Intervention,
     MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec, ParametricAssumption, ResponseFunctional,
     ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StochasticPolicy,
-    SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation, VariableId,
+    StreamDomain, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation,
+    VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
@@ -593,7 +594,7 @@ impl ContinuousResponseEstimator {
                     CompleteSample::read(data, *outcome, &[*treatment], &self.adjustment_set)?;
                 let (_, _, support) =
                     self.average_derivative(data, *outcome, *treatment, weighting)?;
-                let mut rng = ctx.rng.stream(0xADEB_0001);
+                let mut rng = ctx.rng.stream_for(StreamDomain::Bayesian, 0xADEB_0001);
                 let mut values = Vec::with_capacity(draws_n);
                 for _ in 0..draws_n {
                     if ctx.cancellation.is_cancelled() {
@@ -657,7 +658,7 @@ impl ContinuousResponseEstimator {
                 });
                 let point_derivative =
                     matches!(query.functional, ResponseFunctional::PointDerivative { .. });
-                let mut rng = ctx.rng.stream(0xADEB_0002);
+                let mut rng = ctx.rng.stream_for(StreamDomain::Bayesian, 0xADEB_0002);
                 // Every draw refits its nuisances: point draws rebuild the
                 // cross-fitted Kennedy pseudo-outcome under the draw's row weights
                 // (the bandwidth is the caller's fixed value, never data-selected);

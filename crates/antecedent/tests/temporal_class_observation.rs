@@ -15,7 +15,7 @@ use antecedent::{BayesianConfig, InferenceMode, IntoGraphInput, RefuteSuite, Stu
 use antecedent_core::{
     Assumption, CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
     InterventionSequence, Lag, ObservationAssumption, ObservationSpec, ResponseFunctional,
-    ResponseQuery, ResponseUncertainty, SequencedIntervention, TemporalPolicy,
+    ResponseQuery, ResponseUncertainty, SequencedIntervention, StreamDomain, TemporalPolicy,
     TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
@@ -42,7 +42,7 @@ fn generate(
     let seed = pin["seed"].as_u64().unwrap();
     let stream = pin["stream"].as_u64().unwrap();
     let ctx = ExecutionContext::for_tests(seed);
-    let mut rng = ctx.rng.stream(stream);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Test, stream);
     let mut t = Vec::with_capacity(n);
     let mut latent = Vec::with_capacity(n);
     let mut selected = Vec::with_capacity(n);

@@ -605,6 +605,8 @@ impl OutcomeFit {
     clippy::needless_range_loop
 )]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use antecedent_core::{
         CausalSchemaBuilder, MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
     };
@@ -767,7 +769,8 @@ mod tests {
 
     /// One draw of the binary interaction SCM behind `interaction_scm_exact_table`.
     fn binary_scm_draw(n: usize, seed: u64) -> TabularData {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xF410_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0xF410_u64);
         let (mut t, mut m, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
         for i in 0..n {
             let u = f64::from(rng.next_f64() < 0.5);
@@ -784,7 +787,8 @@ mod tests {
     /// `5 · 0.4 · 1 = 2`. The product of coefficients weights the arm slopes by
     /// `P(t)·Var(M|t)` instead of `P(t)` and converges to about 2.37.
     fn arm_linear_scm_draw(n: usize, seed: u64) -> TabularData {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0xF411_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0xF411_u64);
         let (mut t, mut m, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
         for i in 0..n {
             let u = f64::from(rng.next_f64() < 0.5);
@@ -856,7 +860,8 @@ mod tests {
     #[test]
     fn refuses_a_continuous_treatment_and_an_unobserved_level() {
         let n = 400;
-        let mut rng = ExecutionContext::for_tests(3).rng.stream(0xF412_u64);
+        let mut rng =
+            ExecutionContext::for_tests(3).rng.stream_for(StreamDomain::Estimate, 0xF412_u64);
         let t: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
         let m: Vec<f64> = t.iter().map(|ti| 0.4 * ti).collect();
         let y: Vec<f64> = m.iter().map(|mi| 5.0 * mi).collect();

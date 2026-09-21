@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     CausalRng, EnvironmentId, ExecutionContext, ModelId, MonteCarloBudget, MonteCarloError,
-    QueryId, VariableId,
+    QueryId, StreamDomain, VariableId,
 };
 use antecedent_kernels::sample_categorical;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
@@ -310,7 +310,7 @@ impl DesignRanker {
         let mut n_samples: u64 = 0;
         let mut budget = MonteCarloBudget::default();
         let mut early_stopped = false;
-        let mut rng = ctx.rng.stream(0xD351_0611);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Design, 0xD351_0611);
 
         let min_batches = self.config.min_batches.max(1);
         let max_batches = self.config.max_batches.max(min_batches);
@@ -1241,7 +1241,7 @@ mod tests {
     #[test]
     fn eig_is_nonnegative_and_measure_beats_weak_sampling() {
         let graphs = toy_graphs();
-        let mut rng = ExecutionContext::for_tests(99).rng.stream(1);
+        let mut rng = ExecutionContext::for_tests(99).rng.stream_for(StreamDomain::Design, 1);
         let measure = CandidateDesign::Measure(MeasurementPlan {
             variables: Arc::from([VariableId::from_raw(1), VariableId::from_raw(2)]),
             cost: DesignCost::zero(),
@@ -1400,7 +1400,7 @@ mod tests {
         // observation_reliability(Measure, k=1) = 1 - exp(-0.75 * 1).
         let expected_strength = 1.0 - (-0.75_f64).exp();
         let expected = expected_strength * (-12.0_f64 - (-9.5)).abs();
-        let mut rng = ExecutionContext::for_tests(1).rng.stream(0);
+        let mut rng = ExecutionContext::for_tests(1).rng.stream_for(StreamDomain::Design, 0);
         let got = model_distinguish_score(&candidate, &ll, &[m0, m1], &mut rng);
         assert!((got - expected).abs() < 1e-9, "got={got} expected={expected}");
     }
@@ -1415,7 +1415,7 @@ mod tests {
             cost: DesignCost::zero(),
             tag: 0,
         });
-        let mut rng = ExecutionContext::for_tests(1).rng.stream(0);
+        let mut rng = ExecutionContext::for_tests(1).rng.stream_for(StreamDomain::Design, 0);
         assert_eq!(model_distinguish_score(&candidate, &ll, &[m0], &mut rng), 0.0);
     }
 

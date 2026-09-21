@@ -528,6 +528,8 @@ fn analytic_se_treatment(x_colmajor: &[f64], nrows: usize, sigma2: f64) -> f64 {
 #[cfg(test)]
 #[allow(clippy::many_single_char_names, clippy::float_cmp)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use std::sync::Arc;
 
     use antecedent_core::{
@@ -545,7 +547,8 @@ mod tests {
 
     /// `R ~ U(-1, 1)`, `T = 1{R ≥ 0}`, `Y = 2 + 0.5R + 3T − 0.8T·R + noise`. Jump at cutoff = 3.
     fn sharp_rd_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x8D15_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x8D15_u64);
         let mut t = vec![0.0; n];
         let mut r = vec![0.0; n];
         let mut y = vec![0.0; n];
@@ -626,7 +629,8 @@ mod tests {
     const KNOWN_TRUTH_BANDWIDTH: f64 = 0.4;
 
     fn heterogeneous_curved_scm(n: usize, seed: u64) -> TabularData {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x8D16_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x8D16_u64);
         let (mut t, mut y, mut r) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
         for i in 0..n {
             let ri = 3.0 * rng.next_f64().sqrt() - 1.0;
@@ -691,7 +695,8 @@ mod tests {
     #[test]
     fn refuses_when_the_treatment_column_is_not_the_threshold_rule() {
         let n = 4_000;
-        let mut rng = ExecutionContext::for_tests(13).rng.stream(0x8D17_u64);
+        let mut rng =
+            ExecutionContext::for_tests(13).rng.stream_for(StreamDomain::Estimate, 0x8D17_u64);
         let (mut t, mut y, mut r) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
         for i in 0..n {
             let ri = 2.0 * rng.next_f64() - 1.0;

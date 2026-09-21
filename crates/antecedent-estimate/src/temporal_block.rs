@@ -30,6 +30,7 @@
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 
 use antecedent_core::ExecutionContext;
+use antecedent_core::StreamDomain;
 use antecedent_data::{circular_block_length, fill_circular_block_indexes};
 
 use crate::util::{BootstrapSeResult, finalize_bootstrap_se_ex};
@@ -654,7 +655,7 @@ pub fn aligned_block_bootstrap(
 ///
 /// `estimate` returns `None` for a replicate that cannot be fit; that replicate
 /// counts as failed for every target, so all targets always come from the same
-/// replicates. Replicate `r` draws from `ctx.rng.stream(stream_base + r)`.
+/// replicates. Replicate `r` draws from `ctx.rng.stream_for(StreamDomain::TemporalBlock, stream_base ^ r)`.
 pub fn row_block_bootstrap_vec(
     rows: usize,
     block_length: usize,
@@ -693,7 +694,8 @@ fn block_replicates<T: AsRef<[f64]>>(
             break;
         }
         attempted += 1;
-        let mut rng = ctx.rng.stream(stream_base.wrapping_add(u64::from(replicate)));
+        let mut rng =
+            ctx.rng.stream_for(StreamDomain::TemporalBlock, stream_base ^ u64::from(replicate));
         if fill_circular_block_indexes(rows, block_length, &mut rng, &mut row_src).is_err() {
             continue;
         }

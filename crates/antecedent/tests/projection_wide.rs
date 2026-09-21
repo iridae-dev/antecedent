@@ -9,7 +9,7 @@ use std::sync::Arc;
 use antecedent::Study;
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
-    SmallRoleSet, ValueType, VariableId,
+    SmallRoleSet, StreamDomain, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
@@ -22,7 +22,7 @@ fn wide_confounded_scm(
     noise_cols: usize,
     seed: u64,
 ) -> (TabularData, Dag, AverageEffectQuery) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5051_u64);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5051_u64);
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];

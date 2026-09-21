@@ -5,8 +5,8 @@ use std::sync::Arc;
 use antecedent::DenseNodeId;
 use antecedent_core::{
     DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind, EvidenceRegime,
-    ExecutionContext, RegimeId, RegimeKind, TargetSampling, Value, VariableCoordinate,
-    VariableDomain, VariableId,
+    ExecutionContext, RegimeId, RegimeKind, StreamDomain, TargetSampling, Value,
+    VariableCoordinate, VariableDomain, VariableId,
 };
 use antecedent_estimate::{
     EmpiricalTableOptions, RegimeSample, StatisticalTransportInput, evaluate_statistical_transport,
@@ -165,7 +165,7 @@ fn holding_target_fixed_narrows_the_joint_bootstrap() {
     let options = EmpiricalTableOptions::default();
     let target_point =
         antecedent_estimate::fit_empirical_joint(&target, &axes, &options, None).unwrap();
-    let mut rng = ExecutionContext::for_tests(11).rng.stream(3);
+    let mut rng = ExecutionContext::for_tests(11).rng.stream_for(StreamDomain::Test, 3);
     let mut idx = Vec::new();
     let mut honest = Vec::new();
     let mut broken = Vec::new();
@@ -226,7 +226,8 @@ fn independent_leaf_resamples_overstate_precision_against_one_joint() {
         None,
     )
     .unwrap();
-    let mut rng = antecedent_core::ExecutionContext::for_tests(5).rng.stream(1);
+    let mut rng =
+        antecedent_core::ExecutionContext::for_tests(5).rng.stream_for(StreamDomain::Test, 1);
     let mut idx = Vec::new();
     let mut joint_means = Vec::new();
     let mut split_means = Vec::new();
@@ -248,10 +249,12 @@ fn independent_leaf_resamples_overstate_precision_against_one_joint() {
         joint_means.push(marginal_product(fitted.probabilities()));
         let mut x_idx = Vec::new();
         let mut y_idx = Vec::new();
-        let mut rng_x =
-            antecedent_core::ExecutionContext::for_tests(5).rng.stream(100 + u64::from(replicate));
-        let mut rng_y =
-            antecedent_core::ExecutionContext::for_tests(5).rng.stream(200 + u64::from(replicate));
+        let mut rng_x = antecedent_core::ExecutionContext::for_tests(5)
+            .rng
+            .stream_for(StreamDomain::Test, 100u64 ^ (u64::from(replicate)));
+        let mut rng_y = antecedent_core::ExecutionContext::for_tests(5)
+            .rng
+            .stream_for(StreamDomain::Test, 200u64 ^ (u64::from(replicate)));
         antecedent_data::fill_resample_indexes(
             antecedent_data::ResamplingPlan::IidBootstrap,
             sample.n(),

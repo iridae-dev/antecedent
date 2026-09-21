@@ -5,7 +5,7 @@
 
 use antecedent::gcm::{fit_gcm, sample_do};
 use antecedent::prelude::*;
-use antecedent_core::{Intervention, Value};
+use antecedent_core::{Intervention, StreamDomain, Value};
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 fn main() -> Result<(), CausalError> {
@@ -29,7 +29,7 @@ fn main() -> Result<(), CausalError> {
     let dag = Dag::from_named_edges(&schema, &[("z", "t"), ("z", "y"), ("t", "y")])?;
     let fitted = fit_gcm(dag, &data)?;
     let ctx = ExecutionContext::for_tests(1);
-    let mut rng = ctx.rng.stream(1);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, 1);
     let draws = sample_do(
         &fitted.model,
         &[Intervention::set(schema.id_of("t")?, Value::f64(1.0))],

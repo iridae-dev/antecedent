@@ -21,7 +21,7 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AnomalyAttributionQuery, ComponentId, ExecutionContext, ShapleyConfig, VariableId,
+    AnomalyAttributionQuery, ComponentId, ExecutionContext, ShapleyConfig, StreamDomain, VariableId,
 };
 use antecedent_counterfactual::{AbductionMissingPolicy, CounterfactualEngine};
 use antecedent_data::{TableView, TabularData};
@@ -462,7 +462,7 @@ pub fn population_do_contrast(
             max: max_units,
         });
     }
-    let mut rng = ctx.rng.stream(0x1C1_u64);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0x1C1_u64);
     let mut ws = MechanismWorkspace::default();
     let child_dense =
         model.dense_of(child).ok_or_else(|| AttributionError::missing_var("child", child))?;

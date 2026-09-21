@@ -686,6 +686,8 @@ impl TwoStageLeastSquares {
 #[cfg(test)]
 #[allow(clippy::many_single_char_names, clippy::float_cmp)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use std::sync::Arc;
 
     use antecedent_core::{
@@ -705,7 +707,8 @@ mod tests {
     /// `Z → T → Y` with `U` confounding `T-Y`: `T = Z + U + noise`, `Y = 2T + U + noise`.
     /// `Z` is a continuous instrument uncorrelated with `U`. True structural effect = 2.0.
     fn continuous_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1E70_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x1E70_u64);
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
@@ -723,7 +726,8 @@ mod tests {
 
     /// `Z ∈ {0,1} → T → Y` with `U` confounding `T-Y`. True structural effect = 2.0.
     fn binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1E71_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x1E71_u64);
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
@@ -742,7 +746,8 @@ mod tests {
     /// Same DGP as [`binary_iv_scm`] but with the instrument's effect on `T` shrunk to
     /// `0.01` (vs `0.5`) — a deliberately weak first stage for the F-statistic test.
     fn weak_binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1E73_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x1E73_u64);
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
@@ -761,7 +766,8 @@ mod tests {
     /// Same DGP as [`continuous_iv_scm`] but with the instrument's effect on `T` shrunk to
     /// `0.01` (vs `1.0`) — a deliberately weak first stage for the F-statistic test.
     fn weak_continuous_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1E74_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x1E74_u64);
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
@@ -1117,7 +1123,8 @@ mod tests {
 
     /// Binary IV with a moderate first stage (`0.45·Z`) so many draws have F < 10.
     fn moderate_binary_iv_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1E75_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x1E75_u64);
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];

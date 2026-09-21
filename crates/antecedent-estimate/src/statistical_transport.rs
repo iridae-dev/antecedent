@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, VariableId};
+use antecedent_core::{ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::{ResamplingPlan, fill_resample_indexes};
 use antecedent_expr::{Assignment, ExactDistribution, ExactEvaluationLimits};
 use antecedent_identify::BoundTransportFunctional;
@@ -455,7 +455,10 @@ fn outer_bootstrap(
                 resample_ok = false;
                 break;
             }
-            let mut rng = ctx.rng.stream(((dataset as u64) << 32) | u64::from(replicate));
+            let mut rng = ctx.rng.stream_for(
+                StreamDomain::Transport,
+                ((dataset as u64) << 32) | u64::from(replicate),
+            );
             indexes.clear();
             if fill_resample_indexes(ResamplingPlan::IidBootstrap, n, &mut rng, &mut indexes)
                 .is_err()

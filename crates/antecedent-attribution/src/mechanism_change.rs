@@ -4,7 +4,9 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext, MechanismChangeQuery, VariableId};
+use antecedent_core::{
+    CausalRng, ExecutionContext, MechanismChangeQuery, StreamDomain, VariableId,
+};
 use antecedent_data::{TableView, TabularData};
 use antecedent_model::{
     CompiledCausalModel, MechanismRegistry, ParentBatch, SelectionPolicy, infer_noise_column_rng,
@@ -124,8 +126,10 @@ pub fn detect_mechanism_changes_with_correction(
 
     let mut raw = Vec::with_capacity(query.targets.len());
     for &target in query.targets.iter() {
-        let mut baseline_rng = ctx.rng.stream(residual_stream_id(target, 0));
-        let mut comparison_rng = ctx.rng.stream(residual_stream_id(target, 1));
+        let mut baseline_rng =
+            ctx.rng.stream_for(StreamDomain::Attribution, residual_stream_id(target, 0));
+        let mut comparison_rng =
+            ctx.rng.stream_for(StreamDomain::Attribution, residual_stream_id(target, 1));
         let (stat, p_value, method_name) = match method {
             MechanismChangeMethod::LikelihoodRatio => {
                 let rb = residuals(&base_model, &baseline, target, &mut baseline_rng)?;
@@ -471,7 +475,7 @@ mod tests {
         for trial in 0..trials {
             let mut rng = ExecutionContext::for_tests(0x4C01u64.wrapping_add(trial as u64))
                 .rng
-                .stream(0x7E51);
+                .stream_for(StreamDomain::Attribution, 0x7E51);
             let mut b = CausalSchemaBuilder::new();
             b.add_variable(
                 "x",
@@ -571,7 +575,7 @@ mod tests {
         for trial in 0..trials {
             let mut rng = ExecutionContext::for_tests(0x9A11u64.wrapping_add(trial as u64))
                 .rng
-                .stream(0x51EE);
+                .stream_for(StreamDomain::Attribution, 0x51EE);
             let mut b = CausalSchemaBuilder::new();
             for k in 0..m {
                 b.add_variable(

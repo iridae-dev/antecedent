@@ -11,7 +11,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, Intervention, VariableId};
+use antecedent_core::{ExecutionContext, Intervention, StreamDomain, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_model::{
@@ -336,7 +336,7 @@ impl CounterfactualEngine {
         let mut all = vec![0.0; n_worlds * stored_width * n_units];
         let mut notes = Vec::new();
         notes.push(Arc::from(format!("noise_inference={:?}", exo.kind)));
-        let mut rng = ctx.rng.stream(0xCF_01);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, 0xCF_01);
 
         for (wi, world) in worlds.iter().enumerate() {
             if !allow_nested {
@@ -855,7 +855,7 @@ fn nested_column_frozen_mean(
     let n_units = exo.n_units;
     let n_nodes = exo.n_nodes;
     let evaluated = |idx: usize| inner_targets[idx] || idx == outcome_dense.as_usize();
-    let mut rng = ctx.rng.stream(0xCF_01);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Counterfactual, 0xCF_01);
     let mut values_buf = outer_res.values[..n_nodes * n_units].to_vec();
     let mut values = ValueBatchMut::new(n_units, n_nodes, &mut values_buf)?;
     let mut parent_buf: Vec<f64> = Vec::new();
@@ -1143,7 +1143,9 @@ mod tests {
     /// (`ToleranceClass::StableFloat` under exact mechanisms; `MonteCarlo` floor if fit noise).
     #[test]
     fn random_linear_sem_mean_ite_matches_structural_beta() {
-        let mut rng = ExecutionContext::for_tests(0xCF_B7).rng.stream(0x1E_E7);
+        let mut rng = ExecutionContext::for_tests(0xCF_B7)
+            .rng
+            .stream_for(StreamDomain::Counterfactual, 0x1E_E7);
         for trial in 0..12 {
             let beta = 0.5 + 2.5 * rng.next_f64(); // [0.5, 3.0]
             let n = 32 + (rng.next_u64() % 48) as usize;
@@ -1585,7 +1587,9 @@ mod tests {
     /// Streaming ≡ retained under random unit counts and multi-world intervention sets.
     #[test]
     fn random_multi_world_streaming_matches_retained() {
-        let mut rng = ExecutionContext::for_tests(0xCF_57).rng.stream(0x57_EA);
+        let mut rng = ExecutionContext::for_tests(0xCF_57)
+            .rng
+            .stream_for(StreamDomain::Counterfactual, 0x57_EA);
         for trial in 0..8 {
             let n = 16 + (rng.next_u64() % 40) as usize;
             let n_worlds = 2 + (rng.next_u64() % 4) as usize; // 2..=5

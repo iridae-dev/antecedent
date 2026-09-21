@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use antecedent_core::{
-    CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
+    CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext, StreamDomain,
 };
 use antecedent_data::TableView;
 use antecedent_estimate::{
@@ -144,7 +144,7 @@ impl super::Study {
             .bound_to(data)?;
         let antecedent_core::InterferenceFunctional::ExposureContrast { outcome, .. } =
             query.functional;
-        let seed = ctx.rng.stream(0x1F7E).next_u64();
+        let seed = ctx.rng.stream_for(StreamDomain::Transport, 0x1F7E).next_u64();
         let estimated = estimate_interference(query, &spec.network, &spec.assignment, seed)
             .map_err(CausalError::from)?;
         let (identification, estimand) =

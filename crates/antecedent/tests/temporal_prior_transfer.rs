@@ -8,8 +8,8 @@ use std::sync::Arc;
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention, InterventionSequence,
-    ResponseFunctional, ResponseQuery, SequencedIntervention, TemporalEffectQuery, TemporalPolicy,
-    TemporalResponseSpec, Value, VariableId,
+    ResponseFunctional, ResponseQuery, SequencedIntervention, StreamDomain, TemporalEffectQuery,
+    TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
@@ -27,7 +27,7 @@ fn fixture() -> serde_json::Value {
 
 fn series_xy(n: usize, noise: f64, seed: u64) -> TimeSeriesData {
     let ctx = ExecutionContext::for_tests(seed);
-    let mut rng = ctx.rng.stream(1);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Test, 1);
     let mut x = vec![0.0; n];
     let mut y = vec![0.0; n];
     for t in 0..n {
@@ -42,7 +42,7 @@ fn series_xy(n: usize, noise: f64, seed: u64) -> TimeSeriesData {
 
 fn series_xyw(n: usize, seed: u64) -> TimeSeriesData {
     let ctx = ExecutionContext::for_tests(seed);
-    let mut rng = ctx.rng.stream(2);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Test, 2);
     let mut x = vec![0.0; n];
     let mut w = vec![0.0; n];
     let mut y = vec![0.0; n];

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::*;
+use antecedent_core::StreamDomain;
 
 impl super::Study {
     /// The panel license owner, consulted on the data each execute receives
@@ -2315,7 +2316,7 @@ fn panel_unit_bootstrap(
     }
     let estimator = pooled_panel_estimator();
     let fresh_ids: Vec<u32> = (0..u32::try_from(units).unwrap_or(u32::MAX)).collect();
-    let mut rng = ctx.rng.stream(0xC1A5_5E11);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Panel, 0xC1A5_5E11);
     let mut workspace = EstimationWorkspace::default();
     let mut draws = Vec::with_capacity(replicates as usize);
     let mut attempted = 0usize;

@@ -800,6 +800,8 @@ fn solve_linear_system(a: &mut [f64], b: &mut [f64], p: usize) -> Option<Vec<f64
 
 #[cfg(test)]
 mod tests {
+    use antecedent_core::StreamDomain;
+
     use std::sync::Arc;
 
     use antecedent_core::{
@@ -815,7 +817,8 @@ mod tests {
     use super::*;
 
     fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1234_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x1234_u64);
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];
@@ -1004,7 +1007,9 @@ mod tests {
         let reps = 80usize;
         let n = 120usize;
         for seed in 0..reps {
-            let mut rng = ExecutionContext::for_tests(seed as u64).rng.stream(0xA11Eu64);
+            let mut rng = ExecutionContext::for_tests(seed as u64)
+                .rng
+                .stream_for(StreamDomain::Estimate, 0xA11Eu64);
             let mut t = vec![0.0; n];
             let mut y = vec![0.0; n];
             let mut x = vec![0.0; n];

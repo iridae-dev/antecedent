@@ -20,7 +20,7 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, CausalRng, ExecutionContext, TargetPopulation,
+    AssumptionSet, AverageEffectQuery, CausalRng, ExecutionContext, StreamDomain, TargetPopulation,
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
@@ -159,7 +159,7 @@ impl CausalForest {
         let max_depth = self.max_depth;
         let honesty = self.honesty;
         let trees = ctx.map_indexed(self.n_trees, |b, inner| {
-            let mut rng = inner.rng.stream(0xC0F0_0000_u64.wrapping_add(b as u64));
+            let mut rng = inner.rng.stream_for(StreamDomain::Estimate, 0xC0F0_0000_u64 ^ b as u64);
             Ok::<_, EstimationError>(grow_tree(
                 &x, n, p, y, t, min_leaf, max_depth, honesty, &mut rng,
             ))
@@ -586,7 +586,8 @@ mod tests {
     }
 
     fn interaction_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand, Vec<f64>) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x51u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x51u64);
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];
         let mut y = vec![0.0; n];

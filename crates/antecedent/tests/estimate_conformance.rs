@@ -16,7 +16,7 @@ use antecedent::Study;
 use antecedent::{EstimatorId, IdentifierId};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
-    SmallRoleSet, ValueType, VariableId,
+    SmallRoleSet, StreamDomain, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
@@ -135,7 +135,7 @@ fn assert_reference_se(result: &antecedent::StudyResult, name: &str, n: usize) {
 /// `Z ~ N(0,1)` confounder; `T ~ Bernoulli(sigmoid(-0.4 + 0.9 Z))`; `Y = 2T + Z + noise`.
 /// True ATE = 2; a naive unadjusted contrast is biased by `Z`, exercising IPW.
 fn propensity_ipw_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5051_u64);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5051_u64);
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];
@@ -184,7 +184,7 @@ fn estimate_propensity_ipw_recovers_ate() {
 /// Binary instrument `Z`; unobserved confounder `U` (absent from the graph) with
 /// `T = 0.6 Z + U + noise`, `Y = 2T + U + noise`. True structural effect = 2.
 fn iv_2sls_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5052_u64);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5052_u64);
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];
@@ -233,7 +233,7 @@ fn estimate_iv_2sls_recovers_structural_effect() {
 /// `Y = 5M + U + noise`. True mediated effect = `0.4 * 5 = 2`; neither path coefficient alone
 /// (0.4, 5) nor the confounded `Y ~ T` slope (about 3) is near it.
 fn frontdoor_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5053_u64);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5053_u64);
     let mut t = vec![0.0; n];
     let mut m = vec![0.0; n];
     let mut y = vec![0.0; n];
@@ -621,7 +621,7 @@ fn auto_with_wald_reports_the_iv_claim() {
 
 /// Binary outcome logistic SCM: `Y ~ Bern(sigmoid(-0.5 + 1.2 T + 0.8 Z))` with confounded T.
 fn glm_binary_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5054_u64);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5054_u64);
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];
@@ -701,7 +701,7 @@ fn rd_study(data: TabularData, graph: Dag, bandwidth: f64) -> Study {
 /// `tau(0) = 2`; average over the `h = 0.4` window `2 + 6 h^2/3 = 2.32`; population
 /// average `2 + 6 E[R] = 8`.
 fn rd_heterogeneous_scm(n: usize, seed: u64) -> TabularData {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5056_u64);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5056_u64);
     let (mut r, mut t, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
     for i in 0..n {
         let ri = 3.0 * rng.next_f64().sqrt() - 1.0;
@@ -777,7 +777,7 @@ fn rd_sharp_refuses_a_graph_that_contradicts_the_design() {
 #[test]
 fn rd_sharp_refuses_fuzzy_assignment() {
     let n = 4000;
-    let mut rng = ExecutionContext::for_tests(29).rng.stream(0x5057_u64);
+    let mut rng = ExecutionContext::for_tests(29).rng.stream_for(StreamDomain::Test, 0x5057_u64);
     let (mut r, mut t, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
     for i in 0..n {
         let ri = 2.0 * rng.next_f64() - 1.0;
@@ -798,7 +798,7 @@ fn rd_sharp_refuses_fuzzy_assignment() {
 
 /// Sharp RD: running variable R, T = 1{R >= 0}, Y = 3T + 0.5 R + noise.
 fn rd_scm(n: usize, seed: u64) -> (TabularData, AverageEffectQuery) {
-    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5055_u64);
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5055_u64);
     let mut r = vec![0.0; n];
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];

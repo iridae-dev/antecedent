@@ -78,7 +78,8 @@ mod tests {
 
     use antecedent_core::{
         AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, DistributionRef, ExecutionContext,
-        MeasurementSpec, RoleHint, SmallRoleSet, TargetPopulation, ValueType, VariableId,
+        MeasurementSpec, RoleHint, SmallRoleSet, StreamDomain, TargetPopulation, ValueType,
+        VariableId,
     };
     use antecedent_data::{
         Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData, ValidityBitmap,
@@ -98,7 +99,8 @@ mod tests {
     }
 
     fn confounded_columns(n: usize, seed: u64) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
-        let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x1234_u64);
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x1234_u64);
 
         let mut z = vec![0.0; n];
         let mut t = vec![0.0; n];

@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext, VariableId};
+use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, VariableId};
 use antecedent_kernels::unbiased_index;
 
 use crate::buffer::F64Buffer;
@@ -433,7 +433,7 @@ pub struct RaggedResampleIndexBatch {
 
 /// Generate index replicates, including unequal-sized whole-cluster bootstrap draws.
 ///
-/// Uses the same independent replicate RNG streams as [`fill_resample_index_batch`].
+/// Uses the same domain-separated replicate RNG streams as [`fill_resample_index_batch`].
 /// This allocation-returning interface retains variable row counts without padding,
 /// truncation, or conditioning the bootstrap on a fixed total number of rows.
 ///
@@ -464,7 +464,7 @@ pub fn resample_index_batch_ragged(
     })?;
     for replicate in 0..n_replicates {
         check_resampling_cancelled(ctx)?;
-        let mut rng = ctx.rng.stream(stream_base ^ replicate as u64);
+        let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate as u64);
         fill_resample_indexes_grouped(plan, n, cluster_ids, &mut rng, &mut scratch)?;
         indexes.try_reserve(scratch.len()).map_err(|error| DataError::InvalidArgument {
             message: format!("ragged resampling allocation failed: {error}"),
@@ -481,8 +481,8 @@ pub fn resample_index_batch_ragged(
 /// Fill `out` (`len = n * n_replicates`, replicate-major) with index plans under one
 /// [`ExecutionContext`].
 ///
-/// Each replicate uses `ctx.rng.stream(stream_base ^ replicate_id)` so results are
-/// independent of scheduling order under [`antecedent_core::Determinism::Strict`].
+/// Each replicate uses `ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ replicate_id)`
+/// so results are independent of scheduling order under [`antecedent_core::Determinism::Strict`].
 /// When `max_threads > 1` and `n_replicates ≥ 2`, fills run in a bounded
 /// `std::thread::scope` pool.
 ///
@@ -542,7 +542,7 @@ pub fn fill_resample_index_batch(
     if threads == 1 || n_replicates < 2 {
         let mut scratch = Vec::with_capacity(n);
         for r in 0..n_replicates {
-            let mut rng = ctx.rng.stream(stream_base ^ r as u64);
+            let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ r as u64);
             fill_resample_indexes_grouped(plan, n, cluster_ids, &mut rng, &mut scratch)?;
             out[r * n..(r + 1) * n].copy_from_slice(&scratch);
         }
@@ -564,7 +564,8 @@ pub fn fill_resample_index_batch(
             scope.spawn(move || {
                 let mut scratch = Vec::with_capacity(n);
                 for (local, r) in (start..end).enumerate() {
-                    let mut rng = rng_factory.stream(stream_base ^ r as u64);
+                    let mut rng =
+                        rng_factory.stream_for(StreamDomain::Resample, stream_base ^ r as u64);
                     if let Err(e) =
                         fill_resample_indexes_grouped(plan, n, cluster_ref, &mut rng, &mut scratch)
                     {
@@ -618,7 +619,7 @@ pub fn fill_resample_weight_batch(
     if threads == 1 || n_replicates < 2 {
         let mut scratch = Vec::with_capacity(n);
         for r in 0..n_replicates {
-            let mut rng = ctx.rng.stream(stream_base ^ r as u64);
+            let mut rng = ctx.rng.stream_for(StreamDomain::Resample, stream_base ^ r as u64);
             fill_resample_weights(plan, n, &mut rng, &mut scratch)?;
             out[r * n..(r + 1) * n].copy_from_slice(&scratch);
         }
@@ -638,7 +639,8 @@ pub fn fill_resample_weight_batch(
             scope.spawn(move || {
                 let mut scratch = Vec::with_capacity(n);
                 for (local, r) in (start..end).enumerate() {
-                    let mut rng = rng_factory.stream(stream_base ^ r as u64);
+                    let mut rng =
+                        rng_factory.stream_for(StreamDomain::Resample, stream_base ^ r as u64);
                     if let Err(e) = fill_resample_weights(plan, n, &mut rng, &mut scratch) {
                         let mut guard =
                             err_slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner);

@@ -3,7 +3,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    ComponentId, ExecutionContext, Intervention, ShapleyConfig, Value, VariableId,
+    ComponentId, ExecutionContext, Intervention, ShapleyConfig, StreamDomain, Value, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_model::{CompiledCausalModel, MechanismWorkspace, sample_interventional};
@@ -100,7 +100,7 @@ impl CoalitionPayoff for FeaturePayoff<'_> {
             }
         }
         // Common random numbers across coalitions (fixed seed).
-        let mut rng = self.ctx.rng.stream(self.seed);
+        let mut rng = self.ctx.rng.stream_for(StreamDomain::Attribution, self.seed);
         let batch = sample_interventional(
             self.model,
             &interventions,

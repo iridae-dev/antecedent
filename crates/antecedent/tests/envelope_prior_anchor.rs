@@ -16,7 +16,7 @@ use antecedent::discovery::GraphPosterior;
 use antecedent::{BayesianConfig, InferenceMode, LatencyMode, RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
-    SmallRoleSet, ValueType, VariableId,
+    SmallRoleSet, StreamDomain, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
@@ -131,7 +131,7 @@ fn first_identified_dropped(seed: u64, keys: &[u64]) -> bool {
     let flags = vec![GraphIdentFlag::Identified; keys.len()];
     let graphs = WeightedGraphSamples::new(weights, flags, keys.to_vec()).unwrap();
     let ctx = ExecutionContext::for_tests(seed);
-    let mut rng = ctx.rng.stream(SUBSAMPLE_STREAM);
+    let mut rng = ctx.rng.stream_for(StreamDomain::Test, SUBSAMPLE_STREAM);
     let sub = graphs.stratified_interactive_subsample(16, &mut rng).unwrap();
     assert!(sub.approximate);
     !sub.graphs
