@@ -17,6 +17,7 @@ papers = [
 implementation_deviations = [
  "Implements user-selected fixed clipping or symmetric trimming thresholds rather than Crump et al.'s data-dependent optimal trimming rule.",
  "Propensity clipping changes weights while retaining observations and is a separate numerical regularization policy not analyzed by the cited Crump trimming result.",
+ "The weighted-support gate used by retargeting passes only when each arm's Kish effective size is at least 10, raw held-out propensities lie inside (1e-6, 1 - 1e-6), and at most 10% of the target weight sits outside [0.01, 0.99]; these constants are library choices, not derived from a cited result.",
  "The clip-sensitivity grid reports weight and effective-sample-size diagnostics only; it does not re-estimate effects or provide the inferential overlap analysis in the cited paper.",
 ]
 

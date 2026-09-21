@@ -9,7 +9,10 @@ papers = [
  { title = "Mostly Harmless Econometrics", doi = "10.1515/9781400829828", sections = ["OLS adjustment / regression"] },
 ]
 
-implementation_deviations = []
+implementation_deviations = [
+ "Huber M-estimation reports the M-estimator's own sandwich (bread Σψ′xxᵀ, scores s·ψ(r/s)) with the MAD scale treated as known; it does not propagate scale-estimation variance, and an unconverged IRLS run refuses.",
+ "Ridge and Lasso publish no analytic standard error (shrinkage bias and post-selection inference are outside a sampling variance); use the bootstrap. An unconverged lasso fit, or bootstrap replicate, refuses / is counted as failed.",
+]
 
 upstream_implementations_observed = [
  { project = "dowhy", exposure = "black-box comparison only" },

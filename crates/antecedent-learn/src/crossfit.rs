@@ -86,11 +86,44 @@ pub fn cross_fit(
             message: "cross_fit expects a physical design without a row selection",
         });
     }
+    let fold_assignment = assign_folds(x.physical_nrows(), folds)?;
+    cross_fit_with_folds(factory, x, y, fold_assignment, ctx, transformer)
+}
+
+/// [`cross_fit`] with a caller-supplied fold plan (one id in `0..folds` per physical row).
+///
+/// Every fold id in `0..max+1` must occur, so each fold has a validation set and a
+/// non-empty training complement.
+///
+/// # Errors
+///
+/// Shape mismatch, fewer than two folds, an empty fold, or learner failure.
+pub fn cross_fit_with_folds(
+    factory: &dyn LearnerFactory,
+    x: DesignView<'_>,
+    y: TargetView<'_>,
+    fold_assignment: Vec<u16>,
+    ctx: &ExecutionContext,
+    transformer: Option<&dyn TransformerFactory>,
+) -> Result<CrossFittedPrediction, LearnError> {
+    if x.row_selection().is_some() {
+        return Err(LearnError::Unsupported {
+            message: "cross_fit expects a physical design without a row selection",
+        });
+    }
     let n = x.physical_nrows();
     if y.len() != n {
         return Err(LearnError::Shape { message: "target length != physical rows" });
     }
-    let fold_assignment = assign_folds(n, folds)?;
+    if fold_assignment.len() != n || n == 0 {
+        return Err(LearnError::Shape { message: "fold plan length != physical rows" });
+    }
+    let folds = usize::from(*fold_assignment.iter().max().unwrap_or(&0)) + 1;
+    if folds < 2 || (0..folds).any(|f| !fold_assignment.iter().any(|v| usize::from(*v) == f)) {
+        return Err(LearnError::Shape {
+            message: "cross-fitting needs at least two non-empty folds",
+        });
+    }
     let fold_results = ctx.map_indexed(folds, |fold, inner| {
         fit_one_fold(factory, x, y, &fold_assignment, fold as u16, inner, transformer)
     })?;

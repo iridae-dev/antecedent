@@ -256,14 +256,17 @@ impl PropensityMatching {
         // Trim on RAW scores (mirrors PropensityWeighting): both query and donor sets are
         // restricted to common-support rows before matching.
         let retained = trim_retained_rows(&model.fit.scores, trim)?;
+        let feature = match self.caliper_scale {
+            CaliperScale::Raw => model.clipped_scores.clone(),
+            CaliperScale::Logit => model.logit_scores(problem),
+        };
         let (t_used, y_used, s_used) = restrict_to_rows(
             &problem.treatment,
             &problem.outcome,
-            &model.clipped_scores,
+            &feature,
             1,
             retained.as_deref(),
         );
-        let s_used = apply_caliper_scale(s_used, self.caliper_scale);
         let tw_used: Option<Vec<f64>> = problem.target_weights.as_ref().map(|w| match &retained {
             Some(idx) => idx.iter().map(|&i| w[i]).collect(),
             None => w.to_vec(),
@@ -317,21 +320,6 @@ impl PropensityMatching {
             .with_overlap_report(overlap_report)
             .with_retained_memory_bytes(Some(workspace.retained_memory_bytes())))
     }
-}
-
-/// Transform clipped propensity scores onto `scale` for use as the `Absolute`-distance
-/// matching feature (and, transitively, the caliper comparison).
-///
-/// Scores passed in here are always the already-clipped `[clip, 1 - clip]` scores (default
-/// `[0.01, 0.99]`), so `logit(e) = ln(e / (1 - e))` is always finite — no additional epsilon
-/// guard against `e == 0` or `e == 1` is needed.
-fn apply_caliper_scale(mut scores: Vec<f64>, scale: CaliperScale) -> Vec<f64> {
-    if let CaliperScale::Logit = scale {
-        for s in &mut scores {
-            *s = (*s / (1.0 - *s)).ln();
-        }
-    }
-    scores
 }
 
 /// Match each `query` row to its nearest `donor` row; returns bias-corrected
@@ -556,10 +544,29 @@ pub(crate) fn matching_contrast(
     };
     // One-arm (ATT/ATC) vs two-arm ATE Abadie–Imbens variance.
     let ate_form = !matches!(target, TargetPopulation::Treated | TargetPopulation::Untreated);
+    // Under a custom target the estimator is the target-weighted matched mean, so each unit's
+    // outcome enters with its query weight plus the weights of the queries it donates to;
+    // the equal-weight `(1 + K)/n` coefficients would describe a different estimator.
+    let weighted_coefficients = match (target, target_weights) {
+        (TargetPopulation::CustomDistribution(_), Some(tw)) => Some(custom_unit_coefficients(
+            tw,
+            &effect_rows,
+            &donor_usage,
+            &treated_idx,
+            &control_idx,
+            treatment.len(),
+        )),
+        _ => None,
+    };
     let se_analytic = match se_kind {
-        AnalyticSeKind::Homoskedastic => {
-            abadie_imbens_se(&per_unit_effects, &donor_usage, n_donors, ate_form)
-        }
+        AnalyticSeKind::Homoskedastic => match &weighted_coefficients {
+            Some(coefficients) => {
+                weighted_abadie_imbens_se(&per_unit_effects, ate, &effect_rows, coefficients, {
+                    target_weights.unwrap_or(&[])
+                })
+            }
+            None => abadie_imbens_se(&per_unit_effects, &donor_usage, n_donors, ate_form),
+        },
         AnalyticSeKind::Hc0 | AnalyticSeKind::Hc1 | AnalyticSeKind::Hc2 | AnalyticSeKind::Hc3 => {
             return Err(EstimationError::unsupported(
                 "matching does not implement HC0–HC3 sandwich SEs; use Homoskedastic (Abadie–Imbens) or Cluster",
@@ -579,6 +586,7 @@ pub(crate) fn matching_contrast(
                 &treated_idx,
                 &control_idx,
                 &effect_rows,
+                weighted_coefficients.as_deref(),
             );
             influence_se_kind(
                 se_kind,
@@ -592,6 +600,51 @@ pub(crate) fn matching_contrast(
         }
     };
     Ok(MatchedEstimate { ate, se_analytic, retained_fraction, n_obs: per_unit_effects.len() })
+}
+
+/// Coefficient `c_i` of each sample row's outcome in the target-weighted pooled matching
+/// estimator `τ̂ = Σ_q w̃_q τ̂_q` (`w̃` normalised over the matched queries): the row's own query
+/// weight plus the weights of the queries it donates to. Equal weights give `(1 + K_i)/n`.
+fn custom_unit_coefficients(
+    target_weights: &[f64],
+    effect_rows: &[usize],
+    donor_local: &[usize],
+    treated_idx: &[usize],
+    control_idx: &[usize],
+    nrows: usize,
+) -> Vec<f64> {
+    let n_control = control_idx.len();
+    let weight = |row: usize| target_weights.get(row).copied().unwrap_or(0.0);
+    let mass: f64 = effect_rows.iter().map(|&r| weight(r)).sum();
+    let mut coefficient = vec![0.0; nrows];
+    for (&row, &donor) in effect_rows.iter().zip(donor_local) {
+        let w = weight(row) / mass;
+        coefficient[row] += w;
+        let donor_row =
+            if donor < n_control { control_idx[donor] } else { treated_idx[donor - n_control] };
+        coefficient[donor_row] += w;
+    }
+    coefficient
+}
+
+/// Abadie–Imbens homoskedastic SE of the target-weighted matched mean:
+/// `Var = σ̂² Σ_i c_i²`, `σ̂² = ½ Σ_q w̃_q (τ̂_q − τ̂)²`.
+fn weighted_abadie_imbens_se(
+    effects: &[f64],
+    ate: f64,
+    effect_rows: &[usize],
+    coefficients: &[f64],
+    target_weights: &[f64],
+) -> f64 {
+    let weight = |row: usize| target_weights.get(row).copied().unwrap_or(0.0);
+    let mass: f64 = effect_rows.iter().map(|&r| weight(r)).sum();
+    let sigma2: f64 = 0.5
+        * effects
+            .iter()
+            .zip(effect_rows)
+            .map(|(e, &r)| weight(r) / mass * (e - ate).powi(2))
+            .sum::<f64>();
+    (sigma2 * coefficients.iter().map(|c| c * c).sum::<f64>()).max(0.0).sqrt()
 }
 
 /// Donor-reuse counts `Kⱼ` from query→donor local indices.
@@ -651,11 +704,18 @@ fn matching_influence(
     treated_idx: &[usize],
     control_idx: &[usize],
     effect_rows: &[usize],
+    weighted_coefficients: Option<&[f64]>,
 ) -> Vec<f64> {
     let k = donor_counts(donor_local, n_donors);
     let scale = std::f64::consts::SQRT_2.recip();
     let mut psi = Vec::with_capacity(effects.len());
-    if ate_form {
+    if let Some(coefficients) = weighted_coefficients {
+        // `n · c_row` replaces `1 + K_M(row)`: the row's weight in the target-weighted mean.
+        let n = effects.len() as f64;
+        for (i, &eff) in effects.iter().enumerate() {
+            psi.push((eff - ate) * scale * n * coefficients[effect_rows[i]]);
+        }
+    } else if ate_form {
         // Map each sample row to its donor-reuse count K_M (ATE donor pool = controls ‖ treated).
         let n_control = control_idx.len();
         let mut k_m_by_row = vec![0usize; nrows];
@@ -1086,8 +1146,9 @@ mod tests {
         let query_y = vec![0.0, 0.0, 0.0];
         let caliper = Some(0.2);
 
-        let raw_donors = apply_caliper_scale(donor_probs.clone(), CaliperScale::Raw);
-        let raw_queries = apply_caliper_scale(query_probs.clone(), CaliperScale::Raw);
+        let logit = |ps: &[f64]| -> Vec<f64> { ps.iter().map(|p| (p / (1.0 - p)).ln()).collect() };
+        let raw_donors = donor_probs.clone();
+        let raw_queries = query_probs.clone();
         let mut ws_raw = PropensityEstimationWorkspace::default();
         let (raw_diffs, _, _) = match_diffs(
             &raw_donors,
@@ -1101,8 +1162,8 @@ mod tests {
         )
         .unwrap();
 
-        let logit_donors = apply_caliper_scale(donor_probs, CaliperScale::Logit);
-        let logit_queries = apply_caliper_scale(query_probs, CaliperScale::Logit);
+        let logit_donors = logit(&donor_probs);
+        let logit_queries = logit(&query_probs);
         let mut ws_logit = PropensityEstimationWorkspace::default();
         let (logit_diffs, _, _) = match_diffs(
             &logit_donors,
@@ -1133,5 +1194,58 @@ mod tests {
             "logit-scale caliper=0.2 should admit only the mid-range query, got {}",
             logit_diffs.len()
         );
+    }
+
+    /// Four units, 1-D feature, target weights `[4, 1, 1, 2]`. The bias-corrected effects are
+    /// hand-derived from the two per-arm donor OLS lines; the weighted variance is
+    /// `σ̂²_w · Σ c_i²` with `c` the row coefficients of the weighted pooled mean.
+    #[test]
+    fn custom_target_se_describes_the_weighted_estimator() {
+        let treatment = [1.0, 1.0, 0.0, 0.0];
+        let outcome = [3.0, 5.0, 1.0, 2.0];
+        let features = [0.0, 1.0, 0.1, 0.9];
+        let weights = [4.0, 1.0, 1.0, 2.0];
+        // Treated queries (donors: controls, line 1 + 1.25 (x − 0.1)); control queries
+        // (donors: treated, line 3 + 2x), sign-flipped to `Y(1) − Y(0)`.
+        let effects = [2.125, 2.875, 2.2, 2.8];
+        let rows = [0usize, 1, 2, 3];
+        let w_sum: f64 = weights.iter().sum();
+        let tau: f64 = effects.iter().zip(&weights).map(|(e, w)| e * w).sum::<f64>() / w_sum;
+        let sigma2: f64 = 0.5
+            * effects.iter().zip(&weights).map(|(e, w)| w / w_sum * (e - tau).powi(2)).sum::<f64>();
+        // Donors: treated q0→control 0, q1→control 1, control q2→treated 0, q3→treated 1.
+        let donor_of_query = [2usize, 3, 0, 1];
+        let mut c = [0.0; 4];
+        for q in 0..4 {
+            c[rows[q]] += weights[q] / w_sum;
+            c[donor_of_query[q]] += weights[q] / w_sum;
+        }
+        let expected = (sigma2 * c.iter().map(|x| x * x).sum::<f64>()).sqrt();
+        let equal_weight_se = {
+            let mean = effects.iter().sum::<f64>() / 4.0;
+            let v = effects.iter().map(|e| (e - mean).powi(2)).sum::<f64>() / 3.0;
+            (0.5 * v * 4.0 * 4.0 / 16.0).sqrt()
+        };
+
+        let mut ws = PropensityEstimationWorkspace::default();
+        let out = matching_contrast(
+            &treatment,
+            &outcome,
+            &features,
+            1,
+            MatchingDistance::Absolute,
+            &TargetPopulation::CustomDistribution(antecedent_core::DistributionRef::from_raw(1)),
+            None,
+            &mut ws,
+            AnalyticSeKind::Homoskedastic,
+            None,
+            Some(&weights),
+            None,
+            None,
+        )
+        .unwrap();
+        assert!((out.ate - tau).abs() < 1e-12, "ate {} vs {tau}", out.ate);
+        assert!((out.se_analytic - expected).abs() < 1e-12, "se {} vs {expected}", out.se_analytic);
+        assert!((out.se_analytic - equal_weight_se).abs() > 1e-3, "weights must matter");
     }
 }

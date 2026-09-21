@@ -38,7 +38,7 @@ pub struct ScoreTable {
     pub n_rows: usize,
     /// Original data-frame row index of each complete-case row.
     pub row_index: Arc<[u32]>,
-    /// Fold assignment (`row position mod n_folds`).
+    /// Fold assignment (seeded, arm-stratified plan over distinct units; or a shared plan).
     pub fold_ids: Arc<[u32]>,
     /// Number of folds used to fit nuisances.
     pub n_folds: u32,

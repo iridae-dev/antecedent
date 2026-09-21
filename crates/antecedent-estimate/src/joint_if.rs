@@ -18,6 +18,9 @@
 
 use std::sync::Arc;
 
+use antecedent_core::CausalRng;
+use antecedent_kernels::standard_normal;
+
 use crate::error::EstimationError;
 
 /// Column-major `k × k` covariance of `k` influence sequences of length `n`.
@@ -322,7 +325,7 @@ pub fn max_t_critical(
         }
     }
     let chol = cholesky_corr(&corr, k)?;
-    let mut rng = antecedent_core::CausalRng::from_seed(seed);
+    let mut rng = CausalRng::from_seed(seed);
     let mut maxima = Vec::with_capacity(replicates as usize);
     let mut z = vec![0.0; k];
     for _ in 0..replicates {
@@ -471,6 +474,20 @@ mod tests {
         let bad = JointCovariance { dim: 2, values: Arc::from([1.0, 2.0, 2.0, 1.0]) };
         assert!(max_t_critical(&bad, 0.95, 100, 1).is_err());
         assert!(max_t_critical(&plain, 0.0, 100, 1).is_err());
+    }
+
+    #[test]
+    fn max_t_seeds_are_distinct_and_the_scalar_case_is_the_normal_quantile() {
+        let cov = JointCovariance { dim: 1, values: Arc::from([1.0]) };
+        // Adjacent seeds 2k and 2k+1 used to collapse to one stream (`seed | 1`).
+        let even = max_t_critical(&cov, 0.95, 2_000, 6).unwrap();
+        let odd = max_t_critical(&cov, 0.95, 2_000, 7).unwrap();
+        assert_ne!(even.to_bits(), odd.to_bits());
+        assert_eq!(even.to_bits(), max_t_critical(&cov, 0.95, 2_000, 6).unwrap().to_bits());
+        // One coordinate: the 0.95 max-|t| critical value is the two-sided normal quantile.
+        for crit in [even, odd] {
+            assert!((crit - 1.959_963_984_5).abs() < 0.15, "crit {crit}");
+        }
     }
 
     #[test]

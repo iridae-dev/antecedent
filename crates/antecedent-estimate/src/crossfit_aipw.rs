@@ -1,6 +1,8 @@
 //! Cross-fitted binary / discrete-joint AIPW scores.
 //!
-//! Fold assignment is deterministic (`i % folds`), matching the Kennedy path.
+//! Fold assignment is a seeded, arm-stratified permutation of the distinct units
+//! (`learn_nuisance::crossfit_fold_plan`), so it depends on `fold_seed` and unit ids rather
+//! than on file order, and duplicated (bootstrap) rows stay in one fold.
 //! These are uncentered AIPW scores. Centering estimates the efficient influence
 //! function only under consistency, positivity, and nuisance convergence/rate
 //! conditions. Cross-fitting alone does not guarantee valid inference.
@@ -20,7 +22,8 @@ use antecedent_stats::{
 use crate::aipw::{AipwWorkspace, fit_outcome_models, predict_colmajor, select_rows_colmajor};
 use crate::error::EstimationError;
 use crate::propensity::{
-    PreparedPropensityProblem, clamp_scores, clip_of, gather, split_by_treatment,
+    PreparedPropensityProblem, clamp_scores, clip_of, gather, require_interior_propensities,
+    split_by_treatment,
 };
 use crate::scores::{ScoreColumn, ScoreTable};
 use crate::util::stats_err;
@@ -90,7 +93,15 @@ pub fn build_binary_scores(
                 "shared fold assignment length must match complete-case rows",
             ));
         }
-        None => (0..n).map(|i| (problem.row_index[i] as usize % folds) as u32).collect(),
+        None => {
+            let arms: Vec<u32> = problem.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
+            crate::learn_nuisance::crossfit_fold_plan(
+                &arms,
+                &problem.row_index,
+                folds,
+                problem.fold_seed,
+            )?
+        }
     };
 
     if fold_ids.iter().any(|&id| id as usize >= folds) {
@@ -145,9 +156,9 @@ pub fn build_binary_scores(
         if let Some(clip_at) = clip {
             clamp_scores(&mut e_valid, clip_at);
         }
-        for e in &mut e_valid {
-            *e = e.clamp(1e-8, 1.0 - 1e-8);
-        }
+        // No hidden floor: with a clip every score is interior; without one a propensity of
+        // exactly 0 or 1 (infinite weight) is refused rather than silently floored.
+        require_interior_propensities(&e_valid)?;
 
         for (t_idx, &threshold) in thresholds.iter().enumerate() {
             let y_source = transform_outcome(&problem.outcome, threshold);
@@ -269,7 +280,17 @@ pub fn weighted_support(
     let n0 = crate::joint_if::kish_n_eff(&w0);
     let n1 = crate::joint_if::kish_n_eff(&w1);
     let range = if p_min.is_finite() { Some((p_min, p_max)) } else { None };
-    let overlap_ok = n0 >= min_n_eff_arm && n1 >= min_n_eff_arm;
+    // Same gate as the score-table support (retarget), including the propensity range and the
+    // extreme-propensity share, whenever propensities are supplied.
+    let extreme_share = propensity
+        .map_or(0.0, |p| crate::retarget::extreme_propensity_share(std::iter::once(p), weights));
+    let overlap_ok = crate::retarget::overlap_gate(
+        &[n0, n1],
+        min_n_eff_arm,
+        range,
+        propensity.is_some(),
+        extreme_share,
+    );
     WeightedSupport { n_eff, n_eff_by_arm: vec![n0, n1], propensity_range: range, overlap_ok }
 }
 
