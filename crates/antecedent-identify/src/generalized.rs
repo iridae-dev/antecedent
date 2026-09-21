@@ -832,7 +832,10 @@ pub(crate) fn identify_on_mag_completion_mean(
     }
 }
 
-fn mag_dense_to_var(mag: &Pag, id: DenseNodeId) -> Result<VariableId, IdentificationError> {
+pub(crate) fn mag_dense_to_var(
+    mag: &Pag,
+    id: DenseNodeId,
+) -> Result<VariableId, IdentificationError> {
     match mag.nodes().get(id.as_usize()) {
         Some(antecedent_graph::NodeRef::Static(v)) => Ok(*v),
         _ => Err(IdentificationError::UnknownVariable { id: VariableId::from_raw(id.raw()) }),
@@ -951,6 +954,45 @@ pub(crate) fn mag_to_admg(mag: &Pag) -> Option<Admg> {
                 _ => return None,
             }
         }
+    }
+    Some(admg)
+}
+
+/// Directed edges of a MAG that are not visible (Zhang 2008, Definition 8),
+/// as `(tail, head)` pairs in dense order.
+pub(crate) fn invisible_directed_edges(mag: &Pag) -> Vec<(DenseNodeId, DenseNodeId)> {
+    let mut out = Vec::new();
+    for i in 0..mag.node_count() {
+        let a = DenseNodeId::from_raw(i as u32);
+        for (b, at_a, at_b) in mag.neighbors(a) {
+            if at_a == Endpoint::Tail
+                && at_b == Endpoint::Arrow
+                && !crate::joint_response::visible(mag, a, b)
+            {
+                out.push((a, b));
+            }
+        }
+    }
+    out
+}
+
+/// The most-confounded ADMG compatible with a directed/bidirected MAG.
+///
+/// A MAG edge `A -> B` excludes a latent common cause of `A` and `B` only when
+/// it is visible (Zhang 2008, Lemma 9); an invisible edge is compatible with
+/// `A <- L -> B`. This graph keeps every MAG edge and adds `A <-> B` beside
+/// each invisible `A -> B`. The latent projection of every DAG the MAG
+/// represents is an edge-subgraph of it: a projected `A -> B` makes `A` an
+/// ancestor of `B`, so the MAG edge is `A -> B`; a projected `A <-> B` is an
+/// inducing path into both ends, so the MAG edge is `A <-> B` or an invisible
+/// directed edge. A causal model compatible with a graph is compatible with
+/// every acyclic supergraph, so a functional that Shpitser–Pearl ID derives
+/// here holds in every represented DAG. The converse fails: the reduction is
+/// sound, not complete, for MAG identification.
+pub(crate) fn mag_to_confounded_admg(mag: &Pag) -> Option<Admg> {
+    let mut admg = mag_to_admg(mag)?;
+    for (a, b) in invisible_directed_edges(mag) {
+        admg.insert_bidirected(a, b).ok()?;
     }
     Some(admg)
 }

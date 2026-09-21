@@ -56,6 +56,8 @@ mod transport_lower;
 
 #[cfg(test)]
 mod id_scm_property;
+#[cfg(test)]
+mod mag_id_bruteforce;
 /// Hidden parser for the frozen external `graph_dot` oracles used by tests.
 #[doc(hidden)]
 pub mod oracle_dot;

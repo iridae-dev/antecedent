@@ -2346,29 +2346,32 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
         .unwrap()
         .run(&ExecutionContext::for_tests(213))
         .unwrap();
-    // Unresolved completion mass keeps the class answer set-valued: the payload
-    // is the identified set over the completions that did evaluate, the scalar
-    // level is withheld, and the identified atom's SE is never republished as
-    // the envelope's.
-    assert!(!mixed.estimate.ate.is_finite(), "a set-valued class answer publishes no scalar level");
+    // The completion `t -> z` leaves nothing pointing into `t`, so `t -> y` is
+    // invisible there and the response is refused exactly where the ATE is. The
+    // class answer is graph-dependent: one level per identified completion, no
+    // scalar, and the identified atom's SE is never republished for the class.
+    assert!(!mixed.estimate.ate.is_finite(), "a graph-dependent answer publishes no scalar level");
     let response = mixed.response.as_ref().expect("class response payload");
-    let set = match &response.estimate {
-        ResponseIdentification::PartiallyIdentified(antecedent_core::ResponseValue::Envelope(
-            envelope,
-        )) => envelope.clone(),
-        other => panic!("expected the completion identified set, got {other:?}"),
+    let atoms = match &response.estimate {
+        ResponseIdentification::GraphDependent(atoms) => atoms.clone(),
+        other => panic!("expected per-completion levels, got {other:?}"),
     };
-    assert_eq!(set.dimension, 0, "a scalar functional's identified set is coordinate-free");
-    assert!(set.lower[0].is_finite() && set.upper[0] >= set.lower[0]);
+    let identified_cases: Vec<u64> = env
+        .cases
+        .iter()
+        .enumerate()
+        .filter(|(_, case)| !case.result.estimands.is_empty())
+        .map(|(index, _)| u64::try_from(index).unwrap())
+        .collect();
+    assert_eq!(
+        atoms.iter().map(|(key, _)| *key).collect::<Vec<_>>(),
+        identified_cases,
+        "the response is identified on exactly the completions the ATE is"
+    );
     let structural = mixed.structural_response.as_ref().expect("completion mass accounting");
     assert!(
         structural.identified_mass < 1.0,
-        "the completion that could not be evaluated must keep its own mass"
-    );
-    assert_eq!(
-        structural.identified_set.as_ref().map(|s| (s.lower[0], s.upper[0])),
-        Some((set.lower[0], set.upper[0])),
-        "the published payload and the structural identified set are the same bounds"
+        "the completion that could not be identified must keep its own mass"
     );
     assert!(
         !mixed.estimate.se_analytic.is_finite(),
@@ -2380,13 +2383,12 @@ fn pag_unidentified_completion_does_not_publish_primary_atom_se() {
         primary.estimate.se_analytic.is_finite(),
         "the identified MAG still has its own SE; the envelope must not reuse it"
     );
-    for code in [
-        "estimate.envelope.response_identified_set_unbanded",
-        "estimate.response.no_scalar_summary",
-    ] {
+    for code in
+        ["estimate.envelope.response_graph_dependent", "estimate.response.no_scalar_summary"]
+    {
         assert!(
             mixed.diagnostics.iter().any(|d| d.code.as_ref() == code),
-            "a withheld envelope scalar must be disclosed ({code})"
+            "a withheld class scalar must be disclosed ({code})"
         );
     }
 }
@@ -2503,8 +2505,11 @@ fn quantile_treatment_effect_inverts_aipw_cdf() {
     );
 }
 
+/// `T -> M -> Y` with `T <-> Y` is an ADMG, not an ancestral graph (`T` is an
+/// ancestor of its spouse). Held as a `Pag` it has no MAG reading, so the PAG
+/// route refuses it; the front-door functional belongs to the `Admg` route.
 #[test]
-fn pag_front_door_response_uses_general_id() {
+fn pag_route_refuses_the_front_door_admg() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/admg_frontdoor_functional/expected.json"
     ))
@@ -2525,9 +2530,89 @@ fn pag_front_door_response_uses_general_id() {
     pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     pag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     pag.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
-    for (level, expected) in [(0.0, 0.3), (1.0, 0.6)] {
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(2),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    });
+    let env = antecedent_identify::identify_pag_response_general(&pag, &query).unwrap();
+    assert!(env.cases.is_empty(), "no maximal ancestral graph carries these marks");
+    assert!(env.identified_weight.0 == 0.0);
+    let err = Study::tabular(data)
+        .graph(pag)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .and_then(|study| study.run(&ExecutionContext::for_tests(216)))
+        .expect_err("an invalid MAG must not publish a response");
+    assert!(err.to_string().contains("not identified"), "{err}");
+}
+
+/// Columns `t, a, m, b, y` of the SCM `T -> M -> Y`, `M -> B -> Y`, `A -> Y` with
+/// latent `T <- L1 -> A <- L2 -> B`, as an exact table: every conditional is a
+/// multiple of 1/8, so 8192 rows reproduce the observational law exactly.
+/// Returns the rows and the exact `E[Y | do(T = level)]`.
+fn mag_general_id_law(keep: impl Fn(f64, f64) -> bool) -> (TabularData, [f64; 2]) {
+    let quarter = |k: usize| 0.25 * k as f64;
+    let bern = |p1: f64, v: usize| if v == 1 { p1 } else { 1.0 - p1 };
+    let mut columns: Vec<Vec<f64>> = vec![Vec::new(); 5];
+    let mut truth = [0.0; 2];
+    for world in 0..1usize << 7 {
+        let bit = |i: usize| world >> i & 1;
+        let (l1, l2, t, a, m, b, y) = (bit(0), bit(1), bit(2), bit(3), bit(4), bit(5), bit(6));
+        let p_t = bern(quarter(1 + 2 * l1), t);
+        let rest = 0.25
+            * bern(quarter(1 + l1 + l2), a)
+            * bern(quarter(1 + 2 * t), m)
+            * bern(quarter(1 + m + l2), b)
+            * bern(0.25 + 0.125 * (a + m + b) as f64, y);
+        // Truncated factorisation: drop T's own mechanism, hold T at the level.
+        truth[t] += rest * y as f64;
+        let rows = p_t * rest * 8192.0;
+        assert!((rows - rows.round()).abs() < 1e-9, "the law must be exact at 8192 rows");
+        if keep(t as f64, m as f64) {
+            for (column, value) in columns.iter_mut().zip([t, a, m, b, y]) {
+                column.extend(std::iter::repeat_n(value as f64, rows.round() as usize));
+            }
+        }
+    }
+    assert!((truth[0] - 51.0 / 128.0).abs() < 1e-15 && (truth[1] - 61.0 / 128.0).abs() < 1e-15);
+    let names = ["t", "a", "m", "b", "y"];
+    let pairs: Vec<(&str, &[f64])> =
+        names.iter().zip(columns.iter()).map(|(n, v)| (*n, v.as_slice())).collect();
+    (TabularData::from_f64_columns(pairs).unwrap(), truth)
+}
+
+/// The MAG of [`mag_general_id_law`]: every directed edge is visible, and no
+/// adjustment set exists (`T <-> A -> Y` needs `A`, which opens
+/// `T <-> A <-> B -> Y` through a descendant of the mediator).
+fn mag_without_adjustment_set() -> Pag {
+    let d = DenseNodeId::from_raw;
+    let (t, a, m, b, y) = (d(0), d(1), d(2), d(3), d(4));
+    let mut mag = Pag::with_variables(5);
+    mag.insert_bidirected(t, a).unwrap();
+    mag.insert_bidirected(a, b).unwrap();
+    for (from, to) in [(t, m), (m, b), (m, y), (b, y), (a, y)] {
+        mag.insert_directed(from, to).unwrap();
+    }
+    mag
+}
+
+#[test]
+fn pag_response_beyond_adjustment_uses_visibility_aware_general_id() {
+    let (data, truth) = mag_general_id_law(|_, _| true);
+    let pag = mag_without_adjustment_set();
+    assert!(antecedent_graph::is_mag_completion(&pag));
+    let ate = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
+        .identify_pag_envelope(
+            &pag,
+            &AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(4)),
+        )
+        .unwrap();
+    assert!(ate.identified_weight.0 == 0.0, "no adjustment set identifies this effect");
+    for (level, expected) in [(0.0, truth[0]), (1.0, truth[1])] {
         let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
-            outcome: VariableId::from_raw(2),
+            outcome: VariableId::from_raw(4),
             interventions: Arc::from([Intervention::set(
                 VariableId::from_raw(0),
                 Value::f64(level),
@@ -2547,7 +2632,7 @@ fn pag_front_door_response_uses_general_id() {
             .unwrap();
         assert!(
             (result.estimate.ate - expected).abs() < 1e-9,
-            "front-door MAG response must recover the requested intervention mean, ate={}",
+            "general ID on the MAG must recover the intervention mean, ate={} expected={expected}",
             result.estimate.ate
         );
         assert!(
@@ -2560,37 +2645,14 @@ fn pag_front_door_response_uses_general_id() {
 }
 
 #[test]
-fn pag_front_door_response_empty_required_cell_is_not_supported() {
-    // Same MAG as the complete-table pin, but drop every (t=0, m=1) cell.
-    // do(T=1) is observed; the front-door inner sum still needs P(Y | M=1, T=0).
+fn pag_general_id_response_empty_required_cell_is_not_supported() {
+    // Same MAG and law, but drop every (t=0, m=1) row. do(T=1) is observed; the
+    // functional still sums the confounded district over t' = 0 at m = 1.
     // That missing required cell must not come back as Supported with a number.
-    let pin: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../conformance/estimate/admg_frontdoor_functional/expected.json"
-    ))
-    .unwrap();
-    let columns: Vec<&str> =
-        pin["columns"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
-    let mut values: Vec<Vec<f64>> = vec![Vec::new(); columns.len()];
-    for cell in pin["contingency_table"].as_array().unwrap() {
-        let t = cell["t"].as_f64().unwrap();
-        let m = cell["m"].as_f64().unwrap();
-        if (t - 0.0).abs() < f64::EPSILON && (m - 1.0).abs() < f64::EPSILON {
-            continue;
-        }
-        let count = usize::try_from(cell["count"].as_u64().unwrap()).unwrap();
-        for (i, name) in columns.iter().enumerate() {
-            values[i].extend(std::iter::repeat_n(cell[*name].as_f64().unwrap(), count));
-        }
-    }
-    let pairs: Vec<(&str, &[f64])> =
-        columns.iter().zip(values.iter()).map(|(n, v)| (*n, v.as_slice())).collect();
-    let data = TabularData::from_f64_columns(pairs).unwrap();
-    let mut pag = Pag::with_variables(3);
-    pag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    pag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    pag.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+    let (data, _) = mag_general_id_law(|t, m| !(t == 0.0 && m == 1.0));
+    let pag = mag_without_adjustment_set();
     let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
-        outcome: VariableId::from_raw(2),
+        outcome: VariableId::from_raw(4),
         interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
     });
     let env = antecedent_identify::identify_pag_response_general(&pag, &query).unwrap();
