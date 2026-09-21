@@ -382,16 +382,14 @@ impl Preflight<'_> {
         let mut domains = Vec::new();
         let mut world_count = 1usize;
         for a in assignments {
-            let values = if matches!(a.value, Value::Float64(x) if x.is_nan())
-                && !self.bound.contains(&a.variable)
-            {
+            let values = if a.is_symbolic() && !self.bound.contains(&a.variable) {
                 vec![
                     self.request
                         .get(a.variable)
                         .ok_or(EvalError::MissingBinding(a.variable))?
                         .clone(),
                 ]
-            } else if matches!(a.value, Value::Float64(x) if x.is_nan()) {
+            } else if a.is_symbolic() {
                 // A symbolic coordinate may be bound by an enclosing sum or
                 // by the target atom at execution; cover its complete domain.
                 let mut values =
@@ -570,7 +568,7 @@ impl DistributionProvider for BoundedProvider<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DiscreteAxis, DomainRef, ExactDiscreteLaw};
+    use crate::{DiscreteAxis, DomainRef, ExactDiscreteLaw, InterventionAssignment};
     use antecedent_core::RegimeId;
     fn v(i: u32) -> VariableId {
         VariableId::from_raw(i)
@@ -771,5 +769,103 @@ mod tests {
         ctx.cancellation.cancel();
         assert!(plan.evaluate(&ctx).is_err());
         assert!(compile(&ctx, ExactEvaluationLimits::default()).is_err());
+    }
+
+    /// Under the old NaN sentinel, `leaf_cost` expanded `do(T=NaN)` over the
+    /// domain of `T` whenever `T` was bound by an enclosing sum. Concrete NaN
+    /// must stay a single (invalid) world and must not cover `do(T=0)`/`do(T=1)`.
+    #[test]
+    fn nan_intervention_does_not_expand_exact_treatment_domain() {
+        let t = v(0);
+        let y = v(1);
+        let regime = RegimeId::from_raw(0);
+        let axis_y = DiscreteAxis {
+            variable: y,
+            values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+        };
+        // E[Y|do(0)] = 0.2, E[Y|do(1)] = 0.8 as P(Y=1|do(t)).
+        let law0 = ExactDiscreteLaw::try_new(
+            "target",
+            regime,
+            [InterventionAssignment { variable: t, value: Value::Int64(0) }],
+            [axis_y.clone()],
+            [0.8, 0.2],
+            "do0",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        let law1 = ExactDiscreteLaw::try_new(
+            "target",
+            regime,
+            [InterventionAssignment { variable: t, value: Value::Int64(1) }],
+            [axis_y],
+            [0.2, 0.8],
+            "do1",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        let data = ExactTransportData::try_new([law0, law1], 100).unwrap();
+
+        let mut arena = CausalExprArena::new();
+        let ys = arena.intern_var_set([y]);
+        let empty = arena.empty_var_set();
+        let population = arena.intern_population("target");
+        let do_sym = arena.intern_intervention_set([t]);
+        let do_nan = arena.intern_intervention_assignments([InterventionAssignment {
+            variable: t,
+            value: Value::f64(f64::NAN),
+        }]);
+        assert!(!arena.intervention_assignments(do_nan)[0].is_symbolic());
+        let sym = arena.intern(ExprNode::Distribution {
+            variables: ys,
+            conditioned_on: empty,
+            intervention: do_sym,
+            population,
+            domain: DomainRef::Interventional,
+            regime: Some(regime),
+        });
+        let nan = arena.intern(ExprNode::Distribution {
+            variables: ys,
+            conditioned_on: empty,
+            intervention: do_nan,
+            population,
+            domain: DomainRef::Interventional,
+            regime: Some(regime),
+        });
+
+        let ctx = ExecutionContext::for_tests(0);
+        let request = Assignment::new();
+        let limits = ExactEvaluationLimits::default();
+        // Enclosing SumOut binds T: symbolic covers the full domain of T.
+        let mut sym_preflight = Preflight {
+            arena: &arena,
+            data: &data,
+            request: &request,
+            limits,
+            ctx: &ctx,
+            bound: BTreeSet::from([t]),
+            intermediate_bytes: Cell::new(0),
+            remaining_checks: Cell::new(limits.operations),
+        };
+        assert!(
+            sym_preflight.visit(sym, 0).is_ok(),
+            "symbolic do(T) must expand over the treatment domain"
+        );
+
+        let mut nan_preflight = Preflight {
+            arena: &arena,
+            data: &data,
+            request: &request,
+            limits,
+            ctx: &ctx,
+            bound: BTreeSet::from([t]),
+            intermediate_bytes: Cell::new(0),
+            remaining_checks: Cell::new(limits.operations),
+        };
+        let nan_err = nan_preflight.visit(nan, 0);
+        assert!(
+            nan_err.is_err(),
+            "concrete NaN must not expand over do(T) support; got {nan_err:?}"
+        );
     }
 }
