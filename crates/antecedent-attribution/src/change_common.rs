@@ -4,8 +4,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AllocationMethod, ComponentId, ExecutionContext, VariableId};
-use antecedent_stats::gaussian_kl;
+use antecedent_core::{AllocationMethod, ComponentId, ExecutionContext, StreamDomain, VariableId};
+use antecedent_graph::DenseNodeId;
+use antecedent_model::{CompiledCausalModel, MechanismWorkspace, sample_observational_into};
+use antecedent_stats::{gaussian_kl, mean_var};
 
 use crate::error::AttributionError;
 use crate::result::ChangeAttributionResult;
@@ -42,6 +44,77 @@ impl ChangeOptions {
     #[must_use]
     pub const fn default_mean() -> Self {
         Self::new(DifferenceMeasure::MeanDiff, 2_000, 0)
+    }
+}
+
+/// Stream domain of the distribution-change coalition payoff.
+pub(crate) const DISTRIBUTION_STREAM: u64 = 0xDC01;
+/// Stream domain of the structure-change coalition payoff.
+pub(crate) const STRUCTURE_STREAM: u64 = 0x5C01;
+/// Stream domain of the per-unit Shapley permutation seeds.
+pub(crate) const UNIT_STREAM: u64 = 0x0117;
+
+/// Stream tag for `(domain, seed)`.
+///
+/// A SplitMix64 finalizer over the seed shifted by the domain, so streams of different
+/// domains cannot alias through overlapping `domain ^ seed` / `domain + seed` ranges (a
+/// bare XOR maps `(DC, s ^ k)` onto `(SC, s)` for the constant `k = DC ^ SC`). For a fixed
+/// domain the map is a bijection of the seed, so distinct seeds keep distinct streams.
+#[must_use]
+pub(crate) fn stream_tag(domain: u64, seed: u64) -> u64 {
+    let mut z = seed.wrapping_add(domain.wrapping_mul(0x9E37_79B9_7F4A_7C15));
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
+/// Mean and (floored) variance of the outcome under `model`, from `n_samples` ancestral
+/// draws on the `(domain, seed)` attribution stream.
+///
+/// Every coalition of a change attribution uses the same stream, so coalition values share
+/// their exogenous noise (common random numbers) and differences between coalitions are
+/// not swamped by sampling noise. `buf` is reused across calls.
+pub(crate) fn sample_outcome_law(
+    model: &CompiledCausalModel,
+    outcome: DenseNodeId,
+    n_samples: usize,
+    stream: u64,
+    ctx: &ExecutionContext,
+    ws: &mut MechanismWorkspace,
+    buf: &mut Vec<f64>,
+) -> Result<(f64, f64), AttributionError> {
+    let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, stream);
+    let n_rows = n_samples.max(1);
+    let need = n_rows.saturating_mul(model.n_nodes());
+    if buf.len() < need {
+        buf.resize(need, 0.0);
+    }
+    sample_observational_into(model, n_rows, &mut rng, ws, &mut buf[..need], ctx)?;
+    let start = outcome.as_usize() * n_rows;
+    let (mu, var) = mean_var(&buf[start..start + n_rows]);
+    Ok((mu, var.max(1e-12)))
+}
+
+/// The outcome-summary change between two observed samples under `measure`
+/// (`comparison` relative to `baseline`), on the same scale as the coalition payoff:
+/// difference of means, difference of (population) variances, or
+/// `KL(N(μ_c, σ_c²) ‖ N(μ_b, σ_b²))` with the payoff's variance floor.
+pub(crate) fn observed_change(
+    measure: DifferenceMeasure,
+    baseline: &[f64],
+    comparison: &[f64],
+) -> Result<f64, AttributionError> {
+    if baseline.is_empty() || comparison.is_empty() {
+        return Err(AttributionError::invalid_input("observed change needs non-empty populations"));
+    }
+    let (mu_b, var_b) = mean_var(baseline);
+    let (mu_c, var_c) = mean_var(comparison);
+    match measure {
+        DifferenceMeasure::MeanDiff => Ok(mu_c - mu_b),
+        DifferenceMeasure::VarianceDiff => Ok(var_c - var_b),
+        DifferenceMeasure::GaussianKl => {
+            Ok(gaussian_kl(mu_c, var_c.max(1e-12), mu_b, var_b.max(1e-12))?)
+        }
     }
 }
 
@@ -260,6 +333,7 @@ fn path_based_change_allocation<P: CoalitionPayoff>(
     Ok(ChangeAttributionResult {
         outcome,
         total_change,
+        observed_change: None,
         contributions: Arc::from(contributions),
         interactions: Arc::from([]),
         path_breakdown: Arc::from(path_breakdown),
@@ -311,6 +385,7 @@ pub(crate) fn pack_change_result(
     ChangeAttributionResult {
         outcome,
         total_change,
+        observed_change: None,
         contributions,
         interactions,
         path_breakdown,
@@ -372,6 +447,49 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err, AttributionError::UnknownPlayer);
+    }
+
+    #[test]
+    fn stream_tags_do_not_alias_across_domains_or_seeds() {
+        // A bare XOR of the domain constants maps (DISTRIBUTION, s ^ k) onto (STRUCTURE, s)
+        // for k = DC01 ^ 5C01.
+        let k = DISTRIBUTION_STREAM ^ STRUCTURE_STREAM;
+        for s in [0u64, 1, 5, 0x8000, u64::MAX] {
+            assert_ne!(
+                stream_tag(DISTRIBUTION_STREAM, s ^ k),
+                stream_tag(STRUCTURE_STREAM, s),
+                "seed {s:#x}"
+            );
+            assert_ne!(
+                stream_tag(DISTRIBUTION_STREAM, s.wrapping_add(0x8000)),
+                stream_tag(STRUCTURE_STREAM, s),
+                "seed {s:#x}"
+            );
+        }
+        // Distinct seeds within one domain stay distinct (bijection), including neighbours.
+        let tags: std::collections::HashSet<u64> =
+            (0..10_000u64).map(|s| stream_tag(UNIT_STREAM, s)).collect();
+        assert_eq!(tags.len(), 10_000);
+    }
+
+    #[test]
+    fn observed_change_matches_closed_forms() {
+        let base = [1.0, 2.0, 3.0]; // mean 2, population variance 2/3
+        let cmp = [2.0, 4.0, 6.0]; // mean 4, population variance 8/3
+        assert!(
+            (observed_change(DifferenceMeasure::MeanDiff, &base, &cmp).unwrap() - 2.0).abs()
+                < 1e-12
+        );
+        assert!(
+            (observed_change(DifferenceMeasure::VarianceDiff, &base, &cmp).unwrap() - 2.0).abs()
+                < 1e-12
+        );
+        // KL(N(4, 8/3) ‖ N(2, 2/3)) = ½ (σc²/σb² − 1 + ln(σb²/σc²) + (μc − μb)²/σb²)
+        //                          = ½ (4 − 1 + ln(1/4) + 4/(2/3)) = ½ (3 − ln 4 + 6).
+        let expected = 0.5 * (3.0 - 4.0_f64.ln() + 6.0);
+        let got = observed_change(DifferenceMeasure::GaussianKl, &base, &cmp).unwrap();
+        assert!((got - expected).abs() < 1e-12, "got={got} expected={expected}");
+        assert!(observed_change(DifferenceMeasure::MeanDiff, &[], &cmp).is_err());
     }
 
     #[test]

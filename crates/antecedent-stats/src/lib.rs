@@ -29,6 +29,7 @@ pub mod regularized;
 pub mod response;
 pub mod special;
 pub mod twosls;
+mod welford;
 
 pub use ci::{
     BayesFactorCi, CalibrationReport, CiBatchRequest, CiBatchResult, CiPreparationPlan, CiQuery,
@@ -110,3 +111,4 @@ pub use twosls::{
     FirstStageDiagnostics, TwoSlsFit, anderson_rubin_confidence_set, anderson_rubin_kf_critical,
     anderson_rubin_statistic, chi2_critical, f_critical, fit_2sls, fit_wls,
 };
+pub use welford::Welford;

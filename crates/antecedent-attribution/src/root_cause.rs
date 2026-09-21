@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use antecedent_core::{ComponentId, ExecutionContext};
 use antecedent_prob::{PosteriorDraws, WeightedGraphSamples};
+use antecedent_stats::Welford;
 
 use crate::error::AttributionError;
 use crate::result::{ChangeAttributionResult, RootCauseRank};
@@ -13,11 +14,7 @@ use crate::result::{ChangeAttributionResult, RootCauseRank};
 /// Stable weighted central moments; missing structural components are explicit
 /// zero contributions in the model-collection aggregation.
 #[derive(Default)]
-struct ContributionMoments {
-    mass: f64,
-    mean: f64,
-    m2: f64,
-}
+struct ContributionMoments(Welford);
 
 impl ContributionMoments {
     fn add(&mut self, weight: f64, value: f64) -> Result<(), AttributionError> {
@@ -27,19 +24,19 @@ impl ContributionMoments {
         if !value.is_finite() {
             return Err(AttributionError::invalid_input("contributions must be finite"));
         }
-        let total = self.mass + weight;
-        let delta = value - self.mean;
-        self.mean += (weight / total) * delta;
-        self.m2 += weight * delta * (value - self.mean);
-        self.mass = total;
+        self.0.push_weighted(weight, value);
         Ok(())
+    }
+
+    fn mass(&self) -> f64 {
+        self.0.mass()
     }
 
     fn rank(self, component: ComponentId) -> RootCauseRank {
         RootCauseRank {
             component,
-            score: self.mean.abs(),
-            graph_std: Some((self.m2 / self.mass).max(0.0).sqrt()),
+            score: self.0.mean().abs(),
+            graph_std: Some((self.0.m2() / self.0.mass()).max(0.0).sqrt()),
         }
     }
 }
@@ -132,7 +129,7 @@ pub fn aggregate_model_collection_ranks(
         // Retain the existing union-of-components convention: absent mechanisms
         // have zero contribution in that model, rather than silently changing
         // the conditioning population for each component.
-        moments.add((total - moments.mass).max(0.0), 0.0)?;
+        moments.add((total - moments.mass()).max(0.0), 0.0)?;
         ranks.push(moments.rank(component));
     }
     ranks.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
@@ -256,6 +253,7 @@ mod tests {
         ChangeAttributionResult {
             outcome: antecedent_core::VariableId::from_raw(0),
             total_change: value,
+            observed_change: None,
             contributions: Arc::from([crate::result::ComponentContribution {
                 component: ComponentId::from_raw(0),
                 contribution: value,

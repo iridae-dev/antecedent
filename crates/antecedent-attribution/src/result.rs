@@ -13,11 +13,20 @@ pub struct ComponentContribution {
     pub component: ComponentId,
     /// Point contribution (additive under Shapley; path-share under `PathBased`).
     pub contribution: f64,
-    /// Optional posterior / bootstrap standard error.
+    /// Permutation-sampling standard error of `contribution`, present only for
+    /// Monte Carlo / permutation Shapley.
+    ///
+    /// It is neither a posterior nor a bootstrap standard error: it covers the spread of the
+    /// player's marginal contribution across the sampled permutations and excludes Monte
+    /// Carlo noise inside each coalition value and any uncertainty from fitting the
+    /// mechanisms on finite populations. `None` means *not quantified* (exact Shapley,
+    /// sequential and path allocation), not zero.
     pub stderr: Option<f64>,
-    /// Optional lower CI.
+    /// Lower end of the permutation-sampling interval `contribution − t·stderr`
+    /// (Student-t, `permutations − 1` degrees of freedom). Same scope as [`Self::stderr`]:
+    /// not a confidence interval for the underlying change.
     pub ci_low: Option<f64>,
-    /// Optional upper CI.
+    /// Upper end of the permutation-sampling interval; see [`Self::ci_low`].
     pub ci_high: Option<f64>,
 }
 
@@ -72,8 +81,18 @@ pub struct CacheStats {
 pub struct ChangeAttributionResult {
     /// Outcome variable.
     pub outcome: VariableId,
-    /// Total measured change (comparison − baseline summary).
+    /// Change explained by the players: `v(all players swapped) − v(none swapped)` under
+    /// the difference measure, i.e. the quantity the contributions sum to under Shapley.
+    ///
+    /// For mechanism attribution every ancestor mechanism is a player, so this is the
+    /// model-implied comparison − baseline change. For structure attribution only nodes
+    /// whose parent sets differ are players; the rest keep their baseline fit, so this
+    /// excludes any change outside the players — compare with [`Self::observed_change`].
     pub total_change: f64,
+    /// Change of the outcome summary measured directly on the two populations
+    /// (comparison vs baseline, same difference measure), when the attribution path
+    /// measures it. `None` where the players already span every ancestor mechanism.
+    pub observed_change: Option<f64>,
     /// Per-component contributions (sum ≈ total under Shapley).
     pub contributions: Arc<[ComponentContribution]>,
     /// Explicit interaction terms when sequential / nonadditive.
@@ -86,9 +105,10 @@ pub struct ChangeAttributionResult {
     pub graph_sensitivity: Option<Arc<[f64]>>,
     /// Compute budget report.
     pub budget: ComputeBudget,
-    /// Monte Carlo standard error of the contribution vector (mean over components), if approx.
+    /// Mean over components of the permutation-sampling standard error, if approximate
+    /// (scope as in [`ComponentContribution::stderr`]).
     pub monte_carlo_stderr: Option<f64>,
-    /// Per-component MC stderr when available.
+    /// Per-component permutation-sampling stderr when available.
     pub component_mc_stderr: Option<Arc<[f64]>>,
     /// Coalition cache statistics.
     pub cache_stats: CacheStats,
@@ -99,6 +119,13 @@ impl ChangeAttributionResult {
     #[must_use]
     pub fn contribution_sum(&self) -> f64 {
         self.contributions.iter().map(|c| c.contribution).sum()
+    }
+
+    /// Part of the directly observed change that no player accounts for:
+    /// `observed_change − Σ contributions`. `None` when no observed change was measured.
+    #[must_use]
+    pub fn unexplained_change(&self) -> Option<f64> {
+        self.observed_change.map(|observed| observed - self.contribution_sum())
     }
 }
 
@@ -140,8 +167,13 @@ pub struct UnitChangeResult {
     pub mean_contributions: Arc<[f64]>,
     /// Budget / cache metadata.
     pub budget: ComputeBudget,
-    /// Monte Carlo stderr of mean contributions (if approx).
+    /// Mean over components of [`Self::component_mc_stderr`] (if approx).
     pub monte_carlo_stderr: Option<f64>,
+    /// Permutation-sampling standard error of each component's mean contribution
+    /// (aligned with [`Self::components`]) when approximate. Each unit runs its own
+    /// permutation stream, so unit estimates are independent and the standard error of
+    /// the mean is `√(Σ_u se_u²) / n_units`.
+    pub component_mc_stderr: Option<Arc<[f64]>>,
     /// Cache stats.
     pub cache_stats: CacheStats,
 }

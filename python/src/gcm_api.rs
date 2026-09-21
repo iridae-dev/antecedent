@@ -138,6 +138,7 @@ pub(crate) fn synthetic_change_result(
     let rust = RustChangeAttributionResult {
         outcome,
         total_change,
+        observed_change: None,
         contributions: Arc::from(contributions_rust),
         interactions: Arc::from([]),
         path_breakdown: Arc::from([]),

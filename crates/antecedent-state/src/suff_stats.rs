@@ -45,9 +45,13 @@ impl LinearOlsSuffStats {
 
     /// Append one design row and response.
     ///
+    /// The row is validated before anything is touched: a rejected row leaves the statistics
+    /// exactly as they were, so a single bad observation cannot poison the accumulated
+    /// Gram, the Welford scatter and the count out of step with each other.
+    ///
     /// # Errors
     ///
-    /// Row length mismatch.
+    /// Row length mismatch, or a non-finite entry in the row or the response.
     pub fn append_row(&mut self, row: &[f64], y: f64) -> Result<(), StateError> {
         if row.len() != self.ncols {
             return Err(StateError::Shape(format!(
@@ -56,14 +60,16 @@ impl LinearOlsSuffStats {
                 self.ncols
             )));
         }
-        accumulate_xtx_xty_row(row, y, &mut self.xtx, &mut self.xty);
-        self.yty += y * y;
+        if !y.is_finite() || row.iter().any(|v| !v.is_finite()) {
+            return Err(StateError::Numerical("design row and response must be finite".into()));
+        }
         let mut joint_row = Vec::with_capacity(self.ncols.saturating_add(1));
         joint_row.extend_from_slice(row);
         joint_row.push(y);
-        if self.joint.append(&joint_row).is_err() {
-            // Keep raw grams; residual_variance refuses when counts diverge.
-        }
+        // Fallible step first (count overflow); everything after it cannot fail.
+        self.joint.append(&joint_row)?;
+        accumulate_xtx_xty_row(row, y, &mut self.xtx, &mut self.xty);
+        self.yty += y * y;
         self.n = self.n.saturating_add(1);
         Ok(())
     }
@@ -115,7 +121,14 @@ impl LinearOlsSuffStats {
 
     /// Residual variance estimate `σ² = SSE / (n − p)` when `n > p`.
     ///
-    /// SSE is the Welford scatter of `y − Xβ`, not `yty − βᵀXᵀy`.
+    /// `SSE = Σ (y − xᵀβ)²` for *any* `β` and any design (with or without a constant
+    /// column). It is assembled from the mean-centred Welford scatter, which is stable under
+    /// a large common offset but only equals `SSE` when the residuals average to zero:
+    /// `Σ r² = Σ (r − r̄)² + n r̄²` with `r̄ = ȳ − x̄ᵀβ`. For OLS on a design containing an
+    /// intercept `r̄ = 0` and the second term vanishes; through-origin designs and
+    /// externally supplied coefficients need it. `r̄` is taken as zero when it is below the
+    /// round-off of its own evaluation, so a huge offset does not turn rounding noise into
+    /// variance.
     #[must_use]
     pub fn residual_variance(&self, beta: &[f64]) -> Option<f64> {
         if beta.len() != self.ncols || self.n as usize <= self.ncols {
@@ -139,6 +152,18 @@ impl LinearOlsSuffStats {
         sse = sse - 2.0 * bsy + bsb;
         if !sse.is_finite() {
             return None;
+        }
+        // Mean residual r̄ = ȳ − x̄ᵀβ and the magnitude of the terms it is a difference of.
+        let means = &self.joint.mean;
+        let mut r_bar = means[p];
+        let mut r_scale = means[p].abs();
+        for i in 0..p {
+            let term = beta[i] * means[i];
+            r_bar -= term;
+            r_scale += term.abs();
+        }
+        if r_bar.abs() > 8.0 * f64::EPSILON * r_scale {
+            sse += self.n as f64 * r_bar * r_bar;
         }
         if sse < 0.0 {
             let scale = s[p * dim + p].abs().max(1.0);
@@ -268,6 +293,82 @@ mod tests {
         stats.append(&[3.0, 4.0]).unwrap();
         let covariance = stats.sample_covariance().unwrap();
         assert!(covariance.iter().all(|value| (*value - 2.0).abs() < 1e-12));
+    }
+
+    /// Brute-force `Σ (y − xᵀβ)² / (n − p)`, independent of the accumulated scatter.
+    fn brute_force_sigma2(rows: &[f64], y: &[f64], p: usize, beta: &[f64]) -> f64 {
+        let n = y.len();
+        let sse: f64 = (0..n)
+            .map(|i| {
+                let pred: f64 = (0..p).map(|j| rows[i * p + j] * beta[j]).sum();
+                (y[i] - pred) * (y[i] - pred)
+            })
+            .sum();
+        sse / (n - p) as f64
+    }
+
+    /// Through-origin fit (no constant column): the residuals do not average to zero, so the
+    /// centred scatter alone understates σ². x = [1,2,3], y = [11,12,13]: β = 74/14,
+    /// Σr² = 300/7, σ² = 150/7 (the centred scatter gives 36.7/2 = 18.4).
+    #[test]
+    fn residual_variance_is_exact_without_an_intercept_column() {
+        let rows = [1.0, 2.0, 3.0];
+        let y = [11.0, 12.0, 13.0];
+        let mut stats = LinearOlsSuffStats::new(1);
+        stats.append_batch(&rows, &y).unwrap();
+        let beta = stats.solve_beta().unwrap();
+        assert!((beta[0] - 74.0 / 14.0).abs() < 1e-12);
+        let var = stats.residual_variance(&beta).expect("variance");
+        assert!((var - 150.0 / 7.0).abs() < 1e-10, "got {var}");
+        assert!((var - brute_force_sigma2(&rows, &y, 1, &beta)).abs() < 1e-10);
+
+        // x = [1,2,3], y = [2,3,5]: β = 23/14, Σr² = 38 − 23²/14 = 3/14, σ² = 3/28.
+        let y2 = [2.0, 3.0, 5.0];
+        let mut s2 = LinearOlsSuffStats::new(1);
+        s2.append_batch(&rows, &y2).unwrap();
+        let b2 = s2.solve_beta().unwrap();
+        let v2 = s2.residual_variance(&b2).expect("variance");
+        assert!((v2 - 3.0 / 28.0).abs() < 1e-12, "got {v2}");
+    }
+
+    /// An externally supplied β that is not the OLS solution: y = 1 + 2x fitted exactly by
+    /// (1, 2); the wrong intercept (0, 2) leaves a constant residual 1, so Σr² = 4 and
+    /// σ² = 4 / (4 − 2) = 2. A centred scatter sees a constant and reports 0.
+    #[test]
+    fn residual_variance_is_exact_for_a_non_ols_beta() {
+        let rows = [1.0, 0.0, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0];
+        let y = [1.0, 3.0, 5.0, 7.0];
+        let mut stats = LinearOlsSuffStats::new(2);
+        stats.append_batch(&rows, &y).unwrap();
+        let wrong = [0.0, 2.0];
+        let var = stats.residual_variance(&wrong).expect("variance");
+        assert!((var - 2.0).abs() < 1e-12, "got {var}");
+        assert!((var - brute_force_sigma2(&rows, &y, 2, &wrong)).abs() < 1e-12);
+        // The true OLS β still gives (numerically) zero residual variance.
+        let ols = stats.solve_beta().unwrap();
+        assert!(stats.residual_variance(&ols).expect("variance").abs() < 1e-12);
+    }
+
+    /// A non-finite row is refused before any state changes; later valid rows still
+    /// accumulate exactly as if the bad row had never been offered.
+    #[test]
+    fn nonfinite_row_is_rejected_atomically() {
+        let mut stats = LinearOlsSuffStats::new(2);
+        stats.append_row(&[1.0, 0.0], 1.0).unwrap();
+        stats.append_row(&[1.0, 1.0], 3.0).unwrap();
+        let before = stats.clone();
+        assert!(stats.append_row(&[1.0, f64::NAN], 2.0).is_err());
+        assert!(stats.append_row(&[1.0, 2.0], f64::INFINITY).is_err());
+        assert_eq!(stats, before);
+
+        let mut clean = LinearOlsSuffStats::new(2);
+        clean.append_row(&[1.0, 0.0], 1.0).unwrap();
+        clean.append_row(&[1.0, 1.0], 3.0).unwrap();
+        stats.append_row(&[1.0, 2.0], 5.0).unwrap();
+        clean.append_row(&[1.0, 2.0], 5.0).unwrap();
+        assert_eq!(stats, clean);
+        let beta = stats.solve_beta().unwrap();
+        assert!((beta[0] - 1.0).abs() < 1e-10 && (beta[1] - 2.0).abs() < 1e-10);
     }
 
     #[test]

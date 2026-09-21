@@ -5,6 +5,14 @@
 //! graphs swap comparison parent sets for coalition members; mechanisms are
 //! re-fit under each hybrid (population-owned data for the parent-set owner).
 //!
+//! A *structure player* is therefore "the node's parent set **and** its mechanism refit on
+//! the comparison population": parameter drift on parents the node kept is reported as that
+//! node's contribution. Nodes whose parent sets agree are never players and keep their
+//! baseline fit, so [`ChangeAttributionResult::total_change`] is the change explained by
+//! the players; the change measured directly on the two populations is reported separately
+//! as [`ChangeAttributionResult::observed_change`], with
+//! [`ChangeAttributionResult::unexplained_change`] as the remainder.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashMap;
@@ -12,17 +20,19 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AllocationMethod, AttributionComponents, ChangeAttributionQuery, ComponentId, ExecutionContext,
-    ShapleyConfig, StreamDomain, VariableId,
+    ShapleyConfig, VariableId,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{BitSet, Dag, DenseNodeId, GraphWorkspace};
 use antecedent_model::{
     CompiledCausalModel, CompiledMechanismStore, MechanismRegistry, MechanismSlot,
-    MechanismWorkspace, SelectionPolicy, sample_observational_into,
+    MechanismWorkspace, SelectionPolicy,
 };
-use antecedent_stats::mean_var;
 
-use crate::change_common::{ChangeOptions, run_change_allocation, total_change};
+use crate::change_common::{
+    ChangeOptions, STRUCTURE_STREAM, observed_change, run_change_allocation, sample_outcome_law,
+    stream_tag, total_change,
+};
 use crate::coalition::full_coalition_mask;
 use crate::distribution_change::DifferenceMeasure;
 use crate::error::AttributionError;
@@ -55,7 +65,11 @@ impl Default for StructureChangeOptions {
 /// `baseline_model` and `comparison_model` must share the same variable layout.
 /// Only nodes whose parent sets differ and that are ancestors of the outcome
 /// (in either graph) are Shapley players; other structural diffs are reported
-/// in [`ChangeAttributionResult::unidentified`].
+/// in [`ChangeAttributionResult::unidentified`]. A player swaps both its parent set and
+/// its comparison-fitted mechanism. [`ChangeAttributionResult::total_change`] is the change
+/// those players explain; [`ChangeAttributionResult::observed_change`] is the change measured
+/// on the two populations, so any change outside the players shows up as
+/// [`ChangeAttributionResult::unexplained_change`].
 ///
 /// # Errors
 ///
@@ -104,6 +118,17 @@ pub fn structure_change(
             DenseNodeId::from_raw(idx as u32)
         })
         .collect();
+    let mut player_of_node: Vec<Option<usize>> = vec![None; baseline_model.n_nodes()];
+    for (pi, node) in player_nodes.iter().enumerate() {
+        player_of_node[node.as_usize()] = Some(pi);
+    }
+
+    // The change actually present in the data, independent of which nodes are players.
+    let observed = observed_change(
+        options.measure,
+        &baseline_data.float64_values(query.outcome)?,
+        &comparison_data.float64_values(query.outcome)?,
+    )?;
 
     let mut payoff = StructureSwapPayoff {
         baseline_graph: Arc::clone(&baseline_model.graph),
@@ -112,6 +137,7 @@ pub fn structure_change(
         comparison_data,
         players: players.clone(),
         player_nodes,
+        player_of_node,
         outcome: outcome_dense,
         measure: options.measure,
         n_samples: options.n_samples,
@@ -122,6 +148,7 @@ pub fn structure_change(
         baseline_law: None,
         fits: None,
         compiled_cache: HashMap::new(),
+        hybrid_cache: HashMap::new(),
     };
 
     let v0 = payoff.value(0)?;
@@ -129,7 +156,7 @@ pub fn structure_change(
     let v_full = payoff.value(full_mask)?;
     let total = total_change(options.measure, v0, v_full);
 
-    run_change_allocation(
+    let mut result = run_change_allocation(
         query.outcome,
         &players,
         &query.allocation,
@@ -138,7 +165,9 @@ pub fn structure_change(
         Arc::from(unidentified),
         ctx,
         Some(baseline_model),
-    )
+    )?;
+    result.observed_change = Some(observed);
+    Ok(result)
 }
 
 /// Convenience: Shapley Monte Carlo structure-change with defaults.
@@ -252,12 +281,14 @@ pub(crate) fn hybrid_structure_dag(
     }
     let n_u32 = u32::try_from(n).map_err(|_| AttributionError::invalid_input("too many nodes"))?;
     let mut g = Dag::with_variables(n_u32);
+    // Player index by node, so choosing each node's parent source is O(1).
+    let mut player_of_node: Vec<Option<usize>> = vec![None; n];
+    for (pi, p) in player_nodes.iter().enumerate() {
+        player_of_node[p.as_usize()] = Some(pi);
+    }
     for i in 0..n {
         let child = DenseNodeId::from_raw(i as u32);
-        let use_comparison = player_nodes
-            .iter()
-            .enumerate()
-            .any(|(pi, &p)| p == child && (mask & (1u64 << pi)) != 0);
+        let use_comparison = player_of_node[i].is_some_and(|pi| mask & (1u64 << pi) != 0);
         let parents =
             if use_comparison { comparison.parents(child) } else { baseline.parents(child) };
         for &p in parents {
@@ -307,6 +338,8 @@ struct StructureSwapPayoff<'a> {
     players: Vec<ComponentId>,
     /// Dense node per player (aligned with `players`), hoisted at construction.
     player_nodes: Vec<DenseNodeId>,
+    /// Player index of each dense node (`None` for non-players).
+    player_of_node: Vec<Option<usize>>,
     outcome: DenseNodeId,
     measure: DifferenceMeasure,
     n_samples: usize,
@@ -320,6 +353,9 @@ struct StructureSwapPayoff<'a> {
     fits: Option<StructureFits>,
     /// Memoized compiled hybrid graphs keyed by coalition mask.
     compiled_cache: HashMap<u64, CompiledCausalModel>,
+    /// Memoized full hybrid models (graph + composed mechanisms) keyed by coalition mask,
+    /// so a repeated mask samples straight from the cached model without cloning it.
+    hybrid_cache: HashMap<u64, CompiledCausalModel>,
 }
 
 impl crate::change_common::CachedOutcomeLawPayoff for StructureSwapPayoff<'_> {
@@ -397,48 +433,40 @@ impl StructureSwapPayoff<'_> {
         Ok(())
     }
 
-    fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
+    /// Hybrid model for `mask`: the compiled hybrid graph with comparison-fitted slots for
+    /// set player bits and baseline-fitted slots everywhere else. This matches the old
+    /// `hybrid_mechanisms(base_store, cmp_store, ..)` output exactly (see the
+    /// [`StructureFits`] docs for why the per-node fits agree). Built once per mask.
+    fn build_hybrid(&mut self, mask: u64) -> Result<CompiledCausalModel, AttributionError> {
         self.ensure_fits()?;
         let compiled = self.compiled_for(mask)?;
         let fits = self.fits.as_ref().expect("fits ensured above");
+        let slots: Vec<MechanismSlot> = (0..compiled.n_nodes())
+            .map(|i| {
+                let use_comparison =
+                    self.player_of_node[i].is_some_and(|pi| mask & (1u64 << pi) != 0);
+                let store = if use_comparison { &fits.comparison } else { &fits.baseline };
+                store.slots[i].clone()
+            })
+            .collect();
+        Ok(compiled.with_mechanisms(CompiledMechanismStore { slots: Arc::from(slots) }))
+    }
 
-        // Compose the hybrid store from the two memoized fits: comparison-fitted
-        // slots for set player bits, baseline-fitted slots everywhere else. This
-        // matches the old `hybrid_mechanisms(base_store, cmp_store, ..)` output
-        // exactly (see the `StructureFits` docs for why the per-node fits agree).
-        let n = compiled.n_nodes();
-        let mut slots: Vec<MechanismSlot> = Vec::with_capacity(n);
-        for i in 0..n {
-            let node = DenseNodeId::from_raw(i as u32);
-            let use_comparison = self
-                .player_nodes
-                .iter()
-                .enumerate()
-                .any(|(pi, &p)| p == node && (mask & (1u64 << pi)) != 0);
-            let store = if use_comparison { &fits.comparison } else { &fits.baseline };
-            slots.push(store.slots[i].clone());
+    fn sample_outcome_law(&mut self, mask: u64) -> Result<(f64, f64), AttributionError> {
+        if !self.hybrid_cache.contains_key(&mask) {
+            let model = self.build_hybrid(mask)?;
+            self.hybrid_cache.insert(mask, model);
         }
-        let model = compiled.with_mechanisms(CompiledMechanismStore { slots: Arc::from(slots) });
-
-        let mut rng = self.ctx.rng.stream_for(StreamDomain::Attribution, 0x5C01_u64 ^ self.seed);
-        let n_rows = self.n_samples.max(1);
-        let n_nodes = model.n_nodes();
-        let need = n_rows.saturating_mul(n_nodes);
-        if self.values_buf.len() < need {
-            self.values_buf.resize(need, 0.0);
-        }
-        sample_observational_into(
-            &model,
-            n_rows,
-            &mut rng,
-            &mut self.ws,
-            &mut self.values_buf[..need],
+        let model = &self.hybrid_cache[&mask];
+        sample_outcome_law(
+            model,
+            self.outcome,
+            self.n_samples,
+            stream_tag(STRUCTURE_STREAM, self.seed),
             self.ctx,
-        )?;
-        let start = self.outcome.as_usize() * n_rows;
-        let col = &self.values_buf[start..start + n_rows];
-        let (mu, var) = mean_var(col);
-        Ok((mu, var.max(1e-12)))
+            &mut self.ws,
+            &mut self.values_buf,
+        )
     }
 }
 
@@ -447,16 +475,25 @@ mod tests {
     use super::*;
     use antecedent_core::{
         CachePolicy, CausalSchemaBuilder, MeasurementSpec, PopulationSelector, RoleHint,
-        SmallRoleSet, ToleranceClass, ValueType,
+        SmallRoleSet, StreamDomain, ValueType,
     };
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
     use antecedent_graph::DenseNodeId;
     use antecedent_model::sample_observational;
+    use antecedent_stats::mean_var;
     use serde::Deserialize;
 
     /// Baseline X→Y vs comparison Z→Y; Y intercept/slope differ across periods.
     fn parent_swap_fixture() -> (CompiledCausalModel, CompiledCausalModel, TabularData) {
+        parent_swap_fixture_with_z_shift(0.0)
+    }
+
+    /// As [`parent_swap_fixture`], with Z's *own* law shifted by `z_shift` in the comparison
+    /// period. Z is a root in both graphs, so its shift is not a structure change.
+    fn parent_swap_fixture_with_z_shift(
+        z_shift: f64,
+    ) -> (CompiledCausalModel, CompiledCausalModel, TabularData) {
         let n = 80usize;
         let mut b = CausalSchemaBuilder::new();
         for (name, role) in
@@ -478,7 +515,7 @@ mod tests {
         let mut yv = Vec::with_capacity(n);
         for i in 0..n {
             let x = (i % 40) as f64 * 0.1;
-            let z = ((i + 7) % 40) as f64 * 0.1;
+            let z = ((i + 7) % 40) as f64 * 0.1 + if i < 40 { 0.0 } else { z_shift };
             xv.push(x);
             zv.push(z);
             if i < 40 {
@@ -560,14 +597,53 @@ mod tests {
             .find(|c| c.component.variable() == VariableId::from_raw(2))
             .expect("y player");
         assert_eq!(result.contributions.len(), expected.changed_players.len());
+        // One player, exact Shapley: φ_y = v({y}) − v(∅) = v(all) − v(∅) = total_change, the
+        // same two deterministic coalition values, so no Monte Carlo slack applies.
         assert!(
-            (y.contribution - result.total_change).abs() < fixture.comparison.absolute_tolerance
-                || ToleranceClass::MonteCarlo.close(y.contribution, result.total_change),
+            (y.contribution - result.total_change).abs() < fixture.comparison.absolute_tolerance,
             "y={} total={}",
             y.contribution,
             result.total_change
         );
         assert_eq!(result.unidentified.len(), expected.unidentified.len());
+        // Every ancestor differing between periods is a player here, so the players' change
+        // is (up to Monte Carlo) the observed change. Independent truth from the fixture:
+        // both periods see every 0.1-grid value 0..3.9 once, so E[x] = E[z] = 1.95 and the
+        // outcome means are 1 + 2·1.95 = 4.9 and 8 + 3·1.95 = 13.85.
+        let observed = result.observed_change.expect("structure change measures the observed Δ");
+        assert!((observed - (13.85 - 4.9)).abs() < 1e-9, "observed={observed}");
+        let unexplained = result.unexplained_change().expect("unexplained");
+        assert!((unexplained - (observed - result.contribution_sum())).abs() < 1e-12);
+        assert!(unexplained.abs() < 1.0, "unexplained={unexplained}");
+    }
+
+    /// A shift in Z's own law is not a structure change, so no player carries it: the
+    /// players' `total_change` stays ≈ 13.85 − 4.9 while the observed change is
+    /// (8 + 3·11.95) − 4.9 = 38.95, leaving ≈ 30 = 3 · 10 unexplained instead of silently
+    /// absent.
+    #[test]
+    fn change_outside_the_players_is_reported_as_unexplained() {
+        let (baseline, comparison, data) = parent_swap_fixture_with_z_shift(10.0);
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(2),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_components(AttributionComponents::Structure)
+        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.cache_policy = CachePolicy::enabled(Some(1_000_000));
+        let opts = StructureChangeOptions {
+            measure: DifferenceMeasure::MeanDiff,
+            n_samples: 2_000,
+            seed: 5,
+        };
+        let result = structure_change(&baseline, &comparison, &data, &query, &opts, &ctx).unwrap();
+        let observed = result.observed_change.expect("observed");
+        assert!((observed - 38.95).abs() < 1e-9, "observed={observed}");
+        assert!((result.total_change - 8.95).abs() < 1.0, "total={}", result.total_change);
+        let unexplained = result.unexplained_change().expect("unexplained");
+        assert!((unexplained - 30.0).abs() < 1.5, "unexplained={unexplained}");
     }
 
     /// Pins the memoization refactor: for every coalition mask, the payoff's
@@ -669,6 +745,7 @@ mod tests {
             comparison_data: comparison_data.clone(),
             players,
             player_nodes: player_nodes.clone(),
+            player_of_node: vec![None, None, Some(0), Some(1)],
             outcome: y,
             measure: DifferenceMeasure::MeanDiff,
             n_samples,
@@ -679,6 +756,7 @@ mod tests {
             baseline_law: None,
             fits: None,
             compiled_cache: HashMap::new(),
+            hybrid_cache: HashMap::new(),
         };
 
         for mask in 0..4u64 {
@@ -701,7 +779,8 @@ mod tests {
             }
             let model =
                 compiled.with_mechanisms(CompiledMechanismStore { slots: Arc::from(slots) });
-            let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0x5C01_u64 ^ seed);
+            let mut rng =
+                ctx.rng.stream_for(StreamDomain::Attribution, stream_tag(STRUCTURE_STREAM, seed));
             let mut ws = MechanismWorkspace::default();
             let batch = sample_observational(&model, n_samples, &mut rng, &mut ws, &ctx).unwrap();
             let (mu_ref, var_ref) = mean_var(batch.column(y.as_usize()).unwrap());

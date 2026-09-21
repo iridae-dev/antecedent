@@ -19,7 +19,7 @@ use antecedent_core::{
 };
 use antecedent_kernels::sample_categorical;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
-use antecedent_stats::invert_square;
+use antecedent_stats::{Welford, invert_square, normal_ppf};
 
 use crate::candidate::{CandidateDesign, DesignCost};
 use crate::decision::DecisionProblem;
@@ -44,7 +44,9 @@ pub struct DesignRankConfig {
     pub min_batches: u32,
     /// Maximum MC batches (each batch evaluates all active candidates once under shared CRN).
     pub max_batches: u32,
-    /// Stop when max pairwise rank CI half-width among top-k is below this.
+    /// Stop when the sequentially adjusted CI half-width of every top-3 adjacent pair
+    /// difference is below this, or when that pair is separated by more than its
+    /// adjusted half-width.
     pub rank_uncertainty_threshold: f64,
     /// Batch size (independent CRN replicates per adaptive step).
     pub batch_size: u32,
@@ -53,6 +55,30 @@ pub struct DesignRankConfig {
 impl Default for DesignRankConfig {
     fn default() -> Self {
         Self { min_batches: 4, max_batches: 64, rank_uncertainty_threshold: 0.05, batch_size: 8 }
+    }
+}
+
+impl DesignRankConfig {
+    /// Batch counts at which the stopping rule is evaluated: every batch from
+    /// `min_batches` through `max_batches`.
+    fn n_looks(&self) -> u32 {
+        let min = self.min_batches.max(1);
+        let max = self.max_batches.max(min);
+        max - min + 1
+    }
+
+    /// Two-sided critical value used at every look, for both the early-stop test and the
+    /// reported `rank_uncertain` flag.
+    ///
+    /// Testing `gap ≥ 1.96·se` after every batch and stopping at the first success is
+    /// optional stopping: with dozens of looks the chance that a truly tied pair ever
+    /// crosses 1.96 is several times the nominal 5 %. Splitting the 5 % error budget
+    /// evenly across the looks (Bonferroni, valid for any dependence between looks)
+    /// gives `z = Φ⁻¹(1 − 0.025 / looks)`, which is `1.96` for a single look and ≈ 3.35
+    /// for the default 61. The same constant labels the final ranking, so a pair
+    /// published as separated is separated at the adjusted level.
+    fn critical_value(&self) -> f64 {
+        normal_ppf(1.0 - 0.025 / f64::from(self.n_looks()))
     }
 }
 
@@ -211,6 +237,7 @@ impl DesignRanker {
         O: Clone,
     {
         self.validate_rank_inputs(candidates, ctx_eval)?;
+        validate_objective_context(objective, ctx_eval)?;
         let analysis = prepare_decision(objective, ctx_eval)?;
 
         let (violations, active) = self.filter_active_candidates(candidates, analysis.as_ref());
@@ -226,19 +253,20 @@ impl DesignRanker {
             })
             .collect();
 
-        let (sums, sumsq, n_samples, budget, early_stopped) = self.run_mc_scoring_loop(
+        let z = self.config.critical_value();
+        let (draws, n_samples, budget, early_stopped) = self.run_mc_scoring_loop(
             objective,
             candidates,
             ctx_eval,
             ctx,
             &active,
             decision.as_ref(),
+            z,
         )?;
 
         Ok(Self::assemble_ranking(
             &active,
-            &sums,
-            &sumsq,
+            &draws,
             &evaluations,
             n_samples,
             candidates,
@@ -246,6 +274,7 @@ impl DesignRanker {
             budget,
             early_stopped,
             objective.implemented_functional(),
+            z,
         ))
     }
 
@@ -290,8 +319,10 @@ impl DesignRanker {
     }
 
     /// Adaptive batched Monte Carlo scoring loop with shared CRN draws across active
-    /// candidates. Returns per-candidate `(sums, sumsq)` accumulators alongside the
-    /// realized sample count / budget / early-stop flag.
+    /// candidates. Returns every candidate's per-draw scores (draw `i` is the same graph /
+    /// decision replicate for all candidates, so pairwise differences are paired) alongside
+    /// the realized sample count / budget / early-stop flag.
+    #[allow(clippy::too_many_arguments)]
     fn run_mc_scoring_loop<A, O>(
         &self,
         objective: &DesignObjective,
@@ -300,17 +331,19 @@ impl DesignRanker {
         ctx: &ExecutionContext,
         active: &[usize],
         decision: Option<&DecisionScoring<'_, O>>,
-    ) -> Result<(Vec<f64>, Vec<f64>, u64, MonteCarloBudget, bool), DesignError>
+        z: f64,
+    ) -> Result<(Vec<Vec<f64>>, u64, MonteCarloBudget, bool), DesignError>
     where
         A: Clone,
         O: Clone,
     {
-        let mut sums = vec![0.0; active.len()];
-        let mut sumsq = vec![0.0; active.len()];
+        let mut draws: Vec<Vec<f64>> = vec![Vec::new(); active.len()];
         let mut n_samples: u64 = 0;
         let mut budget = MonteCarloBudget::default();
         let mut early_stopped = false;
         let mut rng = ctx.rng.stream_for(StreamDomain::Design, 0xD351_0611);
+        // Per-ranking constants of the scoring channels, built once rather than per draw.
+        let channels = ScoringChannels::new(objective, ctx_eval);
 
         let min_batches = self.config.min_batches.max(1);
         let max_batches = self.config.max_batches.max(min_batches);
@@ -330,45 +363,41 @@ impl DesignRanker {
                             objective,
                             &candidates[cand_i],
                             ctx_eval,
+                            &channels,
                             g_idx,
                             &mut rng,
                         )?,
                     };
-                    sums[slot] += score;
-                    sumsq[slot] += score * score;
+                    draws[slot].push(score);
                     budget.evaluations += 1;
                 }
                 n_samples += 1;
                 budget.samples = n_samples;
             }
 
-            if batch_i + 1 >= min_batches {
-                let stderrs: Vec<f64> =
-                    (0..active.len()).map(|s| mc_stderr(sums[s], sumsq[s], n_samples)).collect();
-                if rank_uncertainty_ok(
-                    &sums,
-                    &stderrs,
-                    n_samples,
-                    self.config.rank_uncertainty_threshold,
-                ) {
-                    early_stopped = true;
-                    break;
-                }
+            if batch_i + 1 >= min_batches
+                && rank_uncertainty_ok(&draws, z, self.config.rank_uncertainty_threshold)
+            {
+                early_stopped = true;
+                break;
             }
             if ctx.cancellation.is_cancelled() {
                 break;
             }
         }
 
-        Ok((sums, sumsq, n_samples, budget, early_stopped))
+        Ok((draws, n_samples, budget, early_stopped))
     }
 
-    /// Turn per-candidate MC accumulators into a sorted, CI-annotated [`DesignRanking`].
+    /// Turn per-candidate draws into a sorted, CI-annotated [`DesignRanking`].
+    ///
+    /// `rank_uncertain` compares each candidate with the next-ranked one through the
+    /// *paired* difference of their draws (shared-CRN replicates) at the sequentially
+    /// adjusted critical value `z`; a gap of exactly zero is a tie and is always uncertain.
     #[allow(clippy::too_many_arguments)]
     fn assemble_ranking(
         active: &[usize],
-        sums: &[f64],
-        sumsq: &[f64],
+        draws: &[Vec<f64>],
         evaluations: &[ScoreEvaluation],
         n_samples: u64,
         candidates: &[CandidateDesign],
@@ -376,18 +405,22 @@ impl DesignRanker {
         budget: MonteCarloBudget,
         early_stopped: bool,
         implemented_functional: &'static str,
+        z: f64,
     ) -> DesignRanking {
-        let mut scored: Vec<(usize, f64, MonteCarloError, ScoreEvaluation)> = active
+        // (candidate index, mean, error, evaluation, slot)
+        let mut scored: Vec<(usize, f64, MonteCarloError, ScoreEvaluation, usize)> = active
             .iter()
             .enumerate()
             .map(|(slot, &cand_i)| {
-                let mean = if n_samples > 0 { sums[slot] / n_samples as f64 } else { 0.0 };
+                let mut acc = Welford::new();
+                draws[slot].iter().for_each(|&x| acc.push(x));
+                let mean = if n_samples > 0 { acc.mean() } else { 0.0 };
                 let stderr = match evaluations[slot] {
                     ScoreEvaluation::Exact => 0.0,
-                    ScoreEvaluation::MonteCarlo => mc_stderr(sums[slot], sumsq[slot], n_samples),
+                    ScoreEvaluation::MonteCarlo => acc.stderr_of_mean(),
                 };
                 let err = MonteCarloError { stderr, samples: n_samples };
-                (cand_i, mean, err, evaluations[slot])
+                (cand_i, mean, err, evaluations[slot], slot)
             })
             .collect();
 
@@ -396,14 +429,16 @@ impl DesignRanker {
         });
 
         let mut ranked = Vec::with_capacity(scored.len());
-        for (rank, (cand_i, score, mc, evaluation)) in scored.iter().enumerate() {
-            let uncertain = if rank + 1 < scored.len() {
-                let gap = (score - scored[rank + 1].1).abs();
-                let se = (mc.stderr.powi(2) + scored[rank + 1].2.stderr.powi(2)).sqrt();
-                gap < 1.96 * se
-            } else {
-                false
-            };
+        for (rank, (cand_i, score, mc, evaluation, slot)) in scored.iter().enumerate() {
+            let uncertain = scored.get(rank + 1).is_some_and(|next| {
+                let exact_pair = matches!(
+                    (evaluation, next.3),
+                    (ScoreEvaluation::Exact, ScoreEvaluation::Exact)
+                );
+                let (gap, se) = paired_difference(&draws[*slot], &draws[next.4]);
+                let se = if exact_pair { 0.0 } else { se };
+                gap.abs() <= z * se
+            });
             ranked.push(RankedCandidate {
                 candidate_index: *cand_i,
                 candidate: candidates[*cand_i].clone(),
@@ -450,38 +485,45 @@ impl DesignRanker {
     }
 }
 
-fn mc_stderr(sum: f64, sumsq: f64, n: u64) -> f64 {
-    if n < 2 {
-        return f64::INFINITY;
+/// Mean and standard error of the paired difference `a_i − b_i` (Welford, so the
+/// error does not degrade when the scores are large relative to their spread).
+fn paired_difference(a: &[f64], b: &[f64]) -> (f64, f64) {
+    let mut acc = Welford::new();
+    for (x, y) in a.iter().zip(b) {
+        acc.push(x - y);
     }
-    let nf = n as f64;
-    let mean = sum / nf;
-    let var = (sumsq / nf - mean * mean).max(0.0) * nf / (nf - 1.0);
-    (var / nf).sqrt()
+    (acc.mean(), acc.stderr_of_mean())
 }
 
-fn rank_uncertainty_ok(sums: &[f64], stderrs: &[f64], n: u64, threshold: f64) -> bool {
-    if sums.len() < 2 || n == 0 {
+/// Sequential stopping test on the current per-candidate draws.
+///
+/// The top three candidates by mean are compared pairwise-adjacent, each through the
+/// standard error of its paired difference. Early stopping is acceptable for a pair when
+/// its half-width `z·se` is already within `threshold`, or when the pair is separated by
+/// more than `z·se`; a tie whose half-width is still above the threshold is unresolved.
+/// `z` must be the look-adjusted critical value (see `DesignRankConfig::critical_value`),
+/// never the fixed-sample 1.96, because this test is repeated after every batch.
+fn rank_uncertainty_ok(draws: &[Vec<f64>], z: f64, threshold: f64) -> bool {
+    let n = draws.first().map_or(0, Vec::len);
+    if draws.len() < 2 || n == 0 {
         return true;
     }
-    let means: Vec<f64> = sums.iter().map(|s| s / n as f64).collect();
+    let means: Vec<f64> = draws
+        .iter()
+        .map(|d| {
+            let mut acc = Welford::new();
+            d.iter().for_each(|&x| acc.push(x));
+            acc.mean()
+        })
+        .collect();
     let mut order: Vec<usize> = (0..means.len()).collect();
     order.sort_by(|a, b| means[*b].partial_cmp(&means[*a]).unwrap_or(std::cmp::Ordering::Equal));
     // Check top adjacent pairs.
     let top = order.len().min(3);
     for i in 0..top.saturating_sub(1) {
-        let a = order[i];
-        let b = order[i + 1];
-        let gap = (means[a] - means[b]).abs();
-        let se = (stderrs[a].powi(2) + stderrs[b].powi(2)).sqrt();
-        // Early stop is acceptable when EITHER the pair's own combined CI half-width
-        // is already under the absolute threshold, OR the two candidates are
-        // separated by more than their combined CI (gap exceeds 1.96*se) even if
-        // the absolute half-width alone is still above threshold. (E2: a second,
-        // subsuming `if 1.96 * se > threshold { return false; }` branch previously
-        // made the `gap` check dead code — only the absolute-width criterion ever
-        // fired. Removed.)
-        if 1.96 * se > threshold && gap < 1.96 * se {
+        let (gap, se) = paired_difference(&draws[order[i]], &draws[order[i + 1]]);
+        let half_width = z * se;
+        if half_width > threshold && gap.abs() <= half_width {
             return false;
         }
     }
@@ -503,10 +545,93 @@ fn shannon_entropy(weights: &[f64]) -> f64 {
     h
 }
 
+/// Ranking-invariant precomputation for the per-draw scoring channels, built once per
+/// `rank()` call instead of once per draw per candidate.
+struct ScoringChannels {
+    entropy: Option<EntropyChannel>,
+    /// `(row_i, row_j)` of every requested model pair present in the log-likelihood table.
+    model_pairs: Vec<(usize, usize)>,
+}
+
+impl ScoringChannels {
+    fn new<A, O>(objective: &DesignObjective, ctx: &DesignEvaluationContext<'_, A, O>) -> Self {
+        match objective {
+            DesignObjective::ReduceGraphEntropy => Self {
+                entropy: EntropyChannel::new(ctx.graphs, ctx.graph_features),
+                model_pairs: Vec::new(),
+            },
+            DesignObjective::DistinguishModels { models } => Self {
+                entropy: None,
+                model_pairs: ctx
+                    .model_loglik
+                    .map_or_else(Vec::new, |ll| model_pair_rows(ll, models)),
+            },
+            _ => Self { entropy: None, model_pairs: Vec::new() },
+        }
+    }
+}
+
+/// Reject malformed per-objective context before any MC work runs. A context that cannot
+/// be evaluated is an error, never a silently "exact" zero score.
+fn validate_objective_context<A, O>(
+    objective: &DesignObjective,
+    ctx: &DesignEvaluationContext<'_, A, O>,
+) -> Result<(), DesignError> {
+    let n = ctx.graphs.n_samples;
+    match objective {
+        DesignObjective::ReduceGraphEntropy => {
+            if let Some(features) = ctx.graph_features {
+                if features.len() != n {
+                    return Err(DesignError::Shape(format!(
+                        "graph_features length {} != graph posterior size {n}",
+                        features.len()
+                    )));
+                }
+            }
+        }
+        DesignObjective::IncreaseIdentificationProbability { .. } => {
+            if let Some(flags) = ctx.identified_under_intervention {
+                if flags.len() != n {
+                    return Err(DesignError::Shape(format!(
+                        "identified_under_intervention length {} != graph posterior size {n}",
+                        flags.len()
+                    )));
+                }
+            }
+        }
+        DesignObjective::ReduceEffectPosteriorWidth { .. } => {
+            let Some(ew) = ctx.effect_width else {
+                return Err(DesignError::Config(
+                    "ReduceEffectPosteriorWidth requires effect_width context".into(),
+                ));
+            };
+            baseline_treatment_se(ew)?;
+        }
+        DesignObjective::DistinguishModels { .. } => {
+            let Some(ll) = ctx.model_loglik else {
+                return Err(DesignError::Config(
+                    "DistinguishModels requires model_loglik context".into(),
+                ));
+            };
+            if ll.loglik.len() != ll.models.len().saturating_mul(ll.n_draws) {
+                return Err(DesignError::Shape(format!(
+                    "model_loglik has {} values, expected {} models × {} draws",
+                    ll.loglik.len(),
+                    ll.models.len(),
+                    ll.n_draws
+                )));
+            }
+        }
+        DesignObjective::ReduceDecisionRegret { .. } => {}
+    }
+    Ok(())
+}
+
 fn score_candidate<A, O>(
     objective: &DesignObjective,
     candidate: &CandidateDesign,
     ctx: &DesignEvaluationContext<'_, A, O>,
+    channels: &ScoringChannels,
     graph_idx: usize,
     rng: &mut CausalRng,
 ) -> Result<f64, DesignError>
@@ -516,7 +641,7 @@ where
 {
     match objective {
         DesignObjective::ReduceGraphEntropy => {
-            Ok(eig_graph_entropy(candidate, ctx.graphs, graph_idx, ctx.graph_features, rng))
+            Ok(channels.entropy.as_ref().map_or(0.0, |c| c.draw(candidate, graph_idx, rng)))
         }
         DesignObjective::IncreaseIdentificationProbability { query } => {
             Ok(id_prob_gain(candidate, ctx, *query))
@@ -527,7 +652,7 @@ where
                     "ReduceEffectPosteriorWidth requires effect_width context".into(),
                 ));
             };
-            Ok(effect_width_reduction(candidate, ew))
+            effect_width_reduction(candidate, ew)
         }
         DesignObjective::DistinguishModels { models } => {
             let Some(ll) = ctx.model_loglik else {
@@ -535,7 +660,7 @@ where
                     "DistinguishModels requires model_loglik context".into(),
                 ));
             };
-            Ok(model_distinguish_score(candidate, ll, models, rng))
+            Ok(model_distinguish_score(candidate, ll, models.len(), &channels.model_pairs, rng))
         }
         DesignObjective::ReduceDecisionRegret { .. } => Err(DesignError::Config(
             "ReduceDecisionRegret is scored through its prepared preposterior analysis".into(),
@@ -543,11 +668,89 @@ where
     }
 }
 
-/// One Monte Carlo draw of information gain for the discrete observation channel:
-/// sample `y ~ P(y | G★, design)`, then return the signed reduction `H(prior) − H(p(G|y))`.
-///
-/// Individual draws may be negative when an observation increases posterior entropy;
-/// expectation is taken over draws without pointwise clipping (MM-012).
+/// Discrete soft-observation channel over the posterior's graph categories, with the
+/// candidate-independent parts (category index per graph, prior entropy) computed once.
+struct EntropyChannel {
+    weights: Vec<f64>,
+    /// Category index of every posterior graph.
+    cat_of: Vec<usize>,
+    /// Number of distinct categories (≥ 2).
+    k: usize,
+    prior_h: f64,
+}
+
+impl EntropyChannel {
+    /// `None` when the posterior is empty, the features do not line up with it, or there
+    /// are fewer than two categories — no observation can then change the entropy.
+    fn new(graphs: &WeightedGraphSamples, graph_features: Option<&[u32]>) -> Option<Self> {
+        let n = graphs.n_samples;
+        if n == 0 {
+            return None;
+        }
+        if let Some(feat) = graph_features {
+            if feat.len() != n {
+                return None;
+            }
+        }
+        let labels: Vec<u64> = if let Some(feat) = graph_features {
+            feat.iter().map(|&label| u64::from(label)).collect()
+        } else {
+            graphs.graph_keys.to_vec()
+        };
+        let mut categories = labels.clone();
+        categories.sort_unstable();
+        categories.dedup();
+        let k = categories.len();
+        if k < 2 {
+            return None;
+        }
+        let cat_of = labels.iter().map(|l| categories.binary_search(l).unwrap_or(0)).collect();
+        Some(Self {
+            weights: graphs.weights.to_vec(),
+            cat_of,
+            k,
+            prior_h: shannon_entropy(&graphs.weights),
+        })
+    }
+
+    /// One Monte Carlo draw of information gain for the discrete observation channel:
+    /// sample `y ~ P(y | G★, design)`, then return the signed reduction
+    /// `H(prior) − H(p(G|y))`.
+    ///
+    /// Individual draws may be negative when an observation increases posterior entropy;
+    /// expectation is taken over draws without pointwise clipping (MM-012).
+    fn draw(&self, candidate: &CandidateDesign, graph_idx: usize, rng: &mut CausalRng) -> f64 {
+        let k = self.k;
+        let reliability = observation_reliability(candidate);
+        // A zero-information design must not enter the soft channel: reliability 0 would
+        // zero the matched-category likelihood and invent anti-information.
+        if reliability <= 0.0 {
+            return 0.0;
+        }
+        let true_cat = self.cat_of[graph_idx];
+
+        // Sample soft observation of the true graph's categorical feature.
+        let y = if rng.next_f64() < reliability {
+            true_cat
+        } else {
+            let mut u = (rng.next_f64() * (k - 1) as f64).floor() as usize;
+            if u >= true_cat {
+                u += 1;
+            }
+            u.min(k - 1)
+        };
+
+        let off = (1.0 - reliability) / (k - 1) as f64;
+        let mut post = self.weights.clone();
+        for (w, &cat) in post.iter_mut().zip(&self.cat_of) {
+            *w *= if cat == y { reliability } else { off };
+        }
+        self.prior_h - shannon_entropy(&post)
+    }
+}
+
+/// Single-draw entropy channel for tests that need the raw per-draw value.
+#[cfg(test)]
 fn eig_graph_entropy(
     candidate: &CandidateDesign,
     graphs: &WeightedGraphSamples,
@@ -555,60 +758,8 @@ fn eig_graph_entropy(
     graph_features: Option<&[u32]>,
     rng: &mut CausalRng,
 ) -> f64 {
-    let n = graphs.n_samples;
-    if n == 0 {
-        return 0.0;
-    }
-    if let Some(feat) = graph_features {
-        if feat.len() != n {
-            return 0.0;
-        }
-    }
-
-    let labels: Vec<u64> = if let Some(feat) = graph_features {
-        feat.iter().map(|&label| u64::from(label)).collect()
-    } else {
-        graphs.graph_keys.to_vec()
-    };
-
-    let mut categories = labels.clone();
-    categories.sort_unstable();
-    categories.dedup();
-    let k = categories.len();
-    if k < 2 {
-        return 0.0;
-    }
-
-    let cat_index = |label: u64| -> usize { categories.binary_search(&label).unwrap_or(0) };
-
-    let prior_h = shannon_entropy(&graphs.weights);
-    let reliability = observation_reliability(candidate);
-    // A zero-information design must not enter the soft channel: reliability 0 would
-    // zero the matched-category likelihood and invent anti-information.
-    if reliability <= 0.0 {
-        return 0.0;
-    }
-    let true_cat = cat_index(labels[graph_idx]);
-
-    // Sample soft observation of the true graph's categorical feature.
-    let y = if rng.next_f64() < reliability {
-        true_cat
-    } else {
-        let mut u = (rng.next_f64() * (k - 1) as f64).floor() as usize;
-        if u >= true_cat {
-            u += 1;
-        }
-        u.min(k - 1)
-    };
-
-    let off = (1.0 - reliability) / (k - 1) as f64;
-    let mut post = graphs.weights.to_vec();
-    for (i, w) in post.iter_mut().enumerate() {
-        let lik = if cat_index(labels[i]) == y { reliability } else { off };
-        *w *= lik;
-    }
-    let post_h = shannon_entropy(&post);
-    prior_h - post_h
+    EntropyChannel::new(graphs, graph_features)
+        .map_or(0.0, |channel| channel.draw(candidate, graph_idx, rng))
 }
 
 /// Deterministic observation reliability for the discrete graph-feature channel.
@@ -643,6 +794,8 @@ fn evidence_strength(candidate: &CandidateDesign) -> f64 {
     observation_reliability(candidate)
 }
 
+/// Identification-mass gain of a candidate. `identified_under_intervention`, when present,
+/// has already been checked against the posterior size by [`validate_objective_context`].
 fn id_prob_gain<A, O>(
     candidate: &CandidateDesign,
     ctx: &DesignEvaluationContext<'_, A, O>,
@@ -658,8 +811,7 @@ fn id_prob_gain<A, O>(
         .and_then(|m| m.iter().find(|(q, _)| *q == query).map(|(_, v)| v.as_ref()))
         .unwrap_or(&[]);
 
-    let intervene_flags =
-        ctx.identified_under_intervention.filter(|f| f.len() == ctx.graphs.n_samples);
+    let intervene_flags = ctx.identified_under_intervention;
 
     let mut identified = 0.0;
     let mut total = 0.0;
@@ -704,12 +856,36 @@ fn candidate_unlocks(
     }
 }
 
-fn treatment_se(xtx: &[f64], p: usize, treatment_col: usize, sigma2: f64) -> Option<f64> {
-    if p == 0 || treatment_col >= p || !(sigma2 > 0.0) || xtx.len() != p * p {
-        return None;
+/// Standard error of the treatment coefficient, `sqrt(σ² · [(XᵀX)⁻¹]_tt)`.
+///
+/// `what` names the Gram in error messages. A Gram that cannot be inverted is an error:
+/// reporting it as "no information gain" would rank every candidate as an exact tie.
+fn treatment_se(
+    xtx: &[f64],
+    p: usize,
+    treatment_col: usize,
+    sigma2: f64,
+    what: &str,
+) -> Result<f64, DesignError> {
+    if p == 0 || xtx.len() != p * p {
+        return Err(DesignError::Shape(format!(
+            "{what}: Gram must be a non-empty square p×p matrix (got {} entries)",
+            xtx.len()
+        )));
     }
-    let inv = invert_square(xtx, p)?;
-    Some((sigma2 * inv[treatment_col * p + treatment_col].max(0.0)).sqrt())
+    if treatment_col >= p {
+        return Err(DesignError::Shape(format!(
+            "{what}: treatment_col {treatment_col} out of range for p = {p}"
+        )));
+    }
+    if !(sigma2.is_finite() && sigma2 > 0.0) {
+        return Err(DesignError::Config(format!(
+            "{what}: residual variance must be positive and finite (got {sigma2})"
+        )));
+    }
+    let inv = invert_square(xtx, p)
+        .ok_or_else(|| DesignError::Numerical(format!("{what}: Gram is singular")))?;
+    Ok((sigma2 * inv[treatment_col * p + treatment_col].max(0.0)).sqrt())
 }
 
 fn gram_side_len(xtx: &[f64]) -> usize {
@@ -719,6 +895,13 @@ fn gram_side_len(xtx: &[f64]) -> usize {
         k += 1;
     }
     if k * k == n2 { k } else { 0 }
+}
+
+/// Baseline `(p, se₀)` of the treatment coefficient.
+fn baseline_treatment_se(ew: &EffectWidthContext) -> Result<(usize, f64), DesignError> {
+    let p = gram_side_len(&ew.xtx);
+    let se0 = treatment_se(&ew.xtx, p, ew.treatment_col, ew.sigma2, "baseline")?;
+    Ok((p, se0))
 }
 
 /// Expand `p×p` Gram by appending one column with given cross-products.
@@ -739,54 +922,64 @@ fn expand_gram(xtx: &[f64], p: usize, cross: &[f64], self_dot: f64) -> Option<Ve
     Some(out)
 }
 
-fn effect_width_reduction(candidate: &CandidateDesign, ew: &EffectWidthContext) -> f64 {
-    let p = gram_side_len(&ew.xtx);
-    let Some(se0) = treatment_se(&ew.xtx, p, ew.treatment_col, ew.sigma2) else {
-        return 0.0;
-    };
+/// Signed reduction `se₀ − se₁` of the treatment-effect standard error.
+///
+/// A design that *raises* the SE (a collinear covariate, a noisier environment) scores
+/// negative and ranks below a neutral one. `0` means the candidate has no modelled effect
+/// (no sample increment, no matching design-analysis columns, no environment / intervention
+/// Gram supplied); a malformed or singular Gram is an error, not a zero.
+fn effect_width_reduction(
+    candidate: &CandidateDesign,
+    ew: &EffectWidthContext,
+) -> Result<f64, DesignError> {
+    let (p, se0) = baseline_treatment_se(ew)?;
 
     match candidate {
         CandidateDesign::IncreaseSamplingRate(s) => {
             if s.additional_samples == 0 {
-                return 0.0;
+                return Ok(0.0);
             }
             // XtX scales with n; SE scales as 1/sqrt(n).
             let n1 = (ew.n + s.additional_samples) as f64;
             let n0 = ew.n.max(1) as f64;
             let se1 = se0 * (n0 / n1).sqrt();
-            (se0 - se1).max(0.0)
+            Ok(se0 - se1)
         }
         CandidateDesign::ObserveEnvironment(e) => {
             if let Some(grams) = ew.environment_grams.as_ref() {
                 if let Some(spec) = grams.iter().find(|s| s.environment == e.environment) {
                     let p_env = gram_side_len(&spec.xtx);
                     if p_env != p || spec.xtx.len() != ew.xtx.len() {
-                        return 0.0;
+                        return Err(DesignError::Shape(format!(
+                            "environment {:?} Gram has {} entries, expected {}",
+                            e.environment,
+                            spec.xtx.len(),
+                            ew.xtx.len()
+                        )));
                     }
                     let mut pooled = ew.xtx.to_vec();
                     for (a, b) in pooled.iter_mut().zip(spec.xtx.iter()) {
                         *a += *b;
                     }
                     let sigma2 = spec.sigma2.unwrap_or(ew.sigma2);
-                    let Some(se1) = treatment_se(&pooled, p, ew.treatment_col, sigma2) else {
-                        return 0.0;
-                    };
-                    return (se0 - se1).max(0.0);
+                    let se1 =
+                        treatment_se(&pooled, p, ew.treatment_col, sigma2, "pooled environment")?;
+                    return Ok(se0 - se1);
                 }
             }
             // No env Gram: fall back to additional-row isotropic scaling for SE only.
             if e.additional_rows == 0 {
-                return 0.0;
+                return Ok(0.0);
             }
             let n1 = (ew.n + e.additional_rows) as f64;
             let n0 = ew.n.max(1) as f64;
             let se1 = se0 * (n0 / n1).sqrt();
-            (se0 - se1).max(0.0)
+            Ok(se0 - se1)
         }
         CandidateDesign::Measure(plan) => {
             let Some(specs) = ew.measure_columns.as_ref() else {
-                // No design-analysis columns → cannot claim SE reduction.
-                return 0.0;
+                // No design-analysis columns → no modelled SE change.
+                return Ok(0.0);
             };
             let mut xtx = ew.xtx.to_vec();
             let mut cur_p = p;
@@ -797,7 +990,10 @@ fn effect_width_reduction(candidate: &CandidateDesign, ew: &EffectWidthContext) 
                     continue;
                 };
                 let Some(expanded) = expand_gram(&xtx, cur_p, &spec.cross, spec.self_dot) else {
-                    return 0.0;
+                    return Err(DesignError::Shape(format!(
+                        "measure column for variable {v:?} has {} cross-products, expected {cur_p}",
+                        spec.cross.len()
+                    )));
                 };
                 xtx = expanded;
                 cur_p += 1;
@@ -807,58 +1003,70 @@ fn effect_width_reduction(candidate: &CandidateDesign, ew: &EffectWidthContext) 
                 matched += 1;
             }
             if matched == 0 {
-                return 0.0;
+                return Ok(0.0);
             }
-            let Some(se1) = treatment_se(&xtx, cur_p, ew.treatment_col, sigma2) else {
-                return 0.0;
-            };
-            (se0 - se1).max(0.0)
+            let se1 = treatment_se(&xtx, cur_p, ew.treatment_col, sigma2, "post-measurement")?;
+            Ok(se0 - se1)
         }
         CandidateDesign::Intervene(_) => {
             let Some(design) = ew.intervention_design.as_ref() else {
-                return 0.0;
+                return Ok(0.0);
             };
             let p1 = gram_side_len(&design.xtx);
             if p1 != p {
-                return 0.0;
+                return Err(DesignError::Shape(format!(
+                    "intervention design Gram has {} entries, expected {}",
+                    design.xtx.len(),
+                    ew.xtx.len()
+                )));
             }
-            let Some(se1) = treatment_se(&design.xtx, p1, ew.treatment_col, design.sigma2) else {
-                return 0.0;
-            };
-            (se0 - se1).max(0.0)
+            let se1 = treatment_se(
+                &design.xtx,
+                p1,
+                ew.treatment_col,
+                design.sigma2,
+                "post-intervention",
+            )?;
+            Ok(se0 - se1)
         }
     }
+}
+
+/// Table rows `(i, j)` of every pair drawn from `models` that is present in `ll`.
+fn model_pair_rows(ll: &ModelLoglikDraws, models: &[ModelId]) -> Vec<(usize, usize)> {
+    let row_of: Vec<Option<usize>> =
+        models.iter().map(|m| ll.models.iter().position(|x| x == m)).collect();
+    let mut pairs = Vec::new();
+    for i in 0..models.len() {
+        for j in (i + 1)..models.len() {
+            if let (Some(ri), Some(rj)) = (row_of[i], row_of[j]) {
+                pairs.push((ri, rj));
+            }
+        }
+    }
+    pairs
 }
 
 fn model_distinguish_score(
     candidate: &CandidateDesign,
     ll: &ModelLoglikDraws,
-    models: &[ModelId],
+    n_models: usize,
+    pairs: &[(usize, usize)],
     rng: &mut CausalRng,
 ) -> f64 {
-    if models.len() < 2 || ll.n_draws == 0 {
+    if n_models < 2 || ll.n_draws == 0 {
         return 0.0;
     }
     let draw = (rng.next_u64() as usize) % ll.n_draws;
     let strength = evidence_strength(candidate);
-    // Expected absolute log-score gap between first two models, scaled by evidence strength.
+    // Expected absolute log-score gap over the requested model pairs, scaled by evidence strength.
     let mut gap = 0.0;
-    let mut count = 0usize;
-    for i in 0..models.len() {
-        for j in (i + 1)..models.len() {
-            let Some(ri) = ll.models.iter().position(|m| *m == models[i]) else {
-                continue;
-            };
-            let Some(rj) = ll.models.iter().position(|m| *m == models[j]) else {
-                continue;
-            };
-            let a = ll.loglik[ri * ll.n_draws + draw];
-            let b = ll.loglik[rj * ll.n_draws + draw];
-            gap += (a - b).abs();
-            count += 1;
-        }
+    for &(ri, rj) in pairs {
+        let a = ll.loglik[ri * ll.n_draws + draw];
+        let b = ll.loglik[rj * ll.n_draws + draw];
+        gap += (a - b).abs();
     }
-    if count == 0 { 0.0 } else { strength * gap / count as f64 }
+    if pairs.is_empty() { 0.0 } else { strength * gap / pairs.len() as f64 }
 }
 
 /// How non-decision objectives are evaluated: deterministic functionals are exact;
@@ -1247,7 +1455,7 @@ mod tests {
             cost: DesignCost::zero(),
             tag: 0,
         });
-        assert_eq!(effect_width_reduction(&measure, &ew_bare), 0.0);
+        assert_eq!(effect_width_reduction(&measure, &ew_bare).unwrap(), 0.0);
 
         let spec = MeasureColumnSpec {
             variable: VariableId::from_raw(2),
@@ -1264,7 +1472,7 @@ mod tests {
             intervention_design: None,
             environment_grams: None,
         };
-        let red = effect_width_reduction(&measure, &ew);
+        let red = effect_width_reduction(&measure, &ew).unwrap();
         assert!(red > 0.0, "expected positive SE reduction, got {red}");
     }
 
@@ -1368,8 +1576,8 @@ mod tests {
             cost: DesignCost::zero(),
             tag: 0,
         });
-        let red_obs = effect_width_reduction(&observe, &ew);
-        let red_samp = effect_width_reduction(&sampling, &ew);
+        let red_obs = effect_width_reduction(&observe, &ew).unwrap();
+        let red_samp = effect_width_reduction(&sampling, &ew).unwrap();
         assert!(red_obs > 0.0);
         assert!(red_samp > 0.0);
         assert!(
@@ -1380,33 +1588,258 @@ mod tests {
 
     // -- rank_uncertainty_ok (E2) -------------------------------------------------
 
-    #[test]
-    fn rank_uncertainty_ok_true_when_absolute_ci_narrow() {
-        // Combined CI half-width (≈0.0028) is well under the threshold (0.1);
-        // the gap (0.01) is irrelevant to this branch.
-        let sums = [10.0, 9.99];
-        let stderrs = [0.001, 0.001];
-        assert!(rank_uncertainty_ok(&sums, &stderrs, 1, 0.1));
+    /// Draws `mean + amplitude·(±1)` alternating, `n` of them.
+    fn alternating(mean: f64, amplitude: f64, n: usize) -> Vec<f64> {
+        (0..n).map(|i| mean + if i % 2 == 0 { amplitude } else { -amplitude }).collect()
     }
 
-    /// E2: the top-2 gap (8.0) exceeds the combined CI (≈2.77) even though the
-    /// combined CI half-width itself exceeds the absolute threshold (1.0). The
-    /// dead second branch in the pre-fix code returned `false` (blocked early
-    /// stop) here regardless of `gap`; the fix must allow the early stop.
+    #[test]
+    fn rank_uncertainty_ok_true_when_absolute_ci_narrow() {
+        // Paired differences are 0.01 ± 0.001: se = 0.001·sqrt(4/3)/2 ≈ 5.8e-4, so the
+        // half-width at z = 1.96 (≈ 1.1e-3) is far under the threshold (0.1).
+        let draws = [alternating(10.0, 0.001, 4), vec![9.99; 4]];
+        assert!(rank_uncertainty_ok(&draws, 1.96, 0.1));
+    }
+
+    /// E2: the top-2 gap (8) exceeds the paired half-width (≈ 1.13) even though that
+    /// half-width itself exceeds the absolute threshold (1.0). The dead second branch in
+    /// the pre-fix code blocked early stop here regardless of `gap`.
     #[test]
     fn rank_uncertainty_ok_true_when_top_two_well_separated() {
-        let sums = [10.0, 2.0];
-        let stderrs = [1.0, 1.0];
-        assert!(rank_uncertainty_ok(&sums, &stderrs, 1, 1.0));
+        let draws = [alternating(10.0, 1.0, 4), vec![2.0; 4]];
+        assert!(rank_uncertainty_ok(&draws, 1.96, 1.0));
     }
 
     #[test]
     fn rank_uncertainty_ok_false_when_neither_condition_holds() {
-        // Combined CI half-width (≈2.77) exceeds the threshold (1.0) and the gap
-        // (0.5) does not clear it either — genuinely uncertain, must not stop.
-        let sums = [10.0, 9.5];
-        let stderrs = [1.0, 1.0];
-        assert!(!rank_uncertainty_ok(&sums, &stderrs, 1, 1.0));
+        // Paired differences are 0.5 ± 1: se = sqrt(4/3)/2 ≈ 0.577, half-width ≈ 1.13 > 1.0
+        // and the gap (0.5) does not clear it — genuinely uncertain, must not stop.
+        let draws = [alternating(10.0, 1.0, 4), vec![9.5; 4]];
+        assert!(!rank_uncertainty_ok(&draws, 1.96, 1.0));
+    }
+
+    /// Exact ties are unresolved, not "separated by 0 > 0": the gap test is `<=`.
+    #[test]
+    fn rank_uncertainty_ok_treats_exact_tie_within_threshold_as_resolved_only_by_width() {
+        let tied = [vec![3.0; 8], vec![3.0; 8]];
+        // Half-width 0 is within any threshold, so stopping is fine (nothing left to learn)...
+        assert!(rank_uncertainty_ok(&tied, 1.96, 0.05));
+        // ...but a paired difference that is exactly 0 ± noise above the threshold is not.
+        let noisy_tie = [alternating(3.0, 1.0, 8), vec![3.0; 8]];
+        assert!(!rank_uncertainty_ok(&noisy_tie, 1.96, 0.05));
+    }
+
+    /// The default schedule looks 61 times. A gap of 2.5 standard errors clears the
+    /// fixed-sample 1.96 but not the look-adjusted boundary, so the sequential test must
+    /// keep sampling where the repeated-1.96 rule would have stopped (and, on a truly tied
+    /// pair, declared a separation ≈ 28 % of the time at these settings).
+    #[test]
+    fn early_stop_uses_look_adjusted_boundary() {
+        let cfg = DesignRankConfig::default();
+        assert_eq!(cfg.n_looks(), 61);
+        let z = cfg.critical_value();
+        // Independent evaluation of Φ⁻¹(1 − 0.025/61): the normal tail 4.098e-4 sits
+        // between z = 3.34 (4.186e-4) and z = 3.35 (4.042e-4), i.e. z ≈ 3.346.
+        assert!((z - 3.346).abs() < 5e-3, "z={z}");
+
+        let n = 64usize;
+        // Paired differences 0.315 ± 1: se = sqrt(64/63)/8, gap/se ≈ 2.5003.
+        let draws = [alternating(0.315, 1.0, n), vec![0.0; n]];
+        let se = (n as f64 / (n as f64 - 1.0)).sqrt() / (n as f64).sqrt();
+        let ratio = 0.315 / se;
+        assert!(ratio > 2.4 && ratio < 2.6, "ratio={ratio}");
+        assert!(rank_uncertainty_ok(&draws, 1.96, 1e-3), "fixed-sample rule would stop");
+        assert!(!rank_uncertainty_ok(&draws, z, 1e-3), "adjusted rule must keep sampling");
+    }
+
+    #[test]
+    fn critical_value_is_the_fixed_sample_value_for_a_single_look() {
+        let cfg = DesignRankConfig {
+            min_batches: 4,
+            max_batches: 4,
+            batch_size: 4,
+            rank_uncertainty_threshold: 0.0,
+        };
+        assert_eq!(cfg.n_looks(), 1);
+        assert!((cfg.critical_value() - 1.959_963_984_540_054).abs() < 1e-9);
+    }
+
+    /// The reported flag uses the same adjusted boundary and the paired standard error.
+    #[test]
+    fn rank_uncertain_uses_adjusted_boundary_and_flags_exact_ties() {
+        let graphs = toy_graphs();
+        let q = QueryId::from_raw(0);
+        let twin = |tag| {
+            CandidateDesign::Measure(MeasurementPlan {
+                variables: Arc::from([VariableId::from_raw(9)]),
+                cost: DesignCost::zero(),
+                tag,
+            })
+        };
+        let eval = DesignEvaluationContext::<(), ()> {
+            graphs: &graphs,
+            effect_width: None,
+            model_loglik: None,
+            decisions: None,
+            query_id_unlock: None,
+            env_id_unlock: None,
+            identified_under_intervention: None,
+            graph_features: None,
+        };
+        let ranking = DesignRanker::new()
+            .rank(
+                &DesignObjective::IncreaseIdentificationProbability { query: q },
+                &[twin(0), twin(1)],
+                &eval,
+                &ExecutionContext::for_tests(3),
+            )
+            .expect("rank");
+        // Two identical exact candidates: gap == 0 is a tie, not a certain ordering.
+        assert_eq!(ranking.ranked[0].score, ranking.ranked[1].score);
+        assert!(ranking.ranked[0].rank_uncertain);
+        assert!(!ranking.ranked[1].rank_uncertain);
+    }
+
+    // -- mc_stderr numerics -------------------------------------------------------
+
+    /// 512 draws of `1e8 ± 0.5`: exact stderr is `0.5·sqrt(512/511)/sqrt(512)`. The old
+    /// `Σx²/n − mean²` form returned ≈ 2× that (0.0885 vs 0.0454 at unit sd) and clamped
+    /// to 0 beyond `mean ≈ 1e9`.
+    #[test]
+    fn score_stderr_survives_large_location() {
+        let n = 512usize;
+        let offset = 1e8;
+        let draws = alternating(offset, 0.5, n);
+        let mut acc = Welford::new();
+        draws.iter().for_each(|&x| acc.push(x));
+        let expected = 0.5 * (n as f64 / (n as f64 - 1.0)).sqrt() / (n as f64).sqrt();
+        assert!(
+            (acc.stderr_of_mean() / expected - 1.0).abs() < 1e-6,
+            "{} vs {expected}",
+            acc.stderr_of_mean()
+        );
+        // The paired difference between two such candidates is equally stable: the
+        // differences are exactly ±0.25 alternating.
+        let other = alternating(offset, 0.25, n);
+        let (gap, se) = paired_difference(&draws, &other);
+        let expected_pair = 0.25 * (n as f64 / (n as f64 - 1.0)).sqrt() / (n as f64).sqrt();
+        assert!(gap.abs() < 1e-9, "gap={gap}");
+        assert!((se / expected_pair - 1.0).abs() < 1e-6, "{se} vs {expected_pair}");
+    }
+
+    // -- context validation (malformed context is an error, not an exact 0) ----------
+
+    #[test]
+    fn singular_baseline_gram_is_an_error_not_an_exact_zero() {
+        let graphs = toy_graphs();
+        // Duplicated column: singular Gram.
+        let ew = EffectWidthContext {
+            xtx: Arc::from([1.0_f64, 1.0, 1.0, 1.0]),
+            sigma2: 1.0,
+            treatment_col: 1,
+            n: 10,
+            measure_columns: None,
+            intervention_design: None,
+            environment_grams: None,
+        };
+        let eval = DesignEvaluationContext::<(), ()> {
+            graphs: &graphs,
+            effect_width: Some(&ew),
+            model_loglik: None,
+            decisions: None,
+            query_id_unlock: None,
+            env_id_unlock: None,
+            identified_under_intervention: None,
+            graph_features: None,
+        };
+        let err = DesignRanker::new()
+            .rank(
+                &DesignObjective::ReduceEffectPosteriorWidth { query: QueryId::from_raw(0) },
+                &[sampling(10, 0), sampling(20, 1)],
+                &eval,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap_err();
+        assert!(matches!(err, DesignError::Numerical(_)), "{err:?}");
+    }
+
+    #[test]
+    fn mismatched_intervention_flags_are_an_error() {
+        let graphs = toy_graphs();
+        let flags = [GraphIdentFlag::Identified]; // 1 flag for 3 graphs
+        let eval = DesignEvaluationContext::<(), ()> {
+            graphs: &graphs,
+            effect_width: None,
+            model_loglik: None,
+            decisions: None,
+            query_id_unlock: None,
+            env_id_unlock: None,
+            identified_under_intervention: Some(&flags),
+            graph_features: None,
+        };
+        let err = DesignRanker::new()
+            .rank(
+                &DesignObjective::IncreaseIdentificationProbability { query: QueryId::from_raw(0) },
+                &[sampling(1, 0)],
+                &eval,
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap_err();
+        assert!(matches!(err, DesignError::Shape(_)), "{err:?}");
+    }
+
+    /// A design that raises the SE is a negative reduction, not a neutral zero:
+    /// orthogonal `[10, 10]` Gram, σ² = 1 → se₀ = sqrt(0.1); adding an orthogonal column
+    /// with σ² raised to 4 gives se₁ = sqrt(0.4).
+    #[test]
+    fn se_increasing_design_scores_negative() {
+        let ew = EffectWidthContext {
+            xtx: Arc::from([10.0_f64, 0.0, 0.0, 10.0]),
+            sigma2: 1.0,
+            treatment_col: 1,
+            n: 10,
+            measure_columns: Some(Arc::from([MeasureColumnSpec {
+                variable: VariableId::from_raw(2),
+                cross: Arc::from([0.0, 0.0]),
+                self_dot: 10.0,
+                sigma2_after: Some(4.0),
+            }])),
+            intervention_design: None,
+            environment_grams: None,
+        };
+        let measure = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(2)]),
+            cost: DesignCost::zero(),
+            tag: 0,
+        });
+        let got = effect_width_reduction(&measure, &ew).unwrap();
+        let expected = 0.1_f64.sqrt() - 0.4_f64.sqrt();
+        assert!(expected < 0.0);
+        assert!((got - expected).abs() < 1e-12, "got={got} expected={expected}");
+    }
+
+    #[test]
+    fn malformed_candidate_gram_is_an_error() {
+        let ew = EffectWidthContext {
+            xtx: Arc::from([10.0_f64, 0.0, 0.0, 10.0]),
+            sigma2: 1.0,
+            treatment_col: 1,
+            n: 10,
+            measure_columns: Some(Arc::from([MeasureColumnSpec {
+                variable: VariableId::from_raw(2),
+                cross: Arc::from([0.0]), // length 1, baseline p = 2
+                self_dot: 10.0,
+                sigma2_after: None,
+            }])),
+            intervention_design: None,
+            environment_grams: None,
+        };
+        let measure = CandidateDesign::Measure(MeasurementPlan {
+            variables: Arc::from([VariableId::from_raw(2)]),
+            cost: DesignCost::zero(),
+            tag: 0,
+        });
+        assert!(matches!(effect_width_reduction(&measure, &ew), Err(DesignError::Shape(_))));
     }
 
     // -- model_distinguish_score ---------------------------------------------------
@@ -1431,7 +1864,8 @@ mod tests {
         let expected_strength = 1.0 - (-0.75_f64).exp();
         let expected = expected_strength * (-12.0_f64 - (-9.5)).abs();
         let mut rng = ExecutionContext::for_tests(1).rng.stream_for(StreamDomain::Design, 0);
-        let got = model_distinguish_score(&candidate, &ll, &[m0, m1], &mut rng);
+        let pairs = model_pair_rows(&ll, &[m0, m1]);
+        let got = model_distinguish_score(&candidate, &ll, 2, &pairs, &mut rng);
         assert!((got - expected).abs() < 1e-9, "got={got} expected={expected}");
     }
 
@@ -1446,7 +1880,8 @@ mod tests {
             tag: 0,
         });
         let mut rng = ExecutionContext::for_tests(1).rng.stream_for(StreamDomain::Design, 0);
-        assert_eq!(model_distinguish_score(&candidate, &ll, &[m0], &mut rng), 0.0);
+        let pairs = model_pair_rows(&ll, &[m0]);
+        assert_eq!(model_distinguish_score(&candidate, &ll, 1, &pairs, &mut rng), 0.0);
     }
 
     // -- ReduceDecisionRegret -------------------------------------------------------

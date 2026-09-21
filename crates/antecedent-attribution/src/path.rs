@@ -112,6 +112,7 @@ pub fn path_decompose(
     Ok(ChangeAttributionResult {
         outcome,
         total_change: total,
+        observed_change: None,
         contributions: Arc::from(contributions),
         interactions: Arc::from([]),
         path_breakdown: Arc::from(path_breakdown),
