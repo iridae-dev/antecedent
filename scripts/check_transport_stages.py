@@ -39,7 +39,14 @@ for route in registry.get("routes", []):
                 errors.append(f"{name}: missing {key}")
         path, assertion = route.get("evidence_test"), route.get("evidence_assertion")
         if path and assertion:
-            errors.extend(resolve_python_test(root / path, assertion))
+            evidence_path = root / path
+            if evidence_path.suffix == ".rs":
+                _, problems = resolve_rust_test(evidence_path, assertion)
+                errors.extend(problems)
+            elif evidence_path.suffix == ".py":
+                errors.extend(resolve_python_test(evidence_path, assertion))
+            else:
+                errors.append(f"{name}: evidence must be a collected Rust or Python test")
         if (
             route.get("stage") == "identify"
             and route.get("guarantee") != "sound_incomplete"

@@ -132,4 +132,35 @@ scientific-validity checks, not authentication of who supplied a law.
 
 `examples/python/transport_exact.py` is a tested source-snapshot walkthrough:
 identify → inspect → prepare → estimate → replace → refresh → export → load.
-General multi-regime sampling uncertainty and statistical calibration remain T6.
+
+## Statistical tables (T6)
+
+Exact supplied tables remain T4: no sampling uncertainty. Empirical tables are
+T6.1: one complete-observation frequency joint per `(population, regime, intervention
+world)` on catalog-declared finite domains. Several certified leaves from the
+same regime project that joint. Empty empirical conditioners are
+`sampling_zero`, never a hidden `0/0 = 0`. Dirichlet smoothing and learners
+are named later choices; they are not the default.
+
+T6.2 is a joint IID outer bootstrap on the same prepared handle
+(`StatisticalPreparedState`). Independent studies share one dataset replicate
+across every leaf and treatment-grid point. The grid is evaluated within one
+outer resampling transaction; original replicate IDs align contrasts. Unknown, linked-unit, and clustered
+dependence keep identification and withhold the interval. Failed replicates
+are counted; intervals are pointwise percentile intervals of the plug-in
+functional. Trial IPW stays the separately licensed Dahabreh cell and does not
+evaluate recursive sID.
+
+`examples/python/transport_statistical.py` is the mixed-sample walkthrough:
+inspect → prepare → estimate → replace one source sample → refresh → export →
+consume. Consume recomputes the point from embedded fitted joints and does not
+re-bootstrap. Version-2 statistical artifacts verify all identity layers,
+replicate accounting, atom and mean percentile intervals, support and reasoning.
+Raw sample rows are not embedded; re-estimation requires an explicit refresh
+with samples. Earlier T6 artifacts lack these checks and must be regenerated.
+
+Missing observations require an explicit missingness model, which the current
+empirical provider does not supply. There is no implicit complete-case deletion.
+Nominal pointwise uncertainty is separate from an execution-specific calibration
+binding; unbound executions report that status explicitly. See the
+[T6 review](../audits/transport-t6-review.md) for fixes and calibration scope.
