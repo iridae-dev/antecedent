@@ -126,7 +126,7 @@ impl OutcomeFunctionalWire {
 }
 
 /// Target population on the wire.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum TargetPopulationWire {
     /// All observed units.
@@ -161,6 +161,13 @@ pub enum TargetPopulationWire {
         weights: [u8; 32],
         /// Declared parents.
         depends_on: Vec<u32>,
+    },
+    /// Units at a running-variable cutoff (the sharp-RD limit population).
+    LocalAtCutoff {
+        /// Running variable.
+        running: u32,
+        /// Cutoff.
+        cutoff: f64,
     },
 }
 
@@ -242,6 +249,9 @@ impl TargetPopulationWire {
                 weights: *weights,
                 depends_on: depends_on.iter().map(|id| id.raw()).collect(),
             },
+            TargetPopulation::LocalAtCutoff { running, cutoff } => {
+                Self::LocalAtCutoff { running: running.raw(), cutoff: cutoff.to_f64() }
+            }
             other => {
                 return Err(IoError::Convert(format!(
                     "unsupported TargetPopulation for query wire: {other:?}"
@@ -278,6 +288,9 @@ impl TargetPopulationWire {
                 weights: *weights,
                 depends_on: depends_on.iter().copied().map(VariableId::from_raw).collect(),
             },
+            Self::LocalAtCutoff { running, cutoff } => {
+                TargetPopulation::local_at_cutoff(VariableId::from_raw(*running), *cutoff)
+            }
         })
     }
 }
@@ -1825,9 +1838,13 @@ mod tests {
             TargetPopulation::Untreated,
             TargetPopulation::Environment(EnvironmentId::from_raw(3)),
             TargetPopulation::Predicate(PredicateExpr::rows([0usize, 2, 5])),
+            TargetPopulation::local_at_cutoff(VariableId::from_raw(2), -1.25),
         ] {
             assert_rt(&ate(pop));
         }
+        let local = ate(TargetPopulation::local_at_cutoff(VariableId::from_raw(2), -1.25));
+        let back = causal_query_from_wire(&causal_query_to_wire(&local).unwrap()).unwrap();
+        assert_eq!(back, local);
         let registry = registry_for_wire_tests();
         for pop in [
             TargetPopulation::Predicate(PredicateExpr::named("cohort")),

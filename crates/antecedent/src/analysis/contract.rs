@@ -1818,6 +1818,7 @@ fn functional_label(query: &CausalQuery) -> String {
             TargetPopulation::Predicate(_) => "predicate",
             TargetPopulation::CustomDistribution(_) => "custom_distribution",
             TargetPopulation::RowWeights { .. } => "row_weights",
+            TargetPopulation::LocalAtCutoff { .. } => "local_at_cutoff",
             _ => "other_population",
         }
     }
