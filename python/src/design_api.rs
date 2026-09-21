@@ -630,6 +630,7 @@ pub(crate) fn rank_designs(
             violations,
         })
     })
+    .map_err(|e| Python::attach(|py| crate::interrupt::attribute(py, e)))
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

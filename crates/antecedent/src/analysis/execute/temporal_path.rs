@@ -1781,7 +1781,7 @@ impl super::Study {
             }],
             warnings: vec![Diagnostic::new(
                 "response.temporal.sequence_joint_support_unassessed",
-                DiagnosticKind::Scientific,
+                DiagnosticKind::Support,
                 DiagnosticSeverity::Warning,
                 "joint longitudinal positivity for the requested Sequence overlay is not \
                  estimated; support is conservatively marked extrapolative",

@@ -3510,9 +3510,7 @@ impl PyPreparedAnalysis {
                 interval_upper: published.upper,
                 assumptions: antecedent_io::assumptions_to_wire(&result.estimate.assumptions),
                 support: result
-                    .diagnostics
-                    .iter()
-                    .filter(|d| d.code.contains("support") || d.code.contains("overlap"))
+                    .support_diagnostics()
                     .map(antecedent_io::diagnostic_to_wire)
                     .collect(),
                 diagnostics: result

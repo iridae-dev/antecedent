@@ -20,6 +20,9 @@ pub enum DiagnosticSeverity {
 pub enum DiagnosticKind {
     /// Scientific / statistical condition.
     Scientific,
+    /// Whether the data support the requested estimand: overlap, positivity, or an evaluation
+    /// point outside the observed support. These populate the result's Support slot.
+    Support,
     /// Execution / performance path choice.
     Execution,
 }

@@ -22,6 +22,37 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
+use crate::interrupt::callback_failure;
+
+/// A mechanism callback must return exactly one value per row; extra values would hide a shape
+/// bug in the user's function.
+fn check_len(what: &str, got: usize, expected: usize) -> Result<(), ModelError> {
+    if got == expected {
+        Ok(())
+    } else {
+        Err(ModelError::Shape {
+            message: format!("{what} returned {got} values; expected exactly {expected}"),
+        })
+    }
+}
+
+/// Whether the user's `sample_noise` takes an `rng` keyword (a NumPy `Generator` seeded from the
+/// run's stream). Without it the draws come from the user's own source and `seed=` does not
+/// govern them.
+fn accepts_rng(obj: &Bound<'_, PyAny>) -> Result<bool, ModelError> {
+    let py = obj.py();
+    let unsupported = |e: PyErr| ModelError::Unsupported {
+        message: callback_failure("could not inspect sample_noise", e),
+    };
+    let method = obj.getattr("sample_noise").map_err(unsupported)?;
+    let Ok(signature) = py.import("inspect").and_then(|m| m.call_method1("signature", (&method,)))
+    else {
+        return Ok(false);
+    };
+    let parameters = signature.getattr("parameters").map_err(unsupported)?;
+    parameters.contains("rng").map_err(unsupported)
+}
+
 /// Python callable CI test: `(columns, queries) -> list[(statistic, p_value)]`.
 pub struct PyConditionalIndependence {
     callback: Py<PyAny>,
@@ -54,11 +85,9 @@ impl ConditionalIndependenceTest for PyConditionalIndependence {
                 let z: Vec<usize> = bound.z_flat[q.z_start..q.z_start + q.z_len].to_vec();
                 queries.append((q.x, q.y, z)).map_err(|e| StatsError::Backend(e.to_string()))?;
             }
-            let out = self
-                .callback
-                .bind(py)
-                .call1((cols, queries))
-                .map_err(|e| StatsError::Backend(format!("Python CI callback failed: {e}")))?;
+            let out = self.callback.bind(py).call1((cols, queries)).map_err(|e| {
+                StatsError::Backend(callback_failure("Python CI callback failed", e))
+            })?;
             let seq = out.cast::<PyList>().map_err(|_| StatsError::Shape {
                 message: "Python CI callback must return a list of (statistic, p_value)",
             })?;
@@ -96,12 +125,28 @@ impl DynamicMechanism for PyDynamicMechanism {
     fn sample_noise_column(
         &self,
         n_rows: usize,
-        _rng: &mut CausalRng,
+        rng: &mut CausalRng,
         output: &mut [f64],
     ) -> Result<(), ModelError> {
         Python::attach(|py| -> Result<(), ModelError> {
-            let out = self.obj.bind(py).call_method1("sample_noise", (n_rows,)).map_err(|e| {
-                ModelError::Unsupported { message: format!("Python sample_noise failed: {e}") }
+            let bound = self.obj.bind(py);
+            let out = (if accepts_rng(bound)? {
+                // The run's seeded stream governs the user's draws through a NumPy generator.
+                let generator = py
+                    .import("numpy.random")
+                    .and_then(|m| m.call_method1("default_rng", (rng.next_u64(),)))
+                    .map_err(|e| ModelError::Unsupported {
+                        message: callback_failure("failed to seed sample_noise rng", e),
+                    })?;
+                let kwargs = PyDict::new(py);
+                kwargs
+                    .set_item("rng", generator)
+                    .and_then(|()| bound.call_method("sample_noise", (n_rows,), Some(&kwargs)))
+            } else {
+                bound.call_method1("sample_noise", (n_rows,))
+            })
+            .map_err(|e| ModelError::Unsupported {
+                message: callback_failure("Python sample_noise failed", e),
             })?;
             let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
                 message: format!("sample_noise must return float64 ndarray: {e}"),
@@ -109,12 +154,8 @@ impl DynamicMechanism for PyDynamicMechanism {
             let slice = arr.as_slice().map_err(|_| ModelError::Shape {
                 message: "sample_noise ndarray must be contiguous".into(),
             })?;
-            if slice.len() < n_rows {
-                return Err(ModelError::Shape {
-                    message: "sample_noise returned too few values".into(),
-                });
-            }
-            output[..n_rows].copy_from_slice(&slice[..n_rows]);
+            check_len("sample_noise", slice.len(), n_rows)?;
+            output[..n_rows].copy_from_slice(slice);
             Ok(())
         })
     }
@@ -141,7 +182,9 @@ impl DynamicMechanism for PyDynamicMechanism {
             let noise_arr = PyArray1::from_slice(py, &noise[..n]);
             let out =
                 self.obj.bind(py).call_method1("evaluate", (parent_cols, noise_arr)).map_err(
-                    |e| ModelError::Unsupported { message: format!("Python evaluate failed: {e}") },
+                    |e| ModelError::Unsupported {
+                        message: callback_failure("Python evaluate failed", e),
+                    },
                 )?;
             let arr: PyReadonlyArray1<'_, f64> = out.extract().map_err(|e| ModelError::Shape {
                 message: format!("evaluate must return float64 ndarray: {e}"),
@@ -149,12 +192,8 @@ impl DynamicMechanism for PyDynamicMechanism {
             let slice = arr.as_slice().map_err(|_| ModelError::Shape {
                 message: "evaluate ndarray must be contiguous".into(),
             })?;
-            if slice.len() < n {
-                return Err(ModelError::Shape {
-                    message: "evaluate returned too few values".into(),
-                });
-            }
-            output[..n].copy_from_slice(&slice[..n]);
+            check_len("evaluate", slice.len(), n)?;
+            output[..n].copy_from_slice(slice);
             Ok(())
         })
     }
@@ -168,8 +207,14 @@ impl DynamicMechanism for PyDynamicMechanism {
         let n = parents.n_rows;
         let py_result = Python::attach(|py| -> Option<Result<(), ModelError>> {
             let bound = self.obj.bind(py);
-            if !bound.hasattr("infer_noise").unwrap_or(false) {
-                return None;
+            match bound.hasattr("infer_noise") {
+                Ok(true) => {}
+                Ok(false) => return None,
+                Err(e) => {
+                    return Some(Err(ModelError::Unsupported {
+                        message: callback_failure("Python infer_noise lookup failed", e),
+                    }));
+                }
             }
             Some((|| {
                 let parent_cols = PyList::empty(py);
@@ -187,7 +232,7 @@ impl DynamicMechanism for PyDynamicMechanism {
                 let out =
                     bound.call_method1("infer_noise", (value_arr, parent_cols)).map_err(|e| {
                         ModelError::Unsupported {
-                            message: format!("Python infer_noise failed: {e}"),
+                            message: callback_failure("Python infer_noise failed", e),
                         }
                     })?;
                 let arr: PyReadonlyArray1<'_, f64> =
@@ -197,12 +242,8 @@ impl DynamicMechanism for PyDynamicMechanism {
                 let slice = arr.as_slice().map_err(|_| ModelError::Shape {
                     message: "infer_noise ndarray must be contiguous".into(),
                 })?;
-                if slice.len() < n {
-                    return Err(ModelError::Shape {
-                        message: "infer_noise returned too few values".into(),
-                    });
-                }
-                output[..n].copy_from_slice(&slice[..n]);
+                check_len("infer_noise", slice.len(), n)?;
+                output[..n].copy_from_slice(slice);
                 Ok(())
             })())
         });
@@ -230,8 +271,14 @@ impl DynamicMechanism for PyDynamicMechanism {
         let n = parents.n_rows;
         let py_result = Python::attach(|py| -> Option<Result<(), ModelError>> {
             let bound = self.obj.bind(py);
-            if !bound.hasattr("log_prob").unwrap_or(false) {
-                return None;
+            match bound.hasattr("log_prob") {
+                Ok(true) => {}
+                Ok(false) => return None,
+                Err(e) => {
+                    return Some(Err(ModelError::Unsupported {
+                        message: callback_failure("Python log_prob lookup failed", e),
+                    }));
+                }
             }
             Some((|| {
                 let parent_cols = PyList::empty(py);
@@ -248,7 +295,9 @@ impl DynamicMechanism for PyDynamicMechanism {
                 let value_arr = PyArray1::from_slice(py, &values[..n]);
                 let out =
                     bound.call_method1("log_prob", (value_arr, parent_cols)).map_err(|e| {
-                        ModelError::Unsupported { message: format!("Python log_prob failed: {e}") }
+                        ModelError::Unsupported {
+                            message: callback_failure("Python log_prob failed", e),
+                        }
                     })?;
                 let arr: PyReadonlyArray1<'_, f64> =
                     out.extract().map_err(|e| ModelError::Shape {
@@ -257,12 +306,8 @@ impl DynamicMechanism for PyDynamicMechanism {
                 let slice = arr.as_slice().map_err(|_| ModelError::Shape {
                     message: "log_prob ndarray must be contiguous".into(),
                 })?;
-                if slice.len() < n {
-                    return Err(ModelError::Shape {
-                        message: "log_prob returned too few values".into(),
-                    });
-                }
-                output[..n].copy_from_slice(&slice[..n]);
+                check_len("log_prob", slice.len(), n)?;
+                output[..n].copy_from_slice(slice);
                 Ok(())
             })())
         });
@@ -308,9 +353,11 @@ impl Utility<f64, f64> for PyUtility {
         Python::attach(|py| -> Result<(), DesignError> {
             let a = PyArray1::from_slice(py, actions);
             let o = PyArray1::from_slice(py, outcomes);
-            let got = self.callback.bind(py).call1((a, o)).map_err(|err| {
-                DesignError::Callback { name: "utility".into(), message: err.to_string() }
-            })?;
+            let got =
+                self.callback.bind(py).call1((a, o)).map_err(|err| DesignError::Callback {
+                    name: "utility".into(),
+                    message: callback_failure("utility failed", err),
+                })?;
             let arr = match got.extract::<PyReadonlyArray1<'_, f64>>() {
                 Ok(arr) => arr,
                 Err(err) => {
@@ -324,16 +371,16 @@ impl Utility<f64, f64> for PyUtility {
                 name: "utility".into(),
                 message: "utility return must be contiguous float64 ndarray".into(),
             })?;
-            if slice.len() < expected {
+            if slice.len() != expected {
                 return Err(DesignError::Callback {
                     name: "utility".into(),
                     message: format!(
-                        "utility returned {} values; expected {expected}",
+                        "utility returned {} values; expected exactly {expected}",
                         slice.len()
                     ),
                 });
             }
-            out[..expected].copy_from_slice(&slice[..expected]);
+            out[..expected].copy_from_slice(slice);
             Ok(())
         })
     }
@@ -366,7 +413,10 @@ impl CustomEffectValidator for PyCustomValidator {
     ) -> Result<RefutationReport, ValidationError> {
         Python::attach(|py| -> Result<RefutationReport, ValidationError> {
             let py_err = |e: PyErr| {
-                ValidationError::data_msg(format!("Python validator `{}` failed: {e}", self.name))
+                ValidationError::data_msg(callback_failure(
+                    &format!("Python validator `{}` failed", self.name),
+                    e,
+                ))
             };
             let kwargs = PyDict::new(py);
             kwargs.set_item("ate", problem.original.ate).map_err(py_err)?;
