@@ -1,9 +1,9 @@
 {
   "true_effect": 0.25,
-  "tolerance": 0.15,
+  "tolerance": 0.08,
   "identifier": "backdoor.adjustment",
   "estimator": "glm.adjustment",
-  "notes": "logistic g-comp on binary Y",
+  "notes": "logistic g-comp on binary Y; tolerance 0.08 excludes the unadjusted treated-minus-control mean (~0.35–0.38 under this SCM) while admitting adjusted g-comp near the true ATE (~0.25)",
   "generation": {
     "script": "/tmp/oracle_harness_deleted_after_artifact_import.py",
     "baseline_pin": "parity/baselines/dowhy.toml",

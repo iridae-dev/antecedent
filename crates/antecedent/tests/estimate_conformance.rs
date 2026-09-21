@@ -16,7 +16,7 @@ use antecedent::Study;
 use antecedent::{EstimatorId, IdentifierId};
 use antecedent_core::{
     AverageEffectQuery, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RoleHint,
-    SmallRoleSet, StreamDomain, ValueType, VariableId,
+    SmallRoleSet, StreamDomain, TargetPopulation, ValueType, VariableId,
 };
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
@@ -289,6 +289,16 @@ fn estimate_frontdoor_two_stage_recovers_mediated_effect() {
     let result = analysis.run(&ctx).unwrap();
     assert_recovers(&result, &expected);
     assert!(records_assumption(&result, "frontdoor.linear_path_product"));
+    // Path coefficients alone must miss the product truth (T→M = 0.4, M→Y = 5).
+    let truth = expected["true_effect"].as_f64().unwrap();
+    let tol = expected["tolerance"].as_f64().unwrap();
+    assert!((0.4 - truth).abs() > tol, "T→M slope alone must fail the band");
+    assert!((5.0 - truth).abs() > tol, "M→Y coefficient alone must fail the band");
+    assert!(
+        (result.estimate.ate - 5.0).abs() > tol && (result.estimate.ate - 0.4).abs() > tol,
+        "estimate {} must not collapse to a single path coefficient",
+        result.estimate.ate
+    );
 
     // Large-sample SE of the product `ab` in this linear Gaussian SCM, by the delta method with
     // independent stages: n·Var(a) = σ²_M / Var(T) = 0.01 / 1.01 and
@@ -572,6 +582,87 @@ fn estimate_aipw_recovers_ate() {
     run_static("aipw", data, graph, query, 18);
 }
 
+/// Heterogeneous effect `τ(Z) = 2 + Z` with `P(T=1|Z) = σ(0.8 Z)`, so
+/// ATE = 2, ATT = 2 + E[Z|T=1] ≈ 2.350, ATC = 2 + E[Z|T=0] ≈ 1.650.
+/// IPW must be scored against the estimand's own target, not against ATE for all three.
+fn heterogeneous_effect_scm(n: usize, seed: u64) -> (TabularData, Dag) {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5057_u64);
+    let mut z = vec![0.0; n];
+    let mut t = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for i in 0..n {
+        let zi = standard_normal(&mut rng);
+        let p = 1.0 / (1.0 + (-0.8 * zi).exp());
+        let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
+        y[i] = 2.0 * ti + ti * zi + zi + 0.6 * standard_normal(&mut rng);
+        z[i] = zi;
+        t[i] = ti;
+    }
+    let data = tabular_data(&[
+        ("t", RoleHint::TreatmentCandidate, t),
+        ("y", RoleHint::OutcomeCandidate, y),
+        ("z", RoleHint::Context, z),
+    ]);
+    let mut dag = Dag::with_variables(3);
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    (data, dag)
+}
+
+/// `E[Z | T = arm]` for `Z ~ N(0,1)`, `P(T=1|Z) = σ(0.8 Z)`, by quadrature.
+fn heterogeneous_arm_mean_z(treated: bool) -> f64 {
+    let (mut num, mut den) = (0.0, 0.0);
+    for k in 0..18_000 {
+        let z = -9.0 + f64::from(k) * 1e-3;
+        let p = 1.0 / (1.0 + (-0.8 * z).exp());
+        let w = (-0.5 * z * z).exp() * if treated { p } else { 1.0 - p };
+        num += w * z;
+        den += w;
+    }
+    num / den
+}
+
+#[test]
+fn estimate_ipw_scores_heterogeneous_att_atc_against_own_targets() {
+    let true_ate = 2.0;
+    let true_att = 2.0 + heterogeneous_arm_mean_z(true);
+    let true_atc = 2.0 + heterogeneous_arm_mean_z(false);
+    // Gap must be large enough that scoring ATT/ATC against ATE fails.
+    assert!((true_att - true_ate).abs() > 0.25);
+    assert!((true_atc - true_ate).abs() > 0.25);
+    assert!((true_att - true_atc).abs() > 0.5);
+
+    let (data, graph) = heterogeneous_effect_scm(8_000, 71);
+    let base = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let run = |population: TargetPopulation, seed: u64| {
+        let query = base.clone().with_target_population(population);
+        Study::tabular(data.clone())
+            .graph(graph.clone())
+            .query(query)
+            .identifier(IdentifierId::BackdoorAdjustment)
+            .estimator(EstimatorId::PropensityWeighting)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(seed))
+            .unwrap()
+            .estimate
+            .ate
+    };
+
+    let ate = run(TargetPopulation::AllObserved, 72);
+    let att = run(TargetPopulation::Treated, 73);
+    let atc = run(TargetPopulation::Untreated, 74);
+    let tol = 0.20;
+    assert!((ate - true_ate).abs() < tol, "ATE={ate} truth={true_ate}");
+    assert!((att - true_att).abs() < tol, "ATT={att} truth={true_att}");
+    assert!((atc - true_atc).abs() < tol, "ATC={atc} truth={true_atc}");
+    // Scoring the ATT/ATC estimates against the ATE truth must fail.
+    assert!((att - true_ate).abs() >= tol, "ATT must not pass an ATE-only band");
+    assert!((atc - true_ate).abs() >= tol, "ATC must not pass an ATE-only band");
+}
+
 #[test]
 fn estimate_efficient_backdoor_ipw_recovers_ate() {
     let (data, graph, query) = propensity_ipw_scm(1500, 19);
@@ -620,11 +711,13 @@ fn auto_with_wald_reports_the_iv_claim() {
 }
 
 /// Binary outcome logistic SCM: `Y ~ Bern(sigmoid(-0.5 + 1.2 T + 0.8 Z))` with confounded T.
-fn glm_binary_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
+/// Returns the naive treated-minus-control mean alongside the table (confounded by `Z`).
+fn glm_binary_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery, f64) {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x5054_u64);
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];
+    let (mut sum1, mut n1, mut sum0, mut n0) = (0.0, 0.0, 0.0, 0.0);
     for i in 0..n {
         let zi = standard_normal(&mut rng);
         let logit_t = -0.3 + 0.8 * zi;
@@ -636,7 +729,15 @@ fn glm_binary_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
         z[i] = zi;
         t[i] = ti;
         y[i] = yi;
+        if ti > 0.5 {
+            sum1 += yi;
+            n1 += 1.0;
+        } else {
+            sum0 += yi;
+            n0 += 1.0;
+        }
     }
+    let unadjusted = sum1 / n1 - sum0 / n0;
     let data = tabular_data(&[
         ("t", RoleHint::TreatmentCandidate, t),
         ("y", RoleHint::OutcomeCandidate, y),
@@ -647,14 +748,20 @@ fn glm_binary_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery)
     dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
     dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    (data, dag, query)
+    (data, dag, query, unadjusted)
 }
 
 #[test]
 fn estimate_glm_adjustment_recovers_positive_ate() {
     // Monte Carlo: logistic g-comp ATE is positive and typically ~0.2–0.3 under this SCM.
     let expected = load_expected("glm_adjustment");
-    let (data, graph, query) = glm_binary_scm(2000, 23);
+    let truth = expected["true_effect"].as_f64().unwrap();
+    let tol = expected["tolerance"].as_f64().unwrap();
+    let (data, graph, query, unadjusted) = glm_binary_scm(2000, 23);
+    assert!(
+        (unadjusted - truth).abs() >= tol,
+        "band must exclude the unadjusted contrast: unadjusted={unadjusted} truth={truth} tol={tol}"
+    );
     let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
@@ -667,9 +774,8 @@ fn estimate_glm_adjustment_recovers_positive_ate() {
     let result = analysis.run(&ctx).unwrap();
     assert!(result.estimate.ate > 0.05, "ate={}", result.estimate.ate);
     assert!(
-        (result.estimate.ate - expected["true_effect"].as_f64().unwrap()).abs()
-            < expected["tolerance"].as_f64().unwrap(),
-        "ate={}",
+        (result.estimate.ate - truth).abs() < tol,
+        "ate={} truth={truth} tol={tol}",
         result.estimate.ate
     );
 }
