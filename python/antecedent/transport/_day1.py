@@ -669,7 +669,9 @@ def _inner_phrase(query: Transport | None) -> str:
 
 
 def _missing_source(search: Mapping[str, Any] | None) -> str:
-    missing = () if search is None else (search.get("missing_factors") or search.get("missing") or ())
+    missing = (
+        () if search is None else (search.get("missing_factors") or search.get("missing") or ())
+    )
     if isinstance(missing, str):
         missing = [missing]
     if not missing:
@@ -691,9 +693,7 @@ def missing_evidence_detail(
     phrase = _inner_phrase(query)
     target = query.target if query is not None else "the target"
     source = _missing_source(report)
-    return (
-        f"{phrase} is identified for {target}, but the required joint in {source} is unbound."
-    )
+    return f"{phrase} is identified for {target}, but the required joint in {source} is unbound."
 
 
 def not_certified_detail(
@@ -893,6 +893,33 @@ def prepare_transport(
     return study
 
 
+#: Native catalog-search budget/cancellation messages
+#: (``crates/antecedent-identify/src/sid/meta.rs``: ``"transport.cancelled"``,
+#: ``"transport.binding_budget"``, ``"transport.memory_budget"``,
+#: ``"transport.identification_budget"``). ``inspect_catalog`` raises a bare
+#: ``ValueError`` for these (the native binding does not yet distinguish them
+#: by exception type — see the module docstring note below), so the message
+#: is the only signal available in Python; anything else is an unrecognized
+#: failure and must propagate rather than be treated as an incomplete search.
+_CATALOG_SEARCH_INCOMPLETE_REASONS = frozenset(
+    {
+        "transport.cancelled",
+        "transport.binding_budget",
+        "transport.memory_budget",
+        "transport.identification_budget",
+    }
+)
+
+
+def _catalog_search_incomplete_detail(query: Transport | None, reason: str) -> str:
+    phrase = _inner_phrase(query)
+    target = query.target if query is not None else "the target"
+    return (
+        f"{phrase} is identified for {target}, but the evidence catalog search "
+        f"did not finish ({reason}); whether the required joint is bound is unknown."
+    )
+
+
 def identification_from_transport(
     graph: Admg,
     query: Transport,
@@ -909,12 +936,22 @@ def identification_from_transport(
     )
     catalog = built if catalog is None else catalog
     search = None
+    search_incomplete_reason: str | None = None
     try:
         search = inspect_catalog(identified, catalog)
-    except Exception:
-        search = None
+    except Exception as error:
+        message = str(error)
+        if message not in _CATALOG_SEARCH_INCOMPLETE_REASONS:
+            raise
+        search_incomplete_reason = message
     outcome = identified.outcome
-    if outcome == "identified" and search and search.get("outcome") == "missing_evidence":
+    if search_incomplete_reason is not None:
+        # The search never finished, so whether the required evidence is
+        # bound is unknown — this can never be reported as "identified" with
+        # nothing missing.
+        status = "NonparametricallyIdentified" if outcome == "identified" else "NotIdentified"
+        note = "catalog_search_incomplete"
+    elif outcome == "identified" and search and search.get("outcome") == "missing_evidence":
         status = "NonparametricallyIdentified"
         note = "missing_evidence"
     elif outcome == "identified":
@@ -933,6 +970,8 @@ def identification_from_transport(
         "missing_detail": (
             missing_evidence_detail(identified, catalog, search=search, query=query)
             if note == "missing_evidence"
+            else _catalog_search_incomplete_detail(query, search_incomplete_reason)
+            if note == "catalog_search_incomplete"
             else None
         ),
         "not_certified_detail": None
@@ -943,6 +982,7 @@ def identification_from_transport(
             "catalog_search": search,
             "rules": list(identified.rules),
             "native_outcome": outcome,
+            "catalog_search_incomplete_reason": search_incomplete_reason,
         },
     }
     return Identification(

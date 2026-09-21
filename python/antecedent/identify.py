@@ -326,8 +326,14 @@ class Identification:
                 ),
                 support=SlotModel(
                     available=identified and not missing,
-                    reason=None if not missing else "missing_evidence",
-                    summary="unbound_factor"
+                    # ``outcome`` is exact (``missing_evidence`` or
+                    # ``catalog_search_incomplete``): a stalled search is
+                    # reported as unknown, never folded into "no evidence
+                    # is missing".
+                    reason=None if not missing else str(outcome),
+                    summary="search_incomplete"
+                    if outcome == "catalog_search_incomplete"
+                    else "unbound_factor"
                     if missing
                     else "not_estimated"
                     if identified
