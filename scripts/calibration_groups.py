@@ -66,7 +66,7 @@ TIMINGS = ROOT / "target" / "calibration-timings.tsv"
 # point_derivative_bayesian_default_nominal_coverage ran for more than
 # 2 h 50 min, and that of
 # interventional_distribution_admg_frontdoor_bayesian_nominal_coverage 1419 s
-# (1.10.0 merged-tree measurement).
+# (recorded merged-tree measurement).
 LONG_PATTERNS = (
     "*: ade_bayesian_*",
     "*: point_derivative_bayesian_*",
@@ -79,7 +79,7 @@ LONG_PATTERNS = (
     "*: interventional_distribution_admg_frontdoor_bayesian_*",
 )
 
-# Suite wall-clock totals of the 1.10.0 merged-tree measurement on an M-series
+# Suite wall-clock totals of the recorded merged-tree measurement on an M-series
 # laptop (release build, the `test result: ... finished in` line of each
 # suite's log): (seconds, tests run, test threads). All suites ran at once, so
 # these are loaded-machine numbers. A group's estimate is its suite's average
@@ -262,11 +262,11 @@ def estimate(group: Group, timings: dict[str, float]) -> tuple[float | None, str
     if measured is None:
         return None, "no data"
     seconds, tests, threads = measured
-    # The 1.10.0 sweep measured one sample size per design.
+    # The recorded sweep measured one sample size per design.
     grid = GRID_COST if len(group.points) > 1 else 1.0
     if group.head in WHOLE_FILE:
-        return seconds * grid, "1.10.0 sweep x grid"
-    return seconds * min(threads, tests) / tests * grid, "1.10.0 sweep, suite average x grid"
+        return seconds * grid, "recorded sweep x grid"
+    return seconds * min(threads, tests) / tests * grid, "recorded sweep, suite average x grid"
 
 
 def _clock(seconds: float) -> str:
@@ -307,7 +307,7 @@ def print_plan(selection: Selection, total: int, jobs: int) -> None:
     )
     if any(g.long for g in selection.groups):
         print(
-            "long groups are selected: suite averages understate them. In the 1.10.0 sweep (one "
+            "long groups are selected: suite averages understate them. In the recorded sweep (one "
             "sample size per design) the Bayesian static suite ran 4h01m, and one Bayesian "
             "derivative recheck at 2000 replicates ran for more than 2h50m on its own; the "
             "grid measures each such design at three sample sizes."

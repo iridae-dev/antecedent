@@ -1,4 +1,4 @@
-//! 1.1 numeric pins for licensed PAG and ADMG ATE cells.
+//! Numeric pins for licensed PAG and ADMG ATE cells.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

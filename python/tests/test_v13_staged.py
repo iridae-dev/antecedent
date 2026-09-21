@@ -1,4 +1,4 @@
-"""Numerical and artifact evidence for the 1.3 staged cells."""
+"""Numerical and artifact evidence for the staged cells."""
 
 from pathlib import Path
 

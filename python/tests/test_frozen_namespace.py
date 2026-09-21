@@ -1,9 +1,9 @@
 """The deliberate root namespace: ``antecedent.__all__`` is an explicit contract.
 
-``__init__.py`` keeps the root namespace deliberately small.  The 0.5 release
-explicitly reopened it for the causal-response queries while leaving their
-configuration and result helpers on stage modules.  This test spells out the
-resulting contract so future changes remain conscious.  Previously nothing
+``__init__.py`` keeps the root namespace deliberately small. Causal-response
+queries sit on the root while their configuration and result helpers stay on
+stage modules. This test spells out the resulting contract so future changes
+remain conscious. Previously nothing
 enforced that claim — ``test_notebook_api_surface.py`` only checked names the
 example notebooks happened to use. That gap is exactly how
 ``antecedent.estimators`` went missing from the deliberate-but-unlisted

@@ -1,4 +1,4 @@
-//! 1.10 repeated-sampling coverage of the ADMG front-door coordinates at the
+//! Repeated-sampling coverage of the ADMG front-door coordinates at the
 //! facade level: the Frequentist and Bayesian `functional.effect` average
 //! effect and the Bayesian `functional.distribution` interventional
 //! distribution, on explicit and accepted structure.

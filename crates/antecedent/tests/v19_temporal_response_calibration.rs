@@ -1,4 +1,4 @@
-//! 1.9 repeated-sampling calibration of licensed temporal response intervals.
+//! Repeated-sampling calibration of licensed temporal response intervals.
 //!
 //! Cells: `ResponseCurve` / `InterventionResponse` × `TemporalDag` (Frequentist and
 //! Bayesian), the observation-adjusted pair path, a horizon-dependent adjustment-set

@@ -1,4 +1,4 @@
-"""1.1 numeric evidence for the licensed graph-posterior mixture cells.
+"""Numeric evidence for the licensed graph-posterior mixture cells.
 
 Rust owns the known-truth DGP. These tests consume the same fixture so a
 Python run sees E[τ|identified] and unidentified mass, not prepared-vs-fresh

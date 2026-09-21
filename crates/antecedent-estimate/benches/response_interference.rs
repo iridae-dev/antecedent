@@ -1,9 +1,9 @@
-//! Criterion smokes for the 0.5 causal-response and interference hot paths.
+//! Criterion smokes for the causal-response and interference hot paths.
 //!
 //! Each workload carries a soft-budget gate (asserted on every invocation
 //! including the `--test` smoke) sized with ~5× headroom over the accepted
 //! local means, so superlinear regressions — like the O(n²) pseudo-outcome
-//! loop fixed in 0.5.2 — fail the gate instead of shipping.
+//! loop — fail the gate instead of shipping.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -130,9 +130,9 @@ fn bench_response_interference(c: &mut Criterion) {
         });
     });
 
-    // Soft-budget gates. Accepted local means (Apple M1 Max): curve ~210 ms
-    // (0.5.2), simultaneous band ~216 ms (0.6.0), interference ~167 ms (0.5.2).
-    // Budgets carry ~5× headroom; the pre-0.5.2 quadratic pseudo-outcome loop
+    // Soft-budget gates. Accepted local means (Apple M1 Max): curve ~210 ms,
+    // simultaneous band ~216 ms, interference ~167 ms.
+    // Budgets carry ~5× headroom; the quadratic pseudo-outcome loop
     // (~4 s at this size) and the per-draw cluster scan both fail them.
     let t0 = Instant::now();
     run_curve(&curve);

@@ -1,4 +1,4 @@
-//! 1.9 tier-background evidence: structure-input conflicts and analytic
+//! Tier-background evidence: structure-input conflicts and analytic
 //! known-truth pins for `AverageEffect` × `CoDetermined` / `Unknown`.
 //!
 //! Both DGPs are linear with Gaussian noise, so every scenario's adjustment

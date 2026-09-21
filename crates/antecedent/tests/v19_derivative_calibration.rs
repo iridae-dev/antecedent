@@ -1,4 +1,4 @@
-//! 1.9 coverage of the licensed derivative family (R-19, R-8).
+//! Coverage of the licensed derivative family (R-19, R-8).
 //!
 //! Every in-assumption DGP here is inside the stated cell assumptions: an
 //! additive outcome surface, a homoskedastic Gaussian treatment law given the
@@ -8,7 +8,7 @@
 //! bias under-covers there at a mean-squared-error-sized bandwidth. The
 //! licensed estimand is the true derivative `m'(a)`, not a bandwidth-smoothed
 //! surrogate, so every point-type truth below is the analytic derivative.
-//! Before 1.9 that interval covered 0.820 here; it is now robust
+//! The uncorrected local-quadratic interval covered 0.820 here; it is now robust
 //! bias-corrected (local cubic at the caller bandwidth).
 //!
 //! The order-2 point derivative (`m''(0.5) = -2 sin 0.5`, `m''''(0.5) ≠ 0`) is

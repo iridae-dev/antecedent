@@ -1,4 +1,4 @@
-"""Shared known-truth mixture fixtures for the 1.1 honesty-pass tests."""
+"""Shared known-truth mixture fixtures for the honesty-pass tests."""
 
 from __future__ import annotations
 

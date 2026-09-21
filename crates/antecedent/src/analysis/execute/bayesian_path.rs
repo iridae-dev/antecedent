@@ -257,7 +257,7 @@ impl super::Study {
                 flags.push(GraphIdentFlag::Unidentified);
             }
         }
-        // Prepare once before Interactive subsample (0.6.0 eligibility), stash
+        // Prepare once before Interactive subsample, stash
         // so kept atoms are not prepared a second time. PAG keys are unique
         // (1..n); still use entry() so the stash is key-safe.
         let mut prepared = std::collections::HashMap::with_capacity(fit_atoms.len());
@@ -821,7 +821,7 @@ impl super::Study {
         let mut envelope_prior: Option<PriorSet> = None;
         let mut envelope_conflict: Option<antecedent_prob::ConflictSummary> = None;
 
-        // Prepare once before Interactive subsample (0.6.0 eligibility), stash
+        // Prepare once before Interactive subsample, stash
         // so kept atoms are not prepared a second time. Keys may collide when
         // several atoms share an adjacency mask — keep the first prep per key.
         let mut prepared = std::collections::HashMap::with_capacity(fit_atoms.len());
@@ -1751,7 +1751,7 @@ impl super::Study {
         let mut envelope_prior: Option<PriorSet> = None;
         let mut envelope_conflict: Option<antecedent_prob::ConflictSummary> = None;
 
-        // Soft prepare+fit before Interactive subsample (0.6.0): demote failures
+        // Soft prepare+fit before Interactive subsample: demote failures
         // so stratified selection only chooses among atoms that already produced
         // draws. Prior anchors on the first successful prepare.
         let mut per_graph = Vec::new();

@@ -22,7 +22,7 @@ use antecedent_graph::{TemporalDag, ensure_lagged};
 /// Soft budget for the guarded Interactive cells at n = 20 000 (release build,
 /// Apple M1 Max): a few times the fixed values, and well under what an eager
 /// score scan costs there (the O(n^1.5) scan grows faster than the fit, so the
-/// guard sits where the two are far apart), so the regression 1.9.0 shipped
+/// guard sits where the two are far apart), so a quadratic scan regression
 /// trips it while machine noise does not.
 const INTERACTIVE_BUDGET: Duration = Duration::from_millis(5);
 const GUARDED_ROWS: usize = 20_000;

@@ -1,4 +1,4 @@
-//! 1.9 coverage of licensed temporal / mixture intervals.
+//! Coverage of licensed temporal / mixture intervals.
 //!
 //! Every coverage test scores the interval the result actually reports over
 //! `n_sim()` datasets (default 400) with a two-sided `level ± 3·MCSE` band
@@ -1278,7 +1278,7 @@ fn dbn_mixture_functional_retains_unidentified_mass() {
 /// (sampling correlation ≈ 0.17 between the adjusted and unadjusted slopes), so
 /// the shared SE sits a few percent above the independent combination. The
 /// 1.1× margin the CPDAG pin uses was only reachable while the raw-row resample
-/// inflated every mixture SE (1.9, F1); the strict inequality is what the
+/// inflated every mixture SE (F1); the strict inequality is what the
 /// positive cross-atom covariance implies.
 #[test]
 fn heterogeneous_dbn_shared_block_se_carries_cross_atom_covariance() {

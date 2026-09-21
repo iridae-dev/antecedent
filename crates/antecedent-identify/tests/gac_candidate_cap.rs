@@ -51,7 +51,7 @@ fn joint_candidate_cap_is_execution_not_scientific() {
     assert_eq!(
         id.status,
         IdentificationStatus::NotIdentified,
-        "1.0 freeze: cap keeps NotIdentified: {:?}",
+        "cap keeps NotIdentified: {:?}",
         id.derivation
     );
     assert!(

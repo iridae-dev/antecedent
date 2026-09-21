@@ -1,13 +1,13 @@
 //! Static data-generating processes measured by more than one calibration
 //! suite, and the structures they are measured on.
 //!
-//! The 1.9 suites (`v19_*_calibration`) and the 1.10 suites
-//! (`v110_calibration_*`) score the *same* laws at different levels and on
+//! The `v19_*_calibration` suites and the `v110_calibration_*` suites
+//! score the *same* laws at different levels and on
 //! different arms, so their coverage records are comparable only if the
 //! replicate data is literally the same. Copying a generator into the second
 //! suite makes that a convention; owning it here makes it a fact. A change to
 //! one of these laws now moves every record that cites it, which is the point:
-//! a silent divergence between the 1.9 and the 1.10 measurement of one cell is
+//! a silent divergence between the two measurements of one cell is
 //! exactly the failure worth removing.
 //!
 //! Every uniform draw goes through [`STREAM_TAG`] and every normal draw through
@@ -25,7 +25,7 @@ use antecedent_graph::{DenseNodeId, Pag};
 
 use super::calibration::gaussian;
 
-/// Stream tag of every uniform draw in this module: the tag the 1.9 static
+/// Stream tag of every uniform draw in this module: the tag the `v19` static
 /// suite used, so folding these generators together changed no replicate.
 pub const STREAM_TAG: u64 = 0x0F0F_F0F0_1234_5678;
 

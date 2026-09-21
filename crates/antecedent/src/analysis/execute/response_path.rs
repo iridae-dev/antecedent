@@ -1444,7 +1444,7 @@ impl super::Study {
         // Completions that disagree publish the completion identified set, not a
         // mass-weighted summary, so the frozen-weight joint-IF SE has no reported
         // point to attach to. Attaching it anyway left `se_analytic` describing a
-        // mixture the result never states (1.9 calibration finding).
+        // mixture the result never states.
         let reports_mixed_point = matches!(
             &mixed.estimate,
             ResponseIdentification::PointIdentified(

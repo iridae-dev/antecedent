@@ -7,7 +7,7 @@
 //! replicate row keeps its own intact lag window, and consecutive rows inside a
 //! block keep their joint dependence. Resampling the raw series instead and
 //! rebuilding lags would pair, at every block junction, an outcome with lagged
-//! regressors from an unrelated block; in the 1.9 calibration that inflated a
+//! regressors from an unrelated block; calibration showed that inflated a
 //! strong-effect SE by ~10% under iid noise and pushed a nominal-90% temporal
 //! mediation Total interval to 0.96 coverage.
 //!
@@ -328,8 +328,8 @@ pub fn politis_white_block_length(scores: &[f64]) -> Option<usize> {
 /// Jin 2008), so the data-driven constant is kept and the rate rescaled by
 /// `n^{1/6}`. The per-atom maximum matters: a mixture score can look nearly
 /// uncorrelated lag by lag while one atom's score carries slowly decaying
-/// dependence (persistent regressor × persistent residual). In the 1.9
-/// calibration (AR(1) ρ = 0.9, n = 400) the `⌈n^{1/3}⌉` rule gave SE/SD 0.82–0.93
+/// dependence (persistent regressor × persistent residual). On AR(1)
+/// ρ = 0.9, n = 400 the `⌈n^{1/3}⌉` rule gave SE/SD 0.82–0.93
 /// and coverage 0.81–0.85 on multi-atom mixtures; this length restored SE/SD ≈ 1.
 /// The nuisance scores matter for the same reason: a short-memory slope
 /// influence over a persistent residual (the intercept's score) left SE/SD at
@@ -359,8 +359,8 @@ pub fn testing_block_length(rows: usize, scores: &[&[f64]]) -> usize {
 /// ones included, for [`dependence_block_length`]. The targeted coefficient's
 /// influence can be nearly uncorrelated lag by lag while the residual — the
 /// intercept's score — is strongly persistent. The replicate slope then depends
-/// on how well a block reproduces the persistent residual level: in the 1.9
-/// calibration (AR(1) ρ = 0.9 residual, n = 400, a short-memory regressor) blocks
+/// on how well a block reproduces the persistent residual level: on AR(1)
+/// ρ = 0.9 residual, n = 400, a short-memory regressor, blocks
 /// sized on the slope influence alone gave SE/SD 0.94–0.96 and coverage
 /// 0.850–0.873.
 #[must_use]
@@ -461,7 +461,7 @@ const KERNEL_BIAS_MAX_RHO: f64 = 0.97;
 /// the randomness of the block variance under short memory, not this bias,
 /// which grows with the score's memory relative to the block: 3% of the SE for
 /// an AR(1)(0.81) score at `ℓ = 74` (a persistent treatment and residual at
-/// ρ = 0.9, n = 400, where the 1.9 short-series measurement put the interval at
+/// ρ = 0.9, n = 400, where the short-series measurement put the interval at
 /// 0.87–0.89 for nominal 0.90), under 1% for short-memory scores. Prewhitening
 /// the score by its lag-1 autocorrelation (Andrews & Monahan 1992) gives the
 /// ratio directly; the factor is capped so a near-unit-root `ρ̂` (at most
@@ -617,7 +617,7 @@ pub fn common_time_window(designs: &[AlignedRows]) -> Option<(usize, usize)> {
 /// original series, and every design is refit on the same resampled index set.
 /// Rebuilding lags on a resampled raw series instead pairs, at every block
 /// junction and at the circular wrap, an outcome with regressors from an
-/// unrelated block; in the 1.9 calibration that inflated multi-atom SEs 1.35–2.3×.
+/// unrelated block; that pairing inflated multi-atom SEs 1.35–2.3×.
 ///
 /// `block_length` is in series times (callers pass [`dependence_block_length`]
 /// of the structural span over the window's estimating scores, at least

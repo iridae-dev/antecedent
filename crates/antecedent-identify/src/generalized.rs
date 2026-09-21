@@ -14,7 +14,7 @@
 //! that are not MAGs, or MAGs with no qualifying set in this candidate family, contribute
 //! unidentified mass. A completion whose candidate family exceeds `max_candidates` is
 //! folded into unidentified mass with status [`IdentificationStatus::NotIdentified`]
-//! (the 1.0 public surface; there is no third identification outcome). Enumeration
+//! (there is no third identification outcome). Enumeration
 //! was never attempted, so this is not a scientific open-back-door: the result
 //! carries an Execution diagnostic [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] and is
 //! counted in [`IdentificationEnvelope::truncated_completions`]. A completed
@@ -60,7 +60,7 @@ use crate::result::{
 /// Diagnostic code attached to a per-completion [`IdentificationResult`] when adjustment-set
 /// enumeration was capped by `max_candidates` before it could search — as opposed to
 /// searching exhaustively and finding no valid set. A cap keeps
-/// [`IdentificationStatus::NotIdentified`] for the 1.0 freeze and is an
+/// [`IdentificationStatus::NotIdentified`] and is an
 /// Execution diagnostic, not a scientific open-back-door. Both cases still fold
 /// into [`IdentificationEnvelope::unidentified_weight`] (unidentified mass is
 /// preserved either way); [`IdentificationEnvelope::truncated_completions`]
@@ -899,8 +899,8 @@ pub(crate) fn not_identified(query: CausalQuery, detail: &str) -> Identification
 }
 
 /// Execution-capped result: candidate family exceeded `max_candidates` before
-/// enumeration could start. Status stays [`IdentificationStatus::NotIdentified`]
-/// (1.0 freeze). Honesty is [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] as
+/// enumeration could start. Status stays [`IdentificationStatus::NotIdentified`].
+/// Honesty is [`CAPPED_COMPLETION_DIAGNOSTIC_CODE`] as
 /// [`DiagnosticKind::Execution`], not a scientific open-back-door.
 pub(crate) fn capped_completion_result(
     query: CausalQuery,
@@ -1149,7 +1149,7 @@ mod tests {
         assert_eq!(
             capped_env.cases[0].result.status,
             IdentificationStatus::NotIdentified,
-            "1.0 freeze: cap keeps NotIdentified, honesty is the Execution diagnostic"
+            "cap keeps NotIdentified, honesty is the Execution diagnostic"
         );
         assert_eq!(capped_env.status, IdentificationStatus::NotIdentified);
         assert!(

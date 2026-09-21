@@ -179,7 +179,7 @@ def test_licensed_pulse_effect_temporal_dag_runs():
 
 
 def test_admg_bayesian_average_effect_uses_functional_estimator():
-    """AverageEffect × Admg × Bayesian is licensed in 1.8 via functional.effect."""
+    """AverageEffect × Admg × Bayesian is licensed via functional.effect."""
     n = 300
     u = np.array([1.0 if (i % 5) < 2 else 0.0 for i in range(n)])
     t = np.array([1.0 if (i % 3) == 0 else 0.0 for i in range(n)])

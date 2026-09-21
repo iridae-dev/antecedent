@@ -755,8 +755,8 @@ fn aipw_psi(
 /// `(N_i − τ·T_i) / π` (ATC: `(N_i − τ·(1−T_i)) / π₀`), which is the efficient
 /// DR influence function and needs no propensity-score projection when both
 /// nuisance models are consistent (with one misspecified it omits the
-/// nuisance-estimation terms, so the analytic SE is not doubly robust). Before 1.9
-/// the plug-in terms were used as the IF (dropping `−τ·T_i/π`) and then
+/// nuisance-estimation terms, so the analytic SE is not doubly robust). Using
+/// the plug-in terms as the IF (dropping `−τ·T_i/π`) and then
 /// projected off the logistic scores; at nominal 0.95 that measured 0.980 ATT /
 /// 0.863 ATC coverage (`calibration_coverage::aipw_at{t,c}_hc1_ci_coverage`).
 /// ATE / predicate targets already average over every row and are unchanged.

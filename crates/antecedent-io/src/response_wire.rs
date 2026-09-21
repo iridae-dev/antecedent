@@ -147,7 +147,7 @@ pub struct ResponseQueryWire {
     /// Optional temporal attachment (format ≥ 0.4). Absent/None = static response.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temporal: Option<TemporalResponseSpecWire>,
-    /// Outcome functional. Absent on pre-1.5 artifacts decodes as Mean.
+    /// Outcome functional. Absent field decodes as Mean.
     #[serde(default, skip_serializing_if = "crate::query_wire::OutcomeFunctionalWire::is_mean")]
     pub outcome_functional: crate::query_wire::OutcomeFunctionalWire,
 }

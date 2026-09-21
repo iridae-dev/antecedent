@@ -1,4 +1,4 @@
-//! 1.7 observation pins on incomplete temporal classes.
+//! Observation pins on incomplete temporal classes.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

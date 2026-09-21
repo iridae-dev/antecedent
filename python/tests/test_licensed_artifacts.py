@@ -199,7 +199,7 @@ def _licensed_queries() -> list[str]:
     return sorted({row["query"] for row in _LICENSED.get("cell") or []})
 
 
-# Existing query wire shapes newly licensed in 1.3.
+# Existing query wire shapes for licensed derivative / functional cells.
 for name, functional in {
     "PointDerivative": {
         "point_derivative": {

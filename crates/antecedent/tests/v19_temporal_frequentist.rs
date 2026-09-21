@@ -1,4 +1,4 @@
-//! 1.9 coverage of dependence-honest Frequentist TemporalDag intervals (R-1, R-2).
+//! Coverage of dependence-honest Frequentist TemporalDag intervals (R-1, R-2).
 //!
 //! Plain TemporalDag Pulse / single-step Sustained and temporal mediation
 //! (Total, Direct, Mediated) are calibrated under iid noise and under AR(1)

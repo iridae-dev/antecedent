@@ -1,4 +1,4 @@
-//! 1.7 Bayesian temporal-class envelope pins.
+//! Bayesian temporal-class envelope pins.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

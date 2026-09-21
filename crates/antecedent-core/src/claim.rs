@@ -606,7 +606,7 @@ pub enum ClaimOperation {
     Aggregate,
     /// Retarget within an existing certified derivation.
     Retarget,
-    /// Pool / synthesize. Unlicensed in 1.10; not transport.
+    /// Pool / synthesize. Unlicensed; not transport.
     Pool,
 }
 

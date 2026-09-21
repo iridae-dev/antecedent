@@ -1,4 +1,4 @@
-"""1.1 numeric evidence for the already-licensed PAG and ADMG ATE cells.
+"""Numeric evidence for the already-licensed PAG and ADMG ATE cells.
 
 The earlier fixtures certified generalized-adjustment/general-ID identification.
 These tests consume frozen empirical laws and also pin the effect number returned by

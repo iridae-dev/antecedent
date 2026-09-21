@@ -1,4 +1,4 @@
-//! 1.10 repeated-sampling coverage of the design-based coordinates: the
+//! Repeated-sampling coverage of the design-based coordinates: the
 //! trial-to-target transported ATE on an explicit selection-diagram ADMG and
 //! the randomized network-interference exposure contrast on a Dag.
 //!

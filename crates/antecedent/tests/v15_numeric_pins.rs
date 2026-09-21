@@ -1,4 +1,4 @@
-//! 1.5 numeric pins: retarget, exceedance, cell AIPW, tier envelopes, joint IF.
+//! Numeric pins: retarget, exceedance, cell AIPW, tier envelopes, joint IF.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1899,7 +1899,7 @@ fn retarget_depends_on_without_dag_refuses_on_prepared_table() {
 fn retarget_succeeds_on_codetermined_tiered_admg() {
     // {z, u} | {t} | {y}: z↔u in the closure ADMG. depends_on=[z]; u is z's
     // bidirected neighbor and is not a directed descendant of t. Identified
-    // AIPW via tier-closure {z, u}. ExceedanceGrid is the licensed 1.5 call.
+    // AIPW via tier-closure {z, u}. ExceedanceGrid is the licensed call.
     let (data, background, query, weights, z, u) = codetermined_background_siblings(800, 214);
     let schema = data.schema().clone();
     let t = schema.id_of("t").unwrap();
@@ -3049,7 +3049,7 @@ fn codetermined_joint_many_cofacets_uses_closure_shortcut() {
     assert_eq!(
         generic.status,
         IdentificationStatus::NotIdentified,
-        "1.0 freeze: cap keeps NotIdentified, honesty is the Execution diagnostic: {:?}",
+        "cap keeps NotIdentified, honesty is the Execution diagnostic: {:?}",
         generic.diagnostics
     );
     assert!(generic.diagnostics.iter().any(|d| {
@@ -3136,7 +3136,7 @@ fn drawn_treatment_outcome_joint_is_scientific_not_a_budget_miss() {
     );
 }
 
-/// Cap vs scientific refuse stay distinct on the 1.4 artifact wire: same
+/// Cap vs scientific refuse stay distinct on the artifact wire: same
 /// `not_identified` status, different diagnostic kind/code/text. No new enum value.
 #[test]
 fn joint_cap_and_scientific_refuse_are_distinct_on_the_wire() {

@@ -34,7 +34,7 @@ pub struct EstimandFingerprint {
     pub outcome: String,
     /// Lag / window / horizon coordinates of a temporal estimand (`None` = static).
     ///
-    /// Metadata written before 1.9 has no such field and decodes as `None`; a
+    /// Metadata without this field decodes as `None`; a
     /// temporal target then rejects it ([`CompatibilityRejectReason::TemporalCoordinatesMissing`])
     /// unless the source declares an explicit [`PriorMapping::NamedParameters`] bridge.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -350,8 +350,8 @@ pub enum CompatibilityRejectReason {
         /// Error message.
         message: String,
     },
-    /// Temporal target, but the source carries no temporal coordinates (e.g. pre-1.9
-    /// metadata) and declares no explicit named mapping: its lag cannot be verified.
+    /// Temporal target, but the source carries no temporal coordinates
+    /// and declares no explicit named mapping: its lag cannot be verified.
     TemporalCoordinatesMissing {
         /// Target temporal coordinates.
         target: Box<TemporalCoordinates>,
@@ -1005,7 +1005,7 @@ mod tests {
                 "{reports:?}"
             );
         }
-        // Pre-1.9 metadata (no temporal field) onto a temporal target fails closed.
+        // Metadata with no temporal field onto a temporal target fails closed.
         let legacy = temporal_catalog(EstimandFingerprint::new("pulse", "t", "y"), None);
         let err = legacy.require_usable(&target).unwrap_err();
         assert!(err.to_string().contains("TemporalCoordinatesMissing"), "{err}");

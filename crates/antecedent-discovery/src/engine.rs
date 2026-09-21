@@ -209,7 +209,7 @@ impl PcmciEngine {
             workspace.removed.clear();
             // Multi-query CI batches salt permutation RNGs by batch index. Sequential
             // `ci_statistic` always used a 1-query batch (salt 0). Keep that salt for
-            // BlockShuffle so parent selection stays bit-identical to 0.6.0; Analytic
+            // BlockShuffle so parent selection stays bit-identical to sequential; Analytic
             // ignores the salt and benefits from the batched statistic path.
             let use_batch = frame.is_fully_valid()
                 && !matches!(

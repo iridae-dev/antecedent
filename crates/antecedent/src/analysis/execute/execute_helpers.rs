@@ -250,7 +250,7 @@ const SUBSAMPLE_DIAGNOSTIC_KEY_LIMIT: usize = 16;
 /// Call this **after** resolving the shared envelope prior from the first
 /// identified atom in original order ([`resolve_envelope_prior_anchor`]), and
 /// **before** per-graph estimation so dropped atoms never pay a fit. Subsample
-/// must not move the prior anchor (0.6.0 semantics).
+/// must not move the prior anchor.
 pub(super) fn interactive_subsample_graphs_accounted(
     latency_mode: Option<LatencyMode>,
     graphs: WeightedGraphSamples,
@@ -407,7 +407,7 @@ pub(super) fn envelope_mass_diagnostic(
 /// Call while preparing identified atoms in **original envelope order**, before
 /// Interactive stratified selection. Subsample must not change which design
 /// anchors the prior, and prepare eligibility must be established before
-/// selection (0.6.0 semantics).
+/// selection.
 pub(super) fn resolve_envelope_prior_anchor(
     cfg: &BayesianConfig,
     prep: &antecedent_estimate::PreparedBayesianProblem,

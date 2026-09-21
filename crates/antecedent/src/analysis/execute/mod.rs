@@ -549,7 +549,7 @@ mod envelope_refuter_target_tests {
         assert!(stable.passed, "stable heterogeneous atoms must pass: {stable:?}");
         assert!((stable.original_ate - pooled).abs() < 1e-8);
 
-        // The pre-1.9 targeting (every atom against the pooled mixture) rejects
+        // Targeting every atom against the pooled mixture rejects
         // the same stable atoms: this is the defect R-3 removes.
         let mut pooled_target = fitted_atoms(&data, &ctx);
         for atom in &mut pooled_target {

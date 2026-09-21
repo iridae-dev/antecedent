@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 1.10 composition gate: ledger rows in parity/compiler.toml drive invocations.
+# Composition gate: ledger rows in parity/compiler.toml drive invocations.
 #
 # Every row must name an executing test (`evidence_test` + `evidence_assertion`).
 # The gate proves each one ran:
@@ -158,7 +158,7 @@ bash scripts/gate_provenance_schema.sh
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
 
-echo "== 1.10 composition consuming tests =="
+echo "== composition consuming tests =="
 run_rows "$ROOT" parity/compiler.toml
 
 echo "revision: ${REVISION}"

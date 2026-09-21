@@ -1,4 +1,4 @@
-//! User-path jobs the 1.11 speed program measures.
+//! User-path jobs the speed program measures.
 //!
 //! Not a `hot_paths.md` merge blocker and not in `gate_release.sh` Criterion
 //! smoke. `--test` uses toy n so CI knows this compiles. Full 10⁴ / 10⁵

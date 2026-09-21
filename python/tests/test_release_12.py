@@ -1,4 +1,4 @@
-"""1.2 licensing evidence: independent posterior moments and actual artifacts."""
+"""Licensing evidence: independent posterior moments and actual artifacts."""
 
 from __future__ import annotations
 

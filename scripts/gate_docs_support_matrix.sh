@@ -99,7 +99,7 @@ for rel in DOCS:
                 f"inventory/support matrix nearby"
             )
 
-# Counterfactual is licensed on one 1.3 cell; remaining coordinates stay refused.
+# Counterfactual is licensed on one cell; remaining coordinates stay refused.
 caps = root / "docs/capabilities.md"
 if caps.is_file():
     text = caps.read_text()
@@ -107,7 +107,7 @@ if caps.is_file():
         fail.append("docs/capabilities.md: Counterfactual is not mentioned")
     if re.search(r"analyze[`']? refuses `?Counterfactual", text):
         fail.append(
-            "docs/capabilities.md: Counterfactual is licensed in 1.3; "
+            "docs/capabilities.md: Counterfactual is licensed; "
             "do not claim analyze refuses the query type"
         )
     licensed = re.search(

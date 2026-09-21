@@ -1,7 +1,7 @@
 //! Cell-saturated AIPW for discrete joint `Set` interventions.
 //!
 //! A multinomial-logit propensity over the `2^k` cells and a per-cell outcome
-//! model, on the common adjustment set 1.4 already certifies. Interaction
+//! model, on the common adjustment set already certified. Interaction
 //! contrasts are identified; they are not structurally zero.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

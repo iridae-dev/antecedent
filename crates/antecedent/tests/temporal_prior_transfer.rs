@@ -495,7 +495,7 @@ fn lag_one_source_refuses_lag_two_target_without_a_named_mapping() {
     // Same-lag transfer still binds.
     assert!(run_transfer(graph_xy(), pulse_query(), bytes, None).is_ok());
 
-    // A temporal artifact without lag-aware names (pre-1.9) fails closed even at the
+    // A temporal artifact without lag-aware names fails closed even at the
     // same lag: its lag structure cannot be checked.
     let mut legacy = source.posterior.clone().unwrap();
     let stripped: Vec<_> = legacy

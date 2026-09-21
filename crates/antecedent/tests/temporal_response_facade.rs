@@ -446,8 +446,8 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
             .unwrap()
     };
 
-    // One series: the Pulse publishes only the circular-block bootstrap SE (1.9
-    // R-1). With no replicates there is no calibrated SE, so none is published.
+    // One series: the Pulse publishes only the circular-block bootstrap SE
+    // (R-1). With no replicates there is no calibrated SE, so none is published.
     let pulse_analytic = run_pulse(0);
     let pulse_boot = run_pulse(40);
     assert!(pulse_analytic.estimate.se_analytic.is_nan(), "iid OLS SE must not be published");
@@ -1071,7 +1071,7 @@ fn assert_close_rel(actual: &[f64], expected: &[f64], rtol: f64, label: &str) {
 }
 
 /// With zero replicates the dose×horizon surface keeps its point values and
-/// publishes no band: the analytic OLS band the fixture pinned before 1.9
+/// publishes no band: the withheld analytic OLS band
 /// treated lag-aligned rows as independent and is no longer published.
 /// Requested replicates publish the joint circular-block bands, and the
 /// fixture's `block_band` pins every value of that seeded run (pointwise and

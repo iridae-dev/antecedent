@@ -1,4 +1,4 @@
-//! 1.9 positive multi-completion PAG evidence (R-10).
+//! Positive multi-completion PAG evidence (R-10).
 //!
 //! `conformance/estimate/pag_ate_envelope_identified` is a PAG whose seven MAG
 //! completions include six that identify by adjustment with visible edges out

@@ -1,4 +1,4 @@
-//! 1.7 Sequence / Soft pins on two-completion temporal classes.
+//! Sequence / Soft pins on two-completion temporal classes.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

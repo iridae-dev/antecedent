@@ -1,4 +1,4 @@
-"""1.5 Python surface: functionals, retarget, tiered background, EconML extras."""
+"""Python surface: functionals, retarget, tiered background, EconML extras."""
 
 from __future__ import annotations
 
