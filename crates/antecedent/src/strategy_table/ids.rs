@@ -949,7 +949,7 @@ pub fn select_claim(
     if identification.estimand_claims.is_empty() {
         return Ok((identification, estimand));
     }
-    let narrowed = identification.narrowed_to(index).expect("index selected from estimands");
+    let narrowed = identification.narrowed_to(index).unwrap_or(identification);
     Ok((narrowed, estimand))
 }
 
