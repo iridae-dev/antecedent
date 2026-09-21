@@ -605,6 +605,11 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
             "analysis scalar estimate must be finite when present".into(),
         ));
     }
+    if result.estimate.is_some() && !licenses_scalar_estimate(&result.identification.status) {
+        return Err(IoError::Convert(
+            "identification status does not license a scalar estimate".into(),
+        ));
+    }
     if result.standard_error.is_some_and(|se| !se.is_finite() || se < 0.0) {
         return Err(IoError::Convert(
             "analysis standard error must be finite and nonnegative".into(),
@@ -616,6 +621,13 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
     if let Some(posterior) = &result.posterior_artifact {
         crate::decode_causal_posterior_bytes(posterior)?;
     }
+    if let Some(grid) = &result.mediation_grid {
+        validate_mediation_grid(grid, variable_names.len())?;
+    }
+    if let Some(unit_effects) = &result.unit_effects {
+        validate_unit_effects(unit_effects)?;
+    }
+    validate_cate_and_learner_metrics(result)?;
     if let Some(structural) = &result.structural_response {
         if let Some(interval) = &structural.identified_set_interval {
             identified_set_interval_from_wire(interval)?;
@@ -654,6 +666,176 @@ fn validate_result(result: &AnalysisResultWire, variable_names: &[String]) -> Re
                 crate::decode_causal_posterior_bytes(posterior)?;
             }
         }
+    }
+    Ok(())
+}
+
+/// A point scalar is licensed only when identification does not refuse the estimand.
+/// `not_identified` never licenses one; partial / graph-dependent mixtures may still
+/// publish a conditional or retained identified-mass summary.
+fn licenses_scalar_estimate(status: &str) -> bool {
+    status != "not_identified"
+}
+
+fn validate_mediation_grid(
+    grid: &TemporalMediationGridWire,
+    base_variable_count: usize,
+) -> Result<(), IoError> {
+    if grid.slices.is_empty() {
+        return Err(IoError::Convert("mediation grid must contain at least one slice".into()));
+    }
+    let mut horizons = std::collections::BTreeSet::new();
+    for slice in &grid.slices {
+        if slice.horizon == 0 || !horizons.insert(slice.horizon) {
+            return Err(IoError::Convert(
+                "mediation grid horizons must be positive and unique".into(),
+            ));
+        }
+        if slice.method.trim().is_empty() {
+            return Err(IoError::Convert("mediation grid method must be non-blank".into()));
+        }
+        for node in &slice.adjustment {
+            if node.variable as usize >= base_variable_count {
+                return Err(IoError::Convert(
+                    "mediation grid adjustment names an unknown base variable".into(),
+                ));
+            }
+        }
+        let optionals = [slice.total, slice.direct, slice.mediated];
+        if !slice.effect.is_finite() || optionals.iter().any(|v| v.is_some_and(|x| !x.is_finite())) {
+            return Err(IoError::Convert(
+                "mediation grid effects must be finite when present".into(),
+            ));
+        }
+        if let Some([lower, upper]) = slice.identified_set {
+            if !lower.is_finite() || !upper.is_finite() || lower > upper {
+                return Err(IoError::Convert(
+                    "mediation grid identified set must be finite and ordered".into(),
+                ));
+            }
+        }
+        validate_mediation_uncertainty(&slice.uncertainty)?;
+    }
+    Ok(())
+}
+
+fn validate_mediation_uncertainty(
+    uncertainty: &TemporalMediationUncertaintyWire,
+) -> Result<(), IoError> {
+    match uncertainty {
+        TemporalMediationUncertaintyWire::FrequentistPointwise { standard_error } => {
+            if standard_error.is_some_and(|se| !se.is_finite() || se < 0.0) {
+                return Err(IoError::Convert(
+                    "mediation grid standard error must be finite and nonnegative".into(),
+                ));
+            }
+        }
+        TemporalMediationUncertaintyWire::BayesianPointwise {
+            requested,
+            total,
+            direct,
+            mediated,
+            n_draws,
+            backend,
+        } => {
+            for summary in [requested, total, direct, mediated] {
+                if ![summary.mean, summary.standard_deviation, summary.q025, summary.q975]
+                    .iter()
+                    .all(|v| v.is_finite())
+                    || summary.standard_deviation < 0.0
+                    || summary.q025 > summary.q975
+                {
+                    return Err(IoError::Convert(
+                        "mediation grid posterior summary must be finite and ordered".into(),
+                    ));
+                }
+            }
+            if *n_draws == 0 || backend.trim().is_empty() {
+                return Err(IoError::Convert(
+                    "mediation grid Bayesian uncertainty needs draws and a backend".into(),
+                ));
+            }
+        }
+        TemporalMediationUncertaintyWire::Unavailable => {}
+    }
+    Ok(())
+}
+
+fn validate_unit_effects(unit_effects: &UnitEffectsWire) -> Result<(), IoError> {
+    if unit_effects.effects.is_empty()
+        || unit_effects.effects.iter().any(|effect| !effect.is_finite())
+    {
+        return Err(IoError::Convert(
+            "unit effects must be a non-empty finite vector".into(),
+        ));
+    }
+    let n = unit_effects.effects.len();
+    if let Some(intervals) = &unit_effects.intervals {
+        if intervals.lower.len() != n
+            || intervals.upper.len() != n
+            || intervals.lower.iter().any(|v| !v.is_finite())
+            || intervals.upper.iter().any(|v| !v.is_finite())
+            || intervals.lower.iter().zip(&intervals.upper).any(|(lo, hi)| lo > hi)
+            || !(0.0..=1.0).contains(&intervals.level)
+            || !intervals.level.is_finite()
+            || intervals.method.trim().is_empty()
+        {
+            return Err(IoError::Convert(
+                "unit effect intervals must match effects length with finite ordered bounds, \
+                 level in [0, 1], and a non-blank method"
+                    .into(),
+            ));
+        }
+    }
+    if unit_effects.extrapolative.as_ref().is_some_and(|flags| flags.len() != n) {
+        return Err(IoError::Convert(
+            "unit effect extrapolative flags must match effects length".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_cate_and_learner_metrics(result: &AnalysisResultWire) -> Result<(), IoError> {
+    match (&result.cate, &result.cate_se) {
+        (None, None) => {}
+        (None, Some(_)) => {
+            return Err(IoError::Convert(
+                "cate standard errors require cate point predictions".into(),
+            ));
+        }
+        (Some(cate), cate_se) => {
+            if cate.is_empty() || cate.iter().any(|v| !v.is_finite()) {
+                return Err(IoError::Convert(
+                    "cate predictions must be a non-empty finite vector".into(),
+                ));
+            }
+            if let Some(se) = cate_se {
+                if se.len() != cate.len() || se.iter().any(|v| !v.is_finite() || *v < 0.0) {
+                    return Err(IoError::Convert(
+                        "cate standard errors must match cate length and be finite nonnegative"
+                            .into(),
+                    ));
+                }
+            }
+        }
+    }
+    if result.outcome_oof_r2.is_some_and(|v| !v.is_finite()) {
+        return Err(IoError::Convert("outcome_oof_r2 must be finite when present".into()));
+    }
+    if result.treatment_oof_logloss.is_some_and(|v| !v.is_finite() || v < 0.0) {
+        return Err(IoError::Convert(
+            "treatment_oof_logloss must be finite and nonnegative".into(),
+        ));
+    }
+    if result.crossfit_folds.is_some_and(|folds| folds < 2) {
+        return Err(IoError::Convert("crossfit_folds must be at least two when present".into()));
+    }
+    if result.learner_provenance.iter().any(|(spec, implementation, version)| {
+        spec.trim().is_empty() || implementation.trim().is_empty() || version.trim().is_empty()
+    }) {
+        return Err(IoError::Convert(
+            "learner provenance entries must be non-blank".into(),
+        ));
     }
     Ok(())
 }
@@ -1023,5 +1205,75 @@ mod tests {
         bad.structural_response.as_mut().unwrap().identified_mass = 0.5;
         let err = encode_analysis_result_artifact(&bad, names, "mass-bad").unwrap_err();
         assert!(err.to_string().contains("masses must sum to one"), "{err}");
+    }
+
+    #[test]
+    fn validate_result_refuses_scalar_estimate_under_not_identified() {
+        let names = vec!["a".into(), "y".into()];
+        let mut result = fixture();
+        result.identification.status = "not_identified".into();
+        assert_eq!(result.estimate, Some(1.0));
+        let err = encode_analysis_result_artifact(&result, names.clone(), "uid").unwrap_err();
+        assert!(err.to_string().contains("does not license a scalar estimate"), "{err}");
+        result.estimate = None;
+        result.standard_error = None;
+        assert!(encode_analysis_result_artifact(&result, names, "uid-ok").is_ok());
+    }
+
+    fn mediation_slice() -> TemporalMediationSliceWire {
+        TemporalMediationSliceWire {
+            horizon: 1,
+            identification_status: crate::IdentificationStatusWire::NonparametricallyIdentified,
+            method: "front_door".into(),
+            adjustment: vec![],
+            effect: 0.5,
+            total: Some(0.5),
+            direct: Some(0.2),
+            mediated: Some(0.3),
+            uncertainty: TemporalMediationUncertaintyWire::Unavailable,
+            identified_set: None,
+            diagnostics: vec![],
+        }
+    }
+
+    #[test]
+    fn validate_result_refuses_malformed_mediation_grid() {
+        let names = vec!["a".into(), "y".into()];
+        let mut ok = fixture();
+        ok.mediation_grid = Some(TemporalMediationGridWire {
+            slices: vec![mediation_slice()],
+            joint_posterior: false,
+        });
+        assert!(encode_analysis_result_artifact(&ok, names.clone(), "grid-ok").is_ok());
+
+        let mut bad = ok.clone();
+        bad.mediation_grid.as_mut().unwrap().slices[0].effect = f64::NAN;
+        let err = encode_analysis_result_artifact(&bad, names.clone(), "grid-nan").unwrap_err();
+        assert!(err.to_string().contains("mediation grid"), "{err}");
+
+        let mut inverted = ok;
+        inverted.mediation_grid.as_mut().unwrap().slices[0].identified_set = Some([1.0, 0.0]);
+        let err =
+            encode_analysis_result_artifact(&inverted, names, "grid-set").unwrap_err();
+        assert!(err.to_string().contains("identified set"), "{err}");
+    }
+
+    #[test]
+    fn validate_result_refuses_malformed_cate() {
+        let names = vec!["a".into(), "y".into()];
+        let mut ok = fixture();
+        ok.cate = Some(vec![0.1, 0.2]);
+        ok.cate_se = Some(vec![0.05, 0.04]);
+        assert!(encode_analysis_result_artifact(&ok, names.clone(), "cate-ok").is_ok());
+
+        let mut bad_len = ok.clone();
+        bad_len.cate_se = Some(vec![0.05]);
+        let err = encode_analysis_result_artifact(&bad_len, names.clone(), "cate-len").unwrap_err();
+        assert!(err.to_string().contains("cate"), "{err}");
+
+        let mut bad_nan = ok;
+        bad_nan.cate = Some(vec![0.1, f64::NAN]);
+        let err = encode_analysis_result_artifact(&bad_nan, names, "cate-nan").unwrap_err();
+        assert!(err.to_string().contains("cate"), "{err}");
     }
 }
