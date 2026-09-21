@@ -222,8 +222,12 @@ fn noise_kind_override(family_id: &str) -> &'static str {
 ///
 /// Strategy:
 /// 1. **Rejection sampling** when conditions match within `1e-9` (exact / discrete).
-/// 2. **Likelihood-weighting SIR** when rejection under-accepts: propose from `do(·)`,
-///    weight by `∏_c p(condition_c | parents_c)` via the internal `log_prob_column` evaluation, resample.
+/// 2. **Forward likelihood-weighting SIR** when rejection under-accepts: walk the mutilated
+///    graph in topological order, clamp each conditioned node to its evidence value while
+///    accumulating `∏_c p(condition_c | parents_c)`, sample every other node (including
+///    descendants of evidence) from its mechanism given already-clamped parents, then
+///    resample. A propose-then-clamp path would leave descendants drawn under the
+///    unconditioned proposal parents — those draws are not conditional.
 ///
 /// Conditioning nodes must not be hard-intervened.
 ///
@@ -336,38 +340,83 @@ fn sample_conditional_interventional_lw(
 
     let n_nodes = model.n_nodes();
     let n_particles = n_rows.saturating_mul(20).max(64);
-    let proposal = sample_interventional(model, interventions, n_particles, rng, ws, ctx)?;
+    let overlay = InterventionOverlay::from_interventions(model, interventions)?;
+    overlay.validate()?;
+
+    let mut is_condition = vec![false; n_nodes];
+    let mut condition_at = vec![0.0; n_nodes];
+    for (ci, &node) in condition_nodes.iter().enumerate() {
+        let idx = node.as_usize();
+        is_condition[idx] = true;
+        condition_at[idx] = condition_values[ci];
+    }
+
+    // Forward likelihood weighting: clamp evidence in topo order and sample every
+    // other node (incl. descendants of evidence) from mechanisms given those clamps.
+    // Propose-from-do then overwrite evidence leaves descendants drawn under the
+    // unconditioned proposal parents — not a conditional draw.
+    let mut particle_buf = vec![0.0; n_particles.saturating_mul(n_nodes)];
     let mut log_w = vec![0.0; n_particles];
     let mut lp_buf = vec![0.0; n_particles];
-
     let mut parent_buf: Vec<f64> = Vec::new();
-    for (ci, &node) in condition_nodes.iter().enumerate() {
-        let gather = model.gather_for(node).ok_or_else(|| ModelError::Unsupported {
-            message: format!("missing gather for condition node {node:?}"),
-        })?;
-        let need = gather.n_parents().max(1).saturating_mul(n_particles);
-        if parent_buf.len() < need {
-            parent_buf.resize(need, 0.0);
-        }
-        gather.gather(&proposal.values, n_particles, &mut parent_buf);
-        let parents = ParentBatch {
-            n_rows: n_particles,
-            n_parents: gather.n_parents(),
-            values: &parent_buf[..gather.n_parents().saturating_mul(n_particles)],
-        };
-        // Score the *conditioned* value under each particle's parents.
-        let conditioned = vec![condition_values[ci]; n_particles];
-        log_prob_column(model.mechanisms.get(node), &conditioned, parents, &mut lp_buf)?;
-        for p in 0..n_particles {
-            if !lp_buf[p].is_finite() {
-                return Err(ModelError::Unsupported {
-                    message: format!(
-                        "conditional do: mechanism for node {node:?} cannot provide a finite density \
-                         for likelihood weighting"
-                    ),
-                });
+
+    {
+        let mut values = ValueBatchMut::new(n_particles, n_nodes, &mut particle_buf)?;
+        for gather in model.parent_gathers.iter() {
+            let node = gather.child;
+            let idx = node.as_usize();
+            let need = gather.n_parents().max(1).saturating_mul(n_particles);
+            if parent_buf.len() < need {
+                parent_buf.resize(need, 0.0);
             }
-            log_w[p] += lp_buf[p];
+            gather.gather(values.values, n_particles, &mut parent_buf);
+            let parents = ParentBatch {
+                n_rows: n_particles,
+                n_parents: gather.n_parents(),
+                values: &parent_buf[..gather.n_parents().saturating_mul(n_particles)],
+            };
+
+            if is_condition[idx] {
+                let c = condition_at[idx];
+                values.column_mut(idx)?.fill(c);
+                let conditioned = vec![c; n_particles];
+                log_prob_column(model.mechanisms.get(node), &conditioned, parents, &mut lp_buf)?;
+                for p in 0..n_particles {
+                    if !lp_buf[p].is_finite() {
+                        return Err(ModelError::Unsupported {
+                            message: format!(
+                                "conditional do: mechanism for node {node:?} cannot provide a finite density \
+                                 for likelihood weighting"
+                            ),
+                        });
+                    }
+                    log_w[p] += lp_buf[p];
+                }
+                continue;
+            }
+
+            let out = values.column_mut(idx)?;
+            if let Some(v) = overlay.hard_set[idx] {
+                out.fill(v);
+                continue;
+            }
+            if let Some(policy) = &overlay.stochastic[idx] {
+                sample_stochastic(policy, n_particles, rng, out)?;
+                apply_shift(out, overlay.shifts[idx]);
+                continue;
+            }
+            if let Some(soft) = &overlay.soft[idx] {
+                let existing = model.mechanisms.get(node);
+                refuse_cross_family_soft(existing, soft)?;
+                let slot = soft_to_slot(soft, gather.n_parents())?;
+                sample_column(&slot, parents, rng, out, ws)?;
+                apply_shift(out, overlay.shifts[idx]);
+                continue;
+            }
+
+            let slot = model.mechanisms.get(node);
+            sample_column(slot, parents, rng, out, ws)?;
+            apply_shift(out, overlay.shifts[idx]);
         }
     }
 
@@ -405,9 +454,9 @@ fn sample_conditional_interventional_lw(
             idx += 1;
         }
         for node in 0..n_nodes {
-            accepted[node * n_rows + i] = proposal.column(node)?[idx];
-            // Overwrite conditioned nodes with exact condition values.
+            accepted[node * n_rows + i] = particle_buf[node * n_particles + idx];
         }
+        // Evidence nodes stay at the conditioned values (already clamped above).
         for (ci, &node) in condition_nodes.iter().enumerate() {
             accepted[node.as_usize() * n_rows + i] = condition_values[ci];
         }
@@ -854,6 +903,74 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ModelError::Unsupported { .. }), "expected Unsupported, got {err:?}");
+    }
+
+    /// Conditioning on a descendant (via the LW / SIR path) must return that
+    /// descendant at the conditioned value. Propose-then-clamp that ignores
+    /// descendants would still return `Ok` with unconditioned child draws.
+    #[test]
+    fn conditional_do_lw_matches_conditioned_descendant() {
+        let model = fitted_three_chain();
+        let mut rng = CausalRng::from_seed(11);
+        let mut ws = MechanismWorkspace::default();
+        let x = VariableId::from_raw(0);
+        let z_node = DenseNodeId::from_raw(2);
+        let z_cond = 2.5;
+        let batch = sample_conditional_interventional(
+            &model,
+            &[Intervention::set(x, Value::f64(1.0))],
+            &[z_node],
+            &[z_cond],
+            32,
+            &mut rng,
+            &mut ws,
+            &ExecutionContext::for_tests(1),
+        )
+        .expect("conditional do with named descendant must succeed or error honestly");
+        let z = batch.column(2).unwrap();
+        assert!(
+            z.iter().all(|&v| (v - z_cond).abs() < 1e-12),
+            "descendant Z in the conditioning set must equal the conditioned value, got {z:?}"
+        );
+    }
+
+    fn fitted_three_chain() -> CompiledCausalModel {
+        let n = 40usize;
+        let mut b = CausalSchemaBuilder::new();
+        for (name, hint) in [
+            ("x", RoleHint::Context),
+            ("y", RoleHint::Context),
+            ("z", RoleHint::OutcomeCandidate),
+        ] {
+            b.add_variable(name, ValueType::Continuous, SmallRoleSet::from_hint(hint), None, None, MeasurementSpec::default())
+                .unwrap();
+        }
+        let schema = b.build().unwrap();
+        let xv: Vec<f64> = (0..n).map(|i| i as f64 * 0.1).collect();
+        let yv: Vec<f64> = xv.iter().map(|x| 0.5 + 1.5 * x).collect();
+        let zv: Vec<f64> = yv.iter().map(|y| -0.25 + 0.8 * y).collect();
+        let validity = ValidityBitmap::all_valid(n);
+        let cols = vec![
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(0), Arc::from(xv), validity.clone()).unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(1), Arc::from(yv), validity.clone()).unwrap(),
+            ),
+            OwnedColumn::Float64(
+                Float64Column::new(VariableId::from_raw(2), Arc::from(zv), validity).unwrap(),
+            ),
+        ];
+        let data =
+            TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap());
+        let mut g = Dag::with_variables(3);
+        g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
+        let compiled = CompiledCausalModel::compile(g).unwrap();
+        let (store, _) = MechanismRegistry::standard()
+            .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
+            .unwrap();
+        compiled.with_mechanisms(store)
     }
 
     #[test]
