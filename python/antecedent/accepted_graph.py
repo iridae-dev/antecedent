@@ -474,36 +474,6 @@ class AcceptedGraph:
     # for two is worse than no __eq__ at all.
 
 
-def _discovery_table(data: Any) -> Any:
-    """One table for a single-table discovery config.
-
-    Panel units and environments are pooled by row-concatenation — the same
-    preprocessing the native panel discovery entry points apply — and an event
-    frame discovers on its recorded columns.
-    """
-    from .data import EventFrame, MultiEnvFrame, PanelFrame
-
-    if isinstance(data, EventFrame):
-        return dict(zip(data.names, data.columns, strict=True))
-    partitions: list[list[Any]] | None = None
-    if isinstance(data, PanelFrame):
-        partitions = [list(cols) for cols in data.unit_columns]
-        names = list(data.names)
-    elif isinstance(data, MultiEnvFrame):
-        partitions = [list(cols) for cols in data.env_columns]
-        names = list(data.names)
-    elif isinstance(data, Sequence) and not isinstance(data, (str, bytes, Mapping)):
-        from ._data import as_multi_env_columns
-
-        names, partitions = as_multi_env_columns(list(data))
-    if partitions is None:
-        return data
-    import numpy as np
-
-    pooled = [np.concatenate([part[i] for part in partitions]) for i in range(len(names))]
-    return dict(zip(names, pooled, strict=True))
-
-
 def accept_discovery(
     config: _AnyDiscovery,
     data: Any,
@@ -585,7 +555,9 @@ def accept_discovery(
             names, env_columns = as_multi_env_columns(list(data))
         result = config.run(names, env_columns, seed=seed, threads=threads)
     else:
-        result = config.run(_discovery_table(data), seed=seed, threads=threads)
+        from ._coerce import discovery_table
+
+        result = config.run(discovery_table(data), seed=seed, threads=threads)
     accept = getattr(result, "accepted_graph", None)
     if accept is None:
         # A result that retained no review artifact (one rebuilt by a caller, or a

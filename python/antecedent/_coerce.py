@@ -7,6 +7,13 @@ Every other public function takes one concrete type (a ``Dag``, a ``str``, a
 DataFrame, edge list, ``Dag``, enum, string, bool, …) before it reaches
 concrete-typed internals.
 
+``discovery_table`` is a sixth, narrower helper: the single owner of the
+panel/multi-environment pooling both ``coerce_data`` (a bare ``PanelFrame``/
+``MultiEnvFrame`` passed to ``Config.run()``) and
+``accepted_graph.accept_discovery`` (the same frames, or a bare sequence of
+per-unit tables, ahead of ``Config.accept()``) apply, so the two spellings
+discover over identical data.
+
 Wiring status, honestly: ``coerce_data`` is used by the discovery config
 ``run()`` methods; ``coerce_refute`` / ``coerce_latency`` are used by
 ``estimation.py`` (``_resolve_latency_budget``, ``PreparedAnalysis.prepare``)
@@ -24,7 +31,7 @@ reference implementation rather than deleted.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -32,6 +39,17 @@ from numpy.typing import NDArray
 
 from .data import EventFrame, MultiEnvFrame, PanelFrame
 from .errors import CausalTypeError, CausalValueError
+
+
+def _pool_partitions(names: Sequence[str], partitions: Sequence[Sequence[Any]]) -> dict[str, Any]:
+    """Row-concatenate matching-named columns across units / environments.
+
+    The same preprocessing :func:`antecedent.accepted_graph.accept_discovery`
+    already applies (via :func:`discovery_table`, which delegates here) before
+    handing a ``PanelFrame``/``MultiEnvFrame`` to a single-table discovery
+    config's ``run()`` — see :func:`coerce_data`.
+    """
+    return {name: np.concatenate([part[i] for part in partitions]) for i, name in enumerate(names)}
 
 
 def coerce_data(value: Any) -> tuple[list[str], list[NDArray[np.float64]]]:
@@ -48,10 +66,13 @@ def coerce_data(value: Any) -> tuple[list[str], list[NDArray[np.float64]]]:
       ``Mapping[str, array-like]``, a pandas DataFrame, or an equivalent
       frame-like object exposing ``columns`` + ``to_numpy``.
 
-    ``PanelFrame`` and ``MultiEnvFrame`` are accepted: they return the shared
-    ``names`` and the first unit / environment columns so a caller can inspect
-    the schema. :class:`PreparedAnalysis` dispatches those frames to
-    ``prepare_panel`` / ``prepare_multi_env``.
+    ``PanelFrame`` and ``MultiEnvFrame`` are accepted: every unit /
+    environment is row-concatenated into one pooled table (the same
+    preprocessing ``AcceptedGraph.accept_discovery`` already applies), so
+    ``Config.run(panel)`` sees every unit/environment instead of silently
+    only the first — matching what ``Config.accept(panel)`` has always done.
+    :class:`PreparedAnalysis` dispatches those frames to ``prepare_panel`` /
+    ``prepare_multi_env`` instead, which keep units/environments separate.
     """
     from ._data import as_columns, to_f64
 
@@ -61,10 +82,48 @@ def coerce_data(value: Any) -> tuple[list[str], list[NDArray[np.float64]]]:
     if isinstance(value, EventFrame):
         return list(value.names), [to_f64(c) for c in value.columns]
     if isinstance(value, PanelFrame):
-        return list(value.names), [to_f64(c) for c in value.unit_columns[0]]
+        names = list(value.names)
+        pooled = _pool_partitions(names, value.unit_columns)
+        return names, [to_f64(pooled[n]) for n in names]
     if isinstance(value, MultiEnvFrame):
-        return list(value.names), [to_f64(c) for c in value.env_columns[0]]
+        names = list(value.names)
+        pooled = _pool_partitions(names, value.env_columns)
+        return names, [to_f64(pooled[n]) for n in names]
     return as_columns(value)
+
+
+def discovery_table(value: Any) -> Any:
+    """One pooled table for a single-table discovery config.
+
+    Panel units and multi-environment environments are pooled by row-
+    concatenation (:func:`_pool_partitions`) — the same preprocessing
+    ``coerce_data`` applies to a bare ``PanelFrame``/``MultiEnvFrame`` — and an
+    event frame discovers on its recorded columns. Used ahead of
+    :func:`accepted_graph.accept_discovery`'s single-table configs so that
+    path and a caller-supplied ``.run(panel)`` build the identical table;
+    kept as the one function that also pools a bare sequence of per-unit
+    tables, which ``coerce_data`` does not (it would change the meaning of a
+    plain sequence for every other caller of ``coerce_data``).
+    """
+    from .data import EventFrame, MultiEnvFrame, PanelFrame
+
+    if isinstance(value, EventFrame):
+        return dict(zip(value.names, value.columns, strict=True))
+    partitions: list[Sequence[Any]] | None = None
+    names: list[str] = []
+    if isinstance(value, PanelFrame):
+        partitions = value.unit_columns
+        names = list(value.names)
+    elif isinstance(value, MultiEnvFrame):
+        partitions = value.env_columns
+        names = list(value.names)
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, Mapping)):
+        from ._data import as_multi_env_columns
+
+        names, partitions = as_multi_env_columns(list(value))
+    if partitions is None:
+        return value
+    return _pool_partitions(names, partitions)
 
 
 def coerce_graph(value: Any) -> Any:
@@ -265,4 +324,5 @@ __all__ = [
     "coerce_latency",
     "coerce_query",
     "coerce_refute",
+    "discovery_table",
 ]

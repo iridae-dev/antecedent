@@ -101,6 +101,39 @@ def test_coerce_data_rejects_unsupported_type():
         _coerce.coerce_data(5)
 
 
+def test_coerce_data_panel_frame_pools_every_unit():
+    """``Config.run(panel)`` must see every unit, not silently only unit 0.
+
+    Two units with disjoint value ranges: pooling both units' columns means
+    every value from both units is present. Reading only ``unit_columns[0]``
+    (the pre-fix behaviour) would leave the second unit's distinctive values
+    (100..104) entirely absent from the coerced columns.
+    """
+    panel = antecedent.data.panel(
+        [
+            {"x": [0.0, 1.0, 2.0, 3.0, 4.0]},
+            {"x": [100.0, 101.0, 102.0, 103.0, 104.0]},
+        ]
+    )
+    names, cols = _coerce.coerce_data(panel)
+    assert names == ["x"]
+    np.testing.assert_allclose(
+        np.sort(cols[0]), [0.0, 1.0, 2.0, 3.0, 4.0, 100.0, 101.0, 102.0, 103.0, 104.0]
+    )
+
+
+def test_coerce_data_multi_env_frame_pools_every_environment():
+    frame = antecedent.data.multi_env(
+        [
+            {"x": [0.0, 1.0, 2.0]},
+            {"x": [50.0, 51.0, 52.0]},
+        ]
+    )
+    names, cols = _coerce.coerce_data(frame)
+    assert names == ["x"]
+    np.testing.assert_allclose(np.sort(cols[0]), [0.0, 1.0, 2.0, 50.0, 51.0, 52.0])
+
+
 # --------------------------------------------------------------------------
 # coerce_graph
 # --------------------------------------------------------------------------

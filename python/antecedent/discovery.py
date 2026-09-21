@@ -387,10 +387,12 @@ class JPCMCIPlus:
     ) -> PcmciDiscoveryResult:
         """Multi-environment discovery: takes ``names``/``env_columns`` directly.
 
-        Unlike the single-table configs, J-PCMCI+ has no single-table ``data``
-        shape to coerce (``coerce_data`` deliberately does not accept
-        ``MultiEnvFrame`` — see its docstring); build ``env_columns`` with
-        :func:`antecedent._data.as_multi_env_columns` or
+        Unlike the single-table configs, J-PCMCI+ discovers across the
+        environments themselves rather than a single pooled table:
+        ``coerce_data`` would row-concatenate a ``MultiEnvFrame`` into one
+        table (see its docstring), destroying the per-environment structure
+        J-PCMCI+ needs to build its space/time dummies from. Build
+        ``env_columns`` with :func:`antecedent._data.as_multi_env_columns` or
         :func:`antecedent.data.multi_env`.
         """
         return _discover_jpcmci_plus(
