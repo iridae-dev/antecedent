@@ -87,7 +87,8 @@ pub use analysis::{
     InterferenceSpec, LatencyMode, LicensedNeighbor, NextAction, OperationKind, OperationReadiness,
     OperationReport, PremiseChange, PreparedBatch, PreparedStudy, RdConfig, RefuteSuite,
     SemanticApplicability, SharedBatchDesign, SharedCovariateDesign, StageEvent, StageResultSink,
-    Study, StudyBuilder, TransportTrialSpec,
+    StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
+    StatisticalStudyInspection, StatisticalStudyResult, Study, StudyBuilder, TransportTrialSpec,
 };
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};

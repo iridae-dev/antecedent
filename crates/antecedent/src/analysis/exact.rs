@@ -59,6 +59,7 @@ pub struct ExactPreparedState {
     plan: ExactEvaluationPlan,
     identities: ExactStudyIdentities,
     shape: String,
+    legacy_law_identity: bool,
 }
 
 /// Exact execution result, without a sampled-data estimate or fabricated uncertainty.
@@ -206,7 +207,43 @@ fn ordered_laws(laws: impl Iterator<Item = ExactLawWire>) -> Result<Vec<ExactLaw
     laws.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
-fn shape(data: &ExactTransportData) -> Result<String, IoError> {
+// Preserve the pre-T6 wire field order when checking historical identities.
+#[derive(Serialize)]
+struct LegacyLawIdentity<'a> {
+    population: &'a str,
+    regime: u32,
+    interventions: &'a [(u32, ValueWire)],
+    axes: &'a [(u32, Vec<ValueWire>)],
+    probabilities: &'a [f64],
+    snapshot: &'a str,
+    absolute_tolerance: f64,
+    relative_tolerance: f64,
+}
+fn law_digest(
+    domain: IdentityDomain,
+    laws: &[ExactLawWire],
+    legacy: bool,
+) -> Result<String, IoError> {
+    if legacy {
+        let records: Vec<_> = laws
+            .iter()
+            .map(|law| LegacyLawIdentity {
+                population: &law.population,
+                regime: law.regime,
+                interventions: &law.interventions,
+                axes: &law.axes,
+                probabilities: &law.probabilities,
+                snapshot: &law.snapshot,
+                absolute_tolerance: law.absolute_tolerance,
+                relative_tolerance: law.relative_tolerance,
+            })
+            .collect();
+        digest(domain, &records)
+    } else {
+        digest(domain, &laws)
+    }
+}
+fn shape(data: &ExactTransportData, legacy: bool) -> Result<String, IoError> {
     let mut laws = ordered_laws(data.laws().iter().map(ExactLawWire::metadata))?;
     for law in &mut laws {
         law.probabilities.clear();
@@ -225,7 +262,7 @@ fn shape(data: &ExactTransportData) -> Result<String, IoError> {
             *values = keyed.into_iter().map(|(_, value)| value).collect();
         }
     }
-    digest(IdentityDomain::Observation, &laws)
+    law_digest(IdentityDomain::Observation, &laws, legacy)
 }
 fn assignments(request: &Assignment) -> Vec<(u32, ValueWire)> {
     let mut values: Vec<_> =
@@ -242,6 +279,22 @@ impl PreparedStudy<ExactPreparedState> {
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
+        Self::build_with_identity(diagram, functional, data, request, limits, ctx, false)
+    }
+    // Identity encoding is retained independently of numerical execution settings.
+    #[allow(clippy::too_many_arguments)]
+    fn build_with_identity(
+        diagram: SelectionDiagram,
+        functional: BoundTransportFunctional,
+        data: ExactTransportData,
+        request: Assignment,
+        limits: ExactEvaluationLimits,
+        ctx: &ExecutionContext,
+        legacy_law_identity: bool,
+    ) -> Result<Self, IoError> {
+        if data.laws().iter().any(|law| law.origin() != antecedent_expr::LawOrigin::SuppliedExact) {
+            return Err(err("empirical laws require the statistical transport modality"));
+        }
         let identity_bytes = data
             .laws()
             .iter()
@@ -268,7 +321,7 @@ impl PreparedStudy<ExactPreparedState> {
         let catalog = functional.catalog().canonicalized().map_err(err)?;
         let mut contract = EvidenceCatalogWire::from_catalog(&catalog);
         contract.bindings.clear();
-        let shape = shape(&data)?;
+        let shape = shape(&data, legacy_law_identity)?;
         let target = digest(
             IdentityDomain::Target,
             &(
@@ -306,7 +359,8 @@ impl PreparedStudy<ExactPreparedState> {
                 functional.root().raw(),
             ),
         )?;
-        let snapshot = digest(IdentityDomain::DataSnapshot, &law_wires(&data)?)?;
+        let snapshot =
+            law_digest(IdentityDomain::DataSnapshot, &law_wires(&data)?, legacy_law_identity)?;
         let execution =
             digest(IdentityDomain::Execution, &(&program, &snapshot, &inference_binding))?;
         Ok(Self {
@@ -328,6 +382,7 @@ impl PreparedStudy<ExactPreparedState> {
                     execution,
                 },
                 shape,
+                legacy_law_identity,
             },
         })
     }
@@ -486,7 +541,8 @@ impl PreparedStudy<ExactPreparedState> {
     /// # Errors
     /// Identity encoding failure.
     pub fn preview_snapshot(&self, data: &ExactTransportData) -> Result<bool, IoError> {
-        Ok(shape(data)? == self.state.shape)
+        Ok(data.laws().iter().all(|law| law.origin() == antecedent_expr::LawOrigin::SuppliedExact)
+            && shape(data, self.state.legacy_law_identity)? == self.state.shape)
     }
     fn replacement(
         &self,
@@ -512,13 +568,14 @@ impl PreparedStudy<ExactPreparedState> {
         }
         catalog.bindings = bindings.into();
         let functional = self.state.functional.derivation().bind_catalog(&catalog).map_err(err)?;
-        Self::build(
+        Self::build_with_identity(
             self.state.diagram.clone(),
             functional,
             data,
             self.state.request.clone(),
             self.state.limits,
             ctx,
+            self.state.legacy_law_identity,
         )
     }
     /// Replace compatible snapshots, invalidating all earlier execution claims.
@@ -625,7 +682,15 @@ impl PreparedStudy<ExactPreparedState> {
             selections: self.state.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
             proof: TransportProofWire::from_checked(self.state.functional.derivation())?,
             catalog: EvidenceCatalogWire::from_catalog(self.state.functional.catalog()),
-            laws: law_wires(&self.state.data)?,
+            laws: {
+                let mut laws = law_wires(&self.state.data)?;
+                if self.state.legacy_law_identity {
+                    for law in &mut laws {
+                        law.origin.clear();
+                    }
+                }
+                laws
+            },
             request: assignments(&self.state.request),
             operations: self.state.limits.operations,
             depth: self.state.limits.depth,
@@ -715,13 +780,14 @@ impl PreparedStudy<ExactPreparedState> {
         if request.entries().len() != wire.request.len() {
             return Err(err("duplicate request coordinate"));
         }
-        let prepared = Self::build(
+        let prepared = Self::build_with_identity(
             diagram,
             functional,
             data,
             request,
             ExactEvaluationLimits { operations: wire.operations, depth: wire.depth },
             ctx,
+            wire.laws.iter().all(|law| law.origin.is_empty()),
         )?;
         if prepared.state.identities != wire.identities {
             return Err(err("transport artifact identity mismatch"));
@@ -822,6 +888,68 @@ mod tests {
             &ctx,
         )
         .unwrap()
+    }
+    #[test]
+    fn historical_exact_law_identity_survives_consume_refresh_and_export() {
+        let ctx = ExecutionContext::for_tests(0);
+        let current = prepared();
+        let state = &current.state;
+        let old = PreparedStudy::<ExactPreparedState>::build_with_identity(
+            state.diagram.clone(),
+            state.functional.clone(),
+            state.data.clone(),
+            state.request.clone(),
+            state.limits,
+            &ctx,
+            true,
+        )
+        .unwrap();
+        assert_ne!(old.state.identities.snapshot, current.state.identities.snapshot);
+        let result = old.estimate_retained(&ctx).unwrap();
+        let wire: ExactExecutionWire =
+            antecedent_io::from_cbor(&old.export(&result).unwrap()).unwrap();
+        // Historical records did not contain an origin field at all.
+        let mut value = serde_json::to_value(&wire).unwrap();
+        for law in value["laws"].as_array_mut().unwrap() {
+            law.as_object_mut().unwrap().remove("origin");
+        }
+        let bytes = antecedent_io::to_cbor(&value).unwrap();
+        let (mut loaded, consumed) =
+            PreparedStudy::<ExactPreparedState>::consume(&bytes, state.limits, &ctx).unwrap();
+        assert_eq!(result.identities(), consumed.identities());
+        let (again, _) = PreparedStudy::<ExactPreparedState>::consume(
+            &loaded.export(&consumed).unwrap(),
+            state.limits,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(again.state.identities, old.state.identities);
+        let refreshed = loaded.refresh(data("new", [0.1, 0.4, 0.4, 0.1]), &ctx).unwrap();
+        assert_eq!(refreshed.identities().identification, result.identities().identification);
+        assert_ne!(refreshed.identities().snapshot, result.identities().snapshot);
+    }
+    #[test]
+    fn empirical_origin_cannot_claim_exact_supplied_law_uncertainty() {
+        let ctx = ExecutionContext::for_tests(0);
+        let prepared = prepared();
+        let mut wire = ExactLawWire::from_law(&prepared.state.data.laws()[0]);
+        wire.origin = "empirical_plugin".into();
+        let empirical = ExactTransportData::try_new([wire.to_law().unwrap()], 1000).unwrap();
+        assert!(!prepared.preview_snapshot(&empirical).unwrap());
+        let state = prepared.state;
+        assert!(
+            StudyBuilder::exact_transport(
+                state.diagram,
+                state.functional,
+                empirical,
+                state.request,
+                state.limits,
+                &ctx,
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("statistical transport modality")
+        );
     }
     #[test]
     fn exact_common_lifecycle_atomic_refresh_and_independent_consume() {

@@ -16,9 +16,14 @@ mod contract;
 mod contract_identity;
 mod exact;
 mod execute;
+mod statistical;
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
+};
+pub use statistical::{
+    StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
+    StatisticalStudyInspection, StatisticalStudyResult,
 };
 mod helpers;
 mod latency;

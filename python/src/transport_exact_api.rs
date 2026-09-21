@@ -17,10 +17,27 @@ use std::sync::Arc;
 type ExactStagePayload = (Vec<Vec<f64>>, Vec<f64>, String, Vec<String>);
 
 #[pyclass(skip_from_py_object)]
-struct ClassicalTransportStage {
+pub(crate) struct ClassicalTransportStage {
     result: ClassicalTransportResult,
     graph: Admg,
     diagram: SelectionDiagram,
+}
+impl ClassicalTransportStage {
+    pub(crate) fn identified(&self) -> PyResult<antecedent_identify::ClassicalTransportDerivation> {
+        match &self.result {
+            ClassicalTransportResult::Identified(proof) => Ok(proof.as_ref().clone()),
+            _ => Err(error("statistical evaluation requires a native checked derivation")),
+        }
+    }
+    pub(crate) fn graph(&self) -> &Admg {
+        &self.graph
+    }
+    pub(crate) fn named_graph(&self) -> Admg {
+        Admg { admg: self.graph.admg.clone(), names: self.graph.names.clone() }
+    }
+    pub(crate) fn diagram(&self) -> SelectionDiagram {
+        self.diagram.clone()
+    }
 }
 fn error(e: impl std::fmt::Display) -> PyErr {
     PyValueError::new_err(e.to_string())
