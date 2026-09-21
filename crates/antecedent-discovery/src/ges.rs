@@ -902,8 +902,8 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
 
     let mut remaining: HashSet<DenseNodeId> = (0..n as u32).map(DenseNodeId::from_raw).collect();
     while !remaining.is_empty() {
-        // Select x ∈ remaining: no directed edge out of x to remaining,
-        // and undirected neighbors (in remaining) form a clique.
+        // Select x ∈ remaining: no directed edge out of x to remaining, and the
+        // adjacent set (remaining parents ∪ remaining undirected neighbors) is a clique.
         let mut selected = None;
         let mut candidates: Vec<_> = remaining.iter().copied().collect();
         candidates.sort_unstable_by_key(|node| node.raw());
@@ -912,16 +912,23 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
             if out_to_remaining {
                 continue;
             }
-            let und_nbrs: Vec<DenseNodeId> = work
-                .undirected_neighbors(x)
+            let mut adjacent: Vec<DenseNodeId> = work
+                .parents(x)
                 .into_iter()
-                .filter(|n| remaining.contains(n))
+                .filter(|p| remaining.contains(p))
                 .collect();
-            // Clique among {und_nbrs} in the full PDAG adjacency among remaining.
+            adjacent.extend(
+                work.undirected_neighbors(x)
+                    .into_iter()
+                    .filter(|n| remaining.contains(n)),
+            );
+            adjacent.sort_unstable_by_key(|node| node.raw());
+            adjacent.dedup();
+            // Clique among adjacent remaining vertices (Dor–Tarsi 1992).
             let mut ok = true;
-            for i in 0..und_nbrs.len() {
-                for j in i + 1..und_nbrs.len() {
-                    if !work.has_edge(und_nbrs[i], und_nbrs[j]) {
+            for i in 0..adjacent.len() {
+                for j in i + 1..adjacent.len() {
+                    if !work.has_edge(adjacent[i], adjacent[j]) {
                         ok = false;
                         break;
                     }
@@ -936,8 +943,9 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
             }
         }
         let Some(x) = selected else {
-            // Fallback: orient remaining undirected arbitrarily in a topo-safe way.
-            return pdag_to_dag_fallback(&work, &dag, &remaining);
+            return Err(DiscoveryError::Unsupported {
+                message: "GES PDAG has no consistent DAG extension",
+            });
         };
         let mut neighbors = work.undirected_neighbors(x);
         neighbors.sort_unstable_by_key(|node| node.raw());
@@ -948,43 +956,6 @@ fn pdag_to_dag(pdag: &Cpdag) -> Result<Dag, DiscoveryError> {
             }
         }
         remaining.remove(&x);
-    }
-    Ok(dag)
-}
-
-fn pdag_to_dag_fallback(
-    work: &Cpdag,
-    dag: &Dag,
-    remaining: &HashSet<DenseNodeId>,
-) -> Result<Dag, DiscoveryError> {
-    let mut dag = dag.clone();
-    let mut work = work.clone();
-    // Orient undirected edges among remaining by endpoint order when acyclic.
-    let mut pairs: Vec<(DenseNodeId, DenseNodeId)> = Vec::new();
-    for e in work.edges() {
-        if e.is_undirected() && remaining.contains(&e.a) && remaining.contains(&e.b) {
-            pairs.push((e.a, e.b));
-        }
-    }
-    for (a, b) in pairs {
-        if !work.has_edge(a, b) {
-            continue;
-        }
-        if let Some(e) = work.edge_between(a, b) {
-            if !e.is_undirected() {
-                continue;
-            }
-        }
-        // Prefer lower → higher if acyclic.
-        if dag.insert_directed(a, b).is_ok() {
-            let _ = work.orient_undirected(a, b);
-        } else if dag.insert_directed(b, a).is_ok() {
-            let _ = work.orient_undirected(b, a);
-        } else {
-            return Err(DiscoveryError::Unsupported {
-                message: "GES PDAG has no consistent DAG extension",
-            });
-        }
     }
     Ok(dag)
 }
@@ -1138,5 +1109,58 @@ mod tests {
         assert!(insert_valid(&cpdag, x, y, &[]));
         apply_insert(&mut cpdag, x, y, &[]).unwrap();
         assert!(cpdag.has_edge(x, y));
+    }
+
+    /// PDAG `0 → 2 — 1` (no 0—1): the weakened undirected-only clique test would
+    /// accept 2 as a sink and invent the v-structure `0 → 2 ← 1`. With parents in
+    /// the clique, the unique consistent extension is `0 → 2 → 1`.
+    #[test]
+    fn pdag_to_dag_rejects_sink_whose_parents_miss_undirected_neighbor() {
+        let mut pdag = Cpdag::with_variables(3);
+        let a = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        let c = DenseNodeId::from_raw(2);
+        pdag.insert_directed(a, c).unwrap();
+        pdag.insert_undirected(b, c).unwrap();
+
+        let dag = pdag_to_dag(&pdag).expect("consistent extension exists");
+        // Must be the chain 0 → 2 → 1, not the invented collider 0 → 2 ← 1.
+        assert!(dag.children(a).contains(&c));
+        assert!(dag.children(c).contains(&b));
+        assert!(!dag.children(b).contains(&c));
+        assert!(dag.parents(c).iter().all(|&p| p == a));
+    }
+
+    #[test]
+    fn pdag_to_dag_extends_directed_chain() {
+        let mut pdag = Cpdag::with_variables(3);
+        let n0 = DenseNodeId::from_raw(0);
+        let n1 = DenseNodeId::from_raw(1);
+        let n2 = DenseNodeId::from_raw(2);
+        pdag.insert_directed(n0, n1).unwrap();
+        pdag.insert_directed(n1, n2).unwrap();
+
+        let dag = pdag_to_dag(&pdag).expect("chain is a consistent extension");
+        assert!(dag.children(n0).contains(&n1));
+        assert!(dag.children(n1).contains(&n2));
+        assert!(dag.children(n2).is_empty());
+    }
+
+    #[test]
+    fn pdag_to_dag_extends_undirected_clique() {
+        let mut pdag = Cpdag::with_variables(3);
+        let n0 = DenseNodeId::from_raw(0);
+        let n1 = DenseNodeId::from_raw(1);
+        let n2 = DenseNodeId::from_raw(2);
+        pdag.insert_undirected(n0, n1).unwrap();
+        pdag.insert_undirected(n1, n2).unwrap();
+        pdag.insert_undirected(n0, n2).unwrap();
+
+        let dag = pdag_to_dag(&pdag).expect("clique has a consistent extension");
+        // Dor–Tarsi orients into successive sinks; every undirected edge becomes directed.
+        assert_eq!(dag.edges().count(), 3);
+        for e in dag.edges() {
+            assert!(e.parent_child().is_some());
+        }
     }
 }
