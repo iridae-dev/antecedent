@@ -28,6 +28,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
+_PREP = ROOT / "docs" / "release-notes" / "preparation.toml"
+DOC_VERSION = (
+    tomllib.loads(_PREP.read_text())["target_version"] if _PREP.is_file() else VERSION
+)
 
 Mutation = Callable[[str], str]
 
@@ -181,10 +185,12 @@ def in_block(header: str, row_id: str, fn: Mutation) -> Mutation:
 
 def changelog_current(line: str) -> Mutation:
     def apply(text: str) -> str:
-        head = f"## [{VERSION}]"
-        i = text.index(head)
-        j = text.index("\n", i)
-        return text[: j + 1] + "\n" + line + "\n" + text[j + 1 :]
+        for head in (f"## [{DOC_VERSION}]", f"## {DOC_VERSION}"):
+            if head in text:
+                i = text.index(head)
+                j = text.index("\n", i)
+                return text[: j + 1] + "\n" + line + "\n" + text[j + 1 :]
+        raise ValueError(f"CHANGELOG.md has no {DOC_VERSION} heading")
 
     return apply
 
@@ -200,7 +206,7 @@ def docs_cases() -> list[bool]:
             g,
             "walkthrough_deferral",
             {
-                "docs/v1.10-practitioner-walkthrough.md": append(
+                "docs/python-workflow.md": append(
                     "Panel promotions stay a separately gated workstream."
                 )
             },
