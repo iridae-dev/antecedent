@@ -708,8 +708,11 @@ struct GmlGraph {
 }
 
 struct GmlParseState {
-    order: Vec<String>,
-    index: HashMap<String, u32>,
+    /// Node `id` values in first-seen order (edges bind against these).
+    id_order: Vec<String>,
+    id_index: HashMap<String, u32>,
+    /// Display names (`label`, else `id`) parallel to dense ids.
+    names: Vec<String>,
     directed: Vec<(u32, u32)>,
     undirected: Vec<(u32, u32)>,
     bidirected: Vec<(u32, u32)>,
@@ -719,13 +722,22 @@ struct GmlParseState {
 impl GmlParseState {
     fn into_graph(self) -> Result<GmlGraph, IoError> {
         Ok(GmlGraph {
-            node_count: u32::try_from(self.order.len()).map_err(|_| IoError::TooLarge)?,
+            node_count: u32::try_from(self.names.len()).map_err(|_| IoError::TooLarge)?,
             directed: self.directed,
             undirected: self.undirected,
             bidirected: self.bidirected,
             marked: self.marked,
-            names: self.order,
+            names: self.names,
         })
+    }
+
+    fn bind_id(&mut self, id: &str) -> Result<u32, IoError> {
+        if let Some(&d) = self.id_index.get(id) {
+            return Ok(d);
+        }
+        let d = graph_dot::intern(id, &mut self.id_order, &mut self.id_index)?;
+        self.names.push(id.to_string());
+        Ok(d)
     }
 }
 
@@ -766,8 +778,12 @@ fn parse_gml_node(state: &mut GmlParseState, tokens: &[Tok], i: &mut usize) -> R
         }
     }
     graph_gml::expect_char(tokens, i, ']')?;
-    let name = label.or(id).ok_or_else(|| IoError::Convert("node missing id".into()))?;
-    graph_dot::intern(&name, &mut state.order, &mut state.index)?;
+    let id = id.ok_or_else(|| IoError::Convert("node missing id".into()))?;
+    let display = label.unwrap_or_else(|| id.clone());
+    let dense = graph_dot::intern(&id, &mut state.id_order, &mut state.id_index)?;
+    if dense as usize == state.names.len() {
+        state.names.push(display);
+    }
     Ok(())
 }
 
@@ -796,8 +812,8 @@ fn parse_gml_edge(state: &mut GmlParseState, tokens: &[Tok], i: &mut usize) -> R
     graph_gml::expect_char(tokens, i, ']')?;
     let s = source.ok_or_else(|| IoError::Convert("edge missing source".into()))?;
     let t = target.ok_or_else(|| IoError::Convert("edge missing target".into()))?;
-    let from = graph_dot::intern(&s, &mut state.order, &mut state.index)?;
-    let to = graph_dot::intern(&t, &mut state.order, &mut state.index)?;
+    let from = state.bind_id(&s)?;
+    let to = state.bind_id(&t)?;
     if let (Some(a), Some(b)) = (mark_a, mark_b) {
         state.marked.push(MarkedEdgeWire {
             a: from,
@@ -822,8 +838,9 @@ fn parse_gml(gml: &str) -> Result<GmlGraph, IoError> {
     graph_gml::expect_char(&tokens, &mut i, '[')?;
     let mut directed_flag = None;
     let mut state = GmlParseState {
-        order: Vec::new(),
-        index: HashMap::new(),
+        id_order: Vec::new(),
+        id_index: HashMap::new(),
+        names: Vec::new(),
         directed: Vec::new(),
         undirected: Vec::new(),
         bidirected: Vec::new(),
@@ -856,7 +873,7 @@ fn parse_gml(gml: &str) -> Result<GmlGraph, IoError> {
     if directed_flag != Some(true) {
         return Err(IoError::Convert("GML graph must be directed 1".into()));
     }
-    if state.order.is_empty() {
+    if state.names.is_empty() {
         return Err(IoError::Convert("empty GML graph".into()));
     }
     state.into_graph()
@@ -1358,6 +1375,17 @@ mod tests {
         );
         assert_eq!(admg_from_gml(&admg_to_gml(&g, None).unwrap()).unwrap().node_count(), 3);
         assert_eq!(admg_from_dot(&admg_to_dot(&g, None).unwrap()).unwrap().node_count(), 3);
+    }
+
+    #[test]
+    fn admg_dot_dir_both_round_trip_preserves_bidirected() {
+        let mut g = Admg::with_variables(2);
+        g.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let dot = admg_to_dot(&g, None).unwrap();
+        assert!(dot.contains("dir=both"), "expected dir=both in DOT: {dot}");
+        let back = admg_from_dot(&dot).unwrap();
+        assert_eq!(back.bidirected_neighbors(DenseNodeId::from_raw(0)).len(), 1);
+        assert!(back.children(DenseNodeId::from_raw(0)).is_empty());
     }
 
     #[test]
