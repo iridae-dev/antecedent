@@ -1805,10 +1805,17 @@ impl StudyBuilder {
                     }
                 }
                 crate::support::CellStatus::Licensed => {
-                    // Unset → licensed_routes default for this cell (not "refuse
-                    // when the evidence list has more than one estimator").
-                    let estimator =
-                        self.estimator.or_else(|| crate::support::licensed_route_estimator(cell));
+                    // `inference()` auto-binds `BayesianGcomp` for every static
+                    // AverageEffect, including classes whose compiler route is
+                    // identifier-native (`general.id` + `functional.effect` on
+                    // Admg). Only a caller-selected estimator (`estimator_spec`)
+                    // is classified as bound; otherwise the cell's
+                    // licensed_routes default is what will actually run.
+                    let estimator = if self.estimator_spec.is_some() {
+                        self.estimator
+                    } else {
+                        crate::support::licensed_route_estimator(cell).or(self.estimator)
+                    };
                     match estimator {
                         Some(est) => Some(crate::support::classify_estimator(cell, est)),
                         None => Some(crate::support::CellStatus::Refused),
