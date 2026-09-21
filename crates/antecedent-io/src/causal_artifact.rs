@@ -975,6 +975,21 @@ fn validate_uncertainty(
     value_len: Option<usize>,
 ) -> Result<(), IoError> {
     use crate::ResponseUncertaintyWire;
+    // A response without a licensed value (unidentified / unevaluable) has no
+    // shape for an interval to describe, so only a non-numeric uncertainty
+    // record may accompany it.
+    let Some(value_len) = value_len else {
+        return match uncertainty {
+            ResponseUncertaintyWire::None => Ok(()),
+            ResponseUncertaintyWire::Posterior { artifact_id } if !artifact_id.trim().is_empty() => {
+                Ok(())
+            }
+            _ => Err(IoError::Convert(
+                "a response without an identified value must not carry a numeric uncertainty interval"
+                    .into(),
+            )),
+        };
+    };
     let validate_band = |level: f64, lower: &[f64], upper: &[f64]| -> Result<(), IoError> {
         if !level.is_finite() || !(0.0..1.0).contains(&level) || level == 0.0 {
             return Err(IoError::Convert(
@@ -983,7 +998,7 @@ fn validate_uncertainty(
         }
         if lower.is_empty()
             || lower.len() != upper.len()
-            || value_len.is_some_and(|expected| expected != lower.len())
+            || value_len != lower.len()
             || lower.iter().zip(upper).any(|(lo, hi)| lo > hi)
         {
             return Err(IoError::Convert(
@@ -995,7 +1010,7 @@ fn validate_uncertainty(
     match uncertainty {
         ResponseUncertaintyWire::None => Ok(()),
         ResponseUncertaintyWire::Scalar { standard_error, level, lower, upper } => {
-            if value_len != Some(1) || !standard_error.is_finite() || *standard_error < 0.0 {
+            if value_len != 1 || !standard_error.is_finite() || *standard_error < 0.0 {
                 return Err(IoError::Convert(
                     "scalar uncertainty requires a scalar response and non-negative finite standard error"
                         .into(),
@@ -1740,6 +1755,38 @@ mod tests {
         assert!(validate_response_result(&wire, 2).is_ok());
         wire.support.status = SupportStatusWire::Supported;
         assert!(validate_response_result(&wire, 2).is_err());
+    }
+
+    #[test]
+    fn unidentified_response_may_not_carry_a_numeric_interval() {
+        let mut wire = partially_identified_scalar(scalar_interval(-0.19, 0.01));
+        wire.identification_status = IdentificationStatusWire::NotIdentified;
+        wire.estimate =
+            ResponseIdentificationWire::Unidentified { certificate: "identify.hedge".into() };
+        wire.uncertainty = ResponseUncertaintyWire::None;
+        assert!(validate_response_result(&wire, 2).is_ok());
+        for uncertainty in [
+            ResponseUncertaintyWire::PointwiseBand {
+                level: 0.95,
+                lower: vec![0.1],
+                upper: vec![0.4],
+            },
+            ResponseUncertaintyWire::SimultaneousBand {
+                level: 0.95,
+                lower: vec![0.1],
+                upper: vec![0.4],
+                replicates: 10,
+            },
+            ResponseUncertaintyWire::IdentifiedEnvelopeBand {
+                level: 0.95,
+                lower_outer: vec![0.1],
+                upper_outer: vec![0.4],
+            },
+        ] {
+            wire.uncertainty = uncertainty;
+            let error = validate_response_result(&wire, 2).unwrap_err().to_string();
+            assert!(error.contains("without an identified value"), "{error}");
+        }
     }
 
     #[test]

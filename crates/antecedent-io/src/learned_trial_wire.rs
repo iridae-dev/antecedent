@@ -24,9 +24,7 @@ pub struct LearnedTrialWire {
     /// Executed OOF score and bootstrap evidence.
     pub result: TrialAipwEstimate,
 }
-fn err(e: impl std::fmt::Display) -> IoError {
-    IoError::Convert(e.to_string())
-}
+use crate::error::convert_err as err;
 impl LearnedTrialWire {
     /// Verify graph identification, exact score replay, and inference bookkeeping.
     /// No fitting or resampling is performed.
@@ -118,7 +116,8 @@ impl LearnedTrialWire {
     /// # Errors
     /// Canonical encoding failure.
     pub fn identity(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(antecedent_core::IdentityDomain::Execution, self)?.to_hex())
+        Ok(crate::identity::digest_wire(antecedent_core::IdentityDomain::LearnedTrial, self)?
+            .to_hex())
     }
     /// Encode a validated claim in the common artifact container.
     /// # Errors
@@ -157,5 +156,28 @@ impl LearnedTrialWire {
             return Err(err("learned trial identity mismatch"));
         }
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The foreign option struct is serialized directly into the learned-trial artifact and
+    /// its identity digest (CBOR map order is declaration order). A rename or reorder in the
+    /// owning crate would silently change both, so the field names and order are pinned here.
+    #[test]
+    fn embedded_trial_options_keep_their_wire_field_names_and_order() {
+        let bytes = crate::to_cbor(&TrialAipwOptions::default()).unwrap();
+        let value: ciborium::Value = ciborium::from_reader(bytes.as_slice()).unwrap();
+        let entries = value.as_map().expect("options serialize as a CBOR map");
+        let keys: Vec<&str> = entries.iter().map(|(key, _)| key.as_text().unwrap()).collect();
+        assert_eq!(keys, ["outcome", "membership", "folds", "bootstrap", "coverage_level"]);
+        let scalar = |name: &str| {
+            entries.iter().find(|(key, _)| key.as_text() == Some(name)).map(|(_, v)| v.clone())
+        };
+        assert_eq!(scalar("folds"), Some(ciborium::Value::Integer(5.into())));
+        assert_eq!(scalar("bootstrap"), Some(ciborium::Value::Integer(199.into())));
+        assert_eq!(scalar("coverage_level"), Some(ciborium::Value::Float(0.95)));
     }
 }

@@ -411,6 +411,7 @@ pub struct AnalysisResultWire {
 
 /// Per-unit counterfactual effects an execution reported.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct UnitEffectsWire {
     /// One effect per unit, in row order.
     pub effects: Vec<f64>,
@@ -426,6 +427,7 @@ pub struct UnitEffectsWire {
 
 /// Level-tagged per-unit interval bounds aligned with [`UnitEffectsWire::effects`].
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct UnitEffectIntervalsWire {
     /// Lower bound per unit.
     pub lower: Vec<f64>,
@@ -861,7 +863,15 @@ fn validate_identification_namespace(
                         .chain(&estimand.mediators)
                 })
                 .copied(),
-        );
+        )
+        .chain(
+            identification
+                .estimands
+                .iter()
+                .filter_map(|estimand| estimand.rd_design.as_ref())
+                .map(|design| design.running_variable),
+        )
+        .chain(identification.hedge.iter().flat_map(crate::HedgeCertificateWire::variables));
     if ids.into_iter().any(|id| id as usize >= count) {
         return Err(IoError::Convert(
             "identification variable is outside its declared namespace".into(),

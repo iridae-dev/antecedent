@@ -12,6 +12,7 @@ use antecedent_estimate::{
     PropensityInterval,
 };
 use antecedent_expr::{ExprId, IdentifiedEstimand};
+use antecedent_graph::DenseNodeId;
 use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
 use antecedent_validate::RefutationReport;
 use serde::{Deserialize, Serialize};
@@ -323,6 +324,61 @@ pub struct IdentificationResultWire {
     pub candidates_examined: u64,
     /// Sets returned.
     pub sets_returned: u64,
+    /// ID-algorithm hedge witnessing that `not_identified` is a proof rather than a
+    /// failure to find an identifier. Absent when no witness was produced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hedge: Option<HedgeCertificateWire>,
+}
+
+/// Shpitser–Pearl hedge `(F, F')` on the wire: the two C-forests as variable ids and
+/// dense graph coordinates, each strictly increasing.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct HedgeCertificateWire {
+    /// Variables of the larger forest `F`.
+    pub f: Vec<u32>,
+    /// Variables of the smaller forest `F'`.
+    pub f_prime: Vec<u32>,
+    /// Dense ids of `F`.
+    pub f_dense: Vec<u32>,
+    /// Dense ids of `F'`.
+    pub f_prime_dense: Vec<u32>,
+}
+
+impl HedgeCertificateWire {
+    /// Every variable named by the witness.
+    pub(crate) fn variables(&self) -> impl Iterator<Item = u32> + '_ {
+        self.f.iter().chain(&self.f_prime).copied()
+    }
+
+    /// Structural conditions of a hedge that need no graph: strictly increasing dense
+    /// coordinates paired one-to-one with distinct variables, and `F'` a non-empty
+    /// subset of `F` coordinate by coordinate. The graph conditions are re-verified by
+    /// `HedgeCertificate::verify` wherever the graph is held.
+    fn validate(&self) -> Result<(), IoError> {
+        let invalid = |what: &str| IoError::Convert(format!("invalid hedge certificate: {what}"));
+        if self.f.len() != self.f_dense.len() || self.f_prime.len() != self.f_prime_dense.len() {
+            return Err(invalid("variable and dense id lists differ in length"));
+        }
+        let distinct = |ids: &[u32]| ids.iter().collect::<std::collections::BTreeSet<_>>().len();
+        if [&self.f_dense, &self.f_prime_dense].iter().any(|d| d.windows(2).any(|w| w[0] >= w[1]))
+            || distinct(&self.f) != self.f.len()
+            || distinct(&self.f_prime) != self.f_prime.len()
+        {
+            return Err(invalid("dense ids must be strictly increasing and variables distinct"));
+        }
+        let forest: std::collections::BTreeMap<u32, u32> =
+            self.f_dense.iter().copied().zip(self.f.iter().copied()).collect();
+        let nested = self
+            .f_prime_dense
+            .iter()
+            .zip(&self.f_prime)
+            .all(|(dense, variable)| forest.get(dense) == Some(variable));
+        if self.f_prime.is_empty() || !nested {
+            return Err(invalid("F' must be a non-empty subset of F"));
+        }
+        Ok(())
+    }
 }
 
 /// Diagnostic wire.
@@ -797,6 +853,48 @@ fn overlap_report_from_wire(wire: &OverlapReportWire) -> Result<OverlapReport, I
     })
 }
 
+/// The one table of identification-status spellings: `snake_case` on the analysis and
+/// response wires, `PascalCase` on posterior artifacts and prior-bank metadata (the
+/// host-facing label those durable formats and their consumers already carry).
+pub(crate) const STATUS_SPELLINGS: [(IdentificationStatus, &str, &str); 6] = [
+    (
+        IdentificationStatus::NonparametricallyIdentified,
+        "nonparametrically_identified",
+        "NonparametricallyIdentified",
+    ),
+    (
+        IdentificationStatus::IdentifiedUnderParametricRestrictions,
+        "identified_under_parametric_restrictions",
+        "IdentifiedUnderParametricRestrictions",
+    ),
+    (
+        IdentificationStatus::IdentifiedUnderPriorRestrictions,
+        "identified_under_prior_restrictions",
+        "IdentifiedUnderPriorRestrictions",
+    ),
+    (IdentificationStatus::PartiallyIdentified, "partially_identified", "PartiallyIdentified"),
+    (IdentificationStatus::GraphDependent, "graph_dependent", "GraphDependent"),
+    (IdentificationStatus::NotIdentified, "not_identified", "NotIdentified"),
+];
+
+/// `snake_case` spelling of a status.
+pub(crate) fn identification_status_snake(status: IdentificationStatus) -> &'static str {
+    STATUS_SPELLINGS.iter().find(|(s, _, _)| *s == status).map_or("not_identified", |row| row.1)
+}
+
+/// `PascalCase` spelling of a status.
+pub(crate) fn identification_status_pascal(status: IdentificationStatus) -> &'static str {
+    STATUS_SPELLINGS.iter().find(|(s, _, _)| *s == status).map_or("NotIdentified", |row| row.2)
+}
+
+/// Status named by either spelling.
+pub(crate) fn identification_status_from_any(spelling: &str) -> Option<IdentificationStatus> {
+    STATUS_SPELLINGS
+        .iter()
+        .find(|(_, snake, pascal)| *snake == spelling || *pascal == spelling)
+        .map(|(status, _, _)| *status)
+}
+
 /// Encode identification result.
 ///
 /// # Errors
@@ -818,20 +916,7 @@ pub fn identification_to_wire_with_registry(
     registry: Option<&antecedent_core::PopulationRegistry>,
 ) -> Result<IdentificationResultWire, IoError> {
     Ok(IdentificationResultWire {
-        status: match r.status {
-            IdentificationStatus::NonparametricallyIdentified => {
-                "nonparametrically_identified".into()
-            }
-            IdentificationStatus::IdentifiedUnderParametricRestrictions => {
-                "identified_under_parametric_restrictions".into()
-            }
-            IdentificationStatus::IdentifiedUnderPriorRestrictions => {
-                "identified_under_prior_restrictions".into()
-            }
-            IdentificationStatus::PartiallyIdentified => "partially_identified".into(),
-            IdentificationStatus::GraphDependent => "graph_dependent".into(),
-            IdentificationStatus::NotIdentified => "not_identified".into(),
-        },
+        status: identification_status_snake(r.status).into(),
         query: crate::query_wire::causal_query_to_wire_with_registry(&r.query, registry)?,
         estimands: r
             .estimands
@@ -860,6 +945,12 @@ pub fn identification_to_wire_with_registry(
         diagnostics: r.diagnostics.iter().map(diagnostic_to_wire).collect(),
         candidates_examined: r.performance.candidates_examined,
         sets_returned: r.performance.sets_returned,
+        hedge: r.hedge.as_ref().map(|h| HedgeCertificateWire {
+            f: vars_to_raw(&h.f),
+            f_prime: vars_to_raw(&h.f_prime),
+            f_dense: h.f_dense.iter().map(|d| d.raw()).collect(),
+            f_prime_dense: h.f_prime_dense.iter().map(|d| d.raw()).collect(),
+        }),
     })
 }
 
@@ -871,21 +962,52 @@ pub fn identification_to_wire_with_registry(
 pub fn identification_from_wire(
     w: &IdentificationResultWire,
 ) -> Result<IdentificationResult, IoError> {
-    let status = match w.status.as_str() {
-        "nonparametrically_identified" => IdentificationStatus::NonparametricallyIdentified,
-        "identified_under_parametric_restrictions" => {
-            IdentificationStatus::IdentifiedUnderParametricRestrictions
+    let status = STATUS_SPELLINGS
+        .iter()
+        .find(|(_, snake, _)| *snake == w.status)
+        .map(|(status, _, _)| *status)
+        .ok_or_else(|| IoError::Convert(format!("unknown IdentificationStatus `{}`", w.status)))?;
+    let hedge = match &w.hedge {
+        Some(wire) => {
+            if status != IdentificationStatus::NotIdentified {
+                return Err(IoError::Convert(
+                    "a hedge witness is only meaningful for a not_identified result".into(),
+                ));
+            }
+            wire.validate()?;
+            Some(antecedent_identify::HedgeCertificate {
+                f: vars_from_raw(&wire.f),
+                f_prime: vars_from_raw(&wire.f_prime),
+                f_dense: wire.f_dense.iter().copied().map(DenseNodeId::from_raw).collect(),
+                f_prime_dense: wire
+                    .f_prime_dense
+                    .iter()
+                    .copied()
+                    .map(DenseNodeId::from_raw)
+                    .collect(),
+            })
         }
-        "identified_under_prior_restrictions" => {
-            IdentificationStatus::IdentifiedUnderPriorRestrictions
-        }
-        "partially_identified" => IdentificationStatus::PartiallyIdentified,
-        "graph_dependent" => IdentificationStatus::GraphDependent,
-        "not_identified" => IdentificationStatus::NotIdentified,
-        other => {
-            return Err(IoError::Convert(format!("unknown IdentificationStatus `{other}`")));
-        }
+        None => None,
     };
+    for estimand in &w.estimands {
+        // The estimand's root pointer indexes the arena directly; a dangling
+        // one would panic in every consumer that renders or compiles it.
+        if estimand.functional as usize >= w.arena.nodes.len() {
+            return Err(IoError::Convert(
+                "identified estimand functional is outside its expression arena".into(),
+            ));
+        }
+        if let Some(design) = &estimand.rd_design {
+            if !design.cutoff.is_finite()
+                || !design.bandwidth.is_finite()
+                || design.bandwidth <= 0.0
+            {
+                return Err(IoError::Convert(
+                    "sharp RD design needs a finite cutoff and a finite positive bandwidth".into(),
+                ));
+            }
+        }
+    }
     Ok(IdentificationResult::from_parts(
         status,
         causal_query_from_wire(&w.query)?,
@@ -925,7 +1047,7 @@ pub fn identification_from_wire(
             candidates_examined: w.candidates_examined,
             sets_returned: w.sets_returned,
         },
-        None,
+        hedge,
     ))
 }
 
@@ -1069,6 +1191,128 @@ mod tests {
             IdentificationPerformanceRecord::default(),
             None,
         )
+    }
+
+    fn estimand_wire(functional: u32, rd_design: Option<RdDesignWire>) -> IdentifiedEstimandWire {
+        IdentifiedEstimandWire {
+            method: "backdoor".into(),
+            adjustment_set: Vec::new(),
+            instruments: Vec::new(),
+            mediators: Vec::new(),
+            functional,
+            rd_design,
+        }
+    }
+
+    #[test]
+    fn dangling_estimand_functional_is_rejected_not_panicked_on() {
+        let mut wire =
+            identification_to_wire(&empty_id_result(IdentificationStatus::NotIdentified)).unwrap();
+        assert!(wire.arena.nodes.is_empty());
+        wire.estimands = vec![estimand_wire(4_000_000_000, None)];
+        let error = identification_from_wire(&wire).unwrap_err().to_string();
+        assert!(error.contains("outside its expression arena"), "{error}");
+        // Index equal to the arena length is the first out-of-range value.
+        wire.estimands = vec![estimand_wire(0, None)];
+        assert!(identification_from_wire(&wire).is_err());
+    }
+
+    #[test]
+    fn rd_design_needs_finite_cutoff_and_positive_bandwidth() {
+        let mut arena = CausalExprArena::new();
+        let root = arena.backdoor_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            &[],
+            antecedent_core::Value::Bool(true),
+            antecedent_core::Value::Bool(false),
+        );
+        let result = IdentificationResult::from_parts(
+            IdentificationStatus::NonparametricallyIdentified,
+            CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+            )),
+            Vec::new(),
+            arena,
+            DerivationTrace::default(),
+            AssumptionSet::default(),
+            Vec::new(),
+            IdentificationPerformanceRecord::default(),
+            None,
+        );
+        let mut wire = identification_to_wire(&result).unwrap();
+        for (cutoff, bandwidth) in
+            [(f64::NAN, 1.0), (0.5, 0.0), (0.5, -1.0), (0.5, f64::INFINITY), (0.5, f64::NAN)]
+        {
+            wire.estimands = vec![estimand_wire(
+                root.raw(),
+                Some(RdDesignWire { running_variable: 0, cutoff, bandwidth }),
+            )];
+            assert!(identification_from_wire(&wire).is_err(), "{cutoff} {bandwidth}");
+        }
+        wire.estimands = vec![estimand_wire(
+            root.raw(),
+            Some(RdDesignWire { running_variable: 0, cutoff: 0.5, bandwidth: 0.25 }),
+        )];
+        assert!(identification_from_wire(&wire).is_ok());
+    }
+
+    fn bow_hedge() -> antecedent_identify::HedgeCertificate {
+        // Bow graph X -> Y with X <-> Y: F = {X, Y}, F' = {Y}.
+        let ids = |raw: &[u32]| -> Arc<[VariableId]> {
+            raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>().into()
+        };
+        let dense = |raw: &[u32]| -> Arc<[DenseNodeId]> {
+            raw.iter().copied().map(DenseNodeId::from_raw).collect::<Vec<_>>().into()
+        };
+        antecedent_identify::HedgeCertificate {
+            f: ids(&[0, 1]),
+            f_prime: ids(&[1]),
+            f_dense: dense(&[0, 1]),
+            f_prime_dense: dense(&[1]),
+        }
+    }
+
+    #[test]
+    fn hedge_witness_survives_save_and_load() {
+        let mut result = empty_id_result(IdentificationStatus::NotIdentified);
+        result.hedge = Some(bow_hedge());
+        let wire = identification_to_wire(&result).unwrap();
+        assert!(wire.hedge.is_some());
+        let bytes = serde_json::to_vec(&wire).unwrap();
+        let decoded: IdentificationResultWire = serde_json::from_slice(&bytes).unwrap();
+        let back = identification_from_wire(&decoded).unwrap();
+        assert_eq!(back.hedge, Some(bow_hedge()));
+        // A refusal without a witness stays without one.
+        let plain =
+            identification_to_wire(&empty_id_result(IdentificationStatus::NotIdentified)).unwrap();
+        assert!(identification_from_wire(&plain).unwrap().hedge.is_none());
+    }
+
+    #[test]
+    fn hedge_witness_is_rejected_when_malformed_or_on_an_identified_result() {
+        let mut result = empty_id_result(IdentificationStatus::NotIdentified);
+        result.hedge = Some(bow_hedge());
+        let wire = identification_to_wire(&result).unwrap();
+
+        let mut identified = wire.clone();
+        identified.status = "nonparametrically_identified".into();
+        assert!(identification_from_wire(&identified).is_err());
+
+        let mut not_nested = wire.clone();
+        not_nested.hedge.as_mut().unwrap().f_prime = vec![7];
+        assert!(identification_from_wire(&not_nested).is_err());
+
+        let mut empty_inner = wire.clone();
+        let hedge = empty_inner.hedge.as_mut().unwrap();
+        hedge.f_prime.clear();
+        hedge.f_prime_dense.clear();
+        assert!(identification_from_wire(&empty_inner).is_err());
+
+        let mut unordered = wire;
+        unordered.hedge.as_mut().unwrap().f_dense = vec![1, 0];
+        assert!(identification_from_wire(&unordered).is_err());
     }
 
     #[test]

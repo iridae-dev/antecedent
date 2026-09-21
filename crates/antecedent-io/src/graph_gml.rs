@@ -180,15 +180,27 @@ pub fn dag_wire_to_gml(wire: &DagWire, names: Option<&[String]>) -> String {
     let mut out = String::from("graph [\n  directed 1\n");
     for i in 0..wire.node_count {
         let label = names.and_then(|n| n.get(i as usize)).cloned().unwrap_or_else(|| i.to_string());
+        let label = escape_gml_string(&label);
         out.push_str(&format!("  node [\n    id \"{label}\"\n    label \"{label}\"\n  ]\n"));
     }
     for &(a, b) in &wire.edges {
         let sa = names.and_then(|n| n.get(a as usize)).cloned().unwrap_or_else(|| a.to_string());
         let sb = names.and_then(|n| n.get(b as usize)).cloned().unwrap_or_else(|| b.to_string());
+        let (sa, sb) = (escape_gml_string(&sa), escape_gml_string(&sb));
         out.push_str(&format!("  edge [\n    source \"{sa}\"\n    target \"{sb}\"\n  ]\n"));
     }
     out.push(']');
     out
+}
+
+/// GML strings cannot contain a raw `"`; the format's escapes are the HTML entities
+/// `&quot;` and `&amp;`.
+pub(crate) fn escape_gml_string(s: &str) -> String {
+    s.replace('&', "&amp;").replace('"', "&quot;")
+}
+
+fn unescape_gml_string(s: &str) -> String {
+    s.replace("&quot;", "\"").replace("&amp;", "&")
 }
 
 #[derive(Debug)]
@@ -224,7 +236,7 @@ pub(crate) fn tokenize(input: &str) -> Result<Vec<Tok>, IoError> {
             if i >= bytes.len() {
                 return Err(IoError::Convert("unterminated GML string".into()));
             }
-            let s = String::from_utf8_lossy(&bytes[start..i]).into_owned();
+            let s = unescape_gml_string(&String::from_utf8_lossy(&bytes[start..i]));
             i += 1;
             out.push(Tok::String(s));
             continue;
@@ -362,6 +374,26 @@ mod tests {
         assert_eq!(names, vec!["Z".to_string(), "X".to_string(), "Y".to_string()]);
         assert!(dag.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
         assert!(!dag.reaches(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)));
+    }
+
+    #[test]
+    fn labels_with_quotes_and_ampersands_survive_a_round_trip() {
+        let dag = dag_from_gml(
+            "graph [ directed 1 node [ id 0 label \"a\" ] node [ id 1 label \"b\" ] \
+                              edge [ source 0 target 1 ] ]",
+        )
+        .unwrap();
+        let wire = crate::convert::dag_to_wire(&dag).unwrap();
+        let names = vec!["say \"hi\"".to_string(), "a&b".to_string()];
+        let gml = dag_wire_to_gml(&wire, Some(&names));
+        assert!(gml.contains("say &quot;hi&quot;"), "{gml}");
+        assert!(gml.contains("a&amp;b"), "{gml}");
+        let (back, back_names) = dag_with_names_from_gml(&gml).unwrap();
+        assert_eq!(back_names, names);
+        assert!(back.reaches(
+            antecedent_graph::DenseNodeId::from_raw(0),
+            antecedent_graph::DenseNodeId::from_raw(1)
+        ));
     }
 
     #[test]

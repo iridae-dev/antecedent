@@ -80,6 +80,18 @@ pub fn digest_wire<T: Serialize>(
     Ok(digest_canonical(domain, &to_cbor(value)?))
 }
 
+/// Lower-case hex of [`digest_wire`], for artifact ids and wire-level identity strings.
+///
+/// # Errors
+///
+/// CBOR encode failure.
+pub(crate) fn digest_wire_hex<T: Serialize>(
+    domain: IdentityDomain,
+    value: &T,
+) -> Result<String, IoError> {
+    Ok(digest_wire(domain, value)?.to_hex())
+}
+
 /// Host/Python view of the executed functional. Stable tags, not `Debug`.
 ///
 /// Every query kind reports through this owner so consume and prepare do not

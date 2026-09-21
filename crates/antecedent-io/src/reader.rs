@@ -292,6 +292,8 @@ impl MappedArtifactReader {
         let file = File::open(path.as_ref()).map_err(|e| IoError::Io(e.to_string()))?;
         // SAFETY: caller upholds file immutability for the map lifetime.
         let mmap = Arc::new(unsafe { map_file_readonly(&file)? });
+        // SAFETY: `from_mmap` carries the same file-immutability contract as
+        // `map_file_readonly` above; the caller of this function upholds it for the map.
         unsafe { Self::from_mmap(mmap) }
     }
 

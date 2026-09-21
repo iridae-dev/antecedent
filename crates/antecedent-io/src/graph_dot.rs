@@ -59,6 +59,14 @@ pub fn dag_wire_from_dot(dot: &str) -> Result<DagWire, IoError> {
     dag_wire_and_names_from_dot(dot).map(|(wire, _names)| wire)
 }
 
+/// Graphviz `node [..]`, `edge [..]` and `graph [..]` set defaults for later statements;
+/// they name no variable. A quoted `"node"` is an ordinary node id.
+pub(crate) fn is_default_attribute_statement(id: &str, quoted: bool, next: Option<char>) -> bool {
+    !quoted
+        && next == Some('[')
+        && matches!(id.to_ascii_lowercase().as_str(), "node" | "edge" | "graph")
+}
+
 /// Parse DOT into [`DagWire`] plus node labels in dense-id order.
 fn dag_wire_and_names_from_dot(dot: &str) -> Result<(DagWire, Vec<String>), IoError> {
     let mut lexer = Lexer::new(dot);
@@ -89,8 +97,13 @@ fn dag_wire_and_names_from_dot(dot: &str) -> Result<(DagWire, Vec<String>), IoEr
         if lexer.eat_char(';') {
             continue;
         }
-        let from = lexer.expect_node_id()?;
+        let (from, quoted) = lexer.expect_statement_id()?;
         lexer.skip_ws_and_comments();
+        if is_default_attribute_statement(&from, quoted, lexer.peek_char()) {
+            lexer.skip_attr_list()?;
+            let _ = lexer.eat_char(';');
+            continue;
+        }
         // Optional attribute list after a lone node declaration.
         if lexer.peek_char() == Some('[') {
             lexer.skip_attr_list()?;
@@ -372,6 +385,14 @@ impl<'a> Lexer<'a> {
         Ok(&self.src[start..start + len])
     }
 
+    /// Start of a statement: the id plus whether it was a quoted string. A bare
+    /// `node` / `edge` / `graph` opens a default-attribute statement, not a variable.
+    pub(crate) fn expect_statement_id(&mut self) -> Result<(String, bool), IoError> {
+        self.skip_ws_and_comments();
+        let quoted = self.peek_char() == Some('"');
+        Ok((self.expect_node_id()?, quoted))
+    }
+
     pub(crate) fn expect_node_id(&mut self) -> Result<String, IoError> {
         self.skip_ws_and_comments();
         if self.eat_char('"') {
@@ -466,6 +487,19 @@ mod tests {
         let back = dag_from_dot(&s).unwrap();
         assert_eq!(back.node_count(), 3);
         assert!(back.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)));
+    }
+
+    #[test]
+    fn default_attribute_statements_are_not_variables() {
+        let dot = "digraph G { graph [rankdir=LR]; node [shape=box]; edge [color=red]; \
+                   a -> b; }";
+        let (dag, names) = dag_with_names_from_dot(dot).unwrap();
+        assert_eq!(names, vec!["a".to_string(), "b".to_string()]);
+        assert_eq!(dag.node_count(), 2);
+        // A quoted id is a real variable even when it spells a keyword.
+        let (quoted, names) = dag_with_names_from_dot("digraph { \"node\" -> b; }").unwrap();
+        assert_eq!(names, vec!["node".to_string(), "b".to_string()]);
+        assert_eq!(quoted.node_count(), 2);
     }
 
     #[test]

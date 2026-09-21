@@ -12,13 +12,13 @@ use antecedent_core::{
 };
 
 use crate::analysis_result_artifact::{AnalysisResultWire, encode_analysis_result_artifact};
-use crate::analysis_wire::IdentificationResultWire;
+use crate::analysis_wire::{DiagnosticWire, IdentificationResultWire};
 use crate::container::{CompressPolicy, pack_section_shared};
 use crate::contract_section::{
     AnalysisResultContractWire, AttestedEvidenceWire, CONTRACT_SECTION, CONTRACT_SECTION_FORMAT,
     CalibrationSlotWire, ClaimSectionWire, ContractIdentitiesWire, IdentificationSlotWire,
-    ReasoningSectionWire, SlotSectionWire, SupportSlotWire, contract_seal, digest_hex,
-    result_digest,
+    ReasoningSectionWire, SlotSectionWire, SupportSlotWire, claim_domains, contract_seal,
+    digest_hex, result_digest,
 };
 use crate::convert::schema_to_wire;
 use crate::error::IoError;
@@ -62,10 +62,16 @@ pub struct ExternalEstimateAttach {
 
 /// Encode a contracted `analysis_result` whose claim is an attested external estimate.
 ///
+/// Only a fully identified parent (`nonparametrically_identified` or
+/// `identified_under_parametric_restrictions`) can carry an attested estimate: a partially
+/// identified, graph-dependent or refused parent licenses no point value to attach to.
+///
 /// # Errors
 ///
-/// Unknown treatment/outcome names, invalid schema, or encode failure.
+/// A parent status that is not fully identified, unknown treatment/outcome names, invalid
+/// schema, or encode failure.
 pub fn encode_external_estimate_claim(attach: &ExternalEstimateAttach) -> Result<Vec<u8>, IoError> {
+    require_identified_status(&attach.status)?;
     let evidence = attested_external_estimate(attach);
     let (body, target, names) = receipt_body(attach)?;
     let mut contract = receipt_contract(attach, &body, target, &evidence)?;
@@ -92,6 +98,15 @@ pub fn attested_external_estimate(attach: &ExternalEstimateAttach) -> AttestedEv
         payload_digest: Some(digest_hex(&payload_digest(
             "external_estimate.payload",
             &attach.payload,
+        ))),
+    }
+}
+
+fn require_identified_status(status: &str) -> Result<(), IoError> {
+    match wire_status(status).as_str() {
+        "nonparametrically_identified" | "identified_under_parametric_restrictions" => Ok(()),
+        other => Err(IoError::Convert(format!(
+            "an external estimate can only be attached to a fully identified result (got `{other}`)"
         ))),
     }
 }
@@ -146,6 +161,7 @@ fn receipt_body(
             diagnostics: Vec::new(),
             candidates_examined: 0,
             sets_returned: 0,
+            hedge: None,
         },
         identification_variables: None,
         temporal_identification: Vec::new(),
@@ -154,7 +170,7 @@ fn receipt_body(
         interval_lower: None,
         interval_upper: None,
         assumptions: Vec::new(),
-        diagnostics: Vec::new(),
+        diagnostics: vec![target_attestation(attach)],
         refutations: Vec::new(),
         response: None,
         posterior_artifact: None,
@@ -176,6 +192,34 @@ fn receipt_body(
         query: query_wire,
     };
     Ok((body, target, attach.names.clone()))
+}
+
+/// The receipt cannot know what the external learner estimated or the variables' value types.
+/// Its schema (all continuous) and query (a 0 -> 1 contrast) are placeholders the caller's
+/// label stands behind; the diagnostic says so where any reader of the body will see it.
+fn target_attestation(attach: &ExternalEstimateAttach) -> DiagnosticWire {
+    let (labelled, message) = if attach.scalar_value.is_some() {
+        (
+            "average_effect",
+            "target attested by the caller as a scalar average effect (do(0) versus do(1)); \
+             variable value types were not observed and default to continuous",
+        )
+    } else {
+        (
+            "unlabelled",
+            "the estimate was not labelled as a scalar average effect and may be a curve, \
+             heterogeneous-effect array or multi-valued contrast; the target query and variable \
+             value types recorded here are placeholders, not what the learner estimated",
+        )
+    };
+    DiagnosticWire {
+        code: "external_estimate.target_attested".into(),
+        kind: "scientific".into(),
+        severity: "info".into(),
+        message: message.into(),
+        artifact_id: None,
+        fields: vec![("target".into(), labelled.into())],
+    }
 }
 
 #[allow(clippy::too_many_lines)]
@@ -218,28 +262,27 @@ fn receipt_contract(
         envelope: None,
     };
     let kind = if attach.scalar_value.is_some() { "point" } else { "incomplete" };
+    // The parent is fully identified (checked at entry), so the slot is full-mass; the claim
+    // domains are derived from the slots by the same rule the consumer re-derives them with.
+    let identification_slot = IdentificationSlotWire {
+        status: body.identification.status.clone(),
+        identified_mass: 1.0,
+        unidentified_mass: 0.0,
+        unevaluable_mass: 0.0,
+        incomplete_search_mass: 0.0,
+        full_mass_scope: true,
+        search_capped: false,
+        weight_basis: None,
+    };
+    let support_slot = SupportSlotWire {
+        matrix_status: "unknown".into(),
+        matrix_coordinate: None,
+        empirical: "unavailable:not_evaluated".into(),
+    };
+    let domains = claim_domains(Some(&support_slot), Some(&identification_slot));
     let reasoning = ReasoningSectionWire {
-        identification: SlotSectionWire {
-            value: Some(IdentificationSlotWire {
-                status: body.identification.status.clone(),
-                identified_mass: 1.0,
-                unidentified_mass: 0.0,
-                unevaluable_mass: 0.0,
-                incomplete_search_mass: 0.0,
-                full_mass_scope: true,
-                search_capped: false,
-                weight_basis: None,
-            }),
-            unavailable: None,
-        },
-        support: SlotSectionWire {
-            value: Some(SupportSlotWire {
-                matrix_status: "unknown".into(),
-                matrix_coordinate: None,
-                empirical: "unavailable:not_evaluated".into(),
-            }),
-            unavailable: None,
-        },
+        identification: SlotSectionWire { value: Some(identification_slot), unavailable: None },
+        support: SlotSectionWire { value: Some(support_slot), unavailable: None },
         uncertainty: SlotSectionWire {
             value: None,
             unavailable: Some("attested_not_reverifiable".into()),
@@ -284,9 +327,9 @@ fn receipt_contract(
             kind: kind.into(),
             value_bits: attach.scalar_value.filter(|value| value.is_finite()).map(f64::to_bits),
             execution: None,
-            identification_domain: "identified".into(),
-            support_domain: "unknown".into(),
-            evaluated_domain: "unknown".into(),
+            identification_domain: domains.identification,
+            support_domain: domains.support,
+            evaluated_domain: domains.evaluated,
             calibration: CalibrationSlotWire::unavailable(antecedent_core::reason_code!(
                 "attested_not_reverifiable"
             )),
@@ -376,17 +419,10 @@ fn index_of(names: &[String], name: &str) -> Result<u32, IoError> {
 }
 
 fn wire_status(status: &str) -> String {
-    if status.contains('_') {
-        return status.to_ascii_lowercase();
-    }
-    let mut out = String::new();
-    for (idx, ch) in status.chars().enumerate() {
-        if ch.is_uppercase() && idx > 0 {
-            out.push('_');
-        }
-        out.extend(ch.to_lowercase());
-    }
-    out
+    crate::analysis_wire::identification_status_from_any(status).map_or_else(
+        || status.to_ascii_lowercase(),
+        |known| crate::analysis_wire::identification_status_snake(known).into(),
+    )
 }
 
 /// Parse a 64-digit hex digest.
@@ -475,7 +511,7 @@ mod tests {
         assert_eq!(first_claim.calibration.reason.as_deref(), Some("attested_not_reverifiable"));
         assert_eq!(first_claim.identification_domain, "identified");
         assert_eq!(first_claim.support_domain, "unknown");
-        assert_eq!(first_claim.evaluated_domain, "unknown");
+        assert_eq!(first_claim.evaluated_domain, "evaluated");
         assert!(first_claim.value_bits.is_none());
         assert_ne!(first_claim.claim_id, second_claim.claim_id);
         assert_ne!(first_claim.attested[0].payload_digest, second_claim.attested[0].payload_digest);
@@ -488,5 +524,74 @@ mod tests {
         assert!(contract.estimator.is_none());
         assert!(contract.score_reuse.is_none());
         assert_eq!(contract.identities.data_snapshot, [7; 32]);
+    }
+
+    #[test]
+    fn receipt_refuses_parents_that_are_not_fully_identified() {
+        for status in [
+            "PartiallyIdentified",
+            "not_identified",
+            "GraphDependent",
+            "IdentifiedUnderPriorRestrictions",
+            "bogus",
+        ] {
+            let mut attach = attach_with_payload(&[0]);
+            attach.status = status.into();
+            attach.scalar_value = Some(1.2);
+            let error = encode_external_estimate_claim(&attach).unwrap_err().to_string();
+            assert!(error.contains("fully identified"), "{status}: {error}");
+        }
+        for status in ["NonparametricallyIdentified", "identified_under_parametric_restrictions"] {
+            let mut attach = attach_with_payload(&[0]);
+            attach.status = status.into();
+            assert!(encode_external_estimate_claim(&attach).is_ok(), "{status}");
+        }
+    }
+
+    #[test]
+    fn receipt_domains_are_the_ones_the_consumer_derives_from_its_slots() {
+        let bytes = encode_external_estimate_claim(&attach_with_payload(&[0])).unwrap();
+        let (_, contract, claim) = decode_external_estimate_claim(&bytes).unwrap();
+        let derived = claim_domains(
+            contract.reasoning.support.value.as_ref(),
+            contract.reasoning.identification.value.as_ref(),
+        );
+        assert_eq!(claim.identification_domain, derived.identification);
+        assert_eq!(claim.support_domain, derived.support);
+        assert_eq!(claim.evaluated_domain, derived.evaluated);
+    }
+
+    #[test]
+    fn receipt_states_that_its_target_and_value_types_are_attested() {
+        let unlabelled = encode_external_estimate_claim(&attach_with_payload(&[0])).unwrap();
+        let (body, _, _) = decode_external_estimate_claim(&unlabelled).unwrap();
+        let diagnostic = body
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "external_estimate.target_attested")
+            .expect("target attestation");
+        assert_eq!(diagnostic.fields, vec![("target".to_string(), "unlabelled".to_string())]);
+        let mut labelled = attach_with_payload(&[0]);
+        labelled.scalar_value = Some(1.2);
+        let (body, _, _) =
+            decode_external_estimate_claim(&encode_external_estimate_claim(&labelled).unwrap())
+                .unwrap();
+        assert_eq!(
+            body.diagnostics[0].fields,
+            vec![("target".to_string(), "average_effect".to_string())]
+        );
+    }
+
+    #[test]
+    fn host_projection_withholds_domains_of_an_unverified_receipt() {
+        let mut attach = attach_with_payload(&[0]);
+        attach.scalar_value = Some(1.2);
+        let bytes = encode_external_estimate_claim(&attach).unwrap();
+        let consumed = crate::consume_analysis_result(&bytes).unwrap();
+        assert!(!consumed.acceptance.verified_references);
+        let host = crate::project_claim_host(&consumed);
+        assert_eq!(host.identification_domain, serde_json::Value::Null);
+        assert_eq!(host.support_domain, serde_json::Value::Null);
+        assert_eq!(host.evaluated_domain, serde_json::Value::Null);
     }
 }

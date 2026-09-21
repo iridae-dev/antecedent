@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use antecedent_core::IdentificationStatus;
 use serde::{Deserialize, Serialize};
 
 use crate::container::{EncodedArtifact, SectionBytes, section_descriptor};
@@ -591,11 +592,11 @@ fn identification_ok_for_prior(identification: &str, allow_unidentified: bool) -
         return true;
     }
     matches!(
-        identification,
-        "NonparametricallyIdentified"
-            | "nonparametrically_identified"
-            | "IdentifiedUnderParametricRestrictions"
-            | "identified_under_parametric_restrictions"
+        crate::analysis_wire::identification_status_from_any(identification),
+        Some(
+            IdentificationStatus::NonparametricallyIdentified
+                | IdentificationStatus::IdentifiedUnderParametricRestrictions
+        )
     )
 }
 
@@ -944,7 +945,8 @@ mod tests {
             draws_encoding: "f64_le_colmajor".into(),
             treatment_contrast: None,
         };
-        let draws = vec![0.0f64; n_q * 2];
+        // Two draws at -1 / +1 per quantity: mean 0 and nearest-rank quantiles -1 / 1.
+        let draws = (0..n_q).flat_map(|_| [-1.0f64, 1.0]).collect::<Vec<_>>();
         encode_posterior_artifact(&meta, &draws, artifact_id, "0.1.0").unwrap()
     }
 

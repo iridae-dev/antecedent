@@ -14,7 +14,7 @@ use crate::convert::{
 use crate::error::IoError;
 use crate::graph_dot::{self, Lexer};
 use crate::graph_gml::{self, Tok};
-use crate::graph_networkx::{NetworkXNode, json_id_to_string};
+use crate::graph_networkx::{NetworkXNode, NodeIdKinds};
 use crate::wire::{AdmgWire, CpdagWire, EndpointWire, MarkedEdgeWire, PagWire};
 
 // ── JSON ────────────────────────────────────────────────────────────────────
@@ -496,8 +496,13 @@ fn parse_dot(dot: &str, allow_undirected: bool) -> Result<DotGraph, IoError> {
         if lexer.eat_char(';') {
             continue;
         }
-        let from = lexer.expect_node_id()?;
+        let (from, quoted) = lexer.expect_statement_id()?;
         lexer.skip_ws_and_comments();
+        if graph_dot::is_default_attribute_statement(&from, quoted, lexer.peek_char()) {
+            lexer.skip_attr_list()?;
+            let _ = lexer.eat_char(';');
+            continue;
+        }
         if lexer.peek_char() == Some('[') {
             let _ = lexer.parse_attr_list()?;
             graph_dot::intern(&from, &mut order, &mut index)?;
@@ -888,6 +893,7 @@ fn emit_gml(
     let mut out = String::from("graph [\n  directed 1\n");
     for i in 0..node_count {
         let label = names.and_then(|n| n.get(i as usize)).cloned().unwrap_or_else(|| i.to_string());
+        let label = graph_gml::escape_gml_string(&label);
         out.push_str(&format!("  node [\n    id \"{label}\"\n    label \"{label}\"\n  ]\n"));
     }
     for e in edges_a.chain(edges_b) {
@@ -907,6 +913,7 @@ fn emit_gml(
         };
         let sa = names.and_then(|n| n.get(a as usize)).cloned().unwrap_or_else(|| a.to_string());
         let sb = names.and_then(|n| n.get(b as usize)).cloned().unwrap_or_else(|| b.to_string());
+        let (sa, sb) = (graph_gml::escape_gml_string(&sa), graph_gml::escape_gml_string(&sb));
         out.push_str(&format!("  edge [\n    source \"{sa}\"\n    target \"{sb}\"\n{extra}  ]\n"));
     }
     out.push(']');
@@ -1157,14 +1164,15 @@ fn parse_nx(json: &str) -> Result<(Vec<String>, Vec<NxLink>), IoError> {
     }
     let mut order = Vec::new();
     let mut index = HashMap::new();
+    let mut kinds = NodeIdKinds::default();
     for n in &doc.nodes {
-        let name = json_id_to_string(&n.id)?;
+        let name = kinds.name(&n.id)?;
         graph_dot::intern(&name, &mut order, &mut index)?;
     }
     let mut links = Vec::new();
     for link in &doc.links {
-        let s = json_id_to_string(&link.source)?;
-        let t = json_id_to_string(&link.target)?;
+        let s = kinds.name(&link.source)?;
+        let t = kinds.name(&link.target)?;
         let from = graph_dot::intern(&s, &mut order, &mut index)?;
         let to = graph_dot::intern(&t, &mut order, &mut index)?;
         links.push(NxLink {

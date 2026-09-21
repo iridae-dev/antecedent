@@ -1,4 +1,5 @@
 //! Durable structural transport claims, including independently checked negatives.
+use crate::error::convert_err as err;
 use crate::{
     IoError,
     contract_section::{
@@ -15,9 +16,6 @@ use antecedent_identify::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-fn err(e: impl std::fmt::Display) -> IoError {
-    IoError::Convert(e.to_string())
-}
 /// Versioned structural outcome; decoding does not convey scientific authority.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -257,7 +255,7 @@ impl TransportCertificateWire {
             crate::to_cbor(self)?,
             CompressPolicy::Never,
         );
-        let artifact=EncodedArtifact {manifest:ArtifactManifest{format_version:FormatVersion{major:1,minor:0},minimum_reader_version:FormatVersion{major:1,minor:0},artifact_kind:ArtifactKind::Other("transport_certificate".into()),library_version:SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION")).map_err(err)?,artifact_id:crate::identity::digest_wire(IdentityDomain::IdentificationProduct,self)?.to_hex(),sections:vec![desc],provenance:ProvenanceWire{note:"checked structural transport claim; no empirical support or sampling coverage".into()}},sections:vec![section]};
+        let artifact=EncodedArtifact {manifest:ArtifactManifest{format_version:FormatVersion{major:1,minor:0},minimum_reader_version:FormatVersion{major:1,minor:0},artifact_kind:ArtifactKind::Other("transport_certificate".into()),library_version:SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION")).map_err(err)?,artifact_id:crate::identity::digest_wire(IdentityDomain::TransportCertificate,self)?.to_hex(),sections:vec![desc],provenance:ProvenanceWire{note:"checked structural transport claim; no empirical support or sampling coverage".into()}},sections:vec![section]};
         let mut bytes = vec![];
         artifact.write_to(&mut bytes)?;
         Ok(bytes)
@@ -285,7 +283,7 @@ impl TransportCertificateWire {
         }
         let wire: Self = crate::from_cbor(&artifact.sections[0].data)?;
         if artifact.manifest.artifact_id
-            != crate::identity::digest_wire(IdentityDomain::IdentificationProduct, &wire)?.to_hex()
+            != crate::identity::digest_wire(IdentityDomain::TransportCertificate, &wire)?.to_hex()
         {
             return Err(err("certificate identity mismatch"));
         }

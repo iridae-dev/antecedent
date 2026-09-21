@@ -185,7 +185,7 @@ fn posterior_artifact() -> EncodedArtifact {
         draws_encoding: "f64_le_colmajor".into(),
         treatment_contrast: None,
     };
-    encode_posterior_artifact(&meta, &[1.0, 1.0], "p12-post", VERSION).unwrap()
+    encode_posterior_artifact(&meta, &[0.9, 1.1], "p12-post", VERSION).unwrap()
 }
 
 fn model_bundle_artifact() -> EncodedArtifact {

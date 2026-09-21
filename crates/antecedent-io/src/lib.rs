@@ -59,11 +59,11 @@ pub use analysis_result_artifact::{
     identified_set_interval_from_wire, identified_set_interval_to_wire,
 };
 pub use analysis_wire::{
-    DiagnosticWire, EffectEstimateWire, IdentificationResultWire, IdentifiedEstimandWire,
-    RdDesignWire, RefutationReportWire, diagnostic_from_wire, diagnostic_to_wire,
-    effect_estimate_from_wire, effect_estimate_to_wire, identification_from_wire,
-    identification_to_wire, identification_to_wire_with_registry, refutation_from_wire,
-    refutation_to_wire,
+    DiagnosticWire, EffectEstimateWire, HedgeCertificateWire, IdentificationResultWire,
+    IdentifiedEstimandWire, RdDesignWire, RefutationReportWire, diagnostic_from_wire,
+    diagnostic_to_wire, effect_estimate_from_wire, effect_estimate_to_wire,
+    identification_from_wire, identification_to_wire, identification_to_wire_with_registry,
+    refutation_from_wire, refutation_to_wire,
 };
 pub use arrow_section::{ARROW_IPC_CONTENT_TYPE, arrow_ipc_section, arrow_ipc_section_shared};
 pub use causal_artifact::{
@@ -143,8 +143,8 @@ pub use mechanism_wire::{
     MechanismSlotWire, MechanismStoreWire, ModelKindWire, mechanisms_from_wire, mechanisms_to_wire,
 };
 pub use migrate::{
-    STABLE_FORMAT, SUPPORTED_SOURCE_FORMATS, is_supported_source, migrate_artifact,
-    migrate_from_seek, read_and_migrate,
+    STABLE_FORMAT, SUPPORTED_SOURCE_FORMATS, VALUE_TYPES_DEFAULTED_MARKER, is_supported_source,
+    migrate_artifact, migrate_from_seek, read_and_migrate, schema_value_types_defaulted,
 };
 pub use model_bundle::{
     ModelBundle, ModelBundleEncode, ModelBundleHeaderWire, decode_model_bundle, encode_model_bundle,
