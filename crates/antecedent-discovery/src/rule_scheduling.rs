@@ -323,23 +323,23 @@ fn apply_r3<G: PagOps>(
                 if !matches!(at_b_ab, Endpoint::Arrow) || !matches!(at_b_cb, Endpoint::Arrow) {
                     continue;
                 }
-                // Find θ = d with circles at a, c, b: d *–o a, d *–o c, d *–o b.
+                // Find θ = d with circles at θ on θ—a and θ—c, and circle at b on θ—b.
                 for j in 0..n {
                     let d = DenseNodeId::from_raw(j as u32);
                     if d == a || d == b || d == c {
                         continue;
                     }
-                    let Some((at_a_ad, _)) = marks_between(graph, a, d) else {
+                    let Some((_, at_d_ad)) = marks_between(graph, a, d) else {
                         continue;
                     };
-                    let Some((at_c_cd, _)) = marks_between(graph, c, d) else {
+                    let Some((_, at_d_cd)) = marks_between(graph, c, d) else {
                         continue;
                     };
                     let Some((at_d_db, at_b_db)) = marks_between(graph, d, b) else {
                         continue;
                     };
-                    if !matches!(at_a_ad, Endpoint::Circle)
-                        || !matches!(at_c_cd, Endpoint::Circle)
+                    if !matches!(at_d_ad, Endpoint::Circle)
+                        || !matches!(at_d_cd, Endpoint::Circle)
                         || !matches!(at_b_db, Endpoint::Circle)
                     {
                         continue;
@@ -451,13 +451,11 @@ fn apply_r8<G: PagOps>(
                 let Some((at_b_bc, at_c_bc)) = marks_between(graph, b, c) else {
                     continue;
                 };
-                // a → b required; b → c or b o→ c.
+                // a → b and definite b → c required (Zhang R8; not b o→ c).
                 if !matches!(at_a_ab, Endpoint::Tail) || !matches!(at_b_ab, Endpoint::Arrow) {
                     continue;
                 }
-                if !matches!(at_c_bc, Endpoint::Arrow)
-                    || !matches!(at_b_bc, Endpoint::Tail | Endpoint::Circle)
-                {
+                if !matches!(at_c_bc, Endpoint::Arrow) || !matches!(at_b_bc, Endpoint::Tail) {
                     continue;
                 }
                 let Some((at_a_ac, _)) = marks_between(graph, a, c) else {
@@ -573,7 +571,7 @@ fn apply_r10<G: PagOps>(
     let focus = focus_nodes(graph, queue);
     for c in focus {
         let nbrs: Vec<_> = graph.neighbors(c).into_iter().map(|(x, _, _)| x).collect();
-        // `a o→ c` candidates and parents into c with arrow at c and tail/circle at parent.
+        // `a o→ c` candidates and definite parents into c (tail at parent, arrow at c).
         let mut o_arrow_into: Vec<DenseNodeId> = Vec::new();
         let mut parents_into: Vec<DenseNodeId> = Vec::new();
         for &n in &nbrs {
@@ -583,8 +581,7 @@ fn apply_r10<G: PagOps>(
             if matches!(at_c, Endpoint::Arrow) && matches!(at_n, Endpoint::Circle) {
                 o_arrow_into.push(n);
             }
-            if matches!(at_c, Endpoint::Arrow) && matches!(at_n, Endpoint::Tail | Endpoint::Circle)
-            {
+            if matches!(at_c, Endpoint::Arrow) && matches!(at_n, Endpoint::Tail) {
                 parents_into.push(n);
             }
         }
@@ -621,11 +618,21 @@ fn apply_r10<G: PagOps>(
                     if p1 == p2 {
                         continue;
                     }
-                    // Node-disjoint except shared endpoint `a` (and possibly the two parents).
-                    if paths_node_disjoint_except_a(path1, path2, a) {
-                        found_pair = true;
-                        break 'pair;
+                    // Node-disjoint except `a`, and first successors of `a` non-adjacent.
+                    if !paths_node_disjoint_except_a(path1, path2, a) {
+                        continue;
                     }
+                    let Some(&u) = path1.get(1) else {
+                        continue;
+                    };
+                    let Some(&v) = path2.get(1) else {
+                        continue;
+                    };
+                    if u == v || graph.has_edge(u, v) {
+                        continue;
+                    }
+                    found_pair = true;
+                    break 'pair;
                 }
             }
             if !found_pair {
@@ -764,8 +771,8 @@ impl LpcmciOrientationRule for LpcmciR2 {
     }
 }
 
-/// FCI R3: collider `a *→ b ←* c` with nonadjacent a,c and `d *–o a`, `d *–o c`, `d *–o b`
-/// → orient `d *→ b` (Zhang: circles at a, c, and b — not at d).
+/// FCI R3: collider `a *→ b ←* c` with nonadjacent a,c and circles at θ=`d` on
+/// `d—a` and `d—c`, plus circle at `b` on `d—b` → orient `d *→ b`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LpcmciR3;
 
@@ -833,7 +840,7 @@ impl LpcmciOrientationRule for LpcmciDiscriminatingPathRule {
     }
 }
 
-/// FCI R8′: `a → b → c` or `a → b o→ c`, and `a o–* c` → orient `a → c`.
+/// FCI R8: `a → b → c` and `a o–* c` → orient `a → c` (definite `b → c` only).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LpcmciR8;
 
@@ -902,7 +909,8 @@ impl LpcmciOrientationRule for LpcmciR9 {
 }
 
 /// FCI R10′: `a o→ c` with **two node-disjoint** uncovered PD paths into two
-/// distinct parents of `c` (`→` or `o→`) → orient `a → c`.
+/// distinct definite parents of `c` (`→` only), whose first nodes after `a` are
+/// distinct and non-adjacent → orient `a → c`.
 ///
 /// A single path into one parent is not sufficient (R10′, generalized from Zhang
 /// 2008's unprimed R10 by Gerhardus & Runge 2020); the prior one-path rule could

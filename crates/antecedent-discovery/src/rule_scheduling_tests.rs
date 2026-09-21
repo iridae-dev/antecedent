@@ -126,8 +126,8 @@ fn r8_orients_triangle() {
 }
 
 #[test]
-fn r8_orients_with_circle_arrow_middle() {
-    // a → b o→ c and a o→ c ⇒ a → c (Zhang R8 second case)
+fn r8_does_not_orient_with_circle_arrow_middle() {
+    // a → b o→ c and a o→ c must NOT orient a → c (Zhang R8 needs definite b → c).
     let mut g = TemporalPag::empty();
     let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
     let b = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
@@ -138,15 +138,15 @@ fn r8_orients_with_circle_arrow_middle() {
     let mut state = OrientationState::default();
     let mut queue = OrientationQueue::new();
     let d = LpcmciOrientationRule::apply(&LpcmciR8, &mut g, &mut state, &mut queue).unwrap();
-    assert!(d.edges_changed > 0);
+    assert_eq!(d.edges_changed, 0);
     let (at_a, at_c) = marks_between(&g, a, c).unwrap();
-    assert!(matches!(at_a, Endpoint::Tail));
+    assert!(matches!(at_a, Endpoint::Circle));
     assert!(matches!(at_c, Endpoint::Arrow));
 }
 
 #[test]
-fn r3_orients_under_zhang_circle_premises() {
-    // Collider a *→ b ←* c, a ≁ c; d *–o a, d *–o c, d *–o b ⇒ d *→ b.
+fn r3_does_not_orient_with_circles_only_at_a_and_c() {
+    // Circles at a and c (not at θ=d): must not orient d *→ b.
     let mut g = TemporalPag::empty();
     let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
     let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
@@ -154,7 +154,6 @@ fn r3_orients_under_zhang_circle_premises() {
     let d = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
     g.insert_circle_arrow(a, b).unwrap();
     g.insert_circle_arrow(c, b).unwrap();
-    // Circles at a, c, b (Zhang); tails/arrows at d are free (*).
     g.insert_marked(antecedent_graph::MarkedEdge {
         a: d,
         b: a,
@@ -182,15 +181,12 @@ fn r3_orients_under_zhang_circle_premises() {
     let mut state = OrientationState::default();
     let mut queue = OrientationQueue::new();
     let delta = LpcmciOrientationRule::apply(&LpcmciR3, &mut g, &mut state, &mut queue).unwrap();
-    assert!(delta.edges_changed > 0);
-    let (at_d, at_b) = marks_between(&g, d, b).unwrap();
-    assert!(matches!(at_b, Endpoint::Arrow));
-    assert!(matches!(at_d, Endpoint::Circle));
+    assert_eq!(delta.edges_changed, 0);
 }
 
 #[test]
-fn r3_does_not_fire_with_circles_only_at_d() {
-    // Wrong premise (circles at d, not at a/c): must not orient.
+fn r3_orients_with_circles_at_theta() {
+    // Collider a *→ b ←* c, a ≁ c; circles at θ=d on d—a, d—c; circle at b on d—b ⇒ d *→ b.
     let mut g = TemporalPag::empty();
     let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
     let b = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
@@ -225,7 +221,10 @@ fn r3_does_not_fire_with_circles_only_at_d() {
     let mut state = OrientationState::default();
     let mut queue = OrientationQueue::new();
     let delta = LpcmciOrientationRule::apply(&LpcmciR3, &mut g, &mut state, &mut queue).unwrap();
-    assert_eq!(delta.edges_changed, 0);
+    assert!(delta.edges_changed > 0);
+    let (at_d, at_b) = marks_between(&g, d, b).unwrap();
+    assert!(matches!(at_b, Endpoint::Arrow));
+    assert!(matches!(at_d, Endpoint::Tail));
 }
 
 #[test]
@@ -294,17 +293,20 @@ fn r10_does_not_orient_with_single_uncovered_pd_path() {
 
 #[test]
 fn r10_orients_with_two_disjoint_uncovered_pd_paths() {
-    // a o→ c; node-disjoint paths a → d1 → p1 → c and a → d2 → p2 → c into distinct parents.
+    // 7-node oracle MAG: a o→ c; paths a → d1 → m1 → p1 → c and a → d2 → p2 → c
+    // into definite parents; first nodes d1, d2 distinct and non-adjacent ⇒ a → c.
     let mut g = TemporalPag::empty();
     let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
     let d1 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
-    let d2 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
-    let p1 = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
-    let p2 = g.add_lagged(VariableId::from_raw(4), Lag::CONTEMPORANEOUS).unwrap();
-    let c = g.add_lagged(VariableId::from_raw(5), Lag::CONTEMPORANEOUS).unwrap();
+    let m1 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let d2 = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    let p1 = g.add_lagged(VariableId::from_raw(4), Lag::CONTEMPORANEOUS).unwrap();
+    let p2 = g.add_lagged(VariableId::from_raw(5), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(6), Lag::CONTEMPORANEOUS).unwrap();
     g.insert_circle_arrow(a, c).unwrap();
     g.insert_directed(a, d1).unwrap();
-    g.insert_directed(d1, p1).unwrap();
+    g.insert_directed(d1, m1).unwrap();
+    g.insert_directed(m1, p1).unwrap();
     g.insert_directed(p1, c).unwrap();
     g.insert_directed(a, d2).unwrap();
     g.insert_directed(d2, p2).unwrap();
@@ -315,6 +317,70 @@ fn r10_orients_with_two_disjoint_uncovered_pd_paths() {
     assert!(d.edges_changed > 0);
     let (at_a, at_c) = marks_between(&g, a, c).unwrap();
     assert!(matches!(at_a, Endpoint::Tail));
+    assert!(matches!(at_c, Endpoint::Arrow));
+}
+
+#[test]
+fn r10_does_not_orient_when_first_nodes_adjacent() {
+    // Same skeleton as the positive 7-node MAG, but d1—d2 adjacent: Zhang R10 fails.
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let d1 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let m1 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let d2 = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    let p1 = g.add_lagged(VariableId::from_raw(4), Lag::CONTEMPORANEOUS).unwrap();
+    let p2 = g.add_lagged(VariableId::from_raw(5), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(6), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_circle_arrow(a, c).unwrap();
+    g.insert_directed(a, d1).unwrap();
+    g.insert_directed(d1, m1).unwrap();
+    g.insert_directed(m1, p1).unwrap();
+    g.insert_directed(p1, c).unwrap();
+    g.insert_directed(a, d2).unwrap();
+    g.insert_directed(d2, p2).unwrap();
+    g.insert_directed(p2, c).unwrap();
+    g.insert_marked(antecedent_graph::MarkedEdge {
+        a: d1,
+        b: d2,
+        at_a: Endpoint::Circle,
+        at_b: Endpoint::Circle,
+        middle: antecedent_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let d = LpcmciOrientationRule::apply(&LpcmciR10, &mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(d.edges_changed, 0);
+    let (at_a, at_c) = marks_between(&g, a, c).unwrap();
+    assert!(matches!(at_a, Endpoint::Circle));
+    assert!(matches!(at_c, Endpoint::Arrow));
+}
+
+#[test]
+fn r10_does_not_orient_with_circle_arrow_parent() {
+    // 7-node MAG where one "parent" is only o→ c: not a definite parent ⇒ no R10.
+    let mut g = TemporalPag::empty();
+    let a = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+    let d1 = g.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let m1 = g.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    let d2 = g.add_lagged(VariableId::from_raw(3), Lag::CONTEMPORANEOUS).unwrap();
+    let p1 = g.add_lagged(VariableId::from_raw(4), Lag::CONTEMPORANEOUS).unwrap();
+    let p2 = g.add_lagged(VariableId::from_raw(5), Lag::CONTEMPORANEOUS).unwrap();
+    let c = g.add_lagged(VariableId::from_raw(6), Lag::CONTEMPORANEOUS).unwrap();
+    g.insert_circle_arrow(a, c).unwrap();
+    g.insert_directed(a, d1).unwrap();
+    g.insert_directed(d1, m1).unwrap();
+    g.insert_directed(m1, p1).unwrap();
+    g.insert_directed(p1, c).unwrap();
+    g.insert_directed(a, d2).unwrap();
+    g.insert_directed(d2, p2).unwrap();
+    g.insert_circle_arrow(p2, c).unwrap(); // o→ parent — not definite
+    let mut state = OrientationState::default();
+    let mut queue = OrientationQueue::new();
+    let d = LpcmciOrientationRule::apply(&LpcmciR10, &mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(d.edges_changed, 0);
+    let (at_a, at_c) = marks_between(&g, a, c).unwrap();
+    assert!(matches!(at_a, Endpoint::Circle));
     assert!(matches!(at_c, Endpoint::Arrow));
 }
 
@@ -436,7 +502,7 @@ fn static_r8_orients_triangle() {
 }
 
 #[test]
-fn static_r3_orients_under_zhang_circle_premises() {
+fn static_r3_orients_with_circles_at_theta() {
     let mut g = Pag::with_variables(4);
     let a = DenseNodeId::from_raw(0);
     let b = DenseNodeId::from_raw(1);
@@ -445,8 +511,16 @@ fn static_r3_orients_under_zhang_circle_premises() {
     g.insert_circle_arrow(a, b).unwrap();
     g.insert_circle_arrow(c, b).unwrap();
     g.insert_marked(antecedent_graph::MarkedEdge {
-        a: d,
-        b: a,
+        a,
+        b: d,
+        at_a: Endpoint::Tail,
+        at_b: Endpoint::Circle,
+        middle: antecedent_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    g.insert_marked(antecedent_graph::MarkedEdge {
+        a: c,
+        b: d,
         at_a: Endpoint::Tail,
         at_b: Endpoint::Circle,
         middle: antecedent_graph::MiddleMark::Empty,
@@ -454,20 +528,19 @@ fn static_r3_orients_under_zhang_circle_premises() {
     .unwrap();
     g.insert_marked(antecedent_graph::MarkedEdge {
         a: d,
-        b: c,
+        b,
         at_a: Endpoint::Tail,
         at_b: Endpoint::Circle,
         middle: antecedent_graph::MiddleMark::Empty,
     })
     .unwrap();
-    g.insert_circle_circle(d, b).unwrap();
     let mut state = OrientationState::default();
     let mut queue = OrientationQueue::new();
     let delta = FciOrientationRule::apply(&LpcmciR3, &mut g, &mut state, &mut queue).unwrap();
     assert!(delta.edges_changed > 0);
     let (at_d, at_b) = marks_between(&g, d, b).unwrap();
     assert!(matches!(at_b, Endpoint::Arrow));
-    assert!(matches!(at_d, Endpoint::Circle));
+    assert!(matches!(at_d, Endpoint::Tail));
 }
 
 #[test]
@@ -501,16 +574,18 @@ fn static_discriminating_r4_orients_collider_when_c_not_in_sep_ab() {
 
 #[test]
 fn static_r10_orients_with_two_disjoint_uncovered_pd_paths() {
-    let mut g = Pag::with_variables(6);
+    let mut g = Pag::with_variables(7);
     let a = DenseNodeId::from_raw(0);
     let d1 = DenseNodeId::from_raw(1);
-    let d2 = DenseNodeId::from_raw(2);
-    let p1 = DenseNodeId::from_raw(3);
-    let p2 = DenseNodeId::from_raw(4);
-    let c = DenseNodeId::from_raw(5);
+    let m1 = DenseNodeId::from_raw(2);
+    let d2 = DenseNodeId::from_raw(3);
+    let p1 = DenseNodeId::from_raw(4);
+    let p2 = DenseNodeId::from_raw(5);
+    let c = DenseNodeId::from_raw(6);
     g.insert_circle_arrow(a, c).unwrap();
     g.insert_directed(a, d1).unwrap();
-    g.insert_directed(d1, p1).unwrap();
+    g.insert_directed(d1, m1).unwrap();
+    g.insert_directed(m1, p1).unwrap();
     g.insert_directed(p1, c).unwrap();
     g.insert_directed(a, d2).unwrap();
     g.insert_directed(d2, p2).unwrap();
