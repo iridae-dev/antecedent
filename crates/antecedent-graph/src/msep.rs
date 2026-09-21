@@ -1,4 +1,4 @@
-//! m-separation for ADMGs and definite-status m-separation for PAGs.
+//! m-separation for ADMGs, and class-wide m-separation for PAGs.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -493,18 +493,163 @@ mod tests {
     }
 }
 
-// --- PAG definite-status m-separation ---
+// --- PAG m-separation over the whole equivalence class ---
+
+/// m-separation of two nodes in a PAG, as a statement about every MAG it represents.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PagSeparation {
+    /// m-separated in every member of the class.
+    Separated,
+    /// m-connected in every member of the class.
+    Connected,
+    /// Neither holds for the whole class, or the class could not be examined
+    /// (conflict marks, more circle endpoints than the completion audit
+    /// enumerates, or marks that admit no maximal ancestral graph).
+    Undetermined,
+}
+
+/// Outcome of the class-wide query, with the path that decided a connection.
+enum ClassSeparation {
+    Separated,
+    Connected(Vec<DenseNodeId>),
+    Undetermined,
+}
 
 impl Pag {
-    /// Whether `x` is m-separated from `y` given `z` via definite-status paths.
+    /// Decide from the marks alone, without enumerating the class.
     ///
-    /// Separated iff no definite-status path from x to y is active given z.
-    /// If the bounded search is truncated and no active path was found, returns
-    /// [`GraphError::SearchBudgetExhausted`] rather than claiming separation.
+    /// A definite-status path that is active given `z` is m-connecting in every
+    /// member: its colliders, non-colliders and the directed paths that open
+    /// its colliders are shared by all of them. Conversely every path that is
+    /// m-connecting in some member is possibly active here, so when no path is
+    /// possibly active the nodes are separated in every member. `Ok(None)`
+    /// means the marks settle neither; the second component is then a path
+    /// that may be active in some member.
+    fn separation_from_marks(
+        &self,
+        x: DenseNodeId,
+        y: DenseNodeId,
+        z: &[DenseNodeId],
+        max_paths: usize,
+        max_len: usize,
+    ) -> Result<(Option<bool>, Option<Vec<DenseNodeId>>), GraphError> {
+        let mut examined = 0usize;
+        let mut capped = max_paths == 0 || max_len == 0;
+        let mut definite_active = None;
+        let mut possibly_active = None;
+        let cut = self.walk_simple_paths(x, y, max_len, |path| {
+            if examined >= max_paths {
+                capped = true;
+                return false;
+            }
+            examined += 1;
+            if self.path_is_definite_status(path) && self.path_active_given(path, z) {
+                definite_active = Some(path.to_vec());
+                return false;
+            }
+            // A definite-status path can still be open in some member only: a
+            // collider's descendants need not be definite.
+            if possibly_active.is_none() && self.path_possibly_active_given(path, z) {
+                possibly_active = Some(path.to_vec());
+            }
+            true
+        });
+        if definite_active.is_some() {
+            return Ok((Some(false), definite_active));
+        }
+        if capped || cut {
+            return Err(GraphError::SearchBudgetExhausted { max_paths, max_len });
+        }
+        Ok((possibly_active.is_none().then_some(true), possibly_active))
+    }
+
+    fn class_separation(
+        &self,
+        x: DenseNodeId,
+        y: DenseNodeId,
+        z: &[DenseNodeId],
+        max_paths: usize,
+        max_len: usize,
+    ) -> Result<ClassSeparation, GraphError> {
+        self.validate_node_pub(x)?;
+        self.validate_node_pub(y)?;
+        for &v in z {
+            self.validate_node_pub(v)?;
+        }
+        if x == y {
+            return Ok(ClassSeparation::Connected(vec![x]));
+        }
+        if z.iter().any(|&v| v == x || v == y) {
+            return Ok(ClassSeparation::Connected(vec![x, y]));
+        }
+        let (decided, path) = self.separation_from_marks(x, y, z, max_paths, max_len)?;
+        match decided {
+            Some(true) => return Ok(ClassSeparation::Separated),
+            Some(false) => return Ok(ClassSeparation::Connected(path.unwrap_or_default())),
+            None => {}
+        }
+        // The marks leave it open: ask every member. The audit refuses more
+        // circle endpoints than it can enumerate, and yields nothing for marks
+        // no maximal ancestral graph satisfies; neither is a separation.
+        let Ok(members) = crate::completion::CompletionSampler::new(self.clone(), usize::MAX)
+        else {
+            return Ok(ClassSeparation::Undetermined);
+        };
+        let mut ws = DSeparationWorkspace::default();
+        let mut verdict = None;
+        for member in members {
+            let separated =
+                crate::completion::as_admg(&member.graph).is_m_separated(x, y, z, &mut ws)?;
+            if *verdict.get_or_insert(separated) != separated {
+                return Ok(ClassSeparation::Undetermined);
+            }
+        }
+        Ok(match verdict {
+            Some(true) => ClassSeparation::Separated,
+            Some(false) => ClassSeparation::Connected(path.unwrap_or_default()),
+            None => ClassSeparation::Undetermined,
+        })
+    }
+
+    /// Whether `x` and `y` are m-separated given `z` in every MAG the PAG represents,
+    /// m-connected in every one, or neither.
+    ///
+    /// Definite-status paths decide what they can; a path that is not of
+    /// definite status is never discarded — it is checked for whether any
+    /// member could have it m-connecting, and if so the members are enumerated
+    /// (the same audited completion the identification envelopes use).
+    /// `max_paths` bounds the `x`–`y` paths examined and `max_len` their length.
     ///
     /// # Errors
     ///
-    /// Unknown nodes, or incomplete search under budget when no active path is known.
+    /// Unknown nodes, or [`GraphError::SearchBudgetExhausted`] when the budget
+    /// ran out before a connection was found: an unexplored path is never
+    /// read as a separation.
+    pub fn m_separation_status(
+        &self,
+        x: DenseNodeId,
+        y: DenseNodeId,
+        z: &[DenseNodeId],
+        max_paths: usize,
+        max_len: usize,
+    ) -> Result<PagSeparation, GraphError> {
+        Ok(match self.class_separation(x, y, z, max_paths, max_len)? {
+            ClassSeparation::Separated => PagSeparation::Separated,
+            ClassSeparation::Connected(_) => PagSeparation::Connected,
+            ClassSeparation::Undetermined => PagSeparation::Undetermined,
+        })
+    }
+
+    /// Whether `x` is m-separated from `y` given `z` in every member of the class.
+    ///
+    /// `Ok(true)` and `Ok(false)` are both statements about every member; see
+    /// [`Self::m_separation_status`] for the three-way outcome.
+    ///
+    /// # Errors
+    ///
+    /// Unknown nodes, an exhausted search budget, or
+    /// [`GraphError::SeparationUndetermined`] when the class is neither
+    /// separated nor connected throughout.
     pub fn is_m_separated(
         &self,
         x: DenseNodeId,
@@ -513,32 +658,22 @@ impl Pag {
         max_paths: usize,
         max_len: usize,
     ) -> Result<bool, GraphError> {
-        self.validate_node_pub(x)?;
-        self.validate_node_pub(y)?;
-        for &v in z {
-            self.validate_node_pub(v)?;
+        match self.class_separation(x, y, z, max_paths, max_len)? {
+            ClassSeparation::Separated => Ok(true),
+            ClassSeparation::Connected(_) => Ok(false),
+            ClassSeparation::Undetermined => Err(GraphError::SeparationUndetermined),
         }
-        if x == y {
-            return Ok(false);
-        }
-        if z.iter().any(|&v| v == x || v == y) {
-            return Ok(false);
-        }
-        let search = self.definite_status_paths(x, y, max_paths, max_len)?;
-        if search.paths.iter().any(|p| self.path_active_given(&p.nodes, z)) {
-            return Ok(false);
-        }
-        if search.truncated {
-            return Err(GraphError::SearchBudgetExhausted { max_paths, max_len });
-        }
-        Ok(true)
     }
 
-    /// m-separation with witness (active definite-status path or certificate).
+    /// m-separation with witness.
+    ///
+    /// The connecting path is a definite-status active path when one exists.
+    /// When the connection was established only by enumerating the class, it
+    /// is a path that is m-connecting in some member.
     ///
     /// # Errors
     ///
-    /// Unknown nodes, or incomplete search under budget when no active path is known.
+    /// As [`Self::is_m_separated`].
     pub fn m_separation(
         &self,
         x: DenseNodeId,
@@ -547,31 +682,15 @@ impl Pag {
         max_paths: usize,
         max_len: usize,
     ) -> Result<SeparationResult, GraphError> {
-        self.validate_node_pub(x)?;
-        self.validate_node_pub(y)?;
-        for &v in z {
-            self.validate_node_pub(v)?;
-        }
-        if x == y {
-            return Ok(SeparationResult::Connected { active_path: vec![PathStep { node: x }] });
-        }
-        if z.iter().any(|&v| v == x || v == y) {
-            return Ok(SeparationResult::Connected {
-                active_path: vec![PathStep { node: x }, PathStep { node: y }],
-            });
-        }
-        let search = self.definite_status_paths(x, y, max_paths, max_len)?;
-        if let Some(p) = search.paths.iter().find(|p| self.path_active_given(&p.nodes, z)) {
-            Ok(SeparationResult::Connected {
-                active_path: p.nodes.iter().map(|&node| PathStep { node }).collect(),
-            })
-        } else if search.truncated {
-            Err(GraphError::SearchBudgetExhausted { max_paths, max_len })
-        } else {
-            Ok(SeparationResult::Separated {
+        match self.class_separation(x, y, z, max_paths, max_len)? {
+            ClassSeparation::Separated => Ok(SeparationResult::Separated {
                 conditioning: z.to_vec(),
                 certificate: SeparationCertificate { conditioning: z.to_vec() },
-            })
+            }),
+            ClassSeparation::Connected(path) => Ok(SeparationResult::Connected {
+                active_path: path.into_iter().map(|node| PathStep { node }).collect(),
+            }),
+            ClassSeparation::Undetermined => Err(GraphError::SeparationUndetermined),
         }
     }
 
@@ -658,5 +777,187 @@ mod pag_msep_tests {
         // Truncated search must not claim separation.
         let err = g.is_m_separated(x, y, &[], 32, 2).unwrap_err();
         assert!(matches!(err, GraphError::SearchBudgetExhausted { max_len: 2, .. }));
+    }
+
+    #[test]
+    fn unshielded_circle_chain_is_connected_in_every_member() {
+        // X o-o B o-o Y, X and Y not adjacent: B is a non-collider in every MAG
+        // of the class, so X and Y are m-connected given the empty set.
+        let mut g = Pag::with_variables(3);
+        let x = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        let y = DenseNodeId::from_raw(2);
+        g.insert_circle_circle(x, b).unwrap();
+        g.insert_circle_circle(b, y).unwrap();
+        assert!(!g.is_m_separated(x, y, &[], 32, 6).unwrap());
+        assert!(g.is_m_separated(x, y, &[b], 32, 6).unwrap());
+        let search = g.definite_status_paths(x, y, 32, 6).unwrap();
+        assert_eq!(search.paths.len(), 1, "an unshielded circle triple is a definite non-collider");
+    }
+
+    #[test]
+    fn conflict_marks_are_unknown_not_absent() {
+        // X -> B x-x Y: the conflict leaves B's status open, so the path is
+        // neither discarded (separated) nor asserted (connected).
+        let mut g = Pag::with_variables(3);
+        let x = DenseNodeId::from_raw(0);
+        let b = DenseNodeId::from_raw(1);
+        let y = DenseNodeId::from_raw(2);
+        g.insert_directed(x, b).unwrap();
+        g.insert_circle_circle(b, y).unwrap();
+        g.mark_conflict(b, y).unwrap();
+        assert_eq!(g.m_separation_status(x, y, &[], 32, 6).unwrap(), PagSeparation::Undetermined);
+        assert!(matches!(
+            g.is_m_separated(x, y, &[], 32, 6),
+            Err(GraphError::SeparationUndetermined)
+        ));
+    }
+
+    #[test]
+    fn shielded_circle_path_is_settled_by_the_members() {
+        // Complete PAG of X - {A, B} - Y with A - B: given {A, B} the path
+        // X o-o A o-o B o-o Y is not of definite status, yet every member
+        // separates X and Y there.
+        let mut g = Pag::with_variables(4);
+        let n = DenseNodeId::from_raw;
+        for (a, b) in [(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)] {
+            g.insert_circle_circle(n(a), n(b)).unwrap();
+        }
+        let z = [n(1), n(2)];
+        assert_eq!(g.separation_from_marks(n(0), n(3), &z, 64, 6).unwrap().0, None);
+        assert_eq!(g.m_separation_status(n(0), n(3), &z, 64, 6).unwrap(), PagSeparation::Separated);
+        assert_eq!(
+            g.m_separation_status(n(0), n(3), &[n(1)], 64, 6).unwrap(),
+            PagSeparation::Connected
+        );
+    }
+
+    fn mark(code: usize) -> crate::types::Endpoint {
+        [
+            crate::types::Endpoint::Tail,
+            crate::types::Endpoint::Arrow,
+            crate::types::Endpoint::Circle,
+        ][code]
+    }
+
+    /// Graph number `index` over `n` nodes: each pair is absent or carries one of
+    /// the eight mark pairs other than tail–tail. `None` when the marks close a
+    /// directed cycle, which a `Pag` refuses to hold.
+    fn marked_graph(n: u32, mut index: u64) -> Option<Pag> {
+        let mut g = Pag::with_variables(n);
+        for a in 0..n {
+            for b in (a + 1)..n {
+                let code = usize::try_from(index % 9).unwrap();
+                index /= 9;
+                if code > 0 {
+                    let mut edge = crate::types::MarkedEdge::directed(
+                        DenseNodeId::from_raw(a),
+                        DenseNodeId::from_raw(b),
+                    );
+                    edge.at_a = mark(code / 3);
+                    edge.at_b = mark(code % 3);
+                    g.insert_marked(edge).ok()?;
+                }
+            }
+        }
+        Some(g)
+    }
+
+    #[derive(Debug, Default)]
+    struct Tally {
+        graphs_with_members: u64,
+        queries: u64,
+        marks_separated: u64,
+        marks_connected: u64,
+        settled_by_members: u64,
+        undetermined: u64,
+    }
+
+    /// Compare every answer with m-separation in each enumerated member MAG.
+    fn check_against_members(g: &Pag, tally: &mut Tally) {
+        let n = g.node_count();
+        let members: Vec<Admg> = crate::completion::CompletionSampler::new(g.clone(), usize::MAX)
+            .unwrap()
+            .map(|m| crate::completion::as_admg(&m.graph))
+            .collect();
+        if members.is_empty() {
+            return;
+        }
+        tally.graphs_with_members += 1;
+        let mut ws = DSeparationWorkspace::default();
+        let node = |i: usize| DenseNodeId::from_raw(u32::try_from(i).unwrap());
+        for x in 0..n {
+            for y in (x + 1)..n {
+                let others: Vec<usize> = (0..n).filter(|&k| k != x && k != y).collect();
+                for mask in 0..(1usize << others.len()) {
+                    let z: Vec<DenseNodeId> = others
+                        .iter()
+                        .enumerate()
+                        .filter(|(bit, _)| (mask >> bit) & 1 == 1)
+                        .map(|(_, &k)| node(k))
+                        .collect();
+                    let separated_in: Vec<bool> = members
+                        .iter()
+                        .map(|m| m.is_m_separated(node(x), node(y), &z, &mut ws).unwrap())
+                        .collect();
+                    let all = separated_in.iter().all(|&s| s);
+                    let nowhere = separated_in.iter().all(|&s| !s);
+                    tally.queries += 1;
+
+                    let (from_marks, _) =
+                        g.separation_from_marks(node(x), node(y), &z, 100_000, n).unwrap();
+                    match from_marks {
+                        Some(true) => {
+                            assert!(all, "marks certify a separation some member lacks: {g:?}");
+                            tally.marks_separated += 1;
+                        }
+                        Some(false) => {
+                            assert!(nowhere, "marks certify a connection some member lacks: {g:?}");
+                            tally.marks_connected += 1;
+                        }
+                        None => tally.settled_by_members += 1,
+                    }
+                    let expected = if all {
+                        PagSeparation::Separated
+                    } else if nowhere {
+                        PagSeparation::Connected
+                    } else {
+                        tally.undetermined += 1;
+                        PagSeparation::Undetermined
+                    };
+                    assert_eq!(
+                        g.m_separation_status(node(x), node(y), &z, 100_000, n).unwrap(),
+                        expected,
+                        "x={x} y={y} z={z:?} on {g:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn class_wide_answers_match_every_member_on_small_graphs() {
+        let mut tally = Tally::default();
+        for index in 0..9u64.pow(3) {
+            if let Some(g) = marked_graph(3, index) {
+                check_against_members(&g, &mut tally);
+            }
+        }
+        // Four nodes: a fixed-stride sample of the 9^6 mark assignments.
+        for index in (0..9u64.pow(6)).step_by(211) {
+            if let Some(g) = marked_graph(4, index) {
+                check_against_members(&g, &mut tally);
+            }
+        }
+        // Five nodes: sparser still; longer paths and shielded circle triples.
+        for index in (0..9u64.pow(10)).step_by(1_743_391) {
+            if let Some(g) = marked_graph(5, index) {
+                check_against_members(&g, &mut tally);
+            }
+        }
+        eprintln!("{tally:?}");
+        assert!(tally.graphs_with_members > 300, "{tally:?}");
+        assert!(tally.marks_separated > 0 && tally.marks_connected > 0, "{tally:?}");
+        assert!(tally.settled_by_members > 0, "{tally:?}");
     }
 }

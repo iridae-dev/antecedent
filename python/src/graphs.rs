@@ -477,6 +477,17 @@ impl Pag {
     pub(crate) fn name_index(&self, name: &str) -> PyResult<DenseNodeId> {
         resolve_name_index(&self.names, name)
     }
+
+    fn separation_query(
+        &self,
+        x: &str,
+        y: &str,
+        z: Option<Vec<String>>,
+    ) -> PyResult<(DenseNodeId, DenseNodeId, Vec<DenseNodeId>)> {
+        let z = z.unwrap_or_default();
+        let zids = z.iter().map(|n| self.name_index(n)).collect::<PyResult<Vec<_>>>()?;
+        Ok((self.name_index(x)?, self.name_index(y)?, zids))
+    }
 }
 
 #[pymethods]
@@ -574,7 +585,11 @@ impl Pag {
         facade_pag_to_networkx_node_link(&self.pag, Some(self.names.as_slice())).map_err(py_err)
     }
 
-    /// Definite-status m-separation of ``x`` and ``y`` given ``z``.
+    /// Whether ``x`` and ``y`` are m-separated given ``z`` in every MAG the PAG represents.
+    ///
+    /// ``True`` and ``False`` are both statements about the whole class. Raises when
+    /// the members disagree or the class cannot be examined; use
+    /// ``m_separation_status`` for the three-way answer.
     #[pyo3(signature = (x, y, z=None, *, max_paths=32, max_len=6))]
     fn m_separated(
         &self,
@@ -584,15 +599,29 @@ impl Pag {
         max_paths: usize,
         max_len: usize,
     ) -> PyResult<bool> {
-        let xid = self.name_index(x)?;
-        let yid = self.name_index(y)?;
-        let mut zids = Vec::new();
-        if let Some(names) = z {
-            for n in names {
-                zids.push(self.name_index(&n)?);
-            }
-        }
+        let (xid, yid, zids) = self.separation_query(x, y, z)?;
         self.pag.is_m_separated(xid, yid, &zids, max_paths, max_len).map_err(py_err)
+    }
+
+    /// ``"separated"`` (in every member MAG), ``"connected"`` (in every member) or
+    /// ``"undetermined"``.
+    #[pyo3(signature = (x, y, z=None, *, max_paths=32, max_len=6))]
+    fn m_separation_status(
+        &self,
+        x: &str,
+        y: &str,
+        z: Option<Vec<String>>,
+        max_paths: usize,
+        max_len: usize,
+    ) -> PyResult<&'static str> {
+        let (xid, yid, zids) = self.separation_query(x, y, z)?;
+        let status =
+            self.pag.m_separation_status(xid, yid, &zids, max_paths, max_len).map_err(py_err)?;
+        Ok(match status {
+            antecedent_graph::PagSeparation::Separated => "separated",
+            antecedent_graph::PagSeparation::Connected => "connected",
+            antecedent_graph::PagSeparation::Undetermined => "undetermined",
+        })
     }
 
     fn __repr__(&self) -> String {

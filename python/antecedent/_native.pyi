@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -2952,6 +2952,15 @@ class Pag:
         max_paths: int = 32,
         max_len: int = 6,
     ) -> bool: ...
+    def m_separation_status(
+        self,
+        x: str,
+        y: str,
+        z: list[str] | None = None,
+        *,
+        max_paths: int = 32,
+        max_len: int = 6,
+    ) -> Literal["separated", "connected", "undetermined"]: ...
 
 class Admg:
     @classmethod

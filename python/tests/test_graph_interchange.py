@@ -130,3 +130,15 @@ def test_accepted_graph_cpdag_json_round_trip_preserves_names():
     assert list(restored.graph.nodes()) == list(accepted.graph.nodes())
     assert set(restored.graph.edges()) == set(accepted.graph.edges())
     assert list(restored.graph.nodes()) == ["z", "t", "y"]
+
+
+def test_pag_m_separation_is_a_statement_about_every_member():
+    """``x o-o b o-o y`` with x, y non-adjacent: b is a non-collider in every MAG."""
+    pag = Pag.from_marked_edges(
+        ["x", "b", "y"],
+        [("x", "b", "circle", "circle"), ("b", "y", "circle", "circle")],
+    )
+    assert pag.m_separated("x", "y") is False
+    assert pag.m_separation_status("x", "y") == "connected"
+    assert pag.m_separated("x", "y", ["b"]) is True
+    assert pag.m_separation_status("x", "y", ["b"]) == "separated"
