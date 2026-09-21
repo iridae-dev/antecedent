@@ -3,7 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::{IoError, query_wire::ValueWire};
 use antecedent_core::{RegimeId, VariableId};
-use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawTolerance};
+use antecedent_expr::{
+    DiscreteAxis, ExactDiscreteLaw, InterventionAssignment, LawOrigin, LawTolerance,
+};
 use serde::{Deserialize, Serialize};
 
 /// Dense complete law. Axis order determines row-major probability order.
@@ -19,6 +21,8 @@ pub struct ExactLawWire {
     pub snapshot: String,
     pub absolute_tolerance: f64,
     pub relative_tolerance: f64,
+    #[serde(default)]
+    pub origin: String,
 }
 impl ExactLawWire {
     /// Preserve exact values and declared tolerance without normalization.
@@ -48,6 +52,7 @@ impl ExactLawWire {
             snapshot: law.snapshot_identity().into(),
             absolute_tolerance: law.tolerance().absolute,
             relative_tolerance: law.tolerance().relative,
+            origin: law.origin().as_str().into(),
         }
     }
     /// Validate all table, coverage, domain and normalization invariants on load.
@@ -55,7 +60,13 @@ impl ExactLawWire {
     /// # Errors
     /// Invalid exact law.
     pub fn to_law(&self) -> Result<ExactDiscreteLaw, IoError> {
-        ExactDiscreteLaw::try_new(
+        let origin = LawOrigin::parse(&self.origin)
+            .ok_or_else(|| IoError::Convert(format!("unknown law origin {}", self.origin)))?;
+        let build = match origin {
+            LawOrigin::SuppliedExact => ExactDiscreteLaw::try_new,
+            LawOrigin::EmpiricalPlugin => ExactDiscreteLaw::try_empirical,
+        };
+        build(
             self.population.clone(),
             RegimeId::from_raw(self.regime),
             self.interventions

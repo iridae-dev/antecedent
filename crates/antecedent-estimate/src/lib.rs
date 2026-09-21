@@ -26,6 +26,7 @@ pub mod crossfit_aipw;
 pub mod design_compile;
 pub mod dml;
 pub mod dr;
+pub mod empirical_table;
 pub mod envelope;
 pub mod error;
 pub mod estimator;
@@ -50,6 +51,7 @@ pub mod retarget;
 pub mod scores;
 pub mod se;
 pub mod serial_dependence;
+pub mod statistical_transport;
 pub mod temporal_adjustment;
 pub mod temporal_block;
 pub mod temporal_mediation;
@@ -97,6 +99,12 @@ pub use crossfit_aipw::{
 pub use design_compile::{CovariateSpec, compile_adjustment_design};
 pub use dml::{DmlAte, DmlScore};
 pub use dr::DrLearner;
+pub use empirical_table::{
+    EMPIRICAL_TABLE_DIRICHLET, EMPIRICAL_TABLE_PLUGIN, EmpiricalTableEstimator,
+    EmpiricalTableOptions, RegimeSample, StatisticalTransportInput, assemble_point_laws,
+    assemble_statistical_laws, catalog_axes, dependence_refusal, fit_empirical_joint,
+    licensed_iid_dependence,
+};
 pub use envelope::{
     EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope,
     aggregate_mixture_functional_envelope, couple_mixture_functional_draws,
@@ -150,6 +158,10 @@ pub use serial_dependence::{
     DEPENDENCE_ASSUMPTION_ID, DEPENDENCE_NOTE_PREFIX, DependenceScope, SerialDependence,
     TemperingFactor, long_run_tempering_factor, tempering_capped_from_notes,
     tempering_inestimable_from_notes, tempering_kappa_from_notes,
+};
+pub use statistical_transport::{
+    PERCENTILE_BOOTSTRAP, StatisticalTransportEstimate, TransportUncertaintyRow,
+    evaluate_statistical_transport, percentile_interval,
 };
 pub use temporal_adjustment::{
     TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe, TemporalLinearAdjustment,

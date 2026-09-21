@@ -407,7 +407,9 @@ impl Preflight<'_> {
                     values.dedup();
                 }
                 if let Some(value) = self.request.get(a.variable) {
-                    if !values.contains(value) {
+                    if !values.iter().any(|level| {
+                        crate::exact::value_key(level) == crate::exact::value_key(value)
+                    }) {
                         values.push(value.clone());
                     }
                 }
@@ -633,6 +635,26 @@ mod tests {
         assert_eq!(bindings[0].population.as_ref(), "target");
         assert_eq!(bindings[0].regime, Some(RegimeId::from_raw(0)));
     }
+    #[test]
+    fn numeric_float_requests_resolve_integer_table_domains() {
+        let (arena, root) = conditional();
+        let ctx = ExecutionContext::for_tests(0);
+        let plan = ExactEvaluationPlan::compile(
+            &arena,
+            root,
+            law(),
+            [v(1)],
+            Assignment::from_pairs([(v(0), Value::Float64(1.0))]),
+            ExactEvaluationLimits::default(),
+            LawTolerance::default(),
+            &ctx,
+        )
+        .unwrap();
+        let result = plan.evaluate(&ctx).unwrap();
+        assert!((result.probabilities[0] - 0.3).abs() < 1e-12);
+        assert!((result.probabilities[1] - 0.7).abs() < 1e-12);
+    }
+
     #[test]
     fn signed_mean_uses_compensated_summation() {
         let distribution = ExactDistribution {
