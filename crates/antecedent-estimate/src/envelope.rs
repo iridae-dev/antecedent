@@ -244,6 +244,7 @@ pub fn aggregate_effect_envelope(
 
     Ok(CausalPosterior {
         subsampled_out_mass: 0.0,
+        unevaluable_mass: 0.0,
         draws,
         summaries,
         identification,

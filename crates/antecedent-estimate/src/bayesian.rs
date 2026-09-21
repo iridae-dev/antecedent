@@ -146,15 +146,24 @@ pub struct CausalPosterior {
     pub assumptions: AssumptionSet,
     /// Unidentified graph mass retained when aggregating envelopes (0 if single graph).
     ///
-    /// Mass of graph atoms on which identification (or, on paths that demote
-    /// failed fits, estimation) failed. Never includes atoms a latency tier
-    /// skipped; those are [`Self::subsampled_out_mass`].
+    /// Mass of graph atoms that were structurally not identified. Never
+    /// includes atoms a latency tier skipped (see [`Self::subsampled_out_mass`])
+    /// or atoms that were identified but whose estimation failed (see
+    /// [`Self::unevaluable_mass`]) — a refusal to estimate is not a proof of
+    /// non-identification.
     pub unidentified_mass: f64,
     /// Identified graph mass the Interactive latency tier left out of the
     /// envelope subsample (0 outside that tier). Those atoms were not evaluated,
     /// so this is neither unidentified mass nor part of the published mixture;
-    /// the identified-atom mixture covers `1 − unidentified − subsampled_out`.
+    /// the identified-atom mixture covers `1 − unidentified − unevaluable − subsampled_out`.
     pub subsampled_out_mass: f64,
+    /// Identified graph mass excluded from the mixture because estimation
+    /// (design preparation, fitting, composition, or draw extraction) failed
+    /// on that atom, not because identification failed. Zero unless the
+    /// caller separates the two reasons; a path that has not yet been audited
+    /// for this distinction may still fold this mass into
+    /// [`Self::unidentified_mass`].
+    pub unevaluable_mass: f64,
     /// Adaptive draw early-stop (Laplace / conjugate Gaussian redraw path).
     pub early_stopped: bool,
     /// Source treatment contrast `active − control` used to form the effect.
@@ -1279,6 +1288,7 @@ impl BayesianGComputationAte {
             let summaries = draws.summarize();
             return Ok(CausalPosterior {
                 subsampled_out_mass: 0.0,
+                unevaluable_mass: 0.0,
                 draws,
                 summaries,
                 identification,
@@ -1356,6 +1366,7 @@ impl BayesianGComputationAte {
         let _ = mechanism;
         Ok(CausalPosterior {
             subsampled_out_mass: 0.0,
+            unevaluable_mass: 0.0,
             draws,
             summaries,
             identification,
@@ -1888,6 +1899,7 @@ pub fn nonidentified_with_prior(
     let summaries = draws.summarize();
     CausalPosterior {
         subsampled_out_mass: 0.0,
+        unevaluable_mass: 0.0,
         draws,
         summaries,
         identification: IdentificationStatus::NotIdentified,

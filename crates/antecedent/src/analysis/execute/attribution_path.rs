@@ -798,6 +798,7 @@ fn counterfactual_posterior(
         diagnostics: antecedent_prob::InferenceDiagnostics::analytic("gcm.fit.bayesian"),
         assumptions,
         unidentified_mass: 0.0,
+        unevaluable_mass: 0.0,
         early_stopped: false,
         treatment_contrast: None,
     })

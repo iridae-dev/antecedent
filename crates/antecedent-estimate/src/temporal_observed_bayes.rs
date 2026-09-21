@@ -861,6 +861,7 @@ pub fn estimate_observed_temporal_response(
     );
     let posterior = CausalPosterior {
         subsampled_out_mass: 0.0,
+        unevaluable_mass: 0.0,
         draws,
         summaries,
         identification: status,
