@@ -45,6 +45,7 @@ bash scripts/gate_response_calibration.sh
 bash scripts/gate_causal_artifacts.sh
 bash scripts/gate_estimate_reuse.sh
 bash scripts/gate_composition.sh   # composition consuming contract/claim tests must actually run
+bash scripts/gate_transport.sh     # transport stage contracts; every fixture family runs a positive and a counterexample
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh
 bash scripts/gate_support_matrix.sh   # public license cells; default refused
@@ -321,7 +322,7 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   wheel (outside `python/`, so the source tree cannot shadow it).
 
 Each gate that decides a release has a `--self-test` mode that feeds it
-deliberately broken input and requires a failure: `gate_composition.sh`,
+deliberately broken input and requires a failure: `gate_composition.sh`, `gate_transport.sh`,
 `gate_parity_schema.sh`, `gate_docs_support_matrix.sh`,
 `gate_release_candidate.sh` and `gate_calibration_attestation.sh`.
 `gate_release.sh` runs all of them.
