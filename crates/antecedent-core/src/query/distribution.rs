@@ -65,13 +65,19 @@ impl InterventionalDistributionQuery {
     ///
     /// # Errors
     ///
-    /// Empty outcomes, invalid interventions, or conditioning overlap.
+    /// Empty outcomes, invalid interventions, an intervened outcome, or
+    /// conditioning overlap.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.outcomes.is_empty() {
             return Err(QueryError::EmptyDistributionOutcomes);
         }
         for iv in self.interventions.iter() {
             iv.validate().map_err(|e| QueryError::InvalidIntervention(e.to_string()))?;
+        }
+        for &y in self.outcomes.iter() {
+            if self.interventions.iter().any(|iv| iv.primary_variable() == Some(y)) {
+                return Err(QueryError::OutcomeIsInterventionTarget { id: y });
+            }
         }
         for &z in self.conditioning.iter() {
             if self.outcomes.iter().any(|&y| y == z) {

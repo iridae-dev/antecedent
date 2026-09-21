@@ -146,6 +146,14 @@ fn interventional_distribution_query_validates() {
         overlap.validate(),
         Err(QueryError::ConditioningOverlapsOutcomeOrIntervention)
     ));
+
+    // P(T | do(T)) and P(T, Y | do(T)) are not identification problems.
+    for outcomes in [vec![t], vec![y, t]] {
+        let intervened =
+            InterventionalDistributionQuery::new(y, [Intervention::set(t, Value::f64(1.0))])
+                .with_outcomes(outcomes);
+        assert_eq!(intervened.validate(), Err(QueryError::OutcomeIsInterventionTarget { id: t }));
+    }
 }
 
 #[test]
