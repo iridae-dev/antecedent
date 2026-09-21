@@ -17,10 +17,11 @@
 //! band; each test prints a `calibration ...` line with the rate, MCSE, band,
 //! mean interval length, mean SE, and the Monte Carlo SD of the point estimate.
 //!
-//! In-assumption DGPs gate the estimators under their stated models. Adversarial
-//! cells (weak IV, weak overlap, curved RD, heteroskedastic matching) live in
-//! [`static_dgp`] and as ignored tests below; the gate enrols them after the
-//! next full remesurement.
+//! In-assumption DGPs gate the estimators under their stated models. DML,
+//! DR-Learner and causal forest each have a reported-level (0.95) cell on
+//! [`confounded_scm`]. Adversarial cells (weak IV, weak overlap, curved RD,
+//! heteroskedastic matching) live in [`static_dgp`] and as ignored tests
+//! below; the gate enrols them after the next full remesurement.
 //!
 //! **Coverage records.** Each gated test measures a construction the facade
 //! reports when a study selects that estimator configuration on a `Dag`
@@ -52,6 +53,9 @@ use antecedent_kernels::standard_normal;
 
 use crate::adjustment::LinearAdjustmentAte;
 use crate::aipw::AipwAte;
+use crate::causal_forest::CausalForest;
+use crate::dml::DmlAte;
+use crate::dr::DrLearner;
 use crate::frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace};
 use crate::frontdoor_functional::{
     ARM_LINEAR_ASSUMPTION_ID, FrontDoorFunctional, SATURATED_ASSUMPTION_ID,
@@ -69,9 +73,9 @@ mod estimator_level;
 mod static_dgp;
 
 use calibration::{
-    CoverageTally, RECHECK_N_SIM, REPORTED_LEVEL, RecordKey, ScopeFacts, Z95, coverage_band,
-    coverage_mcse, grid_n, grid_seed, n_sim, needs_recheck, passes_precision, precision_ceiling,
-    precision_floor,
+    Construction, CoverageTally, RECHECK_N_SIM, REPORTED_LEVEL, RecordKey, SKIP_CAP_DEN,
+    SKIP_CAP_NUM, ScopeFacts, Z95, coverage_band, coverage_mcse, grid_n, grid_seed, n_sim,
+    needs_recheck, passes_precision, precision_ceiling, precision_floor,
 };
 
 const TRUE_ATE: f64 = 2.0;
@@ -1270,6 +1274,155 @@ fn rd_sharp_hc1_heteroskedastic_ci_coverage() {
     }
     probe.report("rd_sharp_homoskedastic_se_heteroskedastic_probe");
     tally.assert("rd_sharp_hc1_heteroskedastic");
+}
+
+// ------------------------------------------ DML / DR / causal forest (R13)
+// Reported-level (0.95) coverage cells on the well-specified confounded SCM.
+// Each scores `ate ± Z95·se_analytic` through [`CoverageTally`], counts fit
+// failures as skips (misses, 1% cap), and [`CoverageTally::emit`]s a
+// `reported_level` record under the same recheck / floor / ceiling rules.
+
+/// Facade construction key for a Frequentist learner ATE on an explicit Dag.
+fn learner_construction(estimator: &'static str) -> Construction {
+    Construction {
+        query: "AverageEffect".into(),
+        graph_class: "Dag".into(),
+        structure: "fixed".into(),
+        modality: "tabular".into(),
+        inference: "Frequentist".into(),
+        estimator: estimator.into(),
+        interval_method: "analytic_se".into(),
+        se_kind: String::new(),
+        dependence: "iid".into(),
+        posterior: String::new(),
+        functional: "all_observed.mean".into(),
+        identification: "point".into(),
+        reported_level: REPORTED_LEVEL,
+    }
+}
+
+fn assert_learner_skip_cap(test: &str, skipped: u32, attempts: u32) {
+    assert!(attempts > 0, "{test}: no replicates scored");
+    assert!(
+        skipped.saturating_mul(SKIP_CAP_DEN) <= attempts.saturating_mul(SKIP_CAP_NUM),
+        "{test}: {skipped} of {attempts} replicates skipped (cap {SKIP_CAP_NUM}/{SKIP_CAP_DEN})"
+    );
+}
+
+fn score_learner_replicate(
+    tally: &mut CoverageTally,
+    construction: &Construction,
+    rows: usize,
+    result: Result<crate::adjustment::EffectEstimate, crate::error::EstimationError>,
+    skipped: &mut u32,
+) {
+    match result {
+        Ok(effect) => {
+            tally.bind(
+                construction,
+                ScopeFacts {
+                    row_count: rows as u64,
+                    replicates_ok: None,
+                    posterior_draws: None,
+                    unidentified_mass: 0.0,
+                },
+            );
+            let interval = (effect.se_analytic.is_finite() && effect.se_analytic > 0.0)
+                .then_some((
+                    effect.ate - Z95 * effect.se_analytic,
+                    effect.ate + Z95 * effect.se_analytic,
+                ));
+            tally.record(interval, TRUE_ATE);
+        }
+        Err(_) => {
+            *skipped += 1;
+            tally.skip();
+        }
+    }
+}
+
+/// Cross-fitted DML (AIPW score) analytic SE on [`confounded_scm`].
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn dml_analytic_ci_coverage() {
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let est = DmlAte::new();
+    let construction = learner_construction("dml");
+    let key = RecordKey {
+        test: "dml_analytic_ci_coverage",
+        dgp: "confounded_scm",
+        interval: "analytic_se",
+    };
+    let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
+    let mut skipped = 0u32;
+    let rows = n_obs();
+    for s in 0..n_sim() {
+        let ctx = ExecutionContext::for_tests(80_000 + u64::from(s));
+        let (data, estimand) = confounded_scm(rows, 80_000 + u64::from(s));
+        let result = est
+            .prepare(&data, &estimand, &query)
+            .and_then(|prep| est.fit(&prep, &ctx, AssumptionSet::new()));
+        score_learner_replicate(&mut tally, &construction, rows, result, &mut skipped);
+    }
+    assert_learner_skip_cap("dml_analytic_ci_coverage", skipped, tally.attempts());
+    tally.emit();
+}
+
+/// DR-Learner analytic SE (ATE from the DR score) on [`confounded_scm`].
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn dr_learner_analytic_ci_coverage() {
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let est = DrLearner::new();
+    let construction = learner_construction("dr.learner");
+    let key = RecordKey {
+        test: "dr_learner_analytic_ci_coverage",
+        dgp: "confounded_scm",
+        interval: "analytic_se",
+    };
+    let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
+    let mut skipped = 0u32;
+    let rows = n_obs();
+    for s in 0..n_sim() {
+        let ctx = ExecutionContext::for_tests(81_000 + u64::from(s));
+        let (data, estimand) = confounded_scm(rows, 81_000 + u64::from(s));
+        let result = est
+            .prepare(&data, &estimand, &query)
+            .and_then(|prep| est.fit(&prep, &ctx, AssumptionSet::new()));
+        score_learner_replicate(&mut tally, &construction, rows, result, &mut skipped);
+    }
+    assert_learner_skip_cap("dr_learner_analytic_ci_coverage", skipped, tally.attempts());
+    tally.emit();
+}
+
+/// Honest causal forest marginal ATE (cross-fitted AIPW SE) on [`confounded_scm`].
+///
+/// Tree count is capped at 40 so a future remesurement stays tractable; the
+/// SE comes from the same orthogonal AIPW score the facade publishes.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn causal_forest_analytic_ci_coverage() {
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let est = CausalForest::new().with_n_trees(40);
+    let construction = learner_construction("causal.forest");
+    let key = RecordKey {
+        test: "causal_forest_analytic_ci_coverage",
+        dgp: "confounded_scm",
+        interval: "analytic_se",
+    };
+    let mut tally = CoverageTally::for_record(key, REPORTED_LEVEL).unasserted();
+    let mut skipped = 0u32;
+    let rows = n_obs();
+    for s in 0..n_sim() {
+        let ctx = ExecutionContext::for_tests(82_000 + u64::from(s));
+        let (data, estimand) = confounded_scm(rows, 82_000 + u64::from(s));
+        let result = est
+            .prepare(&data, &estimand, &query)
+            .and_then(|prep| est.fit(&prep, &ctx, AssumptionSet::new()));
+        score_learner_replicate(&mut tally, &construction, rows, result, &mut skipped);
+    }
+    assert_learner_skip_cap("causal_forest_analytic_ci_coverage", skipped, tally.attempts());
+    tally.emit();
 }
 
 // ---------------------------------------------------------- adversarial cells
