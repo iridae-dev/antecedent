@@ -39,7 +39,11 @@ pub struct ModelEvaluationReport {
     pub local_markov_p: Arc<[f64]>,
     /// Permutation baseline mean log-lik under shuffled outcomes.
     pub permutation_loglik: f64,
-    /// Whether the model is considered falsified under alpha.
+    /// Whether the model is considered falsified under `alpha` after a
+    /// Bonferroni correction across the residual-independence and local-Markov
+    /// p-values recorded here (reject when any `p < alpha / m`, with `m` their
+    /// combined count). A single test still falsifies at the nominal `alpha`;
+    /// the correction only bites when many tests are unioned.
     pub falsified: bool,
     /// Alpha used for independence tests.
     pub alpha: f64,
@@ -90,20 +94,24 @@ impl ModelEvaluator {
         let perm_seed = if self.seed == 0 { ctx.rng.master_seed() } else { self.seed };
         let permutation_loglik = permutation_baseline(model, data, self.n_permutations, perm_seed)?;
 
-        let mut falsified = false;
-        for &p in &residual_independence_p {
-            if p < self.alpha {
-                falsified = true;
-                notes.push(Arc::from("residual independence rejected at alpha"));
-                break;
-            }
+        // Bonferroni across the union of CI checks that feed `falsified`.
+        let family: Vec<f64> = residual_independence_p
+            .iter()
+            .chain(local_markov_p.iter())
+            .copied()
+            .collect();
+        let falsified = falsified_bonferroni(&family, self.alpha);
+        let m = family.len();
+        let threshold = if m == 0 { self.alpha } else { self.alpha / m as f64 };
+        if residual_independence_p.iter().any(|&p| p < threshold) {
+            notes.push(Arc::from(
+                "residual independence rejected at Bonferroni-corrected alpha",
+            ));
         }
-        for &p in &local_markov_p {
-            if p < self.alpha {
-                falsified = true;
-                notes.push(Arc::from("local Markov condition rejected at alpha"));
-                break;
-            }
+        if local_markov_p.iter().any(|&p| p < threshold) {
+            notes.push(Arc::from(
+                "local Markov condition rejected at Bonferroni-corrected alpha",
+            ));
         }
         if in_sample_loglik + 1.0 < permutation_loglik {
             // Model worse than noise baseline by a wide margin.
@@ -409,6 +417,17 @@ fn permutation_baseline(
     Ok(acc / n_perm as f64)
 }
 
+/// Family-wise falsification under Bonferroni: reject if any `p < alpha / m`
+/// where `m = p_values.len()`. Empty families are not falsified.
+fn falsified_bonferroni(p_values: &[f64], alpha: f64) -> bool {
+    let m = p_values.len();
+    if m == 0 {
+        return false;
+    }
+    let threshold = alpha / m as f64;
+    p_values.iter().any(|&p| p < threshold)
+}
+
 /// Mechanism predictive check: compare observed mean to predictive mean under sampling.
 #[derive(Clone, Debug)]
 pub struct MechanismPredictiveCheck {
@@ -477,6 +496,21 @@ mod tests {
     use antecedent_data::column::{Float64Column, ValidityBitmap};
     use antecedent_data::{OwnedColumn, OwnedColumnarStorage};
     use antecedent_graph::Dag;
+
+    #[test]
+    fn falsified_bonferroni_single_reject_vs_many_nulls() {
+        let alpha = 0.05;
+        // One test: nominal alpha is uncorrected, so a p just below alpha falsifies.
+        assert!(falsified_bonferroni(&[alpha * 0.99], alpha));
+        // m independent nulls at alpha/2 trip an uncorrected union, but Bonferroni
+        // requires alpha/m. Choose m so alpha/m < alpha/2 (here m = 4 → 0.0125).
+        let m = 4usize;
+        assert!(alpha / (m as f64) < alpha / 2.0);
+        let nulls = vec![alpha / 2.0; m];
+        assert!(!falsified_bonferroni(&nulls, alpha));
+        // Uncorrected union would have flagged every entry.
+        assert!(nulls.iter().all(|&p| p < alpha));
+    }
 
     #[test]
     fn local_markov_pairs_use_dense_ids_not_topo_positions() {
