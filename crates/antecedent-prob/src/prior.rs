@@ -156,10 +156,83 @@ impl GaussianCoefficientPrior {
         self.mean.is_empty()
     }
 
-    /// Precision (1/variance) vector.
+    /// Conjugate-scale precision `V0^{-1}` (diagonal): `1 / variance[i]`.
+    ///
+    /// This is **not** the absolute prior precision of `β`. For absolute
+    /// precision use [`Self::absolute_precision`].
     #[must_use]
     pub fn precision(&self) -> Vec<f64> {
         self.variance.iter().map(|&v| 1.0 / v).collect()
+    }
+
+    /// Absolute prior variance of each coefficient: `σ² · variance[i]`.
+    ///
+    /// GLM / non-Gaussian Laplace and HMC treat the likelihood as having no
+    /// residual scale; pass `sigma2 = 1.0` so absolute variance equals `V0`.
+    ///
+    /// # Errors
+    ///
+    /// Non-finite or non-positive `sigma2`, or an invalid prior.
+    pub fn absolute_variance(&self, sigma2: f64) -> Result<Vec<f64>, ProbError> {
+        self.validate()?;
+        validate_sigma2(sigma2)?;
+        Ok(self.variance.iter().map(|&v| v * sigma2).collect())
+    }
+
+    /// Absolute prior precision of each coefficient: `1 / (σ² · variance[i])`.
+    ///
+    /// # Errors
+    ///
+    /// Non-finite or non-positive `sigma2`, or an invalid prior.
+    pub fn absolute_precision(&self, sigma2: f64) -> Result<Vec<f64>, ProbError> {
+        self.validate()?;
+        validate_sigma2(sigma2)?;
+        Ok(self.variance.iter().map(|&v| 1.0 / (v * sigma2)).collect())
+    }
+
+    /// Build a coefficient prior from **absolute** variances by converting to `V0`.
+    ///
+    /// Sets `variance[i] = absolute_variance[i] / σ²`. Callers that hold posterior
+    /// SD² (or any absolute Var(β)) must go through this rather than writing into
+    /// [`Self::variance`] directly.
+    ///
+    /// # Errors
+    ///
+    /// Length mismatch, non-finite / non-positive absolute variances or `sigma2`.
+    pub fn from_absolute_variance(
+        mean: impl Into<Arc<[f64]>>,
+        absolute_variance: impl Into<Arc<[f64]>>,
+        sigma2: f64,
+    ) -> Result<Self, ProbError> {
+        validate_sigma2(sigma2)?;
+        let mean = mean.into();
+        let absolute_variance = absolute_variance.into();
+        if mean.len() != absolute_variance.len() {
+            return Err(ProbError::InvalidPrior {
+                message: "mean and absolute_variance length mismatch",
+            });
+        }
+        if mean.is_empty() {
+            return Err(ProbError::InvalidPrior { message: "empty coefficient prior" });
+        }
+        let mut variance = Vec::with_capacity(absolute_variance.len());
+        for &av in absolute_variance.iter() {
+            if !(av > 0.0) || !av.is_finite() {
+                return Err(ProbError::InvalidPrior {
+                    message: "absolute variance must be finite and > 0",
+                });
+            }
+            let v0 = av / sigma2;
+            if !(v0 > 0.0) || !v0.is_finite() {
+                return Err(ProbError::InvalidPrior {
+                    message: "absolute_variance / sigma2 must be finite and > 0",
+                });
+            }
+            variance.push(v0);
+        }
+        let out = Self { mean, variance: Arc::from(variance) };
+        out.validate()?;
+        Ok(out)
     }
 
     /// Validate lengths match and all mean / variance entries are finite.
@@ -186,6 +259,15 @@ impl GaussianCoefficientPrior {
         }
         Ok(())
     }
+}
+
+fn validate_sigma2(sigma2: f64) -> Result<(), ProbError> {
+    if !(sigma2 > 0.0) || !sigma2.is_finite() {
+        return Err(ProbError::InvalidPrior {
+            message: "sigma2 must be finite and > 0 for absolute↔V0 conversion",
+        });
+    }
+    Ok(())
 }
 
 /// Inv-Gamma prior on residual variance (conjugate Gaussian linear).
@@ -546,6 +628,25 @@ mod tests {
         };
         assert!(prior.validate().is_err());
         assert!(GaussianCoefficientPrior::shared(1, f64::INFINITY, 1.0).is_err());
+    }
+
+    #[test]
+    fn absolute_variance_round_trips_through_v0() {
+        let prior = GaussianCoefficientPrior::from_absolute_variance(
+            Arc::from(vec![1.0_f64, -0.5]),
+            Arc::from(vec![0.25_f64, 1.0]),
+            0.25,
+        )
+        .unwrap();
+        // V0 = abs / σ² ⇒ 0.25/0.25 = 1, 1/0.25 = 4
+        assert!((prior.variance[0] - 1.0).abs() < 1e-15);
+        assert!((prior.variance[1] - 4.0).abs() < 1e-15);
+        let abs = prior.absolute_variance(0.25).unwrap();
+        assert!((abs[0] - 0.25).abs() < 1e-15);
+        assert!((abs[1] - 1.0).abs() < 1e-15);
+        let prec = prior.absolute_precision(0.25).unwrap();
+        assert!((prec[0] - 4.0).abs() < 1e-15);
+        assert!((prec[1] - 1.0).abs() < 1e-15);
     }
 
     #[test]
