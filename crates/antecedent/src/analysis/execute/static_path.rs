@@ -19,10 +19,10 @@ impl super::Study {
         let identifier_id: IdentifierId = identifier.parse()?;
         let estimator_id: EstimatorId = estimator.parse()?;
 
-        // rd.sharp has no graph-based identification step; dispatch to its
-        // own path before touching `graph`.
+        // rd.sharp identifies from the declared design, which the graph must agree
+        // with; it has no adjustment search, so it takes its own path.
         if matches!(estimator_id, EstimatorId::RdSharp) {
-            return self.execute_rd(data, query, physical, ctx);
+            return self.execute_rd(data, graph, query, physical, ctx);
         }
         if matches!(estimator_id, EstimatorId::BayesianGcomp) {
             return self.execute_bayesian(data, graph, query, physical, ctx);
@@ -610,6 +610,7 @@ impl super::Study {
     pub(super) fn execute_rd(
         &self,
         data: &TabularData,
+        graph: &Dag,
         query: &AverageEffectQuery,
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
@@ -626,10 +627,25 @@ impl super::Study {
             rd.cutoff,
             rd.bandwidth,
         ))
-        .identify(CausalQuery::AverageEffect(query.clone()))
+        .identify_on(graph, CausalQuery::AverageEffect(query.clone()))
         .map_err(CausalError::from)?;
+        if matches!(identification.status, IdentificationStatus::NotIdentified) {
+            // Say why the design does not identify: the graph contradicts it, or the
+            // requested population is not the one at the cutoff.
+            let detail = identification
+                .diagnostics
+                .iter()
+                .find(|d| d.kind == antecedent_core::DiagnosticKind::Scientific)
+                .map_or_else(|| "sharp RD design".to_string(), |d| d.message.to_string());
+            return Err(CausalError::not_identified(identification.status, false, &detail));
+        }
         require_identified(&identification)?;
         let estimand = select_estimand(&identification, EstimatorId::RdSharp)?;
+        // The identified query names the population the design speaks for (units at the
+        // cutoff); estimation, refutation and the result all use that query.
+        let identified_query =
+            identification.average_effect().cloned().unwrap_or_else(|| query.clone());
+        let query = &identified_query;
 
         let mut est =
             SharpRegressionDiscontinuity::new(rd.running_variable, rd.cutoff, rd.bandwidth);

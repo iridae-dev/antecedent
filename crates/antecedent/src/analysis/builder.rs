@@ -1380,7 +1380,25 @@ impl StudyBuilder {
             }
         }
 
-        let query = self.query.ok_or(CausalError::Missing { field: "query" })?;
+        let mut query = self.query.ok_or(CausalError::Missing { field: "query" })?;
+        // A sharp RD design identifies the effect for units at its cutoff and nothing
+        // else. A study that selects it while leaving the population at the default is
+        // retargeted to that population here, so the contract, the calibration key and
+        // the result all name the estimand that is actually identified; the
+        // identification diagnostics say that the population-wide effect was not.
+        if self.estimator == Some(EstimatorId::RdSharp)
+            || self.identifier == Some(crate::IdentifierId::RdSharp)
+        {
+            if let (Some(rd), CausalQuery::AverageEffect(average)) = (self.rd.as_ref(), &mut query)
+            {
+                if average.target_population == antecedent_core::TargetPopulation::AllObserved {
+                    average.target_population = antecedent_core::TargetPopulation::local_at_cutoff(
+                        rd.running_variable,
+                        rd.cutoff,
+                    );
+                }
+            }
+        }
         refuse_unsupported_likelihood(
             &query,
             &data,

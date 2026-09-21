@@ -387,6 +387,7 @@ impl CausalError {
         let message = match self {
             Self::Compile { message } | Self::NotIdentified { message, .. } => message.as_str(),
             Self::Unsupported { message } | Self::Support { message, .. } => message,
+            Self::Estimate(EstimationError::Refused { code, .. }) => return Some(code),
             _ => return None,
         };
         antecedent_core::reason_code::split_prefix(message).map(|(code, _)| code)

@@ -123,14 +123,14 @@ pub const CASES: &[EstimatorLevelCase] = &[
         "rd.sharp",
         "analytic_se",
         "homoskedastic",
-        "all_observed.mean",
+        "local_at_cutoff.mean",
     ),
     case(
         "rd_sharp_hc1_heteroskedastic_ci_coverage",
         "rd.sharp",
         "analytic_se",
         "hc1",
-        "all_observed.mean",
+        "local_at_cutoff.mean",
     ),
 ];
 

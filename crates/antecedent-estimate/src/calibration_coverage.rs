@@ -1014,9 +1014,11 @@ fn frontdoor_stacked_hc1_ci_coverage() {
 
 /// `R ~ U(cutoff-bandwidth, cutoff+bandwidth)` (so every draw lands inside the RD window),
 /// `T = 1{R ≥ cutoff}`, `Y = 1.0 + 0.5(R-c) + TRUE_ATE·T − 0.8·T·(R-c) + s·noise`. The jump at
-/// the cutoff is `TRUE_ATE`. `s = 0.3` (homoskedastic) or `s = 0.1 + 0.6·|R − c|` (variance
-/// growing away from the cutoff). Reuses `table_tyz` (the treatment column is a
-/// required-but-unused placeholder: RD derives treatment from the running variable).
+/// the cutoff is `TRUE_ATE`, which is the truth the intervals are scored against: the
+/// effect for units at the cutoff, the only effect the design identifies. `s = 0.3`
+/// (homoskedastic) or `s = 0.1 + 0.6·|R − c|` (variance growing away from the cutoff).
+/// Reuses `table_tyz`; the treatment column is the threshold rule, which the estimator
+/// checks row by row.
 fn rd_scm(
     n: usize,
     seed: u64,
@@ -1036,7 +1038,7 @@ fn rd_scm(
         let s = if heteroskedastic { 0.1 + 0.6 * centered.abs() } else { 0.3 };
         let yi = 1.0 + 0.5 * centered + TRUE_ATE * ti - 0.8 * ti * centered
             + s * standard_normal(&mut rng);
-        t.push(0.0);
+        t.push(ti);
         y.push(yi);
         r.push(ri);
     }
@@ -1044,12 +1046,18 @@ fn rd_scm(
     (table_tyz(t, y, r), estimand)
 }
 
+/// The query a sharp design on `R` (id 2) at `cutoff` answers: the effect at the cutoff.
+fn rd_cutoff_query(cutoff: f64) -> AverageEffectQuery {
+    AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+        .with_target_population(TargetPopulation::local_at_cutoff(VariableId::from_raw(2), cutoff))
+}
+
 /// Sharp-RD homoskedastic analytic SE (explicit opt-in) on a homoskedastic DGP
 /// (its stated assumption).
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn rd_sharp_analytic_ci_coverage() {
-    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let query = rd_cutoff_query(0.0);
     let est = SharpRegressionDiscontinuity {
         bootstrap_replicates: 0,
         se_kind: AnalyticSeKind::Homoskedastic,
@@ -1068,12 +1076,70 @@ fn rd_sharp_analytic_ci_coverage() {
     tally.assert("rd_sharp_analytic");
 }
 
+/// A design the two gated cells cannot fail on: `R` has density `2(r + 1)/9` on `[−1, 2]`
+/// (`R = 3√U − 1`), the baseline `1 + 0.5r + 0.8r² + r³` is curved, and the effect
+/// `τ(r) = 2 + 6r` varies with `R`. Closed forms: effect at the cutoff `τ(0) = 2`; average
+/// over an `h`-window `2 + 2h²`; population average `2 + 6·E[R] = 8`. Intervals are scored
+/// against `τ(0)`, the only one of the three the design identifies.
+fn rd_curved_heterogeneous_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+    let mut rng = CausalRng::from_seed(grid_seed(seed));
+    let mut t = Vec::with_capacity(n);
+    let mut y = Vec::with_capacity(n);
+    let mut r = Vec::with_capacity(n);
+    for _ in 0..n {
+        let ri = 3.0 * uniform01(&mut rng).sqrt() - 1.0;
+        let ti = if ri >= 0.0 { 1.0 } else { 0.0 };
+        let yi = 1.0
+            + 0.5 * ri
+            + 0.8 * ri * ri
+            + ri * ri * ri
+            + ti * (2.0 + 6.0 * ri)
+            + 0.3 * standard_normal(&mut rng);
+        t.push(ti);
+        y.push(yi);
+        r.push(ri);
+    }
+    let estimand = IdentifiedEstimand::backdoor("rd.sharp", Arc::from([]), ExprId::from_raw(0));
+    (table_tyz(t, y, r), estimand)
+}
+
+/// Sharp-RD HC1 SE under curvature and effect heterogeneity (printed, not gated, no
+/// record). The conventional interval ignores smoothing bias, here about `−0.4h³` from
+/// the cubic term, so coverage of the cutoff effect depends on the bandwidth; the gated
+/// cells above use an exactly piecewise-linear outcome and cannot show that. It shares
+/// the construction key of `rd_sharp_hc1_heteroskedastic_ci_coverage`, so turning it into
+/// a record needs a rule for two records under one key.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn rd_sharp_hc1_curved_heterogeneous_probe() {
+    const CUTOFF_EFFECT: f64 = 2.0;
+    let query = rd_cutoff_query(0.0);
+    let ctx = ExecutionContext::for_tests(26);
+    for bandwidth in [0.4, 0.8] {
+        let est = SharpRegressionDiscontinuity {
+            bootstrap_replicates: 0,
+            se_kind: AnalyticSeKind::Hc1,
+            ..SharpRegressionDiscontinuity::new(VariableId::from_raw(2), 0.0, bandwidth)
+        };
+        let mut probe = Tally::default();
+        for s in 0..n_sim() {
+            // Only about `4h/9` of rows fall in the window, so draw ten times `n_obs`.
+            let (data, estimand) = rd_curved_heterogeneous_scm(10 * n_obs(), 6200 + u64::from(s));
+            let prep = est.prepare(&data, &estimand, &query).unwrap();
+            let mut ws = RdWorkspace::default();
+            let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+            probe.record(effect.ate, effect.se_analytic, CUTOFF_EFFECT);
+        }
+        probe.report(&format!("rd_sharp_hc1_curved_heterogeneous_probe_h{bandwidth}"));
+    }
+}
+
 /// Sharp-RD HC1 SE on a heteroskedastic DGP (gated). The homoskedastic SE on the
 /// same fits is recorded as an out-of-assumption probe (printed, not gated).
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn rd_sharp_hc1_heteroskedastic_ci_coverage() {
-    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let query = rd_cutoff_query(0.0);
     let hc1 = SharpRegressionDiscontinuity {
         bootstrap_replicates: 0,
         se_kind: AnalyticSeKind::Hc1,

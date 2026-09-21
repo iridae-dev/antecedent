@@ -426,6 +426,128 @@ fn estimate_glm_adjustment_recovers_positive_ate() {
     );
 }
 
+/// The sharp design as a graph: `r -> t -> y` and `r -> y` (ids: t = 0, y = 1, r = 2).
+/// The running variable is the treatment's only cause.
+fn rd_dag() -> Dag {
+    let mut dag = Dag::with_variables(3);
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    dag
+}
+
+fn rd_study(data: TabularData, graph: Dag, bandwidth: f64) -> Study {
+    Study::tabular(data)
+        .graph(graph)
+        .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+        .identifier(IdentifierId::RdSharp)
+        .estimator(EstimatorId::RdSharp)
+        .rd_config(VariableId::from_raw(2), 0.0, bandwidth)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+}
+
+/// `R` has density `2(r + 1)/9` on `[-1, 2]`, `T = 1{R >= 0}`, baseline
+/// `1 + 0.5r + 0.8r^2 + r^3`, effect `tau(r) = 2 + 6r`. Closed forms: effect at the cutoff
+/// `tau(0) = 2`; average over the `h = 0.4` window `2 + 6 h^2/3 = 2.32`; population
+/// average `2 + 6 E[R] = 8`.
+fn rd_heterogeneous_scm(n: usize, seed: u64) -> TabularData {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5056_u64);
+    let (mut r, mut t, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        let ri = 3.0 * rng.next_f64().sqrt() - 1.0;
+        let ti = if ri >= 0.0 { 1.0 } else { 0.0 };
+        r[i] = ri;
+        t[i] = ti;
+        y[i] = 1.0
+            + 0.5 * ri
+            + 0.8 * ri * ri
+            + ri * ri * ri
+            + ti * (2.0 + 6.0 * ri)
+            + 0.1 * standard_normal(&mut rng);
+    }
+    tabular_data(&[
+        ("t", RoleHint::TreatmentCandidate, t),
+        ("y", RoleHint::OutcomeCandidate, y),
+        ("r", RoleHint::Context, r),
+    ])
+}
+
+/// A population-wide `AverageEffect` run through `rd.sharp` is answered with the effect at
+/// the cutoff and labelled as that: the three candidate targets are 2, 2.32 and 8 here, the
+/// estimate is the first, and the result, its contract and its assumptions all say so.
+#[test]
+fn rd_sharp_reports_the_cutoff_effect_and_labels_it() {
+    let study = rd_study(rd_heterogeneous_scm(60_000, 31), rd_dag(), 0.4);
+    let result = study.run(&ExecutionContext::for_tests(32)).unwrap();
+    // Smoothing bias of the cubic baseline term is about -0.4 h^3 = -0.026.
+    assert!((result.estimate.ate - 2.0).abs() < 0.06, "jump={}", result.estimate.ate);
+    assert!((result.estimate.ate - 2.32).abs() > 0.25, "jump={}", result.estimate.ate);
+    assert!((result.estimate.ate - 8.0).abs() > 5.0, "jump={}", result.estimate.ate);
+
+    let local = antecedent_core::TargetPopulation::local_at_cutoff(VariableId::from_raw(2), 0.0);
+    let identified = result.identification.average_effect().expect("average effect");
+    assert_eq!(identified.target_population, local);
+    // The contract, read before any execution, already names the cutoff population, and
+    // that label is what a coverage record has to match.
+    assert_eq!(study.inspect().unwrap().functional.as_ref(), "local_at_cutoff.mean");
+
+    assert!(
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "identify.rd.local_estimand"
+            && d.message.contains("does not identify the population average effect")),
+        "{:?}",
+        result.diagnostics
+    );
+    let status = |id: &str| {
+        result.estimate.assumptions.entries.iter().find_map(|r| match &r.assumption {
+            antecedent_core::Assumption::Custom { id: i, .. } if i.as_ref() == id => Some(r.status),
+            _ => None,
+        })
+    };
+    assert_eq!(status("rd.continuity"), Some(antecedent_core::AssumptionStatus::Untestable));
+    assert_eq!(status("rd.no_manipulation"), Some(antecedent_core::AssumptionStatus::Declared));
+    // Checked against the treatment column on every row.
+    assert_eq!(status("rd.sharp_assignment"), Some(antecedent_core::AssumptionStatus::Supported));
+}
+
+/// A graph that does not make the running variable the treatment's only cause contradicts
+/// a sharp design, and a design is never assumed in its place.
+#[test]
+fn rd_sharp_refuses_a_graph_that_contradicts_the_design() {
+    let (data, _) = rd_scm(500, 27);
+    let err = rd_study(data, Dag::with_variables(3), 1.5)
+        .run(&ExecutionContext::for_tests(28))
+        .unwrap_err();
+    assert_eq!(err.reason_code(), Some("effect_not_identified"), "{err}");
+    assert!(err.to_string().contains("no edge from the running variable"), "{err}");
+}
+
+/// Imperfect compliance: `P(T=1 | R>=0) = 0.75`, `P(T=1 | R<0) = 0.25`, effect of T = 3.
+/// The outcome jump (1.5) is an intent-to-treat contrast; the treatment column shows the
+/// rule is not sharp, so nothing is reported under the treatment's name.
+#[test]
+fn rd_sharp_refuses_fuzzy_assignment() {
+    let n = 4000;
+    let mut rng = ExecutionContext::for_tests(29).rng.stream(0x5057_u64);
+    let (mut r, mut t, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        let ri = 2.0 * rng.next_f64() - 1.0;
+        let p = if ri >= 0.0 { 0.75 } else { 0.25 };
+        let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
+        r[i] = ri;
+        t[i] = ti;
+        y[i] = 1.0 + 0.5 * ri + 3.0 * ti + 0.1 * standard_normal(&mut rng);
+    }
+    let data = tabular_data(&[
+        ("t", RoleHint::TreatmentCandidate, t),
+        ("y", RoleHint::OutcomeCandidate, y),
+        ("r", RoleHint::Context, r),
+    ]);
+    let err = rd_study(data, rd_dag(), 1.0).run(&ExecutionContext::for_tests(30)).unwrap_err();
+    assert_eq!(err.reason_code(), Some("rd_assignment_not_sharp"), "{err}");
+}
+
 /// Sharp RD: running variable R, T = 1{R >= 0}, Y = 3T + 0.5 R + noise.
 fn rd_scm(n: usize, seed: u64) -> (TabularData, AverageEffectQuery) {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5055_u64);
@@ -453,8 +575,7 @@ fn rd_scm(n: usize, seed: u64) -> (TabularData, AverageEffectQuery) {
 fn estimate_rd_sharp_recovers_jump() {
     let expected = load_expected("rd_sharp");
     let (data, query) = rd_scm(3000, 25);
-    // Synthetic empty DAG; RD path does not use graph identification.
-    let graph = Dag::with_variables(3);
+    let graph = rd_dag();
     let analysis = Study::tabular(data.clone())
         .graph(graph)
         .query(query)
@@ -482,7 +603,7 @@ fn estimate_rd_sharp_recovers_jump() {
     // homoskedastic opt-in, which changes the SE (not the jump) and swaps the
     // robust-SE assumption for the constant-variance one.
     let classical = Study::tabular(data)
-        .graph(Dag::with_variables(3))
+        .graph(rd_dag())
         .query(rd_scm(3000, 25).1)
         .identifier(IdentifierId::RdSharp)
         .estimator(EstimatorId::RdSharp)
@@ -521,14 +642,16 @@ fn estimate_rd_sharp_analytic_se_matches_reference() {
         block[key].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
     };
     let (running, outcome) = (floats("running"), floats("outcome"));
-    let n = running.len();
+    let cutoff = block["cutoff"].as_f64().unwrap();
+    // The frozen design lists the running variable and the outcome; under a sharp rule the
+    // treatment column is determined by them.
+    let treatment = running.iter().map(|&r| f64::from(r >= cutoff)).collect();
     let data = tabular_data(&[
-        ("t", RoleHint::TreatmentCandidate, vec![0.0; n]),
+        ("t", RoleHint::TreatmentCandidate, treatment),
         ("y", RoleHint::OutcomeCandidate, outcome),
         ("r", RoleHint::Context, running),
     ]);
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let cutoff = block["cutoff"].as_f64().unwrap();
     let bandwidth = block["bandwidth"].as_f64().unwrap();
     let expected = &block["expected"];
     let rel = block["relative_tolerance"].as_f64().unwrap();
@@ -539,7 +662,7 @@ fn estimate_rd_sharp_analytic_se_matches_reference() {
     let ctx = ExecutionContext::for_tests(3);
     let run = |config: antecedent::RdConfig| {
         Study::tabular(data.clone())
-            .graph(Dag::with_variables(3))
+            .graph(rd_dag())
             .query(query.clone())
             .identifier(IdentifierId::RdSharp)
             .estimator(EstimatorId::RdSharp)

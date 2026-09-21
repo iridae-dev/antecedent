@@ -151,6 +151,12 @@ meaning = "A local-polynomial response in the treatment needs more distinct trea
 max_uses = 0
 
 [[code]]
+id = "rd_assignment_not_sharp"
+applies_to = ["runtime_refusal"]
+meaning = "A sharp regression-discontinuity design declares treatment = 1{running variable >= cutoff}; the treatment column breaks that rule (or is not 0/1), so the outcome jump is not the effect of the treatment and is not reported as one."
+max_uses = 0
+
+[[code]]
 id = "estimator_inference_mismatch"
 applies_to = ["runtime_refusal"]
 meaning = "The selected estimator does not implement the requested inference mode on this query, so it is refused rather than run under the other mode."
