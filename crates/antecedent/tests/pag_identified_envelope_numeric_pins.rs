@@ -432,9 +432,11 @@ fn atom_scalars(result: &antecedent::StudyResult) -> Vec<Option<f64>> {
 /// `InterventionResponse × Pag` for both inferences on explicit and accepted
 /// structure. On the PAG ATE fixture every completion that identifies the ATE
 /// by adjustment must give `do(t=1) − do(t=0)` equal to that completion's
-/// numpy reference effect (`frequentist.completion_effects`), the completions
-/// disagree (0.350 vs 0.422), and the published response is the completion
-/// identified set: its lower/upper are the extreme completion levels, never a
+/// numpy reference effect (`frequentist.completion_effects`) and the completions
+/// disagree (0.350 vs 0.422). The one completion with no arrowhead into `t`
+/// leaves `t -> y` invisible: a latent common cause is compatible with it, so it
+/// carries no number — exactly as on the `AverageEffect` cell of the same PAG —
+/// and the response is graph-dependent over the identified completions, never a
 /// weighted mean.
 #[test]
 fn pag_identified_envelope_intervention_response_matches_completion_effects() {
@@ -505,10 +507,7 @@ fn pag_identified_envelope_intervention_response_matches_completion_effects() {
                 for result in [hi, lo] {
                     assert_eq!(result.support_status.unwrap().as_str(), "licensed", "{label}");
                     assert_eq!(result.logical_plan.estimator.as_deref(), Some(estimator));
-                    assert_eq!(
-                        format!("{:?}", result.identification.status),
-                        "PartiallyIdentified"
-                    );
+                    assert_eq!(format!("{:?}", result.identification.status), "GraphDependent");
                     assert!(
                         result
                             .diagnostics
@@ -528,18 +527,35 @@ fn pag_identified_envelope_intervention_response_matches_completion_effects() {
                         "{label}: completion {case} contrast {contrast} vs reference {truth}"
                     );
                 }
+                for case in 0..cases.len() {
+                    assert_eq!(
+                        hi_atoms[case].is_some(),
+                        adjusted.contains(&case),
+                        "{label}: completion {case} publishes a level iff adjustment identifies it"
+                    );
+                }
                 let levels: Vec<f64> = hi_atoms.iter().flatten().copied().collect();
                 let (min, max) = levels
                     .iter()
                     .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), &v| (a.min(v), b.max(v)));
                 assert!(max - min > 0.02, "{label}: the completions must disagree");
-                let ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(envelope)) =
+                let ResponseIdentification::GraphDependent(atoms) =
                     &hi.response.as_ref().unwrap().estimate
                 else {
-                    panic!("{label}: disagreeing completions publish the identified set");
+                    panic!(
+                        "{label}: an unidentified completion makes the response graph-dependent"
+                    );
                 };
-                assert_eq!(envelope.lower.as_ref(), &[min], "{label}");
-                assert_eq!(envelope.upper.as_ref(), &[max], "{label}");
+                let published: Vec<(usize, f64)> = atoms
+                    .iter()
+                    .map(|(key, value)| match value {
+                        ResponseValue::Scalar(v) => (usize::try_from(*key).unwrap(), *v),
+                        other => panic!("{label}: scalar atoms expected, got {other:?}"),
+                    })
+                    .collect();
+                let expected: Vec<(usize, f64)> =
+                    adjusted.iter().map(|&case| (case, hi_atoms[case].unwrap())).collect();
+                assert_eq!(published, expected, "{label}");
                 if bayesian {
                     assert!(hi.diagnostics.iter().any(|d| {
                         d.code.as_ref() == "estimate.envelope.response_posterior_not_mixed"

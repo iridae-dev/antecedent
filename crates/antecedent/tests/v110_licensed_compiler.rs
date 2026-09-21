@@ -304,8 +304,11 @@ fn identified_pag_pin() -> serde_json::Value {
     .unwrap()
 }
 
+// A confounder triangle read as a MAG leaves `t -> y` invisible (nothing points
+// into `t` from outside `y`'s neighbourhood), so PAG responses are refused on
+// it; these cells need the fixture whose treatment edge has a visibility witness.
 fn uses_pag_response_curve(cell: &antecedent::SupportCell) -> bool {
-    cell.graph_class == "Pag" && cell.query == "ResponseCurve"
+    cell.graph_class == "Pag" && matches!(cell.query, "ResponseCurve" | "InterventionResponse")
 }
 
 fn pag_response_curve_fixture() -> (TabularData, Pag) {
