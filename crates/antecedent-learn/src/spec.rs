@@ -3,7 +3,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::LearnError;
-use crate::learner::{LearnerCapabilities, LearnerFactory, PredictionTask};
+#[cfg(not(all(feature = "ml-gbdt", feature = "ml-forest", feature = "ml-neural")))]
+use crate::learner::LearnerCapabilities;
+use crate::learner::{LearnerFactory, PredictionTask};
 use crate::linear::LinearLearner;
 use crate::logistic::{LogisticLearner, RidgeLogisticLearner};
 use crate::ridge::RidgeLearner;
@@ -404,6 +406,8 @@ fn resolve_neural(
     }
 }
 
+// Only the stubs of a disabled learner feature report what the missing provider would offer.
+#[cfg(not(all(feature = "ml-gbdt", feature = "ml-forest", feature = "ml-neural")))]
 fn required_capabilities(spec: LearnerSpec) -> LearnerCapabilities {
     let mut cap = LearnerCapabilities::none();
     cap.deterministic_seed = true;
