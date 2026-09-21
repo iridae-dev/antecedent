@@ -854,6 +854,66 @@ impl CausalExprArena {
         ratio
     }
 
+    /// Sharp regression-discontinuity functional: the effect for units at the cutoff,
+    /// `lim_{r↓c} E[Y | R = r] − lim_{r↑c} E[Y | R = r]`.
+    ///
+    /// With `T = 1{R ≥ c}` each one-sided limit is the boundary value at `R = c` of that
+    /// side's observational regression, so the contrast is written
+    /// `E[Y | T = active, R = c] − E[Y | T = control, R = c]`. The control-side cell has no
+    /// support at `R = c`; it denotes the continuous extension of `E[Y | T = control, R = r]`
+    /// to the cutoff. Nothing here is interventional and nothing averages over `R`: this is
+    /// not the unadjusted contrast `E[Y | T = active] − E[Y | T = control]`.
+    pub fn rd_sharp_local_effect(
+        &mut self,
+        treatment: VariableId,
+        outcome: VariableId,
+        running: VariableId,
+        cutoff: f64,
+        active: Value,
+        control: Value,
+    ) -> ExprId {
+        let above = self.boundary_conditional_mean(outcome, treatment, active, running, cutoff);
+        let below = self.boundary_conditional_mean(outcome, treatment, control, running, cutoff);
+        let contrast = self.intern(ExprNode::Contrast {
+            left: above,
+            right: below,
+            op: ContrastOp::Difference,
+        });
+        self.set_derivation(
+            contrast,
+            DerivationMeta::rule(
+                "rd.sharp",
+                Some(Arc::from(format!(
+                    "difference of the one-sided limits of E[Y | R = r] at r = {cutoff}; each \
+                     side is the boundary value of that treatment arm's regression on R"
+                ))),
+            ),
+        );
+        contrast
+    }
+
+    /// Observational `E[outcome | arm = level, running = cutoff]`, both levels bound.
+    fn boundary_conditional_mean(
+        &mut self,
+        outcome: VariableId,
+        arm: VariableId,
+        level: Value,
+        running: VariableId,
+        cutoff: f64,
+    ) -> ExprId {
+        let y = self.intern_var_set([outcome]);
+        let given = self.intern_var_set([arm, running]);
+        let bind = self.intern_intervention_assignments([
+            InterventionAssignment { variable: arm, value: level },
+            InterventionAssignment { variable: running, value: Value::f64(cutoff) },
+        ]);
+        let dist = self.intern_distribution(y, given, bind, DomainRef::Observational);
+        self.intern(ExprNode::Expectation {
+            function: OutcomeExprId::identity(outcome),
+            distribution: dist,
+        })
+    }
+
     /// Observational `E[outcome | conditioner = level]`.
     ///
     /// The conditioning level is bound via an intervention assignment so the
@@ -900,6 +960,41 @@ impl fmt::Display for ExprId {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rd_functional_is_the_boundary_contrast_not_the_unadjusted_one() {
+        let (t, y, r) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let mut a = CausalExprArena::new();
+        let rd = a.rd_sharp_local_effect(t, y, r, 0.5, Value::f64(1.0), Value::f64(0.0));
+        let naive = a.backdoor_ate(t, y, &[], Value::f64(1.0), Value::f64(0.0));
+        assert_ne!(rd, naive);
+        let ExprNode::Contrast { left, right, op: ContrastOp::Difference } = a.node(rd).clone()
+        else {
+            panic!("RD functional must be a difference");
+        };
+        assert_ne!(left, right);
+        for (side, level) in [(left, 1.0), (right, 0.0)] {
+            let ExprNode::Expectation { distribution, .. } = a.node(side).clone() else {
+                panic!("each side is a conditional mean");
+            };
+            let ExprNode::Distribution { variables, conditioned_on, intervention, domain, .. } =
+                a.node(distribution).clone()
+            else {
+                panic!("each side is one observational factor");
+            };
+            assert_eq!(domain, DomainRef::Observational);
+            assert_eq!(a.var_set(variables), &[y]);
+            // Conditions on the arm AND on the running variable at the cutoff.
+            assert_eq!(a.var_set(conditioned_on), &[t, r]);
+            let bound: Vec<(VariableId, Option<f64>)> = a
+                .intervention_assignments(intervention)
+                .iter()
+                .map(|b| (b.variable, b.value.as_f64()))
+                .collect();
+            assert!(bound.contains(&(t, Some(level))), "{bound:?}");
+            assert!(bound.contains(&(r, Some(0.5))), "{bound:?}");
+        }
+    }
 
     #[test]
     fn var_sets_are_sorted_and_interned() {
