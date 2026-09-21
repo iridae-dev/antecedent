@@ -2664,7 +2664,7 @@ def mediation_effects_summary(
     seed: int = 1,
     threads: int | None = None,
 ) -> MediationEffectsSummary: ...
-def predict_intervened_summary(
+def predict_conditional_summary(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
     target: str,
