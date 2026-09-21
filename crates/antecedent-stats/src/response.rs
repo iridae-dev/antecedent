@@ -475,8 +475,14 @@ fn inverse_3x3(a: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
     let det = a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1])
         - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
         + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
-    let scale = a.iter().flatten().fold(0.0_f64, |m, v| m.max(v.abs())).max(1.0);
-    if !det.is_finite() || det.abs() <= f64::EPSILON * scale.powi(3) * 64.0 {
+    // Scale-free singularity: |det(G)| / ∏_j G_jj = |det(R)| for the column
+    // correlation of the weighted local design. G_jj is the squared magnitude of
+    // design column j, so the ratio is invariant under affine dose rescaling
+    // (G → DGD with D = diag(1, α, α²)). The old threshold
+    // `EPS * 64 * max(|a_ij|, 1)^3` is unit-dependent: continuous doses with
+    // sd ≈ 1000 look singular and are refused as treatment_support_too_discrete.
+    let scale = a[0][0].abs() * a[1][1].abs() * a[2][2].abs();
+    if !det.is_finite() || scale <= 0.0 || det.abs() <= f64::EPSILON * scale * 64.0 {
         return None;
     }
     let mut out = [[0.0; 3]; 3];
@@ -528,6 +534,31 @@ mod tests {
                 StatsError::SingularLocalDesign { order: 3 }
             );
         }
+    }
+
+    #[test]
+    fn local_quadratic_accepts_an_affine_rescaling_of_a_well_conditioned_dose() {
+        // stats-a-1: a continuous dose with sd ≈ 1000 is an affine rescaling of a
+        // unit-scale design. The singularity test must not refuse it.
+        let x0: Vec<f64> = (0..101).map(|i| -2.0 + 4.0 * f64::from(i) / 100.0).collect();
+        let y: Vec<f64> = x0.iter().map(|v| 1.0 + 2.0 * v + 3.0 * v * v).collect();
+        let base = gaussian_local_quadratic(&x0, &y, 0.4, 0.5).unwrap();
+        let (alpha, shift) = (1000.0, 5000.0);
+        let x: Vec<f64> = x0.iter().map(|v| alpha * v + shift).collect();
+        let fit = gaussian_local_quadratic(&x, &y, alpha * 0.4 + shift, alpha * 0.5).unwrap();
+        assert!((fit.value - base.value).abs() < 1e-8);
+        assert!((fit.first_derivative - base.first_derivative / alpha).abs() < 1e-10);
+        assert!((fit.second_derivative - base.second_derivative / (alpha * alpha)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn local_quadratic_refuses_a_constant_dose_as_singular() {
+        let x = vec![42.0; 100];
+        let y: Vec<f64> = (0..100).map(|i| f64::from(i)).collect();
+        assert_eq!(
+            gaussian_local_quadratic(&x, &y, 42.0, 1.0).unwrap_err(),
+            StatsError::SingularLocalDesign { order: 2 }
+        );
     }
 
     #[test]
