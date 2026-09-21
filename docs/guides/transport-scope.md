@@ -12,8 +12,8 @@ per family:
 
 | Family | Guarantee | Pin |
 | --- | --- | --- |
-| Classical single-source sID | complete in the paper experimental-information family | `antecedent.transport.identify_classical` → [arXiv:1312.7485v1](https://arxiv.org/abs/1312.7485v1) |
-| Classical meta-transport | complete in the multi-source experimental family | `antecedent.transport.identify_meta` → [Bareinboim 2013](https://proceedings.mlr.press/v31/bareinboim13a.pdf) |
+| Classical single-source sID | complete in the paper experimental-information family | `antecedent.transport.advanced.identify_classical` → [arXiv:1312.7485v1](https://arxiv.org/abs/1312.7485v1) |
+| Classical meta-transport | complete in the multi-source experimental family | `antecedent.transport.advanced.identify_meta` → [Bareinboim 2013](https://proceedings.mlr.press/v31/bareinboim13a.pdf) |
 | Finite catalog search | sound and incomplete | closed as `transport.finite_catalog_search` |
 | Limited / z-experiment | named so it cannot inherit sID completeness | follow-on X1 |
 

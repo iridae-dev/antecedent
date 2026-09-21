@@ -45,6 +45,18 @@ if not m:
 elif m.group(1) != version:
     fail.append(f"CITATION.cff version {m.group(1)!r} != Cargo.toml {version!r}")
 
+# A version DOI in the citation metadata is valid only for the version it was
+# minted for; a stale one makes a citation of this release carry an older DOI.
+for stale in re.findall(r"Version DOI for (\d+\.\d+\.\d+)", citation):
+    if stale != version:
+        fail.append(f"CITATION.cff carries a version DOI for {stale!r}; canonical is {version!r}")
+
+# The supported-versions table must list the release line being shipped.
+security = Path("SECURITY.md").read_text()
+line = ".".join(version.split(".")[:2])
+if not re.search(rf"^\|\s*{re.escape(line)}\.x\s*\|\s*Yes", security, re.M):
+    fail.append(f"SECURITY.md supported-versions table has no supported {line}.x row")
+
 # .zenodo.json is what Zenodo actually ingests (it ignores CITATION.cff when
 # present); CITATION.cff carries the CFF-schema-valid license list for GitHub's
 # citation widget and cffconvert. Zenodo rejects both the list form and the

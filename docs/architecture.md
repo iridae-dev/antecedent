@@ -61,8 +61,8 @@ antecedent               facade: Study planner + re-exports
 ```
 
 Dependency edges point downward (no cycles). Facade (`antecedent`) sits on top.
-`antecedent-estimate` will depend on `antecedent-learn` for nuisance
-prediction (milestone G) and never names Forust, SmartCore, or other ML
+`antecedent-estimate` depends on `antecedent-learn` for nuisance
+prediction and never names Forust, SmartCore, or other ML
 providers (ADR 0023).
 Bayesian discovery may use `antecedent-prob` without pulling `antecedent-model`.
 

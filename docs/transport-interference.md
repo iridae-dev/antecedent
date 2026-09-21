@@ -69,7 +69,7 @@ fails closed.
 
 ## Unlicensed utilities
 
-`transport.estimate_trial_effect` and `interference.estimate` are unlicensed
+`transport.advanced.estimate_trial_effect` and `interference.estimate` are unlicensed
 utilities that return bare numbers: augmented IPW via `mu0` /
 `mu1`, Bernoulli, complete and cluster randomization, every built-in exposure
 mapping, and `seed` as the exposure-probability Monte Carlo seed. They call the
@@ -118,7 +118,7 @@ When a general multi-node c-component requires recursion outside that subset,
 the result is `NotCertified`. That means “this implementation has not certified
 a formula,” not “the effect is proven non-transportable.”
 
-`antecedent.transport.identify` stages identification alone: it decides
+`antecedent.transport.advanced.identify` stages identification alone: it decides
 *whether* a formula is sound and returns the formula and certificate. The Rust
 `trial_to_target_effect` and `transport_augmented_response_grid` primitives take
 the identification result as a required argument and refuse to run when it is
@@ -129,7 +129,7 @@ standardization, not the truncated product of population-labelled factors.
 
 The binary randomized-trial estimator reports IPW and optional augmented IPW
 (the licensed `TransportQuery` cell publishes IPW; augmented IPW is available
-from the unlicensed `estimate_trial_effect` utility), plus separate
+from the unlicensed `transport.advanced.estimate_trial_effect` utility), plus separate
 diagnostics for trial-selection overlap and within-trial treatment overlap. A single combined overlap number would conceal which assumption is
 failing.
 

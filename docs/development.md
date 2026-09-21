@@ -435,8 +435,8 @@ committing. The generator rewrites live licensed-cell markers only in
 
 ## Releases
 
-Keep the changelog under **Unreleased** until a cut is approved and
-its date is known. A package version bump is not proof that a release has been
+Keep the changelog's section for the version in preparation headed
+`## X.Y.Z — draft` until a cut is approved and its date is known. A package version bump is not proof that a release has been
 published.
 
 Before merging the release PR:
@@ -465,9 +465,11 @@ Before merging the release PR:
 7. Check the changelog, release notes, user examples, refusal/compatibility scope,
    and evidence ledger. Record measured timings separately from test ceilings.
 
-Before tagging, confirm the dated 1.11.0 changelog section is present, Unreleased
-is empty, its comparison link is `v1.10.0...HEAD` until `v1.11.0` exists, and
-release-status text matches the cut. Coverage records must be attested at
+Before tagging, confirm the changelog section for the version being cut is
+dated (`## X.Y.Z — <date>`, no longer `draft`), the release notes named by
+`docs/release-notes/preparation.toml` (or the workspace version) are current,
+the supported-versions table in `SECURITY.md` and the version in `CITATION.cff`
+name that version, and release-status text matches the cut. Coverage records must be attested at
 HEAD. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 
@@ -476,17 +478,17 @@ PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
 `scripts/set_version.sh` before maturin.
 
 ```bash
-# Optional: bump and commit on main first
-bash scripts/set_version.sh 1.11.0
+# Optional: bump and commit on main first (X.Y.Z is the version being cut)
+bash scripts/set_version.sh X.Y.Z
 cargo update -p antecedent
 git add Cargo.toml Cargo.lock python/pyproject.toml python/uv.lock \
   python/antecedent/__init__.py crates/*/Cargo.toml fuzz/Cargo.lock \
   CHANGELOG.md CITATION.cff docs/release-notes/
-git commit -s -m "chore: bump version to 1.11.0"
+git commit -s -m "chore: bump version to X.Y.Z"
 
 # Tag current (or just-bumped) version and push
 CI_RUN_ID=<ci run on HEAD> bash scripts/tag_release.sh   # runs gate_release_candidate.sh
-git push origin v1.11.0
+git push origin vX.Y.Z
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
@@ -540,4 +542,4 @@ Checklist before the first public crate release:
 2. Enable Actions.
 3. Confirm `workspace.package.repository` in `Cargo.toml` matches the remote.
 4. Configure PyPI trusted publisher for `publish-release.yml`.
-5. Tag `v1.11.0` (or bump first) to cut wheels + PyPI (+ crates.io with token).
+5. Tag `vX.Y.Z` for the version being cut (or bump first) to cut wheels + PyPI (+ crates.io with token).

@@ -147,10 +147,10 @@ as unidentified, which makes the class answer graph-dependent. Influence
 is mixed only when every completion is identified and every contributing
 atom supplies an aligned IF; unidentified mass NaNs the envelope SE
 rather than publishing a primary-atom interval. That is not
-PAG-native response identification. `Admg` response, TemporalCpdag/Pag response,
-and mixtures over graph posteriors remain refused by the
-[support matrix](support-matrix.md). See the
-[1.4 evidence ledger](v1.4-evidence.md).
+PAG-native response identification. `Admg` response, `TemporalCpdag`/`TemporalPag` response, and mixtures over
+graph posteriors are licensed on the cells the
+[support matrix](support-matrix.md) lists, each with its own evidence row;
+everything not listed there is refused.
 
 ## Validation on a function-valued response
 
@@ -293,7 +293,7 @@ Each band also reads every cell's influence for the family's short-series
 statistic (`response.temporal.effective_rows`: the smaller of the lag-1 AR(1)
 reading `n(1 − r₁)/(1 + r₁)` and the block-length Bartlett reading, the readings
 of the scalar temporal effects) and warns `response.temporal.block.short_series`
-when any cell reads fewer than 30 effective rows.
+when any cell reads fewer than 15 effective rows.
 
 - **Frequentist complete data.** Curves and single Set/Shift/Soft responses refit
   every horizon and recompute the covariate (and, for shifts, treatment) averages
@@ -383,9 +383,9 @@ Frequentist curves use the separate path described under
 [Observation is not outcome](#observation-is-not-outcome). Bayesian derivative
 responses are described under
 [Curves, derivatives, and elasticities](#curves-derivatives-and-elasticities).
-Graph-posterior response mixtures (licensed for static DAG atoms in the Rust
-Study API only) and multi-step temporal response policies are refused here. See the [1.3 evidence ledger](v1.3-evidence.md) and
-[1.4 evidence ledger](v1.4-evidence.md).
+Graph-posterior response mixtures are licensed only on the cells listed in the
+[support matrix](support-matrix.md); multi-step temporal response policies are
+refused here.
 
 ## Row-diagnostic export contract
 
@@ -475,7 +475,7 @@ at export rather than published.
 
 The six derivative query types are licensed on explicit or accepted DAGs at
 validation `none`, under Frequentist and Bayesian inference; see the
-[support matrix](support-matrix.md) and [1.3 evidence ledger](v1.3-evidence.md).
+[support matrix](support-matrix.md), which carries each cell's evidence.
 PAG/ADMG/CPDAG derivative, graph-posterior, observation-adjusted, and
 cheap/full coordinates remain refused. Mean curves on `Cpdag` / `Pag` are a
 separate 1.4 cell, not a derivative license. The definitions below are the

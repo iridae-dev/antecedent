@@ -60,6 +60,9 @@ bash scripts/gate_support_matrix.sh
 echo "== docs vs support matrix =="
 bash scripts/gate_docs_support_matrix.sh
 
+echo "== published docs links resolve =="
+python3 scripts/check_doc_links.py
+
 echo "== evidence reachability (cited fixtures execute; deviations ratchet) =="
 bash scripts/gate_evidence_reachability.sh
 

@@ -91,11 +91,14 @@ leftover ledger, per-case subprocess isolation, and acceptance accounting tests.
 
 ## Current candidate
 
-Coverage claims for the library candidate attach to remesure `6a41568f`
-plus replay waiver `facade-reexports-02c06614` (waiver `to` = `02c06614`).
-The 587 records were remesured after the finding repairs. The 2026-09-19
-count below (258 matching plus 329 replay-attested) is the pre-repair
-working-tree snapshot; it is not the claim for this candidate.
+This section records a past candidate and does not describe the current
+tree. Coverage claims for that library candidate attached to remesure
+`6a41568f` plus replay waiver `facade-reexports-02c06614` (waiver `to` =
+`02c06614`), and its 587 records were remesured after the finding repairs. The
+2026-09-19 count below (258 matching plus 329 replay-attested) is the
+pre-repair working-tree snapshot. On the current tree the coverage records owe
+re-measurement (see `result.calibration`), so none of these figures is a
+current coverage claim.
 
 The sibling suite and `scripts/gate_release.sh` on 2026-09-19 were
 working-tree checks. The acceptance rule above still requires a rerun of
