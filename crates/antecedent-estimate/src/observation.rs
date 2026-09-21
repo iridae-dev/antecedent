@@ -240,6 +240,16 @@ pub struct ObservationAdjustedOutcome {
     pub weights: Vec<f64>,
     /// Stable method identifier.
     pub method: Arc<str>,
+    /// Set for a censoring correction whose censoring survival reached the positivity
+    /// floor within the observed follow-up: an administrative-censoring boundary, in the
+    /// original outcome units, past which (for right censoring) or before which (for left
+    /// censoring, see `method`) no event can ever be observed. [`Self::values`] then
+    /// estimate a restricted mean — `E[Y · 1{Y < tau}]` for right censoring, `E[Y · 1{Y >
+    /// tau}]` for left censoring — not the unrestricted `E[Y]`; the unrestricted mean is not
+    /// identified from these data and callers must label the result as restricted. `None`
+    /// for the selected-outcome mechanism (no such boundary applies) and for a censoring
+    /// correction whose censoring survival never reached the floor.
+    pub tail_restriction: Option<f64>,
 }
 
 /// Explicit observation-mechanism estimator.
@@ -462,6 +472,16 @@ impl ObservationMechanismEstimator {
                 "every selection indicator is 1, so the selected-outcome correction is the raw recorded outcome; a mis-coded indicator would look like no selection",
             ));
         }
+        if let Some(tau) = adjusted.tail_restriction {
+            response.support.warnings.push(Diagnostic::new(
+                "response.observation_censoring_tail_unidentified",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                format!(
+                    "the censoring survival reaches the positivity floor at {tau}; every unit still at risk there was censored, so no event beyond that boundary is observable and the published mean is the restricted mean of the outcome up to it, not the unrestricted mean"
+                ),
+            ));
+        }
         Ok(response)
     }
 
@@ -554,8 +574,12 @@ impl ObservationMechanismEstimator {
             values[start..].copy_from_slice(&subset.values);
             weights[start..].copy_from_slice(&subset.weights);
         }
-        let adjusted =
-            ObservationAdjustedOutcome { values: values.clone(), weights, method: subset.method };
+        let adjusted = ObservationAdjustedOutcome {
+            values: values.clone(),
+            weights,
+            method: subset.method,
+            tail_restriction: subset.tail_restriction,
+        };
         let series = data.with_replaced_float(outcome, Arc::from(values))?;
         Ok((series, adjusted))
     }
@@ -868,6 +892,7 @@ impl ObservationMechanismEstimator {
                 values: observed.to_vec(),
                 weights: vec![1.0; observed.len()],
                 method: Arc::from("observation.selected.complete_collapse.v1"),
+                tail_restriction: None,
             });
         }
         let (probabilities, outcome_predictions) = match self.options.selected_correction {
@@ -910,6 +935,7 @@ impl ObservationMechanismEstimator {
                 SelectedOutcomeCorrection::Ipw => "observation.selected.logistic_ipw.v1",
                 SelectedOutcomeCorrection::Aipw => "observation.selected.crossfit_logistic_aipw.v1",
             }),
+            tail_restriction: None,
         })
     }
 
@@ -1100,23 +1126,33 @@ impl ObservationMechanismEstimator {
         }
         let transformed: Vec<f64> =
             observed.iter().map(|&value| if reverse { -value } else { value }).collect();
-        let weights = if n_cov == 0 {
-            kaplan_meier_ipcw(
+        // Marginal (`n_cov == 0`) and conditional (Cox) IPCW both report zero weight for
+        // censored rows and, for the marginal path, whether the censoring survival reached
+        // the positivity floor within the follow-up — the tell that the tail beyond that
+        // point cannot be identified from these data (see `KaplanMeierIpcw`).
+        let (weights, tail_restriction_transformed) = if n_cov == 0 {
+            let fit = kaplan_meier_ipcw(
                 &transformed,
                 event,
                 delayed_entry,
                 self.options.censoring_survival_floor,
-            )?
+            )?;
+            (fit.weights, fit.tail_restriction)
         } else {
-            antecedent_stats::cox_ipcw(
+            let fit = antecedent_stats::cox_ipcw(
                 &transformed,
                 event,
                 covariates,
                 n_cov,
                 self.options.censoring_survival_floor,
-            )?
-            .weights
+            )?;
+            (fit.weights, None)
         };
+        // A left-censoring correction reverses the sign before fitting, so a transformed-
+        // scale boundary `tau` (unidentified for `transformed >= tau`, i.e. `-observed >=
+        // tau`) is the original-scale boundary `-tau` (unidentified for `observed <= -tau`).
+        let tail_restriction =
+            tail_restriction_transformed.map(|tau| if reverse { -tau } else { tau });
         // Horvitz–Thompson transform: Y* = Y · (δ / G). Censored rows contribute
         // exactly 0; uncensored rows are upweighted by 1/G. The unweighted mean
         // of Y* is the IPCW mean. Dropping the zeros would be complete-case
@@ -1125,6 +1161,7 @@ impl ObservationMechanismEstimator {
         Ok(ObservationAdjustedOutcome {
             values,
             weights,
+            tail_restriction,
             method: Arc::from(if n_cov > 0 {
                 if reverse {
                     "observation.left_censored.cox_ipcw_sign_reversal.v1"
@@ -1720,6 +1757,54 @@ mod tests {
             )
             .unwrap_err();
         assert!(error.to_string().contains("include the treatment"));
+    }
+
+    #[test]
+    fn administrative_censoring_flags_the_ipcw_mean_as_restricted() {
+        // Four units with latent outcomes 0.5, 1.5, 2.5, 3.5, independently known because
+        // this is a closed-form fixture, not a fitted model: true E[Y] = 2.0. Administrative
+        // censoring at tau=3 means the last unit is recorded as censored at 3.0 (event=0)
+        // instead of at its true, larger latent value.
+        let observed = [0.5, 1.5, 2.5, 3.0];
+        let censoring = [0.5, 1.5, 2.5, 3.0];
+        let event = [1.0, 1.0, 1.0, 0.0];
+        let true_unrestricted_mean = (0.5 + 1.5 + 2.5 + 3.5) / 4.0;
+
+        let adjusted = ObservationMechanismEstimator::default()
+            .censored_from_columns(&observed, &censoring, &event, &[], 0, None, false)
+            .unwrap();
+
+        // Every unit still at risk at tau=3 was censored there: the censoring survival is
+        // driven straight to zero, so no event beyond tau=3 is ever observable and the
+        // fit must say so instead of staying silent.
+        assert_eq!(adjusted.tail_restriction, Some(3.0));
+
+        // What the estimator actually returns is the restricted mean E[Y * 1{Y<3}],
+        // computed here independently of the implementation: censored rows contribute
+        // zero, uncensored rows contribute their exact latent value with unit weight
+        // (no censoring precedes them).
+        let restricted_mean = adjusted.values.iter().sum::<f64>() / observed.len() as f64;
+        let expected_restricted_mean = (0.5 + 1.5 + 2.5) / 4.0;
+        assert!((restricted_mean - expected_restricted_mean).abs() < 1e-12);
+
+        // The restricted mean is not a stand-in for the unrestricted mean: they differ by
+        // more than 0.5, so silently reporting one as the other would be a materially wrong
+        // answer, not rounding noise.
+        assert!((restricted_mean - true_unrestricted_mean).abs() > 0.5);
+    }
+
+    #[test]
+    fn censoring_survival_within_the_floor_is_not_flagged_as_restricted() {
+        // Two censoring jumps, each leaving units at risk afterwards: the censoring
+        // survival never reaches the floor, so nothing in the data indicates the tail is
+        // unidentified.
+        let observed = [1.0, 2.0, 3.0, 4.0];
+        let censoring = [1.0, 2.0, 3.0, 4.0];
+        let event = [0.0, 1.0, 0.0, 1.0];
+        let adjusted = ObservationMechanismEstimator::default()
+            .censored_from_columns(&observed, &censoring, &event, &[], 0, None, false)
+            .unwrap();
+        assert_eq!(adjusted.tail_restriction, None);
     }
 
     #[test]

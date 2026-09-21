@@ -155,6 +155,26 @@ pub fn selected_outcome_pseudo_values(
     Ok(out)
 }
 
+/// Kaplan–Meier inverse censoring weights, and whether the censoring survival's observed
+/// support covers the whole follow-up.
+#[derive(Clone, Debug, PartialEq)]
+pub struct KaplanMeierIpcw {
+    /// Zero for censored rows; `G(entry_i−) / G(time_i−)` for observed rows.
+    pub weights: Vec<f64>,
+    /// The censoring survival's first drop to (or below) `survival_floor`, if any.
+    ///
+    /// `None` means the estimated censoring survival stays at or above the floor through
+    /// every recorded time, so nothing in the data indicates the tail is unidentified.
+    /// `Some(tau)` means every unit still at risk at `tau` was censored there (an
+    /// administrative-censoring boundary, or the numerical equivalent of one): no row's
+    /// event can be observed at or beyond `tau`, so `Y ≥ tau` has probability that is not
+    /// identified from these data. The unweighted mean of the Horvitz–Thompson pseudo-
+    /// outcome `event · Y / G` then estimates the restricted mean `E[Y · 1{Y < tau}]`, not
+    /// `E[Y]`; the caller must label the result accordingly rather than pass it off as the
+    /// unrestricted mean.
+    pub tail_restriction: Option<f64>,
+}
+
 /// Kaplan–Meier inverse censoring weights evaluated just before each observed time.
 ///
 /// `event=1` means the scientific event/outcome is uncensored; `event=0` is a censoring
@@ -163,15 +183,21 @@ pub fn selected_outcome_pseudo_values(
 /// `G(entry_i−) / G(time_i−)` (reducing to `1 / G(time_i−)` when there is no entry).
 /// Censored rows receive zero weight.
 ///
+/// The censoring survival function's own support is only ever as wide as the data: it
+/// cannot rule out outcomes beyond the point where every unit still at risk was censored.
+/// [`KaplanMeierIpcw::tail_restriction`] reports that boundary instead of pretending
+/// the corrected mean covers the unbounded outcome.
+///
 /// # Errors
 ///
-/// Invalid inputs, empty risk sets, or censoring survival below `survival_floor`.
+/// Invalid inputs, empty risk sets, or censoring survival below `survival_floor` at an
+/// observed event.
 pub fn kaplan_meier_ipcw(
     time: &[f64],
     event: &[f64],
     entry: Option<&[f64]>,
     survival_floor: f64,
-) -> Result<Vec<f64>, StatsError> {
+) -> Result<KaplanMeierIpcw, StatsError> {
     let n = time.len();
     if n == 0 || event.len() != n || entry.is_some_and(|v| v.len() != n) {
         return Err(StatsError::Shape {
@@ -216,7 +242,15 @@ pub fn kaplan_meier_ipcw(
     let survival_before = |at: f64| -> f64 {
         steps.iter().take_while(|(t, _)| *t < at).last().map_or(1.0, |(_, after)| *after)
     };
-    (0..n)
+    // The first jump time at which the whole remaining risk set was censored (survival
+    // reaches, or is driven below, the floor): an administrative-censoring boundary past
+    // which no event can ever be observed. Checked here, over every jump, rather than only
+    // at rows with `event=1`: a data set can have no event past this boundary at all, in
+    // which case the per-row floor check below never fires even though the tail is exactly
+    // as unidentified.
+    let tail_restriction =
+        steps.iter().find(|(_, survival)| *survival < survival_floor).map(|&(t, _)| t);
+    let weights = (0..n)
         .map(|i| {
             if event[i] == 0.0 {
                 return Ok(0.0);
@@ -237,7 +271,8 @@ pub fn kaplan_meier_ipcw(
             }
             Ok(at_entry / at_event)
         })
-        .collect()
+        .collect::<Result<Vec<f64>, StatsError>>()?;
+    Ok(KaplanMeierIpcw { weights, tail_restriction })
 }
 
 /// One Gaussian observation-likelihood contribution.
@@ -372,15 +407,42 @@ mod tests {
 
     #[test]
     fn delayed_entry_changes_censoring_risk_set() {
-        let without = kaplan_meier_ipcw(&[1.0, 2.0, 3.0], &[0.0, 1.0, 1.0], None, 0.01).unwrap();
+        let without =
+            kaplan_meier_ipcw(&[1.0, 2.0, 3.0], &[0.0, 1.0, 1.0], None, 0.01).unwrap().weights;
         let with =
             kaplan_meier_ipcw(&[1.0, 2.0, 3.0], &[0.0, 1.0, 1.0], Some(&[0.0, 1.5, 0.0]), 0.01)
-                .unwrap();
+                .unwrap()
+                .weights;
         assert!((without[1] - 1.5).abs() < 1e-12);
         // Left-truncated IPCW is G(L−)/G(T−). Unit 1 enters after the only censoring jump, so
         // G(L−)=G(T−)=1/2 and the weight is 1 — not the untruncated 1/G(T−)=2.
         assert!((with[1] - 1.0).abs() < 1e-12);
         assert!((with[2] - 2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn tail_restriction_is_none_when_censoring_survival_never_reaches_the_floor() {
+        // Two events, one censoring jump that leaves half the risk set alive: the
+        // censoring survival never drops below the floor, so there is no evidence in the
+        // data that the tail is unidentified.
+        let fit =
+            kaplan_meier_ipcw(&[1.0, 2.0, 3.0, 4.0], &[0.0, 1.0, 0.0, 1.0], None, 0.1).unwrap();
+        assert_eq!(fit.tail_restriction, None);
+    }
+
+    #[test]
+    fn tail_restriction_flags_an_administrative_censoring_boundary() {
+        // Exp(1) censored at tau=1: every subject alive at tau=1 is censored there, driving
+        // the censoring survival to exactly zero. No event can ever be observed at or past
+        // tau=1, so the tail beyond it is unidentified from these data.
+        let fit =
+            kaplan_meier_ipcw(&[0.2, 0.5, 1.0, 1.0, 1.0], &[1.0, 1.0, 0.0, 0.0, 0.0], None, 0.01)
+                .unwrap();
+        assert_eq!(fit.tail_restriction, Some(1.0));
+        // Events strictly before the boundary still have full weight: the censoring
+        // survival at their time is 1 (no censoring has occurred yet).
+        assert!((fit.weights[0] - 1.0).abs() < 1e-12);
+        assert!((fit.weights[1] - 1.0).abs() < 1e-12);
     }
 
     #[test]
@@ -439,8 +501,8 @@ mod tests {
         let event = numbers(&km["event"]);
         let entry = numbers(&km["entry"]);
         let floor = km["survival_floor"].as_f64().unwrap();
-        let without = kaplan_meier_ipcw(&time, &event, None, floor).unwrap();
-        let with = kaplan_meier_ipcw(&time, &event, Some(&entry), floor).unwrap();
+        let without = kaplan_meier_ipcw(&time, &event, None, floor).unwrap().weights;
+        let with = kaplan_meier_ipcw(&time, &event, Some(&entry), floor).unwrap().weights;
         assert!(
             without
                 .iter()
