@@ -271,6 +271,32 @@ mod tests {
         assert!(pooled.time_dummy_variables.is_empty());
     }
 
+    /// Requesting a subset of the schema must not let a dummy alias a real, un-requested
+    /// variable: with 3 schema variables and only variable 0 requested, dummies start at 3.
+    #[test]
+    fn dummy_ids_start_above_the_whole_schema() {
+        let multi = MultiEnvironmentData::try_new(Arc::from([
+            float_series(16, 3),
+            float_series(16, 3),
+            float_series(16, 3),
+        ]))
+        .unwrap();
+        let pooled = pool_multi_env_lagged_frame(
+            &multi,
+            &[VariableId::from_raw(0)],
+            2,
+            DummyOptions {
+                include_space_dummy: true,
+                include_time_dummy: false,
+                ..DummyOptions::default()
+            },
+            &KernelPolicy::default_policy(),
+        )
+        .unwrap();
+        let ids: Vec<u32> = pooled.space_dummy_variables.iter().map(|v| v.raw()).collect();
+        assert_eq!(ids, vec![3, 4]);
+    }
+
     #[test]
     fn space_dummy_one_hot_m_minus_1() {
         let a = float_series(16, 2);

@@ -341,6 +341,15 @@ impl Default for DiscoveryConstraints {
     }
 }
 
+fn contemp_link(source: VariableId, target: VariableId) -> LaggedLink {
+    LaggedLink {
+        source,
+        source_lag: Lag::CONTEMPORANEOUS,
+        target,
+        target_lag: Lag::CONTEMPORANEOUS,
+    }
+}
+
 impl DiscoveryConstraints {
     /// Whether a link is forbidden by the explicit forbidden list, tiers, or
     /// Günther multi-dataset link assumptions.
@@ -355,6 +364,19 @@ impl DiscoveryConstraints {
     #[must_use]
     pub fn is_required(&self, link: LaggedLink) -> bool {
         self.required.iter().any(|r| *r == link)
+    }
+
+    /// Whether both directions of the contemporaneous pair `{a, b}` are forbidden, i.e. a static
+    /// (non-temporal) edge between them cannot exist.
+    #[must_use]
+    pub fn static_forbidden(&self, a: VariableId, b: VariableId) -> bool {
+        self.is_forbidden(contemp_link(a, b)) && self.is_forbidden(contemp_link(b, a))
+    }
+
+    /// Whether either direction of the contemporaneous pair `{a, b}` is required.
+    #[must_use]
+    pub fn static_required(&self, a: VariableId, b: VariableId) -> bool {
+        self.is_required(contemp_link(a, b)) || self.is_required(contemp_link(b, a))
     }
 
     /// Tier index of `v`, or `None` if tiers are unused / variable absent.

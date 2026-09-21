@@ -46,6 +46,46 @@ impl DiscriminatingPath {
     }
 }
 
+/// Bounds on the discriminating-path search, applied **per candidate edge** `c *-* b`.
+///
+/// A dense PAG can hold far more discriminating paths than any global cap admits, but each
+/// edge's own search is small. Exhausting an edge's budget leaves the circle at `c` on that
+/// edge (sound: R4 only ever adds orientations), so it is skipped and reported rather than
+/// failing the run.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DiscriminatingPathBudget {
+    /// Maximum discriminating paths enumerated for one edge `c *-* b`.
+    pub max_paths_per_edge: usize,
+    /// Maximum path length (nodes, including `a` and `b`).
+    pub max_len: usize,
+}
+
+impl Default for DiscriminatingPathBudget {
+    fn default() -> Self {
+        Self { max_paths_per_edge: 64, max_len: 8 }
+    }
+}
+
+/// Discriminating paths ending at the single edge `{c,b}` (circle at `c`).
+///
+/// Returns `(paths, truncated)`; `truncated` means the budget stopped the enumeration, so the
+/// paths returned are valid but possibly incomplete.
+#[must_use]
+pub fn find_discriminating_paths_for_edge<G: PagOps>(
+    pag: &G,
+    b: DenseNodeId,
+    c: DenseNodeId,
+    budget: DiscriminatingPathBudget,
+) -> (Vec<DiscriminatingPath>, bool) {
+    let mut out = Vec::new();
+    if budget.max_paths_per_edge == 0 || budget.max_len < 4 {
+        return (out, true);
+    }
+    let (limit_hit, len_truncated) =
+        collect_edge_paths(pag, b, c, budget.max_paths_per_edge, budget.max_len, &mut out);
+    (out, limit_hit || len_truncated)
+}
+
 /// Find discriminating paths ending at edge `{c,b}` with a circle at `c`, bounded.
 ///
 /// Returns `(paths, truncated)` when `max_paths` / `max_len` stopped further enumeration.
@@ -67,79 +107,99 @@ pub fn find_discriminating_paths_with_budget<G: PagOps>(
             if !matches!(at_c, Endpoint::Circle) {
                 continue;
             }
-            // Grow prefixes ending at `c`; intermediates must be parents of `b`.
-            let mut stack = vec![vec![c]];
-            while let Some(path_to_c) = stack.pop() {
-                if out.len() >= max_paths {
-                    truncated = true;
-                    return (out, truncated);
-                }
-                // Try to complete with endpoint `a` once we have ≥1 intermediate.
-                if path_to_c.len() >= 2 {
-                    let head = path_to_c[0];
-                    for (a, _, _) in pag.neighbors(head) {
-                        if out.len() >= max_paths {
-                            truncated = true;
-                            return (out, truncated);
-                        }
-                        if a == b || path_to_c.contains(&a) || pag.has_edge(a, b) {
-                            continue;
-                        }
-                        let mut full = Vec::with_capacity(path_to_c.len() + 2);
-                        full.push(a);
-                        full.extend_from_slice(&path_to_c);
-                        full.push(b);
-                        if full.len() > max_len {
-                            truncated = true;
-                            continue;
-                        }
-                        if is_discriminating_path(pag, &full) {
-                            out.push(DiscriminatingPath { nodes: full });
-                        }
-                    }
-                }
-                // Extend leftward with another intermediate (parent of `b`).
-                // Full path needs +2 for `a` and `b`.
-                if path_to_c.len() + 2 >= max_len {
-                    let head = path_to_c[0];
-                    for (pred, _, _) in pag.neighbors(head) {
-                        if pred == b || path_to_c.contains(&pred) {
-                            continue;
-                        }
-                        if !is_definite_parent(pag, pred, b) {
-                            continue;
-                        }
-                        truncated = true;
-                        break;
-                    }
-                    continue;
-                }
-                let head = path_to_c[0];
-                for (pred, _, _) in pag.neighbors(head) {
-                    if pred == b || path_to_c.contains(&pred) {
-                        continue;
-                    }
-                    if !is_definite_parent(pag, pred, b) {
-                        continue;
-                    }
-                    if path_to_c.len() >= 2 {
-                        // `head` is already an intermediate: must stay a collider under prepend.
-                        if !is_definite_parent(pag, head, b) {
-                            continue;
-                        }
-                        if !is_collider_at(pag, head, pred, path_to_c[1]) {
-                            continue;
-                        }
-                    }
-                    let mut next = Vec::with_capacity(path_to_c.len() + 1);
-                    next.push(pred);
-                    next.extend_from_slice(&path_to_c);
-                    stack.push(next);
-                }
+            let (limit_hit, len_truncated) =
+                collect_edge_paths(pag, b, c, max_paths - out.len(), max_len, &mut out);
+            truncated |= len_truncated;
+            if limit_hit {
+                return (out, true);
             }
         }
     }
     (out, truncated)
+}
+
+/// Enumerate discriminating paths for `{c,b}` into `out`, at most `limit` of them.
+///
+/// Returns `(limit_hit, len_truncated)`.
+fn collect_edge_paths<G: PagOps>(
+    pag: &G,
+    b: DenseNodeId,
+    c: DenseNodeId,
+    limit: usize,
+    max_len: usize,
+    out: &mut Vec<DiscriminatingPath>,
+) -> (bool, bool) {
+    let start = out.len();
+    let mut truncated = false;
+    // Grow prefixes ending at `c`; intermediates must be parents of `b`.
+    let mut stack = vec![vec![c]];
+    while let Some(path_to_c) = stack.pop() {
+        if out.len() - start >= limit {
+            return (true, truncated);
+        }
+        // Try to complete with endpoint `a` once we have ≥1 intermediate.
+        if path_to_c.len() >= 2 {
+            let head = path_to_c[0];
+            for (a, _, _) in pag.neighbors(head) {
+                if out.len() - start >= limit {
+                    return (true, truncated);
+                }
+                if a == b || path_to_c.contains(&a) || pag.has_edge(a, b) {
+                    continue;
+                }
+                let mut full = Vec::with_capacity(path_to_c.len() + 2);
+                full.push(a);
+                full.extend_from_slice(&path_to_c);
+                full.push(b);
+                if full.len() > max_len {
+                    truncated = true;
+                    continue;
+                }
+                if is_discriminating_path(pag, &full) {
+                    out.push(DiscriminatingPath { nodes: full });
+                }
+            }
+        }
+        // Extend leftward with another intermediate (parent of `b`).
+        // Full path needs +2 for `a` and `b`.
+        if path_to_c.len() + 2 >= max_len {
+            let head = path_to_c[0];
+            for (pred, _, _) in pag.neighbors(head) {
+                if pred == b || path_to_c.contains(&pred) {
+                    continue;
+                }
+                if !is_definite_parent(pag, pred, b) {
+                    continue;
+                }
+                truncated = true;
+                break;
+            }
+            continue;
+        }
+        let head = path_to_c[0];
+        for (pred, _, _) in pag.neighbors(head) {
+            if pred == b || path_to_c.contains(&pred) {
+                continue;
+            }
+            if !is_definite_parent(pag, pred, b) {
+                continue;
+            }
+            if path_to_c.len() >= 2 {
+                // `head` is already an intermediate: must stay a collider under prepend.
+                if !is_definite_parent(pag, head, b) {
+                    continue;
+                }
+                if !is_collider_at(pag, head, pred, path_to_c[1]) {
+                    continue;
+                }
+            }
+            let mut next = Vec::with_capacity(path_to_c.len() + 1);
+            next.push(pred);
+            next.extend_from_slice(&path_to_c);
+            stack.push(next);
+        }
+    }
+    (false, truncated)
 }
 
 /// Find discriminating paths ending at edge `{c,b}` with a circle at `c`, bounded.

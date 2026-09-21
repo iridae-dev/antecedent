@@ -1,7 +1,9 @@
 //! `DirectLiNGAM` → static [`Dag`] (Shimizu et al. 2011).
 //!
-//! Causal-order search by residual–predictor independence, then OLS coefficient
-//! pruning. Does not use ICA or the Meek/PC orientation stack.
+//! Causal-order search by residual–predictor independence, then pruning of the OLS
+//! coefficients on the *standardised* scale (so the cut-off does not depend on units).
+//! Required edges constrain the order search (a required parent is placed before its
+//! child). Does not use ICA or the Meek/PC orientation stack.
 //!
 //! Deviation from the paper: independence is scored with distance correlation
 //! (Székely, Rizzo & Bakirov 2007) rather than the paper's kernel-based mutual-
@@ -24,7 +26,9 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DagReview, DenseNodeId, NodeRef};
-use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use antecedent_stats::{
+    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, distance_correlation,
+};
 
 use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
@@ -44,7 +48,9 @@ pub type StaticDagDiscoveryResult = DiscoveryResult<Dag, DagReview>;
 pub struct DirectLingam {
     /// Constraints / max parents / forbidden edges.
     pub constraints: DiscoveryConstraints,
-    /// Absolute coefficient prune threshold after order search.
+    /// Prune threshold on the absolute *standardised* coefficient
+    /// `|β| · sd(parent) / sd(child)` after order search (unit-free, in `[0, 1]` for a single
+    /// predictor). Required edges are never pruned.
     pub prune_threshold: f64,
 }
 
@@ -77,7 +83,7 @@ impl DirectLingam {
         self
     }
 
-    /// Absolute OLS coefficient prune threshold.
+    /// Prune threshold on the absolute standardised OLS coefficient.
     #[must_use]
     pub fn with_prune_threshold(mut self, threshold: f64) -> Self {
         self.prune_threshold = threshold;
@@ -96,7 +102,7 @@ impl DirectLingam {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<StaticDagDiscoveryResult, DiscoveryError> {
-        let _ = (workspace, ctx);
+        let _ = workspace;
         self.constraints.validate()?;
         if variables.is_empty() {
             return Err(DiscoveryError::Unsupported {
@@ -130,10 +136,43 @@ impl DirectLingam {
         let mut remaining: Vec<usize> = (0..p).collect();
         let mut order: Vec<usize> = Vec::with_capacity(p);
 
+        // Required contemporaneous edges as index pairs `(parent, child)`.
+        let required_pairs: Vec<(usize, usize)> = self
+            .constraints
+            .required
+            .iter()
+            .filter(|r| {
+                r.source_lag == Lag::CONTEMPORANEOUS && r.target_lag == Lag::CONTEMPORANEOUS
+            })
+            .filter_map(|r| {
+                let si = variables.iter().position(|v| *v == r.source)?;
+                let ti = variables.iter().position(|v| *v == r.target)?;
+                (si != ti).then_some((si, ti))
+            })
+            .collect();
+
         while remaining.len() > 1 {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
             let mut best_j = remaining[0];
             let mut best_score = f64::INFINITY;
-            for &j in &remaining {
+            // A variable whose required parent is still unplaced cannot be exogenous yet:
+            // ordering it first would silently contradict the constraint.
+            let eligible: Vec<usize> = remaining
+                .iter()
+                .copied()
+                .filter(|&j| !required_pairs.iter().any(|&(a, b)| b == j && remaining.contains(&a)))
+                .collect();
+            if eligible.is_empty() {
+                return Err(DiscoveryError::unsupported(
+                    "required edges form a cycle: no causal order satisfies them",
+                ));
+            }
+            for &j in &eligible {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(DiscoveryError::Cancelled);
+                }
                 let mut score = 0.0;
                 for &i in &remaining {
                     if i == j {
@@ -193,6 +232,30 @@ impl DirectLingam {
         let mut edge_coefs: Vec<(usize, usize, f64)> = Vec::new();
         let backend = FaerBackend;
         let mut ls_ws = LeastSquaresWorkspace::default();
+        // Standard deviations for the unit-free coefficient scale.
+        let sd: Vec<f64> =
+            orig.iter().map(|c| (c.iter().map(|v| v * v).sum::<f64>() / n as f64).sqrt()).collect();
+        let standardised = |par: usize, child: usize, beta: f64| {
+            if sd[child] > 0.0 { beta * sd[par] / sd[child] } else { 0.0 }
+        };
+        // Keep required parents unconditionally, then the largest standardised
+        // coefficients above the threshold up to `max_parents`.
+        let select = |child: usize, coefs: &[(usize, f64)]| -> Vec<(usize, f64)> {
+            let (mut kept, mut optional): (Vec<(usize, f64)>, Vec<(usize, f64)>) =
+                coefs.iter().copied().partition(|&(par, _)| required_pairs.contains(&(par, child)));
+            optional.retain(|&(par, beta)| {
+                standardised(par, child, beta).abs() >= self.prune_threshold
+            });
+            optional.sort_by(|a, b| {
+                standardised(b.0, child, b.1)
+                    .abs()
+                    .partial_cmp(&standardised(a.0, child, a.1).abs())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            optional.truncate(max_parents.saturating_sub(kept.len()));
+            kept.extend(optional);
+            kept
+        };
 
         for (pos, &child) in order.iter().enumerate() {
             if pos == 0 {
@@ -214,48 +277,18 @@ impl DirectLingam {
                     x[c * n + r] = orig[par][r];
                 }
             }
-            let fit = if let Ok(f) = backend.least_squares(&x, n, k, &orig[child], &mut ls_ws) {
-                f
-            } else {
-                // Fall back to pairwise prune on rank failure.
-                for &par in &preds {
-                    let beta = simple_regression_coef(&orig[child], &orig[par]);
-                    if beta.abs() >= self.prune_threshold
-                        && !forbidden_edge(&self.constraints, variables, par, child)
-                    {
-                        edge_coefs.push((par, child, beta));
-                    }
-                }
-                continue;
-            };
-            // Keep largest |β| up to max_parents.
-            let mut ranked: Vec<(usize, f64)> = preds
-                .iter()
-                .enumerate()
-                .map(|(i, &par)| (par, fit.coefficients[i]))
-                .filter(|(_, b)| b.abs() >= self.prune_threshold)
-                .collect();
-            ranked.sort_by(|a, b| {
-                b.1.abs().partial_cmp(&a.1.abs()).unwrap_or(std::cmp::Ordering::Equal)
-            });
-            for (par, beta) in ranked.into_iter().take(max_parents) {
+            let coefs: Vec<(usize, f64)> =
+                if let Ok(f) = backend.least_squares(&x, n, k, &orig[child], &mut ls_ws) {
+                    preds.iter().enumerate().map(|(i, &par)| (par, f.coefficients[i])).collect()
+                } else {
+                    // Fall back to pairwise coefficients on rank failure.
+                    preds
+                        .iter()
+                        .map(|&par| (par, simple_regression_coef(&orig[child], &orig[par])))
+                        .collect()
+                };
+            for (par, beta) in select(child, &coefs) {
                 edge_coefs.push((par, child, beta));
-            }
-        }
-
-        // Seed required edges if both endpoints exist.
-        for r in self.constraints.required.iter() {
-            if r.source_lag != Lag::CONTEMPORANEOUS || r.target_lag != Lag::CONTEMPORANEOUS {
-                continue;
-            }
-            let Some(si) = variables.iter().position(|v| *v == r.source) else {
-                continue;
-            };
-            let Some(ti) = variables.iter().position(|v| *v == r.target) else {
-                continue;
-            };
-            if !edge_coefs.iter().any(|&(a, b, _)| a == si && b == ti) {
-                edge_coefs.push((si, ti, 1.0));
             }
         }
 
@@ -295,7 +328,11 @@ impl DirectLingam {
                     adjusted_p_value: None,
                     interval: None,
                     separating_set: None,
-                    provenance: Arc::from([Arc::from("direct_lingam")]),
+                    provenance: if required_pairs.contains(&(par, child)) {
+                        Arc::from([Arc::from("direct_lingam"), Arc::from("required")])
+                    } else {
+                        Arc::from([Arc::from("direct_lingam")])
+                    },
                 })
             })
             .collect();
@@ -530,63 +567,6 @@ fn simple_regression_coef(y: &[f64], x: &[f64]) -> f64 {
     if sxx <= 1e-15 { 0.0 } else { sxy / sxx }
 }
 
-/// Székely distance correlation (L1 pairwise distances).
-fn distance_correlation(x: &[f64], y: &[f64]) -> f64 {
-    let n = x.len();
-    if n < 2 || y.len() != n {
-        return 0.0;
-    }
-    let mut ax = vec![0.0; n * n];
-    let mut ay = vec![0.0; n * n];
-    for i in 0..n {
-        for j in 0..n {
-            ax[i * n + j] = (x[i] - x[j]).abs();
-            ay[i * n + j] = (y[i] - y[j]).abs();
-        }
-    }
-    double_center_inplace(&mut ax, n);
-    double_center_inplace(&mut ay, n);
-    let mut dcov2 = 0.0;
-    let mut dvarx = 0.0;
-    let mut dvary = 0.0;
-    for i in 0..n * n {
-        dcov2 += ax[i] * ay[i];
-        dvarx += ax[i] * ax[i];
-        dvary += ay[i] * ay[i];
-    }
-    let nn = (n * n) as f64;
-    dcov2 /= nn;
-    dvarx /= nn;
-    dvary /= nn;
-    if dvarx <= 0.0 || dvary <= 0.0 {
-        return 0.0;
-    }
-    (dcov2.max(0.0) / (dvarx * dvary).sqrt()).sqrt()
-}
-
-fn double_center_inplace(a: &mut [f64], n: usize) {
-    let mut row = vec![0.0; n];
-    let mut col = vec![0.0; n];
-    let mut mean = 0.0;
-    for i in 0..n {
-        for j in 0..n {
-            row[i] += a[i * n + j];
-            col[j] += a[i * n + j];
-            mean += a[i * n + j];
-        }
-    }
-    for i in 0..n {
-        row[i] /= n as f64;
-        col[i] /= n as f64;
-    }
-    mean /= (n * n) as f64;
-    for i in 0..n {
-        for j in 0..n {
-            a[i * n + j] = a[i * n + j] - row[i] - col[j] + mean;
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -599,6 +579,11 @@ mod tests {
 
     /// Non-Gaussian SEM: X0 → X1 → X2 with Laplace-like noise.
     fn lingam_chain(n: usize) -> (TabularData, Vec<VariableId>) {
+        lingam_chain_scaled(n, [1.0, 1.0, 1.0])
+    }
+
+    /// [`lingam_chain`] with column `i` expressed in units `scale[i]` times larger.
+    fn lingam_chain_scaled(n: usize, scale: [f64; 3]) -> (TabularData, Vec<VariableId>) {
         let mut b = CausalSchemaBuilder::new();
         for i in 0..3 {
             b.add_variable(
@@ -626,6 +611,11 @@ mod tests {
             x0[i] = e0;
             x1[i] = 0.9 * x0[i] + e1;
             x2[i] = 0.9 * x1[i] + e2;
+        }
+        for i in 0..n {
+            x0[i] *= scale[0];
+            x1[i] *= scale[1];
+            x2[i] *= scale[2];
         }
         let owned = vec![
             OwnedColumn::Float64(
@@ -750,5 +740,69 @@ mod tests {
         let x: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.1).collect();
         let d = distance_correlation(&x, &x);
         assert!(d > 0.99, "dCor(x,x)={d}");
+    }
+
+    /// Rescaling a column must not change the graph: the same chain expressed with the cause in
+    /// units 10⁴ times larger and the effect 10⁴ times smaller still has 0→1 and 1→2.
+    /// (On raw coefficients `0.9 · 10⁻⁴ / 10⁴ ≈ 9·10⁻⁹` falls under any fixed cut-off.)
+    #[test]
+    fn direct_lingam_pruning_is_unit_free() {
+        let (data, vars) = lingam_chain_scaled(500, [1.0e4, 1.0, 1.0e-4]);
+        let alg = DirectLingam::new().with_prune_threshold(0.2);
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let result = alg.run(&data, &vars, &mut ws, &ctx).unwrap();
+        let g = &result.evidence.graph;
+        let d = |i: u32| DenseNodeId::from_raw(i);
+        assert!(g.children(d(0)).contains(&d(1)), "edges={:?}", g.edges().collect::<Vec<_>>());
+        assert!(g.children(d(1)).contains(&d(2)), "edges={:?}", g.edges().collect::<Vec<_>>());
+    }
+
+    /// A required edge that contradicts the data-driven order constrains the order instead of
+    /// being dropped: the required parent is placed before its child and the edge is kept,
+    /// with its fitted coefficient (not a placeholder) as evidence.
+    #[test]
+    fn direct_lingam_required_edge_constrains_order() {
+        let (data, vars) = lingam_chain(2000);
+        let pair = &vars[..2];
+        let mut alg = DirectLingam::new().with_prune_threshold(0.2);
+        // Truth is x0 → x1; require the reverse.
+        alg.constraints.required = Arc::from([LaggedLink {
+            source: pair[1],
+            source_lag: Lag::CONTEMPORANEOUS,
+            target: pair[0],
+            target_lag: Lag::CONTEMPORANEOUS,
+        }]);
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let result = alg.run(&data, pair, &mut ws, &ctx).unwrap();
+        let d = |i: u32| DenseNodeId::from_raw(i);
+        assert!(result.evidence.graph.children(d(1)).contains(&d(0)));
+        assert!(!result.evidence.graph.children(d(0)).contains(&d(1)));
+        let ev = result
+            .evidence
+            .edge_evidence
+            .iter()
+            .find(|e| e.link.source == pair[1] && e.link.target == pair[0])
+            .expect("required edge reported");
+        assert!(ev.provenance.iter().any(|p| &**p == "required"));
+        assert_ne!(ev.statistic, Some(1.0), "no placeholder coefficient");
+    }
+
+    #[test]
+    fn direct_lingam_refuses_cyclic_required_edges() {
+        let (data, vars) = lingam_chain(500);
+        let pair = &vars[..2];
+        let mut alg = DirectLingam::new();
+        let link = |a: usize, b: usize| LaggedLink {
+            source: pair[a],
+            source_lag: Lag::CONTEMPORANEOUS,
+            target: pair[b],
+            target_lag: Lag::CONTEMPORANEOUS,
+        };
+        alg.constraints.required = Arc::from([link(0, 1), link(1, 0)]);
+        let mut ws = DiscoveryWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        assert!(alg.run(&data, pair, &mut ws, &ctx).is_err());
     }
 }

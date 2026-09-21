@@ -988,6 +988,17 @@ pub fn run_lpcmci_algorithm(
             review.pending_circles.len(),
         ),
     );
+    if !state.discriminating_skipped.is_empty() {
+        push_diagnostic(
+            &mut diagnostics,
+            "lpcmci.discriminating_path_budget",
+            format!(
+                "discriminating-path search exhausted its budget on {} edge(s); their circle \
+                 marks were left unresolved (sound, possibly incomplete)",
+                state.discriminating_skipped.len()
+            ),
+        );
+    }
     if state.conflicts > 0 || delta.conflicts > 0 {
         push_diagnostic(
             &mut diagnostics,

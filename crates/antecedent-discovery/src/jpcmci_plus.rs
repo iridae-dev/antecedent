@@ -144,6 +144,17 @@ impl JpcmciPlus {
 
         let space_ids_full = Arc::clone(&pooled.space_dummy_variables);
         let time_ids_full = Arc::clone(&pooled.time_dummy_variables);
+        // A synthetic dummy must never share an id with a schema variable: results, sepsets and
+        // user constraints would silently address the real variable.
+        if let Some(alias) = space_ids_full
+            .iter()
+            .chain(time_ids_full.iter())
+            .find(|d| data.schema().variables().iter().any(|v| v.id == **d))
+        {
+            return Err(DiscoveryError::data_msg(format!(
+                "J-PCMCI+ dummy variable {alias} aliases a schema variable"
+            )));
+        }
         let use_mv_space_dummy =
             md.space_dummy_ci == SpaceDummyCiMode::MultivariateBlock && space_ids_full.len() > 1;
         let use_mv_time_dummy =

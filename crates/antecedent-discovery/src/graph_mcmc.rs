@@ -5,12 +5,13 @@
 #![allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
-use antecedent_prob::InferenceDiagnostics;
+use antecedent_prob::{InferenceDiagnostics, kish_ess};
 
 use crate::error::DiscoveryError;
 use crate::graph_posterior::{
-    GraphPosterior, accumulate_marginals, graph_chain_diagnostics, kish_ess,
+    GraphPosterior, MAX_EDGE_MCSE, accumulate_marginals, graph_chain_summary,
     mcmc_graph_diagnostics, publish_graph_posterior,
 };
 
@@ -88,7 +89,7 @@ pub(crate) fn run_parallel_mask_chains<F>(
     n_params: usize,
     max_threads: usize,
     worker: F,
-) -> (Vec<f64>, Vec<Vec<u64>>, u64)
+) -> Result<(Vec<f64>, Vec<Vec<u64>>, u64), DiscoveryError>
 where
     F: Fn(usize, usize) -> (usize, Vec<f64>, Vec<Vec<u64>>, u64) + Send + Sync,
 {
@@ -103,35 +104,55 @@ where
             handles.push(scope.spawn(move || w(start, end)));
         }
         for h in handles {
-            outputs.push(h.join().expect("graph mcmc worker"));
+            outputs.push(h.join().map_err(|_| DiscoveryError::Unsupported {
+                message: "graph MCMC worker panicked",
+            }));
         }
     });
-    merge_chunk_outputs(n_chains, n_draws, n_params, outputs)
+    let outputs = outputs.into_iter().collect::<Result<Vec<_>, _>>()?;
+    Ok(merge_chunk_outputs(n_chains, n_draws, n_params, outputs))
 }
 
 /// Diagnostics from edge-indicator traces, then optional publish gate.
+///
+/// Besides R̂ / ESS the gate requires every edge marginal's Monte-Carlo standard error to be
+/// within [`MAX_EDGE_MCSE`]. Returns the diagnostics and the per-indicator MCSE (aligned with
+/// the trace parameters).
 pub(crate) fn diagnostics_from_traces(
     schedule: &GraphMcmcSchedule,
     traces: &[f64],
     n_params: usize,
     require_gate: bool,
     refuse_msg: &'static str,
-) -> Result<InferenceDiagnostics, DiscoveryError> {
+) -> Result<(InferenceDiagnostics, Vec<f64>), DiscoveryError> {
     let (n_chains, _, n_draws, _) = schedule.as_usize();
-    let (rhat, ess_bulk, ess_tail, moved) =
-        graph_chain_diagnostics(traces, n_chains, n_draws, n_params);
+    let summary = graph_chain_summary(traces, n_chains, n_draws, n_params);
     let diagnostics = mcmc_graph_diagnostics(
         schedule.n_chains,
         schedule.n_warmup,
         schedule.n_draws,
-        ess_bulk,
-        ess_tail,
-        rhat,
+        summary.ess_bulk_min,
+        summary.ess_tail_min,
+        summary.rhat_max,
         0,
         true,
-        moved,
+        summary.all_chains_moved,
     );
-    publish_graph_posterior(diagnostics, require_gate, refuse_msg)
+    let mut diagnostics = publish_graph_posterior(diagnostics, false, refuse_msg)?;
+    let mcse_max = summary.mcse.iter().copied().fold(0.0_f64, f64::max);
+    diagnostics.notes.push(Arc::from(format!("edge_mcse_max={mcse_max:.4}")));
+    if summary.rhat_max.is_infinite() {
+        diagnostics.notes.push(Arc::from(
+            "chains disagree on an edge indicator that never varies within a chain (rhat=inf)",
+        ));
+    }
+    if mcse_max > MAX_EDGE_MCSE || mcse_max.is_nan() {
+        diagnostics.converged = false;
+    }
+    if require_gate && !diagnostics.converged {
+        return Err(DiscoveryError::unsupported(refuse_msg));
+    }
+    Ok((diagnostics, summary.mcse))
 }
 
 /// Aggregate visit-frequency weights into a [`GraphPosterior`].
@@ -171,6 +192,8 @@ pub(crate) struct FinishMaskPosterior<'a> {
     pub sample_masks: &'a [Vec<u64>],
     pub rejected: u64,
     pub n_params: usize,
+    /// `(from, to)` of each trace parameter, in trace order (for placing per-edge MCSE).
+    pub param_edges: &'a [(usize, usize)],
     pub require_gate: bool,
     pub refuse_msg: &'static str,
     pub empty_msg: &'static str,
@@ -178,20 +201,27 @@ pub(crate) struct FinishMaskPosterior<'a> {
 
 impl FinishMaskPosterior<'_> {
     pub fn run(self) -> Result<GraphPosterior, DiscoveryError> {
-        let diagnostics = diagnostics_from_traces(
+        let (diagnostics, param_mcse) = diagnostics_from_traces(
             self.schedule,
             self.traces,
             self.n_params,
             self.require_gate,
             self.refuse_msg,
         )?;
+        // Edges outside the sampled parameters never vary (forbidden / excluded), so their
+        // Monte-Carlo error is zero.
+        let mut edge_mcse = vec![0.0; self.n * self.n];
+        for (&(i, j), &m) in self.param_edges.iter().zip(&param_mcse) {
+            edge_mcse[i * self.n + j] = m;
+        }
         aggregate_mask_posterior(
             self.n,
             self.sample_masks,
             diagnostics,
             self.rejected,
             self.empty_msg,
-        )
+        )?
+        .with_edge_mcse(edge_mcse)
     }
 }
 
@@ -206,10 +236,34 @@ mod tests {
         let (traces, samples, _) = run_parallel_mask_chains(5, 4, 1, 2, |start, end| {
             workers.fetch_add(1, Ordering::Relaxed);
             (start, vec![0.0; (end - start) * 4], vec![vec![0; 4]; end - start], 0)
-        });
+        })
+        .unwrap();
         assert_eq!(workers.load(Ordering::Relaxed), 2);
         assert_eq!(traces.len(), 20);
         assert_eq!(samples.len(), 5);
         assert!(samples.iter().all(|chain| chain.len() == 4));
+    }
+
+    /// Slowly mixing indicators (two long blocks per chain, ESS of a handful of draws) carry a
+    /// Monte-Carlo standard error far above the publication bar even though the chains
+    /// agree on the mean, so the gate must refuse them.
+    #[test]
+    fn slow_mixing_indicator_fails_the_mcse_gate() {
+        let (n_chains, n_draws) = (2usize, 50usize);
+        let mut traces = vec![0.0; n_chains * n_draws];
+        for c in 0..n_chains {
+            for d in 0..n_draws {
+                let high = (d >= n_draws / 2) == (c == 0);
+                traces[c * n_draws + d] = f64::from(u8::from(high));
+            }
+        }
+        let summary = graph_chain_summary(&traces, n_chains, n_draws, 1);
+        assert!(summary.mcse[0] > MAX_EDGE_MCSE, "mcse={}", summary.mcse[0]);
+
+        let schedule = GraphMcmcSchedule { n_chains: 2, n_warmup: 0, n_draws: 50, thin: 1 };
+        assert!(diagnostics_from_traces(&schedule, &traces, 1, true, "refused").is_err());
+        let (d, _) = diagnostics_from_traces(&schedule, &traces, 1, false, "refused").unwrap();
+        assert!(!d.converged);
+        assert!(d.notes.iter().any(|n| n.starts_with("edge_mcse_max=")));
     }
 }

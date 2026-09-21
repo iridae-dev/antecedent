@@ -22,7 +22,7 @@ use antecedent_graph::algo::is_dag;
 use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Endpoint, Pag};
 use antecedent_prob::{
     GraphIdentFlag, HessianFactorization, InferenceDiagnostics, WeightedGraphSamples,
-    all_chains_moved, max_split_rhat, mcmc_summary,
+    all_chains_moved, parameter_mcmc_diagnostics,
 };
 use antecedent_state::GraphScoreFamily;
 
@@ -153,12 +153,23 @@ pub struct GraphPosterior {
     pub edge_marginals: Arc<[f64]>,
     /// Directed orientation mass for each ordered pair (same packing).
     pub orientation_marginals: Arc<[f64]>,
-    /// Kish effective sample size of the weight vector.
+    /// Kish effective number of graphs, `(Σw)² / Σw²`, of the weight vector.
+    ///
+    /// A measure of how concentrated the posterior is over graphs (1 = a single graph),
+    /// **not** a sampling effective sample size: a sharply identified exact posterior has a
+    /// value near 1. Sampling accuracy of MCMC posteriors is in
+    /// [`InferenceDiagnostics::ess_bulk_min`] and [`Self::edge_mcse`].
     pub ess: f64,
     /// Chain / analytic diagnostics.
     pub diagnostics: InferenceDiagnostics,
     /// Graphs rejected as cyclic / constraint-invalid during search.
     pub rejected_invalid: u64,
+    /// Monte-Carlo standard error of each entry of [`Self::edge_marginals`] (same packing),
+    /// `sqrt(p(1-p) / ESS)` from the chains' bulk ESS. `None` for exact posteriors, whose
+    /// marginals carry no sampling error; `0` for an indicator that never varied.
+    pub edge_mcse: Option<Arc<[f64]>>,
+    /// Monte-Carlo standard error of each entry of [`Self::lagged_edge_marginals`].
+    pub lagged_edge_mcse: Option<Arc<[f64]>>,
     /// Optional lagged-edge marginals for DBN templates
     /// (packing `(lag - 1) * n_vars * n_vars + from * n_vars + to`, lag ≥ 1).
     pub lagged_edge_marginals: Option<Arc<[f64]>>,
@@ -242,6 +253,8 @@ impl GraphPosterior {
             ess,
             diagnostics,
             rejected_invalid,
+            edge_mcse: None,
+            lagged_edge_mcse: None,
             lagged_edge_marginals: None,
             max_lag: None,
             lag_masks: None,
@@ -249,6 +262,34 @@ impl GraphPosterior {
             mark_masks: None,
             algorithm: None,
         })
+    }
+
+    /// Attach Monte-Carlo standard errors of the edge marginals (`n_vars²` packing).
+    ///
+    /// # Errors
+    ///
+    /// Length differs from the edge marginals.
+    pub fn with_edge_mcse(mut self, mcse: Vec<f64>) -> Result<Self, DiscoveryError> {
+        if mcse.len() != self.edge_marginals.len() {
+            return Err(DiscoveryError::unsupported("edge MCSE length mismatch"));
+        }
+        self.edge_mcse = Some(Arc::from(mcse));
+        Ok(self)
+    }
+
+    /// Attach Monte-Carlo standard errors of the lagged-edge marginals.
+    ///
+    /// # Errors
+    ///
+    /// Length differs from the lagged marginals, or the posterior has none.
+    pub fn with_lagged_edge_mcse(mut self, mcse: Vec<f64>) -> Result<Self, DiscoveryError> {
+        match &self.lagged_edge_marginals {
+            Some(m) if m.len() == mcse.len() => {
+                self.lagged_edge_mcse = Some(Arc::from(mcse));
+                Ok(self)
+            }
+            _ => Err(DiscoveryError::unsupported("lagged edge MCSE length mismatch")),
+        }
     }
 
     /// Declare that every adjacency mask is a CPDAG, PAG, or ADMG atom, not a DAG.
@@ -815,13 +856,6 @@ pub fn log_prior_mask(
     }
 }
 
-/// Kish ESS for a normalized weight vector.
-#[must_use]
-pub fn kish_ess(weights: &[f64]) -> f64 {
-    let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-    if sum_sq > 0.0 { 1.0 / sum_sq } else { 0.0 }
-}
-
 /// Normalize log-weights with log-sum-exp; returns normalized weights.
 ///
 /// # Errors
@@ -881,11 +915,15 @@ pub fn analytic_graph_diagnostics(n_graphs: usize, ess: f64) -> InferenceDiagnos
         hessian_condition: 1.0,
         factorization: HessianFactorization::Analytic,
         separation_warning: false,
-        notes: vec![Arc::from(format!("exact_or_closed_form ess={ess:.4}"))],
+        notes: vec![Arc::from(format!(
+            "exact_enumeration_of_bic_weights effective_graph_count={ess:.4}"
+        ))],
         backend_id: Arc::from("graph_posterior_analytic"),
         n_chains: None,
         n_warmup: None,
-        ess_bulk_min: Some(ess),
+        // Exact enumeration has no sampling ESS; the Kish graph count is a concentration index
+        // (see the note above), not a chain diagnostic.
+        ess_bulk_min: None,
         ess_tail_min: None,
         rhat_max: None,
         n_divergences: None,
@@ -942,11 +980,18 @@ pub fn mcmc_graph_diagnostics(
     }
 }
 
+/// Largest Monte-Carlo standard error any edge marginal may carry for a graph-MCMC posterior
+/// to publish: `0.05` is the standard error of a probability-½ indicator at ESS 100, the
+/// library's per-chain-scale bar. It binds where it matters (the marginals users read) rather
+/// than on the ESS of near-constant indicators, whose error is small at any ESS.
+pub const MAX_EDGE_MCSE: f64 = 0.05;
+
 /// Whether graph-MCMC diagnostics are sufficient to publish a posterior.
 ///
 /// Binary edge-indicator traces mix slower than continuous HMC parameters, so
 /// the R-hat bar is `1.2` (vs `1.01` on [`InferenceDiagnostics::allows_posterior`]).
-/// Divergences must be zero (not merely reported).
+/// Divergences must be zero (not merely reported). Marginal accuracy is enforced separately
+/// on the per-edge MCSE ([`MAX_EDGE_MCSE`]) by the graph-MCMC engines.
 #[must_use]
 pub fn allows_graph_posterior(diagnostics: &InferenceDiagnostics) -> bool {
     if diagnostics.factorization != HessianFactorization::Mcmc {
@@ -984,20 +1029,44 @@ pub fn publish_graph_posterior(
     Ok(diagnostics)
 }
 
-/// Edge-indicator chain diagnostics (R-hat / ESS), dropping constant parameters.
+/// Edge-indicator chain diagnostics.
+#[derive(Clone, Debug)]
+pub struct GraphChainSummary {
+    /// Maximum split R̂ over varying indicators. `∞` when any indicator's chains disagree
+    /// without varying within a chain (the clearest non-convergence there is); never
+    /// replaced by a finite value from another indicator.
+    pub rhat_max: f64,
+    /// Minimum bulk ESS over varying indicators.
+    pub ess_bulk_min: f64,
+    /// Minimum tail ESS over varying indicators.
+    pub ess_tail_min: f64,
+    /// Whether every chain moved on at least one indicator.
+    pub all_chains_moved: bool,
+    /// Monte-Carlo standard error of each input indicator's mean (`sqrt(p(1-p)/ESS_bulk)`),
+    /// `0` for an indicator constant over every draw of every chain.
+    pub mcse: Vec<f64>,
+}
+
+/// Edge-indicator chain diagnostics (R-hat / ESS / MCSE), dropping constant parameters.
 ///
 /// Zero-variance indicators (never/always present) would otherwise inflate R-hat
-/// to infinity and fail the diagnostics gate spuriously.
-/// Returns `(rhat_max, ess_bulk_min, ess_tail_min, all_chains_moved)`.
+/// to infinity and fail the diagnostics gate spuriously. Indicators that are constant
+/// within every chain but differ between chains are *not* dropped: their R̂ is `∞`.
 #[must_use]
-pub fn graph_chain_diagnostics(
+pub fn graph_chain_summary(
     traces: &[f64],
     n_chains: usize,
     n_draws: usize,
     n_params: usize,
-) -> (f64, f64, f64, bool) {
+) -> GraphChainSummary {
     if n_params == 0 || n_chains == 0 || n_draws == 0 {
-        return (f64::INFINITY, 0.0, 0.0, false);
+        return GraphChainSummary {
+            rhat_max: f64::INFINITY,
+            ess_bulk_min: 0.0,
+            ess_tail_min: 0.0,
+            all_chains_moved: false,
+            mcse: vec![0.0; n_params],
+        };
     }
     let mut keep = Vec::new();
     for p in 0..n_params {
@@ -1017,7 +1086,13 @@ pub fn graph_chain_diagnostics(
     if keep.is_empty() {
         // All indicators constant across chains — treat as perfect agreement.
         let n_total = (n_chains * n_draws) as f64;
-        return (1.0, n_total, n_total, all_chains_moved(traces, n_chains, n_draws, n_params));
+        return GraphChainSummary {
+            rhat_max: 1.0,
+            ess_bulk_min: n_total,
+            ess_tail_min: n_total,
+            all_chains_moved: all_chains_moved(traces, n_chains, n_draws, n_params),
+            mcse: vec![0.0; n_params],
+        };
     }
     let k = keep.len();
     let mut filtered = vec![0.0; n_chains * n_draws * k];
@@ -1028,32 +1103,45 @@ pub fn graph_chain_diagnostics(
             }
         }
     }
-    let summary = mcmc_summary(&filtered, n_chains, n_draws, k);
-    let mut rhat = summary.max_rhat;
-    // If R-hat is infinite due to zero within-chain variance on a disagreeing
-    // parameter, fall back to the max finite split-R among params that vary
-    // within at least one chain; refuse (Inf) only when every kept param is stuck.
-    if !rhat.is_finite() {
-        let mut finite_max = 0.0_f64;
-        let mut any_finite = false;
-        for j in 0..k {
-            // Build single-param series.
-            let mut one = vec![0.0; n_chains * n_draws];
-            for c in 0..n_chains {
-                for d in 0..n_draws {
-                    one[c * n_draws + d] = filtered[(c * n_draws + d) * k + j];
-                }
-            }
-            let r = max_split_rhat(&one, n_chains, n_draws, 1);
-            if r.is_finite() {
-                any_finite = true;
-                finite_max = finite_max.max(r);
-            }
-        }
-        rhat = if any_finite { finite_max } else { f64::INFINITY };
+    // Same guards as `mcmc_summary`: too few chains / draws cannot support the statistic.
+    let rhat_guard = n_chains < 2 || n_draws < 8;
+    let ess_guard = n_draws < 8;
+    let diags = parameter_mcmc_diagnostics(&filtered, n_chains, n_draws, k);
+    let mut rhat_max = 0.0_f64;
+    let mut ess_bulk_min = f64::INFINITY;
+    let mut ess_tail_min = f64::INFINITY;
+    let mut mcse = vec![0.0; n_params];
+    let n_total = (n_chains * n_draws) as f64;
+    for (j, d) in diags.iter().enumerate() {
+        rhat_max = if d.rhat.is_finite() { rhat_max.max(d.rhat) } else { f64::INFINITY };
+        ess_bulk_min = ess_bulk_min.min(d.ess_bulk);
+        ess_tail_min = ess_tail_min.min(d.ess_tail);
+        let mean: f64 = (0..n_chains * n_draws).map(|i| filtered[i * k + j]).sum::<f64>() / n_total;
+        mcse[keep[j]] = if !ess_guard && d.ess_bulk.is_finite() && d.ess_bulk > 0.0 {
+            (mean * (1.0 - mean) / d.ess_bulk).max(0.0).sqrt()
+        } else {
+            f64::INFINITY
+        };
     }
-    let moved = all_chains_moved(&filtered, n_chains, n_draws, k);
-    (rhat, summary.min_bulk_ess, summary.min_tail_ess, moved)
+    GraphChainSummary {
+        rhat_max: if rhat_guard { f64::INFINITY } else { rhat_max },
+        ess_bulk_min: if ess_guard || !ess_bulk_min.is_finite() { 0.0 } else { ess_bulk_min },
+        ess_tail_min: if ess_guard || !ess_tail_min.is_finite() { 0.0 } else { ess_tail_min },
+        all_chains_moved: all_chains_moved(&filtered, n_chains, n_draws, k),
+        mcse,
+    }
+}
+
+/// [`graph_chain_summary`] as `(rhat_max, ess_bulk_min, ess_tail_min, all_chains_moved)`.
+#[must_use]
+pub fn graph_chain_diagnostics(
+    traces: &[f64],
+    n_chains: usize,
+    n_draws: usize,
+    n_params: usize,
+) -> (f64, f64, f64, bool) {
+    let s = graph_chain_summary(traces, n_chains, n_draws, n_params);
+    (s.rhat_max, s.ess_bulk_min, s.ess_tail_min, s.all_chains_moved)
 }
 
 #[cfg(test)]
@@ -1181,5 +1269,46 @@ mod tests {
         assert!(
             back.bidirected_neighbors(DenseNodeId::from_raw(0)).contains(&DenseNodeId::from_raw(2))
         );
+    }
+
+    /// Two chains, each constant but at a different value, are the clearest
+    /// non-convergence there is: R̂ must stay infinite instead of being replaced by the largest
+    /// finite R̂ of some other indicator.
+    #[test]
+    fn disagreeing_constant_chains_keep_infinite_rhat() {
+        let (n_chains, n_draws, n_params) = (2usize, 40usize, 2usize);
+        let mut traces = vec![0.0; n_chains * n_draws * n_params];
+        for c in 0..n_chains {
+            for d in 0..n_draws {
+                // Param 0: chain 0 stuck at 0, chain 1 stuck at 1.
+                traces[(c * n_draws + d) * n_params] = c as f64;
+                // Param 1: a well-mixed alternating indicator in both chains.
+                traces[(c * n_draws + d) * n_params + 1] = ((d + c) % 2) as f64;
+            }
+        }
+        let s = graph_chain_summary(&traces, n_chains, n_draws, n_params);
+        assert!(s.rhat_max.is_infinite(), "rhat_max={}", s.rhat_max);
+    }
+
+    /// The MCSE of an indicator is `sqrt(p(1-p)/ESS)`; a constant indicator has none.
+    #[test]
+    fn mcse_is_zero_for_constant_and_positive_for_varying_indicators() {
+        let (n_chains, n_draws, n_params) = (2usize, 64usize, 2usize);
+        let mut traces = vec![0.0; n_chains * n_draws * n_params];
+        for c in 0..n_chains {
+            for d in 0..n_draws {
+                traces[(c * n_draws + d) * n_params] = 1.0;
+                traces[(c * n_draws + d) * n_params + 1] = ((d * 7 + c * 3) % 5 < 2) as u8 as f64;
+            }
+        }
+        let s = graph_chain_summary(&traces, n_chains, n_draws, n_params);
+        assert_eq!(s.mcse[0], 0.0);
+        assert!(s.mcse[1] > 0.0 && s.mcse[1] < 0.5, "mcse={}", s.mcse[1]);
+    }
+
+    #[test]
+    fn exact_posterior_reports_no_sampling_ess() {
+        let d = analytic_graph_diagnostics(25, 1.0);
+        assert_eq!(d.ess_bulk_min, None);
     }
 }

@@ -187,6 +187,9 @@ impl Ges {
 
         // Forward equivalence search (Insert).
         loop {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
             let Some(best) = best_insert(
                 &cpdag,
                 &score_data,
@@ -208,6 +211,9 @@ impl Ges {
 
         // Turning phase (Reverse = Delete then Insert opposite).
         loop {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
             let Some(best) = best_reverse(
                 &cpdag,
                 &score_data,
@@ -230,6 +236,9 @@ impl Ges {
 
         // Backward equivalence search (Delete).
         loop {
+            if ctx.cancellation.is_cancelled() {
+                return Err(DiscoveryError::Cancelled);
+            }
             let Some(best) = best_delete(
                 &cpdag,
                 &score_data,
@@ -286,7 +295,8 @@ impl Ges {
             .iter()
             .map(|e| ScoredLink {
                 link: e.link,
-                statistic: 0.0,
+                // GES scores graphs, not edges: there is no per-edge test statistic.
+                statistic: f64::NAN,
                 p_value: f64::NAN,
                 adjusted_p_value: None,
             })

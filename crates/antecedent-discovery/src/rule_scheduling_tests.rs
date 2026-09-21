@@ -617,3 +617,111 @@ fn static_fci_scheduler_reaches_fixed_point() {
     assert!(matches!(at_a, Endpoint::Circle));
     assert!(matches!(at_c, Endpoint::Arrow));
 }
+
+#[test]
+fn collider_records_conflict_instead_of_overwriting_tail() {
+    // a <- b (tail at b, e.g. from an earlier R1) and c o-o b with b not in Sep(a,c): the
+    // collider a *-> b <-* c contradicts the tail at b, so that leg is a conflict while the
+    // free leg still orients.
+    let mut g = Pag::with_variables(3);
+    let (a, b, c) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
+    g.insert_marked(antecedent_graph::MarkedEdge {
+        a,
+        b,
+        at_a: Endpoint::Arrow,
+        at_b: Endpoint::Tail,
+        middle: antecedent_graph::MiddleMark::Empty,
+    })
+    .unwrap();
+    g.insert_circle_circle(c, b).unwrap();
+    let mut state = OrientationState::default();
+    state.set_sepset(a, c, std::sync::Arc::from([]));
+    let mut queue = OrientationQueue::new();
+    let d =
+        FciOrientationRule::apply(&LpcmciOrientCollider, &mut g, &mut state, &mut queue).unwrap();
+    assert_eq!(d.conflicts, 1);
+    assert_eq!(state.conflicts, 1);
+    let (m_a, m_b) = marks_between(&g, a, b).unwrap();
+    assert!(matches!(m_a, Endpoint::Conflict) && matches!(m_b, Endpoint::Conflict));
+    let (m_c, m_b2) = marks_between(&g, c, b).unwrap();
+    assert!(matches!(m_c, Endpoint::Circle));
+    assert!(matches!(m_b2, Endpoint::Arrow));
+}
+
+/// 70 independent discriminating paths, one per edge `c o→ b`: far past the old global cap of
+/// 64 paths, but every edge's own search is tiny. The rule must orient all of them.
+#[test]
+fn discriminating_paths_are_budgeted_per_edge_not_globally() {
+    let copies = 70u32;
+    let mut g = Pag::with_variables(4 * copies);
+    let mut state = OrientationState::default();
+    let id = DenseNodeId::from_raw;
+    for k in 0..copies {
+        let (a, d, c, b) = (id(4 * k), id(4 * k + 1), id(4 * k + 2), id(4 * k + 3));
+        g.insert_directed(a, d).unwrap();
+        g.insert_directed(c, d).unwrap();
+        g.insert_directed(d, b).unwrap();
+        g.insert_circle_arrow(c, b).unwrap();
+        state.set_sepset(a, b, std::sync::Arc::from([])); // c ∉ Sep(a,b)
+    }
+    let mut queue = OrientationQueue::new();
+    let delta =
+        FciOrientationRule::apply(&LpcmciDiscriminatingPathRule, &mut g, &mut state, &mut queue)
+            .unwrap();
+    assert_eq!(delta.edges_changed, copies);
+    assert!(state.discriminating_skipped.is_empty());
+    for k in 0..copies {
+        let (c, b) = (id(4 * k + 2), id(4 * k + 3));
+        let (at_c, _) = marks_between(&g, c, b).unwrap();
+        assert!(matches!(at_c, Endpoint::Arrow), "copy {k} not oriented");
+    }
+}
+
+/// An edge whose search budget is exhausted keeps its circle and is recorded: the run does not
+/// fail, and no orientation is invented.
+#[test]
+fn exhausted_edge_budget_is_skipped_not_fatal() {
+    let mut g = Pag::with_variables(4);
+    let id = DenseNodeId::from_raw;
+    let (a, d, c, b) = (id(0), id(1), id(2), id(3));
+    g.insert_directed(a, d).unwrap();
+    g.insert_directed(c, d).unwrap();
+    g.insert_directed(d, b).unwrap();
+    g.insert_circle_arrow(c, b).unwrap();
+    let mut state = OrientationState::default();
+    state.set_sepset(a, b, std::sync::Arc::from([]));
+    // The path ⟨a, d, c, b⟩ has 4 nodes; a length cap of 3 cannot hold it.
+    state.discriminating_budget =
+        crate::discriminating_paths::DiscriminatingPathBudget { max_paths_per_edge: 8, max_len: 3 };
+    let mut queue = OrientationQueue::new();
+    let delta =
+        FciOrientationRule::apply(&LpcmciDiscriminatingPathRule, &mut g, &mut state, &mut queue)
+            .unwrap();
+    assert_eq!(delta.edges_changed, 0);
+    assert!(state.discriminating_skipped.contains(&(c.raw(), b.raw())));
+    let (at_c, _) = marks_between(&g, c, b).unwrap();
+    assert!(matches!(at_c, Endpoint::Circle));
+}
+
+/// Zhang R4 collider branch orients `d_k ↔ c ↔ b`: the arrowhead at `b` on `c *-* b` too, not
+/// only the one at `c`. Here the edge starts `c o-o b`, so the head at `b` is new information.
+#[test]
+fn discriminating_collider_branch_orients_both_ends_of_cb() {
+    let mut g = Pag::with_variables(4);
+    let id = DenseNodeId::from_raw;
+    let (a, d, c, b) = (id(0), id(1), id(2), id(3));
+    g.insert_directed(a, d).unwrap();
+    g.insert_directed(c, d).unwrap();
+    g.insert_directed(d, b).unwrap();
+    g.insert_circle_circle(c, b).unwrap();
+    let mut state = OrientationState::default();
+    state.set_sepset(a, b, std::sync::Arc::from([])); // c not in Sep(a,b)
+    let mut queue = OrientationQueue::new();
+    let delta =
+        FciOrientationRule::apply(&LpcmciDiscriminatingPathRule, &mut g, &mut state, &mut queue)
+            .unwrap();
+    assert!(delta.edges_changed > 0);
+    let (at_c, at_b) = marks_between(&g, c, b).unwrap();
+    assert!(matches!(at_c, Endpoint::Arrow), "arrow at c");
+    assert!(matches!(at_b, Endpoint::Arrow), "arrow at b");
+}

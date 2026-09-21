@@ -53,6 +53,7 @@ pub mod result;
 pub mod rfci;
 pub mod rpcmci;
 pub mod rule_scheduling;
+mod static_skeleton;
 pub mod structure_mcmc;
 pub mod uncovered_paths;
 pub mod weakly_minimal;
@@ -75,7 +76,9 @@ pub use dbn_posterior::{
     DBN_EXACT_MAX_LAG, DBN_EXACT_MAX_VARS, DbnPosterior, temporal_cpdag_from_dbn_masks,
     temporal_dag_from_dbn_masks, temporal_pag_from_dbn_masks,
 };
-pub use discriminating_paths::{DiscriminatingPath, find_discriminating_paths};
+pub use discriminating_paths::{
+    DiscriminatingPath, DiscriminatingPathBudget, find_discriminating_paths,
+};
 pub use engine::{DiscoveryWorkspace, PcmciEngine};
 pub use error::DiscoveryError;
 pub use evidence::{
