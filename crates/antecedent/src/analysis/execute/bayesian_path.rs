@@ -27,8 +27,7 @@ impl super::Study {
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = identify_static(identifier_id, graph, query)?;
-                let estimand = select_estimand(&identification, estimator_id)?;
-                Ok((identification, estimand))
+                select_claim(identification, estimator_id)
             })?;
         clock.finish(super::super::stage::STAGE_IDENTIFY);
         super::super::stage::emit_stage(

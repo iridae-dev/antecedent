@@ -88,8 +88,8 @@ pub use rd::{SharpRdConfig, SharpRdIdentifier};
 pub use response::ResponseIdentifier;
 pub use response_id::{identify_cpdag_response_general, identify_pag_response_general};
 pub use result::{
-    DerivationStep, DerivationTrace, IdentificationPerformanceRecord, IdentificationResult,
-    IdentificationStatus, IdentifiedEstimand,
+    DerivationStep, DerivationTrace, EstimandClaim, IdentificationPerformanceRecord,
+    IdentificationResult, IdentificationStatus, IdentifiedEstimand,
 };
 pub use temporal_backdoor::{
     PARENT_ADJUSTMENT_RULE, TemporalBackdoorIdentifier, TemporalIdentificationResult,

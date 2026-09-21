@@ -337,6 +337,40 @@ fn estimate_iv_wald_recovers_structural_effect() {
     assert_reference_se(&result, "iv_wald", 4000);
 }
 
+/// On `z -> t -> y` the auto identifier lists back-door, IV, and general-ID estimands.
+/// A Wald estimate built on the IV one must report the IV claim: parametric status and
+/// the exclusion restriction, not the status or assumptions of the strategies it did not use.
+#[test]
+fn auto_with_wald_reports_the_iv_claim() {
+    let (data, graph, query) = iv_2sls_scm(4000, 21);
+    let analysis = Study::tabular(data)
+        .graph(graph)
+        .query(query)
+        .identifier(IdentifierId::Auto)
+        .estimator(EstimatorId::IvWald)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let result = analysis.run(&ExecutionContext::for_tests(22)).unwrap();
+    assert!((result.estimate.ate - 2.0).abs() < 0.5, "ate={}", result.estimate.ate);
+    assert_eq!(result.estimand.instruments.as_ref(), &[VariableId::from_raw(2)]);
+    assert_eq!(
+        result.identification.status,
+        antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions
+    );
+    let exclusion =
+        antecedent_core::Assumption::ExclusionRestriction { instrument: VariableId::from_raw(2) };
+    assert!(
+        result
+            .identification
+            .required_assumptions
+            .entries
+            .iter()
+            .any(|r| r.assumption == exclusion)
+    );
+    assert!(result.estimate.assumptions.entries.iter().any(|r| r.assumption == exclusion));
+}
+
 /// Binary outcome logistic SCM: `Y ~ Bern(sigmoid(-0.5 + 1.2 T + 0.8 Z))` with confounded T.
 fn glm_binary_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream(0x5054_u64);

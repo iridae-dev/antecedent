@@ -928,16 +928,46 @@ pub fn select_estimand(
     identification: &IdentificationResult,
     estimator: EstimatorId,
 ) -> Result<IdentifiedEstimand, CausalError> {
+    select_estimand_index(identification, estimator).map(|i| identification.estimands[i].clone())
+}
+
+/// Select the estimand as [`select_estimand`] does and narrow the identification to it.
+///
+/// A multi-strategy identification lists alternatives whose status and assumptions
+/// differ. The returned identification carries exactly the selected estimand's claim, so
+/// what reaches the estimate and the result is the claim of the strategy actually used.
+///
+/// # Errors
+///
+/// No estimand, or multiple estimands without a unique estimator-compatible match.
+pub fn select_claim(
+    identification: IdentificationResult,
+    estimator: EstimatorId,
+) -> Result<(IdentificationResult, IdentifiedEstimand), CausalError> {
+    let index = select_estimand_index(&identification, estimator)?;
+    let estimand = identification.estimands[index].clone();
+    if identification.estimand_claims.is_empty() {
+        return Ok((identification, estimand));
+    }
+    let narrowed = identification.narrowed_to(index).expect("index selected from estimands");
+    Ok((narrowed, estimand))
+}
+
+fn select_estimand_index(
+    identification: &IdentificationResult,
+    estimator: EstimatorId,
+) -> Result<usize, CausalError> {
     let estimands = &identification.estimands;
     if estimands.is_empty() {
         return Err(CausalError::Compile { message: "no estimand returned".into() });
     }
     if estimands.len() == 1 {
-        return Ok(estimands[0].clone());
+        return Ok(0);
     }
-    let matches: Vec<&IdentifiedEstimand> = estimands
+    let matches: Vec<usize> = estimands
         .iter()
-        .filter(|e| {
+        .enumerate()
+        .filter(|(_, e)| {
             if e.is_adjustment_shaped() {
                 return estimand_compatible_with_estimator(
                     EstimandMethod::BackdoorAdjustment,
@@ -948,9 +978,10 @@ pub fn select_estimand(
                 .map(|m| estimand_compatible_with_estimator(m, &estimator))
                 .unwrap_or(false)
         })
+        .map(|(i, _)| i)
         .collect();
     if matches.len() == 1 {
-        return Ok(matches[0].clone());
+        return Ok(matches[0]);
     }
     Err(CausalError::Compile {
         message: format!(

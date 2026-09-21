@@ -56,8 +56,7 @@ impl super::Study {
                     &CausalQuery::AverageEffect(query.clone()),
                     rd,
                 )?;
-                let estimand = select_estimand(&identification, estimator_id)?;
-                Ok((identification, estimand))
+                select_claim(identification, estimator_id)
             })?;
         let assumptions = identification.required_assumptions.clone();
         clock.finish(super::super::stage::STAGE_IDENTIFY);
@@ -699,9 +698,7 @@ impl super::Study {
         let (identification, estimand, identify_cached) =
             identification_from_cache_or(ctx, self.identification_cache.as_deref(), || {
                 let identification = identify_static(identifier_id, graph, &query.inner)?;
-                let estimand =
-                    select_estimand(&identification, EstimatorId::ConditionalLinearAdjustment)?;
-                Ok((identification, estimand))
+                select_claim(identification, EstimatorId::ConditionalLinearAdjustment)
             })?;
         let data_est = super::super::helpers::apply_scalar_outcome_functional(
             data,

@@ -31,7 +31,8 @@ use crate::prepared::PreparedAdmg;
 use crate::rd::{SharpRdConfig, SharpRdIdentifier};
 use crate::response::ResponseIdentifier;
 use crate::result::{
-    DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
+    DerivationTrace, EstimandClaim, IdentificationPerformanceRecord, IdentificationResult,
+    IdentificationStatus,
 };
 
 /// Prepared graph for [`AutoIdentifier`] (DAG + ADMG embed).
@@ -125,6 +126,7 @@ impl AutoIdentifier {
         let mut assumptions = prepared.dag.declared_assumptions().clone();
         let mut arena = CausalExprArena::new();
         let mut estimands = Vec::new();
+        let mut claims: Vec<EstimandClaim> = Vec::new();
         let mut diagnostics = Vec::new();
 
         match query {
@@ -169,7 +171,8 @@ impl AutoIdentifier {
                     &mut estimands,
                     &mut derivation,
                     &mut perf,
-                    &mut assumptions,
+                    &assumptions,
+                    &mut claims,
                     &mut hedge,
                     &mut diagnostics,
                 );
@@ -183,7 +186,8 @@ impl AutoIdentifier {
                     &mut estimands,
                     &mut derivation,
                     &mut perf,
-                    &mut assumptions,
+                    &assumptions,
+                    &mut claims,
                     &mut hedge,
                     &mut diagnostics,
                 );
@@ -197,7 +201,8 @@ impl AutoIdentifier {
                     &mut estimands,
                     &mut derivation,
                     &mut perf,
-                    &mut assumptions,
+                    &assumptions,
+                    &mut claims,
                     &mut hedge,
                     &mut diagnostics,
                 );
@@ -211,7 +216,8 @@ impl AutoIdentifier {
                     &mut estimands,
                     &mut derivation,
                     &mut perf,
-                    &mut assumptions,
+                    &assumptions,
+                    &mut claims,
                     &mut hedge,
                     &mut diagnostics,
                 );
@@ -226,7 +232,8 @@ impl AutoIdentifier {
                         &mut estimands,
                         &mut derivation,
                         &mut perf,
-                        &mut assumptions,
+                        &assumptions,
+                        &mut claims,
                         &mut hedge,
                         &mut diagnostics,
                     );
@@ -249,7 +256,8 @@ impl AutoIdentifier {
                     &mut estimands,
                     &mut derivation,
                     &mut perf,
-                    &mut assumptions,
+                    &assumptions,
+                    &mut claims,
                     &mut hedge,
                     &mut diagnostics,
                 );
@@ -278,12 +286,7 @@ impl AutoIdentifier {
                             "auto.method",
                             format!("{method}: not identified ({:?})", res.status),
                         );
-                        diagnostics.push(Diagnostic::new(
-                            format!("auto.{method}.not_identified"),
-                            DiagnosticKind::Scientific,
-                            DiagnosticSeverity::Info,
-                            format!("{method} did not identify the query ({:?})", res.status),
-                        ));
+                        diagnostics.push(not_identified_diagnostic(method, method, &res));
                         hedge = res.hedge;
                         perf = res.performance;
                         diagnostics.extend(res.diagnostics);
@@ -330,14 +333,10 @@ impl AutoIdentifier {
                             "auto.method",
                             format!("path_specific.natural: not identified ({:?})", res.status),
                         );
-                        diagnostics.push(Diagnostic::new(
-                            "auto.path_specific.not_identified",
-                            DiagnosticKind::Scientific,
-                            DiagnosticSeverity::Info,
-                            format!(
-                                "path_specific.natural did not identify the query ({:?})",
-                                res.status
-                            ),
+                        diagnostics.push(not_identified_diagnostic(
+                            "path_specific",
+                            "path_specific.natural",
+                            &res,
                         ));
                         hedge = res.hedge;
                         perf = res.performance;
@@ -411,26 +410,33 @@ impl AutoIdentifier {
             return Ok(out);
         }
 
-        let wald_only = estimands.iter().all(|e| e.method_kind().ok() == Some(EstimandMethod::Iv));
-        let mut out = if wald_only {
-            IdentificationResult::identified_under_parametric_restrictions(
-                query.clone(),
-                estimands,
-                arena,
-                derivation,
-                assumptions,
-                perf,
-            )
+        // The listing is nonparametric when any alternative is; each estimand's own status
+        // and assumptions are its claim. The listing-level set is the union over the
+        // alternatives, so it never understates what a listed estimand relies on.
+        let all_parametric = !claims.is_empty()
+            && claims
+                .iter()
+                .all(|c| c.status == IdentificationStatus::IdentifiedUnderParametricRestrictions);
+        let status = if all_parametric {
+            IdentificationStatus::IdentifiedUnderParametricRestrictions
         } else {
-            IdentificationResult::identified(
-                query.clone(),
-                estimands,
-                arena,
-                derivation,
-                assumptions,
-                perf,
-            )
+            IdentificationStatus::NonparametricallyIdentified
         };
+        for claim in &claims {
+            assumptions.extend_unique(&claim.required_assumptions.entries);
+        }
+        let mut out = IdentificationResult::from_parts(
+            status,
+            query.clone(),
+            estimands,
+            arena,
+            derivation,
+            assumptions,
+            Vec::new(),
+            perf,
+            None,
+        )
+        .with_estimand_claims(claims);
         out.diagnostics = diagnostics;
         Ok(out)
     }
@@ -447,7 +453,8 @@ impl AutoIdentifier {
         estimands: &mut Vec<IdentifiedEstimand>,
         derivation: &mut DerivationTrace,
         perf: &mut IdentificationPerformanceRecord,
-        assumptions: &mut AssumptionSet,
+        assumptions_declared: &AssumptionSet,
+        claims: &mut Vec<EstimandClaim>,
         hedge: &mut Option<crate::hedge::HedgeCertificate>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
@@ -463,12 +470,24 @@ impl AutoIdentifier {
                     "auto.method",
                     format!("{name}: identified ({} estimand(s))", res.estimands.len()),
                 );
-                for e in &res.estimands {
+                // Each listed estimand keeps the claim of the strategy that produced it:
+                // that strategy's status and assumptions plus the caller-declared ones.
+                // A later strategy that also succeeds must not rewrite it.
+                let declared = assumptions_declared.clone();
+                let claim_of = |index: usize| {
+                    let own = res.claim(index).expect("index is within res.estimands");
+                    let mut required = declared.clone();
+                    required.extend_unique(&own.required_assumptions.entries);
+                    EstimandClaim { status: own.status, required_assumptions: required }
+                };
+                for (index, e) in res.estimands.iter().enumerate() {
                     if let Some(rebuilt) = rebuild_estimand(arena, e, q, &active, &control) {
                         estimands.push(rebuilt);
+                        claims.push(claim_of(index));
                     } else if name == "general.id" && arena.is_empty() {
                         *arena = res.arena.clone();
                         estimands.extend(res.estimands.clone());
+                        claims.extend((0..res.estimands.len()).map(&claim_of));
                         break;
                     } else if name == "general.id" {
                         derivation.push(
@@ -482,18 +501,12 @@ impl AutoIdentifier {
                     perf.candidates_examined.saturating_add(res.performance.candidates_examined);
                 perf.sets_returned =
                     perf.sets_returned.saturating_add(res.performance.sets_returned);
-                *assumptions = res.required_assumptions;
                 diagnostics.extend(res.diagnostics);
             }
             Ok(res) => {
                 derivation
                     .push("auto.method", format!("{name}: not identified ({:?})", res.status));
-                diagnostics.push(Diagnostic::new(
-                    format!("auto.{name}.not_identified"),
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    format!("{name} did not identify the query ({:?})", res.status),
-                ));
+                diagnostics.push(not_identified_diagnostic(name, name, &res));
                 if res.hedge.is_some() && hedge.is_none() {
                     *hedge = res.hedge;
                 }
@@ -520,6 +533,41 @@ impl AutoIdentifier {
                 derivation.push("auto.method", format!("{name}: error ({e})"));
             }
         }
+    }
+}
+
+/// Whether a strategy stopped at a search budget before it could decide.
+///
+/// Strategies mark that exit with an `identify.<method>.search_bounded` diagnostic (or a
+/// completion / history cap); their `NotIdentified` is then undecided rather than refuted.
+fn search_bounded(res: &IdentificationResult) -> bool {
+    crate::envelope::search_truncated(res)
+        || res.diagnostics.iter().any(|d| d.code.as_ref().ends_with(".search_bounded"))
+}
+
+/// Auto's record of a strategy that returned `NotIdentified`.
+///
+/// A completed search is a scientific negative for that strategy. A search that ran out
+/// of budget is not: it is reported as an execution warning so that nothing downstream
+/// reads an unfinished search as a proof of non-identification.
+fn not_identified_diagnostic(key: &str, method: &str, res: &IdentificationResult) -> Diagnostic {
+    if search_bounded(res) {
+        Diagnostic::new(
+            format!("auto.{key}.search_bounded"),
+            DiagnosticKind::Execution,
+            DiagnosticSeverity::Warning,
+            format!(
+                "{method} stopped at its search budget before deciding; identifiability by \
+                 this strategy is undecided, not refuted"
+            ),
+        )
+    } else {
+        Diagnostic::new(
+            format!("auto.{key}.not_identified"),
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!("{method} did not identify the query ({:?})", res.status),
+        )
     }
 }
 
@@ -742,6 +790,138 @@ mod tests {
         let _ = res.arena.node(iv.functional);
     }
 
+    fn iv_dag() -> Dag {
+        // Z -> T -> Y, U -> T, U -> Y
+        let mut dag = Dag::with_variables(4);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap(); // Z->T
+        dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap(); // T->Y
+        dag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(1)).unwrap(); // U->T
+        dag.insert_directed(DenseNodeId::from_raw(3), DenseNodeId::from_raw(2)).unwrap(); // U->Y
+        dag
+    }
+
+    fn has_exclusion(set: &AssumptionSet, instrument: u32) -> bool {
+        set.entries.iter().any(|r| {
+            r.assumption
+                == antecedent_core::Assumption::ExclusionRestriction {
+                    instrument: VariableId::from_raw(instrument),
+                }
+        })
+    }
+
+    #[test]
+    fn auto_iv_claim_keeps_exclusion_restriction_after_general_id_succeeds() {
+        // General ID runs last and also identifies this DAG (every node observed), returning
+        // only caller-declared assumptions. The IV estimand must still carry its own record.
+        let dag = iv_dag();
+        let auto = AutoIdentifier::new();
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        assert!(
+            res.derivation
+                .steps
+                .iter()
+                .any(|s| s.detail.as_ref().starts_with("general.id: identified"))
+        );
+        assert_eq!(res.estimand_claims.len(), res.estimands.len());
+
+        let iv_index = res
+            .estimands
+            .iter()
+            .position(|e| e.method_kind().ok() == Some(EstimandMethod::Iv))
+            .expect("IV estimand");
+        let chosen = res.narrowed_to(iv_index).unwrap();
+        assert_eq!(chosen.estimands.len(), 1);
+        assert_eq!(chosen.status, IdentificationStatus::IdentifiedUnderParametricRestrictions);
+        assert!(has_exclusion(&chosen.required_assumptions, 0));
+        assert!(
+            chosen
+                .required_assumptions
+                .entries
+                .iter()
+                .any(|r| r.assumption == antecedent_core::Assumption::CausalMarkov)
+        );
+        assert!(chosen.required_assumptions.entries.iter().any(|r| matches!(
+            &r.assumption,
+            antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == "iv.relevance"
+        )));
+        assert!(chosen.required_assumptions.entries.iter().any(|r| matches!(
+            &r.assumption,
+            antecedent_core::Assumption::ParametricRestriction(p)
+                if p.id.as_ref() == "iv.constant_linear_effect_or_monotonicity"
+        )));
+
+        // A back-door estimand in the same result does not inherit the IV records, and the
+        // IV claim does not inherit a nonparametric banner from it.
+        let bd_index = res
+            .estimands
+            .iter()
+            .position(|e| e.method_kind().ok() == Some(EstimandMethod::BackdoorAdjustment))
+            .expect("backdoor estimand");
+        let bd = res.narrowed_to(bd_index).unwrap();
+        assert_eq!(bd.status, IdentificationStatus::NonparametricallyIdentified);
+        assert!(!has_exclusion(&bd.required_assumptions, 0));
+
+        // The un-narrowed result lists every alternative, so its set covers all of them.
+        assert!(has_exclusion(&res.required_assumptions, 0));
+    }
+
+    #[test]
+    fn auto_listing_assumptions_cover_every_alternative() {
+        let dag = iv_dag();
+        let auto = AutoIdentifier::new();
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        assert!(has_exclusion(&res.required_assumptions, 0));
+        assert!(
+            res.required_assumptions
+                .entries
+                .iter()
+                .any(|r| r.assumption == antecedent_core::Assumption::CausalMarkov)
+        );
+    }
+
+    #[test]
+    fn auto_claims_keep_caller_declared_assumptions() {
+        let dag = iv_dag();
+        let auto = AutoIdentifier::new();
+        let mut declared = AssumptionSet::new();
+        declared.push(antecedent_core::AssumptionRecord {
+            assumption: antecedent_core::Assumption::Consistency,
+            source: antecedent_core::AssumptionSource::UserDeclared,
+            scope: antecedent_core::AssumptionScope::Identification,
+            status: antecedent_core::AssumptionStatus::Declared,
+        });
+        let prep = auto.prepare_with_assumptions(&dag, declared).unwrap();
+        let q = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(1),
+            VariableId::from_raw(2),
+        ));
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        for index in 0..res.estimands.len() {
+            let chosen = res.narrowed_to(index).unwrap();
+            assert!(
+                chosen
+                    .required_assumptions
+                    .entries
+                    .iter()
+                    .any(|r| r.assumption == antecedent_core::Assumption::Consistency),
+                "estimand {index} lost the declared assumption"
+            );
+        }
+    }
+
     #[test]
     fn auto_rejects_treatment_descendant_instrument() {
         // U → T → Y, U → Y, T → Z: Z is not a valid IV.
@@ -759,6 +939,51 @@ mod tests {
         let mut ws = IdentificationWorkspace::default();
         let res = auto.identify(&prep, &q, &mut ws).unwrap();
         assert!(!res.estimands.iter().any(|e| e.instruments.as_ref() == [VariableId::from_raw(3)]));
+    }
+
+    #[test]
+    fn auto_reports_a_path_budget_exit_as_inconclusive() {
+        // 0=t, four fully connected layers of three, 13=y: 81 paths against a budget of 64.
+        let mut dag = Dag::with_variables(14);
+        let layer = |k: u32| (1 + 3 * k)..(4 + 3 * k);
+        for v in layer(0) {
+            dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(v)).unwrap();
+        }
+        for k in 0..3 {
+            for u in layer(k) {
+                for v in layer(k + 1) {
+                    dag.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(v))
+                        .unwrap();
+                }
+            }
+        }
+        for u in layer(3) {
+            dag.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(13)).unwrap();
+        }
+        let auto = AutoIdentifier::new();
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::PathSpecific(
+            antecedent_core::PathSpecificEffectQuery::binary(
+                VariableId::from_raw(0),
+                VariableId::from_raw(13),
+            )
+            .with_path_nodes([VariableId::from_raw(1)]),
+        );
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NotIdentified);
+        assert!(
+            !res.diagnostics.iter().any(|d| d.kind == DiagnosticKind::Scientific),
+            "a budget exit is not a scientific negative: {:?}",
+            res.diagnostics
+        );
+        let bounded = res
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "auto.path_specific.search_bounded")
+            .expect("auto bounded-search diagnostic");
+        assert_eq!(bounded.kind, DiagnosticKind::Execution);
+        assert_eq!(bounded.severity, DiagnosticSeverity::Warning);
     }
 
     #[test]

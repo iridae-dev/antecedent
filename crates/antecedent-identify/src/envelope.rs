@@ -291,6 +291,7 @@ mod tests {
             diagnostics: Vec::new(),
             performance: IdentificationPerformanceRecord::default(),
             hedge: None,
+            estimand_claims: Vec::new(),
         }
     }
 
