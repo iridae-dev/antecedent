@@ -505,8 +505,9 @@ mod tests {
             for iv in q.interventions.iter() {
                 if let Intervention::Set { value, .. } = iv {
                     assert!(
-                        value.as_f64().is_none_or(|x| !x.is_nan()),
-                        "IDC must not invent NaN Set values"
+                        !value.is_symbolic_intervention()
+                            && value.as_f64().is_none_or(f64::is_finite),
+                        "IDC must not invent symbolic or non-finite Set values"
                     );
                 }
             }

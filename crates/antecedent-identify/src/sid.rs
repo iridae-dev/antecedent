@@ -989,8 +989,8 @@ pub fn verify_classical_transport(
                 if !checker.admissible_selections(state, &[], &selections)? {
                     return Err(bad());
                 }
-                // Compare the source leaf explicitly: symbolic values use NaN internally
-                // and therefore must not be compared with floating-point equality.
+                // Compare the source leaf explicitly: symbolic values use the
+                // dedicated intervention marker, not a NaN float payload.
                 let expected = checker.source_from(state, Arc::from(population))?;
                 let (
                     ExprNode::Distribution {
@@ -1019,9 +1019,7 @@ pub fn verify_classical_transport(
                     || ap != bp
                     || ar != br
                     || checker.arena.intervention_set(*ai) != checker.arena.intervention_set(*bi)
-                    || checker.arena.intervention_assignments(*bi).iter().any(
-                        |a| !matches!(a.value, antecedent_core::Value::Float64(x) if x.is_nan()),
-                    )
+                    || checker.arena.intervention_assignments(*bi).iter().any(|a| !a.is_symbolic())
                 {
                     return Err(bad());
                 }
@@ -1039,7 +1037,7 @@ pub fn verify_classical_transport(
 }
 
 // Standardization has at most a sum, a product and two distribution leaves.
-// Compare symbolic assignment values explicitly rather than NaN equality.
+// Compare symbolic assignment values via the explicit marker, not NaN equality.
 fn standardization_equal(arena: &CausalExprArena, a: ExprId, b: ExprId) -> bool {
     match (arena.node(a), arena.node(b)) {
         (
@@ -1074,8 +1072,16 @@ fn standardization_equal(arena: &CausalExprArena, a: ExprId, b: ExprId) -> bool 
         ) => {
             let aa = arena.intervention_assignments(*ai);
             let ba = arena.intervention_assignments(*bi);
-            av==bv && ac==bc && ad==bd && ap==bp && ar==br && aa.len()==ba.len()
-                && aa.iter().zip(ba).all(|(a,b)|a.variable==b.variable && (a.value==b.value || matches!((&a.value,&b.value),(antecedent_core::Value::Float64(x),antecedent_core::Value::Float64(y)) if x.is_nan()&&y.is_nan())))
+            av == bv
+                && ac == bc
+                && ad == bd
+                && ap == bp
+                && ar == br
+                && aa.len() == ba.len()
+                && aa.iter().zip(ba).all(|(a, b)| {
+                    a.variable == b.variable
+                        && (a.value == b.value || (a.is_symbolic() && b.is_symbolic()))
+                })
         }
         _ => false,
     }

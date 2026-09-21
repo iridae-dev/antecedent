@@ -157,8 +157,8 @@ pub fn expr_arena_to_wire(arena: &CausalExprArena) -> Result<ExprArenaWire, IoEr
                 .iter()
                 .map(|a| InterventionAssignmentWire {
                     variable: a.variable.raw(),
-                    symbolic: matches!(a.value, Value::Float64(v) if v.is_nan()),
-                    value: if matches!(a.value, Value::Float64(v) if v.is_nan()) {
+                    symbolic: a.is_symbolic(),
+                    value: if a.is_symbolic() {
                         ValueWire::Float64(0.0)
                     } else {
                         ValueWire::from_value(&a.value)
@@ -218,7 +218,11 @@ pub fn expr_arena_from_wire(w: &ExprArenaWire) -> Result<CausalExprArena, IoErro
         }
         let id = arena.intern_intervention_assignments(iv.iter().map(|a| InterventionAssignment {
             variable: VariableId::from_raw(a.variable),
-            value: if a.symbolic { Value::f64(f64::NAN) } else { a.value.to_value() },
+            value: if a.symbolic {
+                Value::symbolic_intervention()
+            } else {
+                a.value.to_value()
+            },
         }));
         if id.raw() as usize != index {
             return Err(IoError::Convert("duplicate intervention table entry".into()));
@@ -524,6 +528,18 @@ mod tests {
             "test certificate",
         );
         let wire = expr_arena_to_wire(&arena).unwrap();
+        assert!(
+            wire.interventions.iter().flatten().any(|a| a.symbolic),
+            "symbolic intervention must set the wire bit"
+        );
+        assert!(
+            wire.interventions
+                .iter()
+                .flatten()
+                .filter(|a| a.symbolic)
+                .all(|a| !matches!(a.value, ValueWire::Float64(v) if v.is_nan())),
+            "wire value for symbolic must not be NaN"
+        );
         let bytes = serde_json::to_vec(&wire).unwrap();
         let decoded: ExprArenaWire = serde_json::from_slice(&bytes).unwrap();
         let loaded = expr_arena_from_wire(&decoded).unwrap();
@@ -531,6 +547,17 @@ mod tests {
         assert_eq!(loaded.derivation(root), arena.derivation(root));
         assert_eq!(loaded.leaf_bindings(root), arena.leaf_bindings(root));
         assert_eq!(loaded.derivation(root).unwrap().evidence.as_ref(), &[RegimeId::from_raw(7)]);
+        assert!(
+            (0..loaded.intervention_set_count()).any(|i| {
+                loaded
+                    .intervention_assignments(InterventionSetId::from_raw(
+                        u32::try_from(i).unwrap(),
+                    ))
+                    .iter()
+                    .any(InterventionAssignment::is_symbolic)
+            }),
+            "decode of symbolic:true must rebuild the marker, not NaN"
+        );
         let mut invalid = decoded;
         invalid.nodes.push(ExprNodeWire::Kernel {
             body: u32::MAX,
@@ -539,6 +566,27 @@ mod tests {
             regime: None,
         });
         assert!(expr_arena_from_wire(&invalid).is_err());
+    }
+
+    #[test]
+    fn concrete_nan_intervention_does_not_set_wire_symbolic_bit() {
+        use antecedent_core::Value;
+        let mut arena = CausalExprArena::new();
+        let t = VariableId::from_raw(0);
+        let id = arena.intern_intervention_assignments([InterventionAssignment {
+            variable: t,
+            value: Value::f64(f64::NAN),
+        }]);
+        assert!(!arena.intervention_assignments(id)[0].is_symbolic());
+        let wire = expr_arena_to_wire(&arena).unwrap();
+        let entry = wire.interventions.iter().flatten().find(|a| a.variable == t.raw()).unwrap();
+        assert!(!entry.symbolic, "concrete NaN must not set symbolic");
+        assert!(matches!(entry.value, ValueWire::Float64(v) if v.is_nan()));
+        let loaded = expr_arena_from_wire(&wire).unwrap();
+        let restored = loaded.intervention_assignments(id);
+        assert_eq!(restored.len(), 1);
+        assert!(!restored[0].is_symbolic());
+        assert!(matches!(restored[0].value, Value::Float64(v) if v.is_nan()));
     }
 
     #[test]

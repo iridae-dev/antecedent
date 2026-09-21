@@ -94,7 +94,7 @@ impl<'a> ExactSession<'a> {
             } => {
                 let mut assignments = self.arena.intervention_assignments(intervention).to_vec();
                 for a in &mut assignments {
-                    if matches!(a.value,Value::Float64(x) if x.is_nan()) {
+                    if a.is_symbolic() {
                         a.value = env
                             .get(a.variable)
                             .cloned()
