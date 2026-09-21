@@ -259,7 +259,7 @@ impl TransportError {
 
 impl From<TransportError> for ProbError {
     fn from(e: TransportError) -> Self {
-        ProbError::Numerical { message: e.to_string() }
+        ProbError::Refused { code: e.code(), message: e.to_string() }
     }
 }
 
@@ -538,6 +538,47 @@ mod tests {
         };
         let err = apply_transport(&sources, &ctx).unwrap_err();
         assert_eq!(err.code(), "transport_policy_required");
+    }
+
+    #[test]
+    fn transport_refusals_are_typed_refusals_not_numerical_failures() {
+        let sources = [source("a", 1.0, 1.0)];
+        let ctx = TransportContext {
+            source_populations: &[Some("us")],
+            target_population: Some("eu"),
+            policy: None,
+            adjustment: None,
+            coef_index: None,
+        };
+        let err: ProbError = apply_transport(&sources, &ctx).unwrap_err().into();
+        match err {
+            ProbError::Refused { code, message } => {
+                assert_eq!(code, "transport_policy_required");
+                assert!(message.starts_with("transport_policy_required: "), "{message}");
+            }
+            other => panic!("a policy refusal surfaced as {other:?}"),
+        }
+    }
+
+    #[test]
+    fn every_transport_refusal_code_is_in_the_closed_vocabulary() {
+        let vocabulary = include_str!("../../../parity/reason_codes.toml");
+        for error in [
+            TransportError::PolicyRequired {
+                source_population: Arc::from("a"),
+                target_population: Arc::from("b"),
+            },
+            TransportError::SourceCountMismatch { n_sources: 1, n_populations: 2 },
+            TransportError::InvalidWeights { message: "x" },
+            TransportError::UnknownPolicy { name: Arc::from("x") },
+            TransportError::CoefIndexOutOfRange { index: 3, n_coef: 1 },
+        ] {
+            assert!(
+                vocabulary.contains(&format!("id = \"{}\"", error.code())),
+                "{} is not in parity/reason_codes.toml",
+                error.code()
+            );
+        }
     }
 
     #[test]

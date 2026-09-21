@@ -60,6 +60,11 @@ EVIDENCE_KINDS = {
     # theorem-level / method-contract argument
     "contract_equivalence",
 }
+# An implementation_exists row that produces one of these is a statistical procedure
+# a reader would take as validated; it must say that no numerical truth backs it.
+STATISTICAL_QUANTITY = re.compile(
+    r"\b(interval|band|posterior|credible|p-value|EVPI|EVSI|decision|utility|coverage)", re.I
+)
 # Kinds that assert an upstream package produced the truth being matched.
 EXTERNAL_KINDS = {"frozen_external_oracle", "behavioral_parity"}
 
@@ -205,6 +210,28 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
 
         oracle = row.get("external_oracle")
         fixture = row.get("known_truth_fixture")
+
+        if kind == "implementation_exists":
+            # A fixture that only checks finiteness is a smoke fixture, never known truth.
+            if fixture is not None:
+                problems.append(
+                    f"{rel}: {label} is implementation_exists but names known_truth_fixture; "
+                    "name it smoke_fixture (no numerical truth) or claim a stronger kind"
+                )
+            smoke = row.get("smoke_fixture")
+            if smoke is not None and (not isinstance(smoke, str) or not (root / smoke).exists()):
+                problems.append(f"{rel}: {label} smoke_fixture {smoke!r} does not exist")
+            described = " ".join(str(row.get(key, "")) for key in ("description", "notes"))
+            if status == "done" and STATISTICAL_QUANTITY.search(described) and not str(
+                row.get("limitations", "")
+            ).strip():
+                problems.append(
+                    f"{rel}: {label} is a done implementation_exists row naming an interval, "
+                    "test, posterior or decision quantity without limitations; state that no "
+                    "numerical truth backs it"
+                )
+        elif row.get("smoke_fixture") is not None:
+            problems.append(f"{rel}: {label} smoke_fixture is only legal on implementation_exists")
 
         if fixture is not None:
             if not isinstance(fixture, str) or not (root / fixture).exists():
@@ -421,12 +448,27 @@ for path in sorted(root.glob("parity/*.toml")):
 if print_counts:
     print("reason-code uses:")
     for cid, n in uses.items():
-        print(f"  {cid}: {n} (max_uses={codes[cid]['max_uses']})")
+        print(f"  {cid}: {n} (max_uses={codes[cid].get('max_uses')})")
 
 for cid, n in uses.items():
+    # A runtime-refusal-only code is spent in Rust, where this gate cannot count it,
+    # so a registry ratchet is meaningful only when the registries themselves cite it.
+    if "max_uses" not in codes[cid]:
+        if codes[cid].get("applies_to") != ["runtime_refusal"]:
+            problems.append(f"parity/reason_codes.toml: {cid} needs max_uses")
+        continue
     max_uses = int(codes[cid]["max_uses"])
     if n > max_uses:
         problems.append(f"parity/reason_codes.toml: {cid} uses={n} > max_uses={max_uses}")
+
+# Refusal codes a Rust `fn code(&self)` returns are stable machine-readable strings
+# callers switch on; each must be in the closed vocabulary.
+for src in sorted(root.glob("crates/*/src/**/*.rs")):
+    text = src.read_text(errors="ignore")
+    for fn_body in re.findall(r"fn code\(&self\) -> &'static str \{(.*?)\n    \}", text, re.S):
+        for literal in re.findall(r'=>\s*"([a-z][a-z0-9_]+)"', fn_body):
+            if literal not in codes:
+                problems.append(f"{src}: fn code returns {literal!r}, absent from parity/reason_codes.toml")
 
 # --- python_products ---
 pp = root / "parity/python_products.toml"
@@ -594,6 +636,12 @@ if cr.is_file():
         def nominal_pass(point: dict) -> bool:
             lo, hi, floor = _band(nominal, int(point["replicates"]))
             observed = float(point["observed"])
+            # The harness reruns a point that shortfalls the level by more than
+            # RECHECK_SHORTFALL at fewer than PRECISION_N_SIM replicates at
+            # RECHECK_N_SIM, where the precision floor applies. A short-run point
+            # that far under the level is unresolved for every role, not a pass.
+            if int(point["replicates"]) < 1000 and observed < nominal - 0.02:
+                return False
             return lo <= observed <= hi and (floor is None or observed >= floor)
 
         # The measured range is the sample-size grid: every point present, in
@@ -702,8 +750,29 @@ for cell in lic:
     label = f"{cell.get('query')}/{cell.get('graph_class')}/{cell.get('inference')}"
     has_cal = "calibration" in cell
     has_reason = bool(cell.get("calibration_reason"))
-    if has_cal == has_reason:
+    reported_records = [
+        by_id[rid]
+        for rid in cell.get("calibration") or []
+        if rid in by_id and abs(float(by_id[rid]["nominal"]) - collector.REPORTED_LEVEL) < 1e-9
+    ]
+    # A record list says what was measured, not that it passed: a cell whose every
+    # reported-level record is a boundary states `boundary_record` beside the list.
+    boundary_only = bool(reported_records) and all(rec["boundary"] for rec in reported_records)
+    if has_cal and has_reason:
+        if cell.get("calibration_reason") != "boundary_record":
+            problems.append(
+                f"support_licensed.toml {label}: calibration and calibration_reason together "
+                "are only legal as calibration_reason = \"boundary_record\""
+            )
+    elif has_cal == has_reason:
         problems.append(f"support_licensed.toml {label}: exactly one of calibration / calibration_reason")
+    if has_cal and boundary_only != (cell.get("calibration_reason") == "boundary_record"):
+        problems.append(
+            f"support_licensed.toml {label}: calibration_reason = \"boundary_record\" must be "
+            "present exactly when every record at the reported level is a boundary"
+        )
+    if not has_cal and cell.get("calibration_reason") == "boundary_record":
+        problems.append(f"support_licensed.toml {label}: boundary_record without a record list")
     structure = "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed"
     expected_ids = sorted(
         by_coordinate.get(

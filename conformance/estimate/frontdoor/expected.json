@@ -14,7 +14,7 @@
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false,
     "note": "black-box execution only; no source translation. Recorded on the fixture's earlier SCM (M=1*T, Y=2*M); its outputs are kept as provenance and are not compared with anything.",
     "outputs": {
       "method": "frontdoor.two_stage_regression",

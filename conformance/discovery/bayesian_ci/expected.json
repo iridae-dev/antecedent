@@ -15,7 +15,7 @@
     },
     "python": "3.12.7",
     "seed": 20260729,
-    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 python /tmp/antecedent_bayesian_ci_oracle.py",
+    "command": "uv run --python 3.12 --with numpy==2.1.3 --with scipy==1.14.1 python /tmp/antecedent_bayesian_ci_oracle.py", "generator_retained": false,
     "generation_location": "temporary external harness; not retained"
   },
   "model": {

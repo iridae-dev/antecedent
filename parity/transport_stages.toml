@@ -111,7 +111,7 @@ guarantee = "complete_in_classical_evidence_scope"
 reference = "https://arxiv.org/abs/1312.7485v1"
 conformance_test = "crates/antecedent-identify/tests/transport_exact_scm.rs"
 conformance_assertion = "four_node_branch_conformance_has_no_unchecked_obstructions"
-limits = "Complete classical single-source experimental family only; budget exhaustion is inconclusive. No arbitrary finite-catalog or combined-source completeness."
+limits = "Complete classical single-source experimental family only; budget exhaustion is inconclusive. No arbitrary finite-catalog or combined-source completeness. The implementation is enumerated on ordered four-node ADMGs with the treatment a root and a single treatment and outcome (negatives verified as s-hedges, positives not evaluated there) and checked numerically against latent-SCM truth on every three-node selection graph with the treatment at v(0) or v(1) and on chosen four- and six-node families; multiple outcomes and larger general graphs are not enumerated."
 evidence_test = "python/tests/test_transport_exact.py"
 evidence_assertion = "test_classical_negative_is_scoped_to_selected_source"
 
@@ -198,7 +198,7 @@ evidence = "classical_complete_multi_source_experimental_families"
 functional = "joint_target_interventional_distribution"
 guarantee = "complete_in_classical_meta_evidence_scope"
 reference = "https://proceedings.mlr.press/v31/bareinboim13a.pdf"
-limits = "Figure 5 μsID with independently checked positive proofs and common μs-hedges. Finite-catalog alternatives remain bounded and sound; computational exhaustion is inconclusive. No general limited-experiment completeness."
+limits = "Numerically enumerated only on ordered three-node meta graphs and named larger graphs. Figure 5 μsID with independently checked positive proofs and common μs-hedges. Finite-catalog alternatives remain bounded and sound; computational exhaustion is inconclusive. No general limited-experiment completeness."
 conformance_test = "crates/antecedent-identify/tests/meta_transport_scm.rs"
 conformance_assertion = "ordered_three_node_meta_graphs_match_every_target_atom_and_contrast"
 evidence_test = "python/tests/test_transport_meta_grid.py"
@@ -274,11 +274,7 @@ graph = "checked_direct_or_baseline_standardization"
 evidence = "binary_randomized_source_and_explicit_IID_target_sampling"
 functional = "target_mean_treatment_contrast"
 guarantee = "cross_fitted_augmented_inverse_odds_score"
-limits = "Known randomized treatment probabilities; nested-cohort nonparticipants or separately sampled representative target. Joint outer refit intervals remain nominal and uncalibrated. No recursive-factor or dependent-sampling license."
-coverage = [
-  "cov.transport_query.admg.frequentist.analytic_se.l90.transport_admg_trial_ipw_frequentist_nominal_coverage",
-  "cov.transport_query.admg.frequentist.analytic_se.l95.transport_admg_trial_ipw_frequentist_nominal_coverage",
-]
+limits = "Known randomized treatment probabilities; nested-cohort nonparticipants or separately sampled representative target. Joint outer refit intervals remain nominal and uncalibrated: the transport.trial_ipw coverage records measure the analyze-cell estimator, not this three-fold cross-fitted augmented inverse-odds score, so none is cited. No recursive-factor or dependent-sampling license."
 calibration_reason = "estimator_grid_not_measured"
 evidence_test = "python/tests/test_learned_transport.py"
 evidence_assertion = "test_trial_lifecycle_retains_paired_score_and_atomic_refresh"
@@ -311,7 +307,9 @@ evidence_assertion = "trial_result_is_replayed_and_refresh_is_atomic"
 # T10 fixture families. Each family needs an executing positive and an executing
 # counterexample, so a blanket refusal cannot make the family green.
 # `evidence_class` keeps external parity, exact SCM truth, internal cross-checks,
-# theoretical witnesses, and statistical calibration apart; `limits` states what
+# theoretical witnesses, statistical calibration, inferential plumbing (one seeded
+# run that checks wiring, not coverage) and resampling properties (a width fact
+# shown on a test-built resampler, not a library refusal) apart; `limits` states what
 # the pair does not establish. scripts/gate_transport.sh executes every row.
 
 [[fixture_evidence]]
@@ -365,8 +363,8 @@ family = "transport_target_only"
 role = "counterexample"
 evidence_class = "internal_cross_check"
 evidence_test = "python/tests/test_transport_catalog.py"
-evidence_assertion = "test_target_only_formula_does_not_require_irrelevant_measurements"
-limits = "Target DAG g-formula without any source regime."
+evidence_assertion = "test_target_only_confounded_effect_is_never_identified_without_an_experiment"
+limits = "Target-only refusal on one bow-arc graph with no source experiment; the positive row is a target DAG g-formula without any source regime."
 
 [[fixture_evidence]]
 id = "transport_recursive_district.positive"
@@ -466,16 +464,16 @@ limits = "Finite-discrete supplied laws; empirical empty cells are covered by th
 id = "transport_grid_joint_inference.positive"
 family = "transport_grid_joint_inference"
 role = "positive"
-evidence_class = "statistical_calibration"
+evidence_class = "inferential_plumbing"
 evidence_test = "python/tests/test_transport_statistical.py"
 evidence_assertion = "test_joint_grid_and_contrasts_preserve_shared_replicates"
-limits = "Pointwise percentile intervals on shared replicates; simultaneous bands remain closed (transport.simultaneous_grid_bands)."
+limits = "Single-seed plumbing check that grid points and contrasts share replicates; no coverage is measured. Pointwise percentile intervals only; simultaneous bands remain closed (transport.simultaneous_grid_bands)."
 
 [[fixture_evidence]]
 id = "transport_grid_joint_inference.counterexample"
 family = "transport_grid_joint_inference"
 role = "counterexample"
-evidence_class = "statistical_calibration"
+evidence_class = "resampling_property"
 evidence_test = "crates/antecedent/tests/statistical_transport_numeric.rs"
 evidence_assertion = "independent_leaf_resamples_overstate_precision_against_one_joint"
 limits = "Pointwise percentile intervals on shared replicates; simultaneous bands remain closed (transport.simultaneous_grid_bands)."
@@ -484,16 +482,16 @@ limits = "Pointwise percentile intervals on shared replicates; simultaneous band
 id = "transport_multisample_inference.positive"
 family = "transport_multisample_inference"
 role = "positive"
-evidence_class = "statistical_calibration"
+evidence_class = "inferential_plumbing"
 evidence_test = "python/tests/test_transport_meta_grid.py"
 evidence_assertion = "test_bounded_multisource_calibration_fixture"
-limits = "Bounded named designs only; general multi-source coverage remains closed (transport.multi_source_calibrated_coverage)."
+limits = "One seed and 19 replicates: reproducibility and interval-ordering plumbing only, no empirical coverage. General multi-source coverage remains closed (transport.multi_source_calibrated_coverage)."
 
 [[fixture_evidence]]
 id = "transport_multisample_inference.counterexample"
 family = "transport_multisample_inference"
 role = "counterexample"
-evidence_class = "statistical_calibration"
+evidence_class = "resampling_property"
 evidence_test = "crates/antecedent/tests/statistical_transport_numeric.rs"
 evidence_assertion = "holding_target_fixed_narrows_the_joint_bootstrap"
 limits = "Bounded named designs only; general multi-source coverage remains closed (transport.multi_source_calibrated_coverage)."
@@ -540,7 +538,7 @@ family = "transport_budget_refusal"
 role = "positive"
 evidence_class = "internal_cross_check"
 evidence_test = "crates/antecedent-identify/tests/transport_exact_scm.rs"
-evidence_assertion = "four_node_branch_conformance_has_no_unchecked_obstructions"
+evidence_assertion = "identification_within_an_explicit_budget_matches_the_default_search"
 limits = "Identification step/depth budgets; evaluation budgets are asserted by the exact and grid route evidence."
 
 [[fixture_evidence]]

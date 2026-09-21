@@ -195,6 +195,47 @@ if licensed_obs:
             "both loads that fixture and constructs ObservationSpec != Complete"
         )
 
+# ------------------------------------------------ oracle audit trail
+# A frozen fixture's `command` is its audit trail. It must name a generator that is
+# in the repository; a command that runs a script from /tmp is only legal when the
+# block says so (`generator_retained = false`), so a reader can tell a frozen value
+# that cannot be regenerated from one that can. An external-oracle block with no
+# command at all has no audit trail.
+import json
+
+
+def command_blocks(obj):
+    if isinstance(obj, dict):
+        if isinstance(obj.get("command"), str):
+            yield obj
+        for value in obj.values():
+            yield from command_blocks(value)
+    elif isinstance(obj, list):
+        for value in obj:
+            yield from command_blocks(value)
+
+
+for expected in sorted((root / "conformance").glob("**/expected.json")):
+    try:
+        document = json.loads(expected.read_text())
+    except json.JSONDecodeError:
+        continue
+    for block in command_blocks(document):
+        command = block["command"]
+        if "/tmp/" in command:
+            if block.get("generator_retained") is not False:
+                fail.append(
+                    f"{expected}: command runs a /tmp script but the block does not state "
+                    "generator_retained = false; commit the generator or say it is gone"
+                )
+            continue
+        for script in re.findall(r"(?:conformance|scripts)/[\w./-]+\.(?:py|R)", command):
+            if not (root / script).is_file():
+                fail.append(f"{expected}: command names {script}, which is not in the repository")
+    if isinstance(document, dict) and isinstance(document.get("oracle"), str):
+        if "command" not in document and "reference" not in document:
+            fail.append(f"{expected}: names an external oracle but records no command")
+
 if fail:
     print("Evidence reachability gate FAILED:")
     for f in fail:

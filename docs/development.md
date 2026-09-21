@@ -240,7 +240,8 @@ per-point timings replace them.
 The collector refuses to stamp HEAD while the surface its records depend on
 differs from HEAD. It keeps a rechecked point's more precise run, rewrites the
 `calibration` / `calibration_reason` pair on every licensed cell and estimator
-row, and regenerates `crates/antecedent-io/src/coverage_records_data.rs`.
+row (a licensed cell whose every reported-level record is a boundary also states
+`calibration_reason = "boundary_record"` beside its list), and regenerates `crates/antecedent-io/src/coverage_records_data.rs`.
 `scripts/gate_parity_schema.sh` then checks what those rows claim. To collect
 logs measured at another commit, pass `--sha <commit>`. After you edit
 `scripts/calibration_surface.list`, `collect_coverage_records.py --retag`

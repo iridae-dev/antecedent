@@ -5,7 +5,7 @@
     "algorithm": "sum_g p(g) sum_y p(y|g,d) [H(G)-H(G|y,d)]",
     "pin": "fixture-algorithm-v1",
     "python": "3.12.7",
-    "command": "python3 /tmp/antecedent_design_oracle.py",
+    "command": "python3 /tmp/antecedent_design_oracle.py", "generator_retained": false,
     "generation_location": "temporary external harness; deleted after artifact import",
     "dependencies": "Python standard library only"
   },

@@ -7,6 +7,7 @@ library = "antecedent"
 id = "bayes.prob.columnar_posteriors"
 status = "done"
 evidence_kind = "implementation_exists"
+limitations = "Storage layout only; no statistical claim."
 notes = "antecedent-prob PosteriorDraws SoA; no object-per-draw"
 
 [[capabilities]]
@@ -56,14 +57,16 @@ notes = "WeightedGraphSamples effect envelopes; unidentified mass preserved by d
 id = "bayes.validate.ppc"
 status = "done"
 evidence_kind = "implementation_exists"
-known_truth_fixture = "conformance/bayesian/ppc"
+smoke_fixture = "conformance/bayesian/ppc"
+limitations = "The fixture requires finite predictive p-values only; no predictive p-value is compared with a closed-form or simulated truth."
 notes = "Prior and posterior predictive checks on CausalAnalysis (any refute≠none) + Python ValidationView.prior_predictive / posterior_predictive"
 
 [[capabilities]]
 id = "bayes.validate.prior_sensitivity"
 status = "done"
 evidence_kind = "implementation_exists"
-known_truth_fixture = "conformance/bayesian/prior_sensitivity"
+smoke_fixture = "conformance/bayesian/prior_sensitivity"
+limitations = "The fixture requires finite effect means across the prior-scale grid only; no sensitivity value is compared with a closed-form or simulated truth."
 notes = "Isotropic prior-scale grid"
 
 [[capabilities]]
@@ -83,12 +86,14 @@ id = "bayes.io.posterior_artifact_summary_only"
 status = "done"
 evidence_kind = "implementation_exists"
 python_facade = "full"
+limitations = "Serialization round trip of summaries only; no statistical claim."
 notes = "PosteriorArtifact.from_moments (mean/sd/quantiles, no draws); encode_posterior_artifact emits draws_encoding=none, decode_posterior_artifact round-trips with an empty draws vector; hydrate_prior_from_posterior_bytes / default_hydrate_mapping in crates/antecedent/src/inference.rs read only wire mean/sd/quantities (never draws), so Bayesian(prior_from=<summary-only bytes>) hydrates end to end; crates/antecedent-io/src/posterior.rs::posterior_meta_only_skips_draws + posterior_convert.rs::summary_payload_encoding_omits_draw_bytes; python/tests/test_prior_bank.py::test_summary_only_artifact_round_trips_and_hydrates_prior"
 
 [[capabilities]]
 id = "bayes.facade.inference_mode"
 status = "done"
 evidence_kind = "implementation_exists"
+limitations = "Selection and summary plumbing; the posterior values are validated by the estimator rows, not here."
 notes = "InferenceMode::Bayesian + Python posterior_* summaries"
 
 [[capabilities]]
@@ -109,6 +114,7 @@ notes = "ExactDagPosterior + StructureMcmc/OrderMcmc + CiScreenedPosterior + Dbn
 id = "bayes.backend.hierarchical_bvar_gp"
 status = "done"
 evidence_kind = "implementation_exists"
+limitations = "Hierarchical, Minnesota BVAR, LGSSM and GP posteriors run and are finite; none is compared with a closed-form or simulated truth, and no coverage record measures their credible intervals."
 notes = "EB hierarchical linear + HierarchicalGlm (Bernoulli logit); Minnesota BVAR; LGSSM Kalman EM; GP hyperparam grid (feature gaussian-process) — "
 
 [[capabilities]]
@@ -137,7 +143,7 @@ notes = "Same-design and mapped prior transfer ride licensed Bayesian Pulse / si
 id = "bayes.prior_bank.catalog"
 status = "done"
 evidence_kind = "implementation_exists"
-known_truth_fixture = "conformance/bayesian/prior_bank_catalog"
+smoke_fixture = "conformance/bayesian/prior_bank_catalog"
 notes = "PriorSourceMeta / PriorCatalog / CompatibilityReport; CBOR prior_source.meta; durable coef labels; python_facade=full (antecedent.priors.PriorCatalog); conformance/bayesian/prior_bank_catalog"
 
 [[capabilities]]
@@ -213,3 +219,17 @@ known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
 python_facade = "full"
 limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
 notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
+
+[[capabilities]]
+id = "bayes.panel.random_intercept_non_gaussian"
+status = "done"
+evidence_kind = "implementation_exists"
+limitations = "Random-intercept panel fits reach non-Gaussian likelihoods (Bernoulli, Poisson, negative binomial) without compound-symmetry GLS whitening, which is applied to the Gaussian identity likelihood only and reported as random_intercept.gls_whiten.skipped otherwise. No numerical truth and no coverage record backs the non-Gaussian panel intervals."
+notes = "Panel random-intercept design under non-Gaussian likelihoods."
+
+[[capabilities]]
+id = "bayes.gcomp.negative_binomial_se"
+status = "done"
+evidence_kind = "implementation_exists"
+limitations = "Negative-binomial outcome g-computation is reachable through the frequentist GLM and Bayesian estimators; its standard error and interval have no numerical truth and no coverage record."
+notes = "Negative-binomial outcome g-computation and its uncertainty."

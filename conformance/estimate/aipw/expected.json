@@ -14,7 +14,7 @@
     "available": true,
     "version": "0.14",
     "commit": "178ecc9c690a02f2801c1f70da2695f5744186cc",
-    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py",
+    "command": "uv run --python 3.12 --with dowhy==0.14 --with numpy --with pandas --with statsmodels --with scikit-learn python /tmp/oracle_harness_deleted_after_artifact_import.py", "generator_retained": false, "unexercised": "Not compared with any Antecedent output. This block ran backdoor.propensity_score_weighting, a different estimator, and is a byte copy of the propensity_ipw run; it is not an AIPW reference.",
     "note": "black-box execution only; no source translation",
     "outputs": {
       "method": "backdoor.propensity_score_weighting",

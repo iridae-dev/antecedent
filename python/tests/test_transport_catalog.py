@@ -232,3 +232,19 @@ def test_target_only_formula_does_not_require_irrelevant_measurements() -> None:
     assert result.outcome == "identified"
     assert result.formula.factors[0].variables == ["y"]
     assert result.formula.factors[0].regime == 0
+
+
+def test_target_only_confounded_effect_is_never_identified_without_an_experiment() -> None:
+    # a <-> y with a -> y: the target observational law alone has an s-hedge for
+    # P(y | do(a)); no source experiment exists, so no formula may be produced.
+    graph = antecedent.graph.Admg.from_edges(["a", "y"], [("a", "y")], [("a", "y")])
+    query = transport.TransportQuery(
+        _mean_curve(),
+        transport.SelectionDiagram("trial", "target", []),
+        catalog=transport.EvidenceCatalog(
+            regimes=[transport.EvidenceRegime("target_obs", "target", measured=["a", "y"])]
+        ),
+    )
+    result = transport.identify(graph=graph, query=query)
+    assert result.outcome != "identified"
+    assert result.formula is None

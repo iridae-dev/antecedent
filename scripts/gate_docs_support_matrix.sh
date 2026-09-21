@@ -190,6 +190,36 @@ for claim in claims.get("claim", []):
         if count != 1:
             fail.append(f"{rel}: claim {claim['id']} occurs {count} times (want 1)")
 
+# A user-doc sentence that asserts statistical strength (calibrated, doubly robust,
+# unbiased, exact DAG posterior, complete algorithm) must either hedge itself or be
+# pinned in claims.toml with the registry file that carries its evidence.
+STRENGTH = re.compile(
+    r"(?i)\b(calibrated|doubly robust|unbiased|exact DAG posterior|complete algorithm)\b"
+)
+HEDGE = re.compile(
+    r"(?i)\b(not|no|never|cannot|incomplete|refus\w*|without|unless|only|declared|"
+    r"unlicensed|neither|nor|prove[sd]?)\b|n't"
+)
+for rel in ("README.md", "docs/capabilities.md", "docs/python-workflow.md"):
+    pinned = [
+        " ".join(c["sentence"].split())
+        for c in claims.get("claim", [])
+        if rel in c.get("files", [])
+    ]
+    for para in re.split(r"\n\s*\n", (root / rel).read_text()):
+        flat = " ".join(para.split())
+        for sentence in re.split(r"(?<=[.!?])\s+(?=[A-Z`*(|])", flat):
+            if (
+                STRENGTH.search(sentence)
+                and not HEDGE.search(sentence)
+                and not any(p in sentence for p in pinned)
+            ):
+                fail.append(
+                    f"{rel}: unhedged strength claim not pinned in parity/claims.toml: "
+                    f"{sentence[:120]!r}"
+                )
+
+
 def changelog_current(text: str) -> str:
     # The current version's section only; earlier sections are frozen history.
     heads = [f"## [{target}]", f"## {target}"]
