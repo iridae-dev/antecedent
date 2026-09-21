@@ -227,12 +227,14 @@ pub fn refute_temporal_mediation_adjusted(
 
 fn report(id: &str, target: f64, values: &[f64]) -> RefutationReport {
     let p = replicate_p_value(values, target);
+    // Linear mediation placebo/RCC/subset use the same OLS-orthogonal constructions
+    // as the ATE refuters: they cannot falsify the claim, so they are not informative.
     RefutationReport::new(
         id,
         target,
         values.iter().sum::<f64>() / 20.0,
         p,
-        true,
+        false,
         p >= 0.05,
         (p < 0.05).then(|| Arc::from("mediation contrast is inconsistent with the refuter target")),
         20,

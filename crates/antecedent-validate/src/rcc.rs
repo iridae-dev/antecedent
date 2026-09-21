@@ -18,12 +18,17 @@ use crate::common::{
 use crate::error::ValidationError;
 
 /// Add an independent noise covariate; expect ATE largely unchanged.
+///
+/// Under OLS, an independent nuisance covariate is asymptotically orthogonal to the
+/// treatment coefficient, so this procedure cannot falsify a wrong causal claim.
+/// Reports set `informative: false`.
 #[derive(Clone, Debug)]
 pub struct RandomCommonCause {
     /// Replicate count.
     pub replicates: u32,
     /// Pass if the refit ATE distribution is consistent with the original estimate at
     /// this significance level (two-sided normal test on the replicates, `p >= alpha`).
+    /// Non-finite replicates fail closed. A pass is not an informative falsification under OLS.
     pub alpha: f64,
     /// Estimator used for refits (bootstrap disabled).
     pub estimator: LinearAdjustmentAte,
@@ -102,7 +107,9 @@ impl RandomCommonCause {
             original_ate: problem.original.ate,
             refuted_ate: mean_ate,
             comparison: p_value,
-            informative: true,
+            // Independent noise in the adjustment set cannot move the OLS ATE
+            // enough to falsify a wrong claim.
+            informative: false,
             passed,
             failure_condition: if passed {
                 None
