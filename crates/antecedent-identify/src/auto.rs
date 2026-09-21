@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    Intervention, Value,
+    Intervention, TargetPopulation, Value,
 };
 use antecedent_expr::{CausalExprArena, EstimandMethod, IdentifiedEstimand};
 use antecedent_graph::Dag;
@@ -64,7 +64,8 @@ pub struct AutoIdentifier {
     pub idc: IdcIdentifier,
     /// Path-restricted natural effects.
     pub path_specific: PathSpecificIdentifier,
-    /// Optional sharp RD design config. When set, Auto attempts [`SharpRdIdentifier`].
+    /// Optional sharp RD design. Auto uses it only for a query whose target population
+    /// is the design's cutoff ([`TargetPopulation::LocalAtCutoff`]); it never infers one.
     pub rd: Option<SharpRdConfig>,
 }
 
@@ -161,70 +162,46 @@ impl AutoIdentifier {
                 );
                 let query_norm = CausalQuery::AverageEffect(q_norm.clone());
                 let q = &q_norm;
-                self.try_method(
-                    "backdoor.adjustment",
-                    || self.backdoor.identify(&prepared.dag, &query_norm, workspace),
-                    q,
-                    active.clone(),
-                    control.clone(),
-                    &mut arena,
-                    &mut estimands,
-                    &mut derivation,
-                    &mut perf,
-                    &assumptions,
-                    &mut claims,
-                    &mut hedge,
-                    &mut diagnostics,
-                );
-                self.try_method(
-                    "backdoor.efficient",
-                    || self.efficient.identify(&prepared.dag, &query_norm, workspace),
-                    q,
-                    active.clone(),
-                    control.clone(),
-                    &mut arena,
-                    &mut estimands,
-                    &mut derivation,
-                    &mut perf,
-                    &assumptions,
-                    &mut claims,
-                    &mut hedge,
-                    &mut diagnostics,
-                );
-                self.try_method(
-                    "frontdoor",
-                    || self.frontdoor.identify(&prepared.dag, &query_norm, workspace),
-                    q,
-                    active.clone(),
-                    control.clone(),
-                    &mut arena,
-                    &mut estimands,
-                    &mut derivation,
-                    &mut perf,
-                    &assumptions,
-                    &mut claims,
-                    &mut hedge,
-                    &mut diagnostics,
-                );
-                self.try_method(
-                    "iv",
-                    || self.iv.identify(&prepared.dag, &query_norm, workspace),
-                    q,
-                    active.clone(),
-                    control.clone(),
-                    &mut arena,
-                    &mut estimands,
-                    &mut derivation,
-                    &mut perf,
-                    &assumptions,
-                    &mut claims,
-                    &mut hedge,
-                    &mut diagnostics,
-                );
-                if let Some(cfg) = &self.rd {
+                // A sharp RD design speaks for units at its cutoff; the graph strategies
+                // speak for the population the query names. They answer different
+                // questions, so which ones run is decided by the population asked for and
+                // their estimands are never listed side by side.
+                if matches!(q.target_population, TargetPopulation::LocalAtCutoff { .. }) {
+                    if let Some(cfg) = &self.rd {
+                        self.try_method(
+                            "rd.sharp",
+                            || {
+                                SharpRdIdentifier::new(*cfg)
+                                    .identify_on(prepared.dag.dag(), query_norm.clone())
+                            },
+                            q,
+                            active,
+                            control,
+                            &mut arena,
+                            &mut estimands,
+                            &mut derivation,
+                            &mut perf,
+                            &assumptions,
+                            &mut claims,
+                            &mut hedge,
+                            &mut diagnostics,
+                        );
+                    } else {
+                        diagnostics.push(Diagnostic::new(
+                            "auto.rd.missing_config",
+                            DiagnosticKind::Execution,
+                            DiagnosticSeverity::Warning,
+                            "the effect at a running-variable cutoff needs a sharp RD design \
+                             (running variable, cutoff, bandwidth); none was supplied and none \
+                             is inferred",
+                        ));
+                        derivation
+                            .push("auto.method", "rd.sharp: not applicable (missing RD config)");
+                    }
+                } else {
                     self.try_method(
-                        "rd.sharp",
-                        || SharpRdIdentifier::new(*cfg).identify(query_norm.clone()),
+                        "backdoor.adjustment",
+                        || self.backdoor.identify(&prepared.dag, &query_norm, workspace),
                         q,
                         active.clone(),
                         control.clone(),
@@ -237,30 +214,90 @@ impl AutoIdentifier {
                         &mut hedge,
                         &mut diagnostics,
                     );
-                } else {
-                    diagnostics.push(Diagnostic::new(
-                        "auto.rd.missing_config",
-                        DiagnosticKind::Execution,
-                        DiagnosticSeverity::Info,
-                        "sharp RD skipped: no running-variable / cutoff / bandwidth config on AutoIdentifier",
-                    ));
-                    derivation.push("auto.method", "rd.sharp: not applicable (missing RD config)");
+                    self.try_method(
+                        "backdoor.efficient",
+                        || self.efficient.identify(&prepared.dag, &query_norm, workspace),
+                        q,
+                        active.clone(),
+                        control.clone(),
+                        &mut arena,
+                        &mut estimands,
+                        &mut derivation,
+                        &mut perf,
+                        &assumptions,
+                        &mut claims,
+                        &mut hedge,
+                        &mut diagnostics,
+                    );
+                    self.try_method(
+                        "frontdoor",
+                        || self.frontdoor.identify(&prepared.dag, &query_norm, workspace),
+                        q,
+                        active.clone(),
+                        control.clone(),
+                        &mut arena,
+                        &mut estimands,
+                        &mut derivation,
+                        &mut perf,
+                        &assumptions,
+                        &mut claims,
+                        &mut hedge,
+                        &mut diagnostics,
+                    );
+                    self.try_method(
+                        "iv",
+                        || self.iv.identify(&prepared.dag, &query_norm, workspace),
+                        q,
+                        active.clone(),
+                        control.clone(),
+                        &mut arena,
+                        &mut estimands,
+                        &mut derivation,
+                        &mut perf,
+                        &assumptions,
+                        &mut claims,
+                        &mut hedge,
+                        &mut diagnostics,
+                    );
+                    if self.rd.is_some() {
+                        diagnostics.push(Diagnostic::new(
+                            "auto.rd.local_estimand_not_requested",
+                            DiagnosticKind::Scientific,
+                            DiagnosticSeverity::Info,
+                            "sharp RD not used: the design identifies the effect for units at \
+                             its cutoff, not the requested population effect; ask for \
+                             TargetPopulation::LocalAtCutoff to use it",
+                        ));
+                        derivation.push(
+                            "auto.method",
+                            "rd.sharp: not applicable (the query does not target the cutoff)",
+                        );
+                    } else {
+                        diagnostics.push(Diagnostic::new(
+                            "auto.rd.missing_config",
+                            DiagnosticKind::Execution,
+                            DiagnosticSeverity::Info,
+                            "sharp RD skipped: no running-variable / cutoff / bandwidth config on AutoIdentifier",
+                        ));
+                        derivation
+                            .push("auto.method", "rd.sharp: not applicable (missing RD config)");
+                    }
+                    self.try_method(
+                        "general.id",
+                        || self.general_id.identify(&prepared.admg, &query_norm, workspace),
+                        q,
+                        active,
+                        control,
+                        &mut arena,
+                        &mut estimands,
+                        &mut derivation,
+                        &mut perf,
+                        &assumptions,
+                        &mut claims,
+                        &mut hedge,
+                        &mut diagnostics,
+                    );
                 }
-                self.try_method(
-                    "general.id",
-                    || self.general_id.identify(&prepared.admg, &query_norm, workspace),
-                    q,
-                    active,
-                    control,
-                    &mut arena,
-                    &mut estimands,
-                    &mut derivation,
-                    &mut perf,
-                    &assumptions,
-                    &mut claims,
-                    &mut hedge,
-                    &mut diagnostics,
-                );
             }
             CausalQuery::Distribution(q) => {
                 let method = if q.conditioning.is_empty() { "general.id" } else { "general.idc" };
@@ -622,12 +659,17 @@ fn rebuild_estimand(
             ))
         }
         EstimandMethod::RdSharp => {
-            let functional =
-                arena.backdoor_ate(q.treatment, q.outcome, &[], active.clone(), control.clone());
-            Some(IdentifiedEstimand::rd_sharp(
-                functional,
-                e.rd_design.unwrap_or(antecedent_expr::RdDesignParams::new(q.treatment, 0.0, 1.0)),
-            ))
+            // The design is the caller's; an estimand without one cannot be rebuilt.
+            let design = e.rd_design?;
+            let functional = arena.rd_sharp_local_effect(
+                q.treatment,
+                q.outcome,
+                design.running_variable,
+                design.cutoff,
+                active.clone(),
+                control.clone(),
+            );
+            Some(IdentifiedEstimand::rd_sharp(functional, design))
         }
         EstimandMethod::GeneralId => None,
         _ => None,
@@ -986,15 +1028,43 @@ mod tests {
         assert_eq!(bounded.severity, DiagnosticSeverity::Warning);
     }
 
-    #[test]
-    fn auto_with_rd_config_identifies_sharp_rd() {
+    /// R -> T -> Y with R -> Y: a sharp design on R (variables: 0 = T, 1 = Y, 2 = R).
+    fn sharp_design_dag() -> Dag {
         let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
         dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-        let auto = AutoIdentifier::new().with_rd(SharpRdConfig {
-            running_variable: VariableId::from_raw(2),
-            cutoff: 0.0,
-            bandwidth: 1.0,
-        });
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+        dag
+    }
+
+    fn rd_config() -> SharpRdConfig {
+        SharpRdConfig::new(VariableId::from_raw(2), 0.5, 1.0)
+    }
+
+    fn is_rd(e: &IdentifiedEstimand) -> bool {
+        e.method_kind().ok() == Some(EstimandMethod::RdSharp)
+    }
+
+    #[test]
+    fn rebuild_never_invents_an_rd_design() {
+        // An RD-tagged estimand that carries no design has no running variable or cutoff
+        // to rebuild from; substituting one would be a fabricated design.
+        let bare = IdentifiedEstimand::backdoor(
+            "rd.sharp",
+            Arc::from([]),
+            antecedent_expr::ExprId::from_raw(0),
+        );
+        let q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut arena = CausalExprArena::new();
+        assert!(
+            rebuild_estimand(&mut arena, &bare, &q, &Value::f64(1.0), &Value::f64(0.0)).is_none()
+        );
+    }
+
+    #[test]
+    fn auto_does_not_offer_the_cutoff_effect_as_a_population_effect() {
+        let dag = sharp_design_dag();
+        let auto = AutoIdentifier::new().with_rd(rd_config());
         let prep = auto.prepare(&dag).unwrap();
         let q = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
             VariableId::from_raw(0),
@@ -1002,8 +1072,80 @@ mod tests {
         ));
         let mut ws = IdentificationWorkspace::default();
         let res = auto.identify(&prep, &q, &mut ws).unwrap();
-        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
-        assert!(res.derivation.steps.iter().any(|s| s.detail.as_ref().contains("rd.sharp")));
+        assert!(!res.estimands.iter().any(is_rd), "RD answers a different question");
+        let note = res
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == "auto.rd.local_estimand_not_requested")
+            .expect("explains why the design was not used");
+        assert_eq!(note.kind, DiagnosticKind::Scientific);
         assert!(!res.diagnostics.iter().any(|d| d.code.as_ref() == "auto.rd.missing_config"));
+    }
+
+    #[test]
+    fn auto_identifies_the_cutoff_effect_only_when_asked_for_it() {
+        let dag = sharp_design_dag();
+        let auto = AutoIdentifier::new().with_rd(rd_config());
+        let prep = auto.prepare(&dag).unwrap();
+        let local = rd_config().target_population();
+        let q = CausalQuery::AverageEffect(
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(local.clone()),
+        );
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        // Graph strategies identify a population effect, not this one, so RD stands alone.
+        assert_eq!(res.estimands.len(), 1);
+        assert!(is_rd(&res.estimands[0]));
+        assert_eq!(res.estimands[0].rd_design.unwrap().cutoff.to_bits(), 0.5f64.to_bits());
+        assert_eq!(res.average_effect().unwrap().target_population, local);
+        let ids: Vec<&str> = res
+            .required_assumptions
+            .entries
+            .iter()
+            .filter_map(|r| match &r.assumption {
+                antecedent_core::Assumption::Custom { id, .. } => Some(id.as_ref()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(ids, vec!["rd.continuity", "rd.no_manipulation", "rd.sharp_assignment"]);
+    }
+
+    #[test]
+    fn auto_without_a_design_does_not_identify_a_cutoff_effect() {
+        let dag = sharp_design_dag();
+        let auto = AutoIdentifier::new();
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::AverageEffect(
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(rd_config().target_population()),
+        );
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NotIdentified);
+        assert!(res.estimands.is_empty());
+        assert!(res.diagnostics.iter().any(|d| d.code.as_ref() == "auto.rd.missing_config"));
+    }
+
+    #[test]
+    fn auto_refuses_a_design_the_graph_contradicts() {
+        // T has a second cause, so assignment is not a function of R alone.
+        let mut dag = Dag::with_variables(4);
+        for (u, v) in [(2, 0), (3, 0), (0, 1), (3, 1)] {
+            dag.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(v)).unwrap();
+        }
+        let auto = AutoIdentifier::new().with_rd(rd_config());
+        let prep = auto.prepare(&dag).unwrap();
+        let q = CausalQuery::AverageEffect(
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                .with_target_population(rd_config().target_population()),
+        );
+        let mut ws = IdentificationWorkspace::default();
+        let res = auto.identify(&prep, &q, &mut ws).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NotIdentified);
+        assert!(
+            res.diagnostics.iter().any(|d| d.code.as_ref() == "identify.rd.graph_incompatible")
+        );
     }
 }
