@@ -179,7 +179,7 @@ class PCMCI:
         threads: int | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
-        names, cols = coerce_data(data)
+        names, cols = coerce_data(data, temporal=True)
         return _discover_pcmci(
             names,
             cols,
@@ -246,7 +246,7 @@ class PCMCIPlus:
         threads: int | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
-        names, cols = coerce_data(data)
+        names, cols = coerce_data(data, temporal=True)
         return _discover_pcmci_plus(
             names,
             cols,
@@ -309,7 +309,7 @@ class LPCMCI:
         threads: int | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
-        names, cols = coerce_data(data)
+        names, cols = coerce_data(data, temporal=True)
         return _discover_lpcmci(
             names,
             cols,
@@ -389,9 +389,9 @@ class JPCMCIPlus:
 
         Unlike the single-table configs, J-PCMCI+ discovers across the
         environments themselves rather than a single pooled table:
-        ``coerce_data`` would row-concatenate a ``MultiEnvFrame`` into one
-        table (see its docstring), destroying the per-environment structure
-        J-PCMCI+ needs to build its space/time dummies from. Build
+        ``coerce_data`` refuses to row-concatenate a ``MultiEnvFrame`` into one
+        table (see its docstring), which would destroy the per-environment
+        structure J-PCMCI+ needs to build its space/time dummies from. Build
         ``env_columns`` with :func:`antecedent._data.as_multi_env_columns` or
         :func:`antecedent.data.multi_env`.
         """
@@ -473,7 +473,7 @@ class RPCMCI:
 
         Call ``two_regime_half_split(len(series))`` for an explicit two-regime mid-point split.
         """
-        names, cols = coerce_data(data)
+        names, cols = coerce_data(data, temporal=True)
         return _discover_rpcmci(
             names,
             cols,
@@ -971,7 +971,7 @@ class DbnPosterior:
         }
 
     def run(self, data: Any, *, seed: int = 1, threads: int | None = None) -> GraphPosterior:
-        names, cols = coerce_data(data)
+        names, cols = coerce_data(data, temporal=True)
         return _discover_dbn_posterior(
             names,
             cols,

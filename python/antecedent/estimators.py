@@ -46,6 +46,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Final, Literal, get_args
 
+from ._defaults import OMITTED
 from .errors import CausalValueError
 from .ids import Estimator
 from .learners import LearnerSpec, _learner_wire
@@ -226,9 +227,9 @@ class Overlap:
 
     Every propensity-score estimator (``PropensityWeighting``,
     ``PropensityMatching``, ``PropensityStratification``, ``DistanceMatching``,
-    ``Aipw``) clips fitted propensities into ``[0.01, 0.99]`` and trims no unit
-    unless it is given an ``overlap``. ``clip`` bounds the propensities used in
-    the weights to ``[clip, 1 - clip]``; ``trim`` drops units whose propensity
+    ``Aipw``) applies the native default policy (``omitted_defaults()``:
+    clip at 0.01, no trim) unless it is given an ``overlap``. ``clip`` bounds the
+    propensities used in the weights to ``[clip, 1 - clip]``; ``trim`` drops units whose propensity
     lies outside ``[trim, 1 - trim]``, which also narrows the population the
     effect describes. ``None`` turns that operation off. Each bound lies in
     ``(0, 0.5)``.
@@ -239,8 +240,8 @@ class Overlap:
     ``scope_not_assessed``.
     """
 
-    clip: float | None = 0.01
-    trim: float | None = None
+    clip: float | None = OMITTED["overlap_clip"]
+    trim: float | None = OMITTED["overlap_trim"]
 
     def __post_init__(self) -> None:
         for name in ("clip", "trim"):
@@ -522,7 +523,15 @@ class DistanceMatching:
 
 @dataclass(frozen=True, slots=True)
 class Aipw:
-    """``aipw`` — augmented inverse propensity weighting (doubly robust)."""
+    """``aipw`` — augmented inverse propensity weighting.
+
+    The point estimate is doubly robust: consistent when either the propensity or
+    the outcome model is. The analytic standard error (``se=...``) is not: it
+    corrects for parametric nuisances only, is not valid for flexible or
+    nonparametric nuisances, and for ATT/ATC is not robust to a misspecified
+    propensity or outcome model. The default inference is the bootstrap, which
+    refits the nuisance models on every resample.
+    """
 
     bootstrap: int | None = None
     se: SeKind | None = None
@@ -848,7 +857,12 @@ class DML:
 
 @dataclass(frozen=True, slots=True)
 class DRLearner:
-    """``dr.learner`` — doubly robust CATE learner."""
+    """``dr.learner`` — cross-fitted CATE learner on the doubly robust score.
+
+    The doubly robust property is that of the score: the effect estimate is
+    consistent when either the propensity or the outcome nuisance is. It is a
+    property of the point estimate, not of any reported standard error.
+    """
 
     learner: LearnerSpec | str | None = None
     outcome: LearnerSpec | str | None = None

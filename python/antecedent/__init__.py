@@ -207,18 +207,15 @@ __all__ = [
 try:
     from ._native import __version__ as __version__
 except ImportError:  # pragma: no cover - extension not built
-    # Derive from installed package metadata rather than hand-maintaining a
-    # literal here (which would silently go stale at every release this
-    # branch is actually exercised on). Falls back to a clearly-unknown
-    # sentinel — never a copied-and-forgotten version string — if the
-    # package metadata itself cannot be found (e.g. running from a source
-    # checkout with neither the extension built nor the package installed).
-    try:
-        from importlib.metadata import PackageNotFoundError, version
+    # Derive from installed package metadata rather than a hand-maintained literal;
+    # a clearly-unknown sentinel when even that is absent (a source checkout with
+    # neither the extension built nor the package installed).
+    from importlib import metadata as _metadata
 
-        __version__ = version("antecedent")
-    except PackageNotFoundError:
-        __version__ = "1.11.0"
+    try:
+        __version__ = _metadata.version("antecedent")
+    except _metadata.PackageNotFoundError:
+        __version__ = "unknown"
 
 
 # --- Migration signpost for retired 0.4.0 names ------------------------------------

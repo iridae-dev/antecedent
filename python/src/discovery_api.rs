@@ -220,6 +220,10 @@ pub(crate) struct PcmciDiscoveryResult {
     /// Oriented graph body (CPDAG/PAG marks); empty for lagged-only PCMCI.
     #[pyo3(get)]
     pub(crate) graph_edges: Vec<GraphEdge>,
+    /// The schema's variable names, in column order. Includes variables the
+    /// algorithm found no adjacency for, which no edge list can name.
+    #[pyo3(get)]
+    pub(crate) variable_names: Vec<String>,
     /// The Rust review artifact and variable names this discovery produced.
     pub(crate) review: Option<Arc<(ReviewSlot, Vec<String>)>>,
 }
@@ -439,6 +443,7 @@ fn discovery_result_fields(
         cpdag_directed_edges,
         cpdag_undirected_edges,
         graph_edges,
+        variable_names: names.to_vec(),
         review: None,
     }
 }

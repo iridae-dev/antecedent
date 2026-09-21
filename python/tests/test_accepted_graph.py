@@ -318,24 +318,17 @@ def test_temporal_json_roundtrip():
     assert set(restored.graph.edges()) == set(tdag.edges())
 
 
-# --- asserted / accepted: documented spellings of from_graph / from_discovery ---
+# --- one spelling per constructor ---
 
 
-def test_asserted_is_from_graph_alias():
+def test_constructors_have_one_spelling():
+    assert not hasattr(antecedent.AcceptedGraph, "asserted")
+    assert not hasattr(antecedent.AcceptedGraph, "accepted")
     dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
-    handle = antecedent.AcceptedGraph.asserted(dag, algorithm_id="hand")
+    handle = antecedent.AcceptedGraph.from_graph(dag, algorithm_id="hand")
     assert handle.algorithm_id == "hand"
     assert handle.version == 1
     assert isinstance(handle.graph, antecedent.Dag)
-
-
-def test_accepted_is_from_discovery_alias():
-    result, algo = antecedent.discovery.run_static_discovery(
-        _confounded_scm(seed=5), antecedent.discovery.PC(alpha=0.5, fdr=False), seed=1
-    )
-    via_accepted = antecedent.AcceptedGraph.accepted(result, algorithm_id=algo)
-    via_from_discovery = antecedent.AcceptedGraph.from_discovery(result, algorithm_id=algo)
-    assert via_accepted.algorithm_id == via_from_discovery.algorithm_id == algo
 
 
 # --- .pending / .review() ---

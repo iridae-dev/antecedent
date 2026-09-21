@@ -1,32 +1,23 @@
 """Input coercion: the only module in the package allowed to accept union input types.
 
-Every other public function takes one concrete type (a ``Dag``, a ``str``, a
-``Mapping[str, NDArray]``, …) and relies on the five functions declared here —
-``coerce_data``, ``coerce_graph``, ``coerce_query``, ``coerce_refute``,
-``coerce_latency`` — to normalize whatever a caller passes (mapping,
-DataFrame, edge list, ``Dag``, enum, string, bool, …) before it reaches
-concrete-typed internals.
+Every other public function takes one concrete type (a ``Mapping[str, NDArray]``,
+a ``str``, …) and relies on the four functions declared here — ``coerce_data``,
+``coerce_query``, ``coerce_refute``, ``coerce_latency`` — to normalize whatever a
+caller passes (mapping, DataFrame, enum, string, bool, …) before it reaches
+concrete-typed internals. Graph inputs are normalized by
+``estimation._static_edges`` / ``_lagged_edges``.
 
-``discovery_table`` is a sixth, narrower helper: the single owner of the
-panel/multi-environment pooling both ``coerce_data`` (a bare ``PanelFrame``/
-``MultiEnvFrame`` passed to ``Config.run()``) and
-``accepted_graph.accept_discovery`` (the same frames, or a bare sequence of
-per-unit tables, ahead of ``Config.accept()``) apply, so the two spellings
-discover over identical data.
+``discovery_table`` is a narrower helper: the single owner of the panel /
+multi-environment policy both ``coerce_data`` (a bare frame passed to
+``Config.run()``) and ``accepted_graph.accept_discovery`` (the same frames, or a
+bare sequence of per-unit tables, ahead of ``Config.accept()``) apply, so the two
+spellings discover over identical data.
 
-Wiring status, honestly: ``coerce_data`` is used by the discovery config
-``run()`` methods; ``coerce_refute`` / ``coerce_latency`` are used by
-``estimation.py`` (``_resolve_latency_budget``, ``PreparedAnalysis.prepare``)
-and by ``_analyze.analyze`` itself. ``coerce_query`` is called once, at the
-top of ``_analyze.analyze``, as the single supported-query check.
-``coerce_graph`` is **not** on the real ``analyze()``
-path — see its own docstring for why unifying it with the graph-coercion
-logic that IS wired (``estimation._static_edges`` / ``_lagged_edges``, plus
-the ``Pag``/``Cpdag``/``Admg`` special-casing in
-``PreparedAnalysis.prepare``) was judged too risky to do blind (no test run
-to confirm no regression across the many call sites those two functions
-already serve). It is kept, tested, and documented as a graph-coercion
-reference implementation rather than deleted.
+Wiring: ``coerce_data`` is used by the discovery config ``run()`` methods;
+``coerce_refute`` / ``coerce_latency`` are used by ``estimation.py``
+(``_resolve_latency_budget``, ``PreparedAnalysis.prepare``) and by
+``_analyze.analyze`` itself. ``coerce_query`` is called once, at the top of
+``_analyze.analyze``, as the single supported-query check.
 """
 
 from __future__ import annotations
@@ -38,21 +29,38 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .data import EventFrame, MultiEnvFrame, PanelFrame
-from .errors import CausalTypeError, CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 
 def _pool_partitions(names: Sequence[str], partitions: Sequence[Sequence[Any]]) -> dict[str, Any]:
-    """Row-concatenate matching-named columns across units / environments.
-
-    The same preprocessing :func:`antecedent.accepted_graph.accept_discovery`
-    already applies (via :func:`discovery_table`, which delegates here) before
-    handing a ``PanelFrame``/``MultiEnvFrame`` to a single-table discovery
-    config's ``run()`` — see :func:`coerce_data`.
-    """
+    """Row-concatenate matching-named columns across the units of a panel."""
     return {name: np.concatenate([part[i] for part in partitions]) for i, name in enumerate(names)}
 
 
-def coerce_data(value: Any) -> tuple[list[str], list[NDArray[np.float64]]]:
+def _refuse_environment_pooling() -> None:
+    raise CausalUnsupportedError(
+        "row-pooling environments into one table is refused: a distribution shift across "
+        "environments makes any two variables whose means or scales shift dependent (a "
+        "mixture), so a single-table algorithm would report spurious edges. Discover across "
+        "environments with JPCMCIPlus (space dummies), or pass one environment's table",
+        reason_code="data_modality_not_licensed",
+    )
+
+
+def _refuse_lagged_pooling() -> None:
+    raise CausalUnsupportedError(
+        "row-pooling units into one series is refused for lagged discovery: each unit "
+        "boundary would give its first max_lag rows the previous unit's last observations "
+        "as their lagged parents, biasing partial correlations. Discover across units with "
+        "JPCMCIPlus (each unit's lagged windows are built independently), or pass one "
+        "unit's series",
+        reason_code="data_modality_not_licensed",
+    )
+
+
+def coerce_data(
+    value: Any, *, temporal: bool = False
+) -> tuple[list[str], list[NDArray[np.float64]]]:
     """Normalize tabular input to ``(names, float64 columns)``.
 
     Accepts, in order:
@@ -66,13 +74,13 @@ def coerce_data(value: Any) -> tuple[list[str], list[NDArray[np.float64]]]:
       ``Mapping[str, array-like]``, a pandas DataFrame, or an equivalent
       frame-like object exposing ``columns`` + ``to_numpy``.
 
-    ``PanelFrame`` and ``MultiEnvFrame`` are accepted: every unit /
-    environment is row-concatenated into one pooled table (the same
-    preprocessing ``AcceptedGraph.accept_discovery`` already applies), so
-    ``Config.run(panel)`` sees every unit/environment instead of silently
-    only the first — matching what ``Config.accept(panel)`` has always done.
-    :class:`PreparedAnalysis` dispatches those frames to ``prepare_panel`` /
-    ``prepare_multi_env`` instead, which keep units/environments separate.
+    A ``PanelFrame`` is stacked into one table of exchangeable unit rows for a
+    static algorithm. ``temporal=True`` (a lagged algorithm) refuses it, and a
+    ``MultiEnvFrame`` is refused either way: a pooled series would build lagged
+    parents across unit boundaries, and pooled environments induce mixture
+    dependence. :class:`PreparedAnalysis` dispatches those frames to
+    ``prepare_panel`` / ``prepare_multi_env`` instead, which keep units and
+    environments separate.
     """
     from ._data import as_columns, to_f64
 
@@ -82,118 +90,37 @@ def coerce_data(value: Any) -> tuple[list[str], list[NDArray[np.float64]]]:
     if isinstance(value, EventFrame):
         return list(value.names), [to_f64(c) for c in value.columns]
     if isinstance(value, PanelFrame):
+        if temporal:
+            _refuse_lagged_pooling()
         names = list(value.names)
         pooled = _pool_partitions(names, value.unit_columns)
         return names, [to_f64(pooled[n]) for n in names]
     if isinstance(value, MultiEnvFrame):
-        names = list(value.names)
-        pooled = _pool_partitions(names, value.env_columns)
-        return names, [to_f64(pooled[n]) for n in names]
+        _refuse_environment_pooling()
     return as_columns(value)
 
 
-def discovery_table(value: Any) -> Any:
-    """One pooled table for a single-table discovery config.
+def discovery_table(value: Any, *, temporal: bool = False) -> Any:
+    """One table for a single-table discovery config, under :func:`coerce_data`'s policy.
 
-    Panel units and multi-environment environments are pooled by row-
-    concatenation (:func:`_pool_partitions`) — the same preprocessing
-    ``coerce_data`` applies to a bare ``PanelFrame``/``MultiEnvFrame`` — and an
-    event frame discovers on its recorded columns. Used ahead of
-    :func:`accepted_graph.accept_discovery`'s single-table configs so that
-    path and a caller-supplied ``.run(panel)`` build the identical table;
-    kept as the one function that also pools a bare sequence of per-unit
-    tables, which ``coerce_data`` does not (it would change the meaning of a
-    plain sequence for every other caller of ``coerce_data``).
+    A panel is stacked for a static algorithm and refused for a lagged one; a
+    multi-environment frame, or a bare sequence of per-environment tables, is
+    refused. An event frame discovers on its recorded columns. Used ahead of
+    :func:`accepted_graph.accept_discovery`'s single-table configs so that path
+    and a caller-supplied ``.run(frame)`` see the identical table.
     """
-    from .data import EventFrame, MultiEnvFrame, PanelFrame
-
     if isinstance(value, EventFrame):
         return dict(zip(value.names, value.columns, strict=True))
-    partitions: list[Sequence[Any]] | None = None
-    names: list[str] = []
     if isinstance(value, PanelFrame):
-        partitions = value.unit_columns
-        names = list(value.names)
-    elif isinstance(value, MultiEnvFrame):
-        partitions = value.env_columns
-        names = list(value.names)
-    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, Mapping)):
-        from ._data import as_multi_env_columns
-
-        names, partitions = as_multi_env_columns(list(value))
-    if partitions is None:
-        return value
-    return _pool_partitions(names, partitions)
-
-
-def coerce_graph(value: Any) -> Any:
-    """Normalize a graph input to its canonical native representation.
-
-    **Not currently on the live ``analyze()`` path.** This mirrors the
-    discrimination logic actually wired in ``estimation._static_edges`` /
-    ``estimation._lagged_edges`` and the ``Pag``/``Cpdag``/``Admg``
-    special-casing in ``_analyze.handle_static_ate`` — those three are what
-    every real ``analyze()`` call goes through today, and they are not simple
-    aliases of this function: ``_static_edges``/``_lagged_edges`` raise a
-    specific "graph= is required" message for ``None`` (this function falls
-    through to a generic unsupported-type error instead), and several call
-    sites of ``_static_edges``/``_lagged_edges`` intercept ``Pag``/``Admg``/
-    ``TemporalPag`` *before* calling them, so those two functions have never
-    needed to handle the passthrough case this function does. Rewiring
-    ``_static_edges``/``_lagged_edges`` to delegate here would touch every one
-    of their ~10 call sites across ``_analyze.py``/``estimation.py`` at once
-    with no test run available to confirm the edge-case behavior above
-    survives, so this function is kept as a tested, documented reference
-    implementation instead of being force-unified or deleted. If you are
-    adding a new graph-accepting entry point, prefer wiring it through this
-    function rather than adding an eleventh hand-rolled discrimination.
-
-    - ``Dag`` -> oriented ``(str, str)`` edge list.
-    - ``Cpdag`` -> oriented ``(str, str)`` edge list; raises ``ValueError`` if
-      undirected/ambiguous marks remain (fully oriented CPDAGs only — same
-      rule as ``discovery.cpdag_oriented_edges``).
-    - ``TemporalDag`` -> lagged ``(str, int, str, int)`` edge list.
-    - A raw edge list: 2-tuples pass through as static edges, 4-tuples pass
-      through as lagged edges.
-    - ``Pag``, ``Admg``, ``TemporalCpdag``, ``TemporalPag`` -> returned
-      unchanged. These have no single canonical edge-list form; native entry
-      points (``analyze_ate_pag`` / ``analyze_ate_admg`` /
-      ``analyze_temporal_cpdag`` / ``analyze_temporal_pag``) accept the object
-      directly, so there is nothing to normalize.
-    """
-    from .graph import (
-        Admg,
-        Cpdag,
-        Dag,
-        Pag,
-        TemporalCpdag,
-        TemporalDag,
-        TemporalPag,
-        cpdag_oriented_edges,
-    )
-
-    if isinstance(value, Dag):
-        return [(str(a), str(b)) for a, b in value.edges()]
-    if isinstance(value, Cpdag):
-        return cpdag_oriented_edges(value, require_oriented=True)
-    if isinstance(value, TemporalDag):
-        return [(str(a), int(la), str(b), int(lb)) for a, la, b, lb in value.edges()]
-    if isinstance(value, (Pag, Admg, TemporalCpdag, TemporalPag)):
-        return value
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-        items = list(value)
-        if not items:
-            return items
-        first = items[0]
-        if len(first) == 2:
-            return [(str(a), str(b)) for a, b in items]
-        if len(first) == 4:
-            return [(str(a), int(la), str(b), int(lb)) for a, la, b, lb in items]
-    raise CausalTypeError(
-        f"unsupported graph type: {type(value)!r}; use a Dag/Cpdag/Pag/Admg/"
-        "TemporalDag/TemporalCpdag/TemporalPag, a (str, str) edge list, or a "
-        "(str, int, str, int) lagged edge list"
-    )
+        names, columns = coerce_data(value, temporal=temporal)
+        return dict(zip(names, columns, strict=True))
+    if isinstance(value, MultiEnvFrame) or (
+        isinstance(value, Sequence)
+        and not isinstance(value, (str, bytes, Mapping))
+        and not (isinstance(value, tuple) and len(value) == 2)
+    ):
+        _refuse_environment_pooling()
+    return value
 
 
 def coerce_query(value: Any) -> Any:
@@ -320,7 +247,6 @@ def coerce_latency(value: Any) -> str | None:
 
 __all__ = [
     "coerce_data",
-    "coerce_graph",
     "coerce_latency",
     "coerce_query",
     "coerce_refute",

@@ -1,7 +1,7 @@
 """``antecedent._coerce`` — the only module allowed to accept union input types.
 
 Covers every accepted input shape and every rejection for ``coerce_data``,
-``coerce_graph``, ``coerce_query``, ``coerce_refute``, ``coerce_latency``.
+``coerce_query``, ``coerce_refute``, ``coerce_latency``.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ import pytest
 pytest.importorskip("antecedent")
 import antecedent
 from antecedent import _coerce
-from antecedent.graph import Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag
 from antecedent.ids import Latency, Refute
 from antecedent.query import (
     AnomalyAttribution,
@@ -122,82 +121,35 @@ def test_coerce_data_panel_frame_pools_every_unit():
     )
 
 
-def test_coerce_data_multi_env_frame_pools_every_environment():
+def test_coerce_data_refuses_environment_pooling():
     frame = antecedent.data.multi_env(
         [
             {"x": [0.0, 1.0, 2.0]},
             {"x": [50.0, 51.0, 52.0]},
         ]
     )
-    names, cols = _coerce.coerce_data(frame)
-    assert names == ["x"]
-    np.testing.assert_allclose(np.sort(cols[0]), [0.0, 1.0, 2.0, 50.0, 51.0, 52.0])
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="mixture") as info:
+        _coerce.coerce_data(frame)
+    assert info.value.reason_code == "data_modality_not_licensed"
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="mixture"):
+        _coerce.discovery_table([{"x": [0.0, 1.0]}, {"x": [5.0, 6.0]}])
 
 
-# --------------------------------------------------------------------------
-# coerce_graph
-# --------------------------------------------------------------------------
-
-
-def test_coerce_graph_dag():
-    dag = Dag.from_edges(["a", "b"], [("a", "b")])
-    edges = _coerce.coerce_graph(dag)
-    assert edges == [("a", "b")]
-
-
-def test_coerce_graph_cpdag_fully_oriented():
-    cpdag = Cpdag.from_directed_undirected(["a", "b"], [("a", "b")], [])
-    edges = _coerce.coerce_graph(cpdag)
-    assert edges == [("a", "b")]
-
-
-def test_coerce_graph_cpdag_with_undirected_edge_raises():
-    cpdag = Cpdag.from_directed_undirected(["a", "b"], [], [("a", "b")])
-    with pytest.raises(ValueError):
-        _coerce.coerce_graph(cpdag)
-
-
-def test_coerce_graph_temporal_dag():
-    tdag = TemporalDag.from_lagged_edges(["x", "y"], [("x", 1, "y", 0)])
-    edges = _coerce.coerce_graph(tdag)
-    assert edges == [("x", 1, "y", 0)]
-
-
-def test_coerce_graph_temporal_cpdag_passthrough():
-    tcpdag = TemporalCpdag.from_lagged_edges(["x", "y"], [("x", 1, "y", 0)], None)
-    assert _coerce.coerce_graph(tcpdag) is tcpdag
-    incomplete = TemporalCpdag.from_lagged_edges(["x", "y"], [], [("x", 0, "y", 0)])
-    assert _coerce.coerce_graph(incomplete) is incomplete
-
-
-def test_coerce_graph_pag_passthrough():
-    pag = Pag.from_marked_edges(["x", "y"], [("x", "y", "circle", "arrow")])
-    assert _coerce.coerce_graph(pag) is pag
-
-
-def test_coerce_graph_admg_passthrough():
-    admg = Admg.from_edges(["z", "t", "y"], [("z", "t"), ("t", "y")], [("z", "y")])
-    assert _coerce.coerce_graph(admg) is admg
-
-
-def test_coerce_graph_temporal_pag_passthrough():
-    tpag = TemporalPag.from_marked_lagged_edges(["x", "y"], [("x", 1, "y", 0, "tail", "arrow")])
-    assert _coerce.coerce_graph(tpag) is tpag
-
-
-def test_coerce_graph_static_edge_list():
-    edges = _coerce.coerce_graph([("a", "b"), ("b", "c")])
-    assert edges == [("a", "b"), ("b", "c")]
-
-
-def test_coerce_graph_lagged_edge_list():
-    edges = _coerce.coerce_graph([("a", 1, "b", 0)])
-    assert edges == [("a", 1, "b", 0)]
-
-
-def test_coerce_graph_rejects_unsupported_type():
-    with pytest.raises(TypeError):
-        _coerce.coerce_graph(5)
+def test_coerce_data_refuses_lagged_panel_pooling():
+    panel = antecedent.data.panel(
+        [
+            {"x": [0.0, 1.0, 2.0, 3.0]},
+            {"x": [100.0, 101.0, 102.0, 103.0]},
+        ]
+    )
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="unit boundary") as info:
+        _coerce.coerce_data(panel, temporal=True)
+    assert info.value.reason_code == "data_modality_not_licensed"
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="unit boundary"):
+        _coerce.discovery_table(panel, temporal=True)
+    static = _coerce.discovery_table(panel)
+    assert list(static) == ["x"]
+    assert len(static["x"]) == 8
 
 
 # --------------------------------------------------------------------------

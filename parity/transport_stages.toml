@@ -100,7 +100,7 @@ evidence_test = "python/tests/test_transport_statistical.py"
 evidence_assertion = "test_statistical_prepare_estimate_and_inspect_license"
 
 [[routes]]
-route = "antecedent.transport.identify_classical"
+route = "antecedent.transport.advanced.identify_classical"
 stage = "identify"
 status = "licensed"
 graph = "selection_admg"
@@ -190,7 +190,7 @@ evidence_assertion = "test_joint_grid_and_contrasts_preserve_shared_replicates"
 
 
 [[routes]]
-route = "antecedent.transport.identify_meta"
+route = "antecedent.transport.advanced.identify_meta"
 stage = "identify"
 status = "licensed"
 graph = "shared_selection_admg_with_source_specific_selections"

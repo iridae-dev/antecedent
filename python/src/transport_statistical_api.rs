@@ -348,7 +348,7 @@ pub(crate) fn parse_provider(
 }
 
 #[pyfunction]
-#[pyo3(signature = (stage, catalog, payload, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None, bootstrap=199, coverage_level=0.95, estimator=None, seed=1))]
+#[pyo3(signature = (stage, catalog, payload, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None, bootstrap=crate::transport_defaults::BOOTSTRAP, coverage_level=crate::transport_defaults::COVERAGE_LEVEL, estimator=None, seed=1))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_statistical_transport(
     py: Python<'_>,

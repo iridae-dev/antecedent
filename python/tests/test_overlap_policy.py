@@ -96,3 +96,10 @@ def test_overlap_config_dict_spelling_and_validation() -> None:
             estimator="linear.adjustment.ate",
             estimator_config={"overlap": {"clip": 0.05}},
         )
+
+
+def test_default_overlap_is_the_native_default_policy():
+    from antecedent._defaults import OMITTED
+
+    assert Overlap().clip == OMITTED["overlap_clip"] == 0.01
+    assert Overlap().trim == OMITTED["overlap_trim"] is None

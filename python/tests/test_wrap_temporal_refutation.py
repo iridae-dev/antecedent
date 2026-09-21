@@ -1,14 +1,9 @@
 """Regression test: a failing temporal refuter must report validation.passed is False.
 
-`estimation._wrap_ate` (which the temporal DTO also wraps) used to set `passed=ran` — True whenever *any*
-refuter ran, regardless of whether it actually passed — instead of reading
-each refuter's real outcome. Unlike the static `AteAnalysisResult` DTO, the
-temporal `AnalysisResult` DTO has no scalar `refutation_passed` field; the
-only source of truth is the per-refuter `refutations` list (each entry has
-its own `passed: bool`, confirmed against `python/antecedent/_native.pyi`).
-This test exercises the wrapper directly against a minimal stand-in for
-that native DTO, rather than depending on a real refuter actually failing
-end-to-end (which would be slower and less precisely targeted at the bug).
+`estimation._wrap_ate` (which the temporal DTO also wraps) once set `passed=ran`, True
+whenever *any* refuter ran. The aggregate is owned by the native `ValidationSection`;
+the wrapper must publish it unchanged. These tests exercise the wrapper directly
+against a minimal stand-in for the native DTO's nested sections.
 """
 
 from __future__ import annotations
@@ -21,23 +16,52 @@ pytest.importorskip("antecedent")
 from antecedent.estimation import _wrap_ate as _wrap_temporal
 
 
-def _raw_temporal_result(*, refutations):
-    """Minimal stand-in covering every attribute the wrapper reads directly."""
+def _raw_temporal_result(*, refutations, passed, ran):
+    """Minimal stand-in carrying the nested sections the native DTO exposes.
+
+    ``validation.passed`` / ``ran`` are the native aggregate: the wrapper must
+    carry them through and never recompute them from the per-refuter list.
+    """
     return SimpleNamespace(
-        ate=1.0,
-        se_analytic=0.1,
-        se_bootstrap=None,
-        identification_status="NonparametricallyIdentified",
-        method="temporal.linear.adjustment",
-        estimator_id="temporal.linear.adjustment",
-        adjustment_set=[],
-        assumption_count=0,
-        derivation_step_count=0,
-        posterior_n_draws=None,
+        identification=SimpleNamespace(
+            status="NonparametricallyIdentified",
+            method="temporal.linear.adjustment",
+            adjustment_set=[],
+            assumption_count=0,
+            derivation_step_count=0,
+        ),
+        estimate=SimpleNamespace(
+            ate=1.0,
+            se_analytic=0.1,
+            se_bootstrap=None,
+            estimator_id="temporal.linear.adjustment",
+            method="temporal.linear.adjustment",
+            overlap_ess=None,
+            overlap_propensity_min=None,
+        ),
+        posterior=SimpleNamespace(n_draws=None),
+        validation=SimpleNamespace(
+            passed=passed,
+            ran=ran,
+            count=len(refutations),
+            reports=refutations,
+        ),
+        performance=SimpleNamespace(
+            plan_id="temporal.plan",
+            modality="temporal",
+            peak_memory_bytes=None,
+            latency_mode=None,
+            wall_time_ns=None,
+            bootstrap_replicates_requested=None,
+            bootstrap_replicates_ok=None,
+            n_draws=None,
+            cancelled=False,
+            early_stopped=False,
+            stage_timings=None,
+        ),
         mediation_total=None,
         mediation_mediated=None,
         mediation_direct=None,
-        refutation_count=len(refutations),
         refutations=refutations,
         diagnostics=[],
         provenance_node_count=3,
@@ -68,7 +92,7 @@ def _report(*, passed):
 
 
 def test_failing_temporal_refuter_reports_validation_failed():
-    raw = _raw_temporal_result(refutations=[_report(passed=False)])
+    raw = _raw_temporal_result(refutations=[_report(passed=False)], passed=False, ran=True)
     result = _wrap_temporal(raw)
     assert result.validation.ran is True
     assert result.validation.count == 1
@@ -78,7 +102,7 @@ def test_failing_temporal_refuter_reports_validation_failed():
 
 
 def test_passing_temporal_refuter_reports_validation_passed():
-    raw = _raw_temporal_result(refutations=[_report(passed=True)])
+    raw = _raw_temporal_result(refutations=[_report(passed=True)], passed=True, ran=True)
     result = _wrap_temporal(raw)
     assert result.validation.ran is True
     assert result.validation.passed is True
@@ -86,7 +110,9 @@ def test_passing_temporal_refuter_reports_validation_passed():
 
 def test_mixed_refuters_report_validation_failed():
     """Any refuter failing must fail the whole validation, not just the last one checked."""
-    raw = _raw_temporal_result(refutations=[_report(passed=True), _report(passed=False)])
+    raw = _raw_temporal_result(
+        refutations=[_report(passed=True), _report(passed=False)], passed=False, ran=True
+    )
     result = _wrap_temporal(raw)
     assert result.validation.ran is True
     assert result.validation.count == 2
@@ -94,7 +120,7 @@ def test_mixed_refuters_report_validation_failed():
 
 
 def test_no_refuters_ran_reports_validation_not_passed():
-    raw = _raw_temporal_result(refutations=[])
+    raw = _raw_temporal_result(refutations=[], passed=False, ran=False)
     result = _wrap_temporal(raw)
     assert result.validation.ran is False
     assert result.validation.passed is False

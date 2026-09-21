@@ -54,10 +54,10 @@ for route in registry.get("routes", []):
             and route.get("guarantee") != "sound_incomplete"
         ):
             pinned = {
-                "antecedent.transport.identify_classical": (
+                "antecedent.transport.advanced.identify_classical": (
                     "complete_in_classical_evidence_scope", "classical_complete_source_experimental_family",
                     "https://arxiv.org/abs/1312.7485v1"),
-                "antecedent.transport.identify_meta": (
+                "antecedent.transport.advanced.identify_meta": (
                     "complete_in_classical_meta_evidence_scope", "classical_complete_multi_source_experimental_families",
                     "https://proceedings.mlr.press/v31/bareinboim13a.pdf"),
             }

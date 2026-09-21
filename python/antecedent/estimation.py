@@ -7,7 +7,6 @@ import math
 import numbers
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from types import SimpleNamespace
 from typing import Any, Generic, Literal, TypeVar, cast
 
 from ._api import describe_refusal
@@ -167,30 +166,6 @@ def _plan_from_raw(raw: Any) -> PlanView:
     )
 
 
-# --- Nested-section resolution, with a flat-field fallback ------------------------
-#
-# Every real native DTO now carries `identification`/`estimate`/`posterior`/
-# `validation`/`performance` (see `antecedent._native`), so `_wrap_ate` reads
-# those directly in the common case. The `_section_*` helpers below exist only
-# for test doubles that pre-date the nested sections (e.g. the `SimpleNamespace`
-# stand-in in `test_wrap_temporal_refutation.py`, which exercises the
-# ran-but-failing-refuter aggregation bug fix against a minimal object exposing
-# only the historical flat attributes): when a raw object has no `.identification`
-# etc., these reconstruct an equivalent section from the flat fields it does have,
-# so `_wrap_ate` never needs an `isinstance`/shape check of its own.
-def _section_identification(raw: Any) -> Any:
-    sec = getattr(raw, "identification", None)
-    if sec is not None:
-        return sec
-    return SimpleNamespace(
-        status=getattr(raw, "identification_status", "") or "",
-        method=getattr(raw, "method", "") or "",
-        adjustment_set=list(getattr(raw, "adjustment_set", None) or []),
-        assumption_count=int(getattr(raw, "assumption_count", 0) or 0),
-        derivation_step_count=int(getattr(raw, "derivation_step_count", 0) or 0),
-    )
-
-
 def _optional_finite_ate(value: Any) -> float | None:
     """Omit non-finite sentinels so function-valued results have no scalar ate."""
     if value is None:
@@ -200,100 +175,6 @@ def _optional_finite_ate(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return as_float if math.isfinite(as_float) else None
-
-
-def _section_estimate(raw: Any) -> Any:
-    sec = getattr(raw, "estimate", None)
-    if sec is not None:
-        return sec
-    return SimpleNamespace(
-        ate=_optional_finite_ate(getattr(raw, "ate", None)),
-        se_analytic=raw.se_analytic,
-        se_bootstrap=raw.se_bootstrap,
-        estimator_id=str(getattr(raw, "estimator_id", "") or ""),
-        method=getattr(raw, "method", "") or "",
-        overlap_ess=getattr(raw, "overlap_ess", None),
-        overlap_propensity_min=getattr(raw, "overlap_propensity_min", None),
-        functional_means=getattr(raw, "functional_means", None),
-        exceedance_cdf=getattr(raw, "exceedance_cdf", None),
-        monotone_rearranged=bool(getattr(raw, "monotone_rearranged", False)),
-        interaction_structurally_zero=getattr(raw, "interaction_structurally_zero", None),
-        unit_effects_homogeneous=getattr(raw, "unit_effects_homogeneous", None),
-        score_table=getattr(raw, "score_table", None),
-        simultaneous_interval=getattr(raw, "simultaneous_interval", None),
-        adjusted_p_values=getattr(raw, "adjusted_p_values", None),
-        family_contrast=getattr(raw, "family_contrast", None),
-        family_contrast_interval=getattr(raw, "family_contrast_interval", None),
-        candidate_selection=getattr(raw, "candidate_selection", None),
-        evalue=getattr(raw, "evalue", None),
-        evalue_threshold=getattr(raw, "evalue_threshold", None),
-        joint_covariance=getattr(raw, "joint_covariance", None),
-        score_inference=getattr(raw, "score_inference", None),
-        scenario_effects=getattr(raw, "scenario_effects", None),
-        scenario_intervals=getattr(raw, "scenario_intervals", None),
-        cate=getattr(raw, "cate", None),
-        cate_se=getattr(raw, "cate_se", None),
-        outcome_oof_r2=getattr(raw, "outcome_oof_r2", None),
-        treatment_oof_logloss=getattr(raw, "treatment_oof_logloss", None),
-        crossfit_folds=getattr(raw, "crossfit_folds", None),
-        crossfit_seed=getattr(raw, "crossfit_seed", None),
-        learner_provenance=tuple(getattr(raw, "learner_provenance", ())),
-    )
-
-
-def _section_posterior(raw: Any) -> Any:
-    sec = getattr(raw, "posterior", None)
-    if sec is not None:
-        return sec
-    return SimpleNamespace(
-        effect_mean=getattr(raw, "posterior_effect_mean", None),
-        effect_sd=getattr(raw, "posterior_effect_sd", None),
-        q025=getattr(raw, "posterior_q025", None),
-        q975=getattr(raw, "posterior_q975", None),
-        n_draws=getattr(raw, "posterior_n_draws", None),
-        p_below_zero=getattr(raw, "posterior_p_below_zero", None),
-        backend=getattr(raw, "posterior_backend", None),
-        artifact=getattr(raw, "posterior_artifact", None),
-        unidentified_mass=getattr(raw, "posterior_unidentified_mass", None),
-        subsampled_out_mass=getattr(raw, "posterior_subsampled_out_mass", None),
-    )
-
-
-def _section_validation(raw: Any) -> Any:
-    sec = getattr(raw, "validation", None)
-    if sec is not None:
-        return sec
-    # Mirror the shared Rust aggregate rule (see `ValidationSection::from_reports`
-    # in `python/src/lib.rs`): never claim pass when nothing ran.
-    reports = list(getattr(raw, "refutations", None) or ())
-    ran = len(reports) > 0
-    passed = ran and all(r.passed for r in reports)
-    return SimpleNamespace(
-        passed=passed,
-        ran=ran,
-        count=int(getattr(raw, "refutation_count", len(reports)) or 0),
-        reports=reports,
-    )
-
-
-def _section_performance(raw: Any) -> Any:
-    sec = getattr(raw, "performance", None)
-    if sec is not None:
-        return sec
-    return SimpleNamespace(
-        plan_id=getattr(raw, "plan_id", "") or "",
-        modality=getattr(raw, "modality", "") or "",
-        peak_memory_bytes=getattr(raw, "peak_memory_bytes", None),
-        latency_mode=getattr(raw, "latency_mode", None),
-        wall_time_ns=getattr(raw, "wall_time_ns", None),
-        bootstrap_replicates_requested=getattr(raw, "bootstrap_replicates_requested", None),
-        bootstrap_replicates_ok=getattr(raw, "bootstrap_replicates_ok", None),
-        n_draws=getattr(raw, "n_draws_effort", None),
-        cancelled=bool(getattr(raw, "cancelled", False)),
-        early_stopped=bool(getattr(raw, "early_stopped", False)),
-        stage_timings=getattr(raw, "stage_timings", None),
-        bytes_borrowed=getattr(raw, "bytes_borrowed", None),
-    )
 
 
 def _probability_interval_from_raw(raw: Any) -> ProbabilityIntervalView | None:
@@ -406,11 +287,11 @@ def _wrap_ate(
             alphas_applied=list(getattr(r, "conflict_alphas_applied", None) or []),
         )
 
-    sec_identification = _section_identification(raw)
-    sec_estimate = _section_estimate(raw)
-    sec_posterior = _section_posterior(raw)
-    sec_validation = _section_validation(raw)
-    sec_performance = _section_performance(raw)
+    sec_identification = raw.identification
+    sec_estimate = raw.estimate
+    sec_posterior = raw.posterior
+    sec_validation = raw.validation
+    sec_performance = raw.performance
 
     mediation = None
     if (
@@ -1086,9 +967,9 @@ class PreparedBatch:
         queries: Sequence[AverageEffect],
         identifier: str | None = None,
         estimator: str | None = None,
-        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = False,
+        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = None,
         seed: int = 1,
-        bootstrap: int | None = 0,
+        bootstrap: int | None = None,
         threads: int | None = None,
         latency: Literal["interactive", "standard", "report"] | None = None,
         candidate_screen: CandidateScreen | None = None,
@@ -1100,7 +981,7 @@ class PreparedBatch:
                 "PreparedBatch.prepare supports AverageEffect queries only; "
                 "use prepare_cells for joint InterventionResponse"
             )
-        resolved_refute: bool | str = False if refute is None else coerce_refute(refute)
+        resolved_refute: bool | str | None = None if refute is None else coerce_refute(refute)
         names, columns = ingest_columns(data)
         from .query import coerce_outcome_functional
 
@@ -1120,7 +1001,7 @@ class PreparedBatch:
             estimator=estimator,
             refute=resolved_refute,
             seed=seed,
-            bootstrap=0 if bootstrap is None else bootstrap,
+            bootstrap=bootstrap,
             threads=threads,
         )
         if latency is not None:
@@ -1149,9 +1030,9 @@ class PreparedBatch:
         queries: Sequence[InterventionResponse],
         identifier: str | None = None,
         estimator: str | None = None,
-        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = False,
+        refute: bool | Literal["full", "placebo", "none", "cheap"] | None = None,
         seed: int = 1,
-        bootstrap: int | None = 0,
+        bootstrap: int | None = None,
         threads: int | None = None,
         latency: Literal["interactive", "standard", "report"] | None = None,
         candidate_screen: CandidateScreen | None = None,
@@ -1180,7 +1061,7 @@ class PreparedBatch:
                 )
             if estimator not in (None, "cell.aipw"):
                 raise CausalUnsupportedError("CoDetermined joint cells require estimator cell.aipw")
-        resolved_refute: bool | str = False if refute is None else coerce_refute(refute)
+        resolved_refute: bool | str | None = None if refute is None else coerce_refute(refute)
         names, columns = ingest_columns(data)
         specs = _joint_cell_batch_specs(queries)
         kwargs: dict[str, Any] = dict(
@@ -1188,7 +1069,7 @@ class PreparedBatch:
             estimator=estimator,
             refute=resolved_refute,
             seed=seed,
-            bootstrap=0 if bootstrap is None else bootstrap,
+            bootstrap=bootstrap,
             threads=threads,
             family_contrast=family_contrast,
         )
