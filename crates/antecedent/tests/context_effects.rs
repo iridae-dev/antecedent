@@ -433,7 +433,7 @@ fn prediction_smoke_pin() {
         &policy,
     )
     .unwrap();
-    let yhat = pred.predict_intervened(&data, VariableId::from_raw(0), 1.0, &policy).unwrap();
+    let yhat = pred.predict_conditional(&data, VariableId::from_raw(0), 1.0, &policy).unwrap();
     let mean: f64 = yhat.iter().sum::<f64>() / yhat.len() as f64;
     assert!((mean - target).abs() < tol);
 }

@@ -66,7 +66,7 @@ notes = "conformance/context/conditional_effect; python_facade=full via Conditio
 [[capabilities]]
 id = "context.prediction"
 group = "estimate"
-description = "TemporalLinearPredictor intervene+predict"
+description = "TemporalLinearPredictor conditional (associational) lagged linear prediction with a parent held at a level; not an interventional quantity"
 status = "done"
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/context/prediction_smoke"
