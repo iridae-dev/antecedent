@@ -159,6 +159,7 @@ bash scripts/gate_context.sh
 bash scripts/gate_attribution.sh
 bash scripts/gate_design_state.sh
 bash scripts/gate_composition.sh
+bash scripts/gate_transport.sh
 bash scripts/gate_upstream_names.sh
 bash scripts/gate_metadata_consistency.sh
 bash scripts/gate_evidence_reachability.sh

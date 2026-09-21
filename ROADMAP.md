@@ -947,6 +947,12 @@ legacy artifacts never become scientifically stronger through migration.
 | `transport_artifact_acceptance` | Independent positive/negative verification | Population/regime substitution or stronger legacy migration |
 | `transport_budget_refusal` | Bounded valid work completes | Exhaustion cannot become a negative proof |
 
+The families are registered as `[[fixture_evidence]]` rows in
+`parity/transport_stages.toml`, one positive and one counterexample each, and
+executed by `scripts/gate_transport.sh`. Each row states its evidence class and
+limits; several families are still internal cross-checks rather than external
+parity or calibration, and the items below remain open against them.
+
 ### Identification and numerical correctness
 
 - [ ] Pin papers, algorithm versions, fixture generators, SCM definitions,
@@ -975,7 +981,7 @@ legacy artifacts never become scientifically stronger through migration.
 - [ ] Ensure metadata inspection does not clone datasets, materialize tables,
       rerun identification, or fit providers. Verify cancellation and deterministic
       result order on expensive enumeration/search/resampling paths.
-- [ ] Add a transport gate entry point to the existing release gates, backed by
+- [x] Add a transport gate entry point to the existing release gates, backed by
       the same registries. Require nonzero expected test execution; missing
       language runtimes/oracles are recorded skips, not complete evidence.
 - [ ] Enroll every licensed route and interval method in support, public-product,
