@@ -348,6 +348,15 @@ impl GlmAdjustmentAte {
             problem.control,
         );
         let ate = average_gcomp_for_target(&diffs, &problem.treatment, &problem.target_population)?;
+        let nb_alpha = resolve_nb_alpha(
+            problem.family,
+            glm_fit.nb_alpha,
+            &problem.design.matrix,
+            problem.design.nrows,
+            problem.design.ncols,
+            &glm_fit.coefficients,
+            &problem.design.outcome,
+        );
         let se_analytic = match self.se_kind {
             AnalyticSeKind::Homoskedastic => gcomp_delta_method_se(
                 problem.family,
@@ -359,6 +368,7 @@ impl GlmAdjustmentAte {
                 problem.active,
                 problem.control,
                 glm_fit.deviance,
+                nb_alpha,
                 &problem.treatment,
                 &problem.target_population,
             ),
@@ -373,7 +383,7 @@ impl GlmAdjustmentAte {
                 &problem.design.outcome,
                 problem.active,
                 problem.control,
-                glm_fit.nb_alpha.unwrap_or(0.0),
+                nb_alpha,
                 self.cluster_ids.as_deref(),
                 self.multiway_ids.as_deref(),
                 self.panel_times.as_deref(),
@@ -493,8 +503,9 @@ fn mean_derivative(family: GlmFamily, eta: f64) -> f64 {
 /// IRLS / Fisher information weight `W_ii` at `eta`.
 ///
 /// For canonical Bernoulli/logit and Poisson this equals `dμ/dη`. For probit the
-/// Bernoulli Fisher weight is `φ(η)² / (μ(1−μ))`, not `φ(η)`.
-fn fisher_weight(family: GlmFamily, eta: f64) -> f64 {
+/// Bernoulli Fisher weight is `φ(η)² / (μ(1−μ))`, not `φ(η)`. For NB2 with log
+/// link, `V = μ + α μ²` so `w = (μ')² / V = μ / (1 + α μ)`.
+fn fisher_weight(family: GlmFamily, eta: f64, nb_alpha: f64) -> f64 {
     match family {
         GlmFamily::BinomialProbit => {
             let phi = mean_derivative(GlmFamily::BinomialProbit, eta);
@@ -503,8 +514,60 @@ fn fisher_weight(family: GlmFamily, eta: f64) -> f64 {
                 .clamp(1e-12, 1.0 - 1e-12);
             (phi * phi) / (mu * (1.0 - mu))
         }
+        GlmFamily::NegativeBinomial => {
+            let mu = eta.exp().max(1e-12);
+            let alpha = nb_alpha.max(0.0);
+            mu / (1.0 + alpha * mu)
+        }
         other => mean_derivative(other, eta),
     }
+}
+
+/// Fitted NB2 `α`, or a moment estimate from working residuals when the fit did
+/// not report one. Non-NB families return `0.0` (ignored by callers).
+fn resolve_nb_alpha(
+    family: GlmFamily,
+    fitted: Option<f64>,
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    coefficients: &[f64],
+    y: &[f64],
+) -> f64 {
+    if !matches!(family, GlmFamily::NegativeBinomial) {
+        return 0.0;
+    }
+    if let Some(a) = fitted {
+        if a.is_finite() && a > 0.0 {
+            return a;
+        }
+    }
+    moment_nb_alpha(x_colmajor, nrows, ncols, coefficients, y)
+}
+
+/// Method-of-moments NB2 `α` from Pearson residuals of a log-mean fit.
+fn moment_nb_alpha(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    coefficients: &[f64],
+    y: &[f64],
+) -> f64 {
+    let mut pearson_ss = 0.0;
+    let mut sum_mu = 0.0;
+    for r in 0..nrows {
+        let mut eta = 0.0;
+        for c in 0..ncols {
+            eta += x_colmajor[c * nrows + r] * coefficients[c];
+        }
+        let mu = eta.exp().max(1e-12);
+        let e = (y[r] - mu) / mu.sqrt();
+        pearson_ss += e * e;
+        sum_mu += mu;
+    }
+    let df = (nrows as f64 - ncols as f64).max(1.0);
+    let excess = (pearson_ss - df).max(0.0);
+    (excess / sum_mu.max(1e-12)).max(1e-8)
 }
 
 /// Delta-method standard error for the g-computation ATE, **conditional on the observed
@@ -515,8 +578,9 @@ fn fisher_weight(family: GlmFamily, eta: f64) -> f64 {
 /// untreated) and `n⋆ = |T|`. `x_i1`/`x_i0` are row `i` with the treatment column
 /// set to `active`/`control`. `Cov(β̂) = φ·(XᵀWX)⁻¹` is still the full-sample
 /// inverse Fisher information at the fit (`W = diag(w(η_i))` with
-/// Bernoulli/logit / Poisson `w = μ'` and probit `w = φ²/(μ(1−μ))`, dispersion
-/// `φ = RSS/(n−p)` for Gaussian and `1` otherwise). The SE is `sqrt(gᵀ Cov(β̂) g)`.
+/// Bernoulli/logit / Poisson `w = μ'`, NB2 `w = μ/(1+αμ)`, and probit
+/// `w = φ²/(μ(1−μ))`; dispersion `φ = RSS/(n−p)` for Gaussian, the fitted NB2
+/// `α` for negative binomial, and `1` otherwise). The SE is `sqrt(gᵀ Cov(β̂) g)`.
 /// Returns `NaN` when the information matrix is singular.
 #[allow(clippy::too_many_arguments)]
 fn gcomp_delta_method_se(
@@ -529,6 +593,7 @@ fn gcomp_delta_method_se(
     active: f64,
     control: f64,
     deviance: f64,
+    nb_alpha: f64,
     treatment: &[f64],
     target: &TargetPopulation,
 ) -> f64 {
@@ -539,7 +604,7 @@ fn gcomp_delta_method_se(
         for c in 0..ncols {
             eta += x_colmajor[c * nrows + r] * coefficients[c];
         }
-        let sqrt_w = fisher_weight(family, eta).max(0.0).sqrt();
+        let sqrt_w = fisher_weight(family, eta, nb_alpha).max(0.0).sqrt();
         for c in 0..ncols {
             x_w[c * nrows + r] = x_colmajor[c * nrows + r] * sqrt_w;
         }
@@ -551,10 +616,9 @@ fn gcomp_delta_method_se(
     let dispersion = match family {
         // For Gaussian/identity the fit's deviance is the RSS.
         GlmFamily::GaussianIdentity => deviance / (n - ncols as f64).max(1.0),
-        GlmFamily::BinomialLogit
-        | GlmFamily::BinomialProbit
-        | GlmFamily::PoissonLog
-        | GlmFamily::NegativeBinomial => 1.0,
+        // NB2: α is the variance-function dispersion; use the fitted value, not 1.
+        GlmFamily::NegativeBinomial => nb_alpha.max(0.0),
+        GlmFamily::BinomialLogit | GlmFamily::BinomialProbit | GlmFamily::PoissonLog => 1.0,
     };
 
     let grad = gcomp_gradient(
@@ -627,6 +691,7 @@ fn gcomp_sandwich_se(
             active,
             control,
             0.0,
+            nb_alpha,
             treatment,
             target,
         ));
@@ -1348,6 +1413,66 @@ mod tests {
         let mut ws = GlmAdjustmentWorkspace::default();
         let effect = est.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
         assert!(effect.ate.is_finite() && effect.ate > 0.0);
+    }
+
+    #[test]
+    fn nb_fisher_weight_and_gcomp_se_respect_alpha() {
+        // Closed form: NB2 log-link Fisher weight is μ/(1+αμ), not the Poisson μ.
+        let mu = 4.0_f64;
+        let alpha = 2.0_f64;
+        let eta = mu.ln();
+        let w_nb = fisher_weight(GlmFamily::NegativeBinomial, eta, alpha);
+        let w_pois = fisher_weight(GlmFamily::PoissonLog, eta, 0.0);
+        assert!((w_nb - mu / (1.0 + alpha * mu)).abs() < 1e-14);
+        assert!((w_pois - mu).abs() < 1e-14);
+        assert!(w_nb < w_pois);
+
+        // Tiny deterministic design: intercept + T, constant mean contrast.
+        // n=4 rows, T = [0,0,1,1], X col-major [1|T].
+        let nrows = 4usize;
+        let ncols = 2usize;
+        let x = vec![
+            1.0, 1.0, 1.0, 1.0, // intercept
+            0.0, 0.0, 1.0, 1.0, // treatment
+        ];
+        // β = (ln μ, 0) ⇒ μ(T) = μ for both arms; g-comp ATE gradient still
+        // probes the treatment column through μ'·ΔT.
+        let coefficients = [mu.ln(), 0.0];
+        let treatment = [0.0, 0.0, 1.0, 1.0];
+        let target = TargetPopulation::AllObserved;
+        let se_nb = gcomp_delta_method_se(
+            GlmFamily::NegativeBinomial,
+            &x,
+            nrows,
+            ncols,
+            1,
+            &coefficients,
+            1.0,
+            0.0,
+            0.0,
+            alpha,
+            &treatment,
+            &target,
+        );
+        let se_pois = gcomp_delta_method_se(
+            GlmFamily::PoissonLog,
+            &x,
+            nrows,
+            ncols,
+            1,
+            &coefficients,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            &treatment,
+            &target,
+        );
+        assert!(se_nb.is_finite() && se_pois.is_finite());
+        assert!(
+            se_nb > se_pois,
+            "NB SE must exceed Poisson SE at the same mean when α≠1; nb={se_nb} pois={se_pois}"
+        );
     }
 
     #[test]
