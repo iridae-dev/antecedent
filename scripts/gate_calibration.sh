@@ -155,6 +155,10 @@ run_ignored antecedent-estimate frontdoor_functional_saturated_ci_coverage
 run_ignored antecedent-estimate frontdoor_functional_arm_linear_ci_coverage
 run_ignored antecedent-estimate rd_sharp_analytic_ci_coverage
 run_ignored antecedent-estimate rd_sharp_hc1_heteroskedastic_ci_coverage
+# DML / DR-Learner / causal forest: reported_level (0.95) cells on confounded_scm.
+run_ignored antecedent-estimate dml_analytic_ci_coverage
+run_ignored antecedent-estimate dr_learner_analytic_ci_coverage
+run_ignored antecedent-estimate causal_forest_analytic_ci_coverage
 # Adversarial cells (weak IV / weak overlap / curved RD / heteroskedastic
 # matching): fixtures in static_dgp.rs + ignored tests in calibration_coverage.rs.
 # Enrol after the next full remesurement — do not uncomment until then.
