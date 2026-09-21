@@ -305,6 +305,22 @@ pub struct OrientationState {
     ///
     /// Matching edges are also marked Conflict–Conflict (`x-x`) in the graph when present.
     pub conflict_edges: HashSet<(u32, u32)>,
+    /// Unshielded triples whose collider/non-collider status is unknown.
+    ///
+    /// Canonical key `(lo, mid, hi)` for the triple `lo — mid — hi` (equivalently
+    /// `hi — mid — lo`). Meek R1 must not treat these as definite non-colliders.
+    /// A [`Self::record_conflict`] on a non-edge is *not* this state.
+    pub ambiguous_triples: HashSet<(u32, u32, u32)>,
+}
+
+/// Canonical key for unshielded triple `a — b — c` (same as `c — b — a`).
+#[must_use]
+pub(crate) fn ambiguous_triple_key(a: DenseNodeId, b: DenseNodeId, c: DenseNodeId) -> (u32, u32, u32) {
+    if a.raw() <= c.raw() {
+        (a.raw(), b.raw(), c.raw())
+    } else {
+        (c.raw(), b.raw(), a.raw())
+    }
 }
 
 impl OrientationState {
@@ -332,6 +348,17 @@ impl OrientationState {
     pub fn is_weakly_minimal(&self, a: DenseNodeId, b: DenseNodeId) -> bool {
         let key = if a.raw() <= b.raw() { (a.raw(), b.raw()) } else { (b.raw(), a.raw()) };
         self.weakly_minimal.contains(&key)
+    }
+
+    /// Mark unshielded triple `a — b — c` as having unknown collider status.
+    pub fn mark_ambiguous_triple(&mut self, a: DenseNodeId, b: DenseNodeId, c: DenseNodeId) {
+        self.ambiguous_triples.insert(ambiguous_triple_key(a, b, c));
+    }
+
+    /// Whether unshielded triple `a — b — c` is marked ambiguous (not a known non-collider).
+    #[must_use]
+    pub fn is_ambiguous_triple(&self, a: DenseNodeId, b: DenseNodeId, c: DenseNodeId) -> bool {
+        self.ambiguous_triples.contains(&ambiguous_triple_key(a, b, c))
     }
 
     /// Record an orientation conflict on `{a,b}` (cycle or opposite direction).
@@ -496,6 +523,9 @@ fn apply_meek_r1<G: CpdagOps>(
     for b in focus {
         for a in graph.parents(b) {
             for c in graph.undirected_neighbors(b) {
+                if state.is_ambiguous_triple(a, b, c) {
+                    continue;
+                }
                 if !graph.has_edge(a, c) {
                     let premise = format!(
                         "meek.r1: {}→{}—{} and {} not adj {}",
@@ -747,6 +777,9 @@ impl OrientationRule<TemporalCpdag> for ContempMeekR1 {
                     if !is_contemporaneous_node(graph, b) || !is_contemporaneous_node(graph, c) {
                         continue;
                     }
+                    if state.is_ambiguous_triple(a, b, c) {
+                        continue;
+                    }
                     if !graph.has_edge(a, c) {
                         let premise = format!(
                             "meek.r1.contemp: {}→{}—{} and {} not adj {}",
@@ -988,6 +1021,9 @@ fn apply_orient_collider<G: CpdagOps>(
                     continue;
                 }
                 let Some(sep) = state.sepset(a, b) else {
+                    // No sepset (forbidden outer edge, FDR-dropped edge, never tested):
+                    // collider status is unknown — do not let Meek R1 treat as non-collider.
+                    state.mark_ambiguous_triple(a, *c, b);
                     continue;
                 };
                 if sep.iter().any(|x| *x == *c) {
