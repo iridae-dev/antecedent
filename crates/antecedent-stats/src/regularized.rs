@@ -4,6 +4,7 @@
 
 #![allow(
     clippy::cast_precision_loss,
+    clippy::many_single_char_names,
     clippy::needless_range_loop,
     clippy::similar_names,
     clippy::too_many_lines
@@ -16,11 +17,13 @@ use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresFit, LeastSq
 /// Minimum positive feature scale accepted after centering / RMS.
 const MIN_SCALE: f64 = 1e-12;
 
-/// Options for [`fit_lasso`].
+/// Options for [`fit_lasso`] / elastic net.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LassoOptions {
-    /// L1 penalty strength (non-negative).
+    /// Penalty strength (non-negative).
     pub lambda: f64,
+    /// L1 share of the penalty in `[0, 1]`. `1` is lasso; `0` is ridge coordinate descent.
+    pub l1_ratio: f64,
     /// Fit an unpenalized intercept via centering (not taken from an X column).
     pub fit_intercept: bool,
     /// Scale columns by a positive RMS (centered when `fit_intercept`, raw otherwise).
@@ -33,7 +36,14 @@ pub struct LassoOptions {
 
 impl Default for LassoOptions {
     fn default() -> Self {
-        Self { lambda: 0.0, fit_intercept: true, standardize: false, max_iter: 1000, tol: 1e-6 }
+        Self {
+            lambda: 0.0,
+            l1_ratio: 1.0,
+            fit_intercept: true,
+            standardize: false,
+            max_iter: 1000,
+            tol: 1e-6,
+        }
     }
 }
 
@@ -151,6 +161,9 @@ pub fn fit_lasso(
     if !(options.lambda.is_finite() && options.lambda >= 0.0) {
         return Err(StatsError::Shape { message: "lasso lambda must be finite and ≥ 0" });
     }
+    if !(options.l1_ratio.is_finite() && (0.0..=1.0).contains(&options.l1_ratio)) {
+        return Err(StatsError::Shape { message: "elastic-net l1_ratio must be in [0, 1]" });
+    }
     if nrows == 0 {
         return Err(StatsError::Shape { message: "lasso needs positive dimensions" });
     }
@@ -221,7 +234,9 @@ pub fn fit_lasso(
     let mut residual: Vec<f64> = y.iter().map(|&yi| yi - y_mean).collect();
     let mut converged = false;
     let mut iterations = 0u32;
-    let lambda = options.lambda;
+    // ½‖r‖² + λ α ‖β‖₁ + λ (1-α)/2 ‖β‖²  →  β = S(ρ, λα) / (‖x‖² + λ(1-α)).
+    let l1 = options.lambda * options.l1_ratio;
+    let l2 = options.lambda * (1.0 - options.l1_ratio);
 
     for iter in 1..=options.max_iter {
         iterations = iter;
@@ -240,8 +255,7 @@ pub fn fit_lasso(
             for r in 0..nrows {
                 rho += xc[c * nrows + r] * residual[r];
             }
-            // Objective ½‖r‖² + λ‖β‖₁ → soft-threshold level λ.
-            let new_b = soft_threshold(rho, lambda) / col_ss[c];
+            let new_b = soft_threshold(rho, l1) / (col_ss[c] + l2);
             max_delta = max_delta.max((new_b - beta_c).abs());
             beta_std[c] = new_b;
             if new_b.abs() > f64::MIN_POSITIVE {
@@ -276,7 +290,18 @@ pub fn fit_lasso(
         coefficients,
         iterations,
         converged,
-        diagnostics: FitDiagnostics::new(ncols, None, "lasso", 0),
+        diagnostics: FitDiagnostics::new(
+            ncols,
+            None,
+            if (options.l1_ratio - 1.0).abs() <= f64::EPSILON {
+                "lasso"
+            } else if options.l1_ratio.abs() <= f64::EPSILON {
+                "ridge_cd"
+            } else {
+                "elastic_net"
+            },
+            0,
+        ),
     })
 }
 
@@ -537,6 +562,7 @@ mod tests {
                 standardize: false,
                 max_iter: 10_000,
                 tol: 1e-12,
+                ..LassoOptions::default()
             },
         )
         .unwrap();
@@ -555,6 +581,7 @@ mod tests {
                 standardize: true,
                 max_iter: 100,
                 tol: 1e-8,
+                ..LassoOptions::default()
             },
         )
         .unwrap_err();
@@ -580,6 +607,7 @@ mod tests {
             max_iter: 20_000,
             tol: 1e-12,
             standardize: false,
+            ..LassoOptions::default()
         };
         let raw = fit_lasso(&x, n, 2, &y, &base).unwrap();
         let std = fit_lasso(&x, n, 2, &y, &LassoOptions { standardize: true, ..base }).unwrap();
@@ -606,6 +634,7 @@ mod tests {
                 standardize: false,
                 max_iter: 10_000,
                 tol: 1e-12,
+                ..LassoOptions::default()
             },
         )
         .unwrap();
@@ -628,6 +657,7 @@ mod tests {
                 standardize: true,
                 max_iter: 10_000,
                 tol: 1e-12,
+                ..LassoOptions::default()
             },
         )
         .unwrap();
@@ -732,6 +762,124 @@ mod tests {
                 assert!((grad - expected).abs() <= 1e-7, "col={col} grad={grad}");
             } else {
                 assert!(grad.abs() <= lambda + 1e-7, "col={col} grad={grad}");
+            }
+        }
+    }
+
+    #[test]
+    fn unit_l1_ratio_matches_lasso() {
+        let n = 40usize;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let t = (i as f64) / n as f64;
+            x[i] = t;
+            x[n + i] = ((i * 17) % 7) as f64 / 7.0;
+            y[i] = 1.0 + 2.0 * t;
+        }
+        let lasso = LassoOptions {
+            lambda: 0.8,
+            l1_ratio: 1.0,
+            fit_intercept: true,
+            max_iter: 20_000,
+            tol: 1e-12,
+            ..LassoOptions::default()
+        };
+        let a = fit_lasso(&x, n, 2, &y, &lasso).unwrap();
+        let b = fit_lasso(&x, n, 2, &y, &LassoOptions { l1_ratio: 1.0, ..lasso }).unwrap();
+        assert!((a.intercept - b.intercept).abs() <= 1e-12);
+        assert!((a.coefficients[0] - b.coefficients[0]).abs() <= 1e-12);
+        assert!((a.coefficients[1] - b.coefficients[1]).abs() <= 1e-12);
+    }
+
+    #[test]
+    fn zero_l1_ratio_shrinks_relative_to_ols() {
+        let n = 40usize;
+        let mut x = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let t = (i as f64) / n as f64;
+            x[i] = t;
+            y[i] = 1.0 + 3.0 * t;
+        }
+        let ols = fit_lasso(
+            &x,
+            n,
+            1,
+            &y,
+            &LassoOptions {
+                lambda: 0.0,
+                l1_ratio: 0.0,
+                fit_intercept: true,
+                max_iter: 20_000,
+                tol: 1e-12,
+                ..LassoOptions::default()
+            },
+        )
+        .unwrap();
+        let ridge_cd = fit_lasso(
+            &x,
+            n,
+            1,
+            &y,
+            &LassoOptions {
+                lambda: 8.0,
+                l1_ratio: 0.0,
+                fit_intercept: true,
+                max_iter: 20_000,
+                tol: 1e-12,
+                ..LassoOptions::default()
+            },
+        )
+        .unwrap();
+        assert!(ridge_cd.coefficients[0].abs() < ols.coefficients[0].abs());
+        assert!(ridge_cd.coefficients[0] > 0.0);
+    }
+
+    #[test]
+    fn elastic_net_kkt_mixes_l1_and_l2() {
+        let nrows = 25usize;
+        let ncols = 2usize;
+        let mut design = vec![0.0; nrows * ncols];
+        let mut response = vec![0.0; nrows];
+        for row in 0..nrows {
+            design[row] = 0.2 * (row as f64 - 12.0) + 0.3;
+            design[nrows + row] = (row as f64 * 0.7).sin();
+            response[row] = 1.2 * design[row] - 0.6 * design[nrows + row];
+        }
+        let lambda = 0.5;
+        let alpha = 0.4;
+        let fit = fit_lasso(
+            &design,
+            nrows,
+            ncols,
+            &response,
+            &LassoOptions {
+                lambda,
+                l1_ratio: alpha,
+                fit_intercept: false,
+                max_iter: 20_000,
+                tol: 1e-12,
+                ..LassoOptions::default()
+            },
+        )
+        .unwrap();
+        assert!(fit.converged);
+        for col in 0..ncols {
+            let grad = (0..nrows)
+                .map(|row| {
+                    let pred = (0..ncols)
+                        .map(|j| design[j * nrows + row] * fit.coefficients[j])
+                        .sum::<f64>();
+                    design[col * nrows + row] * (response[row] - pred)
+                })
+                .sum::<f64>();
+            let beta = fit.coefficients[col];
+            if beta.abs() > 1e-9 {
+                let expected = lambda * alpha * beta.signum() + lambda * (1.0 - alpha) * beta;
+                assert!((grad - expected).abs() <= 1e-6, "col={col} grad={grad}");
+            } else {
+                assert!(grad.abs() <= lambda * alpha + 1e-6, "col={col} grad={grad}");
             }
         }
     }

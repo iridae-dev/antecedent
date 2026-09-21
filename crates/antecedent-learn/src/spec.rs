@@ -29,13 +29,19 @@ impl Default for RidgeSpec {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct LogisticSpec {}
 
-/// Elastic-net options (milestone D).
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+/// Elastic-net options (milestone D). Coordinate descent; not a dense factorization.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ElasticNetSpec {
-    /// L1/L2 mix in `[0, 1]`.
+    /// L1/L2 mix in `[0, 1]`. `1` is lasso; `0` is ridge.
     pub l1_ratio: f64,
-    /// Penalty strength.
+    /// Penalty strength. Zero is ordinary least squares, not an elastic-net default.
     pub lambda: f64,
+}
+
+impl Default for ElasticNetSpec {
+    fn default() -> Self {
+        Self { l1_ratio: 0.5, lambda: 1.0 }
+    }
 }
 
 /// Gradient-boosted trees (Forust in F). Public name is not the provider.
@@ -180,14 +186,14 @@ pub fn resolve_for(
             require_resolved_task(task, PredictionTask::BinaryProbability)?;
             Ok(Box::new(LogisticLearner))
         }
+        LearnerSpec::ElasticNet(elastic) => {
+            require_resolved_task(task, PredictionTask::Regression)?;
+            Ok(Box::new(crate::elastic_net::ElasticNetLearner::new(elastic)))
+        }
         LearnerSpec::GradientBoostedTrees(gbt) => resolve_gbt(gbt, task),
         LearnerSpec::RandomForest(forest) => resolve_forest(forest, task),
         LearnerSpec::NeuralNet(neural) => resolve_neural(neural, task),
         LearnerSpec::Auto => Ok(Box::new(crate::auto::AutoLearner(task))),
-        other @ LearnerSpec::ElasticNet(_) => Err(LearnError::ProviderUnavailable {
-            spec: other.name(),
-            required: required_capabilities(other),
-        }),
     }
 }
 
