@@ -1082,6 +1082,7 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
             &query.target_population,
             estimator_id,
             None,
+            single_step_dose(query).ok().flatten(),
         ) else {
             return Ok(DbnAtomOutcome::IdentifyFailed);
         };
@@ -3140,6 +3141,7 @@ impl Study {
                         EstimatorId::TemporalResponseGcomp
                     },
                     schedule.as_deref(),
+                    single_step_dose(query)?,
                 )?))
             }
             CausalQuery::TemporalEffect(query) => {
@@ -3518,6 +3520,18 @@ fn sequence_identification_schedule(
     }
 }
 
+/// Requested hard-set dose of a single-step temporal response, when it names one.
+pub(crate) fn single_step_dose(
+    query: &antecedent_core::ResponseQuery,
+) -> Result<Option<f64>, CausalError> {
+    match antecedent_estimate::plan_from_response_query(query) {
+        Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single { level, .. })) => Ok(level),
+        Ok(_) => Ok(None),
+        Err(error) => Err(CausalError::from(error)),
+    }
+}
+
+/// `dose` is the single-step active level (control stays at 0); `None` keeps the unit contrast.
 pub(crate) fn identify_temporal_response_horizons(
     graph: &TemporalDag,
     treatment: antecedent_core::VariableId,
@@ -3526,6 +3540,7 @@ pub(crate) fn identify_temporal_response_horizons(
     target_population: &TargetPopulation,
     estimator_id: crate::strategy_table::EstimatorId,
     schedule: Option<&[(antecedent_core::VariableId, i32, Option<f64>)]>,
+    dose: Option<f64>,
 ) -> Result<CachedTemporalIdentification, CausalError> {
     use crate::strategy_table::select_estimand;
     if temporal.horizons.is_empty() {
@@ -3557,7 +3572,7 @@ pub(crate) fn identify_temporal_response_horizons(
                 outcome,
                 policy: temporal.policy.clone(),
                 control: Intervention::set(treatment, Value::f64(0.0)),
-                active: Intervention::set(treatment, Value::f64(1.0)),
+                active: Intervention::set(treatment, Value::f64(dose.unwrap_or(1.0))),
                 horizon_steps: horizon,
                 max_history_lag: temporal.max_history_lag,
                 target_population: target_population.clone(),

@@ -1367,6 +1367,7 @@ impl super::Study {
                             EstimatorId::TemporalResponseGcomp
                         },
                         schedule.as_deref(),
+                        crate::analysis::prepared::single_step_dose(query)?,
                     )?),
                     false,
                 )
