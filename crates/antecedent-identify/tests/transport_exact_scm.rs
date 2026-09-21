@@ -169,8 +169,9 @@ fn negative_witness_mutations_and_evidence_substitution_fail() {
 #[test]
 #[allow(clippy::too_many_lines)] // Independent exhaustive oracle and provider construction.
 fn three_node_selection_graphs_agree_with_full_experimental_oracle() {
-    // All 64 ordered three-node ADMGs and all eight selection patterns.
-    // Independent Bernoulli latent causes generate every bidirected edge.
+    // Domain: all 64 ordered three-node ADMGs × 8 selection patterns × 3
+    // independent Bernoulli latent-SCM parameterizations. Truth is the target
+    // interventional P(Y=1 | do(X=x)), not a second wrapper of the same formula.
     let ctx = ExecutionContext::for_tests(42);
     let edges = [(0usize, 1usize), (0, 2), (1, 2)];
     let query = ClassicalTransportQuery {
@@ -210,9 +211,11 @@ fn three_node_selection_graphs_agree_with_full_experimental_oracle() {
                         "inconclusive uncapped three-node case: directed={directed_mask} bidirected={bidirected_mask} selected={selected}"
                     ),
                 };
-                for (base, parent_w, shared_w, sel_w) in
-                    [(0.12_f64, 0.16, 0.12, 0.09), (0.08, 0.14, 0.11, 0.07)]
-                {
+                for (base, parent_w, shared_w, sel_w) in [
+                    (0.12_f64, 0.16, 0.12, 0.09),
+                    (0.08, 0.14, 0.11, 0.07),
+                    (0.18, 0.10, 0.08, 0.05),
+                ] {
                     let enumerate =
                         |target: bool, intervention_mask: usize, intervention_values: usize| {
                             let axes: Vec<usize> =
@@ -807,6 +810,145 @@ fn four_node_frontdoor_matches_independent_parameterizations() {
                 (result.mean(v(3)).unwrap() - truth).abs() < 1e-12,
                 "x={x} latent={latent_mass} mediator={mediator_shift} z={z_shift}"
             );
+        }
+    }
+}
+
+#[test]
+fn four_node_graph_parameter_sweep_matches_target_interventions() {
+    // Domain: X→M→Y, Z→Y, X↔Y; Z→M on/off; selection {Y} vs empty; three
+    // latent-SCM parameterizations. Truth is P(Y=1 | do(X=x)) from independent
+    // enumeration. Unidentifiable variants must carry a checked s-hedge.
+    let ctx = ExecutionContext::for_tests(5);
+    let query = ClassicalTransportQuery {
+        outcomes: Arc::from([v(3)]),
+        treatments: Arc::from([v(0)]),
+        source: Arc::from("source"),
+        target: Arc::from("target"),
+    };
+    for z_to_m in [false, true] {
+        for select_y in [false, true] {
+            let mut graph = Admg::with_variables(4);
+            graph.insert_directed(d(0), d(1)).unwrap();
+            graph.insert_directed(d(1), d(3)).unwrap();
+            graph.insert_directed(d(2), d(3)).unwrap();
+            graph.insert_bidirected(d(0), d(3)).unwrap();
+            if z_to_m {
+                graph.insert_directed(d(2), d(1)).unwrap();
+            }
+            let diagram =
+                SelectionDiagram::try_new(graph, if select_y { vec![v(3)] } else { Vec::new() })
+                    .unwrap();
+            let proof =
+                match identify_classical_transport(&diagram, &query, SidLimits::default(), &ctx)
+                    .unwrap()
+                {
+                    ClassicalTransportResult::Identified(proof) => proof,
+                    ClassicalTransportResult::ProvenNonTransportable(witness) => {
+                        antecedent_identify::sid::verify_s_hedge(&diagram, &query, &witness, &ctx)
+                            .unwrap();
+                        continue;
+                    }
+                    ClassicalTransportResult::NotCertified => {
+                        panic!("unchecked four-node sweep z_to_m={z_to_m} select_y={select_y}")
+                    }
+                };
+            let catalog = EvidenceCatalog::try_new(
+                [],
+                [EvidenceRegime::try_new(
+                    RegimeId::from_raw(0),
+                    RegimeKind::Observational,
+                    EvidenceKind::Available,
+                    [],
+                    [],
+                    (0..4).map(v).collect::<Vec<_>>(),
+                    "target",
+                    DistributionAvailability::Joint,
+                )
+                .unwrap()],
+                [],
+                None,
+            )
+            .unwrap();
+            let functional = proof.bind_catalog(&catalog).unwrap();
+            for (latent_mass, mediator_shift, z_shift) in
+                [(0.2_f64, 0.25, 0.15), (0.45, 0.55, 0.05), (0.8, 0.35, 0.25)]
+            {
+                let mut observational = vec![0.0; 16];
+                for u in 0..2 {
+                    for x in 0..2 {
+                        for m in 0..2 {
+                            for z in 0..2 {
+                                for y in 0..2 {
+                                    let mediator = 0.2
+                                        + mediator_shift * x as f64
+                                        + if z_to_m { 0.2 * z as f64 } else { 0.0 };
+                                    let mass = bernoulli(u, latent_mass)
+                                        * bernoulli(x, if u == 1 { 0.75 } else { 0.25 })
+                                        * bernoulli(m, mediator)
+                                        * bernoulli(z, 0.4)
+                                        * bernoulli(
+                                            y,
+                                            0.1 + 0.35 * m as f64
+                                                + z_shift * z as f64
+                                                + 0.2 * u as f64,
+                                        );
+                                    observational[x * 8 + m * 4 + z * 2 + y] += mass;
+                                }
+                            }
+                        }
+                    }
+                }
+                let law = ExactDiscreteLaw::try_new(
+                    "target",
+                    RegimeId::from_raw(0),
+                    [],
+                    (0..4)
+                        .map(|i| DiscreteAxis {
+                            variable: v(i),
+                            values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+                        })
+                        .collect::<Vec<_>>(),
+                    observational,
+                    "four-node-sweep-oracle",
+                    LawTolerance::default(),
+                )
+                .unwrap();
+                let data = ExactTransportData::try_new([law], 10_000).unwrap();
+                for x in 0..2 {
+                    let mut truth = 0.0;
+                    for u in 0..2 {
+                        for m in 0..2 {
+                            for z in 0..2 {
+                                let mediator = 0.2
+                                    + mediator_shift * x as f64
+                                    + if z_to_m { 0.2 * z as f64 } else { 0.0 };
+                                truth += bernoulli(u, latent_mass)
+                                    * bernoulli(m, mediator)
+                                    * bernoulli(z, 0.4)
+                                    * (0.1 + 0.35 * m as f64 + z_shift * z as f64 + 0.2 * u as f64);
+                            }
+                        }
+                    }
+                    let result = ExactEvaluationPlan::compile(
+                        functional.arena(),
+                        functional.root(),
+                        data.clone(),
+                        [v(3)],
+                        Assignment::from_pairs([(v(0), Value::Int64(x))]),
+                        ExactEvaluationLimits::default(),
+                        LawTolerance::default(),
+                        &ctx,
+                    )
+                    .unwrap()
+                    .evaluate(&ctx)
+                    .unwrap();
+                    assert!(
+                        (result.mean(v(3)).unwrap() - truth).abs() < 1e-12,
+                        "z_to_m={z_to_m} select_y={select_y} x={x} latent={latent_mass}"
+                    );
+                }
+            }
         }
     }
 }

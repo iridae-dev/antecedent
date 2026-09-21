@@ -3,6 +3,12 @@
 # against the support matrix by scripts/gate_docs_support_matrix.sh.
 
 [[claim]]
+id = "reusable_headline"
+sentence = "Every Antecedent analysis retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot."
+licensed_by = "parity/python_products.toml"
+files = ["docs/python-workflow.md"]
+
+[[claim]]
 id = "transport_not_certified_is_not_impossibility"
 sentence = "A not-certified transport outcome is a conservative refusal, not a proof of impossibility."
 licensed_by = "parity/transport_stages.toml"
@@ -19,3 +25,16 @@ id = "transport_stage_support_is_not_analyze_cartesian"
 sentence = "Stage transport routes are licensed in `transport_stages.toml`; the analyze Cartesian cell remains trial-IPW `TransportQuery` on an explicit `Admg`."
 licensed_by = "parity/transport_stages.toml"
 files = ["docs/guides/transport-scope.md"]
+
+[[forbidden]]
+pattern = '(?<![<>=,~])1\.12(?![0-9])|1\.11\.1'
+files = ["README.md", "docs/python-workflow.md", "docs/capabilities.md"]
+
+# Historical CHANGELOG sections are frozen history; only the current version's
+# section is scanned (`changelog_section = "current"`). README may name the
+# deferred calibration program; that is a current 2.0 fact, not a later-version promise.
+[[forbidden]]
+id = "deferral_prose"
+pattern = '(?i)not yet|cannot yet|follow[- ]on|follow[- ]up work|later release|future release|subsequent release|next release|(?:lands?|ships?|arrives?|comes?) later|in a later|separately gated|workstream|deferred|1\.11\.1|(?<![<>=,~])1\.12(?![0-9])'
+changelog_section = "current"
+files = ["CHANGELOG.md", "docs/python-workflow.md", "docs/capabilities.md", "adr/0022-causal-compiler-contract.md"]

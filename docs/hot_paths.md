@@ -43,6 +43,7 @@ allocation/memory contracts, and owning crates.
 | Bayesian temporal mediation | `antecedent-estimate` | `temporal_mediation` | [regime_mediation.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/regime_mediation.md) | Two prepared designs and reusable posterior workspace; composed output retains four quantities per draw |
 | Randomized interference MC | `antecedent-estimate` / `antecedent-stats` | `response_interference` | [response_interference.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/response_interference.md) | `AssignmentSampler` buffer reuse; O(n+clusters)/draw; validate network once |
 | Temporal Pulse / Sustained without replicates | `antecedent-estimate` / `causal` | `temporal_zero_replicates` | [temporal_zero_replicates.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/temporal_zero_replicates.md) | Dependence-aware block length (score refits + Politis–White scans, O(n^1.5)) only when replicates are drawn; the rule length otherwise; refuters reuse the published length |
+| Transport identify / catalog / eval / bootstrap | `antecedent` / `antecedent-identify` / `antecedent-expr` | `transport` | [transport.md](https://github.com/iridae-dev/antecedent/blob/main/benches/baselines/transport.md) | Identification by graph width and district count; catalog search by regime count; exact evaluation by joint cardinality; empirical-table bootstrap cost. Inspection stays off this path. |
 
 ## Smoke commands
 
@@ -68,6 +69,7 @@ cargo bench -p antecedent-model --bench sample_overlay -- --test
 cargo bench -p antecedent-counterfactual --bench counterfactual_batch -- --test
 cargo bench -p antecedent --bench staged_handle -- --test
 cargo bench -p antecedent --bench temporal_zero_replicates -- --test
+cargo bench -p antecedent --bench transport -- --test
 ```
 
 Absolute timings in baseline files are machine-class references (Apple M1).

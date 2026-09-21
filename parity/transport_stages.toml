@@ -279,7 +279,7 @@ coverage = [
   "cov.transport_query.admg.frequentist.analytic_se.l90.transport_admg_trial_ipw_frequentist_nominal_coverage",
   "cov.transport_query.admg.frequentist.analytic_se.l95.transport_admg_trial_ipw_frequentist_nominal_coverage",
 ]
-calibration_reason = "nominal_uncalibrated_learned_trial"
+calibration_reason = "estimator_grid_not_measured"
 evidence_test = "python/tests/test_learned_transport.py"
 evidence_assertion = "test_trial_lifecycle_retains_paired_score_and_atomic_refresh"
 
@@ -304,7 +304,7 @@ evidence = "embedded_sample_snapshot_and_out_of_fold_score_inputs"
 functional = "target_binary_treatment_contrast"
 guarantee = "identification_and_score_replay_with_interval_bookkeeping"
 limits = "Does not rerun nuisance training or establish nuisance consistency, calibration, or bootstrap coverage."
-calibration_reason = "nominal_uncalibrated_learned_trial"
+calibration_reason = "estimator_grid_not_measured"
 evidence_test = "crates/antecedent/src/analysis/learned_trial.rs"
 evidence_assertion = "trial_result_is_replayed_and_refresh_is_atomic"
 
@@ -375,9 +375,9 @@ role = "positive"
 evidence_class = "exact_scm_truth"
 evidence_test = "crates/antecedent-identify/tests/transport_exact_scm.rs"
 evidence_assertion = "three_node_selection_graphs_agree_with_full_experimental_oracle"
-scm = "three_node_admg_64x8_selection_x_2_binary_laws"
+scm = "three_node_admg_64x8_selection_x_3_binary_laws"
 tolerance = "exact"
-limits = "All 64 ordered three-node ADMGs x 8 selection patterns x 2 binary parameterizations; four-node coverage is branch conformance, not numeric truth."
+limits = "All 64 ordered three-node ADMGs x 8 selection patterns x 3 binary latent-SCM parameterizations, compared to target do(X); four-node numeric coverage is the X→M→Y, Z→Y, X↔Y graph x Z→M on/off x selection {Y}|empty x 3 parameterizations, not all 4-node ADMGs."
 
 [[fixture_evidence]]
 id = "transport_recursive_district.counterexample"
@@ -386,9 +386,9 @@ role = "counterexample"
 evidence_class = "exact_scm_truth"
 evidence_test = "crates/antecedent-identify/tests/transport_exact_scm.rs"
 evidence_assertion = "two_population_district_recursion_fails_truth_under_kernel_population_substitution"
-scm = "three_node_admg_64x8_selection_x_2_binary_laws"
+scm = "three_node_admg_64x8_selection_x_3_binary_laws"
 tolerance = "exact"
-limits = "All 64 ordered three-node ADMGs x 8 selection patterns x 2 binary parameterizations; four-node coverage is branch conformance, not numeric truth."
+limits = "All 64 ordered three-node ADMGs x 8 selection patterns x 3 binary latent-SCM parameterizations, compared to target do(X); four-node numeric coverage is the X→M→Y, Z→Y, X↔Y graph x Z→M on/off x selection {Y}|empty x 3 parameterizations, not all 4-node ADMGs."
 
 [[fixture_evidence]]
 id = "transport_negative_witness.positive"

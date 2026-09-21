@@ -137,3 +137,7 @@ harness = false
 [[bench]]
 name = "cohesion_allocations"
 harness = false
+
+[[bench]]
+name = "transport"
+harness = false

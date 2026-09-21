@@ -22,7 +22,7 @@ max_uses = 0
 id = "estimator_grid_not_measured"
 applies_to = ["calibration"]
 meaning = "No coverage record measured this construction (query, graph class, structure, inference, estimator, interval method, SE kind, dependence, posterior, functional)."
-max_uses = 168
+max_uses = 170
 
 [[code]]
 id = "interval_level_not_measured"

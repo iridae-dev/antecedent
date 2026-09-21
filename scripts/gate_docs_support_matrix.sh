@@ -192,11 +192,14 @@ for claim in claims.get("claim", []):
 
 def changelog_current(text: str) -> str:
     # The current version's section only; earlier sections are frozen history.
-    head = f"## [{version}]"
-    if head not in text:
-        fail.append(f"CHANGELOG.md: no {head} section to scan")
-        return ""
-    return text.split(head, 1)[1].split("\n## [", 1)[0]
+    heads = [f"## [{target}]", f"## {target}"]
+    for head in heads:
+        if head in text:
+            rest = text.split(head, 1)[1]
+            cut = re.search(r"\n## [\[0-9]", rest)
+            return rest if cut is None else rest[: cut.start()]
+    fail.append(f"CHANGELOG.md: no {heads[0]} or {heads[1]!r} section to scan")
+    return ""
 
 
 for row in claims.get("forbidden", []):

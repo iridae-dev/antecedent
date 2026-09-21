@@ -958,7 +958,7 @@ parity or calibration, and the items below remain open against them.
 - [x] Pin papers, algorithm versions, fixture generators, SCM definitions,
       exact target truth, seeds, tolerances, and source revisions in existing
       evidence records. Map each claimed rule to a consuming assertion.
-- [ ] Use small exactly enumerated SCMs with multiple valid parameterizations.
+- [x] Use small exactly enumerated SCMs with multiple valid parameterizations.
       Add bounded graph/parameter sweeps to catch recursion mistakes; record
       their domain and limits. Test agreement with target interventions, not
       agreement between two wrappers around the same implementation.
@@ -974,7 +974,7 @@ parity or calibration, and the items below remain open against them.
 
 ### Performance and operational completeness
 
-- [ ] Benchmark identification by graph width/district size, catalog search by
+- [x] Benchmark identification by graph width/district size, catalog search by
       sources/regimes, and evaluation by factor cardinality and grid size.
       Record intermediate memory, allocations, repeated-plan latency, and
       bootstrap cost under ADR 0011; set budgets from measured baselines.
